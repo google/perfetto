@@ -239,7 +239,6 @@ async function main() {
     generateImports('ui/src/tracks', 'all_tracks.ts');
     compileProtos();
     genVersion();
-    copyCSS();
     transpileTsProject('ui');
     transpileTsProject('ui/src/service_worker');
 
@@ -249,6 +248,7 @@ async function main() {
     }
 
     bundleJs('rollup.config.js');
+    copyCSSAndWASM();
     genServiceWorkerManifestJson();
 
     // Watches the /dist. When changed:
@@ -465,11 +465,19 @@ function buildWasm(skipWasmBuild) {
   }
 }
 
-function copyCSS() {
+function copyCSSAndWASM() {
   const css = pjoin(cfg.outDistDir, 'perfetto.css');
   const assets = pjoin(cfg.outDistDir, 'assets')
+  const engine_bundle = pjoin(cfg.outDistDir, 'engine_bundle.js');
+  const trace_processor = pjoin(cfg.outDistDir, 'trace_processor.wasm');
+  const traceconv_bundle = pjoin(cfg.outDistDir, 'traceconv_bundle.js');
+  const traceconv = pjoin(cfg.outDistDir, 'traceconv.wasm');
   addTask(cp, [css, pjoin(ROOT_DIR, 'ui', 'css',  'perfetto.css')]);
   addTask(cpR, [assets, pjoin(ROOT_DIR, 'ui', 'css', 'assets')]);
+  addTask(cp, [engine_bundle, pjoin(ROOT_DIR, 'ui', 'wasm',  'engine_bundle.js')]);
+  addTask(cp, [trace_processor, pjoin(ROOT_DIR, 'ui', 'wasm',  'trace_processor.wasm')]);
+  addTask(cp, [traceconv_bundle, pjoin(ROOT_DIR, 'ui', 'wasm',  'traceconv_bundle.js')]);
+  addTask(cp, [traceconv, pjoin(ROOT_DIR, 'ui', 'wasm',  'traceconv.wasm')]);
 }
 
 // This transpiles all the sources (frontend, controller, engine, extension) in

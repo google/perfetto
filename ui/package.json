@@ -35,7 +35,8 @@
   "files": [
     "out/tsc",
     "src",
-    "css"
+    "css",
+    "wasm"
   ],
   "style": "css/perfetto.css",
   "devDependencies": {
