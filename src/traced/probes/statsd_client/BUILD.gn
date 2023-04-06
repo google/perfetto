@@ -37,8 +37,6 @@ source_set("statsd_client") {
     "common.h",
     "statsd_binder_data_source.cc",
     "statsd_binder_data_source.h",
-    "statsd_exec_data_source.cc",
-    "statsd_exec_data_source.h",
   ]
 }
 
