@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';

@@ -47,7 +47,7 @@
 // the next batch (if any) within the QueryResultImpl.
 // This object is part of the API exposed to tracks / controllers.
 
-import * as protobuf from 'protobufjs/minimal';
+import protobuf from 'protobufjs/minimal';
 
 // Disable Long.js support in protobuf. This seems to be enabled only in tests
 // but not in production code. In any case, for now we want casting to number

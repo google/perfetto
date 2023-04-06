@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {produce} from 'immer';
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../../common/actions';
 import {RecordMode} from '../../common/state';
