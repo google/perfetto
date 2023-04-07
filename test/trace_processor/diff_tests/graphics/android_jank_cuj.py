@@ -256,7 +256,7 @@ trace.add_atrace_counter(
     tid=PID,
     pid=PID,
     buf="J<SHADE_ROW_EXPAND>#totalFrames",
-    cnt=12)
+    cnt=13)
 trace.add_atrace_counter(
     ts=950_100_000,
     tid=PID,
@@ -575,6 +575,17 @@ add_frame(
     ts_gpu=None,
     ts_end_gpu=None)
 
+add_frame(
+    trace,
+    vsync=145,
+    ts_do_frame=655_000_000,
+    ts_end_do_frame=675_000_000,
+    ts_draw_frame=657_000_000,
+    ts_end_draw_frame=660_000_000,
+    ts_gpu=None,
+    ts_end_gpu=None)
+
+
 # Actual timeline slice starts 0.5ms after doFrame
 add_frame(
     trace,
@@ -692,6 +703,14 @@ add_actual_surface_frame_events(
 add_expected_surface_frame_events(ts=600_000_000, dur=20_000_000, token=140)
 add_actual_surface_frame_events(
     ts=608_600_000, dur=17_000_000, token=140, jank=64)
+
+# Surface flinger stuffing frame not classified as missed
+add_expected_surface_frame_events(ts=650_000_000, dur=20_000_000, token=145)
+add_actual_surface_frame_events(
+    ts=650_000_000,
+    dur=20_000_000,
+    token=145,
+    jank=512)
 
 add_expected_surface_frame_events(ts=700_000_000, dur=20_000_000, token=150)
 add_actual_surface_frame_events(ts=700_500_000, dur=14_500_000, token=150)
