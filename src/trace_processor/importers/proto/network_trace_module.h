@@ -74,6 +74,7 @@ class NetworkTraceModule : public ProtoImporterModule {
   const StringId net_arg_ip_proto_;
   const StringId net_arg_tcp_flags_;
   const StringId net_arg_tag_;
+  const StringId net_arg_uid_;
   const StringId net_arg_local_port_;
   const StringId net_arg_remote_port_;
   const StringId net_ipproto_tcp_;

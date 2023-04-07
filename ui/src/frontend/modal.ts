@@ -53,7 +53,7 @@
 // For one-show use-cases it's still possible to just use:
 // showModal({title: 'Foo', content, buttons: ...});
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {globals} from './globals';

@@ -2964,6 +2964,10 @@ message TraceConfig {
       // |stop_delay_ms| and any data in the buffer will be returned to the
       // consumer.
       STOP_TRACING = 2;
+
+      // NOTE: do not add new enum values here because of a subtle backward
+      // compat bug which might cause indefinite tracing on older versions of
+      // the service. See b/274931668 .
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -11241,14 +11245,21 @@ message ProcessTree {
 
 // Begin of protos/perfetto/trace/statsd/statsd_atom.proto
 
-// Atom should be filled with an Atom proto from:
-// https://cs.android.com/android/platform/superproject/+/master:frameworks/proto_logging/stats/atoms.proto?q=f:stats%2Fatoms.proto$%20message%5C%20Atom
-// We don't reference Atom directly here since we don't want to import
-// Atom.proto and all its transitive dependencies into Perfetto.
+// Deliberate empty message. See comment on StatsdAtom#atom below.
 message Atom {}
 
+// One or more statsd atoms. Ideally this should continue to match:
+// perfetto/protos/third_party/statsd/shell_data.proto
+// So that we can efficiently add data from statsd directly to the
+// trace.
 message StatsdAtom {
-  repeated Atom nested = 1;
+  // Atom should be filled with an Atom proto from:
+  // https://cs.android.com/android/platform/superproject/+/master:frameworks/proto_logging/stats/atoms.proto?q=f:stats%2Fatoms.proto$%20message%5C%20Atom
+  // We don't reference Atom directly here since we don't want to import
+  // Atom.proto and all its transitive dependencies into Perfetto.
+  // atom and timestamp_nanos have the same cardinality
+  repeated Atom atom = 1;
+  repeated int64 timestamp_nanos = 2;
 }
 
 // End of protos/perfetto/trace/statsd/statsd_atom.proto

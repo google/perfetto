@@ -14,7 +14,7 @@
 
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import * as initTraceProcessor from '../gen/trace_processor';
+import initTraceProcessor from '../gen/trace_processor';
 
 // The Initialize() call will allocate a buffer of REQ_BUF_SIZE bytes which
 // will be used to copy the input request data. This is to avoid passing the

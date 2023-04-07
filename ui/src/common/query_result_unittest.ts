@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as protoNamespace from '../gen/protos';
+import protoNamespace from '../gen/protos';
 
 import {createQueryResult, NUM, NUM_NULL, STR, STR_NULL} from './query_result';
 
