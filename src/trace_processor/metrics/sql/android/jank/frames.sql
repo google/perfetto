@@ -30,7 +30,9 @@ SELECT
   MAX(jank_type GLOB '*App Deadline Missed*') AS app_missed,
   -- We use MAX to check if at least one of the layers jank_type matches the pattern
   MAX(
-    jank_type GLOB '*SurfaceFlinger*'
+    jank_type GLOB '*SurfaceFlinger CPU Deadline Missed*'
+    OR jank_type GLOB '*SurfaceFlinger GPU Deadline Missed*'
+    OR jank_type GLOB '*SurfaceFlinger Scheduling*'
     OR jank_type GLOB '*Prediction Error*'
     OR jank_type GLOB '*Display HAL*') AS sf_missed,
   -- We use MIN to check if ALL layers finished on time
