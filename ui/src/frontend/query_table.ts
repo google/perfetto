@@ -91,6 +91,8 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
                   onclick: () => downloadData(`${col}.blob`, value),
                 },
                 `Blob (${value.length} bytes)`)));
+      } else if (typeof value === 'bigint') {
+        cells.push(m('td', value.toString()));
       } else {
         cells.push(m('td', value));
       }
