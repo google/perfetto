@@ -148,6 +148,9 @@ export abstract class AggregationController extends Controller<'main'> {
           column.data[i] = internString(item);
         } else if (item instanceof Uint8Array) {
           column.data[i] = internString('<Binary blob>');
+        } else if (typeof item === 'bigint') {
+          // TODO(stevegolton) Handle potential loss of precision
+          column.data[i] = Number(item);
         } else {
           column.data[i] = item;
         }
