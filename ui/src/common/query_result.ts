@@ -67,8 +67,75 @@ export const NUM_NULL: number|null = 1;
 export const STR_NULL: string|null = 'str_null';
 export const BLOB: Uint8Array = new Uint8Array();
 export const BLOB_NULL: Uint8Array|null = new Uint8Array();
+export const LONG: bigint = BigInt(0);
+export const LONG_NULL: bigint|null = BigInt(1);
 
-export type ColumnType = string|number|null|Uint8Array;
+export type ColumnType = string|number|bigint|null|Uint8Array;
+
+const SHIFT_32BITS = BigInt(32);
+
+// Fast decode varint int64 into a bigint
+// Inspired by
+// https://github.com/protobufjs/protobuf.js/blob/56b1e64979dae757b67a21d326e16acee39f2267/src/reader.js#L123
+export function decodeInt64Varint(buf: Uint8Array, pos: number): bigint {
+  let hi: number = 0;
+  let lo: number = 0;
+  let i = 0;
+
+  if (buf.length - pos > 4) {  // fast route (lo)
+    for (; i < 4; ++i) {
+      // 1st..4th
+      lo = (lo | (buf[pos] & 127) << i * 7) >>> 0;
+      if (buf[pos++] < 128) {
+        return BigInt(lo);
+      }
+    }
+    // 5th
+    lo = (lo | (buf[pos] & 127) << 28) >>> 0;
+    hi = (hi | (buf[pos] & 127) >> 4) >>> 0;
+    if (buf[pos++] < 128) {
+      return BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+    }
+    i = 0;
+  } else {
+    for (; i < 3; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 1st..3rd
+      lo = (lo | (buf[pos] & 127) << i * 7) >>> 0;
+      if (buf[pos++] < 128) {
+        return BigInt(lo);
+      }
+    }
+    // 4th
+    lo = (lo | (buf[pos++] & 127) << i * 7) >>> 0;
+    return BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+  }
+  if (buf.length - pos > 4) {  // fast route (hi)
+    for (; i < 5; ++i) {
+      // 6th..10th
+      hi = (hi | (buf[pos] & 127) << i * 7 + 3) >>> 0;
+      if (buf[pos++] < 128) {
+        const big = BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+        return BigInt.asIntN(64, big);
+      }
+    }
+  } else {
+    for (; i < 5; ++i) {
+      if (pos >= buf.length) {
+        throw Error('Index out of range');
+      }
+      // 6th..10th
+      hi = (hi | (buf[pos] & 127) << i * 7 + 3) >>> 0;
+      if (buf[pos++] < 128) {
+        const big = BigInt(hi) << SHIFT_32BITS | BigInt(lo);
+        return BigInt.asIntN(64, big);
+      }
+    }
+  }
+  throw Error('invalid varint encoding');
+}
 
 // Info that could help debug a query error. For example the query
 // in question, the stack where the query was issued, the active
@@ -133,6 +200,10 @@ function columnTypeToString(t: ColumnType): string {
       return 'BLOB';
     case BLOB_NULL:
       return 'BLOB_NULL';
+    case LONG:
+      return 'LONG';
+    case LONG_NULL:
+      return 'LONG_NULL';
     default:
       return `INVALID(${t})`;
   }
@@ -144,6 +215,8 @@ function isCompatible(actual: CellType, expected: ColumnType): boolean {
       return expected === NUM_NULL || expected === STR_NULL ||
           expected === BLOB_NULL;
     case CellType.CELL_VARINT:
+      return expected === NUM || expected === NUM_NULL || expected === LONG ||
+          expected === LONG_NULL;
     case CellType.CELL_FLOAT64:
       return expected === NUM || expected === NUM_NULL;
     case CellType.CELL_STRING:
@@ -650,6 +723,7 @@ class RowIteratorImpl implements RowIteratorBase {
     for (let i = 0; i < numColumns; i++) {
       const cellType = this.batchBytes[this.nextCellTypeOff++];
       const colName = this.columnNames[i];
+      const expType = this.rowSpec[colName];
 
       switch (cellType) {
         case CellType.CELL_NULL:
@@ -657,12 +731,20 @@ class RowIteratorImpl implements RowIteratorBase {
           break;
 
         case CellType.CELL_VARINT:
-          const val = this.varIntReader.int64();
-          // This is very subtle. The return type of int64 can be either a
-          // number or a Long.js {high:number, low:number} if Long.js support is
-          // enabled. The default state seems different in node and browser.
-          // We force-disable Long.js support in the top of this source file.
-          rowData[colName] = val as {} as number;
+          if (expType === NUM || expType === NUM_NULL) {
+            // This is very subtle. The return type of int64 can be either a
+            // number or a Long.js {high:number, low:number} if Long.js is
+            // installed. The default state seems different in node and browser.
+            // We force-disable Long.js support in the top of this source file.
+            const val = this.varIntReader.int64();
+            rowData[colName] = val as {} as number;
+          } else {
+            // LONG, LONG_NULL, or unspecified - return as bigint
+            const value =
+                decodeInt64Varint(this.batchBytes, this.varIntReader.pos);
+            rowData[colName] = value;
+            this.varIntReader.skip();  // Skips a varint
+          }
           break;
 
         case CellType.CELL_FLOAT64:
