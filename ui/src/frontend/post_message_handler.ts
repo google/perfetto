@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 
+import {initCssConstants} from './css_constants';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {showModal} from './modal';
@@ -107,6 +108,11 @@ export function postMessageHandler(messageEvent: MessageEvent) {
 
   if (messageEvent.data === 'SHOW-HELP') {
     toggleHelp();
+    return;
+  }
+
+  if (messageEvent.data === 'RELOAD-CSS-CONSTANTS') {
+    initCssConstants();
     return;
   }
 
