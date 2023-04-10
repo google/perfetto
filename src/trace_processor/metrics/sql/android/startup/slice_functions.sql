@@ -137,15 +137,11 @@ SELECT CREATE_FUNCTION(
   'BOOL',
   '
     SELECT EXISTS(
-      SELECT slice_name
-      FROM (
-        SELECT *
-        FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(
-          $launch_id,
-          "location=* status=* filter=* reason=*"
-        )
-      )
+      SELECT slice_name, startup_id, is_main_thread
+      FROM android_thread_slices_for_all_startups
       WHERE
+        startup_id = $launch_id AND is_main_thread AND
+        slice_name GLOB "location=* status=* filter=* reason=*" AND
         STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0)
           GLOB ("*" || "run-from-apk" || "*")
     )
