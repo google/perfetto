@@ -92,7 +92,7 @@ class TraceProcessor:
   class QueryResultIterator:
 
     def __init__(self, column_names, batches):
-      self.__column_names = column_names
+      self.__column_names = list(column_names)
       self.__column_count = 0
       self.__count = 0
       self.__cells = []
