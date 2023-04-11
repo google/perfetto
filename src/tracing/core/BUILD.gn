@@ -30,6 +30,7 @@ source_set("core") {
     "../../base",
   ]
   sources = [
+    "histogram.h",
     "id_allocator.cc",
     "id_allocator.h",
     "null_trace_writer.cc",
@@ -99,6 +100,7 @@ perfetto_unittest_source_set("unittests") {
     "../test:test_support",
   ]
   sources = [
+    "histogram_unittest.cc",
     "id_allocator_unittest.cc",
     "null_trace_writer_unittest.cc",
     "packet_stream_validator_unittest.cc",
