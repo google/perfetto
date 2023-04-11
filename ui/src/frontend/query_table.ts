@@ -17,7 +17,7 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
-import {Row} from '../common/query_result';
+import {ColumnType, Row} from '../common/query_result';
 import {fromNs} from '../common/time';
 import {Anchor} from './anchor';
 
@@ -37,6 +37,17 @@ interface QueryTableRowAttrs {
   columns: string[];
 }
 
+// Convert column value to number if it's a bigint or a number, otherwise throw
+function colToNumber(colValue: ColumnType): number {
+  if (typeof colValue === 'bigint') {
+    return Number(colValue);
+  } else if (typeof colValue === 'number') {
+    return colValue;
+  } else {
+    throw Error('Value is not a number or a bigint');
+  }
+}
+
 class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
   static columnsContainsSliceLocation(columns: string[]) {
     const requiredColumns = ['ts', 'dur', 'track_id'];
@@ -54,20 +65,22 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     // the slice.
     event.stopPropagation();
 
-    const sliceStart = fromNs(row.ts as number);
+    const sliceStart = fromNs(colToNumber(row.ts));
     // row.dur can be negative. Clamp to 1ns.
-    const sliceDur = fromNs(Math.max(row.dur as number, 1));
+    const sliceDur = fromNs(Math.max(colToNumber(row.dur), 1));
     const sliceEnd = sliceStart + sliceDur;
-    const trackId = row.track_id as number;
+    const trackId: number = colToNumber(row.track_id);
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     if (uiTrackId === undefined) return;
     verticalScrollToTrack(uiTrackId, true);
+    // TODO(stevegolton) Soon this function will only accept Bigints
     focusHorizontalRange(sliceStart, sliceEnd);
+
     let sliceId: number|undefined;
     if (row.type?.toString().includes('slice')) {
-      sliceId = row.id as number | undefined;
+      sliceId = colToNumber(row.id);
     } else {
-      sliceId = row.slice_id as number | undefined;
+      sliceId = colToNumber(row.slice_id);
     }
     if (sliceId !== undefined) {
       globals.makeSelection(
