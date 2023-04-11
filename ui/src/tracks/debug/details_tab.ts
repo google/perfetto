@@ -21,7 +21,7 @@ import {
   NewBottomTabArgs,
 } from '../../frontend/bottom_tab';
 import {globals} from '../../frontend/globals';
-import {TPTimestamp} from '../../frontend/sql_types';
+import {timestampFromSqlNanos} from '../../frontend/sql_types';
 import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Tree, TreeNode} from '../../frontend/widgets/tree';
@@ -78,10 +78,12 @@ export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
+    // TODO(stevegolton): These type assertions are dangerous, but no more
+    // dangerous than they used to be before this change.
     const left = dictToTree({
       'Name': this.data['name'] as string,
-      'Start time': m(Timestamp, {ts: this.data['ts'] as TPTimestamp}),
-      'Duration': m(Duration, {dur: this.data['dur'] as number}),
+      'Start time': m(Timestamp, {ts: timestampFromSqlNanos(this.data['ts'])}),
+      'Duration': m(Duration, {dur: Number(this.data['dur'])}),
       'Debug slice id': `${this.config.sqlTableName}[${this.config.id}]`,
     });
     const args: {[key: string]: m.Child} = {};
