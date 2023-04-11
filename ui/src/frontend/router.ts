@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {assertExists, assertTrue} from '../base/logging';
 import {PageAttrs} from './pages';
+import { globals } from './globals';
 
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
@@ -143,7 +144,9 @@ export class Router {
 
   static navigate(newHash: string) {
     assertTrue(newHash.startsWith(ROUTE_PREFIX));
-    window.location.hash = newHash;
+    if(!globals.disableRouting) {
+      window.location.hash = newHash;
+    }
   }
 
   // Breaks down a fragment into a Route object.

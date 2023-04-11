@@ -83,7 +83,7 @@ export class TraceBufferStream implements TraceStream {
   readChunk(): Promise<TraceChunk> {
     assertTrue(this.bytesRead <= this.traceBuf.byteLength);
     const len = Math.min(SLICE_SIZE, this.traceBuf.byteLength - this.bytesRead);
-    const data = new Uint8Array(this.traceBuf, this.bytesRead, len);
+    const data = new Uint8Array(this.traceBuf.slice(this.bytesRead, this.bytesRead + len));
     this.bytesRead += len;
     return Promise.resolve({
       data,

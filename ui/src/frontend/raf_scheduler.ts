@@ -59,7 +59,7 @@ export type RedrawCallback = (nowMs: number) => void;
 export class RafScheduler {
   private actionCallbacks = new Set<ActionCallback>();
   private canvasRedrawCallbacks = new Set<RedrawCallback>();
-  private _syncDomRedraw: RedrawCallback = (_) => {};
+  private domRedrawCallbacks = new Set<RedrawCallback>();
   private hasScheduledNextFrame = false;
   private requestedFullRedraw = false;
   private isRedrawing = false;
@@ -100,7 +100,16 @@ export class RafScheduler {
   }
 
   set domRedraw(cb: RedrawCallback) {
-    this._syncDomRedraw = cb;
+    this.domRedrawCallbacks.clear();
+    this.domRedrawCallbacks.add(cb);
+  }
+
+  addDomRedrawCallback(cb: RedrawCallback) {
+    this.domRedrawCallbacks.add(cb);
+  }
+
+  removeDomRedrawCallback(cb: RedrawCallback) {
+    this.domRedrawCallbacks.delete(cb);
   }
 
   // Schedule re-rendering of virtual DOM and canvas.
@@ -111,7 +120,7 @@ export class RafScheduler {
 
   syncDomRedraw(nowMs: number) {
     const redrawStart = debugNow();
-    this._syncDomRedraw(nowMs);
+    for (const redraw of this.domRedrawCallbacks) redraw(nowMs);
     if (perfDebug()) {
       this.perfStats.domRedraw.addValue(debugNow() - redrawStart);
     }

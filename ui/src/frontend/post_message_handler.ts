@@ -133,11 +133,13 @@ export function postMessageHandler(messageEvent: MessageEvent) {
   } else if (messageEvent.data instanceof ArrayBuffer) {
     postedTrace = {title: 'External trace', buffer: messageEvent.data};
   } else {
-    console.warn(
+    if (!globals.ignoreUnknownPostMessage) {
+      console.warn(
         'Unknown postMessage() event received. If you are trying to open a ' +
         'trace via postMessage(), this is a bug in your code. If not, this ' +
         'could be due to some Chrome extension.');
-    console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
+      console.log('origin:', messageEvent.origin, 'data:', messageEvent.data);
+    }
     return;
   }
 

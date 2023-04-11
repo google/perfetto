@@ -19,7 +19,7 @@ import {Patch, produce} from 'immer';
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
-import {reportError, setErrorHandler} from '../base/logging';
+import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
@@ -37,13 +37,17 @@ import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
+import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
 import {globals} from './globals';
 import {HomePage} from './home_page';
+import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
-import {RecordPage} from './record_page';
+import {postMessageHandler} from './post_message_handler';
+import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Router} from './router';
+import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
@@ -312,56 +316,55 @@ function main() {
 
 function onCssLoaded() {
   initCssConstants();
-  // eslint-disable-next-line max-len
-  // // Clear all the contents of the initial page (e.g. the <pre> error message)
-  // eslint-disable-next-line max-len
-  // // And replace it with the root <main> element which will be used by mithril.
-  // document.body.innerHTML = '<main></main>';
-  // const main = assertExists(document.body.querySelector('main'));
-  // globals.rafScheduler.domRedraw = () => {
-  //   m.render(main, globals.router.resolve());
-  // };
+  // Clear all the contents of the initial page (e.g. the <pre> error message)
+  // And replace it with the root <main> element which will be used by mithril.
+  if(!globals.disableMainRendering) {
+    document.body.innerHTML = '<main></main>';
+    const main = assertExists(document.body.querySelector('main'));
+    globals.rafScheduler.domRedraw = () => {
+      m.render(main, globals.router.resolve());
+    };
+  }
 
-  // initLiveReloadIfLocalhost();
+  initLiveReloadIfLocalhost();
 
-  // if (!RECORDING_V2_FLAG.get()) {
-  //   updateAvailableAdbDevices();
-  //   try {
-  //     navigator.usb.addEventListener(
-  //         'connect', () => updateAvailableAdbDevices());
-  //     navigator.usb.addEventListener(
-  //         'disconnect', () => updateAvailableAdbDevices());
-  //   } catch (e) {
-  //     console.error('WebUSB API not supported');
-  //   }
-  // }
+  if (!RECORDING_V2_FLAG.get()) {
+    updateAvailableAdbDevices();
+    try {
+      navigator.usb.addEventListener(
+          'connect', () => updateAvailableAdbDevices());
+      navigator.usb.addEventListener(
+          'disconnect', () => updateAvailableAdbDevices());
+    } catch (e) {
+      console.error('WebUSB API not supported');
+    }
+  }
 
-  // // Will update the chip on the sidebar footer that notifies that the RPC is
-  // // connected. Has no effect on the controller (which will repeat this check
-  // // before creating a new engine).
-  // eslint-disable-next-line max-len
-  // // Don't auto-open any trace URLs until we get a response here because we may
-  // // accidentially clober the state of an open trace processor instance
-  // // otherwise.
-  // CheckHttpRpcConnection().then(() => {
-  //   if (!globals.embeddedMode) {
-  //     installFileDropHandler();
-  //   }
+  // Will update the chip on the sidebar footer that notifies that the RPC is
+  // connected. Has no effect on the controller (which will repeat this check
+  // before creating a new engine).
+  // Don't auto-open any trace URLs until we get a response here because we may
+  // accidentially clober the state of an open trace processor instance
+  // otherwise.
+  CheckHttpRpcConnection().then(() => {
+    if (!globals.embeddedMode) {
+      installFileDropHandler();
+    }
 
-  //   // Don't allow postMessage or opening trace from route when the user says
-  //   // that they want to reuse the already loaded trace in trace processor.
-  //   const engine = globals.getCurrentEngine();
-  //   if (engine && engine.source.type === 'HTTP_RPC') {
-  //     return;
-  //   }
+    // Don't allow postMessage or opening trace from route when the user says
+    // that they want to reuse the already loaded trace in trace processor.
+    const engine = globals.getCurrentEngine();
+    if (engine && engine.source.type === 'HTTP_RPC') {
+      return;
+    }
 
-  //   // Add support for opening traces from postMessage().
-  //   window.addEventListener('message', postMessageHandler, {passive: true});
+    // Add support for opening traces from postMessage().
+    window.addEventListener('message', postMessageHandler, {passive: true});
 
-  //   // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
-  //   // cases.
-  //   maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
-  // });
+    // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
+    // cases.
+    maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
+  });
 }
 
 main();
