@@ -33,6 +33,24 @@ bool IsPowerOfTwo(size_t v) {
   return (v != 0 && ((v & (v - 1)) == 0));
 }
 
+// The code inside the perfetto::profiling::wrap_ functions has been designed to
+// avoid calling malloc/free functions, but, in some rare cases, this happens
+// anyway inside glibc. The code belows prevents this reentrancy with a thread
+// local variable, because:
+// * It can cause infinite recursion.
+// * If any lock is needed inside glibc, it can cause a deadlock.
+
+// True if this thread is already inside heapprofd wrappers.
+thread_local bool inside_wrapper = false;
+
+class ScopedReentrancyPreventer {
+ public:
+  // Precondition: is_inside is false.
+  ScopedReentrancyPreventer() { inside_wrapper = true; }
+  ~ScopedReentrancyPreventer() { inside_wrapper = false; }
+  static bool is_inside() { return inside_wrapper; }
+};
+
 }  // namespace
 
 extern "C" {
@@ -51,19 +69,39 @@ extern void* __libc_reallocarray(void*, size_t, size_t);
 #pragma GCC visibility push(default)
 
 void* malloc(size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_malloc(size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_malloc(g_heap_id, __libc_malloc, size);
 }
 
 void free(void* ptr) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_free(ptr);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_free(g_heap_id, __libc_free, ptr);
 }
 
 void* calloc(size_t nmemb, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_calloc(nmemb, size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_calloc(g_heap_id, __libc_calloc, nmemb,
                                           size);
 }
 
 void* realloc(void* ptr, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_realloc(ptr, size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_realloc(g_heap_id, __libc_realloc, ptr,
                                            size);
 }
@@ -72,6 +110,17 @@ int posix_memalign(void** memptr, size_t alignment, size_t size) {
   if (alignment % sizeof(void*) || !IsPowerOfTwo(alignment / sizeof(void*))) {
     return EINVAL;
   }
+
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    void* alloc = __libc_memalign(alignment, size);
+    if (!alloc) {
+      return ENOMEM;
+    }
+    *memptr = alloc;
+    return 0;
+  }
+  ScopedReentrancyPreventer p;
+
   void* alloc = perfetto::profiling::wrap_memalign(g_heap_id, __libc_memalign,
                                                    alignment, size);
   if (!alloc) {
@@ -82,24 +131,49 @@ int posix_memalign(void** memptr, size_t alignment, size_t size) {
 }
 
 void* aligned_alloc(size_t alignment, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_memalign(alignment, size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_memalign(g_heap_id, __libc_memalign,
                                             alignment, size);
 }
 
 void* memalign(size_t alignment, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_memalign(alignment, size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_memalign(g_heap_id, __libc_memalign,
                                             alignment, size);
 }
 
 void* pvalloc(size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_pvalloc(size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_pvalloc(g_heap_id, __libc_pvalloc, size);
 }
 
 void* valloc(size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_valloc(size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_valloc(g_heap_id, __libc_valloc, size);
 }
 
 void* reallocarray(void* ptr, size_t nmemb, size_t size) {
+  if (PERFETTO_UNLIKELY(ScopedReentrancyPreventer::is_inside())) {
+    return __libc_reallocarray(ptr, nmemb, size);
+  }
+  ScopedReentrancyPreventer p;
+
   return perfetto::profiling::wrap_reallocarray(g_heap_id, __libc_reallocarray,
                                                 ptr, nmemb, size);
 }
