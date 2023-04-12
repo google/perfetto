@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {fromNs} from '../common/time';
+import {ColumnType} from 'src/common/query_result';
+import {fromNs, toNs} from '../common/time';
 import {globals} from './globals';
 
 // Type-safe aliases for various flavours of ints Trace Processor exposes
@@ -25,13 +26,37 @@ import {globals} from './globals';
 
 // Timestamp (in nanoseconds) in the same time domain as Trace Processor is
 // exposing.
-export type TPTimestamp = number&{
+export type TPTimestamp = bigint&{
   __type: 'TPTimestamp'
 }
 
+// Create a timestamp from a bigint in nanos.
+// Use this when we know the type is a bigint.
+export function timestampFromNanos(nanos: bigint) {
+  return nanos as TPTimestamp;
+}
+
+// Create a timestamp from an arbitrary SQL value.
+// Throws if the value cannot be reasonably converted to a timestamp.
+// Assumes the input will be in units of nanoseconds.
+export function timestampFromSqlNanos(nanos: ColumnType): TPTimestamp {
+  if (typeof nanos === 'bigint') {
+    return nanos as TPTimestamp;
+  } else if (typeof nanos === 'number') {
+    // Note - this will throw if the number is something which cannot be
+    // represented by an integer - i.e. decimals, infinity, or NaN.
+    return BigInt(nanos) as TPTimestamp;
+  } else {
+    throw Error('Refusing to create TPTimestamp from unrelated type');
+  }
+}
+
 // TODO: unify this with common/time.ts.
+// TODO(stevegolton): Return a bigint, or a new TPDuration object rather than
+// convert to number which could lose precision.
 export function toTraceTime(ts: TPTimestamp): number {
-  return fromNs(ts) - globals.state.traceTime.startSec;
+  const traceStartNs = toNs(globals.state.traceTime.startSec);
+  return fromNs(Number(ts - BigInt(traceStartNs)));
 }
 
 // Unique id for a process, id into |process| table.
