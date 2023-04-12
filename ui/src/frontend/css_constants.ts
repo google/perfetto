@@ -24,6 +24,8 @@ export let SELECTION_FILL_COLOR = '#8398e64d';
 export let OVERVIEW_TIMELINE_NON_VISIBLE_COLOR = '#c8c8c8cc';
 export let DEFAULT_DETAILS_CONTENT_HEIGHT = 280;
 export const SELECTED_LOG_ROWS_COLOR = '#D2EFE0';
+export let BACKGROUND_COLOR = '#ffffff';
+export let FOREGROUND_COLOR = '#222';
 
 export function initCssConstants() {
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
@@ -39,6 +41,8 @@ export function initCssConstants() {
       OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
       getCssNum('--details-content-height') || DEFAULT_DETAILS_CONTENT_HEIGHT;
+  BACKGROUND_COLOR = getCssStr('--main-background-color') || BACKGROUND_COLOR;
+  FOREGROUND_COLOR = getCssStr('--main-foreground-color') || FOREGROUND_COLOR;
 }
 
 function getCssStr(prop: string): string|undefined {
