@@ -245,7 +245,7 @@ class Globals {
   // Extensions for integration
   private _ignoreUnknownPostMessage?: boolean = undefined;
   private _disableMainRendering?: boolean = undefined;
-  private _disableRouting?: boolean = undefined;
+  private _disableHashBasedRouting?: boolean = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -499,12 +499,12 @@ class Globals {
     this._disableMainRendering = value;
   }
 
-  get disableRouting(): boolean {
-    return !!this._disableRouting;
+  get disableHashBasedRouting(): boolean {
+    return !!this._disableHashBasedRouting;
   }
 
-  set disableRouting(value: boolean) {
-    this._disableRouting = value;
+  set disableHashBasedRouting(value: boolean) {
+    this._disableHashBasedRouting = value;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
@@ -637,7 +637,7 @@ class Globals {
     };
     this._ignoreUnknownPostMessage = undefined;
     this._disableMainRendering = undefined;
-    this._disableRouting = undefined;
+    this._disableHashBasedRouting = undefined;
   }
 
   // This variable is set by the is_internal_user.js script if the user is a

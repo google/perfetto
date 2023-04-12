@@ -122,12 +122,32 @@ export class Router {
     const args = m.buildQueryString(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
     normalizedFragment += args.length > 0 ? '?' + args : '';
+    if (globals.disableHashBasedRouting) {
+      normalizedFragment = Router.hashBasedToParamBasedFragment(normalizedFragment);
+    }
+
     if (!e.newURL.endsWith(normalizedFragment)) {
       location.replace(normalizedFragment);
       return;
     }
 
     this.onRouteChanged(newRoute);
+  }
+
+  static hashBasedToParamBasedFragment(fragment: string): string {
+    return fragment.replace("?","&").replace("#!/","?page=")
+  }
+
+  // Remove existing hash and transform params to hash based fragment
+  // Example input: '#/home/foo?page=viewer&local_cache_key=abcd-1234'
+  static paramBasedToHashBasedFragment(hash: string): string {
+    const urlParamIndex = hash.indexOf('?');
+    if (urlParamIndex >= 0) {
+      const fragment = hash.substring(urlParamIndex);
+      return fragment.replace("?page=", "#!/").replace("&","?");
+    } else {
+      return hash;
+    }
   }
 
   // Returns the component for the current route in the URL.
@@ -144,8 +164,19 @@ export class Router {
 
   static navigate(newHash: string) {
     assertTrue(newHash.startsWith(ROUTE_PREFIX));
-    if(!globals.disableRouting) {
+    if (!globals.disableHashBasedRouting) {
       window.location.hash = newHash;
+    } else {
+      // Hash based routing is disabled (usually because perfetto is embedded in an application that uses the hash itself).
+      // Transform newHash to be param based and append to existing hash in URL (while dropping any params)
+      const currentHash = window.location.hash;
+      const urlParamIndex = currentHash.indexOf('?');
+      let toKeep = currentHash;
+      if (urlParamIndex >= 0) {
+        toKeep = currentHash.substring(0, urlParamIndex);
+      }
+      const newParams = Router.hashBasedToParamBasedFragment(newHash);
+      window.location.hash = toKeep + newParams;
     }
   }
 
@@ -155,6 +186,9 @@ export class Router {
   // Sample output:
   // {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
   static parseFragment(hash: string): Route {
+    if (globals.disableHashBasedRouting) {
+      hash = Router.paramBasedToHashBasedFragment(hash);
+    }
     const prefixLength = ROUTE_PREFIX.length;
     let route = '';
     if (hash.startsWith(ROUTE_PREFIX)) {
