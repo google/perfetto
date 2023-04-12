@@ -46,8 +46,10 @@ export const PIVOT_TABLE_REDUX_FLAG = featureFlags.register({
 function expectNumber(value: ColumnType): number {
   if (typeof value === 'number') {
     return value;
+  } else if (typeof value === 'bigint') {
+    return Number(value);
   }
-  throw new Error(`Number was expected, got ${typeof value}`);
+  throw new Error(`number or bigint was expected, got ${typeof value}`);
 }
 
 // Auxiliary class to build the tree from query response.
