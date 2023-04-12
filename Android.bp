@@ -10987,6 +10987,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_tracing_core_unittests",
     srcs: [
+        "src/tracing/core/histogram_unittest.cc",
         "src/tracing/core/id_allocator_unittest.cc",
         "src/tracing/core/null_trace_writer_unittest.cc",
         "src/tracing/core/packet_stream_validator_unittest.cc",
