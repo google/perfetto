@@ -27,6 +27,19 @@ SELECT
   '
 );
 
+-- Extracts the blocking thread tid from a slice name
+--
+-- @arg slice_name STRING   Name of slice
+-- @ret INT                 Blocking thread tid
+SELECT
+  CREATE_FUNCTION(
+    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(slice_name STRING)',
+    'INT',
+    '
+    SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT)
+  '
+);
+
 -- Extracts the blocking method from a slice name
 --
 -- @arg slice_name STRING   Name of slice
@@ -171,6 +184,7 @@ SELECT
   thread.name AS blocked_thread_name,
   blocking_thread.utid AS blocking_utid,
   ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_THREAD(slice.name) AS blocking_thread_name,
+  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(slice.name) AS blocking_tid,
   thread.upid AS upid,
   process.name AS process_name,
   slice.id,
@@ -193,7 +207,7 @@ LEFT JOIN internal_broken_android_monitor_contention ON internal_broken_android_
 LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder reply'
 LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
 LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
-JOIN thread blocking_thread ON blocking_thread.name = blocking_thread_name AND blocking_thread.upid = thread.upid
+JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
 WHERE slice.name LIKE 'monitor contention%'
   AND slice.dur != -1
   AND internal_broken_android_monitor_contention.id IS NULL
