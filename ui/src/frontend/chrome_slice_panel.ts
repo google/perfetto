@@ -68,7 +68,12 @@ const ITEMS: ContextMenuItem[] = [
          JOIN process USING(upid)
          WHERE slice.id = ${slice.id!}
          )
-         SELECT * FROM android_monitor_contention_chain, slice_process
+         SELECT *,
+         IIF(blocked_thread_name LIKE 'binder:%', 'binder', blocked_thread_name)
+          AS blocked_thread_name_norm,
+         IIF(blocking_thread_name LIKE 'binder:%', 'binder', blocking_thread_name)
+          AS blocking_thread_name_norm
+         FROM android_monitor_contention_chain, slice_process
          WHERE android_monitor_contention_chain.upid = slice_process.upid;
 
          WITH
@@ -76,15 +81,15 @@ const ITEMS: ContextMenuItem[] = [
          SELECT
            id,
            dur,
-           CAT_STACKS(blocked_thread_name || ':' || short_blocked_method,
-             blocking_thread_name || ':' || short_blocking_method) AS stack
+           CAT_STACKS(blocked_thread_name_norm || ':' || short_blocked_method,
+             blocking_thread_name_norm || ':' || short_blocking_method) AS stack
          FROM FAST
          WHERE parent_id IS NULL
          UNION ALL
          SELECT
          c.id,
          c.dur AS dur,
-         CAT_STACKS(stack, blocking_thread_name || ':' || short_blocking_method) AS stack
+         CAT_STACKS(stack, blocking_thread_name_norm || ':' || short_blocking_method) AS stack
          FROM FAST c, R AS p
          WHERE p.id = c.parent_id
          )
