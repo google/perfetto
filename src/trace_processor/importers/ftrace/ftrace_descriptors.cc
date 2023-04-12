@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 481> descriptors{{
+std::array<FtraceMessageDescriptor, 482> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5293,6 +5293,14 @@ std::array<FtraceMessageDescriptor, 481> descriptors{{
             {},
             {"esr", ProtoSchemaType::kUint64},
             {"addr", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "suspend_resume_minimal",
+        1,
+        {
+            {},
+            {"start", ProtoSchemaType::kUint32},
         },
     },
 }};
