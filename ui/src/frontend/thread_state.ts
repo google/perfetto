@@ -14,7 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
-import {NUM, NUM_NULL, STR_NULL} from '../common/query_result';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
 import {fromNs, timeToCode} from '../common/time';
 
@@ -26,6 +26,7 @@ import {
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
+  timestampFromNanos,
   toTraceTime,
   TPTimestamp,
 } from './sql_types';
@@ -88,7 +89,7 @@ export async function getThreadStateFromConstraints(
   const it = query.iter({
     threadStateSqlId: NUM,
     schedSqlId: NUM_NULL,
-    ts: NUM,
+    ts: LONG,
     dur: NUM,
     cpu: NUM_NULL,
     state: STR_NULL,
@@ -109,7 +110,7 @@ export async function getThreadStateFromConstraints(
     result.push({
       threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
       schedSqlId: fromNumNull(it.schedSqlId) as (SchedSqlId | undefined),
-      ts: it.ts as TPTimestamp,
+      ts: timestampFromNanos(it.ts),
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
       state: translateState(it.state || undefined, ioWait),
@@ -148,7 +149,8 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTimestamp) {
     return;
   }
   globals.makeSelection(Actions.selectSlice({id, trackId}));
-  scrollToTrackAndTs(trackId, ts);
+  // TODO(stevegolton): scrollToTrackAndTs() should take a TPTimestamp
+  scrollToTrackAndTs(trackId, Number(ts));
 }
 
 function stateToValue(

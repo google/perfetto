@@ -23,9 +23,9 @@
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/storage/metadata.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -48,7 +48,7 @@ namespace trace_processor {
 
 namespace {
 
-base::Optional<int> VersionStringToSdkVersion(const std::string& version) {
+std::optional<int> VersionStringToSdkVersion(const std::string& version) {
   // TODO(lalitm): remove this when the SDK version polling saturates
   // S/T traces in practice.
   if (base::StartsWith(version, "T") || base::StartsWith(version, "S")) {
@@ -82,21 +82,21 @@ base::Optional<int> VersionStringToSdkVersion(const std::string& version) {
   }
   // If we reached this point, we don't know how to parse this version
   // so just return null.
-  return base::nullopt;
+  return std::nullopt;
 }
 
-base::Optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
+std::optional<int> FingerprintToSdkVersion(const std::string& fingerprint) {
   // Try to parse the SDK version from the fingerprint.
   // Examples of fingerprints:
   // google/shamu/shamu:7.0/NBD92F/3753956:userdebug/dev-keys
   // google/coral/coral:12/SP1A.210812.015/7679548:userdebug/dev-keys
   size_t colon = fingerprint.find(':');
   if (colon == std::string::npos)
-    return base::nullopt;
+    return std::nullopt;
 
   size_t slash = fingerprint.find('/', colon);
   if (slash == std::string::npos)
-    return base::nullopt;
+    return std::nullopt;
 
   std::string version = fingerprint.substr(colon + 1, slash - (colon + 1));
   return VersionStringToSdkVersion(version);
@@ -600,7 +600,7 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
 
   // If we have the SDK version in the trace directly just use that.
   // Otherwise, try and parse it from the fingerprint.
-  base::Optional<int64_t> opt_sdk_version;
+  std::optional<int64_t> opt_sdk_version;
   if (packet.has_android_sdk_version()) {
     opt_sdk_version = static_cast<int64_t>(packet.android_sdk_version());
   } else if (packet.has_android_build_fingerprint()) {

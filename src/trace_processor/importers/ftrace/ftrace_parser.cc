@@ -22,6 +22,7 @@
 #include "perfetto/protozero/proto_decoder.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/ftrace/binder_tracker.h"
@@ -29,7 +30,6 @@
 #include "src/trace_processor/importers/ftrace/v4l2_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_video_tracker.h"
 #include "src/trace_processor/importers/i2c/i2c_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_parser.h"
@@ -1079,7 +1079,7 @@ void FtraceParser::MaybeOnFirstFtraceEvent() {
               ? metadata::all_data_source_started_ns
               : metadata::tracing_started_ns;
       const auto& metadata = context_->storage->metadata_table();
-      base::Optional<uint32_t> opt_row =
+      std::optional<uint32_t> opt_row =
           metadata.name().IndexOf(metadata::kNames[event_key]);
       if (opt_row) {
         drop_ftrace_data_before_ts_ = *metadata.int_value()[*opt_row];
@@ -1304,7 +1304,7 @@ void FtraceParser::ParsePrint(int64_t timestamp,
   // [wr][atrace_slice..]
   // ...............[wri]
   //
-  base::Optional<UniqueTid> opt_utid =
+  std::optional<UniqueTid> opt_utid =
       context_->process_tracker->GetThreadOrNull(pid);
   if (opt_utid) {
     SyscallTracker::GetOrCreate(context_)->MaybeTruncateOngoingWriteSlice(
@@ -1402,7 +1402,6 @@ void FtraceParser::ParseLwisTracingMarkWrite(int64_t timestamp,
       timestamp, pid, static_cast<char>(evt.type()), false /*trace_begin*/,
       evt.func_name(), tgid, evt.value());
 }
-
 
 /** Parses ion heap events present in Pixel kernels. */
 void FtraceParser::ParseIonHeapGrowOrShrink(int64_t timestamp,
@@ -1717,7 +1716,8 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
                                        ThreadNamePriority::kFtrace);
   proc_tracker->AssociateThreads(source_utid, new_utid);
 
-  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(timestamp, new_utid, source_utid);
+  ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+      timestamp, new_utid, source_utid);
 }
 
 void FtraceParser::ParseTaskRename(ConstBytes blob) {
@@ -1842,7 +1842,7 @@ void FtraceParser::ParseScmCallEnd(int64_t timestamp,
 }
 
 void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
-  base::Optional<VersionNumber> kernel_version =
+  std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
   // CmaAllocInfo event only exists after 5.10
   if (kernel_version < VersionNumber{5, 10})
@@ -1858,7 +1858,7 @@ void FtraceParser::ParseCmaAllocStart(int64_t timestamp, uint32_t pid) {
 void FtraceParser::ParseCmaAllocInfo(int64_t timestamp,
                                      uint32_t pid,
                                      ConstBytes blob) {
-  base::Optional<VersionNumber> kernel_version =
+  std::optional<VersionNumber> kernel_version =
       SystemInfoTracker::GetOrCreate(context_)->GetKernelVersion();
   // CmaAllocInfo event only exists after 5.10
   if (kernel_version < VersionNumber{5, 10})
@@ -2098,7 +2098,7 @@ void FtraceParser::ParseGpuMemTotal(int64_t timestamp,
     // the event as otherwise we would create fake processes which we
     // definitely want to avoid.
     // See b/192274404 for more info.
-    base::Optional<UniqueTid> opt_utid =
+    std::optional<UniqueTid> opt_utid =
         context_->process_tracker->GetThreadOrNull(pid);
     if (!opt_utid)
       return;
@@ -2156,7 +2156,7 @@ void FtraceParser::ParseSchedBlockedReason(
       protos::pbzero::InternedData::kKernelSymbolsFieldNumber,
       protos::pbzero::InternedString>(caller_iid);
 
-  base::Optional<StringId> blocked_function_str_id = base::nullopt;
+  std::optional<StringId> blocked_function_str_id = std::nullopt;
   if (interned_string) {
     protozero::ConstBytes str = interned_string->str();
     blocked_function_str_id = context_->storage->InternString(
@@ -2226,7 +2226,7 @@ void FtraceParser::ParseNetifReceiveSkb(uint32_t cpu,
 
   uint64_t nic_received_kilobytes = nic_received_bytes_[name] / 1024;
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
-  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+  std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_received_kilobytes), track);
   if (!id) {
     return;
@@ -2257,7 +2257,7 @@ void FtraceParser::ParseNetDevXmit(uint32_t cpu,
 
   uint64_t nic_transmitted_kilobytes = nic_transmitted_bytes_[name] / 1024;
   TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
-  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+  std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(nic_transmitted_kilobytes), track);
   if (!id) {
     return;
@@ -2416,7 +2416,7 @@ void FtraceParser::ParseKfreeSkb(int64_t timestamp,
 
   TrackId track =
       context_->track_tracker->InternGlobalCounterTrack(kfree_skb_name_id_);
-  base::Optional<CounterId> id = context_->event_tracker->PushCounter(
+  std::optional<CounterId> id = context_->event_tracker->PushCounter(
       timestamp, static_cast<double>(num_of_kfree_skb_ip_prot), track);
   if (!id) {
     return;

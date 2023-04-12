@@ -17,10 +17,10 @@
 #include "src/trace_processor/importers/proto/track_event_parser.h"
 
 #include <iostream>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -175,7 +175,7 @@ std::string NormalizePathSeparators(const protozero::ConstChars& path) {
   return result;
 }
 
-base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
+std::optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
     std::string prefix,
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
@@ -185,7 +185,7 @@ base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   if (!decoder) {
     // Lookup failed fall back on default behaviour which will just put
     // the iid into the args table.
-    return base::nullopt;
+    return std::nullopt;
   }
   // Interned mapping_id loses it's meaning when the sequence ends. So we need
   // to get an id from stack_profile_mapping table.
@@ -196,7 +196,7 @@ base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
           ->sequence_stack_profile_tracker()
           .FindOrInsertMapping(decoder->mapping_id(), &intern_lookup);
   if (!mapping_id) {
-    return base::nullopt;
+    return std::nullopt;
   }
   delegate.AddUnsignedInteger(
       util::ProtoToArgsParser::Key(prefix + ".mapping_id"), mapping_id->value);
@@ -205,7 +205,7 @@ base::Optional<base::Status> MaybeParseUnsymbolizedSourceLocation(
   return base::OkStatus();
 }
 
-base::Optional<base::Status> MaybeParseSourceLocation(
+std::optional<base::Status> MaybeParseSourceLocation(
     std::string prefix,
     const protozero::Field& field,
     util::ProtoToArgsParser::Delegate& delegate) {
@@ -214,7 +214,7 @@ base::Optional<base::Status> MaybeParseSourceLocation(
   if (!decoder) {
     // Lookup failed fall back on default behaviour which will just put
     // the source_location_iid into the args table.
-    return base::nullopt;
+    return std::nullopt;
   }
 
   delegate.AddString(util::ProtoToArgsParser::Key(prefix + ".file_name"),
@@ -426,7 +426,7 @@ class TrackEventParser::EventImporter {
     //      TrackEvent types), or
     //   b) a default track.
     if (track_uuid_) {
-      base::Optional<TrackId> opt_track_id =
+      std::optional<TrackId> opt_track_id =
           track_event_tracker_->GetDescriptorTrack(track_uuid_, name_id_,
                                                    packet_sequence_id_);
       if (!opt_track_id) {
@@ -581,7 +581,7 @@ class TrackEventParser::EventImporter {
             track_id_ = context_->track_tracker
                             ->GetOrCreateLegacyChromeGlobalInstantTrack();
             legacy_passthrough_utid_ = utid_;
-            utid_ = base::nullopt;
+            utid_ = std::nullopt;
             break;
           case LegacyEvent::SCOPE_PROCESS:
             if (!upid_) {
@@ -593,7 +593,7 @@ class TrackEventParser::EventImporter {
                 context_->track_tracker->InternLegacyChromeProcessInstantTrack(
                     *upid_);
             legacy_passthrough_utid_ = utid_;
-            utid_ = base::nullopt;
+            utid_ = std::nullopt;
             break;
         }
         break;
@@ -697,9 +697,9 @@ class TrackEventParser::EventImporter {
     PERFETTO_DCHECK(track_uuid_it);
     PERFETTO_DCHECK(index < TrackEventData::kMaxNumExtraCounters);
 
-    base::Optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
+    std::optional<TrackId> track_id = track_event_tracker_->GetDescriptorTrack(
         *track_uuid_it, kNullStringId, packet_sequence_id_);
-    base::Optional<uint32_t> counter_row =
+    std::optional<uint32_t> counter_row =
         storage_->counter_track_table().id().IndexOf(*track_id);
 
     double value = event_data_->extra_counter_values[index];
@@ -757,12 +757,12 @@ class TrackEventParser::EventImporter {
     }
 
     tables::SliceTable::RowReference slice_ref = *opt_thread_slice_ref;
-    base::Optional<int64_t> tts = slice_ref.thread_ts();
+    std::optional<int64_t> tts = slice_ref.thread_ts();
     if (tts) {
       PERFETTO_DCHECK(thread_timestamp_);
       slice_ref.set_thread_dur(*thread_timestamp_ - *tts);
     }
-    base::Optional<int64_t> tic = slice_ref.thread_instruction_count();
+    std::optional<int64_t> tic = slice_ref.thread_instruction_count();
     if (tic) {
       PERFETTO_DCHECK(event_data_->thread_instruction_count);
       slice_ref.set_thread_instruction_delta(
@@ -800,7 +800,7 @@ class TrackEventParser::EventImporter {
     return util::OkStatus();
   }
 
-  base::Optional<uint64_t> GetLegacyEventId() {
+  std::optional<uint64_t> GetLegacyEventId() {
     if (legacy_event_.has_unscoped_id())
       return legacy_event_.unscoped_id();
     // TODO(andrewbb): Catapult doesn't support global_id and local_id on flow
@@ -808,7 +808,7 @@ class TrackEventParser::EventImporter {
     // to be some callsites supplying local_id in chromium), but we would have
     // to consider the process ID for local IDs and use a separate ID scope for
     // global_id and unscoped_id.
-    return base::nullopt;
+    return std::nullopt;
   }
 
   util::Status ParseFlowEventV1(char phase) {
@@ -902,7 +902,7 @@ class TrackEventParser::EventImporter {
     // up nested underneath their parent slices.
     int64_t duration_ns = 0;
     int64_t tidelta = 0;
-    base::Optional<tables::SliceTable::Id> opt_slice_id;
+    std::optional<tables::SliceTable::Id> opt_slice_id;
     auto args_inserter = [this, phase](BoundInserter* inserter) {
       ParseTrackEventArgs(inserter);
       // For legacy MARK event, add phase for JSON exporter.
@@ -1364,9 +1364,9 @@ class TrackEventParser::EventImporter {
     row.category = category_id_;
     row.name = name_id_;
     row.thread_ts = thread_timestamp_;
-    row.thread_dur = base::nullopt;
+    row.thread_dur = std::nullopt;
     row.thread_instruction_count = thread_instruction_count_;
-    row.thread_instruction_delta = base::nullopt;
+    row.thread_instruction_delta = std::nullopt;
     return row;
   }
 
@@ -1388,15 +1388,15 @@ class TrackEventParser::EventImporter {
   StringId name_id_;
   uint64_t track_uuid_;
   TrackId track_id_;
-  base::Optional<UniqueTid> utid_;
-  base::Optional<UniqueTid> upid_;
-  base::Optional<int64_t> thread_timestamp_;
-  base::Optional<int64_t> thread_instruction_count_;
+  std::optional<UniqueTid> utid_;
+  std::optional<UniqueTid> upid_;
+  std::optional<int64_t> thread_timestamp_;
+  std::optional<int64_t> thread_instruction_count_;
   // All events in legacy JSON require a thread ID, but for some types of
   // events (e.g. async events or process/global-scoped instants), we don't
   // store it in the slice/track model. To pass the utid through to the json
   // export, we store it in an arg.
-  base::Optional<UniqueTid> legacy_passthrough_utid_;
+  std::optional<UniqueTid> legacy_passthrough_utid_;
 
   uint32_t packet_sequence_id_;
 };
@@ -1550,7 +1550,7 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
                                   util::ProtoToArgsParser::Delegate& delegate) {
         AddActiveProcess(delegate.packet_timestamp(), field.as_int32());
         // Fallthrough so that the parser adds pid as a regular arg.
-        return base::nullopt;
+        return std::nullopt;
       });
 
   for (uint16_t index : kReflectFields) {

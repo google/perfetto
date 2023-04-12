@@ -12,14 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as fs from 'fs';
-import * as net from 'net';
-import * as path from 'path';
-import * as pixelmatch from 'pixelmatch';
+import fs from 'fs';
+import net from 'net';
+import path from 'path';
+import pixelmatch from 'pixelmatch';
 import {PNG} from 'pngjs';
-import * as puppeteer from 'puppeteer';
-
-console.log(PNG);
+import {Page} from 'puppeteer';
 
 // These constants have been hand selected by comparing the diffs of screenshots
 // between Linux on Mac. Unfortunately font-rendering is platform-specific.
@@ -33,8 +31,7 @@ const DIFF_MAX_PIXELS = 50;
 // - Check that the omnibox is not showing a message.
 // - Check that no redraws are pending in our RAF scheduler.
 // - Check that all the above is satisfied for |minIdleMs| consecutive ms.
-export async function waitForPerfettoIdle(
-    page: puppeteer.Page, minIdleMs?: number) {
+export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
   minIdleMs = minIdleMs || 3000;
   const tickMs = 250;
   const timeoutMs = 60000;
@@ -49,7 +46,7 @@ export async function waitForPerfettoIdle(
     const hasPendingRedraws =
         await (
             await page.evaluateHandle('globals.rafScheduler.hasPendingRedraws'))
-            .jsonValue<number>();
+            .jsonValue();
 
     if (isShowingAnim || isShowingMsg || hasPendingRedraws) {
       consecutiveIdleTicks = 0;

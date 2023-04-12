@@ -17,8 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_STATUS_OR_H_
 #define INCLUDE_PERFETTO_EXT_BASE_STATUS_OR_H_
 
+#include <optional>
+
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {
@@ -38,7 +39,7 @@ class StatusOr {
 
   // Intentionally implicit to allow idomatic usage (e.g. returning value/status
   // from base::StatusOr returning function).
-  StatusOr(base::Status status) : StatusOr(std::move(status), base::nullopt) {
+  StatusOr(base::Status status) : StatusOr(std::move(status), std::nullopt) {
     if (status.ok()) {
       // Matches what Abseil's approach towards OkStatus being passed to
       // absl::StatusOr<T>.
@@ -63,13 +64,13 @@ class StatusOr {
   const T* operator->() const { return &value(); }
 
  private:
-  StatusOr(base::Status status, base::Optional<T> value)
+  StatusOr(base::Status status, std::optional<T> value)
       : status_(std::move(status)), value_(std::move(value)) {
     PERFETTO_DCHECK(!status_.ok() || value_.has_value());
   }
 
   base::Status status_;
-  base::Optional<T> value_;
+  std::optional<T> value_;
 };
 
 }  // namespace base

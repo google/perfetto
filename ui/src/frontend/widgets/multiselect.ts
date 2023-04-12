@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {globals} from '../globals';
 import {DESELECT, SELECT_ALL} from '../icons';
 import {Button} from './button';
@@ -125,7 +125,8 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                         this.searchText === '' ? 'Selected' :
                                                  `Selected (Filtered)`),
                       m(Button, {
-                        label: 'Clear All',
+                        label: this.searchText === '' ? 'Clear All' :
+                                                        'Clear Filtered',
                         icon: DESELECT,
                         minimal: true,
                         onclick: () => {
@@ -148,9 +149,11 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                   m('span',
                     this.searchText === '' ? 'Options' : `Options (Filtered)`),
                   m(Button, {
-                    label: 'Select All',
+                    label: this.searchText === '' ? 'Select All' :
+                                                    'Select Filtered',
                     icon: SELECT_ALL,
                     minimal: true,
+                    compact: true,
                     onclick: () => {
                       const diffs = options.filter(({checked}) => !checked)
                                         .map(({id}) => ({id, checked: true}));
@@ -160,9 +163,11 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                     disabled: allChecked,
                   }),
                   m(Button, {
-                    label: 'Select None',
+                    label: this.searchText === '' ? 'Clear All' :
+                                                    'Clear Filtered',
                     icon: DESELECT,
                     minimal: true,
+                    compact: true,
                     onclick: () => {
                       const diffs = options.filter(({checked}) => checked)
                                         .map(({id}) => ({id, checked: false}));
@@ -188,7 +193,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
             globals.rafScheduler.scheduleFullRedraw();
           },
           value: this.searchText,
-          placeholder: 'Search...',
+          placeholder: 'Filter options...',
           extraClasses: 'pf-search-box',
         }),
         this.renderClearButton(),

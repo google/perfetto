@@ -36,6 +36,7 @@ message BlinkTaskScope {
     TASK_SCOPE_POST_MESSAGE = 4;
     TASK_SCOPE_POP_STATE = 5;
     TASK_SCOPE_SCHEDULER_POST_TASK = 6;
+    TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -288,6 +289,9 @@ message RenderProcessHostCleanup {
   // Number of "worker delay" references active in the RenderProcessHost,
   // recorded when Cleanup() was called.
   optional uint32 worker_ref_count = 4;
+  // Number of "pending reuse" references active in the RenderProcessHost,
+  // recorded when Cleanup() was called.
+  optional uint32 pending_reuse_ref_count = 5;
 }
 
 message ChildProcessLauncherPriority {
@@ -942,7 +946,7 @@ message AndroidToolbar {
     BLOCKED_BROWSER_CONTROLS_LOCKED = 9;
     BLOCKED_TAB_SWITCHER_MODE = 10;
     BLOCKED_COMPOSITOR_IN_MOTION = 11;
-    // TODO(https://crbug.com/1324678): NATIVE_PAGE.
+    BLOCKED_NTP_Y_TRANSLATION = 12;
   }
   enum AllowCaptureReason {
     ALLOWED_UNKNOWN = 0;

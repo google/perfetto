@@ -42,14 +42,14 @@ Node::Entry::ScalarUnits EntryUnitsFromString(const std::string& units) {
   }
 }
 
-base::Optional<uint64_t> GetSizeEntryOfNode(Node* node) {
+std::optional<uint64_t> GetSizeEntryOfNode(Node* node) {
   auto size_it = node->entries()->find(kSizeEntryName);
   if (size_it == node->entries()->end())
-    return base::nullopt;
+    return std::nullopt;
 
   PERFETTO_DCHECK(size_it->second.type == Node::Entry::Type::kUInt64);
   PERFETTO_DCHECK(size_it->second.units == Node::Entry::ScalarUnits::kBytes);
-  return base::Optional<uint64_t>(size_it->second.value_uint64);
+  return std::optional<uint64_t>(size_it->second.value_uint64);
 }
 
 }  // namespace
@@ -530,17 +530,17 @@ void GraphProcessor::PropagateNumericsAndDiagnosticsRecursively(Node* node) {
 }
 
 // static
-base::Optional<uint64_t> GraphProcessor::AggregateSizeForDescendantNode(
+std::optional<uint64_t> GraphProcessor::AggregateSizeForDescendantNode(
     Node* root,
     Node* descendant) {
   Edge* owns_edge = descendant->owns_edge();
   if (owns_edge && owns_edge->target()->IsDescendentOf(*root))
-    return base::make_optional(0UL);
+    return std::make_optional(0UL);
 
   if (descendant->children()->empty())
     return GetSizeEntryOfNode(descendant).value_or(0ul);
 
-  base::Optional<uint64_t> size;
+  std::optional<uint64_t> size;
   for (const auto& path_to_child : *descendant->children()) {
     auto c_size = AggregateSizeForDescendantNode(root, path_to_child.second);
     if (size) {
@@ -556,10 +556,10 @@ base::Optional<uint64_t> GraphProcessor::AggregateSizeForDescendantNode(
 // static
 void GraphProcessor::CalculateSizeForNode(Node* node) {
   // Get the size at the root node if it exists.
-  base::Optional<uint64_t> node_size = GetSizeEntryOfNode(node);
+  std::optional<uint64_t> node_size = GetSizeEntryOfNode(node);
 
   // Aggregate the size of all the child nodes.
-  base::Optional<uint64_t> aggregated_size;
+  std::optional<uint64_t> aggregated_size;
   for (const auto& path_to_child : *node->children()) {
     auto c_size = AggregateSizeForDescendantNode(node, path_to_child.second);
     if (aggregated_size) {
@@ -578,7 +578,7 @@ void GraphProcessor::CalculateSizeForNode(Node* node) {
   // *aggregated_size);
 
   // Calculate the maximal size of an owner node.
-  base::Optional<uint64_t> max_owner_size;
+  std::optional<uint64_t> max_owner_size;
   for (auto* edge : *node->owned_by_edges()) {
     auto o_size = GetSizeEntryOfNode(edge->source());
     if (max_owner_size) {
@@ -625,7 +625,7 @@ void GraphProcessor::CalculateSizeForNode(Node* node) {
 // static
 void GraphProcessor::CalculateNodeSubSizes(Node* node) {
   // Completely skip nodes with undefined size.
-  base::Optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
+  std::optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
   if (!size_opt)
     return;
 
@@ -669,7 +669,7 @@ void GraphProcessor::CalculateNodeSubSizes(Node* node) {
 // static
 void GraphProcessor::CalculateNodeOwnershipCoefficient(Node* node) {
   // Completely skip nodes with undefined size.
-  base::Optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
+  std::optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
   if (!size_opt)
     return;
 
@@ -744,7 +744,7 @@ void GraphProcessor::CalculateNodeOwnershipCoefficient(Node* node) {
 // static
 void GraphProcessor::CalculateNodeCumulativeOwnershipCoefficient(Node* node) {
   // Completely skip nodes with undefined size.
-  base::Optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
+  std::optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
   if (!size_opt)
     return;
 
@@ -771,7 +771,7 @@ void GraphProcessor::CalculateNodeCumulativeOwnershipCoefficient(Node* node) {
 void GraphProcessor::CalculateNodeEffectiveSize(Node* node) {
   // Completely skip nodes with undefined size. As a result, each node will
   // have defined effective size if and only if it has defined size.
-  base::Optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
+  std::optional<uint64_t> size_opt = GetSizeEntryOfNode(node);
   if (!size_opt) {
     node->entries()->erase(kEffectiveSizeEntryName);
     return;

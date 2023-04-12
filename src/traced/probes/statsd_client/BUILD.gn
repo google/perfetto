@@ -26,6 +26,8 @@ source_set("statsd_client") {
     "../../../../protos/perfetto/trace/statsd:cpp",
     "../../../../protos/perfetto/trace/statsd:zero",
     "../../../../protos/third_party/statsd:config_zero",
+    "../../../android_internal:headers",
+    "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero:proto_ring_buffer",
     "../common",
@@ -33,8 +35,8 @@ source_set("statsd_client") {
   sources = [
     "common.cc",
     "common.h",
-    "statsd_exec_data_source.cc",
-    "statsd_exec_data_source.h",
+    "statsd_binder_data_source.cc",
+    "statsd_binder_data_source.h",
   ]
 }
 

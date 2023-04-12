@@ -51,6 +51,7 @@
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/uuid.h"
@@ -64,9 +65,11 @@
 #include "perfetto/tracing/core/trace_config.h"
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/android_stats/statsd_logging_helper.h"
+#include "src/perfetto_cmd/bugreport_path.h"
 #include "src/perfetto_cmd/config.h"
 #include "src/perfetto_cmd/packet_writer.h"
 #include "src/perfetto_cmd/pbtxt_to_pb.h"
+#include "src/perfetto_cmd/rate_limiter.h"
 #include "src/perfetto_cmd/trigger_producer.h"
 
 #include "protos/perfetto/common/ftrace_descriptor.gen.h"
@@ -78,7 +81,8 @@ namespace {
 
 perfetto::PerfettoCmd* g_perfetto_cmd;
 
-uint32_t kOnTraceDataTimeoutMs = 3000;
+const uint32_t kOnTraceDataTimeoutMs = 3000;
+const uint32_t kCloneTimeoutMs = 10000;
 
 class LoggingErrorReporter : public ErrorReporter {
  public:
@@ -151,7 +155,7 @@ bool IsUserBuild() {
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
 }
 
-base::Optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
+std::optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
     RateLimiter::ShouldTraceResponse resp) {
   switch (resp) {
     case RateLimiter::kNotAllowedOnUserBuild:
@@ -163,7 +167,7 @@ base::Optional<PerfettoStatsdAtom> ConvertRateLimiterResponseToAtom(
     case RateLimiter::kHitUploadLimit:
       return PerfettoStatsdAtom::kCmdHitUploadLimit;
     case RateLimiter::kOkToTrace:
-      return base::nullopt;
+      return std::nullopt;
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -266,8 +270,8 @@ Detach mode. DISCOURAGED, read https://perfetto.dev/docs/concepts/detached-mode
           argv0);
 }
 
-base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
-                                                               char** argv) {
+std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
+                                                              char** argv) {
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   umask(0000);  // make sure that file creation is not affected by umask.
 #endif
@@ -552,6 +556,13 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     return 1;
   }
 
+  // --save-for-bugreport is the equivalent of:
+  // --clone kBugreportSessionId -o /data/misc/perfetto-traces/bugreport/...
+  if (bugreport_ && trace_out_path_.empty()) {
+    clone_tsid_ = kBugreportSessionId;
+    trace_out_path_ = GetBugreportTracePath();
+  }
+
   // Parse the trace config. It can be either:
   // 1) A proto-encoded file/stdin (-c ...).
   // 2) A proto-text file/stdin (-c ... --txt).
@@ -561,8 +572,7 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   trace_config_.reset(new TraceConfig());
 
   bool parsed = false;
-  const bool will_trace_or_trigger =
-      !is_attach() && !query_service_ && !bugreport_;
+  const bool will_trace_or_trigger = !is_attach() && !query_service_;
   if (!will_trace_or_trigger || clone_tsid_) {
     if ((!trace_config_raw.empty() || has_config_options)) {
       PERFETTO_ELOG("Cannot specify a trace config with this option");
@@ -821,8 +831,8 @@ base::Optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     background_wait_pipe_.rd.reset();
   }
 
-  return base::nullopt;  // Continues in ConnectToServiceRunAndMaybeNotify()
-                         // below.
+  return std::nullopt;  // Continues in ConnectToServiceRunAndMaybeNotify()
+                        // below.
 }
 
 void PerfettoCmd::NotifyBgProcessPipe(BgProcessStatus status) {
@@ -904,12 +914,12 @@ int PerfettoCmd::ConnectToServiceAndRun() {
     return finished_with_success ? 0 : 1;
   }  // if (triggers_to_activate_)
 
-  if (query_service_ || bugreport_) {
+  if (query_service_) {
     consumer_endpoint_ =
         ConsumerIPCClient::Connect(GetConsumerSocket(), this, &task_runner_);
     task_runner_.Run();
     return 1;  // We can legitimately get here if the service disconnects.
-  }            // if (query_service || bugreport_)
+  }
 
   RateLimiter::Args args{};
   args.is_user_build = IsUserBuild();
@@ -997,25 +1007,14 @@ void PerfettoCmd::OnConnect() {
     return;
   }
 
-  if (bugreport_) {
-    consumer_endpoint_->SaveTraceForBugreport(
-        [](bool success, const std::string& msg) {
-          if (success) {
-            PERFETTO_ILOG("Trace saved into %s", msg.c_str());
-            exit(0);
-          }
-          PERFETTO_ELOG("%s", msg.c_str());
-          exit(1);
-        });
-    return;
-  }
-
   if (is_attach()) {
     consumer_endpoint_->Attach(attach_key_);
     return;
   }
 
   if (clone_tsid_.has_value()) {
+    task_runner_.PostDelayedTask(std::bind(&PerfettoCmd::OnTimeout, this),
+                                 kCloneTimeoutMs);
     consumer_endpoint_->CloneSession(*clone_tsid_);
     return;
   }
@@ -1028,8 +1027,9 @@ void PerfettoCmd::OnConnect() {
   }
 
   PERFETTO_DCHECK(trace_config_);
-  trace_config_->set_enable_extra_guardrails(save_to_incidentd_ &&
-                                             !ignore_guardrails_);
+  trace_config_->set_enable_extra_guardrails(
+      (save_to_incidentd_ || report_to_android_framework_) &&
+      !ignore_guardrails_);
 
   // Set the statsd logging flag if we're uploading
 

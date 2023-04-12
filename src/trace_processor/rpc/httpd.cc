@@ -258,7 +258,7 @@ void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
 void RunHttpRPCServer(std::unique_ptr<TraceProcessor> preloaded_instance,
                       std::string port_number) {
   Httpd srv(std::move(preloaded_instance));
-  base::Optional<int> port_opt = base::StringToInt32(port_number);
+  std::optional<int> port_opt = base::StringToInt32(port_number);
   int port = port_opt.has_value() ? *port_opt : kBindPort;
   srv.Run(port);
 }

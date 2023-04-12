@@ -12,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Need to turn off Long
+import '../common/query_result';
+
 import {Patch, produce} from 'immer';
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
@@ -32,6 +35,7 @@ import {initController, runControllers} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
+import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
@@ -287,10 +291,8 @@ function main() {
     if (extensionPort) extensionPort.postMessage(data);
   };
 
-  // Put these variables in the global scope for better debugging.
-  (window as {} as {m: {}}).m = m;
-  (window as {} as {globals: {}}).globals = globals;
-  (window as {} as {Actions: {}}).Actions = Actions;
+  // Put debug variables in the global scope for better debugging.
+  registerDebugGlobals();
 
   // Prevent pinch zoom.
   document.body.addEventListener('wheel', (e: MouseEvent) => {

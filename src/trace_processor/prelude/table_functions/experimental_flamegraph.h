@@ -34,8 +34,8 @@ class ExperimentalFlamegraph : public TableFunction {
     ProfileType profile_type;
     int64_t ts;
     std::vector<TimeConstraints> time_constraints;
-    base::Optional<UniquePid> upid;
-    base::Optional<std::string> upid_group;
+    std::optional<UniquePid> upid;
+    std::optional<std::string> upid_group;
     std::string focus_str;
   };
 

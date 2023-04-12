@@ -83,8 +83,11 @@ class Flags {
   allFlags(): Flag[] {
     const includeDevFlags =
         ['127.0.0.1', '::1', 'localhost'].includes(window.location.hostname);
-    return [...this.flags.values()].filter(
-        (flag) => includeDevFlags || !flag.devOnly);
+
+    let flags = [...this.flags.values()];
+    flags = flags.filter((flag) => includeDevFlags || !flag.devOnly);
+    flags.sort((a, b) => a.name.localeCompare(b.name));
+    return flags;
   }
 
   resetAll() {

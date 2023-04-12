@@ -213,10 +213,10 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
 
   EXPECT_NE(stream.perf_session_id, stream2.perf_session_id);
 
-  base::Optional<int64_t> shard_count = context.storage->GetIndexedStats(
+  std::optional<int64_t> shard_count = context.storage->GetIndexedStats(
       stats::perf_process_shard_count,
       static_cast<int>(stream.perf_session_id));
-  base::Optional<int64_t> chosen_shard = context.storage->GetIndexedStats(
+  std::optional<int64_t> chosen_shard = context.storage->GetIndexedStats(
       stats::perf_chosen_process_shard,
       static_cast<int>(stream.perf_session_id));
 
@@ -225,10 +225,10 @@ TEST_F(PerfSampleTrackerTest, ProcessShardingStatsEntries) {
   ASSERT_TRUE(chosen_shard.has_value());
   EXPECT_EQ(chosen_shard.value(), 7);
 
-  base::Optional<int64_t> shard_count2 = context.storage->GetIndexedStats(
+  std::optional<int64_t> shard_count2 = context.storage->GetIndexedStats(
       stats::perf_process_shard_count,
       static_cast<int>(stream.perf_session_id));
-  base::Optional<int64_t> chosen_shard2 = context.storage->GetIndexedStats(
+  std::optional<int64_t> chosen_shard2 = context.storage->GetIndexedStats(
       stats::perf_chosen_process_shard,
       static_cast<int>(stream.perf_session_id));
 

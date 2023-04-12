@@ -16,11 +16,11 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <random>
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"

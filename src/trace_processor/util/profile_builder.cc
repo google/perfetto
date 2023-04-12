@@ -20,10 +20,10 @@
 #include <deque>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -200,6 +200,11 @@ GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
     : context_(*context),
       string_table_(&result_, &context->storage->string_pool()),
       annotations_(context) {
+  // Make sure the empty function always gets id 0 which will be ignored when
+  // writing the proto file.
+  functions_.insert(
+      {Function{kEmptyStringIndex, kEmptyStringIndex, kEmptyStringIndex},
+       kNullFunctionId});
   WriteSampleTypes(sample_types);
 }
 
@@ -314,7 +319,7 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
 
   const auto& cs_table = context_.storage->stack_profile_callsite_table();
 
-  base::Optional<tables::StackProfileCallsiteTable::ConstRowReference>
+  std::optional<tables::StackProfileCallsiteTable::ConstRowReference>
       start_ref = cs_table.FindById(callsite_id);
   if (!start_ref) {
     return location_ids;
@@ -324,7 +329,7 @@ const protozero::PackedVarInt& GProfileBuilder::GetLocationIdsForCallsite(
       start_ref->frame_id(), annotated ? annotations_.GetAnnotation(*start_ref)
                                        : CallsiteAnnotation::kNone));
 
-  base::Optional<CallsiteId> parent_id = start_ref->parent_id();
+  std::optional<CallsiteId> parent_id = start_ref->parent_id();
   while (parent_id) {
     auto parent_ref = cs_table.FindById(*parent_id);
     location_ids.Append(WriteLocationIfNeeded(
@@ -409,8 +414,13 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
     uint64_t mapping_id) {
   std::vector<Line> lines =
       GetLinesForSymbolSetId(frame.symbol_set_id(), annotation, mapping_id);
-  if (lines.empty()) {
-    uint64_t function_id = WriteFunctionIfNeeded(frame, annotation, mapping_id);
+  if (!lines.empty()) {
+    return lines;
+  }
+
+  if (uint64_t function_id =
+          WriteFunctionIfNeeded(frame, annotation, mapping_id);
+      function_id != kNullFunctionId) {
     lines.push_back({function_id, 0});
   }
 
@@ -418,7 +428,7 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLines(
 }
 
 std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
-    base::Optional<uint32_t> symbol_set_id,
+    std::optional<uint32_t> symbol_set_id,
     CallsiteAnnotation annotation,
     uint64_t mapping_id) {
   if (!symbol_set_id) {
@@ -441,8 +451,11 @@ std::vector<GProfileBuilder::Line> GProfileBuilder::GetLinesForSymbolSetId(
 
   std::vector<GProfileBuilder::Line> lines;
   for (const RowRef& symbol : symbol_set) {
-    lines.push_back({WriteFunctionIfNeeded(symbol, annotation, mapping_id),
-                     symbol.line_number()});
+    if (uint64_t function_id =
+            WriteFunctionIfNeeded(symbol, annotation, mapping_id);
+        function_id != kNullFunctionId) {
+      lines.push_back({function_id, symbol.line_number()});
+    }
   }
 
   GetMapping(mapping_id).debug_info.has_inline_frames = true;
@@ -503,6 +516,11 @@ int64_t GProfileBuilder::GetNameForFrame(
   return name;
 }
 
+int64_t GProfileBuilder::GetSystemNameForFrame(
+    const tables::StackProfileFrameTable::ConstRowReference& frame) {
+  return string_table_.InternString(frame.name());
+}
+
 uint64_t GProfileBuilder::WriteFunctionIfNeeded(
     const tables::StackProfileFrameTable::ConstRowReference& frame,
     CallsiteAnnotation annotation,
@@ -515,7 +533,7 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 
   auto ins = functions_.insert(
       {Function{GetNameForFrame(frame, annotation),
-                string_table_.InternString(frame.name()), kEmptyStringIndex},
+                GetSystemNameForFrame(frame), kEmptyStringIndex},
        functions_.size() + 1});
   uint64_t id = ins.first->second;
   seen_functions_.insert({key, id});
@@ -530,6 +548,9 @@ uint64_t GProfileBuilder::WriteFunctionIfNeeded(
 
 void GProfileBuilder::WriteFunctions() {
   for (const auto& entry : functions_) {
+    if (entry.second == kNullFunctionId) {
+      continue;
+    }
     auto* func = result_->add_function();
     func->set_id(entry.second);
     if (entry.first.name != 0) {
@@ -580,7 +601,7 @@ void GProfileBuilder::WriteMapping(uint64_t mapping_id) {
 void GProfileBuilder::WriteMappings() {
   // The convention in pprof files is to write the mapping for the main binary
   // first. So lets do just that.
-  base::Optional<uint64_t> main_mapping_id = GuessMainBinary();
+  std::optional<uint64_t> main_mapping_id = GuessMainBinary();
   if (main_mapping_id) {
     WriteMapping(*main_mapping_id);
   }
@@ -594,7 +615,7 @@ void GProfileBuilder::WriteMappings() {
   }
 }
 
-base::Optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
+std::optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
   std::vector<int64_t> mapping_scores;
 
   for (const auto& mapping : mappings_) {
@@ -604,7 +625,7 @@ base::Optional<uint64_t> GProfileBuilder::GuessMainBinary() const {
   auto it = std::max_element(mapping_scores.begin(), mapping_scores.end());
 
   if (it == mapping_scores.end()) {
-    return base::nullopt;
+    return std::nullopt;
   }
 
   return static_cast<uint64_t>(std::distance(mapping_scores.begin(), it) + 1);

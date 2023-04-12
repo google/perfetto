@@ -51,7 +51,7 @@ export async function maybeStoreKey(key: AdbKey): Promise<void> {
 export class AdbKeyManager {
   private key?: AdbKey;
   // Id of timer used to expire the key kept in memory.
-  private keyInMemoryTimerId?: number;
+  private keyInMemoryTimerId?: ReturnType<typeof setTimeout>;
 
   // Finds a key, by priority:
   // - looking in memory (i.e. this.key)
@@ -93,7 +93,7 @@ export class AdbKeyManager {
       clearTimeout(this.keyInMemoryTimerId);
     }
     this.keyInMemoryTimerId =
-        window.setTimeout(() => this.key = undefined, KEY_IN_MEMORY_TIMEOUT);
+        setTimeout(() => this.key = undefined, KEY_IN_MEMORY_TIMEOUT);
     return key;
   }
 }

@@ -16,8 +16,8 @@
 
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_PACKET_UTILS_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROFILE_PACKET_UTILS_H_
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/stack_profile_tracker.h"
@@ -133,7 +133,7 @@ class ProfilePacketInternLookup
       : seq_state_(seq_state) {}
   ~ProfilePacketInternLookup() override;
 
-  base::Optional<base::StringView> GetString(
+  std::optional<base::StringView> GetString(
       SequenceStackProfileTracker::SourceStringId iid,
       SequenceStackProfileTracker::InternedStringType type) const override {
     protos::pbzero::InternedString::Decoder* decoder = nullptr;
@@ -155,37 +155,37 @@ class ProfilePacketInternLookup
         break;
     }
     if (!decoder)
-      return base::nullopt;
+      return std::nullopt;
     return base::StringView(reinterpret_cast<const char*>(decoder->str().data),
                             decoder->str().size);
   }
 
-  base::Optional<SequenceStackProfileTracker::SourceMapping> GetMapping(
+  std::optional<SequenceStackProfileTracker::SourceMapping> GetMapping(
       SequenceStackProfileTracker::SourceMappingId iid) const override {
     auto* decoder = seq_state_->LookupInternedMessage<
         protos::pbzero::InternedData::kMappingsFieldNumber,
         protos::pbzero::Mapping>(iid);
     if (!decoder)
-      return base::nullopt;
+      return std::nullopt;
     return ProfilePacketUtils::MakeSourceMapping(*decoder);
   }
 
-  base::Optional<SequenceStackProfileTracker::SourceFrame> GetFrame(
+  std::optional<SequenceStackProfileTracker::SourceFrame> GetFrame(
       SequenceStackProfileTracker::SourceFrameId iid) const override {
     auto* decoder = seq_state_->LookupInternedMessage<
         protos::pbzero::InternedData::kFramesFieldNumber,
         protos::pbzero::Frame>(iid);
     if (!decoder)
-      return base::nullopt;
+      return std::nullopt;
     return ProfilePacketUtils::MakeSourceFrame(*decoder);
   }
 
-  base::Optional<SequenceStackProfileTracker::SourceCallstack> GetCallstack(
+  std::optional<SequenceStackProfileTracker::SourceCallstack> GetCallstack(
       SequenceStackProfileTracker::SourceCallstackId iid) const override {
     auto* interned_message_view = seq_state_->GetInternedMessageView(
         protos::pbzero::InternedData::kCallstacksFieldNumber, iid);
     if (!interned_message_view)
-      return base::nullopt;
+      return std::nullopt;
     protos::pbzero::Callstack::Decoder decoder(
         interned_message_view->message().data(),
         interned_message_view->message().length());

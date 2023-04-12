@@ -25,7 +25,7 @@ namespace {
 
 TEST(TaskStateUnittest, PrevStateDefaultsToKernelVersion4p4) {
   auto from_raw = [](uint16_t raw) {
-    return TaskState::FromRawPrevState(raw, base::nullopt);
+    return TaskState::FromRawPrevState(raw, std::nullopt);
   };
 
   // No kernel version -> default to 4.4
@@ -95,7 +95,7 @@ TEST(TaskStateUnittest, KernelVersion4p14) {
 TEST(TaskStateUnittest, PreemptedFlag) {
   // Historical TASK_STATE_MAX as of 4.4:
   {
-    TaskState state = TaskState::FromRawPrevState(0x0800, base::nullopt);
+    TaskState state = TaskState::FromRawPrevState(0x0800, std::nullopt);
     EXPECT_STREQ(state.ToString().data(), "R+");
   }
   // TASK_STATE_MAX moved due to TASK_NEW:
@@ -139,7 +139,7 @@ TEST(TaskStateUnittest, Systrace) {
   auto roundtrip = [](const char* in) {
     uint16_t raw =
         TaskState::FromSystrace(in).ToRawStateOnlyForSystraceConversions();
-    return TaskState::FromRawPrevState(raw, base::nullopt).ToString('|');
+    return TaskState::FromRawPrevState(raw, std::nullopt).ToString('|');
   };
 
   EXPECT_STREQ(roundtrip("R").data(), "R");

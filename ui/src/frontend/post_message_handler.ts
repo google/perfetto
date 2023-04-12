@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
 
+import {initCssConstants} from './css_constants';
 import {globals} from './globals';
+import {toggleHelp} from './help_modal';
 import {showModal} from './modal';
 import {focusHorizontalRange} from './scroll_helper';
 
@@ -101,6 +103,16 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     // correct version of postMessage(...).
     const windowSource = messageEvent.source as Window;
     windowSource.postMessage('PONG', messageEvent.origin);
+    return;
+  }
+
+  if (messageEvent.data === 'SHOW-HELP') {
+    toggleHelp();
+    return;
+  }
+
+  if (messageEvent.data === 'RELOAD-CSS-CONSTANTS') {
+    initCssConstants();
     return;
   }
 

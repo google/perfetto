@@ -1210,6 +1210,10 @@ source_set("zlib") {
   public_configs = [ ":zlib_config" ]
   deps = [ "//gn:default_deps" ]
 
+  if (is_win) {
+    defines = [ "X86_WINDOWS" ]
+  }
+
   # TODO(primiano): look into ADLER32_SIMD_SSSE3 and other SIMD optimizations
   # (from chromium's third_party/zlib/BUILD.gn).
 }

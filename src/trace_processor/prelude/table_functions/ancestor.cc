@@ -209,13 +209,13 @@ uint32_t Ancestor::EstimateRowCount() {
 }
 
 // static
-base::Optional<std::vector<tables::SliceTable::RowNumber>>
+std::optional<std::vector<tables::SliceTable::RowNumber>>
 Ancestor::GetAncestorSlices(const tables::SliceTable& slices,
                             SliceId slice_id) {
   std::vector<tables::SliceTable::RowNumber> ret;
   auto status = GetAncestors(slices, slice_id, ret);
   if (!status.ok())
-    return base::nullopt;
+    return std::nullopt;
   return std::move(ret);  // -Wreturn-std-move-in-c++11
 }
 

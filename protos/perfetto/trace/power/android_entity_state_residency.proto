@@ -25,10 +25,14 @@ message EntityStateResidency {
     // Index corresponding to the state
     optional int32 state_index = 2;
 
-    // Name of the entity
+    // Name of the entity. This is device-specific, determined by the PowerStats
+    // HAL, and cannot be configured by the user. An example would be
+    // "Bluetooth".
     optional string entity_name = 3;
 
-    // Name of the state
+    // Name of the state. This is device-specific, determined by the PowerStats
+    // HAL, and cannot be configured by the user. An example would be
+    // "Active".
     optional string state_name = 4;
   }
 

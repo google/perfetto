@@ -16,73 +16,71 @@
 import argparse
 import json
 import os
-import runpy
 import sys
 from typing import Any
 from typing import Dict
-from typing import List
 from typing import Optional
-from typing import Union
 
 # Allow importing of root-relative modules.
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.trace_processor_table.public import Column
+#pylint: disable=wrong-import-position
 from python.generators.trace_processor_table.public import ColumnDoc
-from python.generators.trace_processor_table.public import Table
 import python.generators.trace_processor_table.util as util
+from python.generators.trace_processor_table.util import ParsedTable
+from python.generators.trace_processor_table.util import ParsedColumn
+#pylint: enable=wrong-import-position
 
 
-def gen_json_for_column(table: Table, col: Column,
-                        doc: Union[ColumnDoc, str]) -> Optional[Dict[str, Any]]:
+def gen_json_for_column(table: ParsedTable,
+                        col: ParsedColumn) -> Optional[Dict[str, Any]]:
   """Generates the JSON documentation for a column in a table."""
+  assert table.table.tabledoc
 
   # id and type columns should be skipped if the table specifies so.
-  is_skippable_col = col._is_auto_added_id or col._is_auto_added_type
-  if table.tabledoc.skip_id_and_type and is_skippable_col:
+  is_skippable_col = col.is_implicit_id or col.is_implicit_type
+  if table.table.tabledoc.skip_id_and_type and is_skippable_col:
     return None
 
   # Our default assumption is the documentation for a column is a plain string
   # so just make the comment for the column equal to that.
 
-  if isinstance(doc, ColumnDoc):
-    comment = doc.doc
-    if doc.joinable:
-      join_table, join_type = doc.joinable.split('.')
+  if isinstance(col.doc, ColumnDoc):
+    comment = col.doc.doc
+    if col.doc.joinable:
+      join_table, join_col = col.doc.joinable.split('.')
     else:
-      join_table, join_type = None, None
-  elif isinstance(doc, str):
-    comment = doc
-    join_table, join_type = None, None
+      join_table, join_col = None, None
+  elif isinstance(col.doc, str):
+    comment = col.doc
+    join_table, join_col = None, None
   else:
-    raise Exception('Unknown column documentation type')
+    raise Exception('Unknown column documentation type '
+                    f'{table.table.class_name}::{col.column.name}')
 
-  parsed_type = util.parse_type(table, col.type)
+  parsed_type = table.parse_type(col.column.type)
   docs_type = parsed_type.cpp_type
   if docs_type == 'StringPool::Id':
     docs_type = 'string'
 
   ref_class_name = None
-  if parsed_type.id_table and not col._is_auto_added_id:
-    id_table_name = util.public_sql_name_for_table(parsed_type.id_table)
+  if parsed_type.id_table and not col.is_implicit_id:
+    id_table_name = util.public_sql_name(parsed_type.id_table)
     ref_class_name = parsed_type.id_table.class_name
 
-    # We shouldn't really specify the join tables when it's a simple id join.
-    assert join_table is None
-    assert join_type is None
-
-    join_table = id_table_name
-    join_type = "id"
+    if not join_table and not join_col:
+      join_table = id_table_name
+      join_col = "id"
 
   return {
-      'name': col.name,
+      'name': col.column.name,
       'type': docs_type,
       'comment': comment,
       'optional': parsed_type.is_optional,
       'refTableCppName': ref_class_name,
       'joinTable': join_table,
-      'joinCol': join_type,
+      'joinCol': join_col,
   }
 
 
@@ -92,21 +90,18 @@ def main():
   parser.add_argument('inputs', nargs='*')
   args = parser.parse_args()
 
-  tables: List[Table] = []
-  for in_path in args.inputs:
-    tables.extend(runpy.run_path(in_path)['ALL_TABLES'])
-  for table in tables:
-    util.normalize_table_columns(table)
-
+  tables = util.parse_tables_from_files(args.inputs)
   table_docs = []
-  for table in tables:
+  for parsed in tables:
+    table = parsed.table
     doc = table.tabledoc
+    assert doc
     cols = (
-        gen_json_for_column(table, c, doc.columns[c.name])
-        for c in table.columns
-        if c._is_self_column)
+        gen_json_for_column(parsed, c)
+        for c in parsed.columns
+        if not c.is_ancestor)
     table_docs.append({
-        'name': util.public_sql_name_for_table(table),
+        'name': util.public_sql_name(table),
         'cppClassName': table.class_name,
         'defMacro': table.class_name,
         'comment': '\n'.join(l.strip() for l in doc.doc.splitlines()),

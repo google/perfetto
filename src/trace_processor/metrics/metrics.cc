@@ -631,9 +631,9 @@ base::Status RunMetric::Run(RunMetric::Context* ctx,
     if (sqlite3_value_type(argv[i]) != SQLITE_TEXT)
       return base::ErrStatus("RUN_METRIC: all keys must be strings");
 
-    base::Optional<std::string> key_str = sqlite_utils::SqlValueToString(
+    std::optional<std::string> key_str = sqlite_utils::SqlValueToString(
         sqlite_utils::SqliteValueToSqlValue(argv[i]));
-    base::Optional<std::string> value_str = sqlite_utils::SqlValueToString(
+    std::optional<std::string> value_str = sqlite_utils::SqlValueToString(
         sqlite_utils::SqliteValueToSqlValue(argv[i + 1]));
 
     if (!value_str) {

@@ -17,7 +17,6 @@
 #include "src/trace_processor/importers/proto/network_trace_module.h"
 
 #include "perfetto/ext/base/string_writer.h"
-#include "protos/perfetto/trace/android/network_trace.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
@@ -30,6 +29,9 @@
 namespace perfetto {
 namespace trace_processor {
 namespace {
+// From android.os.UserHandle.PER_USER_RANGE
+constexpr int kPerUserRange = 100000;
+
 // Convert the bitmask into a string where '.' indicates an unset bit
 // and each bit gets a unique letter if set. The letters correspond to
 // the bitfields in tcphdr (fin, syn, rst, etc).
@@ -58,10 +60,12 @@ NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
       net_arg_ip_proto_(context->storage->InternString("packet_transport")),
       net_arg_tcp_flags_(context->storage->InternString("packet_tcp_flags")),
       net_arg_tag_(context->storage->InternString("socket_tag")),
+      net_arg_uid_(context->storage->InternString("socket_uid")),
       net_arg_local_port_(context->storage->InternString("local_port")),
       net_arg_remote_port_(context->storage->InternString("remote_port")),
       net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
-      net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")) {
+      net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")),
+      packet_count_(context->storage->InternString("packet_count")) {
   RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
   RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber, context);
 }
@@ -132,14 +136,17 @@ void NetworkTraceModule::ParseTracePacketData(
     case TracePacket::kNetworkPacketFieldNumber:
       ParseNetworkPacketEvent(ts, decoder.network_packet());
       return;
+    case TracePacket::kNetworkPacketBundleFieldNumber:
+      ParseNetworkPacketBundle(ts, decoder.network_packet_bundle());
+      return;
   }
 }
 
-void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
-  using protos::pbzero::NetworkPacketEvent;
-  using protos::pbzero::TrafficDirection;
-  NetworkPacketEvent::Decoder evt(blob);
-
+void NetworkTraceModule::ParseGenericEvent(
+    int64_t ts,
+    int64_t dur,
+    protos::pbzero::NetworkPacketEvent::Decoder& evt,
+    std::function<void(ArgsTracker::BoundInserter*)> extra_args) {
   // Tracks are per interface and per direction.
   const char* track_suffix =
       evt.direction() == TrafficDirection::DIR_INGRESS  ? " Received"
@@ -150,11 +157,15 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
                              evt.interface().data, track_suffix);
   StringId name_id = context_->storage->InternString(name.string_view());
 
+  // Android stores the app id in the lower part of the uid. The actual uid will
+  // be `user_id * kPerUserRange + app_id`. For package lookup, we want app id.
+  int app_id = evt.uid() % kPerUserRange;
+
   // Event titles are the package name, if available.
   StringId title_id = kNullStringId;
   if (evt.uid() > 0) {
     const auto& package_list = context_->storage->package_list_table();
-    base::Optional<uint32_t> pkg_row = package_list.uid().IndexOf(evt.uid());
+    std::optional<uint32_t> pkg_row = package_list.uid().IndexOf(app_id);
     if (pkg_row) {
       title_id = package_list.package_name()[*pkg_row];
     }
@@ -167,12 +178,11 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
   }
 
   TrackId track_id = context_->async_track_set_tracker->Scoped(
-      context_->async_track_set_tracker->InternGlobalTrackSet(name_id), ts, 0);
+      context_->async_track_set_tracker->InternGlobalTrackSet(name_id), ts,
+      dur);
 
   context_->slice_tracker->Scoped(
-      ts, track_id, name_id, title_id, 0, [&](ArgsTracker::BoundInserter* i) {
-        i->AddArg(net_arg_length_, Variadic::Integer(evt.length()));
-
+      ts, track_id, name_id, title_id, dur, [&](ArgsTracker::BoundInserter* i) {
         StringId ip_proto;
         if (evt.ip_proto() == kIpprotoTcp) {
           ip_proto = net_ipproto_tcp_;
@@ -185,6 +195,7 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
 
         i->AddArg(net_arg_ip_proto_, Variadic::String(ip_proto));
 
+        i->AddArg(net_arg_uid_, Variadic::Integer(evt.uid()));
         base::StackString<16> tag("0x%x", evt.tag());
         i->AddArg(net_arg_tag_,
                   Variadic::String(
@@ -197,7 +208,28 @@ void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
 
         i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
         i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
+        extra_args(i);
       });
+}
+
+void NetworkTraceModule::ParseNetworkPacketEvent(int64_t ts, ConstBytes blob) {
+  NetworkPacketEvent::Decoder event(blob);
+  ParseGenericEvent(ts, /*dur=*/0, event, [&](ArgsTracker::BoundInserter* i) {
+    i->AddArg(net_arg_length_, Variadic::Integer(event.length()));
+  });
+}
+
+void NetworkTraceModule::ParseNetworkPacketBundle(int64_t ts, ConstBytes blob) {
+  NetworkPacketBundle::Decoder event(blob);
+  NetworkPacketEvent::Decoder ctx(event.ctx());
+  int64_t dur = static_cast<int64_t>(event.total_duration());
+
+  // Any bundle that makes it through tokenization must be aggregated bundles
+  // with total packets/total length.
+  ParseGenericEvent(ts, dur, ctx, [&](ArgsTracker::BoundInserter* i) {
+    i->AddArg(net_arg_length_, Variadic::UnsignedInteger(event.total_length()));
+    i->AddArg(packet_count_, Variadic::UnsignedInteger(event.total_packets()));
+  });
 }
 
 void NetworkTraceModule::PushPacketBufferForSort(int64_t timestamp,

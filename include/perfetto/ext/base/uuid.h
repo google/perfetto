@@ -17,11 +17,11 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_UUID_H_
 #define INCLUDE_PERFETTO_EXT_BASE_UUID_H_
 
+#include <string.h>
 #include <array>
 #include <cstdint>
+#include <optional>
 #include <string>
-
-#include "perfetto/ext/base/optional.h"
 
 namespace perfetto {
 namespace base {

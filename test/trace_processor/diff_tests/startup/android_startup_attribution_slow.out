@@ -32,7 +32,7 @@ android_startup {
         dur_ns: 40000000000
         dur_ms: 40000
       }
-      jit_compiled_methods: 41
+      jit_compiled_methods: 71
       time_jit_thread_pool_on_cpu {
         dur_ns: 20000000000
         dur_ms: 20000
@@ -74,8 +74,6 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     startup_type: "hot"
-    slow_start_reason: "Time spent in OpenDexFilesFromOat*"
-    slow_start_reason: "Time spent verifying classes"
     slow_start_reason: "JIT Activity"
     slow_start_reason: "GC Activity"
     slow_start_reason: "JIT compiled methods"

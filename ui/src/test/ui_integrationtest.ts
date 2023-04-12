@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as puppeteer from 'puppeteer';
+import fs from 'fs';
+import path from 'path';
+import {Browser, Page} from 'puppeteer';
 
 import {assertExists} from '../base/logging';
 
@@ -25,13 +25,13 @@ import {
   waitForPerfettoIdle,
 } from './perfetto_ui_test_helper';
 
-declare let global: {__BROWSER__: puppeteer.Browser;};
+declare let global: {__BROWSER__: Browser;};
 const browser = assertExists(global.__BROWSER__);
 const expectedScreenshotPath = path.join('test', 'data', 'ui-screenshots');
 const tmpDir = path.resolve('./ui-test-artifacts');
 const reportPath = path.join(tmpDir, 'report.txt');
 
-async function getPage(): Promise<puppeteer.Page> {
+async function getPage(): Promise<Page> {
   const pages = (await browser.pages());
   expect(pages.length).toBe(1);
   return pages[pages.length - 1];
@@ -70,7 +70,7 @@ afterEach(async () => {
 });
 
 describe('android_trace_30s', () => {
-  let page: puppeteer.Page;
+  let page: Page;
 
   beforeAll(async () => {
     page = await getPage();
@@ -96,7 +96,7 @@ describe('android_trace_30s', () => {
 });
 
 describe('chrome_rendering_desktop', () => {
-  let page: puppeteer.Page;
+  let page: Page;
 
   beforeAll(async () => {
     page = await getPage();
@@ -138,7 +138,7 @@ describe('chrome_rendering_desktop', () => {
 // Tests that chrome traces with missing process/thread names still open
 // correctly in the UI.
 describe('chrome_missing_track_names', () => {
-  let page: puppeteer.Page;
+  let page: Page;
 
   beforeAll(async () => {
     page = await getPage();
@@ -157,7 +157,7 @@ describe('chrome_missing_track_names', () => {
 
 describe('routing', () => {
   describe('open_two_traces_then_go_back', () => {
-    let page: puppeteer.Page;
+    let page: Page;
 
     beforeAll(async () => {
       page = await getPage();
@@ -187,7 +187,7 @@ describe('routing', () => {
   });
 
   describe('start_from_no_trace', () => {
-    let page: puppeteer.Page;
+    let page: Page;
 
     beforeAll(async () => {
       page = await getPage();
@@ -236,7 +236,7 @@ describe('routing', () => {
   });
 
   describe('navigate', () => {
-    let page: puppeteer.Page;
+    let page: Page;
 
     beforeAll(async () => {
       page = await getPage();
@@ -287,7 +287,7 @@ describe('routing', () => {
 
 // Regression test for b/235335853.
 describe('modal_dialog', () => {
-  let page: puppeteer.Page;
+  let page: Page;
 
   beforeAll(async () => {
     page = await getPage();

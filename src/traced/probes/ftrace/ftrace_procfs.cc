@@ -49,6 +49,10 @@ namespace {
 constexpr char kRssStatThrottledTrigger[] =
     "hist:keys=mm_id,member:bucket=size/0x80000"
     ":onchange($bucket).rss_stat_throttled(mm_id,curr,member,size)";
+
+constexpr char kSuspendResumeMinimalTrigger[] =
+    "hist:keys=start:size=128:onmatch(power.suspend_resume)"
+    ".trace(suspend_resume_minimal, start) if action == 'syscore_resume'";
 }
 
 void KernelLogWrite(const char* s) {
@@ -277,9 +281,14 @@ bool FtraceProcfs::MaybeSetUpEventTriggers(const std::string& group,
                                            const std::string& name) {
   bool ret = true;
 
-  if (group == "synthetic" && name == "rss_stat_throttled") {
-    ret = RemoveAllEventTriggers("kmem", "rss_stat") &&
-          CreateEventTrigger("kmem", "rss_stat", kRssStatThrottledTrigger);
+  if (group == "synthetic") {
+    if (name == "rss_stat_throttled") {
+      ret = RemoveAllEventTriggers("kmem", "rss_stat") &&
+            CreateEventTrigger("kmem", "rss_stat", kRssStatThrottledTrigger);
+    } else if (name == "suspend_resume_minimal") {
+      ret = RemoveAllEventTriggers("power", "suspend_resume") &&
+            CreateEventTrigger("power", "suspend_resume", kSuspendResumeMinimalTrigger);
+    }
   }
 
   if (!ret) {
@@ -294,8 +303,13 @@ bool FtraceProcfs::MaybeTearDownEventTriggers(const std::string& group,
                                               const std::string& name) {
   bool ret = true;
 
-  if (group == "synthetic" && name == "rss_stat_throttled")
-    ret = RemoveAllEventTriggers("kmem", "rss_stat");
+  if (group == "synthetic") {
+    if (name == "rss_stat_throttled") {
+      ret = RemoveAllEventTriggers("kmem", "rss_stat");
+    } else if (name == "suspend_resume_minimal") {
+      ret = RemoveEventTrigger("power", "suspend_resume", kSuspendResumeMinimalTrigger);
+    }
+  }
 
   if (!ret) {
     PERFETTO_PLOG("Failed to tear down event triggers for: %s:%s",
@@ -590,7 +604,7 @@ uint32_t FtraceProcfs::ReadEventId(const std::string& group,
   if (str.size() && str[str.size() - 1] == '\n')
     str.resize(str.size() - 1);
 
-  base::Optional<uint32_t> id = base::StringToUInt32(str);
+  std::optional<uint32_t> id = base::StringToUInt32(str);
   if (!id)
     return 0;
   return *id;

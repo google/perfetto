@@ -18,8 +18,8 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_JSON_JSON_UTILS_H_
 
 #include <stdint.h>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -40,14 +40,14 @@ namespace json {
 // build flags.
 bool IsJsonSupported();
 
-base::Optional<int64_t> CoerceToTs(const Json::Value& value);
-base::Optional<int64_t> CoerceToTs(const std::string& value);
-base::Optional<int64_t> CoerceToInt64(const Json::Value& value);
-base::Optional<uint32_t> CoerceToUint32(const Json::Value& value);
+std::optional<int64_t> CoerceToTs(const Json::Value& value);
+std::optional<int64_t> CoerceToTs(const std::string& value);
+std::optional<int64_t> CoerceToInt64(const Json::Value& value);
+std::optional<uint32_t> CoerceToUint32(const Json::Value& value);
 
 // Parses the given JSON string into a JSON::Value object.
 // This function should only be called if |IsJsonSupported()| returns true.
-base::Optional<Json::Value> ParseJsonString(base::StringView raw_string);
+std::optional<Json::Value> ParseJsonString(base::StringView raw_string);
 
 // Flattens the given Json::Value and adds each leaf node to the bound args
 // inserter. Note:

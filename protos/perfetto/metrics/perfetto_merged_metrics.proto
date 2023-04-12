@@ -202,14 +202,16 @@ message AndroidBinderMetric {
     // General
     optional string aidl_name = 1;
     // Client
-    optional uint32 binder_txn_id = 2;
+    // Removed: was binder_txn_id
+    reserved 2;
     optional string client_process = 3;
     optional string client_thread = 4;
     optional bool is_main_thread = 5;
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
     // Server
-    optional uint32 binder_reply_id = 8;
+    // Removed: was binder_reply_id
+    reserved 8;
     optional string server_process = 9;
     optional string server_thread = 10;
     optional int64 server_ts = 11;
@@ -217,6 +219,9 @@ message AndroidBinderMetric {
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
+
+    optional uint32 client_tid = 15;
+    optional uint32 server_tid = 16;
   }
 
   message ThreadStateBreakdown {
@@ -837,7 +842,7 @@ message AndroidIrqRuntimeMetric {
 message AndroidJankCujMetric {
   repeated Cuj cuj = 1;
 
-  // Next id: 11
+  // Next id: 12
   message Cuj {
     // ID of the CUJ that is unique within the trace.
     optional int32 id = 1;
@@ -870,6 +875,9 @@ message AndroidJankCujMetric {
 
     // Metrics extracted from the trace slices.
     optional Metrics trace_metrics = 9;
+
+    // Layer name of the surface where the cuj is drawn.
+    optional string layer_name = 11;
   }
 
   // Next id: 8
@@ -1157,6 +1165,52 @@ message AndroidMemoryUnaggregatedMetric {
 }
 
 // End of protos/perfetto/metrics/android/mem_unagg_metric.proto
+
+// Begin of protos/perfetto/metrics/android/monitor_contention_metric.proto
+
+// This metric provides information about the monitor contention graph in a
+// trace
+message AndroidMonitorContentionMetric {
+  message Node {
+    optional int64 node_parent_id = 1;
+    optional int64 node_id = 2;
+    optional int64 ts = 3;
+    optional int64 dur = 4;
+    optional string blocking_method = 5;
+    optional string blocked_method = 6;
+    optional string short_blocking_method = 7;
+    optional string short_blocked_method = 8;
+    optional string blocking_src = 9;
+    optional string blocked_src = 10;
+    optional uint32 waiter_count = 11;
+    optional string blocked_thread_name = 12;
+    optional string blocking_thread_name = 13;
+    optional string process_name = 14;
+    optional bool is_blocked_thread_main = 15;
+    optional bool is_blocking_thread_main = 16;
+    optional int64 binder_reply_ts = 17;
+    optional uint32 binder_reply_tid = 18;
+
+    repeated ThreadStateBreakdown thread_states = 19;
+    repeated BlockedFunctionBreakdown blocked_functions = 20;
+  }
+
+  message ThreadStateBreakdown {
+    optional string thread_state = 1;
+    optional int64 thread_state_dur = 2;
+    optional int64 thread_state_count = 3;
+  }
+
+  message BlockedFunctionBreakdown {
+    optional string blocked_function = 1;
+    optional int64 blocked_function_dur = 2;
+    optional int64 blocked_function_count = 3;
+  }
+
+  repeated Node node = 1;
+}
+
+// End of protos/perfetto/metrics/android/monitor_contention_metric.proto
 
 // Begin of protos/perfetto/metrics/android/multiuser_metric.proto
 
@@ -2041,6 +2095,8 @@ message TraceMetrics {
 
   // Blocking calls (e.g. binder calls) for CUJs (important UI transitions).
   optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
+
+  optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   // Demo extensions.
   extensions 450 to 499;

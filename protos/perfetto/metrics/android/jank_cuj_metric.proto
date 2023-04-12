@@ -23,7 +23,7 @@ import "protos/perfetto/metrics/android/process_metadata.proto";
 message AndroidJankCujMetric {
   repeated Cuj cuj = 1;
 
-  // Next id: 11
+  // Next id: 12
   message Cuj {
     // ID of the CUJ that is unique within the trace.
     optional int32 id = 1;
@@ -56,6 +56,9 @@ message AndroidJankCujMetric {
 
     // Metrics extracted from the trace slices.
     optional Metrics trace_metrics = 9;
+
+    // Layer name of the surface where the cuj is drawn.
+    optional string layer_name = 11;
   }
 
   // Next id: 8

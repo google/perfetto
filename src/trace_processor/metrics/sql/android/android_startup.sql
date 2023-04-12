@@ -305,57 +305,63 @@ SELECT
       FROM (
         SELECT 'dex2oat running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 20e6
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 0
 
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 150e6
+          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 0
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'Running') > 150e6
+        WHERE
+          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'Running') > launches.dur * 0.8
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
+        WHERE
+          MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > launches.dur * 0.15
 
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S') > 250e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S') > 2900e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 300e6
+        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 155e6
 
         UNION ALL
         SELECT 'Time spent in OpenDexFilesFromOat*'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'OpenDexFilesFromOat*') > 1e6
+        WHERE
+          ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'OpenDexFilesFromOat*')
+            > launches.dur * 0.2
 
         UNION ALL
         SELECT 'Time spent in bindApplication'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'bindApplication') > 10e6
+        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'bindApplication') > 1250e6
 
         UNION ALL
         SELECT 'Time spent in view inflation'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'inflate') > 600e6
+        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'inflate') > 450e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources'
           AS slow_cause
         WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(
-          launches.startup_id, 'ResourcesManager#getResources') > 10e6
+          launches.startup_id, 'ResourcesManager#getResources') > 130e6
 
         UNION ALL
         SELECT 'Time spent verifying classes'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'VerifyClass*') > 10e6
+        WHERE
+          ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'VerifyClass*')
+            > launches.dur * 0.15
 
         UNION ALL
         SELECT 'Potential CPU contention with '
@@ -371,7 +377,7 @@ SELECT
           launches.startup_id,
           'Running',
           'Jit thread pool'
-        ) > 120e6
+        ) > 100e6
 
         UNION ALL
         SELECT 'Main Thread - Lock contention'
@@ -379,7 +385,7 @@ SELECT
         WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
           launches.startup_id,
           'Lock contention on*'
-        ) > 25e6
+        ) > launches.dur * 0.2
 
         UNION ALL
         SELECT 'Main Thread - Monitor contention'
@@ -387,7 +393,7 @@ SELECT
         WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
           launches.startup_id,
           'Lock contention on a monitor*'
-        ) > 40e6
+        ) > launches.dur * 0.15
 
         UNION ALL
         SELECT 'GC Activity'
@@ -399,21 +405,21 @@ SELECT
           SELECT COUNT(1)
           FROM ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(launches.startup_id, 'JIT compiling*')
           WHERE thread_name = 'Jit thread pool'
-        ) > 40
+        ) > 65
 
         UNION ALL
         SELECT 'Broadcast dispatched count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'Broadcast dispatched*'
-        ) > 10
+        ) > 15
 
         UNION ALL
         SELECT 'Broadcast received count'
         WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
           launches.startup_id,
           'broadcastReceiveReg*'
-        ) > 10
+        ) > 50
 
         UNION ALL
         SELECT 'No baseline or cloud profiles'

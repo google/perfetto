@@ -20,7 +20,7 @@
 #include "protos/perfetto/trace/memory_graph.pbzero.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
-#include "src/trace_processor/tables/memory_tables.h"
+#include "src/trace_processor/tables/memory_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -228,17 +228,17 @@ void MemoryTrackerSnapshotParser::EmitMemorySnapshotNodeRows(
     ProcessMemorySnapshotId& proc_snapshot_row_id,
     IdNodeMap& id_node_map) {
   EmitMemorySnapshotNodeRowsRecursively(root_node_graph, std::string(),
-                                        base::nullopt, proc_snapshot_row_id,
+                                        std::nullopt, proc_snapshot_row_id,
                                         id_node_map);
 }
 
 void MemoryTrackerSnapshotParser::EmitMemorySnapshotNodeRowsRecursively(
     GlobalNodeGraph::Node& node,
     const std::string& path,
-    base::Optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
+    std::optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
     ProcessMemorySnapshotId& proc_snapshot_row_id,
     IdNodeMap& id_node_map) {
-  base::Optional<tables::MemorySnapshotNodeTable::Id> node_id;
+  std::optional<tables::MemorySnapshotNodeTable::Id> node_id;
   // Skip emitting the root node into the tables - it is not a real node.
   if (!path.empty()) {
     node_id = EmitNode(node, path, parent_node_row_id, proc_snapshot_row_id,
@@ -257,11 +257,11 @@ void MemoryTrackerSnapshotParser::EmitMemorySnapshotNodeRowsRecursively(
   }
 }
 
-base::Optional<tables::MemorySnapshotNodeTable::Id>
+std::optional<tables::MemorySnapshotNodeTable::Id>
 MemoryTrackerSnapshotParser::EmitNode(
     const GlobalNodeGraph::Node& node,
     const std::string& path,
-    base::Optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
+    std::optional<tables::MemorySnapshotNodeTable::Id> parent_node_row_id,
     ProcessMemorySnapshotId& proc_snapshot_row_id,
     IdNodeMap& id_node_map) {
   tables::MemorySnapshotNodeTable::Row node_row;

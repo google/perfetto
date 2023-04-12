@@ -28,7 +28,7 @@ namespace {
   C(uint32_t, root_sorted, Column::Flag::kSorted)    \
   C(uint32_t, root_non_null)                         \
   C(uint32_t, root_non_null_2)                       \
-  C(base::Optional<uint32_t>, root_nullable)
+  C(std::optional<uint32_t>, root_nullable)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
 
@@ -37,7 +37,7 @@ PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
   PARENT(PERFETTO_TP_ROOT_TEST_TABLE, C)           \
   C(uint32_t, child_sorted, Column::Flag::kSorted) \
   C(uint32_t, child_non_null)                      \
-  C(base::Optional<uint32_t>, child_nullable)
+  C(std::optional<uint32_t>, child_nullable)
 
 PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
 
@@ -264,8 +264,8 @@ static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
     uint32_t value = rnd_engine() % partitions;
 
     RootTestTable::Row row;
-    row.root_nullable = value % 2 == 0 ? perfetto::base::nullopt
-                                       : perfetto::base::make_optional(value);
+    row.root_nullable =
+        value % 2 == 0 ? std::nullopt : std::make_optional(value);
     root.Insert(row);
   }
 
@@ -310,8 +310,8 @@ static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
     uint32_t value = rnd_engine() % partitions;
 
     ChildTestTable::Row row;
-    row.child_nullable = value % 2 == 0 ? perfetto::base::nullopt
-                                        : perfetto::base::make_optional(value);
+    row.child_nullable =
+        value % 2 == 0 ? std::nullopt : std::make_optional(value);
     root.Insert({});
     child.Insert(row);
   }
@@ -488,9 +488,8 @@ static void BM_TableSortRootNullable(benchmark::State& state) {
     const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
 
     RootTestTable::Row row;
-    row.root_nullable = root_value % 2 == 0
-                            ? perfetto::base::nullopt
-                            : perfetto::base::make_optional(root_value);
+    row.root_nullable =
+        root_value % 2 == 0 ? std::nullopt : std::make_optional(root_value);
     root.Insert(row);
   }
 
@@ -540,17 +539,15 @@ static void BM_TableSortChildNullableInParent(benchmark::State& state) {
     const uint32_t root_value = static_cast<uint32_t>(rnd_engine());
 
     RootTestTable::Row root_row;
-    root_row.root_nullable = root_value % 2 == 0
-                                 ? perfetto::base::nullopt
-                                 : perfetto::base::make_optional(root_value);
+    root_row.root_nullable =
+        root_value % 2 == 0 ? std::nullopt : std::make_optional(root_value);
     root.Insert(root_row);
 
     const uint32_t child_value = static_cast<uint32_t>(rnd_engine());
 
     ChildTestTable::Row child_row;
-    child_row.root_nullable = child_value % 2 == 0
-                                  ? perfetto::base::nullopt
-                                  : perfetto::base::make_optional(child_value);
+    child_row.root_nullable =
+        child_value % 2 == 0 ? std::nullopt : std::make_optional(child_value);
     child.Insert(child_row);
   }
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../common/actions';
@@ -119,7 +119,9 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
   abstract viewTab(): void|m.Children;
 
   createPanelVnode(): m.Vnode<any, any> {
-    return m(BottomTabAdapter, {key: this.uuid, panel: this});
+    return m(
+        BottomTabAdapter,
+        {key: this.uuid, panel: this} as BottomTabAdapterAttrs);
   }
 }
 

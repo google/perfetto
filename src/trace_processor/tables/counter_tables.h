@@ -32,9 +32,7 @@ namespace tables {
   C(int64_t, ts, Column::Flag::kSorted)                \
   C(CounterTrackTable::Id, track_id)                   \
   C(double, value)                                     \
-  C(base::Optional<uint32_t>, arg_set_id)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TABLE_DEF);
+  C(std::optional<uint32_t>, arg_set_id)
 
 }  // namespace tables
 }  // namespace trace_processor

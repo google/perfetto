@@ -24,6 +24,7 @@
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
+#include "perfetto/tracing/internal/track_event_legacy.h"
 #include "perfetto/tracing/internal/write_track_event_args.h"
 #include "perfetto/tracing/track.h"
 #include "perfetto/tracing/track_event_category_registry.h"
@@ -143,6 +144,22 @@ inline void ValidateEventNameType() {
 }
 
 }  // namespace
+
+inline ::perfetto::DynamicString DecayEventNameType(
+    ::perfetto::DynamicString name) {
+  return name;
+}
+
+inline ::perfetto::StaticString DecayEventNameType(
+    ::perfetto::StaticString name) {
+  return name;
+}
+
+// Convert all static strings of different length to StaticString to avoid
+// unnecessary template instantiations.
+inline ::perfetto::StaticString DecayEventNameType(const char* name) {
+  return ::perfetto::StaticString{name};
+}
 
 // Traits for dynamic categories.
 template <typename CategoryType>
@@ -432,6 +449,135 @@ class TrackEventDataSource
         });
   }
 
+// Additional trace points used in legacy macros.
+// It's possible to implement legacy macros using a common TraceForCategory,
+// by supplying a lambda that sets all necessary legacy fields. But this
+// results in a binary size bloat because every trace point generates its own
+// template instantiation with its own lambda. ICF can't eliminate those as
+// each lambda captures different variables and so the code is not completely
+// identical.
+// What we do instead is define additional TraceForCategoryLegacy templates
+// that take legacy arguments directly. Their instantiations can have the same
+// binary code for at least some macro invocations and so can be successfully
+// folded by the linker.
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(instances, category, event_name, type, track,
+                         TrackEventInternal::GetTraceTime(),
+                         [&](perfetto::EventContext ctx)
+                             PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+                               using ::perfetto::internal::TrackEventLegacy;
+                               TrackEventLegacy::WriteLegacyEvent(
+                                   std::move(ctx), phase, flags, args...);
+                             });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track, timestamp,
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          TrackEventLegacy::WriteLegacyEvent(std::move(ctx), phase, flags,
+                                             args...);
+        });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track,
+        TrackEventInternal::GetTraceTime(),
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          ::perfetto::internal::LegacyTraceId trace_id{legacy_id};
+          TrackEventLegacy::WriteLegacyEventWithIdAndTid(
+              std::move(ctx), phase, flags, trace_id, thread_id, args...);
+        });
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_NO_INLINE {
+    TraceForCategoryImpl(
+        instances, category, event_name, type, track, timestamp,
+        [&](perfetto::EventContext ctx) PERFETTO_NO_THREAD_SAFETY_ANALYSIS {
+          using ::perfetto::internal::TrackEventLegacy;
+          ::perfetto::internal::LegacyTraceId trace_id{legacy_id};
+          TrackEventLegacy::WriteLegacyEventWithIdAndTid(
+              std::move(ctx), phase, flags, trace_id, thread_id, args...);
+        });
+  }
+#endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+
   // Initialize the track event library. Should be called before tracing is
   // enabled.
   static bool Register() {
@@ -515,6 +661,86 @@ class TrackEventDataSource
             typename TimestampTypeCheck = typename std::enable_if<
                 IsValidTimestamp<TimestampType>()>::type,
             typename TrackTypeCheck =
+                typename std::enable_if<IsValidTrack<TrackType>()>::type>
+  static perfetto::EventContext WriteTrackEvent(
+      typename Base::TraceContext& ctx,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      const TrackType& track,
+      const TimestampType& timestamp) PERFETTO_NO_INLINE {
+    using CatTraits = CategoryTraits<CategoryType>;
+    const Category* static_category =
+        CatTraits::GetStaticCategory(Registry, category);
+
+    const TrackEventTlsState& tls_state = *ctx.GetCustomTlsState();
+    TraceTimestamp trace_timestamp = ::perfetto::TraceTimestampTraits<
+        TimestampType>::ConvertTimestampToTraceTimeNs(timestamp);
+
+    TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
+    // Make sure incremental state is valid.
+    TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
+    TrackEventInternal::ResetIncrementalStateIfRequired(
+        trace_writer, incr_state, tls_state, trace_timestamp);
+
+    // Write the track descriptor before any event on the track.
+    if (track) {
+      TrackEventInternal::WriteTrackDescriptorIfNeeded(
+          track, trace_writer, incr_state, tls_state, trace_timestamp);
+    }
+
+    // Write the event itself.
+    bool on_current_thread_track =
+        (&track == &TrackEventInternal::kDefaultTrack);
+    auto event_ctx = TrackEventInternal::WriteEvent(
+        trace_writer, incr_state, tls_state, static_category, type,
+        trace_timestamp, on_current_thread_track);
+    // event name should be emitted with `TRACE_EVENT_BEGIN` macros
+    // but not with `TRACE_EVENT_END`.
+    if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
+      TrackEventInternal::WriteEventName(event_name, event_ctx, tls_state);
+    }
+    // Write dynamic categories (except for events that don't require
+    // categories). For counter events, the counter name (and optional
+    // category) is stored as part of the track descriptor instead being
+    // recorded with individual events.
+    if (CatTraits::kIsDynamic &&
+        type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
+        type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
+      DynamicCategory dynamic_category =
+          CatTraits::GetDynamicCategory(category);
+      Category cat = Category::FromDynamicCategory(dynamic_category);
+      cat.ForEachGroupMember([&](const char* member_name, size_t name_size) {
+        event_ctx.event()->add_categories(member_name, name_size);
+        return true;
+      });
+    }
+    if (type == protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
+      // Explicitly clear the track, so that the event is not associated
+      // with the default track, but instead uses the legacy mechanism
+      // based on the phase and pid/tid override.
+      event_ctx.event()->set_track_uuid(0);
+    } else if (!on_current_thread_track) {
+      // We emit these events using TrackDescriptors, and we cannot emit
+      // events on behalf of other processes using the TrackDescriptor
+      // format. Chrome is the only user of events with explicit process
+      // ids and currently only Chrome emits PHASE_MEMORY_DUMP events
+      // with an explicit process id, so we should be fine here.
+      // TODO(mohitms): Get rid of events with explicit process ids
+      // entirely.
+      event_ctx.event()->set_track_uuid(track.uuid);
+    }
+
+    return event_ctx;
+  }
+
+  template <typename CategoryType,
+            typename EventNameType,
+            typename TrackType = Track,
+            typename TimestampType = uint64_t,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type,
+            typename TrackTypeCheck =
                 typename std::enable_if<IsValidTrack<TrackType>()>::type,
             typename... Arguments>
   static void TraceForCategoryImpl(
@@ -526,8 +752,6 @@ class TrackEventDataSource
       const TimestampType& timestamp,
       Arguments&&... args) PERFETTO_ALWAYS_INLINE {
     using CatTraits = CategoryTraits<CategoryType>;
-    const Category* static_category =
-        CatTraits::GetStaticCategory(Registry, category);
     TraceWithInstances(
         instances, category, [&](typename Base::TraceContext ctx) {
           // If this category is dynamic, first check whether it's enabled.
@@ -537,69 +761,10 @@ class TrackEventDataSource
             return;
           }
 
-          const TrackEventTlsState& tls_state = *ctx.GetCustomTlsState();
-          TraceTimestamp trace_timestamp = ::perfetto::TraceTimestampTraits<
-              TimestampType>::ConvertTimestampToTraceTimeNs(timestamp);
-
-          TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
-          // Make sure incremental state is valid.
-          TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
-          TrackEventInternal::ResetIncrementalStateIfRequired(
-              trace_writer, incr_state, tls_state, trace_timestamp);
-
-          // Write the track descriptor before any event on the track.
-          if (track) {
-            TrackEventInternal::WriteTrackDescriptorIfNeeded(
-                track, trace_writer, incr_state, tls_state, trace_timestamp);
-          }
-
-          // Write the event itself.
-          {
-            bool on_current_thread_track =
-                (&track == &TrackEventInternal::kDefaultTrack);
-            auto event_ctx = TrackEventInternal::WriteEvent(
-                trace_writer, incr_state, tls_state, static_category, type,
-                trace_timestamp, on_current_thread_track);
-            // event name should be emitted with `TRACE_EVENT_BEGIN` macros
-            // but not with `TRACE_EVENT_END`.
-            if (type != protos::pbzero::TrackEvent::TYPE_SLICE_END) {
-              TrackEventInternal::WriteEventName(event_name, event_ctx,
-                                                 tls_state);
-            }
-            // Write dynamic categories (except for events that don't require
-            // categories). For counter events, the counter name (and optional
-            // category) is stored as part of the track descriptor instead being
-            // recorded with individual events.
-            if (CatTraits::kIsDynamic &&
-                type != protos::pbzero::TrackEvent::TYPE_SLICE_END &&
-                type != protos::pbzero::TrackEvent::TYPE_COUNTER) {
-              DynamicCategory dynamic_category =
-                  CatTraits::GetDynamicCategory(category);
-              Category cat = Category::FromDynamicCategory(dynamic_category);
-              cat.ForEachGroupMember(
-                  [&](const char* member_name, size_t name_size) {
-                    event_ctx.event()->add_categories(member_name, name_size);
-                    return true;
-                  });
-            }
-            if (type == protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
-              // Explicitly clear the track, so that the event is not associated
-              // with the default track, but instead uses the legacy mechanism
-              // based on the phase and pid/tid override.
-              event_ctx.event()->set_track_uuid(0);
-            } else if (!on_current_thread_track) {
-              // We emit these events using TrackDescriptors, and we cannot emit
-              // events on behalf of other processes using the TrackDescriptor
-              // format. Chrome is the only user of events with explicit process
-              // ids and currently only Chrome emits PHASE_MEMORY_DUMP events
-              // with an explicit process id, so we should be fine here.
-              // TODO(mohitms): Get rid of events with explicit process ids
-              // entirely.
-              event_ctx.event()->set_track_uuid(track.uuid);
-            }
-            WriteTrackEventArgs(std::move(event_ctx),
-                                std::forward<Arguments>(args)...);
-          }  // event_ctx
+          auto event_ctx = WriteTrackEvent(ctx, category, event_name, type,
+                                           track, timestamp);
+          WriteTrackEventArgs(std::move(event_ctx),
+                              std::forward<Arguments>(args)...);
         });
   }
 

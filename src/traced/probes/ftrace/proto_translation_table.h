@@ -23,6 +23,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -107,6 +108,13 @@ class ProtoTranslationTable {
 
   const std::vector<Field>& common_fields() const { return common_fields_; }
 
+  const Field* common_pid() const {
+    // corner case: pKVM hypervisor pseudo-tracefs lacks common_pid
+    if (!common_pid_.has_value())
+      return nullptr;
+    return &common_pid_.value();
+  }
+
   // Virtual for testing.
   virtual const Event* GetEvent(const GroupAndName& group_and_name) const {
     if (!group_and_name_to_event_.count(group_and_name))
@@ -187,6 +195,7 @@ class ProtoTranslationTable {
   std::map<std::string, std::vector<const Event*>> name_to_events_;
   std::map<std::string, std::vector<const Event*>> group_to_events_;
   std::vector<Field> common_fields_;
+  std::optional<Field> common_pid_;  // copy of entry in common_fields_
   FtracePageHeaderSpec ftrace_page_header_spec_{};
   std::set<std::string> interned_strings_;
   CompactSchedEventFormat compact_sched_format_;

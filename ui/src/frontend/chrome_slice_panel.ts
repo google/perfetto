@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
@@ -51,6 +51,46 @@ const ITEMS: ContextMenuItem[] = [
          FROM android_sync_binder_metrics_by_txn
          ORDER BY client_dur DESC`,
         'Binder by TXN',
+        ),
+  },
+  {
+    name: 'Lock graph',
+    shouldDisplay: (slice: SliceDetails) => slice.id !== undefined,
+    getAction: (slice: SliceDetails) => runQueryInNewTab(
+        `SELECT IMPORT('android.monitor_contention');
+         DROP TABLE IF EXISTS FAST;
+         CREATE TABLE FAST
+         AS
+         WITH slice_process AS (
+         SELECT process.name, process.upid FROM slice
+         JOIN thread_track ON thread_track.id = slice.track_id
+         JOIN thread USING(utid)
+         JOIN process USING(upid)
+         WHERE slice.id = ${slice.id!}
+         )
+         SELECT * FROM android_monitor_contention_chain, slice_process
+         WHERE android_monitor_contention_chain.upid = slice_process.upid;
+
+         WITH
+         R AS (
+         SELECT
+           id,
+           dur,
+           CAT_STACKS(blocked_thread_name || ':' || short_blocked_method,
+             blocking_thread_name || ':' || short_blocking_method) AS stack
+         FROM FAST
+         WHERE parent_id IS NULL
+         UNION ALL
+         SELECT
+         c.id,
+         c.dur AS dur,
+         CAT_STACKS(stack, blocking_thread_name || ':' || short_blocking_method) AS stack
+         FROM FAST c, R AS p
+         WHERE p.id = c.parent_id
+         )
+         SELECT TITLE.process_name, EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof
+         FROM R, (SELECT process_name FROM FAST LIMIT 1) TITLE;`,
+        'Lock graph',
         ),
   },
 ];

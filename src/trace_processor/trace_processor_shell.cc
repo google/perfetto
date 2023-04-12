@@ -13,15 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 #include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/stat.h>
-
 #include <cctype>
 #include <cinttypes>
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -39,7 +40,6 @@
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/getopt.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -396,7 +396,7 @@ enum OutputFormat {
 
 struct MetricNameAndPath {
   std::string name;
-  base::Optional<std::string> no_ext_path;
+  std::optional<std::string> no_ext_path;
 };
 
 base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
@@ -1345,7 +1345,7 @@ base::Status LoadMetrics(const std::string& raw_metric_names,
     auto ext_idx = metric_or_path.rfind('.');
     if (ext_idx == std::string::npos) {
       name_and_path.emplace_back(
-          MetricNameAndPath{metric_or_path, base::nullopt});
+          MetricNameAndPath{metric_or_path, std::nullopt});
       continue;
     }
 
@@ -1453,7 +1453,7 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
           PERFETTO_ELOG("%s", status.c_message());
         }
       } else if (strcmp(command, "width") == 0 && strlen(arg)) {
-        base::Optional<uint32_t> width = base::CStringToUInt32(arg);
+        std::optional<uint32_t> width = base::CStringToUInt32(arg);
         if (!width) {
           PERFETTO_ELOG("Invalid column width specified");
           continue;

@@ -22,9 +22,10 @@
 #include <cstring>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <tuple>
+
 #include "perfetto/ext/base/circular_queue.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/utils.h"
 
 namespace perfetto {
@@ -165,8 +166,8 @@ class BumpAllocator {
   };
 
   // Tries to allocate |size| bytes in the final chunk in |chunks_|. Returns
-  // an AllocId if this was successful or base::nullopt otherwise.
-  base::Optional<AllocId> TryAllocInLastChunk(uint32_t size);
+  // an AllocId if this was successful or std::nullopt otherwise.
+  std::optional<AllocId> TryAllocInLastChunk(uint32_t size);
 
   uint64_t ChunkIndexToQueueIndex(uint64_t chunk_index) const {
     return chunk_index - erased_front_chunks_count_;

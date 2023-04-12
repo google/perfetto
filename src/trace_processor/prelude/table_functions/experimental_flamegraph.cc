@@ -119,8 +119,8 @@ ExperimentalFlamegraph::InputValues GetFlamegraphInputValues(
     }
   }
 
-  base::Optional<UniquePid> upid;
-  base::Optional<std::string> upid_group;
+  std::optional<UniquePid> upid;
+  std::optional<std::string> upid_group;
   if (upid_it != cs.end()) {
     upid = static_cast<UniquePid>(upid_it->value.AsLong());
   } else {
@@ -213,7 +213,7 @@ std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> FocusTable(
       ComputeFocusedState(*in, Matcher(focus_str));
   std::unique_ptr<ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool(), nullptr));
+          storage->mutable_string_pool()));
 
   // Recompute cumulative counts
   std::vector<CumulativeCounts> node_to_cumulatives(in->row_count());

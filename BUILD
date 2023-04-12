@@ -130,7 +130,6 @@ perfetto_cc_library(
         "src/protozero/gen_field_helpers.cc",
         "src/protozero/message.cc",
         "src/protozero/message_arena.cc",
-        "src/protozero/message_handle.cc",
         "src/protozero/packed_repeated_fields.cc",
         "src/protozero/proto_decoder.cc",
         "src/protozero/scattered_heap_buffer.cc",
@@ -408,7 +407,6 @@ perfetto_filegroup(
         "include/perfetto/ext/base/metatrace.h",
         "include/perfetto/ext/base/metatrace_events.h",
         "include/perfetto/ext/base/no_destructor.h",
-        "include/perfetto/ext/base/optional.h",
         "include/perfetto/ext/base/paged_memory.h",
         "include/perfetto/ext/base/periodic_task.h",
         "include/perfetto/ext/base/pipe.h",
@@ -676,6 +674,7 @@ perfetto_filegroup(
         "include/perfetto/tracing/internal/track_event_data_source.h",
         "include/perfetto/tracing/internal/track_event_internal.h",
         "include/perfetto/tracing/internal/track_event_interned_fields.h",
+        "include/perfetto/tracing/internal/track_event_legacy.h",
         "include/perfetto/tracing/internal/track_event_macros.h",
         "include/perfetto/tracing/internal/write_track_event_args.h",
         "include/perfetto/tracing/locked_handle.h",
@@ -706,6 +705,7 @@ perfetto_filegroup(
         "src/android_internal/health_hal.h",
         "src/android_internal/incident_service.h",
         "src/android_internal/power_stats.h",
+        "src/android_internal/statsd.h",
         "src/android_internal/statsd_logging.h",
         "src/android_internal/tracing_service_proxy.h",
     ],
@@ -901,6 +901,14 @@ perfetto_filegroup(
         "src/kernel_utils/syscalls_armeabi.h",
         "src/kernel_utils/syscalls_x86.h",
         "src/kernel_utils/syscalls_x86_64.h",
+    ],
+)
+
+# GN target: //src/perfetto_cmd:bugreport_path
+perfetto_filegroup(
+    name = "src_perfetto_cmd_bugreport_path",
+    srcs = [
+        "src/perfetto_cmd/bugreport_path.h",
     ],
 )
 
@@ -1119,6 +1127,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/flow_tracker.h",
         "src/trace_processor/importers/common/global_args_tracker.cc",
         "src/trace_processor/importers/common/global_args_tracker.h",
+        "src/trace_processor/importers/common/metadata_tracker.cc",
+        "src/trace_processor/importers/common/metadata_tracker.h",
         "src/trace_processor/importers/common/process_tracker.cc",
         "src/trace_processor/importers/common/process_tracker.h",
         "src/trace_processor/importers/common/slice_tracker.cc",
@@ -1410,8 +1420,6 @@ perfetto_filegroup(
         "src/trace_processor/importers/proto/memory_tracker_snapshot_parser.h",
         "src/trace_processor/importers/proto/metadata_minimal_module.cc",
         "src/trace_processor/importers/proto/metadata_minimal_module.h",
-        "src/trace_processor/importers/proto/metadata_tracker.cc",
-        "src/trace_processor/importers/proto/metadata_tracker.h",
         "src/trace_processor/importers/proto/network_trace_module.cc",
         "src/trace_processor/importers/proto/network_trace_module.h",
         "src/trace_processor/importers/proto/packet_analyzer.cc",
@@ -1529,6 +1537,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/android_lmk_reason.sql",
         "src/trace_processor/metrics/sql/android/android_mem.sql",
         "src/trace_processor/metrics/sql/android/android_mem_unagg.sql",
+        "src/trace_processor/metrics/sql/android/android_monitor_contention.sql",
         "src/trace_processor/metrics/sql/android/android_multiuser.sql",
         "src/trace_processor/metrics/sql/android/android_multiuser_populator.sql",
         "src/trace_processor/metrics/sql/android/android_netperf.sql",
@@ -1627,6 +1636,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
+        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v2.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
@@ -1765,6 +1775,8 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/create_view_function.h",
         "src/trace_processor/prelude/functions/import.cc",
         "src/trace_processor/prelude/functions/import.h",
+        "src/trace_processor/prelude/functions/layout_functions.cc",
+        "src/trace_processor/prelude/functions/layout_functions.h",
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/pprof_functions.h",
         "src/trace_processor/prelude/functions/register_function.cc",
@@ -1974,17 +1986,13 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
-        "src/trace_processor/tables/android_tables.h",
         "src/trace_processor/tables/counter_tables.h",
         "src/trace_processor/tables/flow_tables.h",
         "src/trace_processor/tables/macros.h",
         "src/trace_processor/tables/macros_internal.h",
-        "src/trace_processor/tables/memory_tables.h",
-        "src/trace_processor/tables/metadata_tables.h",
         "src/trace_processor/tables/profiler_tables.h",
         "src/trace_processor/tables/slice_tables.h",
         "src/trace_processor/tables/table_destructors.cc",
-        "src/trace_processor/tables/trace_proto_tables.h",
     ],
 )
 
@@ -1993,12 +2001,24 @@ perfetto_cc_tp_tables(
     name = "src_trace_processor_tables_tables_python",
     srcs = [
         "src/trace_processor/tables/android_tables.py",
+        "src/trace_processor/tables/counter_tables.py",
+        "src/trace_processor/tables/flow_tables.py",
+        "src/trace_processor/tables/memory_tables.py",
         "src/trace_processor/tables/metadata_tables.py",
+        "src/trace_processor/tables/profiler_tables.py",
+        "src/trace_processor/tables/slice_tables.py",
+        "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
     ],
     outs = [
         "src/trace_processor/tables/android_tables_py.h",
+        "src/trace_processor/tables/counter_tables_py.h",
+        "src/trace_processor/tables/flow_tables_py.h",
+        "src/trace_processor/tables/memory_tables_py.h",
         "src/trace_processor/tables/metadata_tables_py.h",
+        "src/trace_processor/tables/profiler_tables_py.h",
+        "src/trace_processor/tables/slice_tables_py.h",
+        "src/trace_processor/tables/trace_proto_tables_py.h",
         "src/trace_processor/tables/track_tables_py.h",
     ],
 )
@@ -2460,8 +2480,8 @@ perfetto_filegroup(
     srcs = [
         "src/traced/probes/statsd_client/common.cc",
         "src/traced/probes/statsd_client/common.h",
-        "src/traced/probes/statsd_client/statsd_exec_data_source.cc",
-        "src/traced/probes/statsd_client/statsd_exec_data_source.h",
+        "src/traced/probes/statsd_client/statsd_binder_data_source.cc",
+        "src/traced/probes/statsd_client/statsd_binder_data_source.h",
     ],
 )
 
@@ -3553,6 +3573,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/android/lmk_reason_metric.proto",
         "protos/perfetto/metrics/android/mem_metric.proto",
         "protos/perfetto/metrics/android/mem_unagg_metric.proto",
+        "protos/perfetto/metrics/android/monitor_contention_metric.proto",
         "protos/perfetto/metrics/android/multiuser_metric.proto",
         "protos/perfetto/metrics/android/network_metric.proto",
         "protos/perfetto/metrics/android/other_traces.proto",
@@ -3600,6 +3621,7 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/performance_mark_hashes.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
+        "protos/perfetto/metrics/chrome/scroll_jank_v2.proto",
         "protos/perfetto/metrics/chrome/slice_names.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",
         "protos/perfetto/metrics/chrome/touch_jank.proto",
@@ -4367,6 +4389,7 @@ perfetto_proto_library(
     name = "protos_third_party_statsd_config_protos",
     srcs = [
         "protos/third_party/statsd/shell_config.proto",
+        "protos/third_party/statsd/shell_data.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
@@ -4520,6 +4543,7 @@ perfetto_cc_binary(
         ":include_perfetto_tracing_tracing",
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
+        ":src_perfetto_cmd_bugreport_path",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_tracing_common",

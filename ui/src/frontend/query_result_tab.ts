@@ -12,7 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
+
+import {assertExists} from '../base/logging';
 import {QueryResponse, runQuery} from '../common/queries';
+import {QueryError} from '../common/query_result';
+import {
+  AddDebugTrackMenu,
+  uuidToViewName,
+} from '../tracks/debug/add_debug_track_menu';
+
 import {
   addTab,
   BottomTab,
@@ -22,6 +32,8 @@ import {
 } from './bottom_tab';
 import {globals} from './globals';
 import {QueryTable} from './query_table';
+import {Button} from './widgets/button';
+import {Popup, PopupPosition} from './widgets/popup';
 
 
 export function runQueryInNewTab(query: string, title: string, tag?: string) {
@@ -47,6 +59,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   static readonly kind = 'org.perfetto.QueryResultTab';
 
   queryResponse?: QueryResponse;
+  sqlViewName?: string;
 
   static create(args: NewBottomTabArgs): QueryResultTab {
     return new QueryResultTab(args);
@@ -58,10 +71,38 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     if (this.config.prefetchedResponse !== undefined) {
       this.queryResponse = this.config.prefetchedResponse;
     } else {
-      runQuery(this.config.query, this.engine).then((result: QueryResponse) => {
-        this.queryResponse = result;
-        globals.rafScheduler.scheduleFullRedraw();
-      });
+      runQuery(this.config.query, this.engine)
+          .then(async (result: QueryResponse) => {
+            this.queryResponse = result;
+            globals.rafScheduler.scheduleFullRedraw();
+
+            if (result.error !== undefined) {
+              return;
+            }
+
+            const uuid = uuidv4();
+            const viewId = uuidToViewName(uuid);
+            // Assuming that it was a SELECT query, try creating a view to allow
+            // us to reuse it for further queries.
+            // TODO(altimin): This should get the actual query that was used to
+            // generate the results from the SQL query iterator.
+            try {
+              const createViewResult = await this.engine.query(
+                  `create view ${viewId} as ${this.config.query}`);
+              if (createViewResult.error()) {
+                // If it failed, do nothing.
+                return;
+              }
+            } catch (e) {
+              if (e instanceof QueryError) {
+                // If it failed, do nothing.
+                return;
+              }
+              throw e;
+            }
+            this.sqlViewName = viewId;
+            globals.rafScheduler.scheduleFullRedraw();
+          });
     }
   }
 
@@ -71,11 +112,25 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     return `${this.config.title}${suffix}`;
   }
 
-  viewTab(): void {
+  viewTab(): m.Child {
     return m(QueryTable, {
       query: this.config.query,
       resp: this.queryResponse,
       onClose: () => closeTab(this.uuid),
+      contextButtons: [
+        this.sqlViewName === undefined ?
+            null :
+            m(Popup,
+              {
+                trigger: m(Button, {label: 'Show debug track', minimal: true}),
+                position: PopupPosition.Top,
+              },
+              m(AddDebugTrackMenu, {
+                sqlViewName: this.sqlViewName,
+                columns: assertExists(this.queryResponse).columns,
+                engine: this.engine,
+              })),
+      ],
     });
   }
 

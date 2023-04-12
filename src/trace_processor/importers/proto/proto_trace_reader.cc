@@ -16,11 +16,11 @@
 
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
@@ -28,9 +28,9 @@
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_module.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_analyzer.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_incremental_state.h"
@@ -365,7 +365,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   uint32_t snapshot_id = context_->clock_tracker->AddSnapshot(clock_timestamps);
 
   // Add the all the clock snapshots to the clock snapshot table.
-  base::Optional<int64_t> trace_ts_for_check;
+  std::optional<int64_t> trace_ts_for_check;
   for (const auto& clock_timestamp : clock_timestamps) {
     // If the clock is incremental, we need to use 0 to map correctly to
     // |absolute_timestamp|.
@@ -398,8 +398,8 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
   return util::OkStatus();
 }
 
-base::Optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
-    uint64_t clock_id) {
+std::optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
+    int64_t clock_id) {
   switch (clock_id) {
     case protos::pbzero::ClockSnapshot::Clock::REALTIME:
       return context_->storage->InternString("REALTIME");
@@ -414,7 +414,7 @@ base::Optional<StringId> ProtoTraceReader::GetBuiltinClockNameOrNull(
     case protos::pbzero::ClockSnapshot::Clock::BOOTTIME:
       return context_->storage->InternString("BOOTTIME");
     default:
-      return base::nullopt;
+      return std::nullopt;
   }
 }
 

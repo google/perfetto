@@ -497,7 +497,8 @@ std::unique_ptr<ProtoTranslationTable> ProtoTranslationTable::Create(
 
   // Pre-parse certain scheduler events, and see if the compile-time assumptions
   // about their format hold for this kernel.
-  CompactSchedEventFormat compact_sched = ValidateFormatForCompactSched(events);
+  CompactSchedEventFormat compact_sched =
+      ValidateFormatForCompactSched(events, common_fields);
 
   std::string text = ftrace_procfs->ReadPrintkFormats();
   PrintkMap printk_formats = ParsePrintkFormats(text);
@@ -527,6 +528,11 @@ ProtoTranslationTable::ProtoTranslationTable(
         &events_.at(event.ftrace_event_id);
     name_to_events_[event.name].push_back(&events_.at(event.ftrace_event_id));
     group_to_events_[event.group].push_back(&events_.at(event.ftrace_event_id));
+  }
+  for (const Field& field : common_fields_) {
+    if (field.proto_field_id == protos::pbzero::FtraceEvent::kPidFieldNumber) {
+      common_pid_ = field;
+    }
   }
 }
 

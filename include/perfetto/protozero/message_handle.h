@@ -40,11 +40,30 @@ class Message;
 
 class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
  public:
-  ~MessageHandleBase();
+  ~MessageHandleBase() {
+    if (message_) {
+#if PERFETTO_DCHECK_IS_ON()
+      PERFETTO_DCHECK(generation_ == message_->generation_);
+#endif
+      FinalizeMessage();
+    }
+  }
 
   // Move-only type.
-  MessageHandleBase(MessageHandleBase&&) noexcept;
-  MessageHandleBase& operator=(MessageHandleBase&&);
+  MessageHandleBase(MessageHandleBase&& other) noexcept {
+    Move(std::move(other));
+  }
+
+  MessageHandleBase& operator=(MessageHandleBase&& other) noexcept {
+    // If the current handle was pointing to a message and is being reset to a
+    // new one, finalize the old message. However, if the other message is the
+    // same as the one we point to, don't finalize.
+    if (message_ && message_ != other.message_)
+      FinalizeMessage();
+    Move(std::move(other));
+    return *this;
+  }
+
   explicit operator bool() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
@@ -67,7 +86,14 @@ class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
   }
 
  protected:
-  explicit MessageHandleBase(Message* = nullptr);
+  explicit MessageHandleBase(Message* message = nullptr) : message_(message) {
+#if PERFETTO_DCHECK_IS_ON()
+    generation_ = message_ ? message->generation_ : 0;
+    if (message_)
+      message_->set_handle(this);
+#endif
+  }
+
   Message* operator->() const {
 #if PERFETTO_DCHECK_IS_ON()
     PERFETTO_DCHECK(!message_ || generation_ == message_->generation_);
@@ -87,7 +113,16 @@ class PERFETTO_EXPORT_COMPONENT MessageHandleBase {
     message_ = nullptr;
   }
 
-  void Move(MessageHandleBase&&);
+  void Move(MessageHandleBase&& other) {
+    message_ = other.message_;
+    other.message_ = nullptr;
+#if PERFETTO_DCHECK_IS_ON()
+    if (message_) {
+      generation_ = message_->generation_;
+      message_->set_handle(this);
+    }
+#endif
+  }
 
   void FinalizeMessage() { message_->Finalize(); }
 

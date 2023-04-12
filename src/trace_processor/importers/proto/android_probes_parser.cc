@@ -16,15 +16,16 @@
 
 #include "src/trace_processor/importers/proto/android_probes_parser.h"
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/traced/sys_stats_counters.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/syscalls/syscall_tracker.h"
 #include "src/trace_processor/types/tcp_state.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -344,19 +345,19 @@ void AndroidProbesParser::ParseAndroidGameIntervention(ConstBytes blob) {
     int32_t cur_mode = static_cast<int32_t>(game_pkg.current_mode());
 
     bool is_standard_mode = false;
-    base::Optional<double> standard_downscale;
-    base::Optional<int32_t> standard_angle;
-    base::Optional<double> standard_fps;
+    std::optional<double> standard_downscale;
+    std::optional<int32_t> standard_angle;
+    std::optional<double> standard_fps;
 
     bool is_performance_mode = false;
-    base::Optional<double> perf_downscale;
-    base::Optional<int32_t> perf_angle;
-    base::Optional<double> perf_fps;
+    std::optional<double> perf_downscale;
+    std::optional<int32_t> perf_angle;
+    std::optional<double> perf_fps;
 
     bool is_battery_mode = false;
-    base::Optional<double> battery_downscale;
-    base::Optional<int32_t> battery_angle;
-    base::Optional<double> battery_fps;
+    std::optional<double> battery_downscale;
+    std::optional<int32_t> battery_angle;
+    std::optional<double> battery_fps;
 
     for (auto mode_it = game_pkg.game_mode_info(); mode_it; ++mode_it) {
       protos::pbzero::AndroidGameInterventionList_GameModeInfo::Decoder
@@ -407,7 +408,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
   for (auto it = properties.values(); it; ++it) {
     protos::pbzero::AndroidSystemProperty::PropertyValue::Decoder kv(*it);
     base::StringView name(kv.name());
-    base::Optional<StringId> mapped_name_id;
+    std::optional<StringId> mapped_name_id;
 
     if (name == "debug.tracing.device_state") {
       auto state = kv.value();
@@ -423,7 +424,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
                name == "debug.tracing.mcc" || name == "debug.tracing.mnc") {
       StringId name_id = context_->storage->InternString(
           name.substr(strlen("debug.tracing.")));
-      base::Optional<int32_t> state =
+      std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
         TrackId track =
@@ -438,7 +439,7 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       mapped_name_id = plug_type_id_;
     }
     if (mapped_name_id) {
-      base::Optional<int32_t> state =
+      std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
         TrackId track =

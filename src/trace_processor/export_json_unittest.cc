@@ -28,9 +28,9 @@
 #include "perfetto/ext/base/temp_file.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -830,16 +830,16 @@ TEST_F(ExportJsonTest, InstantEventOnThread) {
 
 TEST_F(ExportJsonTest, DuplicatePidAndTid) {
   UniqueTid upid1 = context_.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, 1, kNullStringId,
+      std::nullopt, std::nullopt, 1, kNullStringId,
       ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid1a = context_.process_tracker->UpdateThread(1, 1);
   UniqueTid utid1b = context_.process_tracker->UpdateThread(2, 1);
-  UniqueTid utid1c = context_.process_tracker->StartNewThread(base::nullopt, 2);
+  UniqueTid utid1c = context_.process_tracker->StartNewThread(std::nullopt, 2);
   // Associate the new thread with its process.
   ASSERT_EQ(utid1c, context_.process_tracker->UpdateThread(2, 1));
 
   UniqueTid upid2 = context_.process_tracker->StartNewProcess(
-      base::nullopt, base::nullopt, 1, kNullStringId,
+      std::nullopt, std::nullopt, 1, kNullStringId,
       ThreadNamePriority::kTrackDescriptor);
   UniqueTid utid2a = context_.process_tracker->UpdateThread(1, 1);
   UniqueTid utid2b = context_.process_tracker->UpdateThread(2, 1);
@@ -1542,7 +1542,7 @@ TEST_F(ExportJsonTest, CpuProfileEvent) {
        storage->InternString("bar_file"), 77});
   frames->mutable_symbol_set_id()->Set(frame_2.row, symbol_set_id);
 
-  auto frame_callsite_1 = callsites->Insert({0, base::nullopt, frame_1.id});
+  auto frame_callsite_1 = callsites->Insert({0, std::nullopt, frame_1.id});
 
   auto frame_callsite_2 =
       callsites->Insert({1, frame_callsite_1.id, frame_2.id});

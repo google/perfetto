@@ -21,6 +21,7 @@
 #include <functional>
 #include <initializer_list>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -30,7 +31,6 @@
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/proc_utils.h"
 #include "perfetto/ext/base/event_fd.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
 
@@ -145,7 +145,7 @@ class Subprocess {
     // setpgid(0 /*self_pid*/, posix_proc_group_id).
     // This can be used to avoid that subprocesses receive CTRL-C from the
     // terminal, while still living in the same session.
-    base::Optional<pid_t> posix_proc_group_id{};
+    std::optional<pid_t> posix_proc_group_id{};
 #endif
 
     // If non-empty, replaces the environment passed to exec().
@@ -269,7 +269,6 @@ class Subprocess {
   void TryPushStdin();
   void TryReadStdoutAndErr();
   void TryReadExitStatus();
-  void KillAtMostOnce();
   bool PollInternal(int poll_timeout_ms);
 #endif
 

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Anchor} from './anchor';
 import {classNames} from './classnames';
@@ -31,6 +31,7 @@ import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
+import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
 import {Tree, TreeLayout, TreeNode} from './widgets/tree';
 
@@ -249,14 +250,16 @@ export const WidgetsPage = createPage({
         m('h1', 'Widgets'),
         m('h2', 'Button'),
         m(WidgetShowcase, {
-          renderWidget: ({label, icon, ...rest}) => m(Button, {
+          renderWidget: ({label, icon, rightIcon, ...rest}) => m(Button, {
             icon: icon ? 'send' : undefined,
+            rightIcon: rightIcon ? 'arrow_forward' : undefined,
             label: label ? 'Button' : '',
             ...rest,
           }),
           initialOpts: {
             label: true,
-            icon: false,
+            icon: true,
+            rightIcon: false,
             disabled: false,
             minimal: false,
             active: false,
@@ -267,6 +270,15 @@ export const WidgetsPage = createPage({
         m(WidgetShowcase, {
           renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
           initialOpts: {
+            disabled: false,
+          },
+        }),
+        m('h2', 'Switch'),
+        m(WidgetShowcase, {
+          renderWidget: ({label, ...rest}: any) =>
+              m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
+          initialOpts: {
+            label: true,
             disabled: false,
           },
         }),
@@ -401,7 +413,7 @@ export const WidgetsPage = createPage({
           initialOpts: {
             icon: true,
             showNumSelected: true,
-            repeatCheckedItemsAtTop: true,
+            repeatCheckedItemsAtTop: false,
           },
         }),
         m('h2', 'PopupMenu'),

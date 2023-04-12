@@ -17,9 +17,9 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_TRACKER_H_
 
+#include <optional>
 #include <set>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
@@ -66,12 +66,12 @@ class AndroidProbesTracker : public Destructible {
     seen_packages_.emplace(std::move(package_name));
   }
 
-  base::Optional<TrackId> GetPowerRailTrack(uint32_t index) {
+  std::optional<TrackId> GetPowerRailTrack(uint32_t index) {
     if (index >= power_rail_tracks_.size())
-      return base::nullopt;
+      return std::nullopt;
     TrackId track_id = power_rail_tracks_[index];
-    return track_id == kInvalidTrackId ? base::nullopt
-                                       : base::make_optional(track_id);
+    return track_id == kInvalidTrackId ? std::nullopt
+                                       : std::make_optional(track_id);
   }
 
   void SetPowerRailTrack(uint32_t index, TrackId track_id) {
@@ -80,12 +80,12 @@ class AndroidProbesTracker : public Destructible {
     power_rail_tracks_[index] = track_id;
   }
 
-  base::Optional<EnergyConsumerSpecs> GetEnergyBreakdownDescriptor(
+  std::optional<EnergyConsumerSpecs> GetEnergyBreakdownDescriptor(
       int32_t consumer_id) {
     auto it = energy_consumer_descriptors_.find(consumer_id);
     // Didn't receive the descriptor
     if (it == energy_consumer_descriptors_.end()) {
-      return base::nullopt;
+      return std::nullopt;
     }
     return it->second;
   }
@@ -105,14 +105,14 @@ class AndroidProbesTracker : public Destructible {
         EnergyConsumerSpecs{name, type, ordinal};
   }
 
-  base::Optional<EntityStateDescriptor> GetEntityStateDescriptor(
+  std::optional<EntityStateDescriptor> GetEntityStateDescriptor(
       int32_t entity_id,
       int32_t state_id) {
     uint64_t id = EntityStateKey(entity_id, state_id);
     auto it = entity_state_descriptors_.find(id);
     // Didn't receive the descriptor
     if (it == entity_state_descriptors_.end()) {
-      return base::nullopt;
+      return std::nullopt;
     }
     return it->second;
   }

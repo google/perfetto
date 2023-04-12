@@ -18,6 +18,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {Direction} from './event_set';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -306,6 +307,14 @@ export interface SliceSelection {
   id: number;
 }
 
+export interface DebugSliceSelection {
+  kind: 'DEBUG_SLICE';
+  id: number;
+  sqlTableName: string;
+  startS: number;
+  durationS: number;
+}
+
 export interface CounterSelection {
   kind: 'COUNTER';
   leftTs: number;
@@ -368,7 +377,8 @@ export interface LogSelection {
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection|LogSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection)&
+    {trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
@@ -437,7 +447,7 @@ export interface PivotTableAreaState {
   tracks: string[];
 }
 
-export type SortDirection = 'DESC'|'ASC';
+export type SortDirection = keyof typeof Direction;
 
 export interface PivotTableState {
   // Currently selected area, if null, pivot table is not going to be visible.
@@ -661,7 +671,7 @@ export function getDefaultRecordingTargets(): RecordingTarget[] {
 }
 
 export function getBuiltinChromeCategoryList(): string[] {
-  // List of static Chrome categories, last updated at 2022-12-05 from HEAD of
+  // List of static Chrome categories, last updated at 2023-04-04 from HEAD of
   // Chromium's //base/trace_event/builtin_categories.h.
   return [
     'accessibility',
@@ -679,7 +689,6 @@ export function getBuiltinChromeCategoryList(): string[] {
     'blink.resource',
     'blink.user_timing',
     'blink.worker',
-    'blink_gc',
     'blink_style',
     'Blob',
     'browser',
@@ -694,7 +703,6 @@ export function getBuiltinChromeCategoryList(): string[] {
     'cast.mdns',
     'cast.mdns.socket',
     'cast.stream',
-    'catan_investigation',
     'cc',
     'cc.debug',
     'cdp.perf',
@@ -717,6 +725,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'DXVA_Decoding',
     'evdev',
     'event',
+    'event_latency',
     'exo',
     'extensions',
     'explore_sites',
@@ -727,6 +736,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'GAMEPAD',
     'gpu',
     'gpu.angle',
+    'gpu.angle.texture_metrics',
     'gpu.capture',
     'headless',
     'history',
@@ -759,6 +769,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'offline_pages',
     'omnibox',
     'oobe',
+    'openscreen',
     'ozone',
     'partition_alloc',
     'passwords',
@@ -776,6 +787,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'renderer',
     'renderer_host',
     'renderer.scheduler',
+    'resources',
     'RLZ',
     'ServiceWorker',
     'SiteEngagement',
@@ -798,7 +810,6 @@ export function getBuiltinChromeCategoryList(): string[] {
     'sync',
     'system_apps',
     'test_gpu',
-    'thread_pool',
     'toplevel',
     'toplevel.flow',
     'ui',
@@ -813,6 +824,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'wakeup.flow',
     'wayland',
     'webaudio',
+    'webengine.fidl',
     'weblayer',
     'WebCore',
     'webrtc',
@@ -822,19 +834,23 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-animation-worklet',
     'disabled-by-default-audio',
     'disabled-by-default-audio-worklet',
+    'disabled-by-default-audio.latency',
     'disabled-by-default-base',
     'disabled-by-default-blink.debug',
     'disabled-by-default-blink.debug.display_lock',
     'disabled-by-default-blink.debug.layout',
+    'disabled-by-default-blink.debug.layout.scrollbars',
     'disabled-by-default-blink.debug.layout.trees',
     'disabled-by-default-blink.feature_usage',
     'disabled-by-default-blink.image_decoding',
     'disabled-by-default-blink.invalidation',
     'disabled-by-default-identifiability',
+    'disabled-by-default-identifiability.high_entropy_api',
     'disabled-by-default-cc',
     'disabled-by-default-cc.debug',
     'disabled-by-default-cc.debug.cdp-perf',
     'disabled-by-default-cc.debug.display_items',
+    'disabled-by-default-cc.debug.lcd_text',
     'disabled-by-default-cc.debug.picture',
     'disabled-by-default-cc.debug.scheduler',
     'disabled-by-default-cc.debug.scheduler.frames',
@@ -911,6 +927,7 @@ export function getBuiltinChromeCategoryList(): string[] {
     'disabled-by-default-viz.surface_lifetime',
     'disabled-by-default-viz.triangles',
     'disabled-by-default-webaudio.audionode',
+    'disabled-by-default-webgpu',
     'disabled-by-default-webrtc',
     'disabled-by-default-worker.scheduler',
     'disabled-by-default-xr.debug',

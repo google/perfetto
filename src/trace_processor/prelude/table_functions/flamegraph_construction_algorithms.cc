@@ -29,9 +29,9 @@ namespace {
 struct MergedCallsite {
   StringId frame_name;
   StringId mapping_name;
-  base::Optional<StringId> source_file;
-  base::Optional<uint32_t> line_number;
-  base::Optional<uint32_t> parent_idx;
+  std::optional<StringId> source_file;
+  std::optional<uint32_t> line_number;
+  std::optional<uint32_t> parent_idx;
   bool operator<(const MergedCallsite& o) const {
     return std::tie(frame_name, mapping_name, parent_idx) <
            std::tie(o.frame_name, o.mapping_name, o.parent_idx);
@@ -60,15 +60,14 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
       *mapping_tbl.id().IndexOf(frames_tbl.mapping()[frame_idx]);
   StringId mapping_name = mapping_tbl.name()[mapping_idx];
 
-  base::Optional<uint32_t> symbol_set_id =
-      frames_tbl.symbol_set_id()[frame_idx];
+  std::optional<uint32_t> symbol_set_id = frames_tbl.symbol_set_id()[frame_idx];
 
   if (!symbol_set_id) {
     StringId frame_name = frames_tbl.name()[frame_idx];
-    base::Optional<StringId> deobfuscated_name =
+    std::optional<StringId> deobfuscated_name =
         frames_tbl.deobfuscated_name()[frame_idx];
     return {{deobfuscated_name ? *deobfuscated_name : frame_name, mapping_name,
-             base::nullopt, base::nullopt, base::nullopt}};
+             std::nullopt, std::nullopt, std::nullopt}};
   }
 
   std::vector<MergedCallsite> result;
@@ -82,7 +81,7 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
        ++i) {
     result.emplace_back(MergedCallsite{
         symbols_tbl.name()[i], mapping_name, symbols_tbl.source_file()[i],
-        symbols_tbl.line_number()[i], base::nullopt});
+        symbols_tbl.line_number()[i], std::nullopt});
   }
   std::reverse(result.begin(), result.end());
   return result;
@@ -91,8 +90,8 @@ std::vector<MergedCallsite> GetMergedCallsites(TraceStorage* storage,
 
 static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
     TraceStorage* storage,
-    base::Optional<UniquePid> upid,
-    base::Optional<std::string> upid_group,
+    std::optional<UniquePid> upid,
+    std::optional<std::string> upid_group,
     int64_t default_timestamp,
     StringId profile_type) {
   const tables::StackProfileCallsiteTable& callsites_tbl =
@@ -104,13 +103,13 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
 
   std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> tbl(
       new tables::ExperimentalFlamegraphNodesTable(
-          storage->mutable_string_pool(), nullptr));
+          storage->mutable_string_pool()));
 
   // FORWARD PASS:
   // Aggregate callstacks by frame name / mapping name. Use symbolization
   // data.
   for (uint32_t i = 0; i < callsites_tbl.row_count(); ++i) {
-    base::Optional<uint32_t> parent_idx;
+    std::optional<uint32_t> parent_idx;
 
     auto opt_parent_id = callsites_tbl.parent_id()[i];
     if (opt_parent_id) {
@@ -133,8 +132,10 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
         tables::ExperimentalFlamegraphNodesTable::Row row{};
         if (parent_idx) {
           row.depth = tbl->depth()[*parent_idx] + 1;
+          row.parent_id = tbl->id()[*parent_idx];
         } else {
           row.depth = 0;
+          row.parent_id = std::nullopt;
         }
 
         // The 'ts' column is given a default value, taken from the query.
@@ -158,8 +159,6 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
         row.profile_type = profile_type;
         row.name = merged_callsite.frame_name;
         row.map_name = merged_callsite.mapping_name;
-        if (parent_idx)
-          row.parent_id = tbl->id()[*parent_idx];
         tbl->Insert(row);
         callsites_to_rowid[merged_callsite] =
             static_cast<uint32_t>(merged_callsites_to_table_idx.size() - 1);
@@ -170,10 +169,10 @@ static FlamegraphTableAndMergedCallsites BuildFlamegraphTableTreeStructure(
         MergedCallsite saved_callsite = it->first;
         callsites_to_rowid.erase(saved_callsite);
         if (saved_callsite.source_file != merged_callsite.source_file) {
-          saved_callsite.source_file = base::nullopt;
+          saved_callsite.source_file = std::nullopt;
         }
         if (saved_callsite.line_number != merged_callsite.line_number) {
-          saved_callsite.line_number = base::nullopt;
+          saved_callsite.line_number = std::nullopt;
         }
         callsites_to_rowid[saved_callsite] = it->second;
       }
@@ -335,7 +334,7 @@ BuildHeapProfileFlamegraph(TraceStorage* storage,
   }
   StringId profile_type = storage->InternString("native");
   FlamegraphTableAndMergedCallsites table_and_callsites =
-      BuildFlamegraphTableTreeStructure(storage, upid, base::nullopt, timestamp,
+      BuildFlamegraphTableTreeStructure(storage, upid, std::nullopt, timestamp,
                                         profile_type);
   return BuildFlamegraphTableHeapSizeAndCount(
       std::move(table_and_callsites.tbl),
@@ -345,8 +344,8 @@ BuildHeapProfileFlamegraph(TraceStorage* storage,
 std::unique_ptr<tables::ExperimentalFlamegraphNodesTable>
 BuildNativeCallStackSamplingFlamegraph(
     TraceStorage* storage,
-    base::Optional<UniquePid> upid,
-    base::Optional<std::string> upid_group,
+    std::optional<UniquePid> upid,
+    std::optional<std::string> upid_group,
     const std::vector<TimeConstraints>& time_constraints) {
   // 1.Extract required upids from input.
   std::unordered_set<UniquePid> upids;
@@ -354,7 +353,7 @@ BuildNativeCallStackSamplingFlamegraph(
     upids.insert(*upid);
   } else {
     for (base::StringSplitter sp(*upid_group, ','); sp.Next();) {
-      base::Optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
+      std::optional<uint32_t> maybe = base::CStringToUInt32(sp.cur_token());
       if (maybe) {
         upids.insert(*maybe);
       }
@@ -365,7 +364,7 @@ BuildNativeCallStackSamplingFlamegraph(
   std::set<tables::ThreadTable::Id> utids;
   RowMap threads_in_pid_rm;
   for (uint32_t i = 0; i < storage->thread_table().row_count(); ++i) {
-    base::Optional<uint32_t> row_upid = storage->thread_table().upid()[i];
+    std::optional<uint32_t> row_upid = storage->thread_table().upid()[i];
     if (row_upid && upids.count(*row_upid) > 0) {
       threads_in_pid_rm.Insert(i);
     }
@@ -405,7 +404,7 @@ BuildNativeCallStackSamplingFlamegraph(
   if (filtered.row_count() == 0) {
     std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> empty_tbl(
         new tables::ExperimentalFlamegraphNodesTable(
-            storage->mutable_string_pool(), nullptr));
+            storage->mutable_string_pool()));
     return empty_tbl;
   }
 

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {DropDirection} from '../common/dragndrop_logic';
 

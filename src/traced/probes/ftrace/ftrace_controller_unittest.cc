@@ -60,11 +60,17 @@ constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
 class MockTaskRunner : public base::TaskRunner {
  public:
-  MOCK_METHOD1(PostTask, void(std::function<void()>));
-  MOCK_METHOD2(PostDelayedTask, void(std::function<void()>, uint32_t delay_ms));
-  MOCK_METHOD2(AddFileDescriptorWatch, void(int fd, std::function<void()>));
-  MOCK_METHOD1(RemoveFileDescriptorWatch, void(int fd));
-  MOCK_CONST_METHOD0(RunsTasksOnCurrentThread, bool());
+  MOCK_METHOD(void, PostTask, (std::function<void()>), (override));
+  MOCK_METHOD(void,
+              PostDelayedTask,
+              (std::function<void()>, uint32_t delay_ms),
+              (override));
+  MOCK_METHOD(void,
+              AddFileDescriptorWatch,
+              (int fd, std::function<void()>),
+              (override));
+  MOCK_METHOD(void, RemoveFileDescriptorWatch, (int fd), (override));
+  MOCK_METHOD(bool, RunsTasksOnCurrentThread, (), (const, override));
 };
 
 std::unique_ptr<Table> FakeTable(FtraceProcfs* ftrace) {
@@ -166,13 +172,18 @@ class MockFtraceProcfs : public FtraceProcfs {
     return base::ScopedFile(base::OpenFile("/dev/null", O_RDONLY));
   }
 
-  MOCK_METHOD2(WriteToFile,
-               bool(const std::string& path, const std::string& str));
-  MOCK_CONST_METHOD0(NumberOfCpus, size_t());
-  MOCK_METHOD1(ReadOneCharFromFile, char(const std::string& path));
-  MOCK_METHOD1(ClearFile, bool(const std::string& path));
-  MOCK_METHOD1(IsFileWriteable, bool(const std::string& path));
-  MOCK_CONST_METHOD1(ReadFileIntoString, std::string(const std::string& path));
+  MOCK_METHOD(bool,
+              WriteToFile,
+              (const std::string& path, const std::string& str),
+              (override));
+  MOCK_METHOD(size_t, NumberOfCpus, (), (const, override));
+  MOCK_METHOD(char, ReadOneCharFromFile, (const std::string& path), (override));
+  MOCK_METHOD(bool, ClearFile, (const std::string& path), (override));
+  MOCK_METHOD(bool, IsFileWriteable, (const std::string& path), (override));
+  MOCK_METHOD(std::string,
+              ReadFileIntoString,
+              (const std::string& path),
+              (const, override));
 
   bool is_tracing_on() { return tracing_on_; }
 
@@ -756,7 +767,7 @@ TEST(FtraceControllerTest, DefaultAndSecondaryInstance) {
 }
 
 TEST(FtraceControllerTest, TracefsInstanceFilepaths) {
-  base::Optional<std::string> path;
+  std::optional<std::string> path;
   path = FtraceController::AbsolutePathForInstance("/root/", "test");
   EXPECT_EQ(*path, "/root/instances/test/");
 

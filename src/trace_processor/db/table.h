@@ -21,10 +21,10 @@
 
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
@@ -148,19 +148,19 @@ class Table {
   // Returns the column at index |idx| in the Table.
   const Column& GetColumn(uint32_t idx) const { return columns_[idx]; }
 
-  // Returns the column index with the given name or base::nullopt otherwise.
-  base::Optional<uint32_t> GetColumnIndexByName(const char* name) const {
+  // Returns the column index with the given name or std::nullopt otherwise.
+  std::optional<uint32_t> GetColumnIndexByName(const char* name) const {
     auto it = std::find_if(
         columns_.begin(), columns_.end(),
         [name](const Column& col) { return strcmp(col.name(), name) == 0; });
     if (it == columns_.end())
-      return base::nullopt;
+      return std::nullopt;
     return static_cast<uint32_t>(std::distance(columns_.begin(), it));
   }
 
   // Returns the column with the given name or nullptr otherwise.
   const Column* GetColumnByName(const char* name) const {
-    base::Optional<uint32_t> opt_idx = GetColumnIndexByName(name);
+    std::optional<uint32_t> opt_idx = GetColumnIndexByName(name);
     if (!opt_idx)
       return nullptr;
     return &columns_[*opt_idx];

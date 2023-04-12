@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
@@ -27,7 +27,7 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
-import * as version from '../gen/perfetto_version';
+import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 
 import {Animation} from './animation';
 import {onClickCopy} from './clipboard';
@@ -149,18 +149,6 @@ function createCannedQuery(query: string, title: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
     runQueryInNewTab(query, title);
-  };
-}
-
-function showDebugTrack(): (_: Event) => void {
-  return (e: Event) => {
-    e.preventDefault();
-    globals.dispatch(Actions.addDebugTrack({
-      // The debug track will only be shown once we have a currentEngineId which
-      // is not undefined.
-      engineId: assertExists(globals.state.engine).id,
-      name: 'Debug Slices',
-    }));
   };
 }
 
@@ -315,12 +303,6 @@ const SECTIONS: Section[] = [
     title: 'Sample queries',
     summary: 'Compute summary statistics',
     items: [
-      {
-        t: 'Show Debug Track',
-        a: showDebugTrack(),
-        i: 'view_day',
-        isVisible: () => globals.state.engine !== undefined,
-      },
       {
         t: 'Record metatrace',
         a: recordMetatrace,
@@ -865,11 +847,11 @@ const SidebarFooter: m.Component = {
             '.version',
             m('a',
               {
-                href: `${GITILES_URL}/+/${version.SCM_REVISION}/ui`,
+                href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
                 title: `Channel: ${getCurrentChannel()}`,
                 target: '_blank',
               },
-              `${version.VERSION.substr(0, 11)}`),
+              `${VERSION.substr(0, 11)}`),
             ),
     );
   },

@@ -21,6 +21,7 @@
 
 #include <list>
 #include <map>
+#include <optional>
 #include <string>
 
 // We include this intentionally instead of forward declaring to allow
@@ -64,7 +65,9 @@ class FilterUtil {
   // format. Example:
   // PowerRails                 2 message  energy_data     PowerRails.EnergyData
   // PowerRails.RailDescriptor  1 uint32   index
-  void PrintAsText();
+  // If the optional bytecode filter is given, only the fields allowed by the
+  // bytecode are printed.
+  void PrintAsText(std::optional<std::string> filter_bytecode = {});
 
   // Resolves an array of field ids into a dot-concatenated field names.
   // E.g., [2,5,1] -> ".trace.packet.timestamp".
@@ -73,6 +76,8 @@ class FilterUtil {
   // Like the above but the array of field is passed as a buffer containing
   // varints, e.g. "\x02\x05\0x01".
   std::string LookupField(const std::string& varint_encoded_path);
+
+  void set_print_stream_for_testing(FILE* stream) { print_stream_ = stream; }
 
  private:
   struct Message {
@@ -98,6 +103,7 @@ class FilterUtil {
 
   // list<> because pointers need to be stable.
   std::list<Message> descriptors_;
+  FILE* print_stream_ = stdout;
 };
 
 }  // namespace protozero

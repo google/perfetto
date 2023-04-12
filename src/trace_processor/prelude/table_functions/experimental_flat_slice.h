@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_EXPERIMENTAL_FLAT_SLICE_H_
 #define SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_EXPERIMENTAL_FLAT_SLICE_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 

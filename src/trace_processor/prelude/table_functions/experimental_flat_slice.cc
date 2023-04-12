@@ -74,7 +74,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
                                              int64_t start_bound,
                                              int64_t end_bound) {
   std::unique_ptr<tables::ExperimentalFlatSliceTable> out(
-      new tables::ExperimentalFlatSliceTable(pool, nullptr));
+      new tables::ExperimentalFlatSliceTable(pool));
 
   auto insert_slice = [&](uint32_t i, int64_t ts,
                           tables::TrackTable::Id track_id) {
@@ -98,7 +98,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
     row.category = kNullStringId;
     row.name = kNullStringId;
     row.arg_set_id = kInvalidArgSetId;
-    row.source_id = base::nullopt;
+    row.source_id = std::nullopt;
     row.start_bound = start_bound;
     row.end_bound = end_bound;
     return out->Insert(row).row;
@@ -111,7 +111,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
   };
 
   struct ActiveSlice {
-    base::Optional<uint32_t> source_row;
+    std::optional<uint32_t> source_row;
     uint32_t out_row = std::numeric_limits<uint32_t>::max();
 
     bool is_sentinel() const { return !source_row; }
@@ -185,7 +185,7 @@ ExperimentalFlatSlice::ComputeFlatSliceTable(const tables::SliceTable& slice,
       return;
 
     // Otherwise, Add a sentinel slice after the end of the active slice.
-    t.active.source_row = base::nullopt;
+    t.active.source_row = std::nullopt;
     t.active.out_row = insert_sentinel(ts + dur, track_id);
   };
 

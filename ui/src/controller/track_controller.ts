@@ -35,7 +35,8 @@ type TrackConfigWithNamespace = TrackConfig&{namespace: string};
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
 export abstract class TrackController<
-    Config, Data extends TrackData = TrackData> extends Controller<'main'> {
+    Config extends TrackConfig, Data extends TrackData = TrackData> extends
+    Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
   private data?: TrackData;

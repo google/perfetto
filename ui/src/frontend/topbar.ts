@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import * as version from '../gen/perfetto_version';
+import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
 import {runQueryInNewTab} from './query_result_tab';
@@ -192,7 +192,7 @@ class NewVersionNotification implements m.ClassComponent {
   view() {
     return m(
         '.new-version-toast',
-        `Updated to ${version.VERSION} and ready for offline use!`,
+        `Updated to ${VERSION} and ready for offline use!`,
         m('button.notification-btn.preferred',
           {
             onclick: () => {
@@ -209,7 +209,11 @@ class NewVersionNotification implements m.ClassComponent {
 class HelpPanningNotification implements m.ClassComponent {
   view() {
     const dismissed = localStorage.getItem(DISMISSED_PANNING_HINT_KEY);
-    if (dismissed === 'true' || !globals.frontendLocalState.showPanningHint) {
+    // Do not show the help notification in embedded mode because local storage
+    // does not persist for iFrames. The host is responsible for communicating
+    // to users that they can press '?' for help.
+    if (globals.embeddedMode || dismissed === 'true' ||
+        !globals.frontendLocalState.showPanningHint) {
       return;
     }
     return m(

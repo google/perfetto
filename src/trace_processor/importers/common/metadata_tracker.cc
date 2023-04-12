@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 
 #include "perfetto/ext/base/crash_keys.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
@@ -52,7 +52,7 @@ MetadataId MetadataTracker::SetMetadata(metadata::KeyId key, Variadic value) {
 
   auto* metadata_table = storage_->mutable_metadata_table();
   uint32_t key_idx = static_cast<uint32_t>(key);
-  base::Optional<uint32_t> opt_row =
+  std::optional<uint32_t> opt_row =
       metadata_table->name().IndexOf(metadata::kNames[key_idx]);
   if (opt_row) {
     WriteValue(*opt_row, value);

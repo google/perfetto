@@ -19,13 +19,13 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/base/task_runner.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/threading/channel.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/poll.h"
@@ -104,7 +104,7 @@ Future<FVoid> WriteChannelFuture(Channel<T>* channel, T item) {
 
 // Creates a Stream<T> which yields the result of executing |fn| on |pool|
 // repeatedly. The returned stream only completes when |fn| returns
-// base::nullopt.
+// std::nullopt.
 //
 // The intended usage of this function is to schedule CPU intensive work on a
 // background thread pool and receive regular "updates" on the progress by:
@@ -112,13 +112,13 @@ Future<FVoid> WriteChannelFuture(Channel<T>* channel, T item) {
 // b) returning some indication of progress/partial results through |T|.
 template <typename T>
 Stream<T> RunOnThreadPool(ThreadPool* pool,
-                          std::function<base::Optional<T>()> fn) {
+                          std::function<std::optional<T>()> fn) {
   class RunOnPoolImpl : public StreamPollable<T> {
    public:
     explicit RunOnPoolImpl(ThreadPool* pool,
-                           std::function<base::Optional<T>()> fn)
+                           std::function<std::optional<T>()> fn)
         : pool_(pool),
-          fn_(std::make_shared<std::function<base::Optional<T>()>>(
+          fn_(std::make_shared<std::function<std::optional<T>()>>(
               std::move(fn))),
           channel_(new Channel<T>(1)),
           channel_stream_(ReadChannelStream(channel_.get())) {
@@ -150,7 +150,7 @@ Stream<T> RunOnThreadPool(ThreadPool* pool,
     }
 
     ThreadPool* pool_ = nullptr;
-    std::shared_ptr<std::function<base::Optional<T>()>> fn_;
+    std::shared_ptr<std::function<std::optional<T>()>> fn_;
     std::shared_ptr<Channel<T>> channel_;
     base::Stream<T> channel_stream_;
   };
@@ -166,9 +166,9 @@ template <typename T>
 Future<T> RunOnceOnThreadPool(ThreadPool* pool, std::function<T()> fn) {
   return RunOnThreadPool<T>(
              pool,
-             [done = false, fn = std::move(fn)]() mutable -> base::Optional<T> {
+             [done = false, fn = std::move(fn)]() mutable -> std::optional<T> {
                if (done) {
-                 return base::nullopt;
+                 return std::nullopt;
                }
                done = true;
                return fn();

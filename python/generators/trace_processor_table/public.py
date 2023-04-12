@@ -22,7 +22,7 @@ from typing import Optional
 from typing import Union
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppColumnType:
   """
   The type of a column on a C++ table.
@@ -40,10 +40,12 @@ class ColumnFlag(enum_Flag):
   """
   NONE = 0
   SORTED = auto()
+  HIDDEN = auto()
+  DENSE = auto()
   SET_ID = auto()
 
 
-@dataclass
+@dataclass(frozen=True)
 class Column:
   """
   Representation of a column of a C++ table.
@@ -57,13 +59,8 @@ class Column:
   type: CppColumnType
   flags: ColumnFlag = ColumnFlag.NONE
 
-  # Private fields used by the generator. Do not set these manually.
-  _is_auto_added_id: bool = False
-  _is_auto_added_type: bool = False
-  _is_self_column: bool = True
 
-
-@dataclass
+@dataclass(frozen=True)
 class ColumnDoc:
   """
   Documentation for the C++ table column.
@@ -79,7 +76,7 @@ class ColumnDoc:
   joinable: Optional[str] = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class TableDoc:
   """
   Documentation for the C++ table.
@@ -93,8 +90,8 @@ class TableDoc:
     groups.
     columns: Documentation for each table column.
     skip_id_and_type: Skips publishing these columns in the documentation.
-    Should only be used when these columns
-    are not meaningful or are aliased to something better.
+    Should only be used when these columns are not meaningful or are aliased to
+    something better.
   """
   doc: str
   group: str
@@ -102,7 +99,7 @@ class TableDoc:
   skip_id_and_type: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class WrappingSqlView:
   """
   Specifies information about SQL view wrapping a table.
@@ -116,7 +113,7 @@ class WrappingSqlView:
   view_name: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class Table:
   """
   Representation of of a C++ table.
@@ -125,63 +122,64 @@ class Table:
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
-    tabledoc: Documentation for this table. Can include
-    documentation overrides for auto-added columns (i.e.
-    id and type) and aliases added in |wrapping_sql_view|.
-    parent: The parent ("super-class") table for this table.
+    tabledoc: Documentation for this table. Can include documentation overrides
+    for auto-added columns (i.e. id and type) and aliases added in
+    |wrapping_sql_view|.
+    parent: The parent table for this table. All columns are inherited from the
+    specified table.
     wrapping_sql_view: See |WrappingSqlView|.
   """
   class_name: str
   sql_name: str
   columns: List[Column]
-  tabledoc: TableDoc
   parent: Optional['Table'] = None
+  tabledoc: Optional[TableDoc] = None
   wrapping_sql_view: Optional[WrappingSqlView] = None
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppInt64(CppColumnType):
   """Represents the int64_t C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppUint32(CppColumnType):
   """Represents the uint32_t C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppInt32(CppColumnType):
   """Represents the int32_t C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppDouble(CppColumnType):
   """Represents the double C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppString(CppColumnType):
   """Represents the StringPool::Id C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppOptional(CppColumnType):
   """Represents the base::Optional C++ type."""
   inner: CppColumnType
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppTableId(CppColumnType):
   """Represents the Table::Id C++ type."""
   table: Table
 
 
-@dataclass
+@dataclass(frozen=True)
 class CppSelfTableId(CppColumnType):
   """Represents the Id C++ type."""
 
 
-@dataclass
+@dataclass(frozen=True)
 class Alias(CppColumnType):
   """Represents a column which aliases another column.
 

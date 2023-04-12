@@ -19,5 +19,8 @@ perfetto_proto_library("config_@TYPE@") {
     "zero",
     "source_set",
   ]
-  sources = [ "shell_config.proto" ]
+  sources = [
+    "shell_config.proto",
+    "shell_data.proto",
+  ]
 }
