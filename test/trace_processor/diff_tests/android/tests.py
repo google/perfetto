@@ -243,8 +243,8 @@ class Android(TestSuite):
       LIMIT 1;
       """,
         out=Csv("""
-        "blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "float com.android.server.wm.WindowManagerService.getCurrentAnimatorScale()","android.app.ActivityTaskManager$RootTaskInfo com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo()","com.android.server.wm.WindowManagerService.getCurrentAnimatorScale","com.android.server.wm.ActivityTaskManagerService.getFocusedRootTaskInfo","WindowManagerService.java:3511","ActivityTaskManagerService.java:1977",2,555,"binder:642_3",527,"android.anim",279,"system_server",69099,146987786843,24888520,1317,0,0,69097,146987701011,1559
+        "blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
+        "boolean com.android.server.am.ActivityManagerService.forceStopPackageLocked(java.lang.String, int, boolean, boolean, boolean, boolean, boolean, int, java.lang.String)","boolean com.android.server.am.ActivityManagerService.isUidActive(int, java.lang.String)","com.android.server.am.ActivityManagerService.forceStopPackageLocked","com.android.server.am.ActivityManagerService.isUidActive","ActivityManagerService.java:4484","ActivityManagerService.java:7325",0,656,"binder:642_12",495,"binder:642_1",657,250,"system_server",291,1737056375519,37555955,1235,0,0,285,1737055785896,2720
       """))
 
   def test_monitor_contention_chain_blocked_functions(self):
@@ -255,12 +255,12 @@ class Android(TestSuite):
       SELECT
         *
       FROM android_monitor_contention_chain_blocked_functions_by_txn
-      WHERE id = 302506
+      WHERE id = 13934
       ORDER BY blocked_function_dur;
       """,
         out=Csv("""
         "id","blocked_function","blocked_function_dur","blocked_function_count"
-        302506,"__fdget_pos",29143,1
+        13934,"blkdev_issue_flush",11950576,1
       """))
 
   def test_monitor_contention_chain_thread_states(self):
@@ -271,15 +271,15 @@ class Android(TestSuite):
       SELECT
         *
       FROM android_monitor_contention_chain_thread_state_by_txn
-      WHERE id = 302506
+      WHERE id = 13934
       ORDER BY thread_state_dur;
       """,
         out=Csv("""
         "id","thread_state","thread_state_dur","thread_state_count"
-        302506,"D",29143,1
-        302506,"R",51099,3
-        302506,"R+",299066,2
-        302506,"Running",601786,4
+        13934,"R+",7649,1
+        13934,"R",300606,3
+        13934,"Running",649961,3
+        13934,"D",11950576,1
       """))
 
   def test_monitor_contention_chain_extraction(self):
@@ -317,7 +317,7 @@ class Android(TestSuite):
       """,
         out=Csv("""
         "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "","void java.lang.Object.wait(long, int)","void android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify(java.lang.Runnable)","java.lang.Object.wait","android.opengl.GLSurfaceView$GLThread.requestRenderAndNotify","Object.java:-2","GLSurfaceView.java:1658",0,313,"droid.gallery3d",1769,"GLThread 33",313,"com.android.gallery3d",289064,155411562446,51012448,2036,1,0,"","",""
+        "","void com.android.server.am.ActivityManagerService.forceStopPackage(java.lang.String, int)","boolean com.android.server.am.ActivityManagerService.unbindService(android.app.IServiceConnection)","com.android.server.am.ActivityManagerService.forceStopPackage","com.android.server.am.ActivityManagerService.unbindService","ActivityManagerService.java:3992","ActivityManagerService.java:12719",0,640,"StorageUserConn",495,"binder:642_1",250,"system_server",327,1737063410007,46114664,1238,0,0,"","",""
       """))
 
   def test_monitor_contention_metric(self):
