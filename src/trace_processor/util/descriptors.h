@@ -41,6 +41,7 @@ class FieldDescriptor {
                   uint32_t type,
                   std::string raw_type_name,
                   bool is_repeated,
+                  bool is_packed,
                   bool is_extension = false);
 
   const std::string& name() const { return name_; }
@@ -49,6 +50,7 @@ class FieldDescriptor {
   const std::string& raw_type_name() const { return raw_type_name_; }
   const std::string& resolved_type_name() const { return resolved_type_name_; }
   bool is_repeated() const { return is_repeated_; }
+  bool is_packed() const { return is_packed_; }
   bool is_extension() const { return is_extension_; }
 
   void set_resolved_type_name(const std::string& resolved_type_name) {
@@ -62,6 +64,7 @@ class FieldDescriptor {
   std::string raw_type_name_;
   std::string resolved_type_name_;
   bool is_repeated_;
+  bool is_packed_;
   bool is_extension_;
 };
 

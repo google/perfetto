@@ -4327,6 +4327,15 @@ message DescriptorProto {
   repeated string reserved_name = 10;
 }
 
+message FieldOptions {
+  // The packed option can be enabled for repeated primitive fields to enable
+  // a more efficient representation on the wire. Rather than repeatedly
+  // writing the tag and type for each element, the entire array is encoded as
+  // a single length-delimited blob. In proto3, only explicit setting it to
+  // false will avoid using packed encoding.
+  optional bool packed = 2;
+}
+
 // Describes a field within a message.
 message FieldDescriptorProto {
   enum Type {
@@ -4398,13 +4407,13 @@ message FieldDescriptorProto {
   // TODO(kenton):  Base-64 encode?
   optional string default_value = 7;
 
+  optional FieldOptions options = 8;
+
   // If set, gives the index of a oneof in the containing type's oneof_decl
   // list.  This field is a member of that oneof.
   optional int32 oneof_index = 9;
 
   reserved 10;
-
-  reserved 8;
 }
 
 // Describes a oneof.
