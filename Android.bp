@@ -697,10 +697,10 @@ cc_library_shared {
         "libincident",
         "liblog",
         "libservices",
+        "libstatspull",
         "libstatssocket",
         "libtracingproxy",
         "libutils",
-	"libstatspull",
     ],
     static_libs: [
         "libhealthhalutils",
