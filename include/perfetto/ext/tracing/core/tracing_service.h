@@ -191,8 +191,7 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // existing tracing session. Will invoke Consumer::OnSessionCloned().
   // If TracingSessionID == kBugreportSessionId (0xff...ff) the session with the
   // highest bugreport score is cloned (if any exists).
-  // TODO(primiano): make pure virtual after various 3way patches.
-  virtual void CloneSession(TracingSessionID);
+  virtual void CloneSession(TracingSessionID) = 0;
 
   // Requests all data sources to flush their data immediately and invokes the
   // passed callback once all of them have acked the flush (in which case
