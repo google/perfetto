@@ -7311,6 +7311,9 @@ message RssStatThrottledFtraceEvent {
   optional uint32 mm_id = 3;
   optional int64 size = 4;
 }
+message SuspendResumeMinimalFtraceEvent {
+  optional uint32 start = 1;
+}
 
 // End of protos/perfetto/trace/ftrace/synthetic.proto
 
@@ -8237,6 +8240,7 @@ message FtraceEvent {
     HostHcallFtraceEvent host_hcall = 478;
     HostSmcFtraceEvent host_smc = 479;
     HostMemAbortFtraceEvent host_mem_abort = 480;
+    SuspendResumeMinimalFtraceEvent suspend_resume_minimal = 481;
   }
 }
 
