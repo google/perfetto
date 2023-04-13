@@ -279,7 +279,7 @@ TEST_F(PerfettoTest, TreeHuggerOnly(TestFtraceProducer)) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.add_buffers()->set_size_kb(64);
   trace_config.set_duration_ms(3000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
