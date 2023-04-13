@@ -8192,6 +8192,16 @@ std::vector<Event> GetStaticEventInfo() {
        kUnsetFtraceId,
        359,
        kUnsetSize},
+      {"suspend_resume_minimal",
+       "synthetic",
+       {
+           {kUnsetOffset, kUnsetSize, FtraceFieldType::kInvalidFtraceFieldType,
+            "start", 1, ProtoSchemaType::kUint32,
+            TranslationStrategy::kInvalidTranslationStrategy},
+       },
+       kUnsetFtraceId,
+       481,
+       kUnsetSize},
       {"0",
        "systrace",
        {
