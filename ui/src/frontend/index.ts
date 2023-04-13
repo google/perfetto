@@ -152,12 +152,17 @@ function initGlobalsFromQueryString() {
 }
 
 function setupContentSecurityPolicy() {
+  const defaultSrc = globals.allowUnsafeInlineCSS ? [
+    `'self'`,
+    `'unsafe-inline'`,
+  ] : [
+    `'self'`,
+    // Google Tag Manager bootstrap.
+    `'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='`,
+  ]
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
-    'default-src': [
-      `'self'`,
-      `'unsafe-inline'`,
-    ],
+    'default-src': defaultSrc,
     'script-src': [
       `'self'`,
       // TODO(b/201596551): this is required for Wasm after crrev.com/c/3179051

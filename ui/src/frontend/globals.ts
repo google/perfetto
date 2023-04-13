@@ -195,6 +195,9 @@ function getRoot() {
   return root;
 }
 
+// Extensions for integration
+const ALLOW_UNSAFE_INLINE_CSS_KEY = 'allowUnsafeInlineCSS';
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -246,6 +249,9 @@ class Globals {
   private _ignoreUnknownPostMessage?: boolean = undefined;
   private _disableMainRendering?: boolean = undefined;
   private _disableHashBasedRouting?: boolean = undefined;
+
+  // Init from session storage since correct value may be required very early on
+  private _allowUnsafeInlineCSS: boolean = window.sessionStorage.getItem(ALLOW_UNSAFE_INLINE_CSS_KEY) === 'true';
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -505,6 +511,10 @@ class Globals {
 
   set disableHashBasedRouting(value: boolean) {
     this._disableHashBasedRouting = value;
+  }
+
+  get allowUnsafeInlineCSS(): boolean {
+    return !!this._allowUnsafeInlineCSS
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
