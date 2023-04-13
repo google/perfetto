@@ -584,6 +584,8 @@ bool TraceBuffer::ReadNextTracePacket(
 
     const ProducerID trusted_producer_id = read_iter_.producer_id();
     const WriterID writer_id = read_iter_.writer_id();
+    const ProducerAndWriterID producer_and_writer_id =
+        MkProducerAndWriterID(trusted_producer_id, writer_id);
     const uid_t trusted_uid = chunk_meta->trusted_uid;
     const pid_t trusted_pid = chunk_meta->trusted_pid;
 
@@ -648,7 +650,7 @@ bool TraceBuffer::ReadNextTracePacket(
         // iteration. This happens by virtue of ReadNextPacketInChunk()
         // incrementing the |num_fragments_read| and marking the fragment as
         // read even if we didn't really.
-        ReadNextPacketInChunk(chunk_meta, nullptr);
+        ReadNextPacketInChunk(producer_and_writer_id, chunk_meta, nullptr);
         chunk_meta->set_last_read_packet_skipped(true);
         previous_packet_dropped = true;
         continue;
@@ -656,7 +658,8 @@ bool TraceBuffer::ReadNextTracePacket(
 
       if (action == kReadOnePacket) {
         // The easy peasy case B.
-        ReadPacketResult result = ReadNextPacketInChunk(chunk_meta, packet);
+        ReadPacketResult result =
+            ReadNextPacketInChunk(producer_and_writer_id, chunk_meta, packet);
 
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
           *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
@@ -777,8 +780,10 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
         // In the unlikely case of a corrupted packet (corrupted or empty
         // fragment), invalidate the all stitching and move on to the next chunk
         // in the same sequence, if any.
-        packet_corruption |= ReadNextPacketInChunk(&*read_iter_, packet) ==
-                             ReadPacketResult::kFailedInvalidPacket;
+        auto pw_id = MkProducerAndWriterID(it.producer_id(), it.writer_id());
+        packet_corruption |=
+            ReadNextPacketInChunk(pw_id, &*read_iter_, packet) ==
+            ReadPacketResult::kFailedInvalidPacket;
       }
       if (read_iter_.cur == it.cur)
         break;
@@ -798,6 +803,7 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
 }
 
 TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
+    ProducerAndWriterID producer_and_writer_id,
     ChunkMeta* const chunk_meta,
     TracePacket* packet) {
   PERFETTO_DCHECK(chunk_meta->num_fragments_read < chunk_meta->num_fragments);
@@ -867,6 +873,8 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
                         chunk_meta->is_complete())) {
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_record->size);
+    auto* writer_stats = writer_stats_.Insert(producer_and_writer_id, {}).first;
+    writer_stats->used_chunk_hist.Add(chunk_meta->cur_fragment_offset);
   } else {
     // We have at least one more packet to parse. It should be within the chunk.
     if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=
