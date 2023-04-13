@@ -2698,7 +2698,9 @@ perfetto_filegroup(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_proto_library(
     name = "config_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
@@ -2720,7 +2722,9 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_cc_proto_library(
     name = "config_cc_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2729,7 +2733,9 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_java_proto_library(
     name = "config_java_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2738,7 +2744,9 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_java_lite_proto_library(
     name = "config_java_proto_lite",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2747,7 +2755,9 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_py_proto_library(
     name = "config_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2831,7 +2841,9 @@ perfetto_py_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_proto_library(
     name = "metrics_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
         ":protos_perfetto_metrics_protos",
@@ -2841,7 +2853,9 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_cc_proto_library(
     name = "metrics_cc_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2850,7 +2864,9 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_java_proto_library(
     name = "metrics_java_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2859,7 +2875,9 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_java_lite_proto_library(
     name = "metrics_java_proto_lite",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2868,7 +2886,9 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_py_proto_library(
     name = "metrics_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],

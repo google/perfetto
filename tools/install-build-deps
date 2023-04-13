@@ -553,9 +553,7 @@ def Main():
       action='store_true',
       help='Node and NPM packages to Build the Web-based UI via ./ui/build')
   parser.add_argument(
-      '--grpc',
-      action='store_true',
-      help='Packages to build gRPC')
+      '--grpc', action='store_true', help='Packages to build gRPC')
   parser.add_argument('--check-only')
   parser.add_argument('--filter', action='append')
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
