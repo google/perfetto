@@ -594,5 +594,6 @@ message FtraceEvent {
     HostHcallFtraceEvent host_hcall = 478;
     HostSmcFtraceEvent host_smc = 479;
     HostMemAbortFtraceEvent host_mem_abort = 480;
+    SuspendResumeMinimalFtraceEvent suspend_resume_minimal = 481;
   }
 }
