@@ -118,6 +118,14 @@ on property:ro.persistent_properties.ready=true
 
 service perfetto_trace_on_boot /system/bin/perfetto -c /data/misc/perfetto-configs/boottrace.pbtxt --txt -o /data/misc/perfetto-traces/boottrace.perfetto-trace
     disabled
+    gentle_kill
     oneshot
     user shell
     group nobody
+
+# This is meant to stop the boot tracing.
+# To use this, add a trigger with mode STOP_TRACING in the configuration used in perfetto_trace_on_boot.
+# Then create a new config which contains `activate_triggers: <trigger name>` where <trigger name> is
+# the name specified in configuration used in perfetto_trace_on_boot.
+on property:sys.boot_completed=1
+    exec -- /system/bin/perfetto -c /data/misc/perfetto-configs/stopboottracetrigger.pbtxt --txt
