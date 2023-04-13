@@ -2792,6 +2792,9 @@ message TraceConfig {
     // TODO(lalitm): deprecate this in T and make this the default if nothing
     // crashes in S.
     optional bool prefer_suspend_clock_for_snapshot = 7;
+
+    // Disables the reporting of per-trace-writer histograms in TraceStats.
+    optional bool disable_chunk_usage_histograms = 8;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
@@ -3202,7 +3205,7 @@ message TraceConfig {
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 16.
+// Next id: 17.
 message TraceStats {
   // From TraceBuffer::Stats.
   //
@@ -3304,6 +3307,32 @@ message TraceStats {
 
   // Stats for the TraceBuffer(s) of the current trace session.
   repeated BufferStats buffer_stats = 1;
+
+  // Per TraceWriter stat. Each {producer, trace writer} tuple is publicly
+  // visible as a unique sequence ID in the trace.
+  message WriterStats {
+    // This matches the TracePacket.trusted_packet_sequence_id and is used to
+    // correlate the stats with the actual packet types.
+    optional uint64 sequence_id = 1;
+
+    // These two arrays have the same cardinality and match the cardinality of
+    // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
+    // `sum` contains the SUM(entries) and `counts` contains the COUNT(entries)
+    // for each bucket.
+    repeated uint64 chunk_payload_histogram_counts = 2 [packed = true];
+    repeated int64 chunk_payload_histogram_sum = 3 [packed = true];
+  }
+
+  // The thresholds of each the `writer_stats` histogram buckets. This is
+  // emitted only once as all WriterStats share the same bucket layout.
+  // This field has the same cardinality of the
+  // `writer_stats.chunk_payload_histogram_{counts,sum}` - 1.
+  // (The -1 is because the last overflow bucket is not reported in the _def).
+  // An array of values [10, 100, 1000] in the _def array means that there are
+  // four buckets (3 + the implicit overflow bucket):
+  // [0]: x <= 10; [1]: 100 < x <= 1000; [2]: 1000 < x <= 1000; [3]: x > 1000.
+  repeated int64 chunk_payload_histogram_def = 17;
+  repeated WriterStats writer_stats = 18;
 
   // Num. producers connected (whether they are involved in the current tracing
   // session or not).
