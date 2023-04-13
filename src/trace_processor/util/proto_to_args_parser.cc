@@ -16,6 +16,11 @@
 
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
+#include <stdint.h>
+
+#include "perfetto/base/status.h"
+#include "perfetto/protozero/proto_decoder.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -25,6 +30,9 @@ namespace trace_processor {
 namespace util {
 
 namespace {
+
+template <protozero::proto_utils::ProtoWireType wire_type, typename cpp_type>
+using PRFI = protozero::PackedRepeatedFieldIterator<wire_type, cpp_type>;
 
 void AppendProtoType(std::string& target, const std::string& value) {
   if (!target.empty())
@@ -106,9 +114,7 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
   auto& descriptor = pool_.descriptors()[*idx];
 
   std::unordered_map<size_t, int> repeated_field_index;
-
   bool empty_message = true;
-
   protozero::ProtoDecoder decoder(cb);
   for (protozero::Field f = decoder.ReadField(); f.valid();
        f = decoder.ReadField()) {
@@ -133,6 +139,14 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
       // reflected.
       continue;
     }
+
+    // Packed fields need to be handled specially because
+    if (field->is_packed()) {
+      RETURN_IF_ERROR(ParsePackedField(*field, repeated_field_index, f,
+                                       delegate, unknown_extensions));
+      continue;
+    }
+
     RETURN_IF_ERROR(ParseField(*field, repeated_field_index[f.id()], f,
                                delegate, unknown_extensions));
     if (field->is_repeated()) {
@@ -185,8 +199,66 @@ base::Status ProtoToArgsParser::ParseField(
                                 field_descriptor.resolved_type_name(), nullptr,
                                 delegate, unknown_extensions);
   }
-
   return ParseSimpleField(field_descriptor, field, delegate);
+}
+
+base::Status ProtoToArgsParser::ParsePackedField(
+    const FieldDescriptor& field_descriptor,
+    std::unordered_map<size_t, int>& repeated_field_index,
+    protozero::Field field,
+    Delegate& delegate,
+    int* unknown_extensions) {
+  using FieldDescriptorProto = protos::pbzero::FieldDescriptorProto;
+  using PWT = protozero::proto_utils::ProtoWireType;
+
+  if (!field_descriptor.is_repeated()) {
+    return base::ErrStatus("Packed field %s must be repeated",
+                           field_descriptor.name().c_str());
+  }
+  if (field.type() != PWT::kLengthDelimited) {
+    return base::ErrStatus(
+        "Packed field %s must have a length delimited wire type",
+        field_descriptor.name().c_str());
+  }
+
+  auto parse = [&](uint64_t new_value, PWT wire_type) {
+    protozero::Field f;
+    f.initialize(field.id(), static_cast<uint8_t>(wire_type), new_value, 0);
+    return ParseField(field_descriptor, repeated_field_index[field.id()]++, f,
+                      delegate, unknown_extensions);
+  };
+
+  const uint8_t* data = field.as_bytes().data;
+  size_t size = field.as_bytes().size;
+  bool perr = false;
+  switch (field_descriptor.type()) {
+    case FieldDescriptorProto::TYPE_INT32:
+    case FieldDescriptorProto::TYPE_INT64:
+    case FieldDescriptorProto::TYPE_UINT32:
+    case FieldDescriptorProto::TYPE_UINT64:
+    case FieldDescriptorProto::TYPE_ENUM:
+      for (PRFI<PWT::kVarInt, uint64_t> it(data, size, &perr); it; ++it) {
+        parse(*it, PWT::kVarInt);
+      }
+      break;
+    case FieldDescriptorProto::TYPE_FIXED32:
+    case FieldDescriptorProto::TYPE_SFIXED32:
+    case FieldDescriptorProto::TYPE_FLOAT:
+      for (PRFI<PWT::kFixed32, uint32_t> it(data, size, &perr); it; ++it) {
+        parse(*it, PWT::kFixed32);
+      }
+      break;
+    case FieldDescriptorProto::TYPE_FIXED64:
+    case FieldDescriptorProto::TYPE_SFIXED64:
+    case FieldDescriptorProto::TYPE_DOUBLE:
+      for (PRFI<PWT::kFixed64, uint64_t> it(data, size, &perr); it; ++it) {
+        parse(*it, PWT::kFixed64);
+      }
+      break;
+    default:
+      return base::ErrStatus("Unsupported packed repeated field");
+  }
+  return base::OkStatus();
 }
 
 void ProtoToArgsParser::AddParsingOverrideForField(

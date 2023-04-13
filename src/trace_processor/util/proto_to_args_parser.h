@@ -249,6 +249,13 @@ class ProtoToArgsParser {
                           Delegate& delegate,
                           int* unknown_extensions);
 
+  base::Status ParsePackedField(
+      const FieldDescriptor& field_descriptor,
+      std::unordered_map<size_t, int>& repeated_field_index,
+      protozero::Field field,
+      Delegate& delegate,
+      int* unknown_extensions);
+
   std::optional<base::Status> MaybeApplyOverrideForField(
       const protozero::Field&,
       Delegate& delegate);
