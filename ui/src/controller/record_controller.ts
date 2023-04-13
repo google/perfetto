@@ -414,7 +414,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       _callback: RPCImplCallback) {
     try {
       const state = globals.state;
-      // TODO(hjd): This is a bit weird. We implicity send each RPC message to
+      // TODO(hjd): This is a bit weird. We implicitly send each RPC message to
       // whichever target is currently selected (creating that target if needed)
       // it would be nicer if the setup/teardown was more explicit.
       const target = await this.getTargetController(state.recordingTarget);
