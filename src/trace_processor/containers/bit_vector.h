@@ -67,8 +67,8 @@ class BitVector {
   bool IsSet(uint32_t idx) const {
     PERFETTO_DCHECK(idx < size());
 
-    Address a = IndexToAddress(idx);
-    return blocks_[a.block_idx].IsSet(a.block_offset);
+    Address addr = IndexToAddress(idx);
+    return ConstBlockFromIndex(addr.block_idx).IsSet(addr.block_offset);
   }
 
   // Returns the number of set bits in the bitvector.
@@ -85,11 +85,11 @@ class BitVector {
     // because we get block rollovers on exclusive ends which means we need
     // to have if checks to ensure we don't overflow the number of blocks).
     Address addr = IndexToAddress(end - 1);
-    uint32_t idx = addr.block_idx;
 
     // Add the number of set bits until the start of the block to the number
     // of set bits until the end address inside the block.
-    return counts_[idx] + blocks_[idx].CountSetBits(addr.block_offset);
+    return counts_[addr.block_idx] +
+           ConstBlockFromIndex(addr.block_idx).CountSetBits(addr.block_offset);
   }
 
   // Returns the index of the |n|th set bit. Should only be called with |n| <
@@ -116,7 +116,8 @@ class BitVector {
 
     // Compute the address of the bit in the block then convert the full
     // address back to an index.
-    BlockOffset block_offset = blocks_[block_idx].IndexOfNthSet(set_in_block);
+    BlockOffset block_offset =
+        ConstBlockFromIndex(block_idx).IndexOfNthSet(set_in_block);
     return AddressToIndex(Address{block_idx, block_offset});
   }
 
@@ -125,11 +126,12 @@ class BitVector {
     // Set the bit to the correct value inside the block but store the old
     // bit to help fix the counts.
     auto addr = IndexToAddress(idx);
-    bool old_value = blocks_[addr.block_idx].IsSet(addr.block_offset);
+    bool old_value =
+        ConstBlockFromIndex(addr.block_idx).IsSet(addr.block_offset);
 
     // If the old value was unset, set the bit and add one to the count.
     if (PERFETTO_LIKELY(!old_value)) {
-      blocks_[addr.block_idx].Set(addr.block_offset);
+      BlockFromIndex(addr.block_idx).Set(addr.block_offset);
 
       uint32_t size = static_cast<uint32_t>(counts_.size());
       for (uint32_t i = addr.block_idx + 1; i < size; ++i) {
@@ -144,12 +146,13 @@ class BitVector {
     // Set the bit to the correct value inside the block but store the old
     // bit to help fix the counts.
     auto addr = IndexToAddress(idx);
-    bool old_value = blocks_[addr.block_idx].IsSet(addr.block_offset);
+    bool old_value =
+        ConstBlockFromIndex(addr.block_idx).IsSet(addr.block_offset);
 
     // If the old value was set, clear the bit and subtract one from all the
     // counts.
     if (PERFETTO_LIKELY(old_value)) {
-      blocks_[addr.block_idx].Clear(addr.block_offset);
+      BlockFromIndex(addr.block_idx).Clear(addr.block_offset);
 
       uint32_t size = static_cast<uint32_t>(counts_.size());
       for (uint32_t i = addr.block_idx + 1; i < size; ++i) {
@@ -160,29 +163,20 @@ class BitVector {
 
   // Appends true to the bitvector.
   void AppendTrue() {
-    Address addr = IndexToAddress(size_);
-    uint32_t old_blocks_size = static_cast<uint32_t>(blocks_.size());
-    uint32_t new_blocks_size = addr.block_idx + 1;
-
-    if (PERFETTO_UNLIKELY(new_blocks_size > old_blocks_size)) {
-      uint32_t t = CountSetBits();
-      blocks_.emplace_back();
-      counts_.emplace_back(t);
-    }
-
-    size_++;
-    blocks_[addr.block_idx].Set(addr.block_offset);
+    AppendFalse();
+    Address addr = IndexToAddress(size() - 1);
+    BlockFromIndex(addr.block_idx).Set(addr.block_offset);
   }
 
   // Appends false to the bitvector.
   void AppendFalse() {
     Address addr = IndexToAddress(size_);
-    uint32_t old_blocks_size = static_cast<uint32_t>(blocks_.size());
+    uint32_t old_blocks_size = BlockCount();
     uint32_t new_blocks_size = addr.block_idx + 1;
 
     if (PERFETTO_UNLIKELY(new_blocks_size > old_blocks_size)) {
       uint32_t t = CountSetBits();
-      blocks_.emplace_back();
+      words_.resize(words_.size() + Block::kWords);
       counts_.emplace_back(t);
     }
 
@@ -193,35 +187,34 @@ class BitVector {
 
   // Resizes the BitVector to the given |size|.
   // Truncates the BitVector if |size| < |size()| or fills the new space with
-  // |value| if |size| > |size()|. Calling this method is a noop if |size| ==
+  // |filler| if |size| > |size()|. Calling this method is a noop if |size| ==
   // |size()|.
-  void Resize(uint32_t size, bool value = false) {
+  void Resize(uint32_t new_size, bool filler = false) {
     uint32_t old_size = size_;
-    if (size == old_size)
+    if (new_size == old_size)
       return;
 
     // Empty bitvectors should be memory efficient so we don't keep any data
     // around in the bitvector.
-    if (size == 0) {
-      blocks_.clear();
+    if (new_size == 0) {
+      words_.clear();
       counts_.clear();
       size_ = 0;
       return;
     }
 
     // Compute the address of the new last bit in the bitvector.
-    Address last_addr = IndexToAddress(size - 1);
+    Address last_addr = IndexToAddress(new_size - 1);
     uint32_t old_blocks_size = static_cast<uint32_t>(counts_.size());
     uint32_t new_blocks_size = last_addr.block_idx + 1;
 
-    // Then, resize the block and count vectors to have the correct
-    // number of entries.
-    blocks_.resize(new_blocks_size);
+    // Resize the block and count vectors to have the correct number of entries.
+    words_.resize(Block::kWords * new_blocks_size);
     counts_.resize(new_blocks_size);
 
-    if (size > old_size) {
-      if (value) {
-        // If the new space should be filled with true, then set all the bits
+    if (new_size > old_size) {
+      if (filler) {
+        // If the new space should be filled with ones, then set all the bits
         // between the address of the old size and the new last address.
         const Address& start = IndexToAddress(old_size);
         Set(start, last_addr);
@@ -259,11 +252,11 @@ class BitVector {
       // Throw away all the bits after the new last bit. We do this to make
       // future lookup, append and resize operations not have to worrying about
       // trailing garbage bits in the last block.
-      blocks_[last_addr.block_idx].ClearAfter(last_addr.block_offset);
+      BlockFromIndex(last_addr.block_idx).ClearAfter(last_addr.block_offset);
     }
 
     // Actually update the size.
-    size_ = size;
+    size_ = new_size;
   }
 
   // Creates a BitVector of size |end| with the bits between |start| and |end|
@@ -271,27 +264,45 @@ class BitVector {
   //
   // As an example, suppose Range(3, 7, [](x) { return x < 5 }). This would
   // result in the following bitvector:
-  // [0 0 0 1 1 0 0 0]
+  // [0 0 0 1 1 0 0]
   template <typename Filler = bool(uint32_t)>
   static BitVector Range(uint32_t start, uint32_t end, Filler f) {
     // Compute the block index and bitvector index where we start and end
     // working one block at a time.
     uint32_t start_fast_block = BlockCeil(start);
     uint32_t start_fast_idx = BlockToIndex(start_fast_block);
+    BitVector bv(start, false);
+
+    // Minimum value of start_fast_idx is numer of bits in block, so we need to
+    // seperate calculation for shorter ranges.
+    if (start_fast_idx > end) {
+      for (uint32_t i = start; i < end; ++i) {
+        bv.Append(f(i));
+      }
+      bv.counts_.emplace_back(bv.CountSetBits());
+      bv.size_ = end;
+      return bv;
+    }
+
     uint32_t end_fast_block = BlockFloor(end);
     uint32_t end_fast_idx = BlockToIndex(end_fast_block);
 
-    // First, create the BitVector up to |start| then fill up to
-    // |start_fast_index| with values from the filler.
-    BitVector bv(start, false);
+    // Fill up to |start_fast_index| with values from the filler.
     for (uint32_t i = start; i < start_fast_idx; ++i) {
       bv.Append(f(i));
     }
 
+    // Assert words_ vector is full and size_ is properly calculated.
+    PERFETTO_DCHECK(bv.words_.size() % Block::kWords == 0);
+    PERFETTO_DCHECK(bv.words_.size() * BitWord::kBits == bv.size_);
+
     // At this point we can work one block at a time.
+    bv.words_.resize(bv.words_.size() +
+                     Block::kWords * (end_fast_block - start_fast_block));
     for (uint32_t i = start_fast_block; i < end_fast_block; ++i) {
+      uint64_t* block_start_word = &bv.words_[i * Block::kWords];
+      Block(block_start_word).FromFiller(bv.size_, f);
       bv.counts_.emplace_back(bv.CountSetBits());
-      bv.blocks_.emplace_back(Block::FromFiller(bv.size_, f));
       bv.size_ += Block::kBits;
     }
 
@@ -299,13 +310,14 @@ class BitVector {
     for (uint32_t i = end_fast_idx; i < end; ++i) {
       bv.Append(f(i));
     }
+
     return bv;
   }
 
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
   void ShrinkToFit() {
-    blocks_.shrink_to_fit();
+    words_.shrink_to_fit();
     counts_.shrink_to_fit();
   }
 
@@ -377,14 +389,10 @@ class BitVector {
    public:
     static constexpr uint32_t kBits = 64;
 
-    // Returns whether the bit at the given index is set.
-    bool IsSet(uint32_t idx) const {
-      PERFETTO_DCHECK(idx < kBits);
-      return (word_ >> idx) & 1ull;
-    }
+    explicit BitWord(uint64_t* word) : word_(word) {}
 
     // Bitwise ors the given |mask| to the current value.
-    void Or(uint64_t mask) { word_ |= mask; }
+    void Or(uint64_t mask) { *word_ |= mask; }
 
     // Sets the bit at the given index to true.
     void Set(uint32_t idx) {
@@ -399,11 +407,81 @@ class BitVector {
       PERFETTO_DCHECK(idx < kBits);
 
       // And the integer of all bits set apart from |idx| with the word.
-      word_ &= ~(1ull << idx);
+      *word_ &= ~(1ull << idx);
     }
 
     // Clears all the bits (i.e. sets the atom to zero).
-    void ClearAll() { word_ = 0; }
+    void ClearAll() { *word_ = 0; }
+
+    // Retains all bits up to and including the bit at |idx| and clears
+    // all bits after this point.
+    void ClearAfter(uint32_t idx) {
+      PERFETTO_DCHECK(idx < kBits);
+      *word_ = WordUntil(idx);
+    }
+
+    // Sets all bits between the bit at |start| and |end| (inclusive).
+    void Set(uint32_t start, uint32_t end) {
+      uint32_t diff = end - start;
+      *word_ |= (MaskAllBitsSetUntil(diff) << static_cast<uint64_t>(start));
+    }
+
+    // Return a mask of all the bits up to and including bit at |idx|.
+    static uint64_t MaskAllBitsSetUntil(uint32_t idx) {
+      // Start with 1 and shift it up (idx + 1) bits we get:
+      // top : 00000000010000000
+      uint64_t top = 1ull << ((idx + 1ull) % kBits);
+
+      // We need to handle the case where idx == 63. In this case |top| will be
+      // zero because 1 << ((idx + 1) % 64) == 1 << (64 % 64) == 1.
+      // In this case, we actually want top == 0. We can do this by shifting
+      // down by (idx + 1) / kBits - this will be a noop for every index other
+      // than idx == 63. This should also be free on x86 because of the mod
+      // instruction above.
+      top = top >> ((idx + 1) / kBits);
+
+      // Then if we take away 1, we get precisely the mask we want.
+      return top - 1u;
+    }
+
+   private:
+    // Returns the bits up to and including the bit at |idx|.
+    uint64_t WordUntil(uint32_t idx) const {
+      PERFETTO_DCHECK(idx < kBits);
+
+      // To understand what is happeninng here, consider an example.
+      // Suppose we want to all the bits up to the 7th bit in the atom
+      //               7th
+      //                |
+      //                v
+      // atom: 01010101011111000
+      //
+      // The easiest way to do this would be if we had a mask with only
+      // the bottom 7 bits set:
+      // mask: 00000000001111111
+      uint64_t mask = MaskAllBitsSetUntil(idx);
+
+      // Finish up by and'ing the atom with the computed mask.
+      return *word_ & mask;
+    }
+
+    uint64_t* word_;
+  };
+
+  class ConstBitWord {
+   public:
+    static constexpr uint32_t kBits = 64;
+
+    explicit ConstBitWord(const uint64_t* word) : word_(word) {}
+
+    // Returns whether the bit at the given index is set.
+    bool IsSet(uint32_t idx) const {
+      PERFETTO_DCHECK(idx < kBits);
+      return (*word_ >> idx) & 1ull;
+    }
+
+    // Bitwise not.
+    uint64_t Not() const { return ~(*word_); }
 
     // Returns the index of the nth set bit.
     // Undefined if |n| >= |CountSetBits()|.
@@ -425,13 +503,14 @@ class BitVector {
       //
       // The code below was taken from the paper
       // http://vigna.di.unimi.it/ftp/papers/Broadword.pdf
-      uint64_t s = word_ - ((word_ & 0xAAAAAAAAAAAAAAAA) >> 1);
+      uint64_t s = *word_ - ((*word_ & 0xAAAAAAAAAAAAAAAA) >> 1);
       s = (s & 0x3333333333333333) + ((s >> 2) & 0x3333333333333333);
       s = ((s + (s >> 4)) & 0x0F0F0F0F0F0F0F0F) * L8;
 
       uint64_t b = (BwLessThan(s, n * L8) >> 7) * L8 >> 53 & ~7ull;
       uint64_t l = n - ((s << 8) >> b & 0xFF);
-      s = (BwGtZero(((word_ >> b & 0xFF) * L8) & 0x8040201008040201) >> 7) * L8;
+      s = (BwGtZero(((*word_ >> b & 0xFF) * L8) & 0x8040201008040201) >> 7) *
+          L8;
 
       uint64_t ret = b + ((BwLessThan(s, l * L8) >> 7) * L8 >> 56);
 
@@ -440,26 +519,13 @@ class BitVector {
 
     // Returns the number of set bits.
     uint32_t CountSetBits() const {
-      return static_cast<uint32_t>(PERFETTO_POPCOUNT(word_));
+      return static_cast<uint32_t>(PERFETTO_POPCOUNT(*word_));
     }
 
     // Returns the number of set bits up to and including the bit at |idx|.
     uint32_t CountSetBits(uint32_t idx) const {
       PERFETTO_DCHECK(idx < kBits);
       return static_cast<uint32_t>(PERFETTO_POPCOUNT(WordUntil(idx)));
-    }
-
-    // Retains all bits up to and including the bit at |idx| and clears
-    // all bits after this point.
-    void ClearAfter(uint32_t idx) {
-      PERFETTO_DCHECK(idx < kBits);
-      word_ = WordUntil(idx);
-    }
-
-    // Sets all bits between the bit at |start| and |end| (inclusive).
-    void Set(uint32_t start, uint32_t end) {
-      uint32_t diff = end - start;
-      word_ |= (MaskAllBitsSetUntil(diff) << static_cast<uint64_t>(start));
     }
 
    private:
@@ -497,31 +563,13 @@ class BitVector {
       // The easiest way to do this would be if we had a mask with only
       // the bottom 7 bits set:
       // mask: 00000000001111111
-      uint64_t mask = MaskAllBitsSetUntil(idx);
+      uint64_t mask = BitWord::MaskAllBitsSetUntil(idx);
 
       // Finish up by and'ing the atom with the computed mask.
-      return word_ & mask;
+      return *word_ & mask;
     }
 
-    // Return a mask of all the bits up to and including bit at |idx|.
-    static uint64_t MaskAllBitsSetUntil(uint32_t idx) {
-      // Start with 1 and shift it up (idx + 1) bits we get:
-      // top : 00000000010000000
-      uint64_t top = 1ull << ((idx + 1ull) % kBits);
-
-      // We need to handle the case where idx == 63. In this case |top| will be
-      // zero because 1 << ((idx + 1) % 64) == 1 << (64 % 64) == 1.
-      // In this case, we actually want top == 0. We can do this by shifting
-      // down by (idx + 1) / kBits - this will be a noop for every index other
-      // than idx == 63. This should also be free on x86 because of the mod
-      // instruction above.
-      top = top >> ((idx + 1) / kBits);
-
-      // Then if we take away 1, we get precisely the mask we want.
-      return top - 1u;
-    }
-
-    uint64_t word_ = 0;
+    const uint64_t* word_;
   };
 
   // Represents a group of bits with a bitcount such that it is
@@ -539,25 +587,102 @@ class BitVector {
     static constexpr uint16_t kWords = 8;
     static constexpr uint32_t kBits = kWords * BitWord::kBits;
 
-    // Returns whether the bit at the given address is set.
-    bool IsSet(const BlockOffset& addr) const {
-      PERFETTO_DCHECK(addr.word_idx < kWords);
-
-      return words_[addr.word_idx].IsSet(addr.bit_idx);
-    }
+    explicit Block(uint64_t* start_word) : start_word_(start_word) {}
 
     // Sets the bit at the given address to true.
     void Set(const BlockOffset& addr) {
       PERFETTO_DCHECK(addr.word_idx < kWords);
-
-      words_[addr.word_idx].Set(addr.bit_idx);
+      BitWord(&start_word_[addr.word_idx]).Set(addr.bit_idx);
     }
 
     // Sets the bit at the given address to false.
     void Clear(const BlockOffset& addr) {
       PERFETTO_DCHECK(addr.word_idx < kWords);
 
-      words_[addr.word_idx].Clear(addr.bit_idx);
+      BitWord(&start_word_[addr.word_idx]).Clear(addr.bit_idx);
+    }
+
+    // Retains all bits up to and including the bit at |addr| and clears
+    // all bits after this point.
+    void ClearAfter(const BlockOffset& offset) {
+      PERFETTO_DCHECK(offset.word_idx < kWords);
+
+      // In the first atom, keep the bits until the address specified.
+      BitWord(&start_word_[offset.word_idx]).ClearAfter(offset.bit_idx);
+
+      // For all subsequent atoms, we just clear the whole atom.
+      for (uint32_t i = offset.word_idx + 1; i < kWords; ++i) {
+        BitWord(&start_word_[i]).ClearAll();
+      }
+    }
+
+    // Set all the bits between the offsets given by |start| and |end|
+    // (inclusive).
+    void Set(const BlockOffset& start, const BlockOffset& end) {
+      if (start.word_idx == end.word_idx) {
+        // If there is only one word we will change, just set the range within
+        // the word.
+        BitWord(&start_word_[start.word_idx]).Set(start.bit_idx, end.bit_idx);
+        return;
+      }
+
+      // Otherwise, we have more than one word to set. To do this, we will
+      // do this in three steps.
+
+      // First, we set the first word from the start to the end of the word.
+      BitWord(&start_word_[start.word_idx])
+          .Set(start.bit_idx, BitWord::kBits - 1);
+
+      // Next, we set all words (except the last).
+      for (uint32_t i = start.word_idx + 1; i < end.word_idx; ++i) {
+        BitWord(&start_word_[i]).Set(0, BitWord::kBits - 1);
+      }
+
+      // Finally, we set the word block from the start to the end offset.
+      BitWord(&start_word_[end.word_idx]).Set(0, end.bit_idx);
+    }
+
+    template <typename Filler>
+    void FromFiller(uint32_t offset, Filler f) {
+      // We choose to iterate the bits as the outer loop as this allows us
+      // to reuse the mask and the bit offset between iterations of the loop.
+      // This makes a small (but noticable) impact in the performance of this
+      // function.
+      for (uint32_t i = 0; i < BitWord::kBits; ++i) {
+        uint64_t mask = 1ull << i;
+        uint32_t offset_with_bit = offset + i;
+        for (uint32_t j = 0; j < Block::kWords; ++j) {
+          bool res = f(offset_with_bit + j * BitWord::kBits);
+          BitWord(&start_word_[j]).Or(res ? mask : 0);
+        }
+      }
+    }
+
+    void ReplaceWith(Block block) {
+      for (uint32_t i = 0; i < BitWord::kBits; ++i) {
+        start_word_[i] = block.start_word()[i];
+      }
+    }
+
+    uint64_t* start_word() { return start_word_; }
+
+   private:
+    uint64_t* start_word_;
+  };
+
+  class ConstBlock {
+   public:
+    // See class documentation for how these constants are chosen.
+    static constexpr uint16_t kWords = Block::kWords;
+    static constexpr uint32_t kBits = kWords * BitWord::kBits;
+
+    explicit ConstBlock(const uint64_t* start_word) : start_word_(start_word) {}
+    explicit ConstBlock(Block block) : start_word_(block.start_word()) {}
+
+    // Returns whether the bit at the given address is set.
+    bool IsSet(const BlockOffset& addr) const {
+      PERFETTO_DCHECK(addr.word_idx < kWords);
+      return ConstBitWord(start_word_ + addr.word_idx).IsSet(addr.bit_idx);
     }
 
     // Gets the offset of the nth set bit in this block.
@@ -565,21 +690,23 @@ class BitVector {
       uint32_t count = 0;
       for (uint16_t i = 0; i < kWords; ++i) {
         // Keep a running count of all the set bits in the atom.
-        uint32_t value = count + words_[i].CountSetBits();
+        uint32_t value = count + ConstBitWord(start_word_ + i).CountSetBits();
         if (value <= n) {
           count = value;
           continue;
         }
 
-        // The running count of set bits is more than |n|. That means this atom
-        // contains the bit we are looking for.
+        // The running count of set bits is more than |n|. That means this
+        // atom contains the bit we are looking for.
 
-        // Take away the number of set bits to the start of this atom from |n|.
+        // Take away the number of set bits to the start of this atom from
+        // |n|.
         uint32_t set_in_atom = n - count;
 
         // Figure out the index of the set bit inside the atom and create the
         // address of this bit from that.
-        uint16_t bit_idx = words_[i].IndexOfNthSet(set_in_atom);
+        uint16_t bit_idx =
+            ConstBitWord(start_word_ + i).IndexOfNthSet(set_in_atom);
         PERFETTO_DCHECK(bit_idx < 64);
         return BlockOffset{i, bit_idx};
       }
@@ -595,95 +722,57 @@ class BitVector {
       // index.
       uint32_t count = 0;
       for (uint32_t i = 0; i < addr.word_idx; ++i) {
-        count += words_[i].CountSetBits();
+        count += ConstBitWord(&start_word_[i]).CountSetBits();
       }
 
       // For the last atom, only count the bits upto and including the bit
       // index.
-      return count + words_[addr.word_idx].CountSetBits(addr.bit_idx);
+      return count + ConstBitWord(&start_word_[addr.word_idx])
+                         .CountSetBits(addr.bit_idx);
     }
 
     // Gets the number of set bits within a block up.
     uint32_t CountSetBits() const {
       uint32_t count = 0;
       for (uint32_t i = 0; i < kWords; ++i) {
-        count += words_[i].CountSetBits();
+        count += ConstBitWord(&start_word_[i]).CountSetBits();
       }
       return count;
     }
 
-    // Retains all bits up to and including the bit at |addr| and clears
-    // all bits after this point.
-    void ClearAfter(const BlockOffset& offset) {
-      PERFETTO_DCHECK(offset.word_idx < kWords);
-
-      // In the first atom, keep the bits until the address specified.
-      words_[offset.word_idx].ClearAfter(offset.bit_idx);
-
-      // For all subsequent atoms, we just clear the whole atom.
-      for (uint32_t i = offset.word_idx + 1; i < kWords; ++i) {
-        words_[i].ClearAll();
-      }
-    }
-
-    // Set all the bits between the offsets given by |start| and |end|
-    // (inclusive).
-    void Set(const BlockOffset& start, const BlockOffset& end) {
-      if (start.word_idx == end.word_idx) {
-        // If there is only one word we will change, just set the range within
-        // the word.
-        words_[start.word_idx].Set(start.bit_idx, end.bit_idx);
-        return;
-      }
-
-      // Otherwise, we have more than one word to set. To do this, we will
-      // do this in three steps.
-
-      // First, we set the first word from the start to the end of the word.
-      words_[start.word_idx].Set(start.bit_idx, BitWord::kBits - 1);
-
-      // Next, we set all words (except the last).
-      for (uint32_t i = start.word_idx + 1; i < end.word_idx; ++i) {
-        words_[i].Set(0, BitWord::kBits - 1);
-      }
-
-      // Finally, we set the word block from the start to the end offset.
-      words_[end.word_idx].Set(0, end.bit_idx);
-    }
-
-    template <typename Filler>
-    static Block FromFiller(uint32_t offset, Filler f) {
-      // We choose to iterate the bits as the outer loop as this allows us
-      // to reuse the mask and the bit offset between iterations of the loop.
-      // This makes a small (but noticable) impact in the performance of this
-      // function.
-      Block b;
-      for (uint32_t i = 0; i < BitWord::kBits; ++i) {
-        uint64_t mask = 1ull << i;
-        uint32_t offset_with_bit = offset + i;
-        for (uint32_t j = 0; j < Block::kWords; ++j) {
-          bool res = f(offset_with_bit + j * BitWord::kBits);
-          b.words_[j].Or(res ? mask : 0);
-        }
-      }
-      return b;
-    }
-
    private:
-    std::array<BitWord, kWords> words_{};
+    const uint64_t* start_word_;
   };
 
-  BitVector(std::vector<Block> blocks,
+  BitVector(std::vector<uint64_t> words,
             std::vector<uint32_t> counts,
             uint32_t size);
 
   BitVector(const BitVector&) = delete;
   BitVector& operator=(const BitVector&) = delete;
 
+  // Returns the number of 8 elements blocks in the bitvector.
+  uint32_t BlockCount() {
+    return static_cast<uint32_t>(words_.size()) / Block::kWords;
+  }
+
+  Block BlockFromIndex(uint32_t idx) {
+    PERFETTO_DCHECK(Block::kWords * (idx + 1) <= words_.size());
+
+    uint64_t* start_word = &words_[Block::kWords * idx];
+    return Block(start_word);
+  }
+
+  ConstBlock ConstBlockFromIndex(uint32_t idx) const {
+    PERFETTO_DCHECK(Block::kWords * (idx + 1) <= words_.size());
+
+    return ConstBlock(&words_[Block::kWords * idx]);
+  }
+
   // Set all the bits between the addresses given by |start| and |end|
   // (inclusive).
   // Note: this method does not update the counts vector - that is the
-  // responibility of the caller.
+  // responsibility of the caller.
   void Set(const Address& start, const Address& end) {
     static constexpr BlockOffset kFirstBlockOffset = BlockOffset{0, 0};
     static constexpr BlockOffset kLastBlockOffset =
@@ -692,7 +781,7 @@ class BitVector {
     if (start.block_idx == end.block_idx) {
       // If there is only one block we will change, just set the range within
       // the block.
-      blocks_[start.block_idx].Set(start.block_offset, end.block_offset);
+      BlockFromIndex(start.block_idx).Set(start.block_offset, end.block_offset);
       return;
     }
 
@@ -700,15 +789,16 @@ class BitVector {
     // do this in three steps.
 
     // First, we set the first block from the start to the end of the block.
-    blocks_[start.block_idx].Set(start.block_offset, kLastBlockOffset);
+    BlockFromIndex(start.block_idx).Set(start.block_offset, kLastBlockOffset);
 
     // Next, we set all blocks (except the last).
-    for (uint32_t i = start.block_idx + 1; i < end.block_idx; ++i) {
-      blocks_[i].Set(kFirstBlockOffset, kLastBlockOffset);
+    for (uint32_t cur_block_idx = start.block_idx + 1;
+         cur_block_idx < end.block_idx; ++cur_block_idx) {
+      BlockFromIndex(cur_block_idx).Set(kFirstBlockOffset, kLastBlockOffset);
     }
 
     // Finally, we set the last block from the start to the end offset.
-    blocks_[end.block_idx].Set(kFirstBlockOffset, end.block_offset);
+    BlockFromIndex(end.block_idx).Set(kFirstBlockOffset, end.block_offset);
   }
 
   // Helper function to append a bit. Generally, prefer to call AppendTrue
@@ -720,6 +810,11 @@ class BitVector {
     } else {
       AppendFalse();
     }
+  }
+
+  // Returns the index of the word which would store |idx|.
+  static constexpr uint32_t WordFloor(uint32_t idx) {
+    return idx / BitWord::kBits;
   }
 
   // Returns the number of words which would be required to store a bit at
@@ -749,8 +844,8 @@ class BitVector {
   // index. If |idx| is already on a block boundary, the current block is
   // returned.
   //
-  // This is useful to be able to find indices where "fast" algorithms can start
-  // which work on entire blocks.
+  // This is useful to be able to find indices where "fast" algorithms can
+  // start which work on entire blocks.
   static constexpr uint32_t BlockCeil(uint32_t idx) {
     // Adding |Block::kBits - 1| gives us a quick way to get the ceil. We
     // do this instead of adding 1 at the end because that gives incorrect
@@ -764,13 +859,16 @@ class BitVector {
   }
 
   // Converts a block index to a index in the BitVector.
-  static constexpr uint32_t BlockToIndex(uint32_t block) {
-    return block * Block::kBits;
+  static constexpr uint32_t BlockToIndex(uint32_t block_idx) {
+    return block_idx * Block::kBits;
   }
 
   uint32_t size_ = 0;
+  // See class documentation for how these constants are chosen.
+  static constexpr uint16_t kWordsInBlock = Block::kWords;
+  static constexpr uint32_t kBitsInBlock = kWordsInBlock * BitWord::kBits;
   std::vector<uint32_t> counts_;
-  std::vector<Block> blocks_;
+  std::vector<uint64_t> words_;
 };
 
 }  // namespace trace_processor

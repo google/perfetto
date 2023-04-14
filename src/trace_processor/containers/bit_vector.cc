@@ -79,13 +79,17 @@ BitVector::BitVector(uint32_t count, bool value) {
   Resize(count, value);
 }
 
-BitVector::BitVector(std::vector<Block> blocks,
+BitVector::BitVector(std::vector<uint64_t> words,
                      std::vector<uint32_t> counts,
                      uint32_t size)
-    : size_(size), counts_(std::move(counts)), blocks_(std::move(blocks)) {}
+    : size_(size), counts_(std::move(counts)), words_(std::move(words)) {
+  uint32_t words_size = static_cast<uint32_t>(words_.size());
+  if (words_size % Block::kWords != 0)
+    words_.resize(words_.size() + 8 - (words_.size() % 8u));
+}
 
 BitVector BitVector::Copy() const {
-  return BitVector(blocks_, counts_, size_);
+  return BitVector(words_, counts_, size_);
 }
 
 BitVector::AllBitsIterator BitVector::IterateAllBits() const {
@@ -97,18 +101,16 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
 }
 
 void BitVector::UpdateSetBits(const BitVector& update) {
-  static_assert(sizeof(Block) == Block::kWords * sizeof(uint64_t),
-                "Block must just consist of words.");
   PERFETTO_DCHECK(update.size() <= CountSetBits());
 
   // Get the start and end ptrs for the current bitvector.
   // Safe because of the static_assert above.
-  auto* ptr = reinterpret_cast<uint64_t*>(blocks_.data());
+  auto* ptr = reinterpret_cast<uint64_t*>(words_.data());
   const uint64_t* ptr_end = ptr + WordCeil(size());
 
   // Get the start and end ptrs for the current bitvector.
   // Safe because of the static_assert above.
-  auto* update_ptr = reinterpret_cast<const uint64_t*>(update.blocks_.data());
+  auto* update_ptr = reinterpret_cast<const uint64_t*>(update.words_.data());
   const uint64_t* update_ptr_end = update_ptr + WordCeil(update.size());
 
   // |update_unused_bits| contains |unused_bits_count| bits at the bottom
@@ -180,7 +182,7 @@ void BitVector::UpdateSetBits(const BitVector& update) {
   PERFETTO_DCHECK(update_ptr == update_ptr_end);
 
   for (uint32_t i = 0; i < counts_.size() - 1; ++i) {
-    counts_[i + 1] = counts_[i] + blocks_[i].CountSetBits();
+    counts_[i + 1] = counts_[i] + ConstBlockFromIndex(i).CountSetBits();
   }
 
   // After the loop, we should have precisely the same number of bits
