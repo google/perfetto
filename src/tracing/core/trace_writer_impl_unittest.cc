@@ -64,6 +64,8 @@ class TraceWriterImplTest : public AlignedBufferTest {
     }
   };
   void SetUp() override {
+    default_layout_ =
+        SharedMemoryArbiterImpl::default_page_layout_for_testing();
     SharedMemoryArbiterImpl::set_default_layout_for_testing(
         SharedMemoryABI::PageLayout::kPageDiv4);
     AlignedBufferTest::SetUp();
@@ -86,6 +88,7 @@ class TraceWriterImplTest : public AlignedBufferTest {
   void TearDown() override {
     arbiter_.reset();
     task_runner_.reset();
+    SharedMemoryArbiterImpl::set_default_layout_for_testing(default_layout_);
   }
 
   std::vector<uint8_t> CopyPayloadAndApplyPatches(
@@ -175,6 +178,7 @@ class TraceWriterImplTest : public AlignedBufferTest {
     return packets;
   }
 
+  SharedMemoryABI::PageLayout default_layout_;
   CommitDataRequest last_commit_;
   ProducerEndpoint::CommitDataCallback last_commit_callback_;
   std::map<PatchKey, std::vector<CommitDataRequest::ChunkToPatch::Patch>>

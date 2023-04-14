@@ -16,6 +16,7 @@
 
 #include <cinttypes>
 
+#include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -445,11 +446,10 @@ TEST_F(TracingIntegrationTest, WriteIntoFile) {
 
   // Check that |tmp_file| contains a valid trace.proto message.
   ASSERT_EQ(0, lseek(tmp_file.fd(), 0, SEEK_SET));
-  char tmp_buf[1024];
-  ssize_t rsize = read(tmp_file.fd(), tmp_buf, sizeof(tmp_buf));
-  ASSERT_GT(rsize, 0);
+  std::string trace_contents;
+  ASSERT_TRUE(base::ReadFileDescriptor(tmp_file.fd(), &trace_contents));
   protos::gen::Trace tmp_trace;
-  ASSERT_TRUE(tmp_trace.ParseFromArray(tmp_buf, static_cast<size_t>(rsize)));
+  ASSERT_TRUE(tmp_trace.ParseFromString(trace_contents));
   size_t num_test_packet = 0;
   size_t num_clock_snapshot_packet = 0;
   size_t num_system_info_packet = 0;
