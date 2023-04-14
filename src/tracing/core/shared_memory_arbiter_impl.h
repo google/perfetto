@@ -147,10 +147,6 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
     default_page_layout = l;
   }
 
-  static SharedMemoryABI::PageLayout default_page_layout_for_testing() {
-    return default_page_layout;
-  }
-
   // SharedMemoryArbiter implementation.
   // See include/perfetto/tracing/core/shared_memory_arbiter.h for comments.
   std::unique_ptr<TraceWriter> CreateTraceWriter(
