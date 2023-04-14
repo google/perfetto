@@ -26,12 +26,14 @@
 #include <tuple>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
+#include "src/tracing/core/histogram.h"
 
 namespace perfetto {
 
@@ -162,6 +164,18 @@ class TraceBuffer {
     WriterID writer_id;
   };
 
+  // Holds the "used chunk" stats for each <Producer, Writer> tuple.
+  struct WriterStats {
+    Histogram<8, 32, 128, 512, 1024, 2048, 4096, 8192, 12288, 16384>
+        used_chunk_hist;
+  };
+
+  using WriterStatsMap = base::FlatHashMap<ProducerAndWriterID,
+                                           WriterStats,
+                                           std::hash<ProducerAndWriterID>,
+                                           base::QuadraticProbe,
+                                           /*AppendOnly=*/true>;
+
   // Can return nullptr if the memory allocation fails.
   static std::unique_ptr<TraceBuffer> Create(size_t size_in_bytes,
                                              OverwritePolicy = kOverwrite);
@@ -267,6 +281,7 @@ class TraceBuffer {
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const;
 
+  const WriterStatsMap& writer_stats() const { return writer_stats_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
 
@@ -581,7 +596,9 @@ class TraceBuffer {
   // TracePacket can be nullptr, in which case the read state is still advanced.
   // When TracePacket is not nullptr, ProducerID must also be not null and will
   // be updated with the ProducerID that originally wrote the chunk.
-  ReadPacketResult ReadNextPacketInChunk(ChunkMeta*, TracePacket*);
+  ReadPacketResult ReadNextPacketInChunk(ProducerAndWriterID,
+                                         ChunkMeta*,
+                                         TracePacket*);
 
   void DcheckIsAlignedAndWithinBounds(const uint8_t* ptr) const {
     PERFETTO_DCHECK(ptr >= begin() && ptr <= end() - sizeof(ChunkRecord));
@@ -688,6 +705,9 @@ class TraceBuffer {
 
   // Statistics about buffer usage.
   TraceStats::BufferStats stats_;
+
+  // Per-{Producer, Writer} statistics.
+  WriterStatsMap writer_stats_;
 
 #if PERFETTO_DCHECK_IS_ON()
   bool changed_since_last_read_ = false;
