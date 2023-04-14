@@ -39,25 +39,6 @@ using WriterID = uint16_t;
 // Unique within the scope of the tracing service.
 using FlushRequestID = uint64_t;
 
-// Combines Producer and Writer ID in one word which can be used as key for
-// hashtables and other data structures.
-using ProducerAndWriterID = uint32_t;
-
-inline ProducerAndWriterID MkProducerAndWriterID(ProducerID p, WriterID w) {
-  static_assert(
-      sizeof(ProducerID) + sizeof(WriterID) == sizeof(ProducerAndWriterID),
-      "MkProducerAndWriterID() and GetProducerAndWriterID() need updating");
-  return (static_cast<ProducerAndWriterID>(p) << (sizeof(WriterID) * 8)) | w;
-}
-
-inline void GetProducerAndWriterID(ProducerAndWriterID x,
-                                   ProducerID* p,
-                                   WriterID* w) {
-  static constexpr auto mask = (1ull << (sizeof(WriterID) * 8)) - 1;
-  *w = static_cast<WriterID>(x & mask);
-  *p = static_cast<ProducerID>(x >> (sizeof(WriterID) * 8));
-}
-
 // We need one FD per producer and we are not going to be able to keep > 64k FDs
 // open in the service.
 static constexpr ProducerID kMaxProducerID = static_cast<ProducerID>(-1);
