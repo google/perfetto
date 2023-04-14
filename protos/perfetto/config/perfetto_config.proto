@@ -2792,9 +2792,6 @@ message TraceConfig {
     // TODO(lalitm): deprecate this in T and make this the default if nothing
     // crashes in S.
     optional bool prefer_suspend_clock_for_snapshot = 7;
-
-    // Disables the reporting of per-trace-writer histograms in TraceStats.
-    optional bool disable_chunk_usage_histograms = 8;
   }
   optional BuiltinDataSource builtin_data_sources = 20;
 
