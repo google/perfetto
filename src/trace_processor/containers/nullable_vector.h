@@ -70,12 +70,11 @@ class NullableVector {
   // Returns the optional value at |idx| or std::nullopt if the value is null.
   std::optional<T> Get(uint32_t idx) const {
     bool contains = valid_.IsSet(idx);
-    if (mode_ == Mode::kDense) {
+    if (mode_ == Mode::kDense)
       return contains ? std::make_optional(data_[idx]) : std::nullopt;
-    } else {
-      return contains ? std::make_optional(data_[valid_.CountSetBits(idx)])
-                      : std::nullopt;
-    }
+
+    return contains ? std::make_optional(data_[valid_.CountSetBits(idx)])
+                    : std::nullopt;
   }
 
   // Adds the given value to the NullableVector.
@@ -123,6 +122,9 @@ class NullableVector {
 
   // Returns whether data in this NullableVector is stored densely.
   bool IsDense() const { return mode_ == Mode::kDense; }
+
+  const std::vector<T>& non_null_vector() const { return data_; }
+  const BitVector& non_null_bit_vector() const { return valid_; }
 
  private:
   explicit NullableVector(Mode mode) : mode_(mode) {}
