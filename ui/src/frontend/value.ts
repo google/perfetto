@@ -60,7 +60,7 @@ export type Dict = {
   items: {[name: string]: Value},
 }&ValueParams;
 
-// Helper function to simplify creation of an dictionary.
+// Helper function to simplify creation of a dictionary.
 // This function accepts and filters out nulls as values in the passed
 // dictionary (useful for simplifying the code to render optional values).
 export function dict(
