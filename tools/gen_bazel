@@ -29,6 +29,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -38,6 +39,10 @@ from gn_utils import GnParser
 import gn_utils
 
 from compat import itervalues, iteritems, basestring
+
+# Visibility option for targets which we want an allowlist of public targets
+# which can depend on it.
+ALLOWLIST_PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
 
 # Arguments for the GN output directory.
 # host_os="linux" is to generate the right build files from Mac OS.
@@ -83,14 +88,29 @@ default_targets = [
 
 # Proto target groups which will be made public.
 proto_groups = {
-    'config': ['//protos/perfetto/config:source_set'],
-    'trace': [
-        '//protos/perfetto/trace:non_minimal_source_set',
-        '//protos/perfetto/trace:minimal_source_set'
-    ],
-    'metrics': ['//protos/perfetto/metrics:source_set',],
-    'chromium': ['//protos/third_party/chromium:source_set',],
-    'chrome_metrics': ['//protos/perfetto/metrics/chrome:source_set',],
+    'config': {
+        'sources': ['//protos/perfetto/config:source_set'],
+        'visibility': ['//visibility:public'],
+    },
+    'trace': {
+        'sources': [
+            '//protos/perfetto/trace:non_minimal_source_set',
+            '//protos/perfetto/trace:minimal_source_set'
+        ],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    'metrics': {
+        'sources': ['//protos/perfetto/metrics:source_set',],
+        'visibility': ['//visibility:public'],
+    },
+    'chromium': {
+        'sources': ['//protos/third_party/chromium:source_set',],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    'chrome_metrics': {
+        'sources': ['//protos/perfetto/metrics/chrome:source_set',],
+        'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
 }
 
 # Path for the protobuf sources in the standalone build.
@@ -363,10 +383,6 @@ class BazelLabel(object):
     return res
 
 
-# Public visibility for targets in Bazel.
-PUBLIC_VISIBILITY = 'PERFETTO_CONFIG.public_visibility'
-
-
 def get_bazel_label_name(gn_name: str):
   """Converts a GN target name into a Bazel label name.
 
@@ -477,11 +493,11 @@ def gen_proto_label(target: GnParser.Target):
   return plugin_label
 
 
-def gen_proto_group_target(gn: GnParser, name: str, target_names: List[str]):
+def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
   # Get a recursive list of the proto_library targets rooted here which
   # have src.
-  deps_set = set(target_names)
-  for target_name in target_names:
+  deps_set = set(desc['sources'])
+  for target_name in desc['sources']:
     target = gn.get_target(target_name)
     deps_set.update(d.name for d in target.transitive_proto_deps())
 
@@ -493,28 +509,28 @@ def gen_proto_group_target(gn: GnParser, name: str, target_names: List[str]):
       ':' + get_bazel_proto_sources_label(name)
       for name in sorted(list(deps_set))
   ]
-  sources_label.visibility = PUBLIC_VISIBILITY
-  sources_label.comment = f'''[{', '.join(target_names)}]'''
+  sources_label.visibility = desc['visibility']
+  sources_label.comment = f'''[{', '.join(desc['sources'])}]'''
 
   cc_label = BazelLabel(name + '_cc_proto', 'perfetto_cc_proto_library')
   cc_label.deps = [':' + sources_label.name]
-  cc_label.visibility = PUBLIC_VISIBILITY
+  cc_label.visibility = desc['visibility']
   cc_label.comment = sources_label.comment
 
   java_label = BazelLabel(name + '_java_proto', 'perfetto_java_proto_library')
   java_label.deps = [':' + sources_label.name]
-  java_label.visibility = PUBLIC_VISIBILITY
+  java_label.visibility = desc['visibility']
   java_label.comment = sources_label.comment
 
   lite_name = name + '_java_proto_lite'
   java_lite_label = BazelLabel(lite_name, 'perfetto_java_lite_proto_library')
   java_lite_label.deps = [':' + sources_label.name]
-  java_lite_label.visibility = PUBLIC_VISIBILITY
+  java_lite_label.visibility = desc['visibility']
   java_lite_label.comment = sources_label.comment
 
   py_label = BazelLabel(name + '_py_pb2', 'perfetto_py_proto_library')
   py_label.deps = [':' + sources_label.name]
-  py_label.visibility = PUBLIC_VISIBILITY
+  py_label.visibility = desc['visibility']
   py_label.comment = sources_label.comment
 
   return [sources_label, cc_label, java_label, java_lite_label, py_label]
@@ -549,8 +565,8 @@ def gen_cc_amalgamated_sql(target: GnParser.Target):
   label.comment = target.name
   label.namespace = find_arg('namespace')
 
-  label.deps += sorted(':' + get_bazel_label_name(x.name)
-                       for x in target.transitive_deps)
+  label.deps += sorted(
+      ':' + get_bazel_label_name(x.name) for x in target.transitive_deps)
   label.outs += target.outputs
   return [label]
 
@@ -757,8 +773,8 @@ exports_files(["NOTICE"])
 
 '''.lstrip()
   # Generate targets for proto groups.
-  for l_name, t_names in proto_groups.items():
-    res += ''.join(str(x) for x in gen_proto_group_target(gn, l_name, t_names))
+  for l_name, t_desc in proto_groups.items():
+    res += ''.join(str(x) for x in gen_proto_group_target(gn, l_name, t_desc))
 
   # For any non-source set and non-descriptor targets, ensure the source set
   # associated to that target is discovered.
