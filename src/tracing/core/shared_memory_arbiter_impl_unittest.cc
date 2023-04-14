@@ -45,6 +45,8 @@ using testing::UnorderedElementsAreArray;
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {
+    default_layout_ =
+        SharedMemoryArbiterImpl::default_page_layout_for_testing();
     AlignedBufferTest::SetUp();
     task_runner_.reset(new base::TestTaskRunner());
     arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
@@ -57,12 +59,14 @@ class SharedMemoryArbiterImplTest : public AlignedBufferTest {
   void TearDown() override {
     arbiter_.reset();
     task_runner_.reset();
+    SharedMemoryArbiterImpl::set_default_layout_for_testing(default_layout_);
   }
 
   std::unique_ptr<base::TestTaskRunner> task_runner_;
   std::unique_ptr<SharedMemoryArbiterImpl> arbiter_;
   NiceMock<MockProducerEndpoint> mock_producer_endpoint_;
   std::function<void(const std::vector<uint32_t>&)> on_pages_complete_;
+  SharedMemoryABI::PageLayout default_layout_;
 };
 
 size_t const kPageSizes[] = {4096, 65536};
