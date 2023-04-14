@@ -20,18 +20,13 @@ namespace perfetto {
 namespace trace_processor {
 namespace internal {
 
-BaseIterator::BaseIterator(BitVector* bv) : bv_(bv) {
-  size_ = bv->size();
-
-  if (size_ > 0) {
-    block_ = bv_->blocks_[0];
-  }
-}
+BaseIterator::BaseIterator(BitVector* bv)
+    : size_(bv->size()), bv_(bv), block_(bv_->words_.data()) {}
 
 BaseIterator::~BaseIterator() {
   if (size_ > 0) {
-    uint32_t block_idx = index_ / BitVector::Block::kBits;
-    uint32_t last_block_idx = static_cast<uint32_t>(bv_->blocks_.size()) - 1;
+    uint32_t block_idx = bv_->IndexToAddress(index_).block_idx;
+    uint32_t last_block_idx = bv_->BlockCount() - 1;
 
     // If |index_| == |size_| and the last index was on a block boundary, we
     // can end up one block past the end of the bitvector. Take the
@@ -40,19 +35,15 @@ BaseIterator::~BaseIterator() {
   }
 }
 
-void BaseIterator::OnBlockChange(uint32_t old_block, uint32_t new_block) {
-  // If we touched the current block, flush the block to the bitvector.
-  if (is_block_changed_) {
-    bv_->blocks_[old_block] = block_;
-  }
-
+void BaseIterator::OnBlockChange(uint32_t old_block_idx,
+                                 uint32_t new_block_idx) {
   if (set_bit_count_diff_ != 0) {
     // If the count of set bits has changed, go through all the counts between
     // the old and new blocks and modify them.
     // We only need to go to new_block and not to the end of the bitvector as
     // the blocks after new_block will either be updated in a future call to
     // OnBlockChange or in the destructor.
-    for (uint32_t i = old_block + 1; i <= new_block; ++i) {
+    for (uint32_t i = old_block_idx + 1; i <= new_block_idx; ++i) {
       int32_t new_count =
           static_cast<int32_t>(bv_->counts_[i]) + set_bit_count_diff_;
       PERFETTO_DCHECK(new_count >= 0);
@@ -63,7 +54,7 @@ void BaseIterator::OnBlockChange(uint32_t old_block, uint32_t new_block) {
 
   // Reset the changed flag and cache the new block.
   is_block_changed_ = false;
-  block_ = bv_->blocks_[new_block];
+  block_ = bv_->BlockFromIndex(new_block_idx);
 }
 
 AllBitsIterator::AllBitsIterator(const BitVector* bv)
@@ -110,7 +101,8 @@ void SetBitsIterator::ReadSetBitBatch(uint32_t start_idx) {
     }
 
     // If the bit is not set, just bail out.
-    const auto& block = bv().blocks_[addr.block_idx];
+    const BitVector::ConstBlock& block =
+        bv().ConstBlockFromIndex(addr.block_idx);
     if (!block.IsSet(addr.block_offset))
       continue;
 

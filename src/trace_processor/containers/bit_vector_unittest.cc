@@ -215,10 +215,12 @@ TEST(BitVectorUnittest, ResizeHasCorrectCount) {
 TEST(BitVectorUnittest, AppendAfterResizeDown) {
   BitVector bv(2049, false);
   bv.Set(2048);
-
+  ASSERT_TRUE(bv.IsSet(2048));
   bv.Resize(2048);
+  ASSERT_EQ(bv.size(), 2048u);
   bv.AppendFalse();
-  ASSERT_EQ(bv.IsSet(2048), false);
+  ASSERT_EQ(bv.size(), 2049u);
+  ASSERT_FALSE(bv.IsSet(2048));
   ASSERT_EQ(bv.CountSetBits(), 0u);
 }
 
@@ -451,14 +453,24 @@ TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
 }
 
 TEST(BitVectorUnittest, Range) {
+  BitVector bv = BitVector::Range(1, 9, [](uint32_t t) { return t % 3 == 0; });
+  ASSERT_EQ(bv.size(), 9u);
+
+  ASSERT_FALSE(bv.IsSet(0));
+  ASSERT_TRUE(bv.IsSet(3));
+  ASSERT_TRUE(bv.IsSet(6));
+
+  ASSERT_EQ(bv.CountSetBits(), 2u);
+}
+
+TEST(BitVectorUnittest, RangeStressTest) {
   BitVector bv =
       BitVector::Range(1, 1025, [](uint32_t t) { return t % 3 == 0; });
-
+  ASSERT_EQ(bv.size(), 1025u);
   ASSERT_FALSE(bv.IsSet(0));
   for (uint32_t i = 1; i < 1025; ++i) {
     ASSERT_EQ(i % 3 == 0, bv.IsSet(i));
   }
-  ASSERT_EQ(bv.size(), 1025u);
   ASSERT_EQ(bv.CountSetBits(), 341u);
 }
 
