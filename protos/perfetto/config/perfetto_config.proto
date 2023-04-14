@@ -2700,7 +2700,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 37.
+// Next id: 38.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -3088,6 +3088,11 @@ message TraceConfig {
     COMPRESSION_TYPE_DEFLATE = 1;
   }
   optional CompressionType compression_type = 24;
+
+  // Use the legacy codepath that compresses from perfetto_cmd.cc instead of
+  // using the new codepath that compresses from tracing_service_impl.cc. This
+  // will be removed in the future.
+  optional bool compress_from_cli = 37;
 
   // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing

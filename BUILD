@@ -279,6 +279,7 @@ perfetto_cc_library(
         ":src_tracing_common",
         ":src_tracing_core_core",
         ":src_tracing_core_service",
+        ":src_tracing_core_zlib_compressor",
         ":src_tracing_ipc_common",
         ":src_tracing_ipc_default_socket",
         ":src_tracing_ipc_producer_producer",
@@ -355,7 +356,7 @@ perfetto_cc_library(
         ":protozero",
         ":src_base_base",
         ":src_base_version",
-    ],
+    ] + PERFETTO_CONFIG.deps.zlib,
     linkstatic = True,
 )
 
@@ -2629,6 +2630,15 @@ perfetto_filegroup(
         "src/tracing/core/trace_buffer.h",
         "src/tracing/core/tracing_service_impl.cc",
         "src/tracing/core/tracing_service_impl.h",
+    ],
+)
+
+# GN target: //src/tracing/core:zlib_compressor
+perfetto_filegroup(
+    name = "src_tracing_core_zlib_compressor",
+    srcs = [
+        "src/tracing/core/zlib_compressor.cc",
+        "src/tracing/core/zlib_compressor.h",
     ],
 )
 
