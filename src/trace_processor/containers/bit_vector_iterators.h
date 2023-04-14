@@ -57,7 +57,7 @@ class BaseIterator {
   }
 
   // Returns whether the current bit the iterator points to is set.
-  bool IsSet() { return block_.IsSet(block_offset()); }
+  bool IsSet() { return BitVector::ConstBlock(block_).IsSet(block_offset()); }
 
   // Returns the index of the current bit the iterator points to.
   uint32_t index() const { return index_; }
@@ -79,8 +79,8 @@ class BaseIterator {
     if (index >= size_)
       return;
 
-    uint32_t old_block = old_index / BitVector::Block::kBits;
-    uint32_t new_block = index / BitVector::Block::kBits;
+    uint32_t old_block = bv_->IndexToAddress(old_index).block_idx;
+    uint32_t new_block = bv_->IndexToAddress(index).block_idx;
 
     // Fast path: we're in the same block so we don't need to do
     // any other work.
@@ -88,12 +88,11 @@ class BaseIterator {
       return;
 
     // Slow path: we have to change block so this will involve flushing the old
-    // block and counts (if necessary) and caching the new block.
+    // block and counts (if necessary).
     OnBlockChange(old_block, new_block);
   }
 
-  // Handles flushing count changes and modified blocks to the bitvector
-  // and caching the new block.
+  // Handles flushing count changes and caches a new block.
   void OnBlockChange(uint32_t old_block, uint32_t new_block);
 
   uint32_t size() const { return size_; }
@@ -119,9 +118,8 @@ class BaseIterator {
   bool is_block_changed_ = false;
   int32_t set_bit_count_diff_ = 0;
 
-  BitVector* bv_ = nullptr;
-
-  BitVector::Block block_{};
+  BitVector* bv_;
+  BitVector::Block block_{bv_->words_.data()};
 };
 
 // Iterator over all the bits in a bitvector.
