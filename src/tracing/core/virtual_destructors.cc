@@ -36,6 +36,10 @@ SharedMemory::~SharedMemory() = default;
 SharedMemory::Factory::~Factory() = default;
 SharedMemoryArbiter::~SharedMemoryArbiter() = default;
 
+// TODO(primiano): make pure virtual after various 3way patches.
+void ConsumerEndpoint::CloneSession(TracingSessionID) {}
+void Consumer::OnSessionCloned(bool, const std::string&) {}
+
 #if !PERFETTO_IS_AT_LEAST_CPP17()
 constexpr size_t TracingService::kDefaultShmSize;
 constexpr size_t TracingService::kDefaultShmPageSize;
