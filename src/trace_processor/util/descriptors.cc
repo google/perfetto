@@ -40,10 +40,12 @@ FieldDescriptor CreateFieldFromDecoder(
       f_decoder.has_type()
           ? static_cast<uint32_t>(f_decoder.type())
           : static_cast<uint32_t>(FieldDescriptorProto::TYPE_MESSAGE);
+  protos::pbzero::FieldOptions::Decoder opt(f_decoder.options());
   return FieldDescriptor(
       base::StringView(f_decoder.name()).ToStdString(),
       static_cast<uint32_t>(f_decoder.number()), type, std::move(type_name),
-      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED, is_extension);
+      f_decoder.label() == FieldDescriptorProto::LABEL_REPEATED, opt.packed(),
+      is_extension);
 }
 
 std::optional<uint32_t> DescriptorPool::ResolveShortType(
@@ -328,12 +330,14 @@ FieldDescriptor::FieldDescriptor(std::string name,
                                  uint32_t type,
                                  std::string raw_type_name,
                                  bool is_repeated,
+                                 bool is_packed,
                                  bool is_extension)
     : name_(std::move(name)),
       number_(number),
       type_(type),
       raw_type_name_(std::move(raw_type_name)),
       is_repeated_(is_repeated),
+      is_packed_(is_packed),
       is_extension_(is_extension) {}
 
 }  // namespace trace_processor
