@@ -94,6 +94,18 @@ android_startup {
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }
+    verify_class {
+      name: "vr"
+      dur_ns: 30
+    }
+    verify_class {
+      name: "vp"
+      dur_ns: 5
+    }
+    verify_class {
+      name: "dl"
+      dur_ns: 5
+    }
     startup_type: "hot"
     slow_start_reason: "GC Activity"
     slow_start_reason: "Main Thread - Binder transactions blocked"

@@ -169,6 +169,13 @@ message AndroidStartupMetric {
     optional string location = 4;
   }
 
+  // Contains the name and duration of class verification occurred during
+  // the startup.
+  message VerifyClass {
+    optional string name = 1;
+    optional int64 dur_ns = 2;
+  }
+
   // Contains timestamps of important events which occurred during the
   // startup.
   message EventTimestamps {
@@ -209,7 +216,7 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 19
+  // Next id: 20
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -261,6 +268,9 @@ message AndroidStartupMetric {
 
     // Contains information about the status of odex files.
     repeated OptimizationStatus optimization_status = 12;
+
+    // Contains information about the class verification.
+    repeated VerifyClass verify_class = 19;
 
     // Package name of startups running concurrent to the launch.
     repeated string startup_concurrent_to_launch = 18;
