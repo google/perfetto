@@ -73,6 +73,18 @@ android_startup {
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }
+    verify_class {
+      name: "vr"
+      dur_ns: 30000000000
+    }
+    verify_class {
+      name: "vp"
+      dur_ns: 5000000000
+    }
+    verify_class {
+      name: "dl"
+      dur_ns: 5000000000
+    }
     startup_type: "hot"
     slow_start_reason: "JIT Activity"
     slow_start_reason: "GC Activity"
