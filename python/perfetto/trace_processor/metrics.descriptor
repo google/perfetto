@@ -673,8 +673,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-Ø+
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ö*
+è,
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"æ+
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -743,7 +743,10 @@ HscMetricsN
 odexStatus-
 compilation_filter (	RcompilationFilter-
 compilation_reason (	RcompilationReason
-location (	Rlocation[
+location (	Rlocation8
+VerifyClass
+name (	Rname
+dur_ns (RdurNs[
 EventTimestamps'
 intent_received (RintentReceived
 first_frame (R
@@ -755,7 +758,7 @@ firstFrame÷
 broadcast_received_count (RbroadcastReceivedCountF
  most_active_non_launch_processes (	RmostActiveNonLaunchProcesses&
 installd_dur_ns (RinstalldDurNs$
-dex2oat_dur_ns (Rdex2oatDurNs™	
+dex2oat_dur_ns (Rdex2oatDurNsï	
 Startup
 
 startup_id (R	startupId!
@@ -773,7 +776,8 @@ activitiesq
 process (2'.perfetto.protos.AndroidProcessMetadataRprocessB
 hsc (20.perfetto.protos.AndroidStartupMetric.HscMetricsRhscY
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
-optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatus?
+optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusT
+verify_class (21.perfetto.protos.AndroidStartupMetric.VerifyClassRverifyClass?
 startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonJ
