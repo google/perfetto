@@ -279,6 +279,14 @@ SELECT
         ORDER BY slice_name
       )
     ),
+    'verify_class', (
+      SELECT RepeatedField(AndroidStartupMetric_VerifyClass(
+        'name', STR_SPLIT(slice_name, "VerifyClass ", 1),
+        'dur_ns', slice_dur))
+      FROM android_thread_slices_for_all_startups
+      WHERE startup_id = launches.startup_id AND slice_name GLOB "VerifyClass *"
+      ORDER BY slice_dur DESC
+    ),
     'startup_concurrent_to_launch', (
       SELECT RepeatedField(package)
       FROM android_startups l
