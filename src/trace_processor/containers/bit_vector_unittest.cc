@@ -474,6 +474,102 @@ TEST(BitVectorUnittest, RangeStressTest) {
   ASSERT_EQ(bv.CountSetBits(), 341u);
 }
 
+TEST(BitVectorUnittest, BuilderSkip) {
+  BitVector::Builder builder(128);
+
+  builder.Skip(127);
+  builder.Append(1);
+
+  BitVector bv = std::move(builder).Build();
+  ASSERT_EQ(bv.size(), 128u);
+
+  ASSERT_FALSE(bv.IsSet(10));
+  ASSERT_FALSE(bv.IsSet(126));
+  ASSERT_TRUE(bv.IsSet(127));
+}
+
+TEST(BitVectorUnittest, BuilderBitsInCompleteWordsUntilFull) {
+  BitVector::Builder builder(128 + 1);
+
+  ASSERT_EQ(builder.BitsInCompleteWordsUntilFull(), 128u);
+}
+
+TEST(BitVectorUnittest, BuilderBitsUntilWordBoundaryOrFull) {
+  BitVector::Builder builder(41);
+
+  ASSERT_EQ(builder.BitsUntilWordBoundaryOrFull(), 41u);
+}
+
+TEST(BitVectorUnittest, Builder) {
+  BitVector::Builder builder(128);
+
+  // 100100011010001010110011110001001 as a hex literal.
+  builder.AppendWord(0x123456789);
+  builder.AppendWord(0xFF);
+
+  BitVector bv = std::move(builder).Build();
+  ASSERT_EQ(bv.size(), 128u);
+
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_FALSE(bv.IsSet(1));
+  ASSERT_FALSE(bv.IsSet(2));
+}
+
+TEST(BitVectorUnittest, BuilderStressTest) {
+  // Space for 128 words and 1 bit
+  uint32_t size = 8 * 1024 + 1;
+  BitVector::Builder builder(size);
+
+  // 15 full words + 40 bits
+  for (uint32_t i = 0; i < 1000; ++i) {
+    builder.Append(1);
+  }
+  ASSERT_EQ(builder.BitsUntilFull(), size - 1000);
+
+  // 24 bits to hit word boundary. We filled 16 words now.
+  for (uint32_t i = 0; i < 24; ++i) {
+    builder.Append(0);
+  }
+  ASSERT_EQ(builder.BitsUntilFull(), size - 1024);
+  ASSERT_EQ(builder.BitsUntilWordBoundaryOrFull(), 0u);
+
+  // 100100011010001010110011110001001 as a hex literal.
+  uint64_t word = 0x123456789;
+
+  // Add all of the remaining words.
+  ASSERT_EQ(builder.BitsInCompleteWordsUntilFull(), (128 - 16) * 64u);
+  ASSERT_EQ(builder.BitsUntilFull(), (128 - 16) * 64u + 1);
+  for (uint32_t i = 0; i < (128 - 16); ++i) {
+    builder.AppendWord(word);
+  }
+
+  ASSERT_EQ(builder.BitsUntilWordBoundaryOrFull(), 0u);
+  ASSERT_EQ(builder.BitsUntilFull(), 1u);
+
+  // One last bit.
+  builder.Append(1);
+
+  BitVector bv = std::move(builder).Build();
+  ASSERT_EQ(bv.size(), 8u * 1024u + 1u);
+
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_FALSE(bv.IsSet(1000));
+
+  ASSERT_TRUE(bv.IsSet(1024));
+  ASSERT_FALSE(bv.IsSet(1025));
+
+  ASSERT_TRUE(bv.IsSet(8 * 1024));
+}
+
+TEST(BitVectorUnittest, Not) {
+  BitVector bv(10);
+  bv.Set(2);
+
+  BitVector not_bv = bv.Not();
+  EXPECT_FALSE(not_bv.IsSet(2));
+  EXPECT_EQ(not_bv.CountSetBits(), 9u);
+}
+
 TEST(BitVectorUnittest, QueryStressTest) {
   BitVector bv;
   std::vector<bool> bool_vec;
