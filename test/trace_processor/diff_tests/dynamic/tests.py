@@ -113,7 +113,10 @@ class Dynamic(TestSuite):
           ABS_TIME_STR(25) AS t25,
           ABS_TIME_STR(35) AS t35;
         """,
-        out=Path('various_clocks_abs_time_str.out'))
+        out=Csv("""
+        "t15","t25","t35"
+        "1970-01-01T00:00:00.000000005","2022-05-18T19:59:59.999999995","2022-05-18T20:00:00.000000000"
+        """))
 
   def test_empty_abs_time_str(self):
     return DiffTestBlueprint(

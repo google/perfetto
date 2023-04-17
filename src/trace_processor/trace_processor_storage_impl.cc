@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
+#include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/flow_tracker.h"
@@ -61,6 +62,7 @@ TraceProcessorStorageImpl::TraceProcessorStorageImpl(const Config& cfg) {
   context_.event_tracker.reset(new EventTracker(&context_));
   context_.process_tracker.reset(new ProcessTracker(&context_));
   context_.clock_tracker.reset(new ClockTracker(&context_));
+  context_.clock_converter.reset(new ClockConverter(&context_));
   context_.heap_profile_tracker.reset(new HeapProfileTracker(&context_));
   context_.perf_sample_tracker.reset(new PerfSampleTracker(&context_));
   context_.global_stack_profile_tracker.reset(new GlobalStackProfileTracker());
@@ -149,7 +151,7 @@ void TraceProcessorStorageImpl::DestroyContext() {
   TraceProcessorContext context;
   context.storage = std::move(context_.storage);
   context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
-  context.clock_tracker = std::move(context_.clock_tracker);
+  context.clock_converter = std::move(context_.clock_converter);
   // "to_ftrace" textual converter of the "raw" table requires remembering the
   // kernel version (inside system_info_tracker) to know how to textualise
   // sched_switch.prev_state bitflags.

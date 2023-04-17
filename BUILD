@@ -1117,6 +1117,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/async_track_set_tracker.cc",
         "src/trace_processor/importers/common/async_track_set_tracker.h",
         "src/trace_processor/importers/common/chunked_trace_reader.h",
+        "src/trace_processor/importers/common/clock_converter.cc",
+        "src/trace_processor/importers/common/clock_converter.h",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/clock_tracker.h",
         "src/trace_processor/importers/common/deobfuscation_mapping_table.cc",
@@ -1767,6 +1769,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_prelude_functions_functions",
     srcs = [
+        "src/trace_processor/prelude/functions/clock_functions.h",
         "src/trace_processor/prelude/functions/create_function.cc",
         "src/trace_processor/prelude/functions/create_function.h",
         "src/trace_processor/prelude/functions/create_function_internal.cc",

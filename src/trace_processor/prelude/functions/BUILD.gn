@@ -18,6 +18,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("functions") {
   sources = [
+    "clock_functions.h",
     "create_function.cc",
     "create_function.h",
     "create_function_internal.cc",
@@ -47,6 +48,7 @@ source_set("functions") {
     "../../../../gn:sqlite",
     "../../../../include/perfetto/protozero:protozero",
     "../../../../protos/perfetto/common:zero",
+    "../../../../protos/perfetto/trace:zero",
     "../../../../protos/perfetto/trace/ftrace:zero",
     "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
