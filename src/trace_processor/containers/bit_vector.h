@@ -45,6 +45,95 @@ class BitVector {
   using AllBitsIterator = internal::AllBitsIterator;
   using SetBitsIterator = internal::SetBitsIterator;
 
+  // Builder class which allows efficiently creating a BitVector by appending
+  // words. Using this class is generally far more efficient than trying to set
+  // bits directly in a BitVector or even appending one bit at a time.
+  class Builder {
+   public:
+    // Creates a Builder for building a BitVector of |size| bits.
+    explicit Builder(uint32_t size) : words_(WordCeil(size)), size_(size) {}
+
+    // Skips forward |n| bits leaving them as zeroed.
+    void Skip(uint32_t n) {
+      PERFETTO_DCHECK(global_bit_offset_ + n <= size_);
+      global_bit_offset_ += n;
+    }
+
+    // Appends a single bit to the builder.
+    // Note: |AppendWord| is far more efficient than this method so should be
+    // preferred.
+    void Append(bool value) {
+      PERFETTO_DCHECK(global_bit_offset_ < size_);
+
+      words_[global_bit_offset_ / BitWord::kBits] |=
+          static_cast<uint64_t>(value) << global_bit_offset_ % BitWord::kBits;
+      global_bit_offset_++;
+    }
+
+    // Appends a whole word to the Builder. Builder has to end on a word
+    // boundary before calling this function.
+    void AppendWord(uint64_t word) {
+      PERFETTO_DCHECK(global_bit_offset_ % BitWord::kBits == 0);
+      PERFETTO_DCHECK(global_bit_offset_ + BitWord::kBits <= size_);
+      words_[global_bit_offset_ / BitWord::kBits] = word;
+      global_bit_offset_ += BitWord::kBits;
+    }
+
+    // Creates a BitVector from this Builder.
+    BitVector Build() && {
+      Address addr = IndexToAddress(size_ - 1);
+      uint32_t no_blocks = addr.block_idx + 1;
+      std::vector<uint32_t> counts(no_blocks);
+
+      // Calculate counts only for full blocks.
+      for (uint32_t i = 1; i < no_blocks - 1; ++i) {
+        counts[i] +=
+            counts[i - 1] +
+            ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
+      }
+      if (size_ % Block::kBits == 0) {
+        counts[no_blocks - 1] +=
+            counts[no_blocks - 2] +
+            ConstBlock(&words_[Block::kWords * (no_blocks - 2)]).CountSetBits();
+      }
+
+      return BitVector{std::move(words_), std::move(counts), size_};
+    }
+
+    // Returns the number of bits which are in complete words which can be
+    // appended to this builder before having to fallback to |Append| due to
+    // being close to the end.
+    uint32_t BitsInCompleteWordsUntilFull() {
+      uint32_t next_word = WordCeil(global_bit_offset_);
+      uint32_t end_word = WordFloor(size_);
+      uint32_t complete_words = next_word < end_word ? end_word - next_word : 0;
+      return complete_words * BitWord::kBits;
+    }
+
+    // Returns the number of bits which should be appended using |Append| either
+    // hitting a word boundary (and thus able to use |AppendWord|) or until the
+    // bitvector is full (i.e. no more Appends should happen), whichever would
+    // happen first.
+    uint32_t BitsUntilWordBoundaryOrFull() {
+      if (global_bit_offset_ == 0 && size_ < BitWord::kBits) {
+        return size_;
+      }
+      uint8_t word_bit_offset = global_bit_offset_ % BitWord::kBits;
+      return std::min(BitsUntilFull(),
+                      (BitWord::kBits - word_bit_offset) % BitWord::kBits);
+    }
+
+    // Returns the number of bits which should be appended using |Append| before
+    // hitting a word boundary (and thus able to use |AppendWord|) or until the
+    // bitvector is full (i.e. no more Appends should happen).
+    uint32_t BitsUntilFull() { return size_ - global_bit_offset_; }
+
+   private:
+    std::vector<uint64_t> words_;
+    uint32_t global_bit_offset_ = 0;
+    uint32_t size_ = 0;
+  };
+
   // Creates an empty bitvector.
   BitVector();
 
@@ -59,6 +148,26 @@ class BitVector {
 
   // Create a copy of the bitvector.
   BitVector Copy() const;
+
+  // Create a bitwise Not copy of the bitvector.
+  BitVector Not() const {
+    Builder builder(size());
+
+    // Append all words from all blocks except the last one.
+    uint32_t full_words = size() / BitWord::kBits;
+    for (uint32_t i = 0; i < full_words; ++i) {
+      builder.AppendWord(ConstBitWord(&words_[i]).Not());
+    }
+
+    // Append bits from the last word.
+    uint32_t bits_from_last_word = size() % BitWord::kBits;
+    ConstBitWord last_word(&words_[full_words]);
+    for (uint32_t i = 0; i < bits_from_last_word; ++i) {
+      builder.Append(!last_word.IsSet(i));
+    }
+
+    return std::move(builder).Build();
+  }
 
   // Returns the size of the bitvector.
   uint32_t size() const { return static_cast<uint32_t>(size_); }
