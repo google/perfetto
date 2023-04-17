@@ -34,6 +34,9 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
+#include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "protos/perfetto/trace/clock_snapshot.pbzero.h"
+
 namespace perfetto {
 namespace trace_processor {
 
@@ -49,8 +52,6 @@ class TraceProcessorContext;
 //   been snapshotted at the same time (within technical limits).
 // - ToTraceTime(src_clock_id, src_timestamp):
 //   converts a timestamp between clock domain and TraceTime.
-// - FromTraceTime(target_clock_id, src_timestamp):
-//   converts a timestamp between TraceTime and clock domain.
 //
 // Concepts:
 // - Snapshot hash:
@@ -161,7 +162,7 @@ class ClockTracker {
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
   // Returns the internal snapshot id of this set of clocks.
-  uint32_t AddSnapshot(const std::vector<ClockTimestamp>&);
+  base::StatusOr<uint32_t> AddSnapshot(const std::vector<ClockTimestamp>&);
 
   base::StatusOr<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
     if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
@@ -176,15 +177,10 @@ class ClockTracker {
     return Convert(clock_id, timestamp, trace_time_clock_id_);
   }
 
-  base::StatusOr<int64_t> FromTraceTime(ClockId to_clock_id,
-                                        int64_t timestamp) {
-    trace_time_clock_id_used_for_conversion_ = true;
-    if (to_clock_id == trace_time_clock_id_)
-      return timestamp;
-    return Convert(trace_time_clock_id_, timestamp, to_clock_id);
-  }
-
-  base::StatusOr<std::string> FromTraceTimeAsISO8601(int64_t timestamp);
+  // If trace clock and source clock are available in the snapshot will return
+  // the trace clock time in snapshot.
+  std::optional<int64_t> ToTraceTimeFromSnapshot(
+      const std::vector<ClockTimestamp>&);
 
   void SetTraceTimeClock(ClockId clock_id) {
     PERFETTO_DCHECK(!IsSequenceClock(clock_id));
