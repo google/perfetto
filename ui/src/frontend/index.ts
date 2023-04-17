@@ -152,7 +152,7 @@ function initGlobalsFromQueryString() {
 }
 
 function setupContentSecurityPolicy() {
-  const defaultSrc = globals.allowUnsafeInlineCSS ? [
+  const defaultSrc = globals.relaxContentSecurity ? [
     `'self'`,
     `'unsafe-inline'`,
   ] : [
@@ -160,6 +160,18 @@ function setupContentSecurityPolicy() {
     // Google Tag Manager bootstrap.
     `'sha256-LirUKeorCU4uRNtNzr8tlB11uy8rzrdmqHCX38JSwHY='`,
   ]
+  const connectSrc = globals.relaxContentSecurity ? [
+    '*'
+  ] : [
+    `'self'`,
+    'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
+    'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
+    'ws://127.0.0.1:8037',    // For the adb websocket server.
+    'https://www.google-analytics.com',
+    'https://*.googleapis.com',  // For Google Cloud Storage fetches.
+    'blob:',
+    'data:',
+  ];
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
     'default-src': defaultSrc,
@@ -174,16 +186,7 @@ function setupContentSecurityPolicy() {
       'https://www.google-analytics.com',
     ],
     'object-src': ['none'],
-    'connect-src': [
-      `'self'`,
-      'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
-      'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
-      'ws://127.0.0.1:8037',    // For the adb websocket server.
-      'https://www.google-analytics.com',
-      'https://*.googleapis.com',  // For Google Cloud Storage fetches.
-      'blob:',
-      'data:',
-    ],
+    'connect-src': connectSrc,
     'img-src': [
       `'self'`,
       'data:',
