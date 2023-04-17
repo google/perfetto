@@ -311,7 +311,8 @@ SELECT
   cpu,
   value as freq
 FROM counter
-JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id;
+JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id
+WHERE cpu_counter_track.name = 'cpufreq';
 
 -- Create the span joined table which combines cpu frequency with
 -- scheduling slices.
