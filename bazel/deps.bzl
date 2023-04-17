@@ -56,7 +56,6 @@ def perfetto_deps():
         remote = "https://fuchsia.googlesource.com/third_party/linenoise.git",
         commit = "c894b9e59f02203dbe4e2be657572cf88c4230c3",
         build_file = "//bazel:linenoise.BUILD",
-        shallow_since = "1469784335 +0200",
     )
 
     _add_repo_if_not_existing(
@@ -65,7 +64,6 @@ def perfetto_deps():
         remote = "https://github.com/open-source-parsers/jsoncpp",
         commit = "6aba23f4a8628d599a9ef7fa4811c4ff6e4070e2",  # v1.9.3
         build_file = "//bazel:jsoncpp.BUILD",
-        shallow_since = "1590760226 +0800",
     )
 
     _add_repo_if_not_existing(
@@ -74,7 +72,6 @@ def perfetto_deps():
         remote = "https://android.googlesource.com/platform/external/zlib.git",
         commit = "6d3f6aa0f87c9791ca7724c279ef61384f331dfd",
         build_file = "//bazel:zlib.BUILD",
-        shallow_since = "1678405807 -0800",
     )
 
     _add_repo_if_not_existing(
