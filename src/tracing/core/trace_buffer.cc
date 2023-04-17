@@ -106,7 +106,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   // up in a fragmented state where size_to_end() < sizeof(ChunkRecord).
   const size_t record_size =
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
-  TRACE_BUFFER_DLOG("CopyChunk @ %lu, size=%zu", wptr_ - begin(), record_size);
+  TRACE_BUFFER_DLOG("CopyChunk @ %" PRIdPTR ", size=%zu", wptr_ - begin(), record_size);
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
@@ -199,7 +199,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     }
 
     uint8_t* wptr = reinterpret_cast<uint8_t*>(prev);
-    TRACE_BUFFER_DLOG("  overriding chunk @ %lu, size=%zu", wptr - begin(),
+    TRACE_BUFFER_DLOG("  overriding chunk @ %" PRIdPTR ", size=%zu", wptr - begin(),
                       record_size);
 
     // Update chunk meta data stored in the index, as it may have changed.
@@ -208,7 +208,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     record_meta->set_complete(chunk_complete);
 
     // Override the ChunkRecord contents at the original |wptr|.
-    TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
+    TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr - begin(),
                       uintptr_t(wptr - begin()) + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
     TRACE_BUFFER_DLOG("Chunk raw: %s",
@@ -268,7 +268,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
       key, ChunkMeta(chunk_off, num_fragments, chunk_complete, chunk_flags,
                      producer_uid_trusted, producer_pid_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
-  TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
+  TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + record_size, record_size);
   WriteChunkRecord(wptr_, record, src, size);
   TRACE_BUFFER_DLOG("Chunk raw: %s", base::HexDump(wptr_, record_size).c_str());
@@ -358,7 +358,7 @@ ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
         will_remove = true;
       }
       TRACE_BUFFER_DLOG(
-          "  del index {%" PRIu32 ",%" PRIu32 ",%u} @ [%lu - %lu] %d",
+          "  del index {%" PRIu32 ",%" PRIu32 ",%u} @ [%" PRIdPTR " - %" PRIdPTR "] %d",
           key.producer_id, key.writer_id, key.chunk_id,
           next_chunk_ptr - begin(), next_chunk_ptr - begin() + next_chunk.size,
           will_remove);
@@ -392,7 +392,7 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   PERFETTO_DCHECK(size >= sizeof(ChunkRecord) && size <= ChunkRecord::kMaxSize);
   ChunkRecord record(size);
   record.is_padding = 1;
-  TRACE_BUFFER_DLOG("AddPaddingRecord @ [%lu - %lu] %zu", wptr_ - begin(),
+  TRACE_BUFFER_DLOG("AddPaddingRecord @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + size, size);
   WriteChunkRecord(wptr_, record, nullptr, size - sizeof(ChunkRecord));
   stats_.set_padding_bytes_written(stats_.padding_bytes_written() + size);
