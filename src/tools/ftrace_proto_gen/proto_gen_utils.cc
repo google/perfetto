@@ -221,6 +221,11 @@ ProtoType InferProtoType(const FtraceEvent::Field& field) {
     return ProtoType::Numeric(64, /* is_signed= */ false);
   }
 
+  // Bools should always uint32 even if they are signed.
+  if (StartsWith(field.type_and_name, "bool ")) {
+    return ProtoType::Numeric(32, /* is_signed= */ false);
+  }
+
   // Fixed size array for syscall args. Similar to ino_t choose the largest
   // possible size to cover 32bit and 64bit.
   if (StartsWith(field.type_and_name, "unsigned long args[6]")) {
