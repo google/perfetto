@@ -20,12 +20,14 @@
 namespace perfetto {
 
 DataSourceBase::StopArgs::~StopArgs() = default;
+DataSourceBase::FlushArgs::~FlushArgs() = default;
 DataSourceBase::~DataSourceBase() = default;
 void DataSourceBase::OnSetup(const SetupArgs&) {}
 void DataSourceBase::OnStart(const StartArgs&) {}
 void DataSourceBase::OnStop(const StopArgs&) {}
 void DataSourceBase::WillClearIncrementalState(
     const ClearIncrementalStateArgs&) {}
+void DataSourceBase::OnFlush(const FlushArgs&) {}
 
 namespace internal {
 

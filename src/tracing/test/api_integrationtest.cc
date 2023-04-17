@@ -275,12 +275,16 @@ struct TestDataSourceHandle {
   WaitableTestEvent on_setup;
   WaitableTestEvent on_start;
   WaitableTestEvent on_stop;
+  WaitableTestEvent on_flush;
   MockDataSource* instance;
   perfetto::DataSourceConfig config;
   bool handle_stop_asynchronously = false;
+  bool handle_flush_asynchronously = false;
   std::function<void()> on_start_callback;
   std::function<void()> on_stop_callback;
+  std::function<void()> on_flush_callback;
   std::function<void()> async_stop_closure;
+  std::function<void()> async_flush_closure;
 };
 
 class MockDataSource : public perfetto::DataSource<MockDataSource> {
@@ -288,6 +292,7 @@ class MockDataSource : public perfetto::DataSource<MockDataSource> {
   void OnSetup(const SetupArgs&) override;
   void OnStart(const StartArgs&) override;
   void OnStop(const StopArgs&) override;
+  void OnFlush(const FlushArgs&) override;
   TestDataSourceHandle* handle_ = nullptr;
 };
 
@@ -938,6 +943,15 @@ void MockDataSource::OnStop(const StopArgs& args) {
   if (handle_->on_stop_callback)
     handle_->on_stop_callback();
   handle_->on_stop.Notify();
+}
+
+void MockDataSource::OnFlush(const FlushArgs& args) {
+  EXPECT_NE(handle_, nullptr);
+  if (handle_->handle_flush_asynchronously)
+    handle_->async_flush_closure = args.HandleFlushAsynchronously();
+  if (handle_->on_flush_callback)
+    handle_->on_flush_callback();
+  handle_->on_flush.Notify();
 }
 
 // -------------
@@ -4168,6 +4182,112 @@ TEST_P(PerfettoApiTest, CustomIncrementalState) {
   tracing_session->get()->StopBlocking();
   perfetto::test::TracingMuxerImplInternalsForTest::
       ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
+}
+
+TEST_P(PerfettoApiTest, OnFlush) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  tracing_session->get()->StartBlocking();
+
+  WaitableTestEvent producer_on_flush;
+  WaitableTestEvent consumer_flush_done;
+
+  data_source->on_flush_callback = [&] {
+    EXPECT_FALSE(consumer_flush_done.notified());
+    producer_on_flush.Notify();
+    MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+      ctx.NewTracePacket()->set_for_testing()->set_str("on-flush");
+      ctx.Flush();
+    });
+  };
+
+  tracing_session->get()->Flush([&](bool success) {
+    EXPECT_TRUE(success);
+    EXPECT_TRUE(producer_on_flush.notified());
+    consumer_flush_done.Notify();
+  });
+
+  producer_on_flush.Wait();
+  consumer_flush_done.Wait();
+
+  tracing_session->get()->StopBlocking();
+
+  data_source->on_stop.Wait();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  EXPECT_THAT(
+      trace.packet(),
+      Contains(Property(
+          &perfetto::protos::gen::TracePacket::for_testing,
+          Property(&perfetto::protos::gen::TestEvent::str, "on-flush"))));
+}
+
+TEST_P(PerfettoApiTest, OnFlushAsync) {
+  auto* data_source = &data_sources_["my_data_source"];
+
+  // Setup the trace config.
+  perfetto::TraceConfig cfg;
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+
+  // Create a new trace session.
+  auto* tracing_session = NewTrace(cfg);
+
+  tracing_session->get()->StartBlocking();
+
+  WaitableTestEvent consumer_flush_done;
+
+  data_source->handle_flush_asynchronously = true;
+  data_source->on_flush_callback = [&] {
+    EXPECT_FALSE(consumer_flush_done.notified());
+  };
+
+  tracing_session->get()->Flush([&](bool success) {
+    EXPECT_TRUE(success);
+    consumer_flush_done.Notify();
+  });
+
+  data_source->on_flush.Wait();
+  perfetto::test::SyncProducers();
+  EXPECT_FALSE(consumer_flush_done.notified());
+
+  // Finish the flush asynchronously
+  MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
+    ctx.NewTracePacket()->set_for_testing()->set_str("on-flush");
+    ctx.Flush();
+  });
+  data_source->async_flush_closure();
+
+  consumer_flush_done.Wait();
+
+  tracing_session->get()->StopBlocking();
+
+  data_source->on_stop.Wait();
+
+  std::vector<char> raw_trace = tracing_session->get()->ReadTraceBlocking();
+  ASSERT_GE(raw_trace.size(), 0u);
+
+  perfetto::protos::gen::Trace trace;
+  ASSERT_TRUE(trace.ParseFromArray(raw_trace.data(), raw_trace.size()));
+  EXPECT_THAT(
+      trace.packet(),
+      Contains(Property(
+          &perfetto::protos::gen::TracePacket::for_testing,
+          Property(&perfetto::protos::gen::TestEvent::str, "on-flush"))));
 }
 
 // Regression test for b/139110180. Checks that GetDataSourceLocked() can be
