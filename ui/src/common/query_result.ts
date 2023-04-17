@@ -213,7 +213,7 @@ function isCompatible(actual: CellType, expected: ColumnType): boolean {
   switch (actual) {
     case CellType.CELL_NULL:
       return expected === NUM_NULL || expected === STR_NULL ||
-          expected === BLOB_NULL;
+          expected === BLOB_NULL || expected === LONG_NULL;
     case CellType.CELL_VARINT:
       return expected === NUM || expected === NUM_NULL || expected === LONG ||
           expected === LONG_NULL;
@@ -829,7 +829,7 @@ class RowIteratorImpl implements RowIteratorBase {
         if (actualType === CellType.CELL_NULL) {
           err = 'SQL value is NULL but that was not expected' +
               ` (expected type: ${columnTypeToString(expType)}). ` +
-              'Did you intend to use NUM_NULL, STR_NULL or BLOB_NULL?';
+              'Did you mean NUM_NULL, LONG_NULL, STR_NULL or BLOB_NULL?';
         } else {
           err = `Incompatible cell type. Expected: ${
               columnTypeToString(
