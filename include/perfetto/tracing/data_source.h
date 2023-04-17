@@ -140,6 +140,24 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
     uint32_t internal_instance_index = 0;
   };
   virtual void WillClearIncrementalState(const ClearIncrementalStateArgs&);
+
+  class FlushArgs {
+   public:
+    virtual ~FlushArgs();
+
+    // HandleFlushAsynchronously() can be called to postpone acknowledging the
+    // flush request. This function returns a closure that must be invoked after
+    // the flush request has been processed. The returned closure can be called
+    // from any thread.
+    virtual std::function<void()> HandleFlushAsynchronously() const = 0;
+
+    // The index of this data source instance (0..kMaxDataSourceInstances - 1).
+    uint32_t internal_instance_index = 0;
+  };
+  // Called when the tracing service requests a Flush. Users can override this
+  // to tell other threads to flush their TraceContext for this data source
+  // (the library cannot execute code on all the threads on its own).
+  virtual void OnFlush(const FlushArgs&);
 };
 
 struct DefaultDataSourceTraits {
