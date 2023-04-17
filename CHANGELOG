@@ -16,6 +16,8 @@ Unreleased:
       `static constexpr FieldMetadata_Foo kFoo;`
       This is a breaking change for users who directly access field
       metadata.
+    * The new DataSourceBase::OnFlush() method allows users to properly handle
+      Flush requests.
 
 v33.0 - 2023-03-02:
   All:
