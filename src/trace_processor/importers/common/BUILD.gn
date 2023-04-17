@@ -23,6 +23,8 @@ source_set("common") {
     "async_track_set_tracker.cc",
     "async_track_set_tracker.h",
     "chunked_trace_reader.h",
+    "clock_converter.cc",
+    "clock_converter.h",
     "clock_tracker.cc",
     "clock_tracker.h",
     "deobfuscation_mapping_table.cc",
@@ -87,6 +89,7 @@ source_set("unittests") {
   sources = [
     "args_translation_table_unittest.cc",
     "async_track_set_tracker_unittest.cc",
+    "clock_converter_unittest.cc",
     "clock_tracker_unittest.cc",
     "deobfuscation_mapping_table_unittest.cc",
     "event_tracker_unittest.cc",
