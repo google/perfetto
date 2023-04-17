@@ -32,6 +32,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
+#include "src/trace_processor/importers/common/clock_converter.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
@@ -46,6 +47,7 @@
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
+#include "src/trace_processor/prelude/functions/clock_functions.h"
 #include "src/trace_processor/prelude/functions/create_function.h"
 #include "src/trace_processor/prelude/functions/create_view_function.h"
 #include "src/trace_processor/prelude/functions/import.h"
@@ -703,9 +705,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                false);
   RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
   RegisterFunction<AbsTimeStr>(db, "ABS_TIME_STR", 1,
-                               context_.clock_tracker.get());
+                               context_.clock_converter.get());
   RegisterFunction<ToMonotonic>(db, "TO_MONOTONIC", 1,
-                                context_.clock_tracker.get());
+                                context_.clock_converter.get());
   RegisterFunction<CreateFunction>(
       db, "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(

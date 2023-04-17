@@ -9300,6 +9300,7 @@ filegroup {
         "src/trace_processor/importers/common/args_tracker.cc",
         "src/trace_processor/importers/common/args_translation_table.cc",
         "src/trace_processor/importers/common/async_track_set_tracker.cc",
+        "src/trace_processor/importers/common/clock_converter.cc",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/deobfuscation_mapping_table.cc",
         "src/trace_processor/importers/common/event_tracker.cc",
@@ -9331,6 +9332,7 @@ filegroup {
     srcs: [
         "src/trace_processor/importers/common/args_translation_table_unittest.cc",
         "src/trace_processor/importers/common/async_track_set_tracker_unittest.cc",
+        "src/trace_processor/importers/common/clock_converter_unittest.cc",
         "src/trace_processor/importers/common/clock_tracker_unittest.cc",
         "src/trace_processor/importers/common/deobfuscation_mapping_table_unittest.cc",
         "src/trace_processor/importers/common/event_tracker_unittest.cc",

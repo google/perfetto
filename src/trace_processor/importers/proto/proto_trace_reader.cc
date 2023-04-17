@@ -362,7 +362,15 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
                                   clk.is_incremental());
   }
 
-  uint32_t snapshot_id = context_->clock_tracker->AddSnapshot(clock_timestamps);
+  base::StatusOr<uint32_t> snapshot_id =
+      context_->clock_tracker->AddSnapshot(clock_timestamps);
+  if (!snapshot_id.ok()) {
+    PERFETTO_ELOG("%s", snapshot_id.status().c_message());
+    return base::OkStatus();
+  }
+
+  std::optional<int64_t> trace_time_from_snapshot =
+      context_->clock_tracker->ToTraceTimeFromSnapshot(clock_timestamps);
 
   // Add the all the clock snapshots to the clock snapshot table.
   std::optional<int64_t> trace_ts_for_check;
@@ -371,13 +379,19 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
     // |absolute_timestamp|.
     int64_t ts_to_convert =
         clock_timestamp.clock.is_incremental ? 0 : clock_timestamp.timestamp;
+    // Even if we have trace time from snapshot, we still run ToTraceTime to
+    // optimise future conversions.
     base::StatusOr<int64_t> opt_trace_ts = context_->clock_tracker->ToTraceTime(
         clock_timestamp.clock.id, ts_to_convert);
+
     if (!opt_trace_ts.ok()) {
-      // This can happen if |AddSnapshot| failed to resolve this clock. Just
-      // ignore this and move on.
-      PERFETTO_DLOG("%s", opt_trace_ts.status().c_message());
-      continue;
+      // This can happen if |AddSnapshot| failed to resolve this clock, e.g. if
+      // clock is not monotonic. Try to fetch trace time from snapshot.
+      if (!trace_time_from_snapshot) {
+        PERFETTO_DLOG("%s", opt_trace_ts.status().c_message());
+        continue;
+      }
+      opt_trace_ts = *trace_time_from_snapshot;
     }
 
     // Double check that all the clocks in this snapshot resolve to the same
@@ -391,7 +405,7 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
     row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
     row.clock_value = clock_timestamp.timestamp;
     row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
-    row.snapshot_id = snapshot_id;
+    row.snapshot_id = *snapshot_id;
 
     context_->storage->mutable_clock_snapshot_table()->Insert(row);
   }
