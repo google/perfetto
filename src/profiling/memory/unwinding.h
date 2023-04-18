@@ -68,6 +68,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
                                         DataSourceInstanceID,
                                         pid_t pid,
                                         SharedRingBuffer::Stats stats) = 0;
+    virtual void PostDrainDone(UnwindingWorker*, DataSourceInstanceID) = 0;
     virtual ~Delegate();
   };
 
@@ -92,6 +93,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   void PostDisconnectSocket(pid_t pid);
   void PostPurgeProcess(pid_t pid);
   void PostHandoffSocket(HandoffData);
+  void PostDrainFree(DataSourceInstanceID, pid_t pid);
   void ReturnAllocRecord(std::unique_ptr<AllocRecord> record) {
     alloc_record_arena_.ReturnAllocRecord(std::move(record));
   }
@@ -129,6 +131,7 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
  private:
   void HandleHandoffSocket(HandoffData data);
   void HandleDisconnectSocket(pid_t pid);
+  void HandleDrainFree(DataSourceInstanceID, pid_t);
   void RemoveClientData(
       std::map<pid_t, ClientData>::iterator client_data_iterator);
   void FinishDisconnect(
