@@ -66,7 +66,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
           !IsConvertedSequenceClock(clock_id)) {
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
         return base::ErrStatus(
-            "Clock sync error: the global clock with id=%" PRIu64
+            "Clock sync error: the global clock with id=%" PRId64
             " cannot use incremental encoding; this is only "
             "supported for sequence-scoped clocks.",
             clock_id);
@@ -79,10 +79,10 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
                                      clock_ts.clock.is_incremental)) {
       context_->storage->IncrementStats(stats::invalid_clock_snapshots);
       return base::ErrStatus(
-          "Clock sync error: the clock domain with id=%" PRIu64
-          " (unit=%" PRIu64
+          "Clock sync error: the clock domain with id=%" PRId64
+          " (unit=%" PRId64
           ", incremental=%d), was previously registered with "
-          "different properties (unit=%" PRIu64 ", incremental=%d).",
+          "different properties (unit=%" PRId64 ", incremental=%d).",
           clock_id, clock_ts.clock.unit_multiplier_ns,
           clock_ts.clock.is_incremental, domain.unit_multiplier_ns,
           domain.is_incremental);
@@ -95,7 +95,7 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
         PERFETTO_UNLIKELY(vect.snapshot_ids.back() == snapshot_id)) {
       context_->storage->IncrementStats(stats::invalid_clock_snapshots);
       return base::ErrStatus(
-          "Clock sync error: duplicate clock domain with id=%" PRIu64
+          "Clock sync error: duplicate clock domain with id=%" PRId64
           " at snapshot %" PRIu32 ".",
           clock_id, snapshot_id);
     }
@@ -116,14 +116,14 @@ base::StatusOr<uint32_t> ClockTracker::AddSnapshot(
       if (clock_id == trace_time_clock_id_) {
         context_->storage->IncrementStats(stats::invalid_clock_snapshots);
         // The trace clock cannot be non-monotonic.
-        return base::ErrStatus("Clock sync error: the trace clock (id=%" PRIu64
+        return base::ErrStatus("Clock sync error: the trace clock (id=%" PRId64
                                ") is not monotonic at snapshot %" PRIu32
                                ". %" PRId64 " not >= %" PRId64 ".",
                                clock_id, snapshot_id, timestamp_ns,
                                vect.timestamps_ns.back());
       }
 
-      PERFETTO_DLOG("Detected non-monotonic clock with ID %lu", clock_id);
+      PERFETTO_DLOG("Detected non-monotonic clock with ID %" PRId64, clock_id);
 
       // For the other clocks the best thing we can do is mark it as
       // non-monotonic and refuse to use it as a source clock in the resolution
@@ -242,7 +242,7 @@ base::StatusOr<int64_t> ClockTracker::ConvertSlowpath(ClockId src_clock_id,
   if (!path.valid()) {
     // Too many logs maybe emitted when path is invalid.
     context_->storage->IncrementStats(stats::clock_sync_failure);
-    return base::ErrStatus("No path from clock %" PRIu64 " to %" PRIu64
+    return base::ErrStatus("No path from clock %" PRId64 " to %" PRId64
                            " at timestamp %" PRId64,
                            src_clock_id, target_clock_id, src_timestamp);
   }
