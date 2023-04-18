@@ -44,6 +44,7 @@ class AsyncTrackSetTracker;
 class AndroidProbesTracker;
 class ChunkedTraceReader;
 class ClockTracker;
+class ClockConverter;
 class DeobfuscationMappingTable;
 class EventTracker;
 class ForwardingTraceParser;
@@ -97,6 +98,7 @@ class TraceProcessorContext {
   std::unique_ptr<ProcessTracker> process_tracker;
   std::unique_ptr<EventTracker> event_tracker;
   std::unique_ptr<ClockTracker> clock_tracker;
+  std::unique_ptr<ClockConverter> clock_converter;
   std::unique_ptr<HeapProfileTracker> heap_profile_tracker;
   std::unique_ptr<PerfSampleTracker> perf_sample_tracker;
   std::unique_ptr<GlobalStackProfileTracker> global_stack_profile_tracker;
