@@ -135,6 +135,7 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
                               DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override;
+  void PostDrainDone(UnwindingWorker*, DataSourceInstanceID) override;
 
   void HandleAllocRecord(AllocRecord*);
   void HandleFreeRecord(FreeRecord);
@@ -201,8 +202,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     HeapInfo& GetHeapInfo(uint32_t heap_id) {
       auto it = heap_infos.find(heap_id);
       if (it == heap_infos.end()) {
-        it = heap_infos.emplace_hint(it,
-            std::piecewise_construct, std::forward_as_tuple(heap_id),
+        it = heap_infos.emplace_hint(
+            it, std::piecewise_construct, std::forward_as_tuple(heap_id),
             std::forward_as_tuple(callsites, dump_at_max_mode));
       }
       return it->second;
@@ -236,6 +237,8 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
     bool hit_guardrail = false;
     bool was_stopped = false;
     uint32_t stop_timeout_ms;
+    uint32_t dump_interval_ms = 0;
+    size_t pending_free_drains = 0;
     GuardrailConfig guardrail_config;
   };
 
@@ -262,7 +265,9 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
   static void SetStats(protos::pbzero::ProfilePacket::ProcessStats* stats,
                        const ProcessState& process_state);
 
-  void DoContinuousDump(DataSourceInstanceID id, uint32_t dump_interval);
+  void DoDrainAndContinuousDump(DataSourceInstanceID id);
+  void DoContinuousDump(DataSource* ds);
+  void DrainDone(DataSourceInstanceID);
 
   UnwindingWorker& UnwinderForPID(pid_t);
   bool IsPidProfiled(pid_t);
