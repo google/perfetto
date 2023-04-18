@@ -570,7 +570,9 @@ base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
       position_ = TracePosition::kEof;
       return SetOutAndReturn(next, out);
     case ReadKeyRes::kNeedsMoreData:
-      return SetOutAndReturn(next, out);
+      // If we didn't manage to read the key we need to set |out| to |start|
+      // (*not* |next|) to keep the state machine happy.
+      return SetOutAndReturn(start, out);
     case ReadKeyRes::kFoundKey:
       break;
   }
@@ -619,7 +621,10 @@ base::Status JsonTraceTokenizer::HandleDictionaryKey(const char* start,
           "Failure parsing JSON: error while parsing value for key %s",
           key.c_str());
     case SkipValueRes::kNeedsMoreData:
-      return SetOutAndReturn(next, out);
+      // If we didn't manage to read the key *and* the value, we need to set
+      // |out| to |start| (*not* |next|) to keep the state machine happy (as
+      // we expect to always see a key before the value).
+      return SetOutAndReturn(start, out);
     case SkipValueRes::kEndOfValue:
       return ParseInternal(next, end, out);
   }
