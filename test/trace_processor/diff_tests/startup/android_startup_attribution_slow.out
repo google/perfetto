@@ -86,8 +86,8 @@ android_startup {
       dur_ns: 5000000000
     }
     startup_type: "hot"
-    slow_start_reason: "JIT Activity"
     slow_start_reason: "GC Activity"
+    slow_start_reason: "JIT Activity"
     slow_start_reason: "JIT compiled methods"
   }
 }
