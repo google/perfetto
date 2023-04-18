@@ -38,6 +38,7 @@ class NopDelegate : public UnwindingWorker::Delegate {
                               DataSourceInstanceID,
                               pid_t,
                               SharedRingBuffer::Stats) override {}
+  void PostDrainDone(UnwindingWorker*, DataSourceInstanceID) override {}
 };
 
 int FuzzUnwinding(const uint8_t* data, size_t size) {

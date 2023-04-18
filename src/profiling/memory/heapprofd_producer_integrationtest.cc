@@ -111,10 +111,25 @@ class HeapprofdThread {
   std::unique_ptr<base::UnixSocket> listen_sock_;
 };
 
+class TraceConsumer {
+ public:
+  explicit TraceConsumer(base::TestTaskRunner* runner, std::string socket)
+      : socket_(std::move(socket)), consumer_(runner) {
+    consumer_.Connect(
+        ConsumerIPCClient::Connect(socket_.c_str(), &consumer_, runner));
+  }
+
+  NiceMock<MockConsumer>& consumer() { return consumer_; }
+
+ private:
+  // consumer_ refers to socket_.
+  const std::string socket_;
+  NiceMock<MockConsumer> consumer_;
+};
+
 TraceConfig MakeTraceConfig() {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(10 * 1024);
-  trace_config.set_data_source_stop_timeout_ms(10000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.heapprofd");
@@ -151,81 +166,104 @@ bool WaitForDsRegistered(MockConsumer* mock_consumer,
   });
 }
 
-// Waits for the heapprofd data source to be registered and starts a trace with
-// it.
-std::unique_ptr<NiceMock<MockConsumer>> StartHeapprofdTrace(
-    const std::string& consumer_socket,
-    base::TestTaskRunner* task_runner) {
-  std::unique_ptr<NiceMock<MockConsumer>> mock_consumer;
-  mock_consumer.reset(new NiceMock<MockConsumer>(task_runner));
-  mock_consumer->Connect(ConsumerIPCClient::Connect(
-      consumer_socket.c_str(), mock_consumer.get(), task_runner));
+class HeapprofdProducerIntegrationTest : public testing::Test {
+ protected:
+  static constexpr char kProducerSock[] = "producer.sock";
+  static constexpr char kConsumerSock[] = "consumer.sock";
+  static constexpr char kHeapprofdSock[] = "heapprofd.sock";
 
-  if (WaitForDsRegistered(mock_consumer.get(), "android.heapprofd") == false) {
-    ADD_FAILURE();
-    return nullptr;
+  std::string ProducerSockPath() const {
+    return tmpdir_.AbsolutePath(kProducerSock);
   }
 
-  mock_consumer->ObserveEvents(ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
-  mock_consumer->EnableTracing(MakeTraceConfig());
-  mock_consumer->WaitForObservableEvents();
+  std::string ConsumerSockPath() const {
+    return tmpdir_.AbsolutePath(kConsumerSock);
+  }
 
-  return mock_consumer;
-}
+  std::string HeapprofdSockPath() const {
+    return tmpdir_.AbsolutePath(kHeapprofdSock);
+  }
 
-TEST(HeapprofdProducerIntegrationTest, Restart) {
+  void SetUp() override {
+    tmpdir_.TrackFile(kProducerSock);
+    tmpdir_.TrackFile(kConsumerSock);
+    StartTracingService();
+
+    tmpdir_.TrackFile(kHeapprofdSock);
+    heapprofd_service_.emplace(ProducerSockPath(), HeapprofdSockPath());
+  }
+
+  void StartTracingService() {
+    tracing_service_.emplace(ProducerSockPath(), ConsumerSockPath());
+  }
+
+  // Waits for the heapprofd data source to be registered and starts a trace
+  // with it.
+  std::unique_ptr<TraceConsumer> StartHeapprofdTrace(TraceConfig cfg) {
+    auto trace_consumer =
+        std::make_unique<TraceConsumer>(&task_runner_, ConsumerSockPath());
+
+    if (WaitForDsRegistered(&trace_consumer->consumer(), "android.heapprofd") ==
+        false) {
+      ADD_FAILURE();
+      return nullptr;
+    }
+
+    trace_consumer->consumer().ObserveEvents(
+        ObservableEvents::TYPE_ALL_DATA_SOURCES_STARTED);
+    trace_consumer->consumer().EnableTracing(cfg);
+    trace_consumer->consumer().WaitForObservableEvents();
+
+    return trace_consumer;
+  }
+
+  std::shared_ptr<Client> CreateHeapprofdClient() const {
+    std::optional<base::UnixSocketRaw> client_sock =
+        perfetto::profiling::Client::ConnectToHeapprofd(HeapprofdSockPath());
+    if (!client_sock.has_value()) {
+      return nullptr;
+    }
+
+    return perfetto::profiling::Client::CreateAndHandshake(
+        std::move(client_sock.value()),
+        UnhookedAllocator<perfetto::profiling::Client>(malloc, free));
+  }
+
   base::TmpDirTree tmpdir_;
+  base::TestTaskRunner task_runner_;
+  std::optional<TracingServiceThread> tracing_service_;
+  std::optional<HeapprofdThread> heapprofd_service_;
+};
 
-  base::TestTaskRunner task_runner;
-
-  tmpdir_.TrackFile("producer.sock");
-  tmpdir_.TrackFile("consumer.sock");
-
-  std::optional<TracingServiceThread> tracing_service;
-  tracing_service.emplace(tmpdir_.AbsolutePath("producer.sock"),
-                          tmpdir_.AbsolutePath("consumer.sock"));
-
-  tmpdir_.TrackFile("heapprofd.sock");
-  HeapprofdThread heapprofd_service(tmpdir_.AbsolutePath("producer.sock"),
-                                    tmpdir_.AbsolutePath("heapprofd.sock"));
-
-  std::unique_ptr<NiceMock<MockConsumer>> consumer =
-      StartHeapprofdTrace(tmpdir_.AbsolutePath("consumer.sock"), &task_runner);
+TEST_F(HeapprofdProducerIntegrationTest, Restart) {
+  std::unique_ptr<TraceConsumer> consumer =
+      StartHeapprofdTrace(MakeTraceConfig());
   ASSERT_THAT(consumer, NotNull());
 
-  std::optional<base::UnixSocketRaw> client_sock =
-      perfetto::profiling::Client::ConnectToHeapprofd(
-          tmpdir_.AbsolutePath("heapprofd.sock"));
-  ASSERT_TRUE(client_sock.has_value());
-
-  std::shared_ptr<Client> client =
-      perfetto::profiling::Client::CreateAndHandshake(
-          std::move(client_sock.value()),
-          UnhookedAllocator<perfetto::profiling::Client>(malloc, free));
+  std::shared_ptr<Client> client = CreateHeapprofdClient();
+  ASSERT_THAT(client, NotNull());
 
   // Shutdown tracing service. This should cause HeapprofdProducer::Restart() to
   // be executed on the heapprofd thread.
-  tracing_service.reset();
+  tracing_service_.reset();
   // Wait for the effects of the tracing service disconnect to propagate to the
   // heapprofd thread.
-  heapprofd_service.Sync();
+  heapprofd_service_->Sync();
 
-  consumer->ForceDisconnect();
+  consumer->consumer().ForceDisconnect();
   consumer.reset();
 
-  task_runner.RunUntilIdle();
+  task_runner_.RunUntilIdle();
 
   // Start tracing service again. Heapprofd should reconnect.
-  ASSERT_EQ(remove(tmpdir_.AbsolutePath("producer.sock").c_str()), 0);
-  ASSERT_EQ(remove(tmpdir_.AbsolutePath("consumer.sock").c_str()), 0);
-  tracing_service.emplace(tmpdir_.AbsolutePath("producer.sock"),
-                          tmpdir_.AbsolutePath("consumer.sock"));
+  ASSERT_EQ(remove(ProducerSockPath().c_str()), 0);
+  ASSERT_EQ(remove(ConsumerSockPath().c_str()), 0);
+  StartTracingService();
 
-  consumer =
-      StartHeapprofdTrace(tmpdir_.AbsolutePath("consumer.sock"), &task_runner);
+  consumer = StartHeapprofdTrace(MakeTraceConfig());
   ASSERT_THAT(consumer, NotNull());
 
-  consumer->ForceDisconnect();
+  consumer->consumer().ForceDisconnect();
   consumer.reset();
 }
 
