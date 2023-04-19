@@ -45,6 +45,7 @@ const char* kAllowedCORSOrigins[] = {
     "https://ui.perfetto.dev",
     "http://localhost:10000",
     "http://127.0.0.1:10000",
+    "file://"
 };
 
 class Httpd : public base::HttpRequestHandler {
