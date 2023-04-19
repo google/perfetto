@@ -102,12 +102,12 @@ android_startup {
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }
+    slow_start_reason: "No baseline or cloud profiles"
+    slow_start_reason: "Optimized artifacts missing, run from apk"
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Time spent in view inflation"
     slow_start_reason: "Time spent in ResourcesManager#getResources"
     slow_start_reason: "Potential CPU contention with init"
-    slow_start_reason: "No baseline or cloud profiles"
-    slow_start_reason: "Optimized artifacts missing, run from apk"
     startup_type: "cold"
   }
 }
