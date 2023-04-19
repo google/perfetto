@@ -28,10 +28,10 @@ import {pluginManager, pluginRegistry} from '../common/plugins';
 import {onSelectionChanged} from '../common/selection_observer';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
+import {initController, runControllers} from '../controller';
 import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
-import {initController, runControllers} from '../controller/index';
 
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
