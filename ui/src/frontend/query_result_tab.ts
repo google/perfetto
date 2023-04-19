@@ -68,41 +68,30 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   constructor(args: NewBottomTabArgs) {
     super(args);
 
+    this.initTrack(args);
+  }
+
+  async initTrack(args: NewBottomTabArgs) {
+    let uuid = '';
     if (this.config.prefetchedResponse !== undefined) {
       this.queryResponse = this.config.prefetchedResponse;
+      uuid = args.uuid;
     } else {
-      runQuery(this.config.query, this.engine)
-          .then(async (result: QueryResponse) => {
-            this.queryResponse = result;
-            globals.rafScheduler.scheduleFullRedraw();
+      const result = await runQuery(this.config.query, this.engine);
+      this.queryResponse = result;
+      globals.rafScheduler.scheduleFullRedraw();
+      if (result.error !== undefined) {
+        return;
+      }
 
-            if (result.error !== undefined) {
-              return;
-            }
+      uuid = uuidv4();
+    }
 
-            const uuid = uuidv4();
-            const viewId = uuidToViewName(uuid);
-            // Assuming that it was a SELECT query, try creating a view to allow
-            // us to reuse it for further queries.
-            // TODO(altimin): This should get the actual query that was used to
-            // generate the results from the SQL query iterator.
-            try {
-              const createViewResult = await this.engine.query(
-                  `create view ${viewId} as ${this.config.query}`);
-              if (createViewResult.error()) {
-                // If it failed, do nothing.
-                return;
-              }
-            } catch (e) {
-              if (e instanceof QueryError) {
-                // If it failed, do nothing.
-                return;
-              }
-              throw e;
-            }
-            this.sqlViewName = viewId;
-            globals.rafScheduler.scheduleFullRedraw();
-          });
+    if (uuid !== '') {
+      this.sqlViewName = await this.createViewForDebugTrack(uuid);
+      if (this.sqlViewName) {
+        globals.rafScheduler.scheduleFullRedraw();
+      }
     }
   }
 
@@ -139,6 +128,29 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   }
 
   renderTabCanvas() {}
+
+  async createViewForDebugTrack(uuid: string): Promise<string> {
+    const viewId = uuidToViewName(uuid);
+    // Assuming that the query results come from a SELECT query, try creating a
+    // view to allow us to reuse it for further queries.
+    // TODO(altimin): This should get the actual query that was used to
+    // generate the results from the SQL query iterator.
+    try {
+      const createViewResult = await this.engine.query(
+          `create view ${viewId} as ${this.config.query}`);
+      if (createViewResult.error()) {
+        // If it failed, do nothing.
+        return '';
+      }
+    } catch (e) {
+      if (e instanceof QueryError) {
+        // If it failed, do nothing.
+        return '';
+      }
+      throw e;
+    }
+    return viewId;
+  }
 }
 
 bottomTabRegistry.register(QueryResultTab);
