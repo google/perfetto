@@ -69,6 +69,8 @@ JOIN android_jank_cuj_main_thread main_thread
     AND main_thread.track_id = slice.track_id
 WHERE
   slice.name GLOB 'Choreographer#doFrame*'
+-- Ignore child slice e.g. "Choreographer#doFrame - resynced to 1234 in 20.0ms"
+  AND slice.name not GLOB '*resynced*'
   AND slice.dur > 0;
 
 
