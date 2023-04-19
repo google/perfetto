@@ -202,7 +202,7 @@ void SubscriptionTracker::Unregister(int32_t subscription_id) {
 
 // static
 const ProbesDataSource::Descriptor StatsdBinderDataSource::descriptor = {
-    /*name*/ "android.statsd",
+    /*name*/ "android.statsd_binder",
     /*flags*/ Descriptor::kFlagsNone,
     /*fill_descriptor_func*/ nullptr,
 };
