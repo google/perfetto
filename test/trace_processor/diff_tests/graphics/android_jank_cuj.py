@@ -88,10 +88,14 @@ def add_frame(trace,
               ts_draw_frame,
               ts_end_draw_frame,
               ts_gpu=None,
-              ts_end_gpu=None):
+              ts_end_gpu=None,
+              resync=False):
   add_main_thread_atrace(trace, ts_do_frame, ts_end_do_frame,
                          "Choreographer#doFrame %d" % vsync)
-
+  if resync:
+    add_main_thread_atrace(trace, ts_do_frame, ts_end_do_frame,
+                           "Choreographer#doFrame - resynced to %d in 0.0s"
+                           % (vsync+1))
   gpu_idx = 1000 + vsync * 10 + 1
   if ts_gpu is None:
     gpu_fence_message = "GPU completion fence %d has signaled"
@@ -296,7 +300,8 @@ add_frame(
     ts_draw_frame=4_000_000,
     ts_end_draw_frame=5_000_000,
     ts_gpu=10_000_000,
-    ts_end_gpu=15_000_000)
+    ts_end_gpu=15_000_000,
+    resync=True)
 add_main_thread_atrace(
     trace, ts=1_500_000, ts_end=2_000_000, buf="binder transaction")
 add_render_thread_atrace(
