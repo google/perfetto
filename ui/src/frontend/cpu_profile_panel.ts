@@ -39,7 +39,7 @@ export class CpuProfileDetailsPanel extends Panel<CpuProfileDetailsPanelAttrs> {
     if (!stack) return [];
 
     const result = [];
-    for (let i = 0; i < stack.length; i++) {
+    for (let i = stack.length - 1; i >= 0; --i) {
       result.push(m('tr', m('td', stack[i].name), m('td', stack[i].mapping)));
     }
 
