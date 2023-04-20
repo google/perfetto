@@ -59,7 +59,7 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
     // pointer is nullptr, the caller should not write anything.
     //
     // The implementation considers the patch ready to apply when the caller
-    // writes the the first byte a value that's different than 0 (the
+    // writes the first byte a value that's different than 0 (the
     // implementation periodically checks for this).
     virtual uint8_t* AnnotatePatch(uint8_t* patch_addr);
   };
