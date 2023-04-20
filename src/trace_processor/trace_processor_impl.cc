@@ -90,6 +90,7 @@
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
+#include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.h"
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
@@ -428,6 +429,8 @@ void SetupMetrics(TraceProcessor* tp,
                          skip_prefixes);
   tp->ExtendMetricsProto(kAllChromeMetricsDescriptor.data(),
                          kAllChromeMetricsDescriptor.size(), skip_prefixes);
+  tp->ExtendMetricsProto(kAllWebviewMetricsDescriptor.data(),
+                         kAllWebviewMetricsDescriptor.size(), skip_prefixes);
 
   // TODO(lalitm): remove this special casing and change
   // SanitizeMetricMountPaths if/when we move all protos for builtin metrics to
