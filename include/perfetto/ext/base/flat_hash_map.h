@@ -214,7 +214,7 @@ class FlatHashMap {
       }  // for (idx)
 
       // If we got to this point the key does not exist (otherwise we would have
-      // hit the the return above) and we are going to insert a new entry.
+      // hit the return above) and we are going to insert a new entry.
       // Before doing so, ensure we stay under the target load limit.
       if (PERFETTO_UNLIKELY(size_ >= load_limit_)) {
         MaybeGrowAndRehash(/*grow=*/true);
