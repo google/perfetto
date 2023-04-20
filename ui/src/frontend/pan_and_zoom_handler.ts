@@ -47,7 +47,7 @@ const DRAG_CURSOR = 'default';
 const PAN_CURSOR = 'move';
 
 // Use key mapping based on the 'KeyboardEvent.code' property vs the
-// 'KeyboardEvent.key', because the the former corresponds to the physical key
+// 'KeyboardEvent.key', because the former corresponds to the physical key
 // position rather than the glyph printed on top of it, and is unaffected by
 // the user's keyboard layout.
 // For example, 'KeyW' always corresponds to the key at the physical location of
