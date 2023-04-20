@@ -1704,6 +1704,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_webview_webview",
     srcs = [
+        "src/trace_processor/metrics/sql/webview/webview_jank_approximation.sql",
         "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
     ],
 )
@@ -1742,6 +1743,17 @@ perfetto_cc_proto_descriptor(
     ],
     outs = [
         "src/trace_processor/metrics/all_chrome_metrics.descriptor.h",
+    ],
+)
+
+# GN target: //src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_webview_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/metrics/all_webview_metrics.descriptor.h",
     ],
 )
 
@@ -3700,6 +3712,33 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics/webview:descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_metrics_webview_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_webview_protos",
+    ],
+    outs = [
+        "protos_perfetto_metrics_webview_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/webview:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_webview_protos",
+    srcs = [
+        "protos/perfetto/metrics/webview/all_webview_metrics.proto",
+        "protos/perfetto/metrics/webview/webview_jank_approximation.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
@@ -4762,6 +4801,7 @@ perfetto_cc_library(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
@@ -4905,6 +4945,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
@@ -5113,6 +5154,7 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
