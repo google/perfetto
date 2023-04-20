@@ -391,7 +391,9 @@ class TestCaseRunner:
       metrics_descriptor_paths = [
           os.path.join(metrics_protos_path, 'metrics.descriptor'),
           os.path.join(metrics_protos_path, 'chrome',
-                       'all_chrome_metrics.descriptor')
+                       'all_chrome_metrics.descriptor'),
+          os.path.join(metrics_protos_path, 'webview',
+                       'all_webview_metrics.descriptor')
       ]
     result_str = ""
 
