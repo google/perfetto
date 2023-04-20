@@ -87,6 +87,7 @@ from diff_tests.tables.tests_sched import TablesSched
 from diff_tests.track_event.tests import TrackEvent
 from diff_tests.translation.tests import Translation
 from diff_tests.ufs.tests import Ufs
+from diff_tests.webview.tests import WebView
 
 sys.path.pop()
 
@@ -167,4 +168,5 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *TablesSched(index_path, 'tables', 'TablesSched').fetch(),
       *TrackEvent(index_path, 'track_event', 'TrackEvent').fetch(),
       *Translation(index_path, 'translation', 'Translation').fetch(),
+      *WebView(index_path, 'webview', 'WebView').fetch(),
   ]
