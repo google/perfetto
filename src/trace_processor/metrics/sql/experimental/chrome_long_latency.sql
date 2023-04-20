@@ -16,7 +16,7 @@
 -- Find all long EventLatency slices > 100ms and also get the
 -- type of the event stored as 'debug.event' argument.
 -- In order to group all events
--- Note that a long latency event is represented by the the ending time
+-- Note that a long latency event is represented by the ending time
 -- of an EventLatency slice, i.e. the timestamp of the frame presentation
 -- that reflects the event.
 DROP VIEW IF EXISTS long_eventlatency_slice;
