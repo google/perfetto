@@ -545,31 +545,31 @@ class Column {
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(beg, end);
+        rm->Intersect({beg, end});
         return true;
       }
       case FilterOp::kLe: {
         uint32_t end = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(0, end);
+        rm->Intersect({0, end});
         return true;
       }
       case FilterOp::kLt: {
         uint32_t end = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(0, end);
+        rm->Intersect({0, end});
         return true;
       }
       case FilterOp::kGe: {
         uint32_t beg = std::distance(
             b, std::lower_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(beg, overlay().size());
+        rm->Intersect({beg, overlay().size()});
         return true;
       }
       case FilterOp::kGt: {
         uint32_t beg = std::distance(
             b, std::upper_bound(b, e, value, &compare::SqlValueComparator));
-        rm->Intersect(beg, overlay().size());
+        rm->Intersect({beg, overlay().size()});
         return true;
       }
       case FilterOp::kNe:
@@ -608,11 +608,13 @@ class Column {
     // Otherwise, find the end of the set and return the intersection for this.
     for (uint32_t i = set_id + 1; i < ov.size(); ++i) {
       if (st.Get(ov.Get(i)) != filter_set_id) {
-        rm->Intersect(set_id, i);
+        RowMap r(set_id, i);
+        rm->Intersect(r);
         return;
       }
     }
-    rm->Intersect(set_id, ov.size());
+    RowMap r(set_id, ov.size());
+    rm->Intersect(r);
   }
 
   // Slow path filter method which will perform a full table scan.
