@@ -2116,6 +2116,9 @@ message TraceMetrics {
 
   // Chrome metrics.
   extensions 1001 to 2000;
+
+  // WebView metrics.
+  extensions 2001 to 2500;
 }
 
 // End of protos/perfetto/metrics/metrics.proto
