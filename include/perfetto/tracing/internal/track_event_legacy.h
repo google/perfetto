@@ -435,6 +435,23 @@ class PERFETTO_EXPORT_COMPONENT TrackEventLegacy {
 };
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
+// Legacy macros allow argument values to be nullptr and convert them to the
+// "NULL" string. The following function helps mimic this behavior: it forwards
+// all types of arguments apart from a nullptr string as is, and in case of a
+// nullptr returns "NULL".
+template <typename T>
+inline T PossiblyNull(T&& value) {
+  return std::forward<T>(value);
+}
+
+inline const char* PossiblyNull(const char* name) {
+  return name ? name : "NULL";
+}
+
+inline const char* PossiblyNull(char* name) {
+  return name ? name : "NULL";
+}
+
 }  // namespace internal
 }  // namespace perfetto
 
