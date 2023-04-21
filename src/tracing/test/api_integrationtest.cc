@@ -3518,6 +3518,21 @@ TEST_P(PerfettoApiTest, TrackEventDynamicStringInDebugArgs) {
   EXPECT_EQ("B:foo.Event8(new_arg1=(int)5)", slices[7]);
 }
 
+TEST_P(PerfettoApiTest, TrackEventLegacyNullStringInArgs) {
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  const char* null_str = nullptr;
+
+  TRACE_EVENT1("foo", "Event1", "arg1", null_str);
+  TRACE_EVENT1("foo", "Event2", "arg1", TRACE_STR_COPY(null_str));
+
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  ASSERT_EQ(2u, slices.size());
+  EXPECT_EQ("B:foo.Event1(arg1=(string)NULL)", slices[0]);
+  EXPECT_EQ("B:foo.Event2(arg1=(string)NULL)", slices[1]);
+}
+
 TEST_P(PerfettoApiTest, FilterDynamicEventName) {
   for (auto filter_dynamic_names : {false, true}) {
     // Create a new trace session.
