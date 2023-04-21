@@ -37,6 +37,8 @@ source_set("functions") {
     "sqlite3_str_split.h",
     "stack_functions.cc",
     "stack_functions.h",
+    "to_ftrace.cc",
+    "to_ftrace.h",
     "utils.h",
     "window_functions.h",
   ]
