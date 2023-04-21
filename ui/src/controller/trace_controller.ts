@@ -113,7 +113,6 @@ const METRICS = [
   'android_dma_heap',
   'android_surfaceflinger',
   'android_batt',
-  'android_camera',
   'android_other_traces',
   'chrome_dropped_frames',
   'chrome_long_latency',
