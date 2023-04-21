@@ -56,6 +56,7 @@
 #include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/prelude/functions/sqlite3_str_split.h"
 #include "src/trace_processor/prelude/functions/stack_functions.h"
+#include "src/trace_processor/prelude/functions/to_ftrace.h"
 #include "src/trace_processor/prelude/functions/utils.h"
 #include "src/trace_processor/prelude/functions/window_functions.h"
 #include "src/trace_processor/prelude/operators/span_join_operator.h"
@@ -73,7 +74,6 @@
 #include "src/trace_processor/prelude/table_functions/view.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
-#include "src/trace_processor/sqlite/sqlite_raw_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/sqlite/stats_table.h"
@@ -722,6 +722,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<Import>(db, "IMPORT", 1,
                            std::unique_ptr<Import::Context>(new Import::Context{
                                db_.get(), this, &sql_modules_}));
+  RegisterFunction<ToFtrace>(
+      db, "TO_FTRACE", 1,
+      std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
+          context_.storage.get(), SystraceSerializer(&context_)}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
@@ -767,9 +771,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   WindowOperatorTable::RegisterTable(*db_, storage);
   CreateViewFunction::RegisterTable(*db_);
 
-  // New style tables but with some custom logic.
-  SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
-
   // Tables dynamically generated at query time.
   RegisterTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
       new ExperimentalFlamegraph(&context_)));
@@ -810,6 +811,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // (O(rows in sched/slice/counter)), then consider calling ShrinkToFit on
   // that table in TraceStorage::ShrinkToFitTables.
   RegisterDbTable(storage->arg_table());
+  RegisterDbTable(storage->raw_table());
   RegisterDbTable(storage->thread_table());
   RegisterDbTable(storage->process_table());
   RegisterDbTable(storage->filedescriptor_table());
