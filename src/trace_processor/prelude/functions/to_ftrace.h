@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
-#define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
+#ifndef SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_TO_FTRACE_H_
+#define SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_TO_FTRACE_H_
 
-#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_writer.h"
-#include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
-#include "src/trace_processor/types/variadic.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -47,25 +45,20 @@ class SystraceSerializer {
   TraceProcessorContext* context_ = nullptr;
 };
 
-class SqliteRawTable : public DbSqliteTable {
- public:
+struct ToFtrace : public SqlFunction {
   struct Context {
-    QueryCache* cache;
-    TraceProcessorContext* context;
+    const TraceStorage* storage;
+    SystraceSerializer serializer;
   };
 
-  SqliteRawTable(sqlite3*, Context);
-  ~SqliteRawTable() override;
-
-  static void RegisterTable(sqlite3* db, QueryCache*, TraceProcessorContext*);
-
- private:
-  void ToSystrace(sqlite3_context* ctx, int argc, sqlite3_value** argv);
-
-  SystraceSerializer serializer_;
+  static base::Status Run(Context*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
 };
 
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_SQLITE_SQLITE_RAW_TABLE_H_
+#endif  // SRC_TRACE_PROCESSOR_PRELUDE_FUNCTIONS_TO_FTRACE_H_
