@@ -10022,6 +10022,7 @@ filegroup {
         "src/trace_processor/prelude/functions/register_function.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
         "src/trace_processor/prelude/functions/stack_functions.cc",
+        "src/trace_processor/prelude/functions/to_ftrace.cc",
     ],
 }
 
@@ -10131,7 +10132,6 @@ filegroup {
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
-        "src/trace_processor/sqlite/sqlite_raw_table.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/stats_table.cc",
     ],

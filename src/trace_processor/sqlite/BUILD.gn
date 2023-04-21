@@ -23,8 +23,6 @@ source_set("sqlite") {
     "query_cache.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
-    "sqlite_raw_table.cc",
-    "sqlite_raw_table.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
     "stats_table.cc",
