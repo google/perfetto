@@ -67,10 +67,10 @@ def perfetto_deps():
     )
 
     _add_repo_if_not_existing(
-        new_git_repository,
+        http_archive,
         name = "perfetto_dep_zlib",
-        remote = "https://android.googlesource.com/platform/external/zlib.git",
-        commit = "6d3f6aa0f87c9791ca7724c279ef61384f331dfd",
+        url = "https://storage.googleapis.com/perfetto/zlib-6d3f6aa0f87c9791ca7724c279ef61384f331dfd.tar.gz",
+        sha256 = "e9a1d6e8c936de68628ffb83a13d28a40cd6b2def2ad9378e8b951d4b8f4df18",
         build_file = "//bazel:zlib.BUILD",
     )
 
