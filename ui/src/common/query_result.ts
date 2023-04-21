@@ -67,12 +67,12 @@ export const NUM_NULL: number|null = 1;
 export const STR_NULL: string|null = 'str_null';
 export const BLOB: Uint8Array = new Uint8Array();
 export const BLOB_NULL: Uint8Array|null = new Uint8Array();
-export const LONG: bigint = BigInt(0);
-export const LONG_NULL: bigint|null = BigInt(1);
+export const LONG: bigint = 0n;
+export const LONG_NULL: bigint|null = 1n;
 
 export type ColumnType = string|number|bigint|null|Uint8Array;
 
-const SHIFT_32BITS = BigInt(32);
+const SHIFT_32BITS = 32n;
 
 // Fast decode varint int64 into a bigint
 // Inspired by
