@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,14 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../gn/perfetto.gni")
-import("../../../../../gn/perfetto_sql.gni")
+import("../../../../gn/proto_library.gni")
 
-assert(enable_perfetto_trace_processor_sqlite)
-
-perfetto_sql_source_set("webview") {
+perfetto_proto_library("@TYPE@") {
+  proto_generators = [ "source_set" ]
+  deps = [ "..:@TYPE@" ]
   sources = [
-    "webview_jank_approximation.sql",
-    "webview_power_usage.sql",
+    "all_webview_metrics.proto",
+    "webview_jank_approximation.proto",
   ]
+}
+
+perfetto_proto_library("descriptor") {
+  proto_generators = [ "descriptor" ]
+  import_dirs = [ "${perfetto_protobuf_src_dir}" ]
+  generate_descriptor = "all_webview_metrics.descriptor"
+  deps = [ ":source_set" ]
+  sources = [ "all_webview_metrics.proto" ]
 }
