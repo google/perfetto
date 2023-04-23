@@ -74,6 +74,17 @@ class BuiltinProducer : public Producer {
     uint64_t generation = 0;
   };
 
+  struct AndroidSdkSyspropGuardState {
+    // "Initialized" refers to whether the Perfetto SDK and the Track Event
+    // data source have been initialized in Skia in the given scenario.
+    // Note: once initialized, it cannot be de-initialized.
+    bool surfaceflinger_initialized = false;
+    bool hwui_globally_initialized = false;
+    std::set<std::string> hwui_packages_initialized = std::set<std::string>();
+    // Incremented when the scope of what should be initialized increases.
+    uint64_t generation = 0;
+  };
+
   void MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
                              LazyAndroidDaemonState* lazy_state,
                              const char* prop_name);
@@ -85,6 +96,7 @@ class BuiltinProducer : public Producer {
   LazyAndroidDaemonState lazy_heapprofd_;
   LazyAndroidDaemonState lazy_traced_perf_;
   std::set<DataSourceInstanceID> java_hprof_oome_instances_;
+  AndroidSdkSyspropGuardState android_sdk_sysprop_guard_state_;
 
   base::WeakPtrFactory<BuiltinProducer> weak_factory_;  // Keep last.
 };
