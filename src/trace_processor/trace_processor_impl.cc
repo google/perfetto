@@ -302,15 +302,6 @@ void CreateBuiltinViews(sqlite3* db) {
                "FROM internal_args;",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW ftrace_event AS "
-               "SELECT * FROM raw "
-               "WHERE "
-               "  name NOT LIKE 'chrome_event.%' AND"
-               "  name NOT LIKE 'track_event.%'",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
 }
 
 struct ValueAtMaxTsContext {
@@ -812,6 +803,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // that table in TraceStorage::ShrinkToFitTables.
   RegisterDbTable(storage->arg_table());
   RegisterDbTable(storage->raw_table());
+  RegisterDbTable(storage->ftrace_event_table());
   RegisterDbTable(storage->thread_table());
   RegisterDbTable(storage->process_table());
   RegisterDbTable(storage->filedescriptor_table());
