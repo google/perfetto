@@ -540,7 +540,7 @@ export const WidgetsPage = createPage({
                     PopupMenu2,
                     {
                       trigger: m(Anchor, {
-                        text: 'SELECT * FROM raw WHERE id = 123',
+                        text: 'SELECT * FROM ftrace_event WHERE id = 123',
                         icon: 'unfold_more',
                       }),
                     },
