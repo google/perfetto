@@ -69,16 +69,6 @@ inline void ClearChunkHeader(SharedMemoryABI::ChunkHeader* header) {
 
 }  // namespace
 
-#if !PERFETTO_IS_AT_LEAST_CPP17()
-// static
-constexpr uint32_t SharedMemoryABI::kNumChunksForLayout[];
-constexpr const char* SharedMemoryABI::kChunkStateStr[];
-constexpr const size_t SharedMemoryABI::kInvalidPageIdx;
-constexpr const size_t SharedMemoryABI::kMinPageSize;
-constexpr const size_t SharedMemoryABI::kMaxPageSize;
-constexpr const size_t SharedMemoryABI::kPacketSizeDropPacket;
-#endif
-
 SharedMemoryABI::SharedMemoryABI() = default;
 
 SharedMemoryABI::SharedMemoryABI(uint8_t* start,
