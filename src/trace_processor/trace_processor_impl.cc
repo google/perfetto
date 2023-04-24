@@ -72,6 +72,7 @@
 #include "src/trace_processor/prelude/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/prelude/table_functions/view.h"
+#include "src/trace_processor/prelude/tables_views/tables_views.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
@@ -152,156 +153,14 @@ void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
     return;
   }
 
-  char* insert_sql = sqlite3_mprintf("INSERT INTO trace_bounds VALUES(%" PRId64
-                                     ", %" PRId64 ")",
-                                     bounds.first, bounds.second);
-
-  sqlite3_exec(db, insert_sql, nullptr, nullptr, &error);
-  sqlite3_free(insert_sql);
+  base::StackString<1024> sql("INSERT INTO trace_bounds VALUES(%" PRId64
+                              ", %" PRId64 ")",
+                              bounds.first, bounds.second);
+  sqlite3_exec(db, sql.c_str(), nullptr, nullptr, &error);
   if (error) {
     PERFETTO_ELOG("Error inserting bounds table: %s", error);
     sqlite3_free(error);
   }
-}
-
-void CreateBuiltinTables(sqlite3* db) {
-  char* error = nullptr;
-  sqlite3_exec(db, "CREATE TABLE perfetto_tables(name STRING)", nullptr,
-               nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-  sqlite3_exec(db, "CREATE TABLE trace_bounds(start_ts BIGINT, end_ts BIGINT)",
-               nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-  // Ensure that the entries in power_profile are unique to prevent duplicates
-  // when the power_profile is augmented with additional profiles.
-  sqlite3_exec(db,
-               "CREATE TABLE power_profile("
-               "device STRING, cpu INT, cluster INT, freq INT, power DOUBLE,"
-               "UNIQUE(device, cpu, cluster, freq));",
-               nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-  sqlite3_exec(db, "CREATE TABLE trace_metrics(name STRING)", nullptr, nullptr,
-               &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-  // This is a table intended to be used for metric debugging/developing. Data
-  // in the table is shown specially in the UI, and users can insert rows into
-  // this table to draw more things.
-  sqlite3_exec(db,
-               "CREATE TABLE debug_slices (id BIGINT, name STRING, ts BIGINT,"
-               "dur BIGINT, depth BIGINT)",
-               nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-
-  // Initialize the bounds table with some data so even before parsing any data,
-  // we still have a valid table.
-  BuildBoundsTable(db, std::make_pair(0, 0));
-}
-
-void MaybeRegisterError(char* error) {
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-}
-
-void CreateBuiltinViews(sqlite3* db) {
-  char* error = nullptr;
-  sqlite3_exec(db,
-               "CREATE VIEW counters AS "
-               "SELECT * "
-               "FROM counter v "
-               "JOIN counter_track t "
-               "ON v.track_id = t.id "
-               "ORDER BY ts;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW slice AS "
-               "SELECT "
-               "  *, "
-               "  category AS cat, "
-               "  id AS slice_id "
-               "FROM internal_slice;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW instant AS "
-               "SELECT "
-               "ts, track_id, name, arg_set_id "
-               "FROM slice "
-               "WHERE dur = 0;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW sched AS "
-               "SELECT "
-               "*, "
-               "ts + dur as ts_end "
-               "FROM sched_slice;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW slices AS "
-               "SELECT * FROM slice;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW thread AS "
-               "SELECT "
-               "id as utid, "
-               "* "
-               "FROM internal_thread;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW process AS "
-               "SELECT "
-               "id as upid, "
-               "* "
-               "FROM internal_process;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  // This should be kept in sync with GlobalArgsTracker::AddArgSet.
-  sqlite3_exec(db,
-               "CREATE VIEW args AS "
-               "SELECT "
-               "*, "
-               "CASE value_type "
-               "  WHEN 'int' THEN CAST(int_value AS text) "
-               "  WHEN 'uint' THEN CAST(int_value AS text) "
-               "  WHEN 'string' THEN string_value "
-               "  WHEN 'real' THEN CAST(real_value AS text) "
-               "  WHEN 'pointer' THEN printf('0x%x', int_value) "
-               "  WHEN 'bool' THEN ( "
-               "    CASE WHEN int_value <> 0 THEN 'true' "
-               "    ELSE 'false' END) "
-               "  WHEN 'json' THEN string_value "
-               "ELSE NULL END AS display_value "
-               "FROM internal_args;",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
 }
 
 struct ValueAtMaxTsContext {
@@ -644,6 +503,17 @@ sql_modules::NameToModule GetStdlibModules() {
   return modules;
 }
 
+void InitializePreludeTablesViews(sqlite3* db) {
+  for (const auto& file_to_sql : prelude::tables_views::kFileToSql) {
+    char* errmsg_raw = nullptr;
+    int err = sqlite3_exec(db, file_to_sql.sql, nullptr, nullptr, &errmsg_raw);
+    ScopedSqliteString errmsg(errmsg_raw);
+    if (err != SQLITE_OK) {
+      PERFETTO_FATAL("Failed to initialize prelude %s", errmsg_raw);
+    }
+  }
+}
+
 }  // namespace
 
 template <typename View>
@@ -682,8 +552,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
   InitializeSqlite(db);
-  CreateBuiltinTables(db);
-  CreateBuiltinViews(db);
+  InitializePreludeTablesViews(db);
   db_.reset(std::move(db));
 
   // New style function registration.

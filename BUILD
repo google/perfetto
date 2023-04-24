@@ -1849,6 +1849,27 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/prelude/tables_views:sources
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_tables_views_sources",
+    srcs = [
+        "src/trace_processor/prelude/tables_views/tables.sql",
+        "src/trace_processor/prelude/tables_views/views.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/prelude/tables_views:tables_views
+perfetto_cc_amalgamated_sql(
+    name = "src_trace_processor_prelude_tables_views_tables_views",
+    deps = [
+        ":src_trace_processor_prelude_tables_views_sources",
+    ],
+    outs = [
+        "src/trace_processor/prelude/tables_views/tables_views.h",
+    ],
+    namespace = "prelude::tables_views",
+)
+
 # GN target: //src/trace_processor/rpc:httpd
 perfetto_filegroup(
     name = "src_trace_processor_rpc_httpd",
@@ -4804,6 +4825,7 @@ perfetto_cc_library(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -4948,6 +4970,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
@@ -5157,6 +5180,7 @@ perfetto_cc_binary(
                ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
                ":src_traceconv_gen_cc_trace_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
