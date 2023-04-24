@@ -513,6 +513,13 @@ class TraceStorage {
   const tables::RawTable& raw_table() const { return raw_table_; }
   tables::RawTable* mutable_raw_table() { return &raw_table_; }
 
+  const tables::FtraceEventTable& ftrace_event_table() const {
+    return ftrace_event_table_;
+  }
+  tables::FtraceEventTable* mutable_ftrace_event_table() {
+    return &ftrace_event_table_;
+  }
+
   const tables::CpuTable& cpu_table() const { return cpu_table_; }
   tables::CpuTable* mutable_cpu_table() { return &cpu_table_; }
 
@@ -895,11 +902,8 @@ class TraceStorage {
 
   SqlStats sql_stats_;
 
-  // Raw events are every ftrace event in the trace. The raw event includes
-  // the timestamp and the pid. The args for the raw event will be in the
-  // args table. This table can be used to generate a text version of the
-  // trace.
   tables::RawTable raw_table_{&string_pool_};
+  tables::FtraceEventTable ftrace_event_table_{&string_pool_, &raw_table_};
 
   tables::CpuTable cpu_table_{&string_pool_};
 

@@ -24,6 +24,7 @@ namespace trace_processor {
 namespace tables {
 
 TestEventTable::~TestEventTable() = default;
+TestEventChildTable::~TestEventChildTable() = default;
 TestSliceTable::~TestSliceTable() = default;
 TestArgsTable::~TestArgsTable() = default;
 
@@ -34,6 +35,7 @@ class PyTablesUnittest : public ::testing::Test {
   StringPool pool_;
 
   TestEventTable event_{&pool_};
+  TestEventChildTable event_child_{&pool_, &event_};
   TestSliceTable slice_{&pool_, &event_};
   TestArgsTable args_{&pool_};
 };
