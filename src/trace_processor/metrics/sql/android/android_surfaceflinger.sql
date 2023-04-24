@@ -86,6 +86,37 @@ FROM (
 )
 WHERE event_type = 0 AND fence_id = next_fence_id;
 
+
+DROP VIEW iF EXISTS display_ids;
+CREATE VIEW display_ids AS
+SELECT DISTINCT display_id
+FROM (
+  SELECT display_id FROM frame_missed
+  UNION
+  SELECT display_id FROM hwc_frame_missed
+  UNION
+  SELECT display_id FROM gpu_frame_missed
+);
+
+DROP VIEW iF EXISTS metrics_per_display;
+CREATE VIEW metrics_per_display AS
+SELECT AndroidSurfaceflingerMetric_MetricsPerDisplay(
+  'display_id', d.display_id,
+  'missed_frames',
+  (SELECT COUNT(1) FROM frame_missed WHERE value = 1 AND display_id = d.display_id),
+  'missed_hwc_frames',
+  (SELECT COUNT(1) FROM hwc_frame_missed WHERE value = 1 AND display_id = d.display_id),
+  'missed_gpu_frames',
+  (SELECT COUNT(1) FROM gpu_frame_missed WHERE value = 1 AND display_id = d.display_id),
+  'missed_frame_rate',
+  (SELECT AVG(value) FROM frame_missed WHERE display_id = d.display_id),
+  'missed_hwc_frame_rate',
+  (SELECT AVG(value) FROM hwc_frame_missed WHERE display_id = d.display_id),
+  'missed_gpu_frame_rate',
+  (SELECT AVG(value) FROM gpu_frame_missed WHERE display_id = d.display_id)
+) AS proto
+FROM display_ids d;
+
 DROP VIEW IF EXISTS android_surfaceflinger_output;
 CREATE VIEW android_surfaceflinger_output AS
 SELECT
@@ -99,5 +130,6 @@ SELECT
     'gpu_invocations', (SELECT COUNT(1) FROM gpu_waiting_end),
     'avg_gpu_waiting_dur_ms', (SELECT AVG(dur) / 1e6 FROM gpu_waiting_span),
     'total_non_empty_gpu_waiting_dur_ms',
-    (SELECT SUM(dur) / 1e6 FROM gpu_waiting_end)
+    (SELECT SUM(dur) / 1e6 FROM gpu_waiting_end),
+    'metrics_per_display', (SELECT RepeatedField(proto) FROM metrics_per_display)
   );
