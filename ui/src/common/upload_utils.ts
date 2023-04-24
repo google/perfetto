@@ -34,11 +34,53 @@ export async function saveTrace(trace: File|ArrayBuffer): Promise<string> {
   return `https://storage.googleapis.com/${BUCKET_NAME}/${name}`;
 }
 
-export async function saveState(stateOrConfig: State|
-                                RecordConfig): Promise<string> {
-  const text = JSON.stringify(stateOrConfig, (key, value) => {
+// Bigint's are not serializable using JSON.stringify, so we use a special
+// object when serialising
+export type SerializedBigint = {
+  __kind: 'bigint',
+  value: string
+};
+
+// Check if a value looks like a serialized bigint
+export function isSerializedBigint(value: unknown): value is SerializedBigint {
+  if (value === null) {
+    return false;
+  }
+  if (typeof value !== 'object') {
+    return false;
+  }
+  if ('__kind' in value && 'value' in value) {
+    return value.__kind === 'bigint' && typeof value.value === 'string';
+  }
+  return false;
+}
+
+export function serializeStateObject(object: unknown): string {
+  const json = JSON.stringify(object, (key, value) => {
+    if (typeof value === 'bigint') {
+      return {
+        __kind: 'bigint',
+        value: value.toString(),
+      };
+    }
     return key === 'nonSerializableState' ? undefined : value;
   });
+  return json;
+}
+
+export function deserializeStateObject(json: string): any {
+  const object = JSON.parse(json, (_key, value) => {
+    if (isSerializedBigint(value)) {
+      return BigInt(value.value);
+    }
+    return value;
+  });
+  return object;
+}
+
+export async function saveState(stateOrConfig: State|
+                                RecordConfig): Promise<string> {
+  const text = serializeStateObject(stateOrConfig);
   const hash = await toSha256(text);
   const url = 'https://www.googleapis.com/upload/storage/v1/b/' +
       `${BUCKET_NAME}/o?uploadType=media` +
