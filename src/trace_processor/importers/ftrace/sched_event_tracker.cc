@@ -240,7 +240,7 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
 
   if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
     // Add an entry to the raw table.
-    RawId id = context_->storage->mutable_raw_table()
+    RawId id = context_->storage->mutable_ftrace_event_table()
                    ->Insert({ts, sched_waking_id_, cpu, curr_utid})
                    .id;
 
@@ -277,7 +277,7 @@ uint32_t SchedEventTracker::AddRawEventAndStartSlice(uint32_t cpu,
   if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
     // Push the raw event - this is done as the raw ftrace event codepath does
     // not insert sched_switch.
-    RawId id = context_->storage->mutable_raw_table()
+    RawId id = context_->storage->mutable_ftrace_event_table()
                    ->Insert({ts, sched_switch_id_, cpu, prev_utid})
                    .id;
 

@@ -114,7 +114,7 @@ class ColumnSerializer:
     return f'''
     columns_.emplace_back("{self.name}", &{self.name}_, ColumnFlag::{self.name},
                           this, static_cast<uint32_t>(columns_.size()),
-                          overlay_idx);
+                          olay_idx);
     '''
 
   def shrink_to_fit(self) -> Optional[str]:
@@ -243,12 +243,13 @@ class TableSerializer(object):
         ColumnSerializer.parent_row_initializer, delimiter=', ')
     row_init = self.foreach_col(
         ColumnSerializer.row_initializer, delimiter=',\n          ')
+    parent_separator = ',' if row_init else ''
     row_eq = self.foreach_col(ColumnSerializer.row_eq, delimiter=' &&\n       ')
     return f'''
   struct Row : public {self.parent_class_name}::Row {{
     Row({param},
         std::nullptr_t = nullptr)
-        : {self.parent_class_name}::Row({parent_row_init}),
+        : {self.parent_class_name}::Row({parent_row_init}){parent_separator}
           {row_init} {{
       type_ = "{self.table.sql_name}";
     }}
@@ -297,22 +298,27 @@ class TableSerializer(object):
     '''
 
   def constructor(self) -> str:
-    col_init = self.foreach_col(
+    storage_init = self.foreach_col(
         ColumnSerializer.storage_init, delimiter=',\n        ')
     if self.table.parent:
       parent_param = f', {self.parent_class_name}* parent'
       parent_arg = 'parent'
-      parent_init = 'parent_(parent), '
+      parent_init = 'parent_(parent)' + (', ' if storage_init else '')
     else:
       parent_param = ''
       parent_arg = 'nullptr'
       parent_init = ''
+    col_init = self.foreach_col(ColumnSerializer.column_init)
+    if col_init:
+      olay = 'uint32_t olay_idx = static_cast<uint32_t>(overlays_.size()) - 1;'
+    else:
+      olay = ''
     return f'''
   explicit {self.table_name}(StringPool* pool{parent_param})
       : macros_internal::MacroTable(pool, {parent_arg}),
-        {parent_init}{col_init} {{
-    uint32_t overlay_idx = static_cast<uint32_t>(overlays_.size()) - 1;
-    {self.foreach_col(ColumnSerializer.column_init)}
+        {parent_init}{storage_init} {{
+    {olay}
+    {col_init}
   }}
     '''
 

@@ -42,6 +42,7 @@ CounterTable::~CounterTable() = default;
 
 // metadata_tables_py.h
 RawTable::~RawTable() = default;
+FtraceEventTable::~FtraceEventTable() = default;
 ArgTable::~ArgTable() = default;
 ExpMissingChromeProcTable::~ExpMissingChromeProcTable() = default;
 MetadataTable::~MetadataTable() = default;
