@@ -42,9 +42,6 @@ constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 }  // namespace.
 
-#if !PERFETTO_IS_AT_LEAST_CPP17()
-constexpr size_t TraceBuffer::ChunkRecord::kMaxSize;
-#endif
 const size_t TraceBuffer::InlineChunkHeaderSize = sizeof(ChunkRecord);
 
 // static
