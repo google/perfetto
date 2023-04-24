@@ -486,7 +486,7 @@ export class TraceController extends Controller<States> {
       // Pull out the counts ftrace events by name
       const query = `select
             name,
-            count(*) as cnt
+            count(name) as cnt
           from ftrace_event
           group by name
           order by cnt desc`;
