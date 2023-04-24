@@ -782,8 +782,8 @@ activitiesq
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonJ
 
-
-4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"Ó
+Ñ
+4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"‡
 AndroidSurfaceflingerMetric#
 missed_frames (RmissedFrames*
 missed_hwc_frames (RmissedHwcFrames*
@@ -793,7 +793,18 @@ activitiesq
 missed_gpu_frame_rate (RmissedGpuFrameRate'
 gpu_invocations (RgpuInvocations2
 avg_gpu_waiting_dur_ms (RavgGpuWaitingDurMsH
-"total_non_empty_gpu_waiting_dur_ms	 (RtotalNonEmptyGpuWaitingDurMs
+"total_non_empty_gpu_waiting_dur_ms	 (RtotalNonEmptyGpuWaitingDurMsn
+metrics_per_display
+ (2>.perfetto.protos.AndroidSurfaceflingerMetric.MetricsPerDisplayRmetricsPerDisplayÁ
+MetricsPerDisplay
+
+display_id (	R	displayId#
+missed_frames (RmissedFrames*
+missed_hwc_frames (RmissedHwcFrames*
+missed_gpu_frames (RmissedGpuFrames*
+missed_frame_rate (RmissedFrameRate1
+missed_hwc_frame_rate (RmissedHwcFrameRate1
+missed_gpu_frame_rate (RmissedGpuFrameRate
 »
 0protos/perfetto/metrics/android/task_names.protoperfetto.protos"õ
 AndroidTaskNamesC
