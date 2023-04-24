@@ -12,13 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FtraceFilterState} from 'src/common/state';
-
 import {Engine} from '../common/engine';
 import {NUM, STR, STR_NULL} from '../common/query_result';
+import {FtraceFilterState, Pagination} from '../common/state';
 import {TimeSpan, toNsCeil, toNsFloor} from '../common/time';
-import {FtraceEvent, globals as frontendGlobals} from '../frontend/globals';
-import {globals} from '../frontend/globals';
+import {FtraceEvent, globals} from '../frontend/globals';
 import {publishFtracePanelData} from '../frontend/publish';
 import {ratelimit} from '../frontend/rate_limiters';
 
@@ -34,30 +32,12 @@ interface RetVal {
   numEvents: number;
 }
 
-function cloneFtraceFilterState(other: FtraceFilterState): FtraceFilterState {
-  return {
-    excludedNames: [...other.excludedNames],
-  };
-}
-
-function ftraceFilterStateEq(
-    a: FtraceFilterState, b: FtraceFilterState): boolean {
-  if (a.excludedNames === b.excludedNames) return true;
-  if (a.excludedNames.length !== b.excludedNames.length) return false;
-
-  for (let i = 0; i < a.excludedNames.length; ++i) {
-    if (a.excludedNames[i] !== b.excludedNames[i]) return false;
-  }
-
-  return true;
-}
-
 export class FtraceController extends Controller<'main'> {
   private engine: Engine;
   private oldSpan: TimeSpan = new TimeSpan(0, 0);
-  private oldFtraceFilter: FtraceFilterState = {
-    excludedNames: [],
-  };
+  private oldFtraceFilter?: FtraceFilterState;
+  private oldPagination?: Pagination;
+
   constructor({engine}: FtraceControllerArgs) {
     super('main');
     this.engine = engine;
@@ -65,44 +45,39 @@ export class FtraceController extends Controller<'main'> {
 
   run() {
     if (this.shouldUpdate()) {
-      this.updateEverything();
+      this.oldSpan = globals.frontendLocalState.visibleWindowTime.clone();
+      this.oldFtraceFilter = globals.state.ftraceFilter;
+      this.oldPagination = globals.state.ftracePagination;
+      if (globals.state.ftracePagination.count > 0) {
+        this.lookupFtraceEventsRateLimited();
+      }
     }
   }
 
-  private updateEverything = ratelimit(() => {
+  private lookupFtraceEventsRateLimited = ratelimit(() => {
     const {offset, count} = globals.state.ftracePagination;
-    this.oldSpan = frontendGlobals.frontendLocalState.visibleWindowTime;
-    this.oldFtraceFilter =
-        cloneFtraceFilterState(frontendGlobals.state.ftraceFilter);
-    this.lookupFtraceEvents(offset, count).then(({events,
-                                                  offset,
-                                                  numEvents}: RetVal) => {
+    // The formatter doesn't like formatted chained methods :(
+    const promise = this.lookupFtraceEvents(offset, count);
+    promise.then(({events, offset, numEvents}: RetVal) => {
       publishFtracePanelData({events, offset, numEvents});
     });
   }, 250);
 
   private shouldUpdate(): boolean {
-    if (this.oldSpan != frontendGlobals.frontendLocalState.visibleWindowTime) {
-      // The visible window has changed, definitely update
+    // Has the visible window moved?
+    const visibleWindow = globals.frontendLocalState.visibleWindowTime;
+    if (this.oldSpan.start !== visibleWindow.start ||
+        this.oldSpan.end !== visibleWindow.end) {
       return true;
     }
 
-    const globalPanelData = frontendGlobals.ftracePanelData;
-    if (!globalPanelData) {
-      // No state has been written yet, so we definitely need to update
+    // Has the pagination changed?
+    if (this.oldPagination !== globals.state.ftracePagination) {
       return true;
     }
 
-    // Work out whether we've scrolled near our rendered bounds
-    const {offset, count} = globals.state.ftracePagination;
-    if (offset != globalPanelData.offset ||
-        count != globalPanelData.events.length) {
-      return true;
-    }
-
-    // Work out of the ftrace filter has changed
-    const filter = frontendGlobals.state.ftraceFilter;
-    if (!ftraceFilterStateEq(this.oldFtraceFilter, filter)) {
+    // Has the filter changed?
+    if (this.oldFtraceFilter !== globals.state.ftraceFilter) {
       return true;
     }
 
@@ -110,8 +85,8 @@ export class FtraceController extends Controller<'main'> {
   }
 
   async lookupFtraceEvents(offset: number, count: number): Promise<RetVal> {
-    const appState = frontendGlobals.state;
-    const frontendState = frontendGlobals.frontendLocalState;
+    const appState = globals.state;
+    const frontendState = globals.frontendLocalState;
     const {start, end} = frontendState.visibleWindowTime;
 
     const startNs = toNsFloor(start);
@@ -120,6 +95,11 @@ export class FtraceController extends Controller<'main'> {
     const excludeList = appState.ftraceFilter.excludedNames;
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
 
+    // TODO(stevegolton): This query can be slow when traces are huge.
+    // The number of events is only used for correctly sizing the panel's
+    // scroll container so that the scrollbar works as if the panel were fully
+    // populated.
+    // Perhaps we could work out some UX that doesn't need this.
     let queryRes = await this.engine.query(`
       select count(id) as numEvents
       from ftrace_event
