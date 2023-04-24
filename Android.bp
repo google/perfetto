@@ -10322,7 +10322,6 @@ filegroup {
         "src/trace_processor/types/destructible.cc",
         "src/trace_processor/types/gfp_flags.cc",
         "src/trace_processor/types/task_state.cc",
-        "src/trace_processor/types/variadic.cc",
     ],
 }
 
