@@ -29,6 +29,7 @@ from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 PROCESS_TABLE = Table(
+    python_module=__file__,
     class_name='ProcessTable',
     sql_name='internal_process',
     columns=[
@@ -100,6 +101,7 @@ PROCESS_TABLE = Table(
         }))
 
 THREAD_TABLE = Table(
+    python_module=__file__,
     class_name='ThreadTable',
     sql_name='internal_thread',
     columns=[
@@ -159,6 +161,7 @@ THREAD_TABLE = Table(
         }))
 
 RAW_TABLE = Table(
+    python_module=__file__,
     class_name='RawTable',
     sql_name='raw',
     columns=[
@@ -194,6 +197,7 @@ RAW_TABLE = Table(
         }))
 
 FTRACE_EVENT_TABLE = Table(
+    python_module=__file__,
     class_name='FtraceEventTable',
     sql_name='ftrace_event',
     parent=RAW_TABLE,
@@ -209,6 +213,7 @@ FTRACE_EVENT_TABLE = Table(
         columns={}))
 
 ARG_TABLE = Table(
+    python_module=__file__,
     class_name='ArgTable',
     sql_name='internal_args',
     columns=[
@@ -235,6 +240,7 @@ ARG_TABLE = Table(
         }))
 
 METADATA_TABLE = Table(
+    python_module=__file__,
     class_name='MetadataTable',
     sql_name='metadata',
     columns=[
@@ -254,6 +260,7 @@ METADATA_TABLE = Table(
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
+    python_module=__file__,
     class_name='FiledescriptorTable',
     sql_name='filedescriptor',
     columns=[
@@ -290,6 +297,7 @@ number.'''
         }))
 
 EXP_MISSING_CHROME_PROC_TABLE = Table(
+    python_module=__file__,
     class_name='ExpMissingChromeProcTable',
     sql_name='experimental_missing_chrome_processes',
     columns=[
@@ -307,6 +315,7 @@ EXP_MISSING_CHROME_PROC_TABLE = Table(
         }))
 
 CPU_TABLE = Table(
+    python_module=__file__,
     class_name='CpuTable',
     sql_name='cpu',
     columns=[
@@ -327,6 +336,7 @@ the same cluster''',
         }))
 
 CPU_FREQ_TABLE = Table(
+    python_module=__file__,
     class_name='CpuFreqTable',
     sql_name='cpu_freq',
     columns=[
@@ -340,6 +350,7 @@ CPU_FREQ_TABLE = Table(
         }))
 
 CLOCK_SNAPSHOT_TABLE = Table(
+    python_module=__file__,
     class_name='ClockSnapshotTable',
     sql_name='clock_snapshot',
     columns=[

@@ -28,63 +28,71 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 #pylint: disable=wrong-import-position
 from python.generators.trace_processor_table.serialize import serialize_header
+from python.generators.trace_processor_table.util import find_table_deps
 from python.generators.trace_processor_table.util import ParsedTable
-from python.generators.trace_processor_table.util import parse_tables_from_files
+from python.generators.trace_processor_table.util import parse_tables_from_modules
 #pylint: enable=wrong-import-position
+
+# Suffix which replaces the .py extension for all input modules.
+OUT_HEADER_SUFFIX = '_py.h'
 
 
 @dataclass
 class Header:
   """Represents a Python module which will be converted to a header."""
-  out_path: str
-  relout_path: str
   tables: List[ParsedTable]
 
 
 def main():
   """Main function."""
   parser = argparse.ArgumentParser()
-  parser.add_argument('--gen-dir', required=True)
   parser.add_argument('--inputs', required=True, nargs='*')
-  parser.add_argument('--outputs', required=True, nargs='*')
+  parser.add_argument('--gen-dir', required=True)
   parser.add_argument('--header-prefix')
+  parser.add_argument('--relative-input-dir')
   args = parser.parse_args()
 
-  if len(args.inputs) != len(args.outputs):
-    raise Exception('Number of inputs must match number of outputs')
-
   header_prefix = args.header_prefix if args.header_prefix else ''
-  in_to_out = dict(zip(args.inputs, args.outputs))
+
+  def get_relin_path(in_path: str):
+    if not args.relative_input_dir:
+      return in_path
+    return os.path.relpath(in_path, args.relative_input_dir)
+
+  def get_relout_path(in_path: str):
+    path = os.path.splitext(in_path)[0]
+    return os.path.join(header_prefix, path + OUT_HEADER_SUFFIX)
+
+  def get_out_path(in_path: str):
+    return os.path.join(args.gen_dir, get_relout_path(in_path))
+
+  modules = [
+      os.path.splitext(get_relin_path(i).replace('/', '.'))[0]
+      for i in args.inputs
+  ]
   headers: Dict[str, Header] = {}
-  for table in parse_tables_from_files(args.inputs):
-    out_path = in_to_out[table.input_path]
-    relout_path = os.path.join(header_prefix,
-                               os.path.relpath(out_path, args.gen_dir))
-
-    header = headers.get(table.input_path, Header(out_path, relout_path, []))
+  for table in parse_tables_from_modules(modules):
+    input_path = os.path.relpath(table.table.python_module, ROOT_DIR)
+    header = headers.get(input_path, Header([]))
     header.tables.append(table)
-    headers[table.input_path] = header
+    headers[input_path] = header
 
-  # Build a mapping from table class name to the output path of the header
-  # which will be generated for it. This is used to include one header into
-  # another for Id dependencies.
-  table_class_name_to_relout: Dict[str, str] = {}
-  for header in headers.values():
-    for table in header.tables:
-      table_class_name_to_relout[table.table.class_name] = header.relout_path
+  for in_path, header in headers.items():
+    out_path = get_out_path(in_path)
+    relout_path = get_relout_path(in_path)
 
-  for header in headers.values():
     # Find all headers depended on by this table. These will be #include-ed when
     # generating the header file below so ensure we remove ourself.
     header_relout_deps: Set[str] = set()
     for table in header.tables:
-      header_relout_deps = header_relout_deps.union(
-          [table_class_name_to_relout[c] for c in table.find_table_deps()])
-    header_relout_deps.discard(header.relout_path)
+      header_relout_deps = header_relout_deps.union([
+          get_relout_path(os.path.relpath(c.python_module, ROOT_DIR))
+          for c in find_table_deps(table.table)
+      ])
+    header_relout_deps.discard(relout_path)
 
-    with open(header.out_path, 'w', encoding='utf8') as out:
-      ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_',
-                           header.relout_path).upper() + '_'
+    with open(out_path, 'w', encoding='utf8') as out:
+      ifdef_guard = re.sub(r'[^a-zA-Z0-9_-]', '_', relout_path).upper() + '_'
       out.write(
           serialize_header(ifdef_guard, header.tables,
                            sorted(header_relout_deps)))
