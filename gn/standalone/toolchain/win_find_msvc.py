@@ -27,6 +27,7 @@ C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.
 """
 
 import os
+import itertools
 import subprocess
 import sys
 
@@ -62,19 +63,19 @@ def main():
     filt = lambda x: os.path.exists(os.path.join(x, 'ucrt', 'x64', 'ucrt.lib'))
     out[1] = find_max_subdir(lib_base, filt)
 
-  for year in ['2022', '2021', '2020', '2019']:
-    for version in [
-        'BuildTools', 'Community', 'Professional', 'Enterprise', 'Preview'
-    ]:
-      msvc_base = ('C:\\Program Files (x86)\\Microsoft Visual Studio\\'
-                   f'{year}\\{version}\\VC\\Tools\\MSVC')
-      if os.path.exists(msvc_base):
-        filt = lambda x: os.path.exists(
-            os.path.join(x, 'lib', 'x64', 'libcmt.lib'))
-        max_msvc = find_max_subdir(msvc_base, filt)
-        if max_msvc is not None:
-          out[2] = os.path.join(msvc_base, max_msvc)
-        break
+  for try_dir in itertools.product(
+      ['2022', '2021', '2020', '2019'],
+      ['BuildTools', 'Community', 'Professional', 'Enterprise', 'Preview'],
+      ['Program Files', 'Program Files (x86)']):
+    msvc_base = (f'C:\\{try_dir[2]}\\Microsoft Visual Studio\\'
+                f'{try_dir[0]}\\{try_dir[1]}\\VC\\Tools\\MSVC')
+    if os.path.exists(msvc_base):
+      filt = lambda x: os.path.exists(
+          os.path.join(x, 'lib', 'x64', 'libcmt.lib'))
+      max_msvc = find_max_subdir(msvc_base, filt)
+      if max_msvc is not None:
+        out[2] = os.path.join(msvc_base, max_msvc)
+      break
 
   # Don't error in case of failure, GN scripts are supposed to deal with
   # failures and allow the user to override the dirs.
