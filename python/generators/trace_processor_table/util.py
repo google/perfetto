@@ -14,7 +14,8 @@
 
 import dataclasses
 from dataclasses import dataclass
-import runpy
+import importlib
+import sys
 from typing import Dict
 from typing import List
 from typing import Set
@@ -92,71 +93,78 @@ class ParsedTable:
 
   table: Table
   columns: List[ParsedColumn]
-  input_path: str
 
-  def parse_type(self, col_type: CppColumnType) -> ParsedType:
-    """Parses a CppColumnType into its constiuent parts."""
 
-    if isinstance(col_type, CppInt64):
-      return ParsedType('int64_t')
-    if isinstance(col_type, CppInt32):
-      return ParsedType('int32_t')
-    if isinstance(col_type, CppUint32):
-      return ParsedType('uint32_t')
-    if isinstance(col_type, CppDouble):
-      return ParsedType('double')
-    if isinstance(col_type, CppString):
-      return ParsedType('StringPool::Id')
+def parse_type_with_cols(table: Table, cols: List[Column],
+                         col_type: CppColumnType) -> ParsedType:
+  """Parses a CppColumnType into its constiuent parts."""
 
-    if isinstance(col_type, Alias):
-      col = next(c for c in self.columns
-                 if c.column.name == col_type.underlying_column)
-      return ParsedType(
-          self.parse_type(col.column.type).cpp_type,
-          is_alias=True,
-          alias_underlying_name=col.column.name)
+  if isinstance(col_type, CppInt64):
+    return ParsedType('int64_t')
+  if isinstance(col_type, CppInt32):
+    return ParsedType('int32_t')
+  if isinstance(col_type, CppUint32):
+    return ParsedType('uint32_t')
+  if isinstance(col_type, CppDouble):
+    return ParsedType('double')
+  if isinstance(col_type, CppString):
+    return ParsedType('StringPool::Id')
 
-    if isinstance(col_type, CppTableId):
-      return ParsedType(
-          f'{col_type.table.class_name}::Id', id_table=col_type.table)
+  if isinstance(col_type, Alias):
+    col = next(c for c in cols if c.name == col_type.underlying_column)
+    return ParsedType(
+        parse_type(table, col.type).cpp_type,
+        is_alias=True,
+        alias_underlying_name=col.name)
 
-    if isinstance(col_type, CppSelfTableId):
-      return ParsedType(
-          f'{self.table.class_name}::Id', is_self_id=True, id_table=self.table)
+  if isinstance(col_type, CppTableId):
+    return ParsedType(
+        f'{col_type.table.class_name}::Id', id_table=col_type.table)
 
-    if isinstance(col_type, CppOptional):
-      inner = self.parse_type(col_type.inner)
-      assert not inner.is_optional, 'Nested optional not allowed'
-      return dataclasses.replace(inner, is_optional=True)
+  if isinstance(col_type, CppSelfTableId):
+    return ParsedType(
+        f'{table.class_name}::Id', is_self_id=True, id_table=table)
 
-    raise Exception(f'Unknown type {col_type}')
+  if isinstance(col_type, CppOptional):
+    inner = parse_type(table, col_type.inner)
+    assert not inner.is_optional, 'Nested optional not allowed'
+    return dataclasses.replace(inner, is_optional=True)
 
-  def typed_column_type(self, col: ParsedColumn) -> str:
-    """Returns the TypedColumn/IdColumn C++ type for a given column."""
+  raise Exception(f'Unknown type {col_type}')
 
-    parsed = self.parse_type(col.column.type)
-    if col.is_implicit_id:
-      return f'IdColumn<{parsed.cpp_type}>'
-    return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
 
-  def find_table_deps(self) -> Set[str]:
-    """Finds all the other table class names this table depends on.
+def parse_type(table: Table, col_type: CppColumnType) -> ParsedType:
+  """Parses a CppColumnType into its constiuent parts."""
+  return parse_type_with_cols(table, table.columns, col_type)
 
-    By "depends", we mean this table in C++ would need the dependency to be
-    defined (or included) before this table is defined."""
 
-    deps: Set[str] = set()
-    if self.table.parent:
-      deps.add(self.table.parent.class_name)
-    for c in self.table.columns:
-      # Aliases cannot have dependencies so simply ignore them: trying to parse
-      # them before adding implicit columns can cause issues.
-      if isinstance(c.type, Alias):
-        continue
-      id_table = self.parse_type(c.type).id_table
-      if id_table:
-        deps.add(id_table.class_name)
-    return deps
+def typed_column_type(table: Table, col: ParsedColumn) -> str:
+  """Returns the TypedColumn/IdColumn C++ type for a given column."""
+
+  parsed = parse_type(table, col.column.type)
+  if col.is_implicit_id:
+    return f'IdColumn<{parsed.cpp_type}>'
+  return f'TypedColumn<{parsed.cpp_type_with_optionality()}>'
+
+
+def find_table_deps(table: Table) -> List[Table]:
+  """Finds all the other table class names this table depends on.
+
+  By "depends", we mean this table in C++ would need the dependency to be
+  defined (or included) before this table is defined."""
+
+  deps: Dict[str, Table] = {}
+  if table.parent:
+    deps[table.parent.class_name] = table.parent
+  for c in table.columns:
+    # Aliases cannot have dependencies so simply ignore them: trying to parse
+    # them before adding implicit columns can cause issues.
+    if isinstance(c.type, Alias):
+      continue
+    id_table = parse_type(table, c.type).id_table
+    if id_table:
+      deps[id_table.class_name] = id_table
+  return list(deps.values())
 
 
 def public_sql_name(table: Table) -> str:
@@ -165,10 +173,9 @@ def public_sql_name(table: Table) -> str:
   wrapping_view = table.wrapping_sql_view
   return wrapping_view.view_name if wrapping_view else table.sql_name
 
-def _create_implicit_columns_for_root(parsed: ParsedTable
-                                     ) -> List[ParsedColumn]:
+
+def _create_implicit_columns_for_root(table: Table) -> List[ParsedColumn]:
   """Given a root table, returns the implicit id and type columns."""
-  table = parsed.table
   assert table.parent is None
 
   sql_name = public_sql_name(table)
@@ -191,26 +198,25 @@ def _create_implicit_columns_for_root(parsed: ParsedTable
   ]
 
 
-def _topological_sort_tables(parsed: List[ParsedTable]) -> List[ParsedTable]:
+def _topological_sort_table_and_deps(parsed: List[Table]) -> List[Table]:
   """Topologically sorts a list of tables (i.e. dependenices appear earlier).
 
   See [1] for information on a topological sort. We do this to allow
   dependencies to be processed and appear ealier than their dependents.
 
   [1] https://en.wikipedia.org/wiki/Topological_sorting"""
-  table_to_parsed_table = {p.table.class_name: p for p in parsed}
   visited: Set[str] = set()
-  result: List[ParsedTable] = []
+  result: List[Table] = []
 
   # Topological sorting is really just a DFS where we put the nodes in the list
   # after any dependencies.
-  def dfs(t: ParsedTable):
-    if t.table.class_name in visited:
+  def dfs(t: Table):
+    if t.class_name in visited:
       return
-    visited.add(t.table.class_name)
+    visited.add(t.class_name)
 
-    for dep in t.find_table_deps():
-      dfs(table_to_parsed_table[dep])
+    for dep in find_table_deps(t):
+      dfs(dep)
     result.append(t)
 
   for p in parsed:
@@ -226,26 +232,27 @@ def _to_column_doc(doc: Union[ColumnDoc, str, None]) -> Optional[ColumnDoc]:
   return ColumnDoc(doc=doc)
 
 
-def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
+def parse_tables_from_modules(modules: List[str]) -> List[ParsedTable]:
   """Creates a list of tables with the associated paths."""
 
   # Create a mapping from the table to a "parsed" version of the table.
+  tables: Dict[str, Table] = {}
+  for module in modules:
+    imported = importlib.import_module(module)
+    run_tables: List[Table] = imported.__dict__['ALL_TABLES']
+    for table in run_tables:
+      existing_table = tables.get(table.class_name)
+      assert not existing_table or existing_table == table
+      tables[table.class_name] = table
+
+  # Sort all the tables: note that this list may include tables which are not
+  # in |tables| dictionary due to dependencies on tables which live in a file
+  # not covered by |input_paths|.
+  sorted_tables = _topological_sort_table_and_deps(list(tables.values()))
+
   parsed_tables: Dict[str, ParsedTable] = {}
-  for in_path in input_paths:
-    tables: List[Table] = runpy.run_path(in_path)['ALL_TABLES']
-    for table in tables:
-      existing_table = parsed_tables.get(table.class_name)
-      assert not existing_table or existing_table.table == table
-      parsed_tables[table.class_name] = ParsedTable(table, [], in_path)
-
-  # Sort all the tables to be in order.
-  sorted_tables = _topological_sort_tables(list(parsed_tables.values()))
-
-  # Create the list of parsed columns
-  for i, parsed in enumerate(sorted_tables):
+  for table in sorted_tables:
     parsed_columns: List[ParsedColumn]
-    table = parsed.table
-
     if table.parent:
       parsed_parent = parsed_tables[table.parent.class_name]
       parsed_columns = [
@@ -253,13 +260,17 @@ def parse_tables_from_files(input_paths: List[str]) -> List[ParsedTable]:
           for c in parsed_parent.columns
       ]
     else:
-      parsed_columns = _create_implicit_columns_for_root(parsed)
+      parsed_columns = _create_implicit_columns_for_root(table)
 
     for c in table.columns:
       doc = table.tabledoc.columns.get(c.name) if table.tabledoc else None
       parsed_columns.append(ParsedColumn(c, _to_column_doc(doc)))
+    parsed_tables[table.class_name] = ParsedTable(table, parsed_columns)
 
-    sorted_tables[i] = dataclasses.replace(parsed, columns=parsed_columns)
-    parsed_tables[parsed.table.class_name] = sorted_tables[i]
-
-  return sorted_tables
+  # Only return tables which come directly from |input_paths|. This stops us
+  # generating tables which were not requested.
+  return [
+      parsed_tables[p.class_name]
+      for p in sorted_tables
+      if p.class_name in tables
+  ]

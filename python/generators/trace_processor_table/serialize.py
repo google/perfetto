@@ -19,6 +19,8 @@ from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
+from python.generators.trace_processor_table.util import parse_type
+from python.generators.trace_processor_table.util import typed_column_type
 
 
 class ColumnSerializer:
@@ -30,8 +32,9 @@ class ColumnSerializer:
     self.col = self.parsed_col.column
     self.name = self.col.name
     self.flags = self.col.flags
-    self.typed_column_type = table.typed_column_type(self.parsed_col)
-    self.cpp_type = table.parse_type(self.col.type).cpp_type_with_optionality()
+    self.typed_column_type = typed_column_type(table.table, self.parsed_col)
+    self.cpp_type = parse_type(table.table,
+                               self.col.type).cpp_type_with_optionality()
 
     self.is_implicit_id = self.parsed_col.is_implicit_id
     self.is_implicit_type = self.parsed_col.is_implicit_type
@@ -180,17 +183,53 @@ class ColumnSerializer:
     if self.is_implicit_id or self.is_implicit_type:
       return None
     return f'''
-      schema.columns.emplace_back(Table::Schema::Column{{
-          "{self.name}", ColumnType::{self.name}::SqlValueType(), false,
-          {str(ColumnFlag.SORTED in self.flags).lower()},
-          {str(ColumnFlag.HIDDEN in self.flags).lower()},
-          {str(ColumnFlag.SET_ID in self.flags).lower()}}});
+    schema.columns.emplace_back(Table::Schema::Column{{
+        "{self.name}", ColumnType::{self.name}::SqlValueType(), false,
+        {str(ColumnFlag.SORTED in self.flags).lower()},
+        {str(ColumnFlag.HIDDEN in self.flags).lower()},
+        {str(ColumnFlag.SET_ID in self.flags).lower()}}});
     '''
 
   def row_eq(self) -> Optional[str]:
     if self.is_implicit_id or self.is_implicit_type:
       return None
     return f'ColumnType::{self.name}::Equals({self.name}, other.{self.name})'
+
+  def extend_parent_param(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    if self.is_ancestor:
+      return None
+    return f'ColumnStorage<ColumnType::{self.name}::stored_type> {self.name}'
+
+  def extend_parent_param_arg(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    if self.is_ancestor:
+      return None
+    return f'std::move({self.name})'
+
+  def static_assert_flags(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    if self.is_ancestor:
+      return None
+    return f'''
+      static_assert(
+        Column::IsFlagsAndTypeValid<ColumnType::{self.name}::stored_type>(
+          ColumnFlag::{self.name}),
+        "Column type and flag combination is not valid");
+    '''
+
+  def extend_nullable_vector(self) -> Optional[str]:
+    if self.is_implicit_id or self.is_implicit_type:
+      return None
+    if self.is_ancestor:
+      return None
+    return f'''
+    PERFETTO_DCHECK({self.name}.size() == parent_overlay.size());
+    {self.name}_ = std::move({self.name});
+    '''
 
 
 class TableSerializer(object):
@@ -317,6 +356,7 @@ class TableSerializer(object):
   explicit {self.table_name}(StringPool* pool{parent_param})
       : macros_internal::MacroTable(pool, {parent_arg}),
         {parent_init}{storage_init} {{
+    {self.foreach_col(ColumnSerializer.static_assert_flags)}
     {olay}
     {col_init}
   }}
@@ -388,6 +428,60 @@ class TableSerializer(object):
     {self.table_name}* mutable_table_ = nullptr;
   }};
       '''
+
+  def extend(self) -> str:
+    if not self.table.parent:
+      return ''
+    params = self.foreach_col(
+        ColumnSerializer.extend_parent_param, delimiter='\n, ')
+    args = self.foreach_col(
+        ColumnSerializer.extend_parent_param_arg, delimiter=', ')
+    delim = ',' if params else ''
+    return f'''
+  static std::unique_ptr<Table> ExtendParent(
+      const {self.parent_class_name}& parent{delim}
+      {params}) {{
+    return std::unique_ptr<Table>(new {self.table_name}(
+        parent.string_pool(), parent, RowMap(0, parent.row_count()){delim}
+        {args}));
+  }}
+
+  static std::unique_ptr<Table> SelectAndExtendParent(
+      const {self.parent_class_name}& parent,
+      std::vector<{self.parent_class_name}::RowNumber> parent_overlay{delim}
+      {params}) {{
+    std::vector<uint32_t> prs_untyped(parent_overlay.size());
+    for (uint32_t i = 0; i < parent_overlay.size(); ++i) {{
+      prs_untyped[i] = parent_overlay[i].row_number();
+    }}
+    return std::unique_ptr<Table>(new {self.table_name}(
+        parent.string_pool(), parent, RowMap(std::move(prs_untyped)){delim}
+        {args}));
+  }}
+    '''
+
+  def extend_constructor(self) -> str:
+    if not self.table.parent:
+      return ''
+    params = self.foreach_col(
+        ColumnSerializer.extend_parent_param, delimiter='\n, ')
+    if params:
+      olay = 'uint32_t olay_idx = static_cast<uint32_t>(overlays_.size()) - 1;'
+    else:
+      olay = ''
+    return f'''
+  {self.table_name}(StringPool* pool,
+            const {self.parent_class_name}& parent,
+            const RowMap& parent_overlay{',' if params else ''}
+            {params})
+      : macros_internal::MacroTable(pool, parent, parent_overlay) {{
+    {self.foreach_col(ColumnSerializer.static_assert_flags)}
+    {self.foreach_col(ColumnSerializer.extend_nullable_vector)}
+
+    {olay}
+    {self.foreach_col(ColumnSerializer.column_init)}
+  }}
+    '''
 
   def serialize(self) -> str:
     return f'''
@@ -488,11 +582,14 @@ class {self.table_name} : public macros_internal::MacroTable {{
                      RowNumber(row_number)}};
   }}
 
+  {self.extend().strip()}
+
   {self.foreach_col(ColumnSerializer.accessor)}
 
   {self.foreach_col(ColumnSerializer.mutable_accessor)}
 
  private:
+  {self.extend_constructor().strip()}
   {self.parent_field().strip()}
   {self.foreach_col(ColumnSerializer.storage)}
 }};

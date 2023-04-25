@@ -819,10 +819,9 @@ def create_tp_tables_module(blueprint: Blueprint, gn: GnParser,
   module.cmd = ' '.join([
       f'$(location {bp_binary_module_name})',
       '--gen-dir=$(genDir)',
+      '--relative-input-dir=external/perfetto',
       '--inputs',
       '$(in)',
-      '--outputs',
-      '$(out)',
   ])
   module.out.update(target.outputs)
   module.genrule_headers.add(module.name)

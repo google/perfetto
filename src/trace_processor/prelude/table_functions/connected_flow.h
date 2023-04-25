@@ -18,24 +18,14 @@
 #define SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_CONNECTED_FLOW_H_
 
 #include "src/trace_processor/prelude/table_functions/table_function.h"
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/flow_tables.h"
 
 #include <queue>
 #include <set>
 
 namespace perfetto {
 namespace trace_processor {
-namespace tables {
-
-#define PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF(NAME, PARENT, C) \
-  NAME(ConnectedFlowTable, "not_exposed_to_sql")              \
-  PARENT(PERFETTO_TP_FLOW_TABLE_DEF, C)                       \
-  C(uint32_t, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_CONNECTED_FLOW_TABLE_DEF);
-
-}  // namespace tables
 
 class TraceProcessorContext;
 

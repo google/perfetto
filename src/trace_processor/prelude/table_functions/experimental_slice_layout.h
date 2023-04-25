@@ -25,18 +25,6 @@
 namespace perfetto {
 namespace trace_processor {
 
-namespace tables {
-
-#define PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF(NAME, PARENT, C)       \
-  NAME(ExperimentalSliceLayoutTable, "experimental_slice_layout") \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                          \
-  C(uint32_t, layout_depth)                                       \
-  C(StringPool::Id, filter_track_ids, Column::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_SLICE_LAYOUT_TABLE_DEF);
-
-}  // namespace tables
-
 class ExperimentalSliceLayout : public TableFunction {
  public:
   ExperimentalSliceLayout(StringPool* string_pool,

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/column.h"
+#include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/tables/py_tables_unittest_py.h"
 
 #include "test/gtest_and_gmock.h"
@@ -163,6 +164,59 @@ TEST_F(PyTablesUnittest, ParentAndChildInsert) {
   ASSERT_EQ(slice_.type().GetString(1), "slice");
   ASSERT_EQ(slice_.ts()[1], 200);
   ASSERT_EQ(slice_.dur()[1], 20);
+}
+
+TEST_F(PyTablesUnittest, Extend) {
+  event_.Insert(TestEventTable::Row(50, 0));
+  event_.Insert(TestEventTable::Row(100, 1));
+  event_.Insert(TestEventTable::Row(150, 2));
+
+  ColumnStorage<int64_t> dur;
+  dur.Append(512);
+  dur.Append(1024);
+  dur.Append(2048);
+
+  auto slice_ext = TestSliceTable::ExtendParent(event_, std::move(dur));
+  ASSERT_EQ(slice_ext->row_count(), 3u);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(0).AsLong(),
+      50);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(0).AsLong(),
+      512);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(1).AsLong(),
+      100);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(1).AsLong(),
+      1024);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(2).AsLong(),
+      150);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(2).AsLong(),
+      2048);
+}
+
+TEST_F(PyTablesUnittest, SelectAndExtend) {
+  event_.Insert(TestEventTable::Row(50, 0));
+  event_.Insert(TestEventTable::Row(100, 1));
+  event_.Insert(TestEventTable::Row(150, 2));
+
+  std::vector<TestEventTable::RowNumber> rows;
+  rows.emplace_back(TestEventTable::RowNumber(1));
+  ColumnStorage<int64_t> dur;
+  dur.Append(1024);
+
+  auto slice_ext = TestSliceTable::SelectAndExtendParent(
+      event_, std::move(rows), std::move(dur));
+  ASSERT_EQ(slice_ext->row_count(), 1u);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::ts].Get(0).AsLong(),
+      100);
+  ASSERT_EQ(
+      slice_ext->columns()[TestSliceTable::ColumnIndex::dur].Get(0).AsLong(),
+      1024);
 }
 
 }  // namespace
