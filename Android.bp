@@ -10171,6 +10171,7 @@ genrule {
         "src/trace_processor/stdlib/android/startup/startups.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
         "src/trace_processor/stdlib/common/counters.sql",
+        "src/trace_processor/stdlib/common/cpus.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
         "src/trace_processor/stdlib/common/percentiles.sql",
         "src/trace_processor/stdlib/common/slices.sql",
