@@ -302,5 +302,42 @@ Child2.Nested 1 int64 f1
             FilterToText(filter, bytecode));
 }
 
+TEST(SchemaParserTest, Passthrough) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional int32 i32 = 13;
+    optional TracePacket packet = 7;
+  }
+  message TraceConfig {
+    optional int32 f3 = 3;
+    optional int64 f4 = 4;
+  }
+  message TracePacket {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+    optional TraceConfig cfg = 5;
+  }
+  )");
+
+  FilterUtil filter;
+  std::set<std::string> passthrough{"TracePacket:cfg"};
+  ASSERT_TRUE(
+      filter.LoadMessageDefinition(schema.path(), "Root", "", passthrough));
+
+  EXPECT_EQ(R"(Root 7 message packet TracePacket
+Root 13 int32 i32
+TracePacket 3 int32 f1
+TracePacket 4 int64 f2
+TracePacket 5 bytes cfg
+)",
+            FilterToText(filter));
+
+  std::string bytecode = filter.GenerateFilterBytecode();
+  // If we generate bytecode from the schema itself, all fields are allowed and
+  // the result is identical to the unfiltered output.
+  EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));
+}
+
 }  // namespace
 }  // namespace protozero
