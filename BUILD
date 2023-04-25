@@ -1849,6 +1849,20 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/prelude/table_functions:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_prelude_table_functions_tables",
+    srcs = [
+        "src/trace_processor/prelude/table_functions/tables.py",
+    ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
+    outs = [
+        "src/trace_processor/prelude/table_functions/tables_py.h",
+    ],
+)
+
 # GN target: //src/trace_processor/prelude/tables_views:sources
 perfetto_filegroup(
     name = "src_trace_processor_prelude_tables_views_sources",
@@ -2023,11 +2037,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
-        "src/trace_processor/tables/counter_tables.h",
-        "src/trace_processor/tables/flow_tables.h",
         "src/trace_processor/tables/macros.h",
         "src/trace_processor/tables/macros_internal.h",
-        "src/trace_processor/tables/profiler_tables.h",
         "src/trace_processor/tables/slice_tables.h",
         "src/trace_processor/tables/table_destructors.cc",
     ],
@@ -4736,6 +4747,7 @@ perfetto_cc_library(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
@@ -4889,6 +4901,7 @@ perfetto_cc_binary(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
@@ -5101,6 +5114,7 @@ perfetto_cc_binary(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",

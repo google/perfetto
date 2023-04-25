@@ -29,6 +29,7 @@ from python.generators.trace_processor_table.public import WrappingSqlView
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='SliceTable',
     sql_name='internal_slice',
     columns=[
@@ -69,6 +70,7 @@ SLICE_TABLE = Table(
         }))
 
 SCHED_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='SchedSliceTable',
     sql_name='sched_slice',
     columns=[
@@ -108,6 +110,7 @@ Z (zombie, awaiting cleanup).''',
         }))
 
 THREAD_STATE_TABLE = Table(
+    python_module=__file__,
     class_name='ThreadStateTable',
     sql_name='thread_state',
     columns=[
@@ -135,6 +138,7 @@ THREAD_STATE_TABLE = Table(
         }))
 
 GPU_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='GpuSliceTable',
     sql_name='gpu_slice',
     columns=[
@@ -169,6 +173,7 @@ GPU_SLICE_TABLE = Table(
         }))
 
 GRAPHICS_FRAME_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='GraphicsFrameSliceTable',
     sql_name='frame_slice',
     columns=[
@@ -191,6 +196,7 @@ GRAPHICS_FRAME_SLICE_TABLE = Table(
         }))
 
 EXPECTED_FRAME_TIMELINE_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='ExpectedFrameTimelineSliceTable',
     sql_name='expected_frame_timeline_slice',
     columns=[
@@ -211,6 +217,7 @@ EXPECTED_FRAME_TIMELINE_SLICE_TABLE = Table(
         }))
 
 ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='ActualFrameTimelineSliceTable',
     sql_name='actual_frame_timeline_slice',
     columns=[
@@ -243,6 +250,7 @@ ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
         }))
 
 EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
+    python_module=__file__,
     class_name='ExperimentalFlatSliceTable',
     sql_name='experimental_flat_slice',
     columns=[

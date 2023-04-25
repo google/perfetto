@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/prelude/table_functions/descendant.h"
 
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
