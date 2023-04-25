@@ -219,6 +219,97 @@ TEST_F(PyTablesUnittest, SelectAndExtend) {
       1024);
 }
 
+TEST_F(PyTablesUnittest, SetIdColumns) {
+  StringPool pool;
+  TestArgsTable table{&pool};
+
+  table.Insert(TestArgsTable::Row(0, 100));
+  table.Insert(TestArgsTable::Row(0, 200));
+  table.Insert(TestArgsTable::Row(2, 200));
+  table.Insert(TestArgsTable::Row(3, 300));
+  table.Insert(TestArgsTable::Row(4, 200));
+  table.Insert(TestArgsTable::Row(4, 500));
+  table.Insert(TestArgsTable::Row(4, 900));
+  table.Insert(TestArgsTable::Row(4, 200));
+  table.Insert(TestArgsTable::Row(8, 400));
+
+  ASSERT_EQ(table.row_count(), 9u);
+  ASSERT_TRUE(table.arg_set_id().IsSetId());
+
+  // Verify that not-present ids are not returned.
+  {
+    static constexpr uint32_t kFilterArgSetId = 1;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 0u);
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 9;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 0u);
+  }
+
+  // Verify that kSetId flag is correctly removed after filtering/sorting.
+  {
+    static constexpr uint32_t kFilterArgSetId = 3;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 1u);
+    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
+  }
+  {
+    auto res = table.Sort({table.type().descending()});
+    ASSERT_FALSE(res.GetColumnByName("arg_set_id")->IsSetId());
+  }
+
+  uint32_t arg_set_id_col_idx =
+      static_cast<uint32_t>(TestArgsTable::ColumnIndex::arg_set_id);
+
+  // Verify that filtering equality for real arg set ids works as expected.
+  {
+    static constexpr uint32_t kFilterArgSetId = 4;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 4u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 0;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 2u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+  {
+    static constexpr uint32_t kFilterArgSetId = 8;
+    auto res = table.Filter({table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 1u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+
+  // Verify that filtering equality for arg set ids after filtering another
+  // column works.
+  {
+    static constexpr uint32_t kFilterArgSetId = 4;
+    auto res = table.Filter(
+        {table.int_value().eq(200), table.arg_set_id().eq(kFilterArgSetId)});
+    ASSERT_EQ(res.row_count(), 2u);
+    for (auto it = res.IterateRows(); it; it.Next()) {
+      uint32_t arg_set_id =
+          static_cast<uint32_t>(it.Get(arg_set_id_col_idx).AsLong());
+      ASSERT_EQ(arg_set_id, kFilterArgSetId);
+    }
+  }
+}
+
 }  // namespace
 }  // namespace tables
 }  // namespace trace_processor
