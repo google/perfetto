@@ -59,7 +59,9 @@ def gen_json_for_column(table: ParsedTable,
     raise Exception('Unknown column documentation type '
                     f'{table.table.class_name}::{col.column.name}')
 
-  parsed_type = table.parse_type(col.column.type)
+  parsed_type = util.parse_type_with_cols(table.table,
+                                          [c.column for c in table.columns],
+                                          col.column.type)
   docs_type = parsed_type.cpp_type
   if docs_type == 'StringPool::Id':
     docs_type = 'string'
@@ -88,11 +90,20 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--out', required=True)
   parser.add_argument('inputs', nargs='*')
+  parser.add_argument('--relative-input-dir')
   args = parser.parse_args()
 
-  tables = util.parse_tables_from_files(args.inputs)
+  def get_relin_path(in_path: str):
+    if not args.relative_input_dir:
+      return in_path
+    return os.path.relpath(in_path, args.relative_input_dir)
+
+  modules = [
+      os.path.splitext(get_relin_path(i).replace('/', '.'))[0]
+      for i in args.inputs
+  ]
   table_docs = []
-  for parsed in tables:
+  for parsed in util.parse_tables_from_modules(modules):
     table = parsed.table
     doc = table.tabledoc
     assert doc

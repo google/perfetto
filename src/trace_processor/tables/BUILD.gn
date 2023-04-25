@@ -32,11 +32,8 @@ perfetto_tp_tables("tables_python") {
 
 source_set("tables") {
   sources = [
-    "counter_tables.h",
-    "flow_tables.h",
     "macros.h",
     "macros_internal.h",
-    "profiler_tables.h",
     "slice_tables.h",
     "table_destructors.cc",
   ]
