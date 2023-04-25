@@ -87,7 +87,7 @@ FROM (
 WHERE event_type = 0 AND fence_id = next_fence_id;
 
 
-DROP VIEW iF EXISTS display_ids;
+DROP VIEW IF EXISTS display_ids;
 CREATE VIEW display_ids AS
 SELECT DISTINCT display_id
 FROM (
@@ -98,7 +98,7 @@ FROM (
   SELECT display_id FROM gpu_frame_missed
 );
 
-DROP VIEW iF EXISTS metrics_per_display;
+DROP VIEW IF EXISTS metrics_per_display;
 CREATE VIEW metrics_per_display AS
 SELECT AndroidSurfaceflingerMetric_MetricsPerDisplay(
   'display_id', d.display_id,
