@@ -26,6 +26,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from src.trace_processor.tables.track_tables import COUNTER_TRACK_TABLE
 
 COUNTER_TABLE = Table(
+    python_module=__file__,
     class_name='CounterTable',
     sql_name='counter',
     columns=[
