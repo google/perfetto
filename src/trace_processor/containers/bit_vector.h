@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -422,6 +423,10 @@ class BitVector {
 
     return bv;
   }
+
+  // Creates a BitVector of size |end| bit the bits between |start| and |end|
+  // filled with corresponding bits |this| BitVector.
+  BitVector IntersectRange(uint32_t range_start, uint32_t range_end) const;
 
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
