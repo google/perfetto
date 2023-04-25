@@ -16,19 +16,11 @@
 
 #include "src/trace_processor/prelude/table_functions/experimental_counter_dur.h"
 
-#include "src/trace_processor/tables/counter_tables.h"
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace tables {
-
-#define PERFETTO_TP_COUNTER_DUR_TABLE_DEF(NAME, PARENT, C)      \
-  NAME(ExperimentalCounterDurTable, "experimental_counter_dur") \
-  PARENT(PERFETTO_TP_COUNTER_TABLE_DEF, C)                      \
-  C(int64_t, dur)                                               \
-  C(double, delta)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_DUR_TABLE_DEF);
 
 ExperimentalCounterDurTable::~ExperimentalCounterDurTable() = default;
 

@@ -582,6 +582,9 @@ def gen_cc_tp_tables(target: GnParser.Target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_cc_tp_tables')
   label.comment = target.name
   label.srcs += (gn_utils.label_to_path(x) for x in target.sources)
+  label.deps += sorted(':' + get_bazel_label_name(x.name)
+                       for x in target.transitive_deps
+                       if x.name not in default_python_targets)
   label.outs += target.outputs
   return [label]
 

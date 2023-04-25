@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import("../../../../gn/perfetto.gni")
+import("../../../../gn/perfetto_tp_tables.gni")
 
 assert(enable_perfetto_trace_processor_sqlite)
 
@@ -44,6 +45,7 @@ source_set("table_functions") {
     "view.h",
   ]
   deps = [
+    ":tables",
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
     "../../../base",
@@ -59,6 +61,11 @@ source_set("table_functions") {
   ]
 }
 
+perfetto_tp_tables("tables") {
+  sources = [ "tables.py" ]
+  deps = [ "../../tables:tables_python" ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [
@@ -71,6 +78,7 @@ source_set("unittests") {
   ]
   deps = [
     ":table_functions",
+    ":tables",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
     "../../containers",
