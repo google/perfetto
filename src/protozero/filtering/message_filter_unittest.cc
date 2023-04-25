@@ -128,6 +128,87 @@ TEST(MessageFilterTest, EndToEnd) {
   }
 }
 
+TEST(MessageFilterTest, Passthrough) {
+  auto schema = perfetto::base::TempFile::Create();
+  static const char kSchema[] = R"(
+  syntax = "proto2";
+  message TracePacket {
+    optional int64 timestamp = 1;
+    optional TraceConfig cfg = 2;
+    optional TraceConfig cfg_filtered = 3;
+    optional string other = 4;
+  };
+  message SubConfig {
+    optional string f4 = 6;
+  }
+  message TraceConfig {
+    optional int64 f1 = 3;
+    optional string f2 = 4;
+    optional SubConfig f3 = 5;
+  }
+  )";
+
+  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
+  perfetto::base::FlushFile(*schema);
+
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadMessageDefinition(
+      schema.path(), "", "", {"TracePacket:other", "TracePacket:cfg"}));
+  std::string bytecode = filter.GenerateFilterBytecode();
+  ASSERT_GT(bytecode.size(), 0u);
+
+  HeapBuffered<Message> msg;
+  msg->AppendVarInt(/*field_id=*/1, 10);
+  msg->AppendString(/*field_id=*/4, "other_string");
+
+  // Fill `cfg`.
+  auto* nest = msg->BeginNestedMessage<Message>(/*field_id=*/2);
+  nest->AppendVarInt(/*field_id=*/3, 100);
+  nest->AppendString(/*field_id=*/4, "f2.payload");
+  nest->AppendString(/*field_id=*/99, "not_in_original_schema");
+  auto* nest2 = nest->BeginNestedMessage<Message>(/*field_id=*/5);
+  nest2->AppendString(/*field_id=*/6, "subconfig.f4");
+  nest2->Finalize();
+  nest->Finalize();
+
+  // Fill `cfg_filtered`.
+  nest = msg->BeginNestedMessage<Message>(/*field_id=*/3);
+  nest->AppendVarInt(/*field_id=*/3, 200);  // This should be propagated.
+  nest->AppendVarInt(/*field_id=*/6, 300);  // This shoudl be filtered out.
+  nest->Finalize();
+
+  MessageFilter flt;
+  ASSERT_TRUE(flt.LoadFilterBytecode(bytecode.data(), bytecode.size()));
+
+  std::vector<uint8_t> encoded = msg.SerializeAsArray();
+
+  auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
+  ASSERT_LT(filtered.size, encoded.size());
+
+  ProtoDecoder dec(filtered.data.get(), filtered.size);
+  EXPECT_EQ(dec.FindField(1).as_int64(), 10);
+  EXPECT_EQ(dec.FindField(4).as_std_string(), "other_string");
+
+  EXPECT_TRUE(dec.FindField(2).valid());
+  ProtoDecoder nest_dec(dec.FindField(2).as_bytes());
+  EXPECT_EQ(nest_dec.FindField(3).as_int32(), 100);
+  EXPECT_EQ(nest_dec.FindField(4).as_std_string(), "f2.payload");
+  EXPECT_TRUE(nest_dec.FindField(5).valid());
+  ProtoDecoder nest_dec2(nest_dec.FindField(5).as_bytes());
+  EXPECT_EQ(nest_dec2.FindField(6).as_std_string(), "subconfig.f4");
+
+  // Field 99 should be preserved anyways even if it wasn't in the original
+  // schema because the whole TracePacket submessage was passed through.
+  EXPECT_TRUE(nest_dec.FindField(99).valid());
+  EXPECT_EQ(nest_dec.FindField(99).as_std_string(), "not_in_original_schema");
+
+  // Check that the field `cfg_filtered` contains only `f1`,`f2`,`f3`.
+  EXPECT_TRUE(dec.FindField(3).valid());
+  ProtoDecoder nest_dec3(dec.FindField(3).as_bytes());
+  EXPECT_EQ(nest_dec3.FindField(3).as_int32(), 200);
+  EXPECT_FALSE(nest_dec3.FindField(6).valid());
+}
+
 TEST(MessageFilterTest, ChangeRoot) {
   auto schema = perfetto::base::TempFile::Create();
   static const char kSchema[] = R"(
