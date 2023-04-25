@@ -22,6 +22,7 @@
 #include <list>
 #include <map>
 #include <optional>
+#include <set>
 #include <string>
 
 // We include this intentionally instead of forward declaring to allow
@@ -46,9 +47,14 @@ class FilterUtil {
   // root_message: fully qualified message name (e.g., perfetto.protos.Trace).
   //     If empty, the first message in the file will be used.
   // proto_dir_path: the root for .proto includes. If empty uses CWD.
-  bool LoadMessageDefinition(const std::string& proto_file,
-                             const std::string& root_message,
-                             const std::string& proto_dir_path);
+  // passthrough: an optional set of fields that should be transparently passed
+  //     through without recursing further.
+  //     Syntax: "perfetto.protos.TracePacket:trace_config"
+  bool LoadMessageDefinition(
+      const std::string& proto_file,
+      const std::string& root_message,
+      const std::string& proto_dir_path,
+      const std::set<std::string>& passthrough_fields = {});
 
   // Deduplicates leaf messages having the same sets of field ids.
   // It changes the internal state and affects the behavior of next calls to
@@ -103,6 +109,12 @@ class FilterUtil {
 
   // list<> because pointers need to be stable.
   std::list<Message> descriptors_;
+  std::set<std::string> passthrough_fields_;
+
+  // Used only for debugging aid, to print out an error message when the user
+  // specifies a field to pass through but it doesn't exist.
+  std::set<std::string> passthrough_fields_seen_;
+
   FILE* print_stream_ = stdout;
 };
 

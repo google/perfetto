@@ -49,7 +49,7 @@ Example usage:
 # Generate the filter bytecode from a .proto schema
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
-               -F /tmp/bytecode [--dedupe]
+               -F /tmp/bytecode [--dedupe] [-x protos.Message:field_to_pass]
 
 # List the used/filtered fields from a trace file
 
@@ -72,14 +72,15 @@ int Main(int argc, char** argv) {
       {"help", no_argument, nullptr, 'h'},
       {"version", no_argument, nullptr, 'v'},
       {"dedupe", no_argument, nullptr, 'd'},
-      {"proto_path", no_argument, nullptr, 'I'},
-      {"schema_in", no_argument, nullptr, 's'},
-      {"root_message", no_argument, nullptr, 'r'},
-      {"msg_in", no_argument, nullptr, 'i'},
-      {"msg_out", no_argument, nullptr, 'o'},
-      {"filter_in", no_argument, nullptr, 'f'},
-      {"filter_out", no_argument, nullptr, 'F'},
-      {"filter_oct_out", no_argument, nullptr, 'T'},
+      {"proto_path", required_argument, nullptr, 'I'},
+      {"schema_in", required_argument, nullptr, 's'},
+      {"root_message", required_argument, nullptr, 'r'},
+      {"msg_in", required_argument, nullptr, 'i'},
+      {"msg_out", required_argument, nullptr, 'o'},
+      {"filter_in", required_argument, nullptr, 'f'},
+      {"filter_out", required_argument, nullptr, 'F'},
+      {"filter_oct_out", required_argument, nullptr, 'T'},
+      {"passthrough", required_argument, nullptr, 'x'},
       {nullptr, 0, nullptr, 0}};
 
   std::string msg_in;
@@ -90,11 +91,12 @@ int Main(int argc, char** argv) {
   std::string filter_oct_out;
   std::string proto_path;
   std::string root_message_arg;
+  std::set<std::string> passthrough_fields;
   bool dedupe = false;
 
   for (;;) {
     int option =
-        getopt_long(argc, argv, "hvdI:s:r:i:o:f:F:T:", long_options, nullptr);
+        getopt_long(argc, argv, "hvdI:s:r:i:o:f:F:T:x:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -149,6 +151,11 @@ int Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == 'x') {
+      passthrough_fields.insert(optarg);
+      continue;
+    }
+
     if (option == 'h') {
       fprintf(stdout, kUsage);
       exit(0);
@@ -175,8 +182,8 @@ int Main(int argc, char** argv) {
   protozero::FilterUtil filter;
   if (!schema_in.empty()) {
     PERFETTO_LOG("Loading proto schema from %s", schema_in.c_str());
-    if (!filter.LoadMessageDefinition(schema_in, root_message_arg,
-                                      proto_path)) {
+    if (!filter.LoadMessageDefinition(schema_in, root_message_arg, proto_path,
+                                      passthrough_fields)) {
       PERFETTO_ELOG("Failed to parse proto schema from %s", schema_in.c_str());
       return 1;
     }
@@ -264,7 +271,7 @@ int Main(int argc, char** argv) {
   if (!msg_out.empty()) {
     PERFETTO_LOG("Writing filtered proto bytes (%zu bytes) into %s",
                  msg_filtered_data.size(), msg_out.c_str());
-    auto fd = base::OpenFile(msg_out, O_WRONLY | O_CREAT, 0644);
+    auto fd = base::OpenFile(msg_out, O_WRONLY | O_TRUNC | O_CREAT, 0644);
     base::WriteAll(*fd, msg_filtered_data.data(), msg_filtered_data.size());
   }
 
