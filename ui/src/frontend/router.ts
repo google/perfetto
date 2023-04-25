@@ -102,6 +102,13 @@ export class Router {
     const oldRoute = Router.parseUrl(e.oldURL);
     const newRoute = Router.parseUrl(e.newURL);
 
+    if (globals.disableHashBasedRouting && newRoute.page.length === 0 && newRoute.subpage.length === 0) {
+      // the application that disabled hash based routing 
+      // made a change that either removed our routes or was unrelated
+      // -> no op
+      return;
+    }
+
     if (newRoute.args.local_cache_key === undefined &&
         oldRoute.args.local_cache_key) {
       // Propagate `local_cache_key across` navigations. When a trace is loaded,
