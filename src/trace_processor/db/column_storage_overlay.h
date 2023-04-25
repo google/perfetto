@@ -183,24 +183,12 @@ class ColumnStorageOverlay {
     // meet |p|. However, if |this| is a BitVector, we end up needing expensive
     // |IndexOfNthSet| calls (as we need to convert the row to an index before
     // passing it to |p|).
-    switch (row_map_.mode_) {
-      case RowMap::Mode::kRange: {
-        auto ip = [this, p](uint32_t row) { return p(row_map_.GetRange(row)); };
-        out->Filter(ip);
-        break;
-      }
-      case RowMap::Mode::kBitVector: {
-        FilterIntoScanSelfBv(out, p);
-        break;
-      }
-      case RowMap::Mode::kIndexVector: {
-        auto ip = [this, p](uint32_t row) {
-          return p(row_map_.GetIndexVector(row));
-        };
-        out->Filter(ip);
-        break;
-      }
+    if (row_map_.IsBitVector()) {
+      FilterIntoScanSelfBv(out, p);
+      return;
     }
+    auto ip = [this, p](uint32_t row) { return p(row_map_.Get(row)); };
+    out->Filter(ip);
   }
 
   template <typename Comparator = bool(uint32_t, uint32_t)>
@@ -217,54 +205,57 @@ class ColumnStorageOverlay {
   // Filters the current ColumnStorageOverlay into |out| by performing a full
   // scan on |row_map.bit_vector_|. See |FilterInto| for a full breakdown of the
   // semantics of this function.
-  template <typename Predicate>
-  void FilterIntoScanSelfBv(RowMap* out, Predicate p) const {
-    auto it = row_map_.bit_vector_.IterateSetBits();
-    switch (out->mode_) {
-      case RowMap::Mode::kRange: {
-        // TODO(lalitm): investigate whether we can reuse the data inside
-        // out->bit_vector_ at some point.
-        BitVector bv(out->end_index_, false);
-        for (auto out_it = bv.IterateAllBits(); it; it.Next(), out_it.Next()) {
-          uint32_t ordinal = it.ordinal();
-          if (ordinal < out->start_index_)
-            continue;
-          if (ordinal >= out->end_index_)
-            break;
 
-          if (p(it.index())) {
-            out_it.Set();
-          }
+  template <typename Predicate>
+  struct FilterIntoScanSelfBvVisitor {
+    void operator()(RowMap::Range out_r) {
+      BitVector bv(out_r.end, false);
+      for (auto out_it = bv.IterateAllBits(); bv_iter;
+           bv_iter.Next(), out_it.Next()) {
+        uint32_t ordinal = bv_iter.ordinal();
+        if (ordinal < out_r.start)
+          continue;
+        if (ordinal >= out_r.end)
+          break;
+
+        if (p(bv_iter.index())) {
+          out_it.Set();
         }
-        *out = RowMap(std::move(bv));
-        break;
       }
-      case RowMap::Mode::kBitVector: {
-        auto out_it = out->bit_vector_.IterateAllBits();
-        for (; out_it; it.Next(), out_it.Next()) {
-          PERFETTO_DCHECK(it);
-          if (out_it.IsSet() && !p(it.index()))
-            out_it.Clear();
-        }
-        break;
-      }
-      case RowMap::Mode::kIndexVector: {
-        PERFETTO_DCHECK(std::is_sorted(out->index_vector_.begin(),
-                                       out->index_vector_.end()));
-        auto fn = [&p, &it](uint32_t i) {
-          while (it.ordinal() < i) {
-            it.Next();
-            PERFETTO_DCHECK(it);
-          }
-          PERFETTO_DCHECK(it.ordinal() == i);
-          return !p(it.index());
-        };
-        auto iv_it = std::remove_if(out->index_vector_.begin(),
-                                    out->index_vector_.end(), fn);
-        out->index_vector_.erase(iv_it, out->index_vector_.end());
-        break;
+      *out = RowMap(std::move(bv));
+    }
+    void operator()(const BitVector& out_bv) {
+      auto out_it = out_bv.IterateAllBits();
+      for (; out_it; bv_iter.Next(), out_it.Next()) {
+        PERFETTO_DCHECK(bv_iter);
+        if (out_it.IsSet() && !p(bv_iter.index()))
+          out_it.Clear();
       }
     }
+    void operator()(std::vector<OutputIndex>& out_vec) {
+      PERFETTO_DCHECK(std::is_sorted(out_vec.begin(), out_vec.end()));
+      auto fn = [this](uint32_t i) {
+        while (bv_iter.ordinal() < i) {
+          bv_iter.Next();
+          PERFETTO_DCHECK(bv_iter);
+        }
+        PERFETTO_DCHECK(bv_iter.ordinal() == i);
+        return !p(bv_iter.index());
+      };
+      auto iv_it = std::remove_if(out_vec.begin(), out_vec.end(), fn);
+      out_vec.erase(iv_it, out_vec.end());
+    }
+    RowMap* out;
+    Predicate p;
+    internal::SetBitsIterator bv_iter;
+  };
+
+  template <typename Predicate>
+  void FilterIntoScanSelfBv(RowMap* out, Predicate p) const {
+    const BitVector* bv = std::get_if<BitVector>(&row_map_.data_);
+    auto it = bv->IterateSetBits();
+    std::visit(FilterIntoScanSelfBvVisitor<Predicate>{out, p, std::move(it)},
+               out->data_);
   }
 
   RowMap row_map_;
