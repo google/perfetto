@@ -275,7 +275,7 @@ config("protobuf_gen_config") {
     "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ]
   cflags = []
-  if (!is_clang || !is_win) {
+  if (!is_clang && !is_win) {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
   if (is_clang && is_win) {
