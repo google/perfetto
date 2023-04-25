@@ -74,6 +74,7 @@ export class FrontendLocalState {
   scrollToTrackId?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
+  detailsFullScreenSelectors = ['.pan-and-zoom-content'];
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};

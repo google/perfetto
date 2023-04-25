@@ -51,14 +51,14 @@ function getDetailsHeight() {
   return DEFAULT_DETAILS_CONTENT_HEIGHT + DRAG_HANDLE_HEIGHT_PX;
 }
 
-function getFullScreenHeight() {
-  const panelContainer =
-      document.querySelector('.pan-and-zoom-content') as HTMLElement;
-  if (panelContainer !== null) {
-    return panelContainer.clientHeight;
-  } else {
-    return getDetailsHeight();
+function getFullScreenHeight(dom?: Element) {
+  for(const selector of globals.frontendLocalState.detailsFullScreenSelectors) {
+    const element = dom?.closest(selector) || document.querySelector(selector);
+    if(element != null) {
+      return element.clientHeight;
+    }
   }
+  return getDetailsHeight();
 }
 
 function hasLogs(): boolean {
@@ -87,15 +87,16 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private isFullscreen = false;
   // We can't get real fullscreen height until the pan_and_zoom_handler exists.
   private fullscreenHeight = getDetailsHeight();
+  private dom?: Element = undefined;
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
     this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
-    this.fullscreenHeight = getFullScreenHeight();
-    const elem = dom as HTMLElement;
+    this.dom = dom;
+    this.fullscreenHeight = getFullScreenHeight(this.dom);
     new DragGestureHandler(
-        elem,
+        this.dom as HTMLElement,
         this.onDrag.bind(this),
         this.onDragStart.bind(this),
         this.onDragEnd.bind(this));
@@ -117,6 +118,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 
   onDragStart(_x: number, _y: number) {
+    this.fullscreenHeight = getFullScreenHeight(this.dom);
     this.dragStartHeight = this.height;
   }
 
@@ -147,7 +149,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onclick: () => {
                 this.isClosed = false;
                 this.isFullscreen = true;
-                this.resize(this.fullscreenHeight);
+                this.resize(getFullScreenHeight(this.dom));
                 globals.rafScheduler.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
