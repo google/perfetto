@@ -126,7 +126,7 @@ export class Router {
       newRoute.args.local_cache_key = oldRoute.args.local_cache_key;
     }
 
-    const args = m.buildQueryString(newRoute.args);
+    const args = Router.buildQueryString(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
     normalizedFragment += args.length > 0 ? '?' + args : '';
     if (globals.disableHashBasedRouting) {
@@ -154,6 +154,40 @@ export class Router {
       return fragment.replace("?page=", "#!/").replace("&","?");
     } else {
       return hash;
+    }
+  }
+
+  static buildQueryString(args: RouteArgs): string {
+    return globals.disableHashBasedRouting
+      ? Router.emptyPreservingBuildQueryString(args)
+      : m.buildQueryString(args);
+  }
+
+  static emptyPreservingBuildQueryString(values: m.Params) {
+    // same as m.buildQueryString but with an adaptation in destructure where we keep empty strings as values
+    // Url may come in the form of '?local_cache_key=' but the default query string builder results in '?local_cache_key' removing the empty string
+    // when we do the URL 'endsWith' check on hash change they do not match and we may end up in an endless loop where we keep replacing the location
+    if (Object.prototype.toString.call(values) !== "[object Object]") {
+      return "";
+    }
+    const args: string[] = []
+    for (var key2 in values) {
+      destructure(key2, values[key2])
+    }
+    return args.join("&");
+
+    function destructure(key2: string, value1: any) {
+      if (Array.isArray(value1)) {
+        for (var i = 0; i < value1.length; i++) {
+          destructure(key2 + "[" + i + "]", value1[i])
+        }
+      }
+      else if (Object.prototype.toString.call(value1) === "[object Object]") {
+        for (var k in value1) {
+          destructure(key2 + "[" + k + "]", value1[k])
+        }
+      }
+      else args.push(encodeURIComponent(key2) + (value1 != null ? "=" + encodeURIComponent(value1) : ""))
     }
   }
 
