@@ -43,7 +43,7 @@ template("perfetto_tp_tables") {
 
     gen_args = [
       "--gen-dir",
-      rebase_path("$root_gen_dir", root_build_dir),
+      rebase_path("$root_gen_dir/$perfetto_root_path", root_build_dir),
     ]
     input_args = [ "--inputs" ] + rebase_path(invoker.sources, root_build_dir)
     args = gen_args + input_args + relative_args
