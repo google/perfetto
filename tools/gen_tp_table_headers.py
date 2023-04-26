@@ -48,11 +48,8 @@ def main():
   parser = argparse.ArgumentParser()
   parser.add_argument('--inputs', required=True, nargs='*')
   parser.add_argument('--gen-dir', required=True)
-  parser.add_argument('--header-prefix')
   parser.add_argument('--relative-input-dir')
   args = parser.parse_args()
-
-  header_prefix = args.header_prefix if args.header_prefix else ''
 
   def get_relin_path(in_path: str):
     if not args.relative_input_dir:
@@ -60,8 +57,7 @@ def main():
     return os.path.relpath(in_path, args.relative_input_dir)
 
   def get_relout_path(in_path: str):
-    path = os.path.splitext(in_path)[0]
-    return os.path.join(header_prefix, path + OUT_HEADER_SUFFIX)
+    return os.path.splitext(in_path)[0] + OUT_HEADER_SUFFIX
 
   def get_out_path(in_path: str):
     return os.path.join(args.gen_dir, get_relout_path(in_path))
