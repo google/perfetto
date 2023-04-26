@@ -33,9 +33,9 @@
     "uuid": "^9.0.0"
   },
   "files": [
+    "css",
     "out/tsc",
     "src",
-    "css",
     "wasm"
   ],
   "style": "css/perfetto.css",
