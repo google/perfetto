@@ -342,6 +342,7 @@ def perfetto_cc_tp_tables(name, srcs, outs, deps = [], **kwargs):
     cmd += ["--gen-dir", "$(RULEDIR)"]
     cmd += ["--inputs", "$(SRCS)"]
     if PERFETTO_CONFIG.root != "//":
+        cmd += ["--import-prefix", PERFETTO_CONFIG.root[2:]]
         cmd += ["--relative-input-dir", PERFETTO_CONFIG.root[2:]]
 
     perfetto_genrule(
