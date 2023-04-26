@@ -34,7 +34,6 @@
 #pragma GCC diagnostic ignored "-Wmissing-noreturn"
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 #pragma GCC diagnostic ignored "-Wfloat-equal"
-#pragma GCC diagnostic ignored "-Winfinite-recursion"
 #endif  // defined(__GNUC__) || defined(__clang__)
 
 #if defined(__clang__)
