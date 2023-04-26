@@ -19,9 +19,9 @@ syntax = "proto2";
 package perfetto.protos;
 
 message WebViewJankApproximation {
-  required int32 webview_janks = 1;
-  required int32 webview_janks_without_startup = 2;
-  required int32 webview_app_janks = 3;
-  required int32 webview_total_janks = 4;
-  required int32 total_janks = 5;
+  optional int32 webview_janks = 1;
+  optional int32 webview_janks_without_startup = 2;
+  optional int32 webview_app_janks = 3;
+  optional int32 webview_total_janks = 4;
+  optional int32 total_janks = 5;
 }
