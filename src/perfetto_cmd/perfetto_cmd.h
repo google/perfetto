@@ -34,10 +34,10 @@
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/ipc/consumer_ipc_client.h"
 #include "src/android_stats/perfetto_atoms.h"
+#include "src/perfetto_cmd/packet_writer.h"
 
 namespace perfetto {
 
-class PacketWriter;
 class RateLimiter;
 
 // Directory for local state and temporary files. This is automatically
@@ -135,7 +135,7 @@ class PerfettoCmd : public Consumer {
   std::unique_ptr<perfetto::TracingService::ConsumerEndpoint>
       consumer_endpoint_;
   std::unique_ptr<TraceConfig> trace_config_;
-  std::unique_ptr<PacketWriter> packet_writer_;
+  std::optional<PacketWriter> packet_writer_;
   base::ScopedFstream trace_out_stream_;
   std::vector<std::string> triggers_to_activate_;
   std::string trace_out_path_;

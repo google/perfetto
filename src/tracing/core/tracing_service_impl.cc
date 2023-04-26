@@ -898,8 +898,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     tracing_session->bytes_written_into_file = 0;
   }
 
-  if (!cfg.compress_from_cli() &&
-      cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+  if (cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
     if (init_opts_.compressor_fn) {
       tracing_session->compress_deflate = true;
     } else {

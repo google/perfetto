@@ -825,24 +825,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     if (!OpenOutputFile())
       return 1;
     if (!trace_config_->write_into_file())
-      packet_writer_ = CreateFilePacketWriter(trace_out_stream_.get());
-  }
-
-  // TODO(b/281043457): this code path will go away after Android U. Compression
-  // has been moved to the service. This code is here only as a fallback in case
-  // of bugs in the U timeframe.
-  if (trace_config_->compress_from_cli() &&
-      trace_config_->compression_type() ==
-          TraceConfig::COMPRESSION_TYPE_DEFLATE) {
-    if (packet_writer_) {
-#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
-      packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
-#else
-      PERFETTO_ELOG("Cannot compress. Zlib not enabled in the build config");
-#endif
-    } else {
-      PERFETTO_ELOG("Cannot compress when tracing directly to file.");
-    }
+      packet_writer_.emplace(trace_out_stream_.get());
   }
 
   bool will_trace_indefinitely =
@@ -1155,6 +1138,7 @@ void PerfettoCmd::CheckTraceDataTimeout() {
 void PerfettoCmd::OnTraceData(std::vector<TracePacket> packets, bool has_more) {
   trace_data_timeout_armed_ = false;
 
+  PERFETTO_CHECK(packet_writer_.has_value());
   if (!packet_writer_->WritePackets(packets)) {
     PERFETTO_ELOG("Failed to write packets");
     FinalizeTraceAndExit();
