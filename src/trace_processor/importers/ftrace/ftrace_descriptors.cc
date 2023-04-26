@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 482> descriptors{{
+std::array<FtraceMessageDescriptor, 484> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5301,6 +5301,26 @@ std::array<FtraceMessageDescriptor, 482> descriptors{{
         {
             {},
             {"start", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "mali_mali_CSF_INTERRUPT_START",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "mali_mali_CSF_INTERRUPT_END",
+        3,
+        {
+            {},
+            {"kctx_tgid", ProtoSchemaType::kInt32},
+            {"kctx_id", ProtoSchemaType::kUint32},
+            {"info_val", ProtoSchemaType::kUint64},
         },
     },
 }};

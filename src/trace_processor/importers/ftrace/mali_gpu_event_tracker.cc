@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 
+#include "perfetto/ext/base/string_utils.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
 #include "src/trace_processor/importers/common/async_track_set_tracker.h"
@@ -35,7 +36,11 @@ MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
       mali_KCPU_FENCE_SIGNAL_id_(
           context->storage->InternString("mali_KCPU_FENCE_SIGNAL")),
       mali_KCPU_FENCE_WAIT_id_(
-          context->storage->InternString("mali_KCPU_FENCE_WAIT")) {}
+          context->storage->InternString("mali_KCPU_FENCE_WAIT")),
+      mali_CSF_INTERRUPT_id_(
+          context->storage->InternString("mali_CSF_INTERRUPT")),
+      mali_CSF_INTERRUPT_info_val_id_(
+          context->storage->InternString("info_val")) {}
 
 void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
                                             int32_t field_id,
@@ -68,6 +73,36 @@ void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
     }
     case FtraceEvent::kMaliMaliKCPUFENCEWAITENDFieldNumber: {
       ParseMaliKcpuFenceWaitEnd(ts, track_id);
+      break;
+    }
+    default:
+      PERFETTO_DFATAL("Unexpected field id");
+      break;
+  }
+}
+
+void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
+                                               int32_t field_id,
+                                               uint32_t cpu,
+                                               protozero::ConstBytes blob) {
+  using protos::pbzero::FtraceEvent;
+
+  // Since these events are called from an interrupt context they cannot be
+  // associated to a single process or thread. Add to a custom Mali Irq track
+  // instead.
+  base::StackString<255> track_name("Mali Irq Cpu %d", cpu);
+  StringId track_name_id =
+      context_->storage->InternString(track_name.string_view());
+  TrackId track_id =
+      context_->track_tracker->InternCpuTrack(track_name_id, cpu);
+
+  switch (field_id) {
+    case FtraceEvent::kMaliMaliCSFINTERRUPTSTARTFieldNumber: {
+      ParseMaliCSFInterruptStart(ts, track_id, blob);
+      break;
+    }
+    case FtraceEvent::kMaliMaliCSFINTERRUPTENDFieldNumber: {
+      ParseMaliCSFInterruptEnd(ts, track_id, blob);
       break;
     }
     default:
@@ -110,6 +145,35 @@ void MaliGpuEventTracker::ParseMaliKcpuFenceWaitEnd(int64_t timestamp,
                                                     TrackId track_id) {
   context_->slice_tracker->End(timestamp, track_id, kNullStringId,
                                mali_KCPU_FENCE_WAIT_id_);
+}
+
+void MaliGpuEventTracker::ParseMaliCSFInterruptStart(
+    int64_t timestamp,
+    TrackId track_id,
+    protozero::ConstBytes blob) {
+  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                     Variadic::UnsignedInteger(evt.info_val()));
+  };
+
+  context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
+                                 mali_CSF_INTERRUPT_id_, args_inserter);
+}
+
+void MaliGpuEventTracker::ParseMaliCSFInterruptEnd(int64_t timestamp,
+                                                   TrackId track_id,
+                                                   protozero::ConstBytes blob) {
+  protos::pbzero::MaliMaliCSFINTERRUPTSTARTFtraceEvent::Decoder evt(blob.data,
+                                                                    blob.size);
+  auto args_inserter = [this, &evt](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(mali_CSF_INTERRUPT_info_val_id_,
+                     Variadic::UnsignedInteger(evt.info_val()));
+  };
+
+  context_->slice_tracker->End(timestamp, track_id, kNullStringId,
+                               mali_CSF_INTERRUPT_id_, args_inserter);
 }
 }  // namespace trace_processor
 }  // namespace perfetto
