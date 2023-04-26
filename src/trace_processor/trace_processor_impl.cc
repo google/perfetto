@@ -97,15 +97,6 @@
 #include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
 #include "src/trace_processor/stdlib/amalgamated_stdlib.h"
 
-// In Android and Chromium tree builds, we don't have the percentile module.
-// Just don't include it.
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
-// defined in sqlite_src/ext/misc/percentile.c
-extern "C" int sqlite3_percentile_init(sqlite3* db,
-                                       char** error,
-                                       const sqlite3_api_routines* api);
-#endif  // PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
-
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -124,24 +115,6 @@ void RegisterFunction(sqlite3* db,
       db, name, argc, std::move(context), deterministic);
   if (!status.ok())
     PERFETTO_ELOG("%s", status.c_message());
-}
-
-void InitializeSqlite(sqlite3* db) {
-  char* error = nullptr;
-  sqlite3_exec(db, "PRAGMA temp_store=2", nullptr, nullptr, &error);
-  if (error) {
-    PERFETTO_FATAL("Error setting pragma temp_store: %s", error);
-  }
-  sqlite3_str_split_init(db);
-// In Android tree builds, we don't have the percentile module.
-// Just don't include it.
-#if PERFETTO_BUILDFLAG(PERFETTO_TP_PERCENTILE)
-  sqlite3_percentile_init(db, &error, nullptr);
-  if (error) {
-    PERFETTO_ELOG("Error initializing: %s", error);
-    sqlite3_free(error);
-  }
-#endif
 }
 
 void BuildBoundsTable(sqlite3* db, std::pair<int64_t, int64_t> bounds) {
@@ -311,14 +284,6 @@ void SetupMetrics(TraceProcessor* tp,
     if (ret)
       PERFETTO_FATAL("Error initializing RepeatedField");
   }
-}
-
-void EnsureSqliteInitialized() {
-  // sqlite3_initialize isn't actually thread-safe despite being documented
-  // as such; we need to make sure multiple TraceProcessorImpl instances don't
-  // call it concurrently and only gets called once per process, instead.
-  static bool init_once = [] { return sqlite3_initialize() == SQLITE_OK; }();
-  PERFETTO_CHECK(init_once);
 }
 
 void InsertIntoTraceMetricsTable(sqlite3* db, const std::string& metric_name) {
@@ -546,64 +511,60 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.content_analyzer.reset(new ProtoContentAnalyzer(&context_));
   }
 
+  sqlite3_str_split_init(engine_.db());
   RegisterAdditionalModules(&context_);
-
-  sqlite3* db = nullptr;
-  EnsureSqliteInitialized();
-  PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
-  InitializeSqlite(db);
-  InitializePreludeTablesViews(db);
-  db_.reset(std::move(db));
+  InitializePreludeTablesViews(engine_.db());
 
   // New style function registration.
   if (cfg.enable_dev_features) {
-    RegisterDevFunctions(db);
+    RegisterDevFunctions(engine_.db());
   }
-  RegisterFunction<Glob>(db, "glob", 2);
-  RegisterFunction<Hash>(db, "HASH", -1);
-  RegisterFunction<Base64Encode>(db, "BASE64_ENCODE", 1);
-  RegisterFunction<Demangle>(db, "DEMANGLE", 1);
-  RegisterFunction<SourceGeq>(db, "SOURCE_GEQ", -1);
-  RegisterFunction<ExportJson>(db, "EXPORT_JSON", 1, context_.storage.get(),
-                               false);
-  RegisterFunction<ExtractArg>(db, "EXTRACT_ARG", 2, context_.storage.get());
-  RegisterFunction<AbsTimeStr>(db, "ABS_TIME_STR", 1,
+  RegisterFunction<Glob>(engine_.db(), "glob", 2);
+  RegisterFunction<Hash>(engine_.db(), "HASH", -1);
+  RegisterFunction<Base64Encode>(engine_.db(), "BASE64_ENCODE", 1);
+  RegisterFunction<Demangle>(engine_.db(), "DEMANGLE", 1);
+  RegisterFunction<SourceGeq>(engine_.db(), "SOURCE_GEQ", -1);
+  RegisterFunction<ExportJson>(engine_.db(), "EXPORT_JSON", 1,
+                               context_.storage.get(), false);
+  RegisterFunction<ExtractArg>(engine_.db(), "EXTRACT_ARG", 2,
+                               context_.storage.get());
+  RegisterFunction<AbsTimeStr>(engine_.db(), "ABS_TIME_STR", 1,
                                context_.clock_converter.get());
-  RegisterFunction<ToMonotonic>(db, "TO_MONOTONIC", 1,
+  RegisterFunction<ToMonotonic>(engine_.db(), "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
   RegisterFunction<CreateFunction>(
-      db, "CREATE_FUNCTION", 3,
+      engine_.db(), "CREATE_FUNCTION", 3,
       std::unique_ptr<CreateFunction::Context>(
-          new CreateFunction::Context{db_.get(), &create_function_state_}));
+          new CreateFunction::Context{engine_.db(), &create_function_state_}));
   RegisterFunction<CreateViewFunction>(
-      db, "CREATE_VIEW_FUNCTION", 3,
+      engine_.db(), "CREATE_VIEW_FUNCTION", 3,
       std::unique_ptr<CreateViewFunction::Context>(
-          new CreateViewFunction::Context{db_.get()}));
-  RegisterFunction<Import>(db, "IMPORT", 1,
+          new CreateViewFunction::Context{engine_.db()}));
+  RegisterFunction<Import>(engine_.db(), "IMPORT", 1,
                            std::unique_ptr<Import::Context>(new Import::Context{
-                               db_.get(), this, &sql_modules_}));
+                               engine_.db(), this, &sql_modules_}));
   RegisterFunction<ToFtrace>(
-      db, "TO_FTRACE", 1,
+      engine_.db(), "TO_FTRACE", 1,
       std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
           context_.storage.get(), SystraceSerializer(&context_)}));
 
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
-  RegisterLastNonNullFunction(db);
-  RegisterValueAtMaxTsFunction(db);
+  RegisterLastNonNullFunction(engine_.db());
+  RegisterValueAtMaxTsFunction(engine_.db());
   {
-    base::Status status = RegisterStackFunctions(db, &context_);
+    base::Status status = RegisterStackFunctions(engine_.db(), &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = PprofFunctions::Register(db, &context_);
+    base::Status status = PprofFunctions::Register(engine_.db(), &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status = LayoutFunctions::Register(db, &context_);
+    base::Status status = LayoutFunctions::Register(engine_.db(), &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -616,20 +577,18 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       PERFETTO_ELOG("%s", status.c_message());
   }
 
-  SetupMetrics(this, *db_, &sql_metrics_, cfg.skip_builtin_metric_paths);
-
-  // Setup the query cache.
-  query_cache_.reset(new QueryCache());
+  SetupMetrics(this, engine_.db(), &sql_metrics_,
+               cfg.skip_builtin_metric_paths);
 
   const TraceStorage* storage = context_.storage.get();
 
-  SqlStatsTable::RegisterTable(*db_, storage);
-  StatsTable::RegisterTable(*db_, storage);
+  SqlStatsTable::RegisterTable(engine_.db(), storage);
+  StatsTable::RegisterTable(engine_.db(), storage);
 
   // Operator tables.
-  SpanJoinOperatorTable::RegisterTable(*db_, storage);
-  WindowOperatorTable::RegisterTable(*db_, storage);
-  CreateViewFunction::RegisterTable(*db_);
+  SpanJoinOperatorTable::RegisterTable(engine_.db(), storage);
+  WindowOperatorTable::RegisterTable(engine_.db(), storage);
+  CreateViewFunction::RegisterTable(engine_.db());
 
   // Tables dynamically generated at query time.
   RegisterTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
@@ -774,7 +733,7 @@ void TraceProcessorImpl::Flush() {
       context_.storage->InternString(TraceTypeToString(context_.trace_type));
   context_.metadata_tracker->SetMetadata(metadata::trace_type,
                                          Variadic::String(trace_type_id));
-  BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+  BuildBoundsTable(engine_.db(), context_.storage->GetTraceTimestampBoundsNs());
 }
 
 void TraceProcessorImpl::NotifyEndOfFile() {
@@ -812,7 +771,7 @@ void TraceProcessorImpl::NotifyEndOfFile() {
   // TraceProcessorStorageImpl::NotifyEndOfFile, this will be counted in
   // trace bounds: this is important for parsers like ninja which wait until
   // the end to flush all their data.
-  BuildBoundsTable(*db_, context_.storage->GetTraceTimestampBoundsNs());
+  BuildBoundsTable(engine_.db(), context_.storage->GetTraceTimestampBoundsNs());
 
   TraceProcessorStorageImpl::DestroyContext();
 }
@@ -859,19 +818,20 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   ScopedStmt stmt;
   IteratorImpl::StmtMetadata metadata;
   base::Status status =
-      PrepareAndStepUntilLastValidStmt(*db_, sql, &stmt, &metadata);
+      PrepareAndStepUntilLastValidStmt(engine_.db(), sql, &stmt, &metadata);
   PERFETTO_DCHECK((status.ok() && stmt) || (!status.ok() && !stmt));
 
-  std::unique_ptr<IteratorImpl> impl(new IteratorImpl(
-      this, *db_, status, std::move(stmt), std::move(metadata), sql_stats_row));
+  std::unique_ptr<IteratorImpl> impl(
+      new IteratorImpl(this, engine_.db(), status, std::move(stmt),
+                       std::move(metadata), sql_stats_row));
   return Iterator(std::move(impl));
 }
 
 void TraceProcessorImpl::InterruptQuery() {
-  if (!db_)
+  if (!engine_.db())
     return;
   query_interrupted_.store(true);
-  sqlite3_interrupt(db_.get());
+  sqlite3_interrupt(engine_.db());
 }
 
 bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
@@ -963,7 +923,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
           prev_path.c_str(), path.c_str(), metric.proto_field_name->c_str());
     }
 
-    InsertIntoTraceMetricsTable(*db_, no_ext_name);
+    InsertIntoTraceMetricsTable(engine_.db(), no_ext_name);
   }
 
   sql_metrics_.emplace_back(metric);
@@ -991,7 +951,7 @@ base::Status TraceProcessorImpl::ExtendMetricsProto(
     auto fn_name = desc.full_name().substr(desc.package_name().size() + 1);
     std::replace(fn_name.begin(), fn_name.end(), '.', '_');
     RegisterFunction<metrics::BuildProto>(
-        db_.get(), fn_name.c_str(), -1,
+        engine_.db(), fn_name.c_str(), -1,
         std::unique_ptr<metrics::BuildProto::Context>(
             new metrics::BuildProto::Context{this, &pool_, i}));
   }
