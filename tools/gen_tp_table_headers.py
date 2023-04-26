@@ -49,6 +49,7 @@ def main():
   parser.add_argument('--inputs', required=True, nargs='*')
   parser.add_argument('--gen-dir', required=True)
   parser.add_argument('--relative-input-dir')
+  parser.add_argument('--import-prefix', default='')
   args = parser.parse_args()
 
   def get_relin_path(in_path: str):
@@ -61,6 +62,9 @@ def main():
 
   def get_out_path(in_path: str):
     return os.path.join(args.gen_dir, get_relout_path(in_path))
+
+  def get_header_path(in_path: str):
+    return os.path.join(args.import_prefix, get_relout_path(in_path))
 
   modules = [
       os.path.splitext(get_relin_path(i).replace('/', '.'))[0]
@@ -82,7 +86,7 @@ def main():
     header_relout_deps: Set[str] = set()
     for table in header.tables:
       header_relout_deps = header_relout_deps.union([
-          get_relout_path(os.path.relpath(c.python_module, ROOT_DIR))
+          get_header_path(os.path.relpath(c.python_module, ROOT_DIR))
           for c in find_table_deps(table.table)
       ])
     header_relout_deps.discard(relout_path)
