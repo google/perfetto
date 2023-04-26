@@ -36,6 +36,7 @@
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/trace_processor_storage_impl.h"
 #include "src/trace_processor/util/sql_modules.h"
 
@@ -107,13 +108,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   template <typename Table>
   void RegisterDbTable(const Table& table) {
-    DbSqliteTable::RegisterTable(*db_, query_cache_.get(), &table,
-                                 Table::Name());
+    engine_.RegisterTable(table, Table::Name());
   }
 
-  void RegisterTableFunction(std::unique_ptr<TableFunction> generator) {
-    DbSqliteTable::RegisterTable(*db_, query_cache_.get(),
-                                 std::move(generator));
+  void RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
+    engine_.RegisterTableFunction(std::move(fn));
   }
 
   template <typename View>
@@ -121,15 +120,11 @@ class TraceProcessorImpl : public TraceProcessor,
 
   bool IsRootMetricField(const std::string& metric_name);
 
-  // Keep this first: we need this to be destroyed after we clean up
-  // everything else.
-  ScopedDb db_;
+  SqliteEngine engine_;
 
   // State necessary for CREATE_FUNCTION invocations. We store this here as we
   // need to finalize any prepared statements *before* we destroy the database.
   CreateFunction::State create_function_state_;
-
-  std::unique_ptr<QueryCache> query_cache_;
 
   DescriptorPool pool_;
 
