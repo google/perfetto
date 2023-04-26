@@ -46,6 +46,8 @@ class BitVector {
   using AllBitsIterator = internal::AllBitsIterator;
   using SetBitsIterator = internal::SetBitsIterator;
 
+  static constexpr uint32_t kBitsInWord = 64;
+
   // Builder class which allows efficiently creating a BitVector by appending
   // words. Using this class is generally far more efficient than trying to set
   // bits directly in a BitVector or even appending one bit at a time.
