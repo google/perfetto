@@ -458,7 +458,14 @@ TEST(BitVectorUnittest, IntersectRange) {
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 4u);
   ASSERT_EQ(intersected.CountSetBits(), 3u);
-  ASSERT_EQ(intersected.size(), 10u);
+}
+
+TEST(BitVectorUnittest, IntersectRangeFromStart) {
+  BitVector bv = BitVector::Range(1, 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector intersected = bv.IntersectRange(0, 10);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 2u);
+  ASSERT_EQ(intersected.CountSetBits(), 4u);
 }
 
 TEST(BitVectorUnittest, IntersectRange2) {
@@ -466,7 +473,6 @@ TEST(BitVectorUnittest, IntersectRange2) {
   BitVector intersected = bv.IntersectRange(2, 4);
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 2u);
-  ASSERT_EQ(intersected.size(), 4u);
 }
 
 TEST(BitVectorUnittest, IntersectRangeAfterWord) {
@@ -476,14 +482,13 @@ TEST(BitVectorUnittest, IntersectRangeAfterWord) {
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 64 + 4u);
   ASSERT_EQ(intersected.CountSetBits(), 3u);
-  ASSERT_EQ(intersected.size(), 64 + 10u);
 }
 
 TEST(BitVectorUnittest, IntersectRangeSetBitsBeforeRange) {
   BitVector bv = BitVector::Range(10, 30, [](uint32_t t) { return t < 15; });
   BitVector intersected = bv.IntersectRange(16, 50);
 
-  ASSERT_FALSE(intersected.size());
+  ASSERT_FALSE(intersected.CountSetBits());
 }
 
 TEST(BitVectorUnittest, IntersectRangeSetBitOnBoundary) {
@@ -491,7 +496,8 @@ TEST(BitVectorUnittest, IntersectRangeSetBitOnBoundary) {
   bv.Set(5);
   BitVector intersected = bv.IntersectRange(5, 20);
 
-  ASSERT_EQ(intersected.size(), 6u);
+  ASSERT_EQ(intersected.CountSetBits(), 1u);
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 5u);
 }
 
 TEST(BitVectorUnittest, IntersectRangeStressTest) {
@@ -501,7 +507,6 @@ TEST(BitVectorUnittest, IntersectRangeStressTest) {
 
   ASSERT_EQ(intersected.IndexOfNthSet(0), 66u);
   ASSERT_EQ(intersected.CountSetBits(), 217u);
-  ASSERT_EQ(intersected.size(), 500u);
 }
 
 TEST(BitVectorUnittest, Range) {
