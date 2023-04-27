@@ -9294,9 +9294,36 @@ filegroup {
     srcs: [
         "src/trace_processor/db/column_storage_overlay_unittest.cc",
         "src/trace_processor/db/compare_unittest.cc",
-        "src/trace_processor/db/table_unittest.cc",
         "src/trace_processor/db/view_unittest.cc",
     ],
+}
+
+// GN: //src/trace_processor/db:view_unittest
+genrule {
+    name: "perfetto_src_trace_processor_db_view_unittest",
+    srcs: [
+        "src/trace_processor/db/view_unittest.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_db_view_unittest_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_db_view_unittest_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    out: [
+        "src/trace_processor/db/view_unittest_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/db:view_unittest
+python_binary_host {
+    name: "perfetto_src_trace_processor_db_view_unittest_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/db/view_unittest.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
 }
 
 // GN: //src/trace_processor:demangle
@@ -10358,7 +10385,6 @@ python_binary_host {
 filegroup {
     name: "perfetto_src_trace_processor_tables_unittests",
     srcs: [
-        "src/trace_processor/tables/macros_unittest.cc",
         "src/trace_processor/tables/py_tables_unittest.cc",
     ],
 }
@@ -10516,6 +10542,34 @@ filegroup {
         "src/trace_processor/util/streaming_line_reader.cc",
         "src/trace_processor/util/zip_reader.cc",
     ],
+}
+
+// GN: //src/trace_processor/views:macros_unittest
+genrule {
+    name: "perfetto_src_trace_processor_views_macros_unittest",
+    srcs: [
+        "src/trace_processor/views/macros_unittest.py",
+    ],
+    tools: [
+        "perfetto_src_trace_processor_views_macros_unittest_binary",
+    ],
+    cmd: "$(location perfetto_src_trace_processor_views_macros_unittest_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    out: [
+        "src/trace_processor/views/macros_unittest_py.h",
+    ],
+}
+
+// GN: //src/trace_processor/views:macros_unittest
+python_binary_host {
+    name: "perfetto_src_trace_processor_views_macros_unittest_binary",
+    srcs: [
+        "python/generators/trace_processor_table/public.py",
+        "python/generators/trace_processor_table/serialize.py",
+        "python/generators/trace_processor_table/util.py",
+        "src/trace_processor/views/macros_unittest.py",
+        "tools/gen_tp_table_headers.py",
+    ],
+    main: "tools/gen_tp_table_headers.py",
 }
 
 // GN: //src/trace_processor/views:unittests
@@ -12079,6 +12133,7 @@ cc_test {
         "perfetto_src_protozero_testing_messages_cpp_gen_headers",
         "perfetto_src_protozero_testing_messages_lite_gen_headers",
         "perfetto_src_protozero_testing_messages_zero_gen_headers",
+        "perfetto_src_trace_processor_db_view_unittest",
         "perfetto_src_trace_processor_gen_cc_test_messages_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_chrome_track_event_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_config_descriptor",
@@ -12094,6 +12149,7 @@ cc_test {
         "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
         "perfetto_src_trace_processor_tables_py_tables_unittest",
         "perfetto_src_trace_processor_tables_tables_python",
+        "perfetto_src_trace_processor_views_macros_unittest",
         "perfetto_src_traced_probes_ftrace_test_messages_cpp_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_lite_gen_headers",
         "perfetto_src_traced_probes_ftrace_test_messages_zero_gen_headers",

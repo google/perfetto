@@ -19,7 +19,6 @@
 
 #include "src/trace_processor/db/view.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
-#include "src/trace_processor/tables/slice_tables.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/views/macros.h"
@@ -27,6 +26,23 @@
 namespace perfetto {
 namespace trace_processor {
 namespace views {
+
+#define PERFETTO_TP_SLICE_TABLE_DEF(NAME, PARENT, C)  \
+  NAME(SliceTable, "internal_slice")                  \
+  C(int64_t, ts, Column::Flag::kSorted)               \
+  C(int64_t, dur)                                     \
+  C(TrackTable::Id, track_id)                         \
+  C(std::optional<StringPool::Id>, category)          \
+  C(std::optional<StringPool::Id>, name)              \
+  C(uint32_t, depth)                                  \
+  C(int64_t, stack_id)                                \
+  C(int64_t, parent_stack_id)                         \
+  C(std::optional<SliceTable::Id>, parent_id)         \
+  C(uint32_t, arg_set_id)                             \
+  C(std::optional<int64_t>, thread_ts)                \
+  C(std::optional<int64_t>, thread_dur)               \
+  C(std::optional<int64_t>, thread_instruction_count) \
+  C(std::optional<int64_t>, thread_instruction_delta)
 
 // TODO(lalitm): add support in document generator for views.
 #define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL, FCOL)      \

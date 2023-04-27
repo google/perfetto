@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/db/view.h"
 
-#include "src/trace_processor/tables/macros_internal.h"
-
 #ifndef SRC_TRACE_PROCESSOR_VIEWS_MACROS_INTERNAL_H_
 #define SRC_TRACE_PROCESSOR_VIEWS_MACROS_INTERNAL_H_
 
@@ -72,6 +70,15 @@ class ViewColumnBlueprint {
 #if defined(__GNUC__) || defined(__clang__)
 #pragma GCC system_header
 #endif
+
+// Basic helper macros.
+#define PERFETTO_TP_NOOP(...)
+
+// Invokes FN on each column in the definition of the table. We define a
+// recursive macro as we need to walk up the hierarchy until we hit the root.
+// Currently, we hardcode 5 levels but this can be increased as necessary.
+#define PERFETTO_TP_ALL_COLUMNS(DEF, arg) \
+  DEF(PERFETTO_TP_NOOP, PERFETTO_TP_NOOP, arg)
 
 // Invokes a View column function using data from a table column definition.
 #define PERFETTO_TP_VIEW_INVOKE_VIEW_COL_FN_FROM_TABLE(FN, col_name) \

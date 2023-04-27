@@ -15,50 +15,34 @@
 
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
-from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import Table
+from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppUint32
 
-EVENT_TABLE = Table(
+ROOT_TABLE = Table(
     python_module=__file__,
-    class_name="TestEventTable",
-    sql_name="event",
+    class_name="RootTestTable",
+    sql_name="root_table",
     columns=[
-        C("ts", CppInt64(), flags=ColumnFlag.SORTED),
-        C("arg_set_id", CppUint32()),
+        C("root_sorted", CppUint32(), flags=ColumnFlag.SORTED),
+        C("root_non_null", CppUint32()),
+        C("root_non_null_2", CppUint32()),
+        C("root_nullable", CppOptional(CppUint32())),
     ])
 
-EVENT_CHILD_TABLE = Table(
+CHILD_TABLE = Table(
     python_module=__file__,
-    class_name="TestEventChildTable",
-    sql_name="event",
-    parent=EVENT_TABLE,
-    columns=[])
-
-SLICE_TABLE = Table(
-    python_module=__file__,
-    class_name="TestSliceTable",
-    sql_name="slice",
-    parent=EVENT_TABLE,
+    class_name="ChildTestTable",
+    sql_name="child_table",
+    parent=ROOT_TABLE,
     columns=[
-        C("dur", CppInt64()),
-    ])
-
-ARGS_TABLE = Table(
-    python_module=__file__,
-    class_name="TestArgsTable",
-    sql_name="args",
-    columns=[
-        C("arg_set_id",
-          CppUint32(),
-          flags=ColumnFlag.SET_ID | ColumnFlag.SORTED),
-        C("int_value", CppInt64()),
+        C("child_sorted", CppUint32(), flags=ColumnFlag.SORTED),
+        C("child_non_null", CppUint32()),
+        C("child_nullable", CppOptional(CppUint32())),
     ])
 
 # Keep this list sorted.
 ALL_TABLES = [
-    ARGS_TABLE,
-    EVENT_TABLE,
-    EVENT_CHILD_TABLE,
-    SLICE_TABLE,
+    ROOT_TABLE,
+    CHILD_TABLE,
 ]

@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -17,48 +17,29 @@ from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnFlag
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import Table
-from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import CppString
+from python.generators.trace_processor_table.public import CppTableId
 
-EVENT_TABLE = Table(
+MACROS_THREAD_TABLE = Table(
     python_module=__file__,
-    class_name="TestEventTable",
+    class_name="MacrosThreadTable",
+    sql_name="thread",
+    columns=[
+        C("name", CppString()),
+        C("start_ts", CppInt64(), flags=ColumnFlag.SORTED),
+    ])
+
+MACROS_EVENT_TABLE = Table(
+    python_module=__file__,
+    class_name="MacrosEventTable",
     sql_name="event",
     columns=[
         C("ts", CppInt64(), flags=ColumnFlag.SORTED),
-        C("arg_set_id", CppUint32()),
-    ])
-
-EVENT_CHILD_TABLE = Table(
-    python_module=__file__,
-    class_name="TestEventChildTable",
-    sql_name="event",
-    parent=EVENT_TABLE,
-    columns=[])
-
-SLICE_TABLE = Table(
-    python_module=__file__,
-    class_name="TestSliceTable",
-    sql_name="slice",
-    parent=EVENT_TABLE,
-    columns=[
-        C("dur", CppInt64()),
-    ])
-
-ARGS_TABLE = Table(
-    python_module=__file__,
-    class_name="TestArgsTable",
-    sql_name="args",
-    columns=[
-        C("arg_set_id",
-          CppUint32(),
-          flags=ColumnFlag.SET_ID | ColumnFlag.SORTED),
-        C("int_value", CppInt64()),
+        C("thread_id", CppTableId(MACROS_THREAD_TABLE)),
     ])
 
 # Keep this list sorted.
 ALL_TABLES = [
-    ARGS_TABLE,
-    EVENT_TABLE,
-    EVENT_CHILD_TABLE,
-    SLICE_TABLE,
+    MACROS_THREAD_TABLE,
+    MACROS_EVENT_TABLE,
 ]
