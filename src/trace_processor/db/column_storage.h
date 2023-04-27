@@ -53,6 +53,7 @@ class ColumnStorage : public ColumnStorageBase {
   void Set(uint32_t idx, T val) { vector_[idx] = val; }
   uint32_t size() const { return static_cast<uint32_t>(vector_.size()); }
   void ShrinkToFit() { vector_.shrink_to_fit(); }
+  const std::vector<T>& vector() const { return vector_; }
 
   template <bool IsDense>
   static ColumnStorage<T> Create() {
@@ -83,6 +84,14 @@ class ColumnStorage<std::optional<T>> : public ColumnStorageBase {
   uint32_t size() const { return nv_.size(); }
   bool IsDense() const { return nv_.IsDense(); }
   void ShrinkToFit() { nv_.ShrinkToFit(); }
+  // For dense columns the size of the vector is equal to size of the bit
+  // vector. For sparse it's equal to count set bits of the bit vector.
+  const std::vector<T>& non_null_vector() const {
+    return nv_.non_null_vector();
+  }
+  const BitVector& non_null_bit_vector() const {
+    return nv_.non_null_bit_vector();
+  }
 
   template <bool IsDense>
   static ColumnStorage<std::optional<T>> Create() {
