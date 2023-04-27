@@ -4209,7 +4209,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_processor_protos",
     srcs = [
-        "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
         "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
