@@ -42,17 +42,14 @@
 }
 
 @mixin track_shell_title() {
-  // line-height is deliberately 1px larger than font-size. Roboto seems to
-  // overflow on the bottom on "g"s otherwise.
   font-size: 14px;
-  line-height: 15px;
   max-height: 30px;
   overflow: hidden;
   text-align: left;
   overflow-wrap: break-word;
   font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
-  letter-spacing: -0.5px;
+  line-break: anywhere;
 }
 
 * {
@@ -388,6 +385,7 @@ $bottom-tab-padding: 10px;
     width: var(--track-shell-width);
     background: #fff;
     border-right: 1px solid #c7d0db;
+    overflow: hidden;
 
     &.drag {
       background-color: #eee;
