@@ -1282,13 +1282,13 @@ void PerfettoCmd::OnTraceStats(bool /*success*/,
   // TODO(eseckler): Support GetTraceStats().
 }
 
-void PerfettoCmd::OnSessionCloned(bool success, const std::string& error) {
+void PerfettoCmd::OnSessionCloned(const OnSessionClonedArgs& args) {
   PERFETTO_DLOG("Cloned tracing session %" PRIu64 ", success=%d",
-                clone_tsid_.value_or(0), success);
+                clone_tsid_.value_or(0), args.success);
   std::string full_error;
-  if (!success) {
+  if (!args.success) {
     full_error = "Failed to clone tracing session " +
-                 std::to_string(clone_tsid_.value_or(0)) + ": " + error;
+                 std::to_string(clone_tsid_.value_or(0)) + ": " + args.error;
   }
 
   // Kick off the readback and file finalization (as if we started tracing and

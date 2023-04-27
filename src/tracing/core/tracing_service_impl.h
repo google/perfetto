@@ -723,7 +723,8 @@ class TracingServiceImpl : public TracingService {
   TraceBuffer* GetBufferByID(BufferID);
   base::Status DoCloneSession(ConsumerEndpointImpl*,
                               TracingSessionID,
-                              bool final_flush_outcome);
+                              bool final_flush_outcome,
+                              base::Uuid*);
 
   // Returns true if `*tracing_session` is waiting for a trigger that hasn't
   // happened.

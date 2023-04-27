@@ -3490,7 +3490,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
       consumer->consumer_->OnSessionCloned(
-          false, "No tracing sessions eligible for bugreport found");
+          {false, "No tracing sessions eligible for bugreport found", {}});
       return;
     }
     tsid = session->id;
@@ -3503,15 +3503,18 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                  final_flush_outcome);
     if (!weak_this || !weak_consumer)
       return;
-    base::Status result =
-        weak_this->DoCloneSession(&*weak_consumer, tsid, final_flush_outcome);
-    weak_consumer->consumer_->OnSessionCloned(result.ok(), result.message());
+    base::Uuid uuid;
+    base::Status result = weak_this->DoCloneSession(&*weak_consumer, tsid,
+                                                    final_flush_outcome, &uuid);
+    weak_consumer->consumer_->OnSessionCloned(
+        {result.ok(), result.message(), uuid});
   });
 }
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                                                 TracingSessionID src_tsid,
-                                                bool final_flush_outcome) {
+                                                bool final_flush_outcome,
+                                                base::Uuid* new_uuid) {
   PERFETTO_DLOG("CloneSession(%" PRIu64 ") started, consumer uid: %d", src_tsid,
                 static_cast<int>(consumer->uid_));
 
@@ -3562,6 +3565,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
 
   cloned_session->state = TracingSession::CLONED_READ_ONLY;
   cloned_session->trace_uuid = base::Uuidv4();  // Generate a new UUID.
+  *new_uuid = cloned_session->trace_uuid;
 
   for (auto& kv : buf_snaps) {
     BufferID buf_global_id = kv.first;

@@ -67,7 +67,7 @@ class PerfettoCmd : public Consumer {
   void OnAttach(bool, const TraceConfig&) override;
   void OnTraceStats(bool, const TraceStats&) override;
   void OnObservableEvents(const ObservableEvents&) override;
-  void OnSessionCloned(bool, const std::string&) override;
+  void OnSessionCloned(const OnSessionClonedArgs&) override;
 
   void SignalCtrlC() { ctrl_c_evt_.Notify(); }
 
@@ -162,6 +162,7 @@ class PerfettoCmd : public Consumer {
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
   bool trace_data_timeout_armed_ = false;
+
   base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };
 
