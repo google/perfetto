@@ -476,3 +476,5 @@ hyp/host_hcall
 hyp/host_smc
 hyp/host_mem_abort
 synthetic/suspend_resume_minimal
+mali/mali_CSF_INTERRUPT_START
+mali/mali_CSF_INTERRUPT_END
