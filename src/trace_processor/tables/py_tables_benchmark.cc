@@ -16,35 +16,16 @@
 
 #include <benchmark/benchmark.h>
 
-#include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/tables/py_tables_benchmark_py.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-
-#define PERFETTO_TP_ROOT_TEST_TABLE(NAME, PARENT, C) \
-  NAME(RootTestTable, "root_table")                  \
-  PERFETTO_TP_ROOT_TABLE(PARENT, C)                  \
-  C(uint32_t, root_sorted, Column::Flag::kSorted)    \
-  C(uint32_t, root_non_null)                         \
-  C(uint32_t, root_non_null_2)                       \
-  C(std::optional<uint32_t>, root_nullable)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_ROOT_TEST_TABLE);
-
-#define PERFETTO_TP_CHILD_TABLE(NAME, PARENT, C)   \
-  NAME(ChildTestTable, "child_table")              \
-  PARENT(PERFETTO_TP_ROOT_TEST_TABLE, C)           \
-  C(uint32_t, child_sorted, Column::Flag::kSorted) \
-  C(uint32_t, child_non_null)                      \
-  C(std::optional<uint32_t>, child_nullable)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_CHILD_TABLE);
+namespace tables {
 
 RootTestTable::~RootTestTable() = default;
 ChildTestTable::~ChildTestTable() = default;
 
-}  // namespace
+}  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
 
@@ -74,16 +55,16 @@ void TableSortArgs(benchmark::internal::Benchmark* b) {
 
 }  // namespace
 
-using perfetto::trace_processor::ChildTestTable;
-using perfetto::trace_processor::RootTestTable;
 using perfetto::trace_processor::RowMap;
 using perfetto::trace_processor::SqlValue;
 using perfetto::trace_processor::StringPool;
 using perfetto::trace_processor::Table;
+using perfetto::trace_processor::tables::ChildTestTable;
+using perfetto::trace_processor::tables::RootTestTable;
 
 static void BM_TableInsert(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   for (auto _ : state) {
     benchmark::DoNotOptimize(root.Insert({}));
@@ -93,7 +74,7 @@ BENCHMARK(BM_TableInsert);
 
 static void BM_TableIteratorChild(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -116,7 +97,7 @@ BENCHMARK(BM_TableIteratorChild)->Apply(TableFilterArgs);
 
 static void BM_TableFilterAndSortRoot(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = 8;
@@ -140,7 +121,7 @@ BENCHMARK(BM_TableFilterAndSortRoot)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootId(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   for (uint32_t i = 0; i < size; ++i)
@@ -154,7 +135,7 @@ BENCHMARK(BM_TableFilterRootId)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootIdAndOther(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
@@ -173,7 +154,7 @@ BENCHMARK(BM_TableFilterRootIdAndOther)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildId(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -190,7 +171,7 @@ BENCHMARK(BM_TableFilterChildId)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildIdAndSortedInRoot(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -213,7 +194,7 @@ BENCHMARK(BM_TableFilterChildIdAndSortedInRoot)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 1024;
@@ -232,7 +213,7 @@ BENCHMARK(BM_TableFilterRootNonNullEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootMultipleNonNull(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 512;
@@ -254,7 +235,7 @@ BENCHMARK(BM_TableFilterRootMultipleNonNull)->Apply(TableFilterArgs);
 
 static void BM_TableFilterRootNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
   uint32_t partitions = size / 512;
@@ -277,7 +258,7 @@ BENCHMARK(BM_TableFilterRootNullableEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNonNullEqMatchMany(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -299,7 +280,7 @@ BENCHMARK(BM_TableFilterChildNonNullEqMatchMany)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildNullableEqMatchMany(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -325,7 +306,7 @@ BENCHMARK(BM_TableFilterChildNullableEqMatchMany)->Apply(TableFilterArgs);
 static void BM_TableFilterChildNonNullEqMatchManyInParent(
     benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -349,7 +330,7 @@ BENCHMARK(BM_TableFilterChildNonNullEqMatchManyInParent)
 static void BM_TableFilterChildNullableEqMatchManyInParent(
     benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -372,7 +353,7 @@ BENCHMARK(BM_TableFilterChildNullableEqMatchManyInParent)
 
 static void BM_TableFilterParentSortedEq(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
@@ -390,7 +371,7 @@ BENCHMARK(BM_TableFilterParentSortedEq)->Apply(TableFilterArgs);
 
 static void BM_TableFilterParentSortedAndOther(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
@@ -415,7 +396,7 @@ BENCHMARK(BM_TableFilterParentSortedAndOther)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildSortedEq(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -435,7 +416,7 @@ BENCHMARK(BM_TableFilterChildSortedEq)->Apply(TableFilterArgs);
 
 static void BM_TableFilterChildSortedEqInParent(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -458,7 +439,7 @@ BENCHMARK(BM_TableFilterChildSortedEqInParent)->Apply(TableFilterArgs);
 
 static void BM_TableSortRootNonNull(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
@@ -479,7 +460,7 @@ BENCHMARK(BM_TableSortRootNonNull)->Apply(TableSortArgs);
 
 static void BM_TableSortRootNullable(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
 
@@ -501,7 +482,7 @@ BENCHMARK(BM_TableSortRootNullable)->Apply(TableSortArgs);
 
 static void BM_TableSortChildNonNullInParent(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
@@ -529,7 +510,7 @@ BENCHMARK(BM_TableSortChildNonNullInParent)->Apply(TableSortArgs);
 
 static void BM_TableSortChildNullableInParent(benchmark::State& state) {
   StringPool pool;
-  RootTestTable root(&pool, nullptr);
+  RootTestTable root(&pool);
   ChildTestTable child(&pool, &root);
 
   uint32_t size = static_cast<uint32_t>(state.range(0));
