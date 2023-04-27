@@ -27,6 +27,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 16000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 2
@@ -36,6 +38,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: true
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 3
@@ -45,6 +49,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 4
@@ -54,6 +60,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 5
@@ -63,6 +71,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 6
@@ -72,6 +82,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     sf_frame {
       frame_number: 1
@@ -127,6 +139,8 @@ android_jank_cuj {
       missed_app_frames: 5
       missed_sf_frames: 1
       frame_dur_max: 40000000
+      sf_callback_missed_frames: 0
+      hwui_callback_missed_frames: 0
     }
     timeline_metrics {
       total_frames: 6
@@ -143,6 +157,8 @@ android_jank_cuj {
       frame_dur_ms_p90: 34.0
       frame_dur_ms_p95: 37.0
       frame_dur_ms_p99: 39.400000000000006
+      sf_callback_missed_frames: 0
+      hwui_callback_missed_frames: 0
     }
     trace_metrics {
       total_frames: 6
@@ -159,6 +175,8 @@ android_jank_cuj {
       frame_dur_ms_p90: 34.0
       frame_dur_ms_p95: 37.0
       frame_dur_ms_p99: 39.400000000000006
+      sf_callback_missed_frames: 0
+      hwui_callback_missed_frames: 0
     }
   }
   cuj {
@@ -189,6 +207,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 16000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 2
@@ -198,6 +218,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: true
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 3
@@ -207,6 +229,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 4
@@ -216,6 +240,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 5
@@ -225,6 +251,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 6
@@ -234,6 +262,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 7
@@ -243,6 +273,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: true
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 8
@@ -252,6 +284,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 9
@@ -261,6 +295,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 10
@@ -270,6 +306,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 11
@@ -279,6 +317,8 @@ android_jank_cuj {
       app_missed: true
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 12
@@ -288,6 +328,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: false
+      hwui_callback_missed: false
     }
     frame {
       frame_number: 13
@@ -297,6 +339,8 @@ android_jank_cuj {
       app_missed: false
       sf_missed: false
       dur_expected: 20000000
+      sf_callback_missed: true
+      hwui_callback_missed: true
     }
     sf_frame {
       frame_number: 1
@@ -361,6 +405,8 @@ android_jank_cuj {
       missed_sf_frames: 2
       missed_frames_max_successive: 5
       frame_dur_max: 62000000
+      sf_callback_missed_frames: 1
+      hwui_callback_missed_frames: 1
     }
     timeline_metrics {
       total_frames: 13
@@ -377,6 +423,8 @@ android_jank_cuj {
       frame_dur_ms_p90: 56.80000000000001
       frame_dur_ms_p95: 61.000000
       frame_dur_ms_p99: 61.000000
+      sf_callback_missed_frames: 1
+      hwui_callback_missed_frames: 1
     }
     trace_metrics {
       total_frames: 13
@@ -393,6 +441,8 @@ android_jank_cuj {
       frame_dur_ms_p90: 60.000000
       frame_dur_ms_p95: 61.000000
       frame_dur_ms_p99: 61.000000
+      sf_callback_missed_frames: 1
+      hwui_callback_missed_frames: 1
     }
   }
 }
