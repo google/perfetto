@@ -16,12 +16,7 @@ This allows to get fine grained scheduling events such as:
 
 ## UI
 
-When zoomed out, the UI shows a quantized view of CPU usage, which collapses the
-scheduling information:
-
-![](/docs/images/cpu-bar-graphs.png "Quantized view of CPU run queues")
-
-However, by zooming in, the individual scheduling events become visible:
+The UI represents individual scheduling events as slices:
 
 ![](/docs/images/cpu-zoomed.png "Detailed view of CPU run queues")
 
