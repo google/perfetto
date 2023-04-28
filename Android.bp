@@ -6888,7 +6888,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen",
     srcs: [
-        "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
         "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
@@ -6899,7 +6898,6 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
-        "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.cc",
@@ -6910,7 +6908,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_trace_processor_zero_gen_headers",
     srcs: [
-        "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
         "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
@@ -6921,7 +6918,6 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(in)",
     out: [
-        "external/perfetto/protos/perfetto/trace_processor/cloud_trace_processor.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.h",
