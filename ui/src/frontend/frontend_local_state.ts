@@ -145,9 +145,11 @@ export class FrontendLocalState {
   selectArea(
       startSec: number, endSec: number,
       tracks = this._selectedArea ? this._selectedArea.tracks : []) {
-    assertTrue(endSec >= startSec);
+    assertTrue(
+        endSec >= startSec,
+        `Impossible select area: startSec [${startSec}] >= endSec [${endSec}]`);
     this.showPanningHint = true;
-    this._selectedArea = {startSec, endSec, tracks},
+    this._selectedArea = {startSec, endSec, tracks};
     globals.rafScheduler.scheduleFullRedraw();
   }
 
