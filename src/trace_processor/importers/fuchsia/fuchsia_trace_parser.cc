@@ -55,6 +55,7 @@ constexpr uint32_t kDouble = 5;
 constexpr uint32_t kString = 6;
 constexpr uint32_t kPointer = 7;
 constexpr uint32_t kKoid = 8;
+constexpr uint32_t kBool = 9;
 
 }  // namespace
 
@@ -167,6 +168,11 @@ FuchsiaTraceParser::ParseArgs(
           return std::nullopt;
         }
         arg.value = fuchsia_trace_utils::ArgValue::Koid(value);
+        break;
+      }
+      case kBool: {
+        arg.value = fuchsia_trace_utils::ArgValue::Bool(
+            fuchsia_trace_utils::ReadField<bool>(arg_header, 32, 63));
         break;
       }
       default:
@@ -325,6 +331,7 @@ void FuchsiaTraceParser::ParseFuchsiaRecord(int64_t, FuchsiaRecord fr) {
               case fuchsia_trace_utils::ArgValue::kString:
               case fuchsia_trace_utils::ArgValue::kPointer:
               case fuchsia_trace_utils::ArgValue::kKoid:
+              case fuchsia_trace_utils::ArgValue::kBool:
               case fuchsia_trace_utils::ArgValue::kUnknown:
                 context_->storage->IncrementStats(
                     stats::fuchsia_non_numeric_counters);
