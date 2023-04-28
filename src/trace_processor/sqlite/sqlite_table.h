@@ -185,31 +185,54 @@ class SqliteTable : public sqlite3_vtab {
     int64_t estimated_rows = 0;
   };
 
-  template <typename Context>
-  struct TableDescriptor {
-    SqliteTable::Factory<Context> factory;
-    Context context;
-    sqlite3_module module = {};
+  struct RegistrationFlags {
+    // Specifies whether the table can also be written to.
+    bool writable = false;
+
+    enum TableType {
+      // A table which automatically exists in the main schema and cannot be
+      // created with CREATE VIRTUAL TABLE.
+      // Note: the name value here matches the naming in the vtable docs of
+      // SQLite.
+      kEponymousOnly,
+
+      // A table which automatically exists in the main schema and can also be
+      // created with CREATE VIRTUAL TABLE.
+      // Note: the name value here matches the naming in the vtable docs of
+      // SQLite.
+      kEponymous,
+
+      // A table which must be explicitly created using a CREATE VIRTUAL TABLE
+      // statement (i.e. does exist automatically) but does not have any
+      // backing state beyond the arguments passed to it.
+      kExplicitCreateStateless,
+    };
+    TableType type = TableType::kEponymousOnly;
+
+    // Whether the table requires some number of hidden constraints to be passed
+    // to be able to the queried (i.e. a SELECT * FROM table would not work).
+    bool requires_hidden_constraints = false;
   };
 
   SqliteTable();
 
   // Called by derived classes to register themselves with the SQLite db.
-  // |read_write| specifies whether the table can also be written to.
-  // |requires_args| should be true if the table requires arguments in order to
-  // be instantiated.
   // Note: this function is inlined here because we use the TTable template to
   // devirtualise the function calls.
   template <typename TTable, typename Context = const TraceStorage*>
   static void Register(sqlite3* db,
                        Context ctx,
                        const std::string& module_name,
-                       bool read_write = false,
-                       bool requires_args = false) {
+                       RegistrationFlags flags) {
     using TCursor = typename TTable::Cursor;
 
-    std::unique_ptr<TableDescriptor<Context>> desc(
-        new TableDescriptor<Context>());
+    struct TableDescriptor {
+      SqliteTable::Factory<Context> factory;
+      Context context;
+      sqlite3_module module = {};
+    };
+
+    std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
     desc->context = std::move(ctx);
     desc->factory = GetFactory<TTable, Context>();
     sqlite3_module* module = &desc->module;
@@ -218,7 +241,7 @@ class SqliteTable : public sqlite3_vtab {
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
                         const char* const* argv, sqlite3_vtab** tab,
                         char** pzErr) {
-      auto* xdesc = static_cast<TableDescriptor<Context>*>(arg);
+      auto* xdesc = static_cast<TableDescriptor*>(arg);
       auto table = xdesc->factory(xdb, std::move(xdesc->context));
 
       // SQLite guarantees that argv[0] will be the "module" name: this is the
@@ -256,7 +279,20 @@ class SqliteTable : public sqlite3_vtab {
       return SQLITE_OK;
     };
 
-    module->xCreate = create_fn;
+    switch (flags.type) {
+      case RegistrationFlags::kEponymousOnly:
+        module->xCreate = nullptr;
+        break;
+      case RegistrationFlags::kEponymous:
+        module->xCreate = create_fn;
+        break;
+      case RegistrationFlags::kExplicitCreateStateless:
+        // TODO(lalitm): this is not accurate as we're basically creating an
+        // eponymous table. Change this to be a different function once we can
+        // do so easily.
+        module->xCreate = create_fn;
+        break;
+    }
     module->xConnect = create_fn;
     module->xDisconnect = destroy_fn;
     module->xDestroy = destroy_fn;
@@ -297,7 +333,7 @@ class SqliteTable : public sqlite3_vtab {
           return static_cast<TTable*>(t)->FindFunction(name, fn, args);
         };
 
-    if (read_write) {
+    if (flags.writable) {
       module->xUpdate = [](sqlite3_vtab* t, int a, sqlite3_value** v,
                            sqlite3_int64* r) {
         return static_cast<TTable*>(t)->Update(a, v, r);
@@ -306,14 +342,16 @@ class SqliteTable : public sqlite3_vtab {
 
     int res = sqlite3_create_module_v2(
         db, module_name.c_str(), module, desc.release(),
-        [](void* arg) { delete static_cast<TableDescriptor<Context>*>(arg); });
+        [](void* arg) { delete static_cast<TableDescriptor*>(arg); });
     PERFETTO_CHECK(res == SQLITE_OK);
 
     // Register virtual tables into an internal 'perfetto_tables' table. This is
     // used for iterating through all the tables during a database export. Note
-    // that virtual tables requiring arguments aren't registered because they
-    // can't be automatically instantiated for exporting.
-    if (!requires_args) {
+    // that virtual tables which requires explicit CREATE statements or require
+    // hidden constraints cannot be inserted.
+    bool explicit_create =
+        flags.type == RegistrationFlags::kExplicitCreateStateless;
+    if (!explicit_create && !flags.requires_hidden_constraints) {
       char* insert_sql =
           sqlite3_mprintf("INSERT INTO perfetto_tables(name) VALUES('%q')",
                           module_name.c_str());

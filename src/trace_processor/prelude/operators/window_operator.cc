@@ -29,7 +29,11 @@ WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
 
 void WindowOperatorTable::RegisterTable(sqlite3* db,
                                         const TraceStorage* storage) {
-  SqliteTable::Register<WindowOperatorTable>(db, storage, "window", true);
+  RegistrationFlags flags;
+  flags.writable = true;
+  flags.type = RegistrationFlags::kEponymous;
+
+  SqliteTable::Register<WindowOperatorTable>(db, storage, "window", flags);
 }
 
 base::Status WindowOperatorTable::Init(int,
