@@ -64,8 +64,11 @@ class CreatedViewFunction : public SqliteTable {
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
 
   static void Register(sqlite3* db) {
+    RegistrationFlags flags;
+    flags.type = RegistrationFlags::kExplicitCreateStateless;
+
     SqliteTable::Register<CreatedViewFunction>(
-        db, nullptr, "internal_view_function_impl", false, true);
+        db, nullptr, "internal_view_function_impl", flags);
   }
 
  private:
