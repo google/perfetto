@@ -32,7 +32,8 @@ SqlStatsTable::SqlStatsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
 void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<SqlStatsTable>(db, storage, "sqlstats");
+  SqliteTable::Register<SqlStatsTable>(db, storage, "sqlstats",
+                                       RegistrationFlags{});
 }
 
 base::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
