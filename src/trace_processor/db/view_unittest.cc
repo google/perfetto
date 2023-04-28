@@ -15,52 +15,22 @@
  */
 
 #include "src/trace_processor/db/view.h"
-#include "src/trace_processor/tables/macros.h"
+#include "src/trace_processor/db/view_unittest_py.h"
 #include "src/trace_processor/views/macros.h"
 
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
+namespace tables {
+
+ViewThreadTable::~ViewThreadTable() = default;
+ViewTrackTable::~ViewTrackTable() = default;
+ViewThreadTrackTable::~ViewThreadTrackTable() = default;
+ViewEventTable::~ViewEventTable() = default;
+ViewSliceTable::~ViewSliceTable() = default;
+
 namespace {
-
-#define PERFETTO_TP_TEST_THREAD_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestThreadTable, "thread_table")                    \
-  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)             \
-  C(StringPool::Id, name)                                  \
-  C(uint32_t, tid)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_THREAD_TABLE_DEF);
-
-#define PERFETTO_TP_TEST_TRACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestTrackTable, "track_table")                     \
-  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
-  C(StringPool::Id, name)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_TRACK_TABLE_DEF);
-
-#define PERFETTO_TP_TEST_THREAD_TRACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestThreadTrackTable, "thread_track_table")               \
-  PARENT(PERFETTO_TP_TEST_TRACK_TABLE_DEF, C)                    \
-  C(TestThreadTable::Id, utid)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_THREAD_TRACK_TABLE_DEF);
-
-#define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestEventTable, "event_table")                     \
-  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
-  C(int64_t, ts, Column::Flag::kSorted)                   \
-  C(TestTrackTable::Id, track_id)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
-
-#define PERFETTO_TP_TEST_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestSliceTable, "slice_table")                     \
-  PARENT(PERFETTO_TP_TEST_EVENT_TABLE_DEF, C)             \
-  C(StringPool::Id, name)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_SLICE_TABLE_DEF);
-
-TestThreadTable::~TestThreadTable() = default;
-TestTrackTable::~TestTrackTable() = default;
-TestThreadTrackTable::~TestThreadTrackTable() = default;
-TestEventTable::~TestEventTable() = default;
-TestSliceTable::~TestSliceTable() = default;
 
 template <typename ViewSubclass>
 class AbstractViewTest : public ::testing::Test {
@@ -106,17 +76,17 @@ class AbstractViewTest : public ::testing::Test {
 };
 
 #define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, _)               \
-  NAME(TestEventView, "event_view")                                        \
-  FROM(TestEventTable, event)                                              \
-  JOIN(TestTrackTable, track, id, event, track_id, View::kIdAlwaysPresent) \
+  NAME(ViewEventView, "event_view")                                        \
+  FROM(ViewEventTable, event)                                              \
+  JOIN(ViewTrackTable, track, id, event, track_id, View::kIdAlwaysPresent) \
   COL(id, event, id)                                                       \
   COL(ts, event, ts)                                                       \
   COL(track_id, event, track_id)                                           \
   COL(track_name, track, name)
 PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_EVENT_VIEW_DEF);
-PERFETTO_TP_DEFINE_VIEW(TestEventView);
+PERFETTO_TP_DEFINE_VIEW(ViewEventView);
 
-class EventViewTest : public AbstractViewTest<TestEventView> {
+class EventViewTest : public AbstractViewTest<ViewEventView> {
  protected:
   EventViewTest() {
     t1_id_ = track_.Insert({/* name */ Intern("foo")}).id;
@@ -127,26 +97,26 @@ class EventViewTest : public AbstractViewTest<TestEventView> {
     event_table_.Insert({/* ts */ 102, t1_id_});
   }
 
-  virtual TestEventView& view() override { return event_view_; }
+  virtual ViewEventView& view() override { return event_view_; }
 
-  TestTrackTable::Id t1_id_;
-  TestTrackTable::Id t2_id_;
+  ViewTrackTable::Id t1_id_;
+  ViewTrackTable::Id t2_id_;
 
  private:
-  TestEventTable event_table_{&pool_, nullptr};
-  TestTrackTable track_{&pool_, nullptr};
-  TestEventView event_view_{&event_table_, &track_};
+  ViewEventTable event_table_{&pool_};
+  ViewTrackTable track_{&pool_};
+  ViewEventView event_view_{&event_table_, &track_};
 };
 
 TEST_F(EventViewTest, UnusedColumnsAreDummy) {
-  TestEventView::QueryResult result = QueryUsingCols({ColIdx::track_name});
+  ViewEventView::QueryResult result = QueryUsingCols({ColIdx::track_name});
   ASSERT_TRUE(result.columns()[ColIdx::id].IsDummy());
   ASSERT_TRUE(result.columns()[ColIdx::ts].IsDummy());
   ASSERT_FALSE(result.columns()[ColIdx::track_name].IsDummy());
 }
 
 TEST_F(EventViewTest, Iterate) {
-  TestEventView::QueryResult result = Query();
+  ViewEventView::QueryResult result = Query();
   auto it = result.IterateRows();
   ASSERT_TRUE(it);
   ASSERT_EQ(it.row_number().row_number(), 0u);
@@ -170,13 +140,13 @@ TEST_F(EventViewTest, Iterate) {
 }
 
 TEST_F(EventViewTest, FilterEventEmpty) {
-  TestEventView::QueryResult result = Query({view().ts().eq(0)});
+  ViewEventView::QueryResult result = Query({view().ts().eq(0)});
   auto it = result.IterateRows();
   ASSERT_FALSE(it);
 }
 
 TEST_F(EventViewTest, FilterEventNoUseTrack) {
-  TestEventView::QueryResult result =
+  ViewEventView::QueryResult result =
       Query({view().ts().eq(100)}, {}, {ColIdx::ts});
   auto it = result.IterateRows();
   ASSERT_TRUE(it);
@@ -186,7 +156,7 @@ TEST_F(EventViewTest, FilterEventNoUseTrack) {
 }
 
 TEST_F(EventViewTest, FilterEventUseTrack) {
-  TestEventView::QueryResult result =
+  ViewEventView::QueryResult result =
       Query({view().ts().eq(100)}, {},
             {ColIdx::ts, ColIdx::track_name, ColIdx::track_id});
   auto it = result.IterateRows();
@@ -199,13 +169,13 @@ TEST_F(EventViewTest, FilterEventUseTrack) {
 }
 
 TEST_F(EventViewTest, FilterTrackEmpty) {
-  TestEventView::QueryResult result = Query({view().track_id().eq(102398)});
+  ViewEventView::QueryResult result = Query({view().track_id().eq(102398)});
   auto it = result.IterateRows();
   ASSERT_FALSE(it);
 }
 
 TEST_F(EventViewTest, FilterTrackNoUseEvent) {
-  TestEventView::QueryResult result =
+  ViewEventView::QueryResult result =
       Query({view().track_name().eq("foo")}, {},
             {ColIdx::track_name, ColIdx::track_id});
   auto it = result.IterateRows();
@@ -221,7 +191,7 @@ TEST_F(EventViewTest, FilterTrackNoUseEvent) {
 }
 
 TEST_F(EventViewTest, FilterTrackUseEvent) {
-  TestEventView::QueryResult result =
+  ViewEventView::QueryResult result =
       Query({view().track_id().eq(t1_id_.value)}, {},
             {ColIdx::ts, ColIdx::track_name, ColIdx::track_id});
   auto it = result.IterateRows();
@@ -239,10 +209,10 @@ TEST_F(EventViewTest, FilterTrackUseEvent) {
 }
 
 #define PERFETTO_TP_THREAD_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, _)      \
-  NAME(TestThreadEventView, "thread_event_view")                         \
-  FROM(TestEventTable, event)                                            \
-  JOIN(TestThreadTrackTable, track, id, event, track_id, View::kNoFlag)  \
-  JOIN(TestThreadTable, thread, id, track, utid, View::kIdAlwaysPresent) \
+  NAME(ViewThreadEventView, "thread_event_view")                         \
+  FROM(ViewEventTable, event)                                            \
+  JOIN(ViewThreadTrackTable, track, id, event, track_id, View::kNoFlag)  \
+  JOIN(ViewThreadTable, thread, id, track, utid, View::kIdAlwaysPresent) \
   COL(id, event, id)                                                     \
   COL(ts, event, ts)                                                     \
   COL(track_id, track, id)                                               \
@@ -250,9 +220,9 @@ TEST_F(EventViewTest, FilterTrackUseEvent) {
   COL(utid, track, utid)                                                 \
   COL(thread_name, thread, name)
 PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_THREAD_EVENT_VIEW_DEF);
-PERFETTO_TP_DEFINE_VIEW(TestThreadEventView);
+PERFETTO_TP_DEFINE_VIEW(ViewThreadEventView);
 
-class ThreadEventViewTest : public AbstractViewTest<TestThreadEventView> {
+class ThreadEventViewTest : public AbstractViewTest<ViewThreadEventView> {
  protected:
   ThreadEventViewTest() {
     th1_id_ = thread_.Insert({Intern("th1"), 1}).id;
@@ -275,24 +245,24 @@ class ThreadEventViewTest : public AbstractViewTest<TestThreadEventView> {
     event_table_.Insert({/* ts */ 107, t4_id_});
   }
 
-  virtual TestThreadEventView& view() override { return event_view_; }
+  virtual ViewThreadEventView& view() override { return event_view_; }
 
-  TestThreadTable::Id th1_id_;
-  TestThreadTable::Id th2_id_;
+  ViewThreadTable::Id th1_id_;
+  ViewThreadTable::Id th2_id_;
 
-  TestTrackTable::Id t1_id_;
-  TestTrackTable::Id t2_id_;
-  TestTrackTable::Id t3_id_;
-  TestTrackTable::Id t4_id_;
-  TestTrackTable::Id t5_id_;
-  TestTrackTable::Id t6_id_;
+  ViewTrackTable::Id t1_id_;
+  ViewTrackTable::Id t2_id_;
+  ViewTrackTable::Id t3_id_;
+  ViewTrackTable::Id t4_id_;
+  ViewTrackTable::Id t5_id_;
+  ViewTrackTable::Id t6_id_;
 
  private:
-  TestEventTable event_table_{&pool_, nullptr};
-  TestTrackTable track_{&pool_, nullptr};
-  TestThreadTrackTable thread_track_{&pool_, &track_};
-  TestThreadTable thread_{&pool_, nullptr};
-  TestThreadEventView event_view_{&event_table_, &thread_track_, &thread_};
+  ViewEventTable event_table_{&pool_};
+  ViewTrackTable track_{&pool_};
+  ViewThreadTrackTable thread_track_{&pool_, &track_};
+  ViewThreadTable thread_{&pool_};
+  ViewThreadEventView event_view_{&event_table_, &thread_track_, &thread_};
 };
 
 TEST_F(ThreadEventViewTest, Iterate) {
@@ -427,7 +397,7 @@ TEST_F(ThreadEventViewTest, FilterEventAndThread) {
 }
 
 #define PERFETTO_TP_THREAD_SLICE_VIEW_DEF(NAME, FROM, JOIN, COL, _)     \
-  NAME(TestThreadSliceView, "thread_slice_view")                        \
+  NAME(ViewThreadSliceView, "thread_slice_view")                        \
   COL(id, slice, id)                                                    \
   COL(ts, slice, ts)                                                    \
   COL(name, slice, name)                                                \
@@ -435,13 +405,13 @@ TEST_F(ThreadEventViewTest, FilterEventAndThread) {
   COL(track_name, track, name)                                          \
   COL(utid, thread, id)                                                 \
   COL(thread_name, thread, name)                                        \
-  FROM(TestSliceTable, slice)                                           \
-  JOIN(TestThreadTrackTable, track, id, slice, track_id, View::kNoFlag) \
-  JOIN(TestThreadTable, thread, id, track, utid, View::kIdAlwaysPresent)
+  FROM(ViewSliceTable, slice)                                           \
+  JOIN(ViewThreadTrackTable, track, id, slice, track_id, View::kNoFlag) \
+  JOIN(ViewThreadTable, thread, id, track, utid, View::kIdAlwaysPresent)
 PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_THREAD_SLICE_VIEW_DEF);
-PERFETTO_TP_DEFINE_VIEW(TestThreadSliceView);
+PERFETTO_TP_DEFINE_VIEW(ViewThreadSliceView);
 
-class ThreadSliceViewTest : public AbstractViewTest<TestThreadSliceView> {
+class ThreadSliceViewTest : public AbstractViewTest<ViewThreadSliceView> {
  protected:
   ThreadSliceViewTest() {
     th1_id_ = thread_.Insert({Intern("th1"), 1}).id;
@@ -464,25 +434,25 @@ class ThreadSliceViewTest : public AbstractViewTest<TestThreadSliceView> {
     slice_table_.Insert({/* ts */ 107, t4_id_, Intern("ts107")});
   }
 
-  TestThreadSliceView& view() override { return slice_view_; }
+  ViewThreadSliceView& view() override { return slice_view_; }
 
-  TestThreadTable::Id th1_id_;
-  TestThreadTable::Id th2_id_;
+  ViewThreadTable::Id th1_id_;
+  ViewThreadTable::Id th2_id_;
 
-  TestTrackTable::Id t1_id_;
-  TestTrackTable::Id t2_id_;
-  TestTrackTable::Id t3_id_;
-  TestTrackTable::Id t4_id_;
-  TestTrackTable::Id t5_id_;
-  TestTrackTable::Id t6_id_;
+  ViewTrackTable::Id t1_id_;
+  ViewTrackTable::Id t2_id_;
+  ViewTrackTable::Id t3_id_;
+  ViewTrackTable::Id t4_id_;
+  ViewTrackTable::Id t5_id_;
+  ViewTrackTable::Id t6_id_;
 
  private:
-  TestEventTable event_{&pool_, nullptr};
-  TestSliceTable slice_table_{&pool_, &event_};
-  TestTrackTable track_{&pool_, nullptr};
-  TestThreadTrackTable thread_track_{&pool_, &track_};
-  TestThreadTable thread_{&pool_, nullptr};
-  TestThreadSliceView slice_view_{&slice_table_, &thread_track_, &thread_};
+  ViewEventTable event_{&pool_};
+  ViewSliceTable slice_table_{&pool_, &event_};
+  ViewTrackTable track_{&pool_};
+  ViewThreadTrackTable thread_track_{&pool_, &track_};
+  ViewThreadTable thread_{&pool_};
+  ViewThreadSliceView slice_view_{&slice_table_, &thread_track_, &thread_};
 };
 
 TEST_F(ThreadSliceViewTest, Iterate) {
@@ -600,5 +570,6 @@ TEST_F(ThreadSliceViewTest, FilterAndSort) {
 }
 
 }  // namespace
+}  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto
