@@ -31,6 +31,26 @@ import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
 
+function getTitleSize(title: string): string|undefined {
+  const length = title.length;
+  if (length > 55) {
+    return '9px';
+  }
+  if (length > 50) {
+    return '10px';
+  }
+  if (length > 45) {
+    return '11px';
+  }
+  if (length > 40) {
+    return '12px';
+  }
+  if (length > 35) {
+    return '13px';
+  }
+  return undefined;
+}
+
 function isPinned(id: string) {
   return globals.state.pinnedTracks.indexOf(id) !== -1;
 }
@@ -86,6 +106,9 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             'h1',
             {
               title: attrs.trackState.name,
+              style: {
+                'font-size': getTitleSize(attrs.trackState.name),
+              },
             },
             attrs.trackState.name,
             ('namespace' in attrs.trackState.config) &&
