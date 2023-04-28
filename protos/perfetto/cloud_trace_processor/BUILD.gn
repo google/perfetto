@@ -13,31 +13,13 @@
 # limitations under the License.
 
 import("../../../gn/proto_library.gni")
-import("proto_files.gni")
 
-perfetto_proto_library("@TYPE@") {
-  proto_generators = [
-    "lite",
-    "zero",
-    "source_set",
-  ]
-  deps = [ "../common:@TYPE@" ]  # needed for descriptor.proto.
-  sources = []
-  foreach(source, trace_processor_protos) {
-    sources += [ "$source.proto" ]
+if (enable_perfetto_grpc) {
+  perfetto_grpc_library("cloud_trace_processor_grpc") {
+    deps = [ "../trace_processor:lite" ]
+    sources = [
+      "orchestrator.proto",
+      "worker.proto",
+    ]
   }
-}
-
-perfetto_proto_library("stack_descriptor") {
-  proto_generators = [ "descriptor" ]
-  generate_descriptor = "stack.descriptor"
-  sources = [ "stack.proto" ]
-}
-
-perfetto_proto_library("metrics_impl_@TYPE@") {
-  proto_generators = [
-    "zero",
-    "source_set",
-  ]
-  sources = [ "metrics_impl.proto" ]
 }
