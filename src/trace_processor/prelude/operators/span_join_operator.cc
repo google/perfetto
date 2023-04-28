@@ -110,17 +110,14 @@ SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
 
 void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
                                           const TraceStorage* storage) {
-  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
+  RegistrationFlags flags;
+  flags.type = RegistrationFlags::kExplicitCreateStateless;
 
+  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join", flags);
   SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
-
+                                               flags);
   SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
+                                               flags);
 }
 
 util::Status SpanJoinOperatorTable::Init(int argc,
