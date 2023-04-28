@@ -67,7 +67,7 @@ def main():
     return os.path.join(args.import_prefix, get_relout_path(in_path))
 
   modules = [
-      os.path.splitext(get_relin_path(i).replace('/', '.'))[0]
+      os.path.splitext(get_relin_path(i).replace(os.sep, '.'))[0]
       for i in args.inputs
   ]
   headers: Dict[str, Header] = {}
