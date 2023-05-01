@@ -78,7 +78,7 @@ trace.add_atrace_end(ts=165, pid=APP_PID, tid=APP_TID)
 
 trace.add_atrace_begin(
     ts=170, pid=APP_PID, tid=APP_TID, buf='OpenDexFilesFromOat(something else)')
-trace.add_atrace_end(ts=175, pid=APP_PID, tid=APP_TID)
+trace.add_atrace_end(ts=5*10**8, pid=APP_PID, tid=APP_TID)
 
 # OpenDex slice outside the startup.
 trace.add_atrace_begin(
