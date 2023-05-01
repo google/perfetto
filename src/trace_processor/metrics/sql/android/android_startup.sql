@@ -395,9 +395,7 @@ SELECT
             > launches.dur * 0.15
 
         UNION ALL
-        SELECT 'Potential CPU contention with '
-          || MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id)
-          AS slow_cause
+        SELECT 'Potential CPU contention with another process' AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
           AND MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id) IS NOT NULL
 
