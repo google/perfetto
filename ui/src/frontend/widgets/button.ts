@@ -35,6 +35,8 @@ interface CommonAttrs {
   disabled?: boolean;
   // Optional right icon.
   rightIcon?: string;
+  // List of space separated class names forwarded to the icon.
+  className?: string;
   // Remaining attributes forwarded to the underlying HTML <button>.
   [htmlAttrs: string]: any;
 }
@@ -63,6 +65,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       minimal = false,
       disabled = false,
       rightIcon,
+      className,
       ...htmlAttrs
     } = attrs;
 
@@ -72,6 +75,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         compact && 'pf-compact',
         minimal && 'pf-minimal',
         (icon && !label) && 'pf-icon-only',
+        className,
     );
 
     return m(
