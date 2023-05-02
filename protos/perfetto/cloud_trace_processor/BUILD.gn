@@ -14,12 +14,25 @@
 
 import("../../../gn/proto_library.gni")
 
+SOURCES = [
+  "common.proto",
+  "orchestrator.proto",
+  "worker.proto",
+]
+
+perfetto_proto_library("@TYPE@") {
+  proto_generators = [
+    "lite",
+    "zero",
+    "source_set",
+  ]
+  deps = [ "../trace_processor:@TYPE@" ]  # needed for descriptor.proto.
+  sources = SOURCES
+}
+
 if (enable_perfetto_grpc) {
   perfetto_grpc_library("cloud_trace_processor_grpc") {
-    deps = [ "../trace_processor:lite" ]
-    sources = [
-      "orchestrator.proto",
-      "worker.proto",
-    ]
+    deps = [ ":lite" ]
+    sources = SOURCES
   }
 }
