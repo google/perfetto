@@ -16,9 +16,10 @@ import m from 'mithril';
 
 import {EngineProxy} from '../../common/engine';
 import {Button} from '../../frontend/widgets/button';
+import {Form, FormButtonBar, FormLabel} from '../../frontend/widgets/form';
 import {Select} from '../../frontend/widgets/select';
 import {TextInput} from '../../frontend/widgets/text_input';
-import {Tree, TreeNode} from '../../frontend/widgets/tree';
+
 import {addDebugTrack, SliceColumns} from './slice_track';
 
 export const ARG_PREFIX = 'arg_';
@@ -67,51 +68,59 @@ export class AddDebugTrackMenu implements
               },
               column));
       }
-      return m(TreeNode, {
-        left: name,
-        right: m(
-            Select,
-            {
-              oninput: (e: Event) => {
-                if (!e.target) return;
-                this.sliceColumns[name] = (e.target as HTMLSelectElement).value;
-              },
+      return [
+        m(FormLabel,
+          {for: name,
+          },
+          name),
+        m(Select,
+          {
+            id: name,
+            oninput: (e: Event) => {
+              if (!e.target) return;
+              this.sliceColumns[name] = (e.target as HTMLSelectElement).value;
             },
-            options),
-      });
+          },
+          options),
+      ];
     };
-    return [
-      m(
-          Tree,
-          m(TreeNode, {
-            left: 'Name',
-            right: m(TextInput, {
-              onkeydown: (e: KeyboardEvent) => {
-                // Allow Esc to close popup.
-                if (e.key === 'Escape') return;
-                e.stopPropagation();
-              },
-              oninput: (e: KeyboardEvent) => {
-                if (!e.target) return;
-                this.name = (e.target as HTMLInputElement).value;
+    return m(
+        Form,
+        m(FormLabel,
+          {for: 'track_name',
+          },
+          'Name'),
+        m(TextInput, {
+          id: 'track_name',
+          onkeydown: (e: KeyboardEvent) => {
+            // Allow Esc to close popup.
+            if (e.key === 'Escape') return;
+            e.stopPropagation();
+          },
+          oninput: (e: KeyboardEvent) => {
+            if (!e.target) return;
+            this.name = (e.target as HTMLInputElement).value;
+          },
+        }),
+        renderSelect('ts'),
+        renderSelect('dur'),
+        renderSelect('name'),
+        m(
+            FormButtonBar,
+            m(Button, {
+              label: 'Show',
+              className: 'pf-close-parent-popup-on-click',
+              onclick: (e: Event) => {
+                e.preventDefault();
+                addDebugTrack(
+                    vnode.attrs.engine,
+                    vnode.attrs.sqlViewName,
+                    this.name,
+                    this.sliceColumns,
+                    vnode.attrs.columns);
               },
             }),
-          }),
-          renderSelect('ts'),
-          renderSelect('dur'),
-          renderSelect('name'),
-          ),
-      m(Button, {
-        label: 'Show',
-        onclick: () => {
-          addDebugTrack(
-              vnode.attrs.engine,
-              vnode.attrs.sqlViewName,
-              this.name,
-              this.sliceColumns,
-              vnode.attrs.columns);
-        },
-      }),
-    ];
+            ),
+    );
   }
 }
