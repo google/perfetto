@@ -24,6 +24,7 @@ import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
+import {Form, FormButtonBar, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
@@ -585,6 +586,24 @@ export const WidgetsPage = createPage({
           },
           wide: true,
         }),
+        m('h2', 'Form'),
+        m(
+          WidgetShowcase, {
+            renderWidget: () => m(
+              Form,
+              m(FormLabel, {for: 'foo'}, 'Foo'),
+              m(TextInput, {id: 'foo'}),
+              m(FormLabel, {for: 'bar'}, 'Bar'),
+              m(Select, {id: 'bar'}, [
+                m('option', {value: 'foo', label: 'Foo'}),
+                m('option', {value: 'bar', label: 'Bar'}),
+                m('option', {value: 'baz', label: 'Baz'}),
+              ]),
+              m(FormButtonBar,
+                m(Button, {label: 'Submit', rightIcon: 'chevron_right'}),
+                m(Button, {label: 'Cancel', minimal: true}),
+              )),
+          }),
     );
   },
 });
