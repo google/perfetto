@@ -86,5 +86,11 @@ export function drawIncompleteSlice(
   ctx.lineTo(x + width - 3, y + (triangleSize * 3.5));
   ctx.lineTo(x + width, y + 4 * triangleSize);
   ctx.lineTo(x, y + height);
+
+  const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+  gradient.addColorStop(0.66, ctx.fillStyle as string);
+  gradient.addColorStop(1, '#FFFFFF');
+  ctx.fillStyle = gradient;
+
   ctx.fill();
 }
