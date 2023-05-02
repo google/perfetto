@@ -16,11 +16,43 @@
 
 #include "src/trace_processor/importers/common/track_tracker.h"
 
+#include <optional>
+
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
+#include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+namespace {
+
+const char* GetNameForGroup(TrackTracker::Group group) {
+  switch (group) {
+    case TrackTracker::Group::kMemory:
+      return "Memory";
+    case TrackTracker::Group::kIo:
+      return "IO";
+    case TrackTracker::Group::kVirtio:
+      return "Virtio";
+    case TrackTracker::Group::kNetwork:
+      return "Network";
+    case TrackTracker::Group::kPower:
+      return "Power";
+    case TrackTracker::Group::kDeviceState:
+      return "Device State";
+    case TrackTracker::Group::kThermals:
+      return "Thermals";
+    case TrackTracker::Group::kClockFrequency:
+      return "Clock Freqeuncy";
+    case TrackTracker::Group::kSizeSentinel:
+      PERFETTO_FATAL("Unexpected size passed as group");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+}  // namespace
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
@@ -193,7 +225,8 @@ TrackId TrackTracker::GetOrCreateTriggerTrack() {
   return *trigger_track_id_;
 }
 
-TrackId TrackTracker::InternGlobalCounterTrack(StringId name,
+TrackId TrackTracker::InternGlobalCounterTrack(TrackTracker::Group group,
+                                               StringId name,
                                                SetArgsCallback callback,
                                                StringId unit,
                                                StringId description) {
@@ -203,6 +236,7 @@ TrackId TrackTracker::InternGlobalCounterTrack(StringId name,
   }
 
   tables::CounterTrackTable::Row row(name);
+  row.parent_id = InternTrackForGroup(group);
   row.unit = unit;
   row.description = description;
   TrackId track =
@@ -378,6 +412,19 @@ TrackId TrackTracker::CreatePerfCounterTrack(StringId name,
   row.cpu = cpu;
   row.is_timebase = is_timebase;
   return context_->storage->mutable_perf_counter_track_table()->Insert(row).id;
+}
+
+TrackId TrackTracker::InternTrackForGroup(TrackTracker::Group group) {
+  uint32_t group_idx = static_cast<uint32_t>(group);
+  const std::optional<TrackId>& group_id = group_track_ids_[group_idx];
+  if (group_id) {
+    return *group_id;
+  }
+
+  StringId id = context_->storage->InternString(GetNameForGroup(group));
+  TrackId track_id = context_->storage->mutable_track_table()->Insert({id}).id;
+  group_track_ids_[group_idx] = track_id;
+  return track_id;
 }
 
 }  // namespace trace_processor
