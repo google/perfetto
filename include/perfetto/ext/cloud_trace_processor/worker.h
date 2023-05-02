@@ -38,6 +38,9 @@ class TracePoolShardSetTracesResponse;
 
 class TracePoolShardQueryArgs;
 class TracePoolShardQueryResponse;
+
+class TracePoolShardDestroyArgs;
+class TracePoolShardDestroyResponse;
 }  // namespace protos
 
 namespace cloud_trace_processor {
@@ -64,15 +67,15 @@ class Worker {
 
   // Associates the provided list of traces to this TracePoolShard.
   virtual base::StatusOrStream<protos::TracePoolShardSetTracesResponse>
-  TraceTracePoolShardSetTraces(const protos::TracePoolShardSetTracesArgs&) = 0;
+  TracePoolShardSetTraces(const protos::TracePoolShardSetTracesArgs&) = 0;
 
   // Executes a SQL query on the specified TracePoolShard.
   virtual base::StatusOrStream<protos::TracePoolShardQueryResponse>
-  TraceTracePoolShardQuery(const protos::TracePoolShardQueryArgs&) = 0;
+  TracePoolShardQuery(const protos::TracePoolShardQueryArgs&) = 0;
 
   // Destroys the TracePoolShard with the specified id.
   virtual base::StatusOrFuture<protos::TracePoolShardDestroyResponse>
-  TraceTracePoolShardDestroy(const protos::TracePoolShardDestroyArgs&) = 0;
+  TracePoolShardDestroy(const protos::TracePoolShardDestroyArgs&) = 0;
 };
 
 }  // namespace cloud_trace_processor

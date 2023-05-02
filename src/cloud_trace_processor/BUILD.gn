@@ -29,6 +29,8 @@ source_set("sources") {
   sources = [
     "trace_processor_wrapper.cc",
     "trace_processor_wrapper.h",
+    "worker_impl.cc",
+    "worker_impl.h",
   ]
   deps = [
     "../../gn:default_deps",
