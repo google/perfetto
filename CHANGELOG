@@ -29,6 +29,9 @@ v34.0 - 2023-05-02:
     * The new DataSourceBase::OnFlush() method allows users to properly handle
       Flush requests.
 
+v33.1 - 2023-03-03:
+  Identical to v33.0. Version was bumped to work around prebuilt infra failures.
+
 v33.0 - 2023-03-02:
   All:
     * Switched to a C++17-only project by removing C++11 opt-out. This completes
