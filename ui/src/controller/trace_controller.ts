@@ -377,6 +377,8 @@ export class TraceController extends Controller<States> {
       traceStream = new TraceBufferStream(engineCfg.source.buffer);
     } else if (engineCfg.source.type === 'URL') {
       traceStream = new TraceHttpStream(engineCfg.source.url);
+    } else if (engineCfg.source.type === 'STREAM') {
+      traceStream = engineCfg.source.stream;
     } else if (engineCfg.source.type === 'HTTP_RPC') {
       traceStream = undefined;
     } else {

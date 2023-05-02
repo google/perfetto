@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TraceStream} from '../controller/trace_stream';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
@@ -217,12 +218,17 @@ export interface TraceUrlSource {
   url: string;
 }
 
+export interface TraceStreamSource {
+  type: 'STREAM',
+  stream: TraceStream
+}
+
 export interface TraceHttpRpcSource {
   type: 'HTTP_RPC';
 }
 
 export type TraceSource =
-    TraceFileSource|TraceArrayBufferSource|TraceUrlSource|TraceHttpRpcSource;
+    TraceFileSource|TraceArrayBufferSource|TraceUrlSource|TraceStreamSource|TraceHttpRpcSource;
 
 export interface TrackState {
   id: string;
