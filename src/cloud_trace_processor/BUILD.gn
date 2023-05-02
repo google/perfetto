@@ -27,6 +27,8 @@ static_library("cloud_trace_processor") {
 
 source_set("sources") {
   sources = [
+    "orchestrator_impl.cc",
+    "orchestrator_impl.h",
     "trace_processor_wrapper.cc",
     "trace_processor_wrapper.h",
     "worker_impl.cc",
