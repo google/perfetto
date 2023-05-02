@@ -136,9 +136,12 @@ Stream<T> RunOnThreadPool(ThreadPool* pool,
 
    private:
     void RunFn() {
-      pool_->PostTask([channel = channel_, fn = fn_]() {
+      pool_->PostTask([channel = channel_, fn = fn_]() mutable {
         auto opt_value = (*fn)();
         if (!opt_value) {
+          // Clear out the function to ensure that any captured state is freed
+          // before we inform the caller.
+          fn.reset();
           channel->Close();
           return;
         }
