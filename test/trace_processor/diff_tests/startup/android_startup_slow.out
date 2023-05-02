@@ -66,6 +66,6 @@ android_startup {
     slow_start_reason: "Main Thread - Time spent in Runnable state"
     slow_start_reason: "Main Thread - Time spent in interruptible sleep state"
     slow_start_reason: "Main Thread - Time spent in Blocking I/O"
-    slow_start_reason: "Potential CPU contention with init"
+    slow_start_reason: "Potential CPU contention with another process"
   }
 }
