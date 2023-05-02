@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {featureFlags} from '../common/feature_flags';
 import {TimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -34,6 +35,13 @@ import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 
 const SIDEBAR_WIDTH = 256;
+
+const OVERVIEW_PANEL_FLAG = featureFlags.register({
+  id: 'overviewVisible',
+  name: 'Overview Panel',
+  description: 'Show the panel providing an overview of the trace',
+  defaultValue: true,
+});
 
 // Checks if the mousePos is within 3px of the start or end of the
 // current selected time range.
@@ -252,6 +260,11 @@ class TraceViewer implements m.ClassComponent {
       } as TrackGroupAttrs));
     }
 
+    const overviewPanel = [];
+    if (OVERVIEW_PANEL_FLAG.get()) {
+      overviewPanel.push(m(OverviewTimelinePanel, {key: 'overview'}));
+    }
+
     return m(
         '.page',
         m('.split-panel',
@@ -269,7 +282,7 @@ class TraceViewer implements m.ClassComponent {
             m('.pinned-panel-container', m(PanelContainer, {
                 doesScroll: false,
                 panels: [
-                  m(OverviewTimelinePanel, {key: 'overview'}),
+                  ...overviewPanel,
                   m(TimeAxisPanel, {key: 'timeaxis'}),
                   m(TimeSelectionPanel, {key: 'timeselection'}),
                   m(NotesPanel, {key: 'notes'}),
