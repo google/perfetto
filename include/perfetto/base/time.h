@@ -183,6 +183,10 @@ inline TimeSeconds GetBootTimeS() {
   return std::chrono::duration_cast<TimeSeconds>(GetBootTimeNs());
 }
 
+inline TimeMillis GetBootTimeMs() {
+  return std::chrono::duration_cast<TimeMillis>(GetBootTimeNs());
+}
+
 inline TimeMillis GetWallTimeMs() {
   return std::chrono::duration_cast<TimeMillis>(GetWallTimeNs());
 }

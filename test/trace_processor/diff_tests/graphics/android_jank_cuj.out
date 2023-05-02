@@ -1,7 +1,8 @@
 android_jank_cuj {
   cuj {
     id: 1
-    name: "SHOULD_BE_IGNORED"
+    name: "FIRST_CUJ"
+    layer_name: "TX - NotificationShade#0"
     process {
       name: "com.android.systemui"
       uid: 10001
@@ -163,6 +164,7 @@ android_jank_cuj {
   cuj {
     id: 2
     name: "SHADE_ROW_EXPAND"
+    layer_name: "TX - NotificationShade#0"
     process {
       name: "com.android.systemui"
       uid: 10001
@@ -280,6 +282,15 @@ android_jank_cuj {
     }
     frame {
       frame_number: 12
+      vsync: 145
+      ts: 650000000
+      dur: 20000000
+      app_missed: false
+      sf_missed: false
+      dur_expected: 20000000
+    }
+    frame {
+      frame_number: 13
       vsync: 150
       ts: 700000000
       dur: 15000000
@@ -344,7 +355,7 @@ android_jank_cuj {
       dur_expected: 16000000
     }
     counter_metrics {
-      total_frames: 12
+      total_frames: 13
       missed_frames: 8
       missed_app_frames: 7
       missed_sf_frames: 2
@@ -352,36 +363,36 @@ android_jank_cuj {
       frame_dur_max: 62000000
     }
     timeline_metrics {
-      total_frames: 12
+      total_frames: 13
       missed_frames: 8
       missed_app_frames: 7
       missed_sf_frames: 2
       frame_dur_max: 61000000
-      frame_dur_avg: 27791666
-      frame_dur_p50: 22500000
-      frame_dur_p90: 58900000
+      frame_dur_avg: 27192307
+      frame_dur_p50: 22000000
+      frame_dur_p90: 56800000
       frame_dur_p95: 61000000
       frame_dur_p99: 61000000
-      frame_dur_ms_p50: 22.5
-      frame_dur_ms_p90: 58.900000000000006
-      frame_dur_ms_p95: 61.0
-      frame_dur_ms_p99: 61.0
+      frame_dur_ms_p50: 22.000000
+      frame_dur_ms_p90: 56.80000000000001
+      frame_dur_ms_p95: 61.000000
+      frame_dur_ms_p99: 61.000000
     }
     trace_metrics {
-      total_frames: 12
+      total_frames: 13
       missed_frames: 8
       missed_app_frames: 7
       missed_sf_frames: 2
       frame_dur_max: 61000000
-      frame_dur_avg: 32716666
-      frame_dur_p50: 25300000
-      frame_dur_p90: 60500000
+      frame_dur_avg: 31738461
+      frame_dur_p50: 25000000
+      frame_dur_p90: 60000000
       frame_dur_p95: 61000000
       frame_dur_p99: 61000000
-      frame_dur_ms_p50: 25.3
-      frame_dur_ms_p90: 60.5
-      frame_dur_ms_p95: 61.0
-      frame_dur_ms_p99: 61.0
+      frame_dur_ms_p50: 25.000000
+      frame_dur_ms_p90: 60.000000
+      frame_dur_ms_p95: 61.000000
+      frame_dur_ms_p99: 61.000000
     }
   }
 }

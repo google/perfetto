@@ -1,0 +1,47 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Standard theme settings for widgets
+
+$pf-font: "Roboto Condensed", sans-serif;
+$pf-border-radius: 2px;
+$pf-anim-timing: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+// Here we describe two colour schemes: primary and minimal
+// It is assumed widgets exist on a light background
+// Primary is to be used for things like buttons and checkboxes
+// Minimal is to be used for things like inputs and labels
+// Some controls (i.e. checkboxes) may mix and match both in the same widget.
+// Other controls might use the primary scheme by default, but have a minimal
+// configuration which makes them use the minimal colour scheme.
+
+$pf-primary-foreground: #fff;
+$pf-primary-foreground-disabled: #aaa;
+$pf-primary-background: #3d5688;
+$pf-primary-background-hover: #4966a2;
+$pf-primary-background-active: #243e71;
+$pf-primary-background-disabled: #666;
+
+$pf-minimal-foreground: #19212b;
+$pf-minimal-foreground-disabled: #aaa;
+$pf-minimal-background: none;
+$pf-minimal-background-hover: #0001;
+$pf-minimal-background-active: #0002;
+$pf-minimal-background-disabled: none;
+
+$pf-colour-thin-border: #aaa;
+
+@mixin focus {
+  outline: 2px auto #64b5f6;
+}

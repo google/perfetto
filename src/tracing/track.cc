@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/thread_utils.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/tracing/internal/track_event_data_source.h"
+#include "perfetto/tracing/internal/track_event_internal.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.gen.h"
 #include "protos/perfetto/trace/track_event/process_descriptor.pbzero.h"
@@ -81,10 +82,26 @@ protos::gen::TrackDescriptor ThreadTrack::Serialize() const {
   auto td = desc.mutable_thread();
   td->set_pid(static_cast<int32_t>(pid));
   td->set_tid(static_cast<int32_t>(tid));
+  if (disallow_merging_with_system_tracks) {
+    desc.set_disallow_merging_with_system_tracks(true);
+  }
   std::string thread_name;
   if (base::GetThreadName(thread_name))
     td->set_thread_name(thread_name);
   return desc;
+}
+
+// static
+ThreadTrack ThreadTrack::Current() {
+  return ThreadTrack(
+      internal::TracingMuxer::Get()->GetCurrentThreadId(),
+      internal::TrackEventInternal::GetDisallowMergingWithSystemTracks());
+}
+
+// static
+ThreadTrack ThreadTrack::ForThread(base::PlatformThreadId tid_) {
+  return ThreadTrack(
+      tid_, internal::TrackEventInternal::GetDisallowMergingWithSystemTracks());
 }
 
 void ThreadTrack::Serialize(protos::pbzero::TrackDescriptor* desc) const {
@@ -161,8 +178,6 @@ TrackRegistry::~TrackRegistry() = default;
 
 // static
 void TrackRegistry::InitializeInstance() {
-  // TODO(eseckler): Chrome may call this more than once. Once Chrome doesn't
-  // call this directly anymore, bring back DCHECK(!instance_) instead.
   if (instance_)
     return;
   instance_ = new TrackRegistry();

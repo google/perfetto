@@ -53,6 +53,8 @@ export const recordConfigValidator = record({
   androidLogBuffers: arrayOf(str()),
   androidFrameTimeline: bool(),
   androidGameInterventionList: bool(),
+  androidNetworkTracing: bool(),
+  androidNetworkTracingPollMs: num(250),
 
   cpuCoarse: bool(),
   cpuCoarsePollMs: num(1000),

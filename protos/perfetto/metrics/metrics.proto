@@ -20,6 +20,7 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
+import "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
 import "protos/perfetto/metrics/android/camera_unagg_metric.proto";
@@ -55,6 +56,7 @@ import "protos/perfetto/metrics/android/trace_quality.proto";
 import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
+import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -100,7 +102,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 49
+// Next id: 50
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -231,6 +233,11 @@ message TraceMetrics {
 
   // Metrics for app deadline missed.
   optional AndroidFrameTimelineMetric android_frame_timeline_metric = 47;
+
+  // Blocking calls (e.g. binder calls) for CUJs (important UI transitions).
+  optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
+
+  optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   // Demo extensions.
   extensions 450 to 499;

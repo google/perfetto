@@ -26,7 +26,7 @@ import "protos/perfetto/config/data_source_config.proto";
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 35.
+// Next id: 37.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -128,6 +128,15 @@ message TraceConfig {
   // However in case of traces with triggers, see
   // TriggerConfig.trigger_timeout_ms instead.
   optional uint32 duration_ms = 3;
+
+  // If true, tries to use CLOCK_BOOTTIME for duration_ms rather than
+  // CLOCK_MONOTONIC (which doesn't count time in suspend). Supported only on
+  // Linux/Android, no-op on other platforms. This is used when dealing with
+  // long (e.g. 24h) traces, where suspend can inflate them to weeks of
+  // wall-time, making them more likely to hit device reboots (and hence loss).
+  // This option also changes consistently the semantic of
+  // TrigerConfig.stop_delay_ms.
+  optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
   // and enables guardrails that limit resource usage for traces requested
@@ -281,6 +290,10 @@ message TraceConfig {
       // |stop_delay_ms| and any data in the buffer will be returned to the
       // consumer.
       STOP_TRACING = 2;
+
+      // NOTE: do not add new enum values here because of a subtle backward
+      // compat bug which might cause indefinite tracing on older versions of
+      // the service. See b/274931668 .
     }
     optional TriggerMode trigger_mode = 1;
 
@@ -295,6 +308,8 @@ message TraceConfig {
 
       // After a trigger is received either in START_TRACING or STOP_TRACING
       // mode then the trace will end |stop_delay_ms| after triggering.
+      // If |prefer_suspend_clock_for_duration| is set, the duration will be
+      // based on wall-clock, counting also time in suspend.
       optional uint32 stop_delay_ms = 3;
 
       // Limits the number of traces this trigger can start/stop in a rolling

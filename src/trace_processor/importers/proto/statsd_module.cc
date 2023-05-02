@@ -146,7 +146,7 @@ PoolAndDescriptor::PoolAndDescriptor(const uint8_t* data,
                                      size_t size,
                                      const char* name) {
   pool_.AddFromFileDescriptorSet(data, size);
-  base::Optional<uint32_t> opt_idx = pool_.FindDescriptorIdx(name);
+  std::optional<uint32_t> opt_idx = pool_.FindDescriptorIdx(name);
   if (opt_idx.has_value()) {
     descriptor_ = &pool_.descriptors()[opt_idx.value()];
   }
@@ -172,7 +172,7 @@ void StatsdModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
   }
   const auto& atoms_wrapper =
       protos::pbzero::StatsdAtom::Decoder(decoder.statsd_atom());
-  for (auto it = atoms_wrapper.nested(); it; ++it) {
+  for (auto it = atoms_wrapper.atom(); it; ++it) {
     ParseAtom(ts, *it);
   }
 }
@@ -195,7 +195,7 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
 
   AsyncTrackSetTracker::TrackSetId track_set = InternAsyncTrackSetId();
   TrackId track = context_->async_track_set_tracker->Scoped(track_set, ts, 0);
-  base::Optional<SliceId> opt_slice =
+  std::optional<SliceId> opt_slice =
       context_->slice_tracker->Scoped(ts, track, kNullStringId, atom_name, 0);
   if (!opt_slice) {
     return;

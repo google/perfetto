@@ -88,7 +88,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
-      base::Optional<SliceId> slice_id =
+      std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
       uint64_t hash = base::Hasher::Combine(evt.device_minor, evt.sequence,
@@ -129,7 +129,7 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
-      base::Optional<SliceId> slice_id =
+      std::optional<SliceId> slice_id =
           AddSlice(buf_name_id, timestamp, pid, evt);
 
       uint64_t hash = base::Hasher::Combine(evt.device_minor, evt.sequence,
@@ -150,9 +150,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       Vb2V4l2BufQueueFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
-      evt.index = base::nullopt;
-      evt.type = base::nullopt;
-      evt.bytesused = base::nullopt;
+      evt.index = std::nullopt;
+      evt.type = std::nullopt;
+      evt.bytesused = std::nullopt;
       evt.flags = pb_evt.flags();
       evt.field = pb_evt.field();
       evt.timestamp = pb_evt.timestamp();
@@ -168,10 +168,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       evt.timecode_userbits2 = pb_evt.timecode_userbits2();
       evt.timecode_userbits3 = pb_evt.timecode_userbits3();
 
-      base::StackString<64> buf_name(
-          "vb2_v4l2_buf_queue minor=%" PRIu32 " seq=%" PRIu32 " type=%" PRIu32
-          " index=%" PRIu32,
-          evt.device_minor, evt.sequence, *evt.type, *evt.index);
+      base::StackString<64> buf_name("vb2_v4l2_buf_queue minor=%" PRIu32
+                                     " seq=%" PRIu32 " type=0 index=0",
+                                     evt.device_minor, evt.sequence);
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
@@ -182,9 +181,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       Vb2V4l2BufDoneFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
-      evt.index = base::nullopt;
-      evt.type = base::nullopt;
-      evt.bytesused = base::nullopt;
+      evt.index = std::nullopt;
+      evt.type = std::nullopt;
+      evt.bytesused = std::nullopt;
       evt.flags = pb_evt.flags();
       evt.field = pb_evt.field();
       evt.timestamp = pb_evt.timestamp();
@@ -200,10 +199,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       evt.timecode_userbits2 = pb_evt.timecode_userbits2();
       evt.timecode_userbits3 = pb_evt.timecode_userbits3();
 
-      base::StackString<64> buf_name(
-          "vb2_v4l2_buf_done minor=%" PRIu32 " seq=%" PRIu32 " type=%" PRIu32
-          " index=%" PRIu32,
-          evt.device_minor, evt.sequence, *evt.type, *evt.index);
+      base::StackString<64> buf_name("vb2_v4l2_buf_done minor=%" PRIu32
+                                     " seq=%" PRIu32 " type=0 index=0",
+                                     evt.device_minor, evt.sequence);
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
@@ -214,9 +212,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       Vb2V4l2QbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
-      evt.index = base::nullopt;
-      evt.type = base::nullopt;
-      evt.bytesused = base::nullopt;
+      evt.index = std::nullopt;
+      evt.type = std::nullopt;
+      evt.bytesused = std::nullopt;
       evt.flags = pb_evt.flags();
       evt.field = pb_evt.field();
       evt.timestamp = pb_evt.timestamp();
@@ -232,10 +230,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       evt.timecode_userbits2 = pb_evt.timecode_userbits2();
       evt.timecode_userbits3 = pb_evt.timecode_userbits3();
 
-      base::StackString<64> buf_name(
-          "vb2_v4l2_qbuf minor=%" PRIu32 " seq=%" PRIu32 " type=%" PRIu32
-          " index=%" PRIu32,
-          evt.device_minor, evt.sequence, *evt.type, *evt.index);
+      base::StackString<64> buf_name("vb2_v4l2_qbuf minor=%" PRIu32
+                                     " seq=%" PRIu32 " type=0 index=0",
+                                     evt.device_minor, evt.sequence);
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
@@ -246,9 +243,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       Vb2V4l2DqbufFtraceEvent::Decoder pb_evt(bytes.data, bytes.size);
       BufferEvent evt;
       evt.device_minor = pb_evt.minor();
-      evt.index = base::nullopt;
-      evt.type = base::nullopt;
-      evt.bytesused = base::nullopt;
+      evt.index = std::nullopt;
+      evt.type = std::nullopt;
+      evt.bytesused = std::nullopt;
       evt.flags = pb_evt.flags();
       evt.field = pb_evt.field();
       evt.timestamp = pb_evt.timestamp();
@@ -264,10 +261,9 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
       evt.timecode_userbits2 = pb_evt.timecode_userbits2();
       evt.timecode_userbits3 = pb_evt.timecode_userbits3();
 
-      base::StackString<64> buf_name(
-          "vb2_v4l2_qbuf minor=%" PRIu32 " seq=%" PRIu32 " type=%" PRIu32
-          " index=%" PRIu32,
-          evt.device_minor, evt.sequence, *evt.type, *evt.index);
+      base::StackString<64> buf_name("vb2_v4l2_qbuf minor=%" PRIu32
+                                     " seq=%" PRIu32 " type=0 index=0",
+                                     evt.device_minor, evt.sequence);
 
       StringId buf_name_id =
           context_->storage->InternString(buf_name.string_view());
@@ -279,14 +275,14 @@ void V4l2Tracker::ParseV4l2Event(uint64_t fld_id,
   }
 }
 
-base::Optional<SliceId> V4l2Tracker::AddSlice(StringId buf_name_id,
-                                              int64_t timestamp,
-                                              uint32_t pid,
-                                              const BufferEvent& evt) {
+std::optional<SliceId> V4l2Tracker::AddSlice(StringId buf_name_id,
+                                             int64_t timestamp,
+                                             uint32_t pid,
+                                             const BufferEvent& evt) {
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
-  base::Optional<SliceId> slice_id = context_->slice_tracker->Scoped(
+  std::optional<SliceId> slice_id = context_->slice_tracker->Scoped(
       timestamp, track_id, buf_event_ids_.v4l2, buf_name_id, 0,
       [this, &evt](ArgsTracker::BoundInserter* inserter) {
         this->AddArgs(evt, inserter);

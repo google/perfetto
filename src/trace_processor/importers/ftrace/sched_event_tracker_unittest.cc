@@ -68,7 +68,7 @@ TEST_F(SchedEventTrackerTest, InsertSecondSched) {
 
   const auto& timestamps = context.storage->sched_slice_table().ts();
   ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->thread_table().start_ts()[1], base::nullopt);
+  ASSERT_EQ(context.storage->thread_table().start_ts()[1], std::nullopt);
 
   auto name = context.storage->thread_table().name().GetString(1);
   ASSERT_STREQ(name.c_str(), kCommProc1);
@@ -102,7 +102,7 @@ TEST_F(SchedEventTrackerTest, InsertThirdSched_SameThread) {
 
   const auto& timestamps = context.storage->sched_slice_table().ts();
   ASSERT_EQ(timestamps[0], timestamp);
-  ASSERT_EQ(context.storage->thread_table().start_ts()[1], base::nullopt);
+  ASSERT_EQ(context.storage->thread_table().start_ts()[1], std::nullopt);
   ASSERT_EQ(context.storage->sched_slice_table().dur()[0], 1u);
   ASSERT_EQ(context.storage->sched_slice_table().dur()[1], 11u - 1u);
   ASSERT_EQ(context.storage->sched_slice_table().dur()[2], 31u - 11u);
@@ -125,14 +125,14 @@ TEST_F(SchedEventTrackerTest, UpdateThreadMatch) {
                                  prio, prev_state,
                                  /*tid=*/1, kCommProc2, prio);
 
-  context.process_tracker->SetProcessMetadata(2, base::nullopt, "test",
+  context.process_tracker->SetProcessMetadata(2, std::nullopt, "test",
                                               base::StringView());
   context.process_tracker->UpdateThread(4, 2);
 
   ASSERT_EQ(context.storage->thread_table().tid()[1], 4u);
   ASSERT_EQ(context.storage->thread_table().upid()[1].value(), 1u);
   ASSERT_EQ(context.storage->process_table().pid()[1], 2u);
-  ASSERT_EQ(context.storage->process_table().start_ts()[1], base::nullopt);
+  ASSERT_EQ(context.storage->process_table().start_ts()[1], std::nullopt);
 }
 
 }  // namespace

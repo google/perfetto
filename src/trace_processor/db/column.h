@@ -18,9 +18,9 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_H_
 
 #include <stdint.h>
+#include <optional>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
@@ -100,7 +100,7 @@ struct ColumnTypeHelper<StringPool::Id> {
   static constexpr ColumnType ToColumnType() { return ColumnType::kString; }
 };
 template <typename T>
-struct ColumnTypeHelper<base::Optional<T>> : public ColumnTypeHelper<T> {};
+struct ColumnTypeHelper<std::optional<T>> : public ColumnTypeHelper<T> {};
 
 class Table;
 
@@ -262,7 +262,7 @@ class Column {
   SqlValue Get(uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
 
   // Returns the row containing the given value in the Column.
-  base::Optional<uint32_t> IndexOf(SqlValue value) const {
+  std::optional<uint32_t> IndexOf(SqlValue value) const {
     switch (type_) {
       // TODO(lalitm): investigate whether we could make this more efficient
       // by first checking the type of the column and comparing explicitly
@@ -276,11 +276,11 @@ class Column {
           if (compare::SqlValue(Get(i), value) == 0)
             return i;
         }
-        return base::nullopt;
+        return std::nullopt;
       }
       case ColumnType::kId: {
         if (value.type != SqlValue::Type::kLong)
-          return base::nullopt;
+          return std::nullopt;
         return overlay().RowOf(static_cast<uint32_t>(value.long_value));
       }
       case ColumnType::kDummy:
@@ -328,11 +328,11 @@ class Column {
     FilterIntoSlow(op, value, rm);
   }
 
-  // Returns the minimum value in this column. Returns nullopt if this column
-  // is empty.
-  base::Optional<SqlValue> Min() const {
+  // Returns the minimum value in this column. Returns std::nullopt if this
+  // column is empty.
+  std::optional<SqlValue> Min() const {
     if (overlay().empty())
-      return base::nullopt;
+      return std::nullopt;
 
     if (IsSorted())
       return Get(0);
@@ -342,11 +342,11 @@ class Column {
     return *std::min_element(b, e, &compare::SqlValueComparator);
   }
 
-  // Returns the minimum value in this column. Returns nullopt if this column
-  // is empty.
-  base::Optional<SqlValue> Max() const {
+  // Returns the minimum value in this column. Returns std::nullopt if this
+  // column is empty.
+  std::optional<SqlValue> Max() const {
     if (overlay().empty())
-      return base::nullopt;
+      return std::nullopt;
 
     if (IsSorted())
       return Get(overlay().size() - 1);
@@ -525,7 +525,7 @@ class Column {
   template <typename T>
   SqlValue GetAtIdxTyped(uint32_t idx) const {
     if (IsNullable()) {
-      auto opt_value = storage<base::Optional<T>>().Get(idx);
+      auto opt_value = storage<std::optional<T>>().Get(idx);
       return opt_value ? ToSqlValue(*opt_value) : SqlValue();
     }
     return ToSqlValue(storage<T>().Get(idx));

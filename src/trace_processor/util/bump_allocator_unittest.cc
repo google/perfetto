@@ -70,26 +70,13 @@ TEST_F(BumpAllocatorUnittest, EraseFrontAtAnyTime) {
   allocator_.EraseFrontFreeChunks();
 }
 
-TEST_F(BumpAllocatorUnittest, Serialize) {
-  BumpAllocator::AllocId id = allocator_.Alloc(8);
-  ASSERT_EQ(id.Serialize(), 0u);
-  ASSERT_EQ(allocator_.PastEndSerializedId(), 8u);
+TEST_F(BumpAllocatorUnittest, PastEndOnChunkBoundary) {
+  BumpAllocator::AllocId id = allocator_.Alloc(BumpAllocator::kChunkSize);
+  BumpAllocator::AllocId past_end = allocator_.PastTheEndId();
+  ASSERT_GT(past_end, id);
+  ASSERT_EQ(past_end.chunk_index, 1u);
+  ASSERT_EQ(past_end.chunk_offset, 0u);
   allocator_.Free(id);
-
-  id = allocator_.Alloc(8);
-  ASSERT_EQ(id.Serialize(), 8u);
-  allocator_.Free(id);
-
-  id = allocator_.Alloc(BumpAllocator::kChunkSize);
-  ASSERT_EQ(id.Serialize(), BumpAllocator::kChunkSize);
-  allocator_.Free(id);
-}
-
-TEST_F(BumpAllocatorUnittest, HighNumberSerialize) {
-  BumpAllocator::AllocId id = BumpAllocator::AllocId::FromSerialized(1138352);
-  ASSERT_EQ(id.chunk_index, 1138352 / BumpAllocator::kChunkSize);
-  ASSERT_EQ(id.chunk_offset, 1138352 % BumpAllocator::kChunkSize);
-  ASSERT_EQ(id.Serialize(), 1138352u);
 }
 
 TEST_F(BumpAllocatorUnittest, EraseFrontAccounting) {
@@ -105,8 +92,7 @@ TEST_F(BumpAllocatorUnittest, EraseFrontFreeChunk) {
   AllocateWriteReadAndFree(8);
   allocator_.EraseFrontFreeChunks();
 
-  auto past_id =
-      BumpAllocator::AllocId::FromSerialized(allocator_.PastEndSerializedId());
+  auto past_id = allocator_.PastTheEndId();
   ASSERT_EQ(past_id.chunk_index, 1u);
   ASSERT_EQ(past_id.chunk_offset, 0u);
 

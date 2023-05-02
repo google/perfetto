@@ -15,11 +15,10 @@
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {QueryError} from '../common/query_result';
-import {globals as frontendGlobals} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {publishMetricResult} from '../frontend/publish';
 
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export class MetricsController extends Controller<'main'> {
   private engine: Engine;
@@ -38,7 +37,7 @@ export class MetricsController extends Controller<'main'> {
       const metricResult = await this.engine.computeMetric([name]);
       publishMetricResult({
         name,
-        resultString: metricResult.metricsAsPrototext,
+        resultString: metricResult.metricsAsPrototext || undefined,
       });
     } catch (e) {
       if (e instanceof QueryError) {
@@ -49,7 +48,7 @@ export class MetricsController extends Controller<'main'> {
         throw e;
       }
     }
-    frontendGlobals.dispatch(Actions.resetMetricRequest({name}));
+    globals.dispatch(Actions.resetMetricRequest({name}));
     this.currentlyRunningMetric = undefined;
   }
 

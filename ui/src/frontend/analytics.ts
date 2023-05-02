@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {getCurrentChannel} from '../common/channels';
-import {globals} from '../frontend/globals';
-import * as version from '../gen/perfetto_version';
+import {VERSION} from '../gen/perfetto_version';
 
+import {globals} from './globals';
 import {Router} from './router';
 
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
@@ -105,7 +105,7 @@ class AnalyticsImpl implements Analytics {
       send_page_view: false,
       page_title: PAGE_TITLE,
       dimension1: globals.isInternalUser ? '1' : '0',
-      dimension2: version.VERSION,
+      dimension2: VERSION,
       dimension3: getCurrentChannel(),
     });
     this.updatePath(route);

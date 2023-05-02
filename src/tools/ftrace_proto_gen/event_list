@@ -470,3 +470,8 @@ mali/mali_KCPU_CQS_WAIT_END
 mali/mali_KCPU_FENCE_SIGNAL
 mali/mali_KCPU_FENCE_WAIT_START
 mali/mali_KCPU_FENCE_WAIT_END
+hyp/hyp_enter
+hyp/hyp_exit
+hyp/host_hcall
+hyp/host_smc
+hyp/host_mem_abort

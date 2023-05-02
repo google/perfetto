@@ -59,7 +59,7 @@ struct DataSourceState {
   // Keep this flag as the first field. This allows the compiler to directly
   // dereference the DataSourceState* pointer in the trace fast-path without
   // doing extra pointr arithmetic.
-  std::atomic<bool> trace_lambda_enabled = false;
+  std::atomic<bool> trace_lambda_enabled{false};
 
   // The overall TracingMuxerImpl instance id, which gets incremented by
   // ResetForTesting.

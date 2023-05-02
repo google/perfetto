@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {timeToString} from '../common/time';
 import {TimeSpan} from '../common/time';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {
+  BACKGROUND_COLOR,
+  FOREGROUND_COLOR,
+  TRACK_SHELL_WIDTH,
+} from './css_constants';
 import {globals} from './globals';
 import {
   TickGenerator,
@@ -41,7 +45,7 @@ export interface BBox {
 // the positioning of the label to ensure it is on screen.
 function drawHBar(
     ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox, label: string) {
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = FOREGROUND_COLOR;
 
   const xLeft = Math.floor(target.x);
   const xRight = Math.ceil(target.x + target.width);
@@ -80,11 +84,11 @@ function drawHBar(
     }
   }
 
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(labelXLeft - 1, 0, labelWidth + 1, target.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = FOREGROUND_COLOR;
   ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, labelXLeft, yMid);
 }
@@ -93,7 +97,7 @@ function drawIBar(
     ctx: CanvasRenderingContext2D, xPos: number, bounds: BBox, label: string) {
   if (xPos < bounds.x) return;
 
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = FOREGROUND_COLOR;
   ctx.fillRect(xPos, 0, 1, bounds.width);
 
   const yMid = Math.floor(bounds.height / 2 + bounds.y);
@@ -109,11 +113,11 @@ function drawIBar(
     ctx.textAlign = 'left';
   }
 
-  ctx.fillStyle = '#ffffff';
+  ctx.fillStyle = BACKGROUND_COLOR;
   ctx.fillRect(xPosLabel - 1, 0, labelWidth + 2, bounds.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#222';
+  ctx.fillStyle = FOREGROUND_COLOR;
   ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, xPosLabel, yMid);
 }
@@ -148,8 +152,8 @@ export class TimeSelectionPanel extends Panel {
       this.renderSpan(ctx, size, new TimeSpan(start, end));
     }
 
-    if (globals.state.hoveredLogsTimestamp !== -1) {
-      this.renderHover(ctx, size, globals.state.hoveredLogsTimestamp);
+    if (globals.state.hoverCursorTimestamp !== -1) {
+      this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
     }
 
     for (const note of Object.values(globals.state.notes)) {

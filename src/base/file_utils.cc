@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <deque>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -28,7 +29,6 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/platform.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/utils.h"
@@ -54,11 +54,11 @@ int CloseFindHandle(HANDLE h) {
   return FindClose(h) ? 0 : -1;
 }
 
-Optional<std::wstring> ToUtf16(const std::string str) {
+std::optional<std::wstring> ToUtf16(const std::string str) {
   int len = MultiByteToWideChar(CP_UTF8, 0, str.data(),
                                 static_cast<int>(str.size()), nullptr, 0);
   if (len < 0) {
-    return base::nullopt;
+    return std::nullopt;
   }
   std::vector<wchar_t> tmp;
   tmp.resize(static_cast<std::vector<wchar_t>::size_type>(len));
@@ -66,7 +66,7 @@ Optional<std::wstring> ToUtf16(const std::string str) {
       MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.size()),
                           tmp.data(), static_cast<int>(tmp.size()));
   if (len < 0) {
-    return base::nullopt;
+    return std::nullopt;
   }
   PERFETTO_CHECK(static_cast<std::vector<wchar_t>::size_type>(len) ==
                  tmp.size());
@@ -344,35 +344,6 @@ std::string GetFileExtension(const std::string& filename) {
   if (ext_idx == std::string::npos)
     return std::string();
   return filename.substr(ext_idx);
-}
-
-base::Optional<size_t> GetFileSize(const std::string& file_path) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-  HANDLE file =
-      CreateFileA(file_path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr,
-                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
-  if (file == INVALID_HANDLE_VALUE) {
-    return nullopt;
-  }
-  LARGE_INTEGER file_size;
-  file_size.QuadPart = 0;
-  BOOL ok = GetFileSizeEx(file, &file_size);
-  CloseHandle(file);
-  if (!ok) {
-    return nullopt;
-  }
-  return static_cast<size_t>(file_size.QuadPart);
-#else
-  base::ScopedFile fd(base::OpenFile(file_path, O_RDONLY | O_CLOEXEC));
-  if (!fd) {
-    return nullopt;
-  }
-  struct stat buf {};
-  if (fstat(*fd, &buf) == -1) {
-    return nullopt;
-  }
-  return static_cast<size_t>(buf.st_size);
-#endif
 }
 
 }  // namespace base

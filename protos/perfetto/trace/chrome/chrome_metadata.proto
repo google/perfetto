@@ -78,6 +78,9 @@ message BackgroundTracingMetadata {
       optional fixed64 content_trigger_name_hash = 2;
     }
     optional NamedRule named_rule = 3;
+
+    // Hash of the rule name.
+    optional fixed32 name_hash = 4;
   }
 
   // Specifies the rule that caused the trace to be uploaded.

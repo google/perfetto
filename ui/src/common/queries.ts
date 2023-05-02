@@ -12,13 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from './engine';
+import {EngineProxy} from './engine';
 import {Row} from './query_result';
 
 const MAX_DISPLAY_ROWS = 10000;
 
 export interface QueryResponse {
-  id: string;
   query: string;
   error?: string;
   totalRowCount: number;
@@ -30,7 +29,7 @@ export interface QueryResponse {
 }
 
 export async function runQuery(
-    queryId: string, sqlQuery: string, engine: Engine): Promise<QueryResponse> {
+    sqlQuery: string, engine: EngineProxy): Promise<QueryResponse> {
   const startMs = performance.now();
   const queryRes = engine.query(sqlQuery);
 
@@ -63,7 +62,6 @@ export async function runQuery(
   }
 
   const result: QueryResponse = {
-    id: queryId,
     query: sqlQuery,
     durationMs,
     error: queryRes.error(),

@@ -31,18 +31,9 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/dynamic/ancestor_generator.h"
-#include "src/trace_processor/dynamic/connected_flow_generator.h"
-#include "src/trace_processor/dynamic/descendant_generator.h"
-#include "src/trace_processor/dynamic/experimental_annotated_stack_generator.h"
-#include "src/trace_processor/dynamic/experimental_counter_dur_generator.h"
-#include "src/trace_processor/dynamic/experimental_flamegraph_generator.h"
-#include "src/trace_processor/dynamic/experimental_flat_slice_generator.h"
-#include "src/trace_processor/dynamic/experimental_sched_upid_generator.h"
-#include "src/trace_processor/dynamic/experimental_slice_layout_generator.h"
-#include "src/trace_processor/dynamic/view_generator.h"
 #include "src/trace_processor/importers/android_bugreport/android_bugreport_parser.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_trace_tokenizer.h"
@@ -53,19 +44,31 @@
 #include "src/trace_processor/importers/ninja/ninja_log_parser.h"
 #include "src/trace_processor/importers/proto/additional_modules.h"
 #include "src/trace_processor/importers/proto/content_analyzer.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
 #include "src/trace_processor/prelude/functions/create_function.h"
 #include "src/trace_processor/prelude/functions/create_view_function.h"
 #include "src/trace_processor/prelude/functions/import.h"
+#include "src/trace_processor/prelude/functions/layout_functions.h"
 #include "src/trace_processor/prelude/functions/pprof_functions.h"
 #include "src/trace_processor/prelude/functions/register_function.h"
 #include "src/trace_processor/prelude/functions/sqlite3_str_split.h"
+#include "src/trace_processor/prelude/functions/stack_functions.h"
 #include "src/trace_processor/prelude/functions/utils.h"
 #include "src/trace_processor/prelude/functions/window_functions.h"
 #include "src/trace_processor/prelude/operators/span_join_operator.h"
 #include "src/trace_processor/prelude/operators/window_operator.h"
+#include "src/trace_processor/prelude/table_functions/ancestor.h"
+#include "src/trace_processor/prelude/table_functions/connected_flow.h"
+#include "src/trace_processor/prelude/table_functions/descendant.h"
+#include "src/trace_processor/prelude/table_functions/experimental_annotated_stack.h"
+#include "src/trace_processor/prelude/table_functions/experimental_counter_dur.h"
+#include "src/trace_processor/prelude/table_functions/experimental_flamegraph.h"
+#include "src/trace_processor/prelude/table_functions/experimental_flat_slice.h"
+#include "src/trace_processor/prelude/table_functions/experimental_sched_upid.h"
+#include "src/trace_processor/prelude/table_functions/experimental_slice_layout.h"
+#include "src/trace_processor/prelude/table_functions/table_function.h"
+#include "src/trace_processor/prelude/table_functions/view.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_raw_table.h"
@@ -216,28 +219,10 @@ void MaybeRegisterError(char* error) {
 void CreateBuiltinViews(sqlite3* db) {
   char* error = nullptr;
   sqlite3_exec(db,
-               "CREATE VIEW counter_definitions AS "
-               "SELECT "
-               "  *, "
-               "  id AS counter_id "
-               "FROM counter_track",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW counter_values AS "
-               "SELECT "
-               "  *, "
-               "  track_id as counter_id "
-               "FROM counter",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
                "CREATE VIEW counters AS "
                "SELECT * "
-               "FROM counter_values v "
-               "INNER JOIN counter_track t "
+               "FROM counter v "
+               "JOIN counter_track t "
                "ON v.track_id = t.id "
                "ORDER BY ts;",
                nullptr, nullptr, &error);
@@ -271,8 +256,6 @@ void CreateBuiltinViews(sqlite3* db) {
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
 
-  // Legacy view for "slice" table with a deprecated table name.
-  // TODO(eseckler): Remove this view when all users have switched to "slice".
   sqlite3_exec(db,
                "CREATE VIEW slices AS "
                "SELECT * FROM slice;",
@@ -317,19 +300,12 @@ void CreateBuiltinViews(sqlite3* db) {
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
 
-  // TODO(lalitm): delete this any time after ~Feb 2023 when no version of the
-  // UI will be querying this anymore (describe_slice backing code was removed
-  // at end of November).
   sqlite3_exec(db,
-               "CREATE TABLE describe_slice(id INT, type TEXT, "
-               "slice_id INT, description TEXT, doc_link TEXT);",
-               nullptr, nullptr, &error);
-  MaybeRegisterError(error);
-
-  sqlite3_exec(db,
-               "CREATE VIEW thread_slice AS "
-               "SELECT * FROM slice "
-               "WHERE thread_dur is NOT NULL",
+               "CREATE VIEW ftrace_event AS "
+               "SELECT * FROM raw "
+               "WHERE "
+               "  name NOT LIKE 'chrome_event.%' AND"
+               "  name NOT LIKE 'track_event.%'",
                nullptr, nullptr, &error);
   MaybeRegisterError(error);
 }
@@ -676,8 +652,8 @@ sql_modules::NameToModule GetStdlibModules() {
 
 template <typename View>
 void TraceProcessorImpl::RegisterView(const View& view) {
-  RegisterDynamicTable(
-      std::unique_ptr<ViewGenerator>(new ViewGenerator(&view, View::Name())));
+  RegisterTableFunction(std::unique_ptr<TableFunction>(
+      new ViewTableFunction(&view, View::Name())));
 }
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -748,7 +724,17 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterLastNonNullFunction(db);
   RegisterValueAtMaxTsFunction(db);
   {
+    base::Status status = RegisterStackFunctions(db, &context_);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
+  }
+  {
     base::Status status = PprofFunctions::Register(db, &context_);
+    if (!status.ok())
+      PERFETTO_ELOG("%s", status.c_message());
+  }
+  {
+    base::Status status = LayoutFunctions::Register(db, &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -780,44 +766,36 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SqliteRawTable::RegisterTable(*db_, query_cache_.get(), &context_);
 
   // Tables dynamically generated at query time.
-  RegisterDynamicTable(std::unique_ptr<ExperimentalFlamegraphGenerator>(
-      new ExperimentalFlamegraphGenerator(&context_)));
-  RegisterDynamicTable(std::unique_ptr<ExperimentalCounterDurGenerator>(
-      new ExperimentalCounterDurGenerator(storage->counter_table())));
-  RegisterDynamicTable(std::unique_ptr<ExperimentalSliceLayoutGenerator>(
-      new ExperimentalSliceLayoutGenerator(
-          context_.storage.get()->mutable_string_pool(),
-          &storage->slice_table())));
-  RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
-      AncestorGenerator::Ancestor::kSlice, context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(
-      new AncestorGenerator(AncestorGenerator::Ancestor::kStackProfileCallsite,
-                            context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<AncestorGenerator>(new AncestorGenerator(
-      AncestorGenerator::Ancestor::kSliceByStack, context_.storage.get())));
-  RegisterDynamicTable(
-      std::unique_ptr<DescendantGenerator>(new DescendantGenerator(
-          DescendantGenerator::Descendant::kSlice, context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<DescendantGenerator>(
-      new DescendantGenerator(DescendantGenerator::Descendant::kSliceByStack,
-                              context_.storage.get())));
-  RegisterDynamicTable(
-      std::unique_ptr<ConnectedFlowGenerator>(new ConnectedFlowGenerator(
-          ConnectedFlowGenerator::Mode::kDirectlyConnectedFlow,
-          context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<ConnectedFlowGenerator>(
-      new ConnectedFlowGenerator(ConnectedFlowGenerator::Mode::kPrecedingFlow,
-                                 context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<ConnectedFlowGenerator>(
-      new ConnectedFlowGenerator(ConnectedFlowGenerator::Mode::kFollowingFlow,
-                                 context_.storage.get())));
-  RegisterDynamicTable(std::unique_ptr<ExperimentalSchedUpidGenerator>(
-      new ExperimentalSchedUpidGenerator(storage->sched_slice_table(),
-                                         storage->thread_table())));
-  RegisterDynamicTable(std::unique_ptr<ExperimentalAnnotatedStackGenerator>(
-      new ExperimentalAnnotatedStackGenerator(&context_)));
-  RegisterDynamicTable(std::unique_ptr<ExperimentalFlatSliceGenerator>(
-      new ExperimentalFlatSliceGenerator(&context_)));
+  RegisterTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
+      new ExperimentalFlamegraph(&context_)));
+  RegisterTableFunction(std::unique_ptr<ExperimentalCounterDur>(
+      new ExperimentalCounterDur(storage->counter_table())));
+  RegisterTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
+      new ExperimentalSliceLayout(context_.storage.get()->mutable_string_pool(),
+                                  &storage->slice_table())));
+  RegisterTableFunction(std::unique_ptr<Ancestor>(
+      new Ancestor(Ancestor::Type::kSlice, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<Ancestor>(new Ancestor(
+      Ancestor::Type::kStackProfileCallsite, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<Ancestor>(
+      new Ancestor(Ancestor::Type::kSliceByStack, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<Descendant>(
+      new Descendant(Descendant::Type::kSlice, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<Descendant>(
+      new Descendant(Descendant::Type::kSliceByStack, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+      ConnectedFlow::Mode::kDirectlyConnectedFlow, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+      ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get())));
+  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+      ConnectedFlow::Mode::kFollowingFlow, context_.storage.get())));
+  RegisterTableFunction(
+      std::unique_ptr<ExperimentalSchedUpid>(new ExperimentalSchedUpid(
+          storage->sched_slice_table(), storage->thread_table())));
+  RegisterTableFunction(std::unique_ptr<ExperimentalAnnotatedStack>(
+      new ExperimentalAnnotatedStack(&context_)));
+  RegisterTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
+      new ExperimentalFlatSlice(&context_)));
 
   // Views.
   RegisterView(storage->thread_slice_view());
@@ -841,6 +819,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->track_table());
   RegisterDbTable(storage->thread_track_table());
   RegisterDbTable(storage->process_track_table());
+  RegisterDbTable(storage->cpu_track_table());
   RegisterDbTable(storage->gpu_track_table());
 
   RegisterDbTable(storage->counter_table());
@@ -1028,7 +1007,7 @@ void TraceProcessorImpl::InterruptQuery() {
 }
 
 bool TraceProcessorImpl::IsRootMetricField(const std::string& metric_name) {
-  base::Optional<uint32_t> desc_idx =
+  std::optional<uint32_t> desc_idx =
       pool_.FindDescriptorIdx(".perfetto.protos.TraceMetrics");
   if (!desc_idx.has_value())
     return false;

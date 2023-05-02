@@ -18,14 +18,14 @@
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_CAMERA_EVENT_MODULE_H_
 
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 
-#include "perfetto/ext/base/optional.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/tables/slice_tables.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {

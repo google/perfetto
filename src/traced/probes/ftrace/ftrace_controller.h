@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include <unistd.h>
 
-#include <bitset>
-#include <functional>
 #include <map>
 #include <memory>
 #include <set>
@@ -72,85 +70,107 @@ class FtraceController {
   };
 
   // The passed Observer must outlive the returned FtraceController instance.
-  static std::unique_ptr<FtraceController> Create(base::TaskRunner*,
-                                                  Observer*,
-                                                  bool preserve_ftrace_buffer);
+  static std::unique_ptr<FtraceController> Create(base::TaskRunner*, Observer*);
   virtual ~FtraceController();
-
-  void ClearTrace();
-  bool IsTracingAvailable();
 
   bool AddDataSource(FtraceDataSource*) PERFETTO_WARN_UNUSED_RESULT;
   bool StartDataSource(FtraceDataSource*);
   void RemoveDataSource(FtraceDataSource*);
 
   // Force a read of the ftrace buffers. Will call OnFtraceFlushComplete() on
-  // all |started_data_sources_|.
+  // all started data sources.
   void Flush(FlushRequestID);
 
-  void DumpFtraceStats(FtraceStats*);
+  void DumpFtraceStats(FtraceDataSource*, FtraceStats*);
 
   base::WeakPtr<FtraceController> GetWeakPtr() {
     return weak_factory_.GetWeakPtr();
   }
 
+  // public for testing
+  static std::optional<std::string> AbsolutePathForInstance(
+      const std::string& tracefs_root,
+      const std::string& raw_cfg_name);
+
  protected:
-  // Protected for testing.
+  // Everything protected/virtual for testing:
+
   FtraceController(std::unique_ptr<FtraceProcfs>,
                    std::unique_ptr<ProtoTranslationTable>,
                    std::unique_ptr<FtraceConfigMuxer>,
                    base::TaskRunner*,
                    Observer*);
 
-  // Protected and virtual for testing.
+  struct FtraceInstanceState {
+    struct PerCpuState {
+      PerCpuState(std::unique_ptr<CpuReader> _reader, size_t _period_page_quota)
+          : reader(std::move(_reader)), period_page_quota(_period_page_quota) {}
+      std::unique_ptr<CpuReader> reader;
+      size_t period_page_quota = 0;
+    };
+
+    FtraceInstanceState(std::unique_ptr<FtraceProcfs>,
+                        std::unique_ptr<ProtoTranslationTable>,
+                        std::unique_ptr<FtraceConfigMuxer>);
+
+    std::unique_ptr<FtraceProcfs> ftrace_procfs;
+    std::unique_ptr<ProtoTranslationTable> table;
+    std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer;
+    std::vector<PerCpuState> per_cpu;  // empty if no started data sources
+    std::set<FtraceDataSource*> started_data_sources;
+  };
+
+  FtraceInstanceState* GetInstance(const std::string& instance_name);
+
   virtual uint64_t NowMs() const;
+
+  // TODO(rsavitski): figure out a better testing shim.
+  virtual std::unique_ptr<FtraceInstanceState> CreateSecondaryInstance(
+      const std::string& instance_name);
 
  private:
   friend class TestFtraceController;
-
-  struct PerCpuState {
-    PerCpuState(std::unique_ptr<CpuReader> _reader, size_t _period_page_quota)
-        : reader(std::move(_reader)), period_page_quota(_period_page_quota) {}
-    std::unique_ptr<CpuReader> reader;
-    size_t period_page_quota = 0;
-  };
-
-  struct FtraceInstanceState {
-    FtraceInstanceState(std::unique_ptr<FtraceProcfs> ftrace_procfs,
-                        std::unique_ptr<ProtoTranslationTable> table_,
-                        std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer);
-
-    std::unique_ptr<FtraceProcfs> ftrace_procfs_;
-    std::unique_ptr<ProtoTranslationTable> table_;
-    std::unique_ptr<FtraceConfigMuxer> ftrace_config_muxer_;
-    std::vector<PerCpuState> per_cpu_;  // empty if tracing isn't active
-    std::set<FtraceDataSource*> started_data_sources_;
-  };
 
   FtraceController(const FtraceController&) = delete;
   FtraceController& operator=(const FtraceController&) = delete;
 
   // Periodic task that reads all per-cpu ftrace buffers.
   void ReadTick(int generation);
-
+  bool ReadTickForInstance(FtraceInstanceState* instance);
   uint32_t GetDrainPeriodMs();
 
-  void StartIfNeeded();
-  void StopIfNeeded();
+  void FlushForInstance(FtraceInstanceState* instance);
 
-  void MaybeSnapshotFtraceClock();
+  void StartIfNeeded(FtraceInstanceState* instance);
+  void StopIfNeeded(FtraceInstanceState* instance);
+
+  FtraceInstanceState* GetOrCreateInstance(const std::string& instance_name);
+  void DestroyIfUnusedSeconaryInstance(FtraceInstanceState* instance);
+
+  size_t GetStartedDataSourcesCount() const;
+  void MaybeSnapshotFtraceClock();  // valid only for primary_ tracefs instance
 
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
   base::PagedMemory parsing_mem_;
-  base::ScopedFile cpu_zero_stats_fd_;
   std::unique_ptr<LazyKernelSymbolizer> symbolizer_;
-  FtraceInstanceState primary_;
-  std::unique_ptr<FtraceClockSnapshot> ftrace_clock_snapshot_;
+  FtraceConfigId next_cfg_id_ = 1;
   int generation_ = 0;
   bool retain_ksyms_on_stop_ = false;
   std::set<FtraceDataSource*> data_sources_;
-  FtraceConfigId next_cfg_id_ = 1;
+  // Default tracefs instance (normally /sys/kernel/tracing) is valid for as
+  // long as the controller is valid.
+  // Secondary instances (i.e. /sys/kernel/tracing/instances/...) are created
+  // and destroyed as necessary between AddDataSource and RemoveDataSource:
+  FtraceInstanceState primary_;
+  std::map<std::string, std::unique_ptr<FtraceInstanceState>>
+      secondary_instances_;
+
+  // Additional state for snapshotting non-boot ftrace clock, specific to the
+  // primary_ instance:
+  base::ScopedFile cpu_zero_stats_fd_;
+  std::unique_ptr<FtraceClockSnapshot> ftrace_clock_snapshot_;
+
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
 

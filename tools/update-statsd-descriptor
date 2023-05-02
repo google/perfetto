@@ -55,10 +55,14 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+// This enum is obtained by post-processing
+// AOSP/frameworks/proto_logging/stats/atoms.proto through
+// AOSP/external/perfetto/tools/update-statsd-descriptor, which extracts one
+// enum value for each proto field defined in the upstream atoms.proto.
 enum AtomId {{
+  ATOM_UNSPECIFIED = 0;
 {atoms}
-}}
-"""
+}}"""
 
 
 def call(*cmd, stdin=None):
@@ -116,7 +120,7 @@ def main():
 
     lines = []
     for m in re.finditer(FIELD_RE, atom_pbtext):
-      name = m[1].upper()
+      name = "ATOM_" + m[1].upper()
       field = m[2]
       lines.append(f"  {name} = {field};".format(name=name, field=field))
     atom_ids_out = stack.enter_context(open(ATOM_IDS_PATH, "w"))

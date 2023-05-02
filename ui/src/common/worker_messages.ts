@@ -28,17 +28,3 @@ export interface EngineWorkerInitMessage {
   // (see resetEngineWorker()).
   enginePort: MessagePort;
 }
-
-// Frontend -> Controller initialization message.
-export interface ControllerWorkerInitMessage {
-  // For receiving dispatch() commands from the frontend. This is where most of
-  // the frontend <> controller interaction happens.
-  controllerPort: MessagePort;
-
-  // For controller <> Chrome extension communication.
-  extensionPort: MessagePort;
-
-  // For reporting errors back to the frontend. This is a dedicated port to
-  // reduce depdencies on the business logic behind the other ports.
-  errorReportingPort: MessagePort;
-}

@@ -21,8 +21,8 @@
 #include <stdint.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "src/profiling/perf/common_types.h"
@@ -33,8 +33,8 @@ namespace profiling {
 
 class PerfRingBuffer {
  public:
-  static base::Optional<PerfRingBuffer> Allocate(int perf_fd,
-                                                 size_t data_page_count);
+  static std::optional<PerfRingBuffer> Allocate(int perf_fd,
+                                                size_t data_page_count);
 
   ~PerfRingBuffer();
 
@@ -71,18 +71,14 @@ class PerfRingBuffer {
 
 class EventReader {
  public:
-  // Allow base::Optional<EventReader> without making the constructor public.
-  template <typename EventReader, bool>
-  friend struct base::internal::OptionalStorageBase;
-
-  static base::Optional<EventReader> ConfigureEvents(
+  static std::optional<EventReader> ConfigureEvents(
       uint32_t cpu,
       const EventConfig& event_cfg);
 
   // Consumes records from the ring buffer until either encountering a sample,
   // or catching up to the writer. The other record of interest
   // (PERF_RECORD_LOST) is handled via the given callback.
-  base::Optional<ParsedSample> ReadUntilSample(
+  std::optional<ParsedSample> ReadUntilSample(
       std::function<void(uint64_t)> lost_events_callback);
 
   void EnableEvents();

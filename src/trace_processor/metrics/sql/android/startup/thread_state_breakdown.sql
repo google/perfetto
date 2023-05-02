@@ -66,6 +66,17 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+-- Given a launch id, returns the aggregate sum of time spent in runnable state
+-- by the main thread of the process being started up.
+SELECT CREATE_FUNCTION(
+  'MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(startup_id INT)',
+  'INT',
+  '
+    SELECT IFNULL(MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE($startup_id, "R"), 0)
+      + IFNULL(MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE($startup_id, "R+"), 0);
+  '
+);
+
 -- Given a launch id, thread state  and io_wait value, returns the aggregate sum
 -- of time spent in that state by the main thread of the process being started up.
 SELECT CREATE_FUNCTION(

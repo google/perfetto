@@ -22,17 +22,9 @@ import android.os.IBinder;
 import android.content.Intent;
 
 public class ProducerIsolatedService extends Service {
-    private static final int NOTIFICATION_ID = 123;
 
     @Override
     public void onCreate() {
-        Notification.Builder builder = new Notification.Builder(this, "isolated_service");
-        builder.setContentTitle("Perfetto isolated service")
-                .setContentText("Perfetto isolated service")
-                .setSmallIcon(R.mipmap.ic_launcher);
-
-        startForeground(NOTIFICATION_ID, builder.build());
-
         System.loadLibrary("perfettocts_jni");
         new Thread(new Runnable() {
             @Override

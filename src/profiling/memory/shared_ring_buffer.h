@@ -16,8 +16,8 @@
 
 #ifndef SRC_PROFILING_MEMORY_SHARED_RING_BUFFER_H_
 #define SRC_PROFILING_MEMORY_SHARED_RING_BUFFER_H_
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
 #include "src/profiling/memory/scoped_spinlock.h"
@@ -97,8 +97,8 @@ class SharedRingBuffer {
     PERFETTO_CROSS_ABI_ALIGNED(ErrorState) error_state;
   };
 
-  static base::Optional<SharedRingBuffer> Create(size_t);
-  static base::Optional<SharedRingBuffer> Attach(base::ScopedFile);
+  static std::optional<SharedRingBuffer> Create(size_t);
+  static std::optional<SharedRingBuffer> Attach(base::ScopedFile);
 
   ~SharedRingBuffer();
   SharedRingBuffer() = default;
@@ -228,7 +228,7 @@ class SharedRingBuffer {
   void Initialize(base::ScopedFile mem_fd);
   bool IsCorrupt(const PointerPositions& pos);
 
-  inline base::Optional<PointerPositions> GetPointerPositions() {
+  inline std::optional<PointerPositions> GetPointerPositions() {
     PointerPositions pos;
     // We need to acquire load the write_pos to make sure we observe a
     // consistent ring buffer in BeginRead, otherwise it is possible that we
@@ -239,7 +239,7 @@ class SharedRingBuffer {
     pos.write_pos = meta_->write_pos.load(std::memory_order_acquire);
     pos.read_pos = meta_->read_pos.load(std::memory_order_relaxed);
 
-    base::Optional<PointerPositions> result;
+    std::optional<PointerPositions> result;
     if (IsCorrupt(pos))
       return result;
     result = pos;

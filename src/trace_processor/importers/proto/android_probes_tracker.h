@@ -17,9 +17,10 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_ANDROID_PROBES_TRACKER_H_
 
+#include <optional>
 #include <set>
 
-#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_view.h"
 
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -41,6 +42,12 @@ class AndroidProbesTracker : public Destructible {
     int32_t ordinal;
   };
 
+  struct EntityStateDescriptor {
+    StringId entity_name;
+    StringId state_name;
+    StringId overall_name;
+  };
+
   static AndroidProbesTracker* GetOrCreate(TraceProcessorContext* context) {
     if (!context->android_probes_tracker) {
       context->android_probes_tracker.reset(
@@ -59,12 +66,12 @@ class AndroidProbesTracker : public Destructible {
     seen_packages_.emplace(std::move(package_name));
   }
 
-  base::Optional<TrackId> GetPowerRailTrack(uint32_t index) {
+  std::optional<TrackId> GetPowerRailTrack(uint32_t index) {
     if (index >= power_rail_tracks_.size())
-      return base::nullopt;
+      return std::nullopt;
     TrackId track_id = power_rail_tracks_[index];
-    return track_id == kInvalidTrackId ? base::nullopt
-                                       : base::make_optional(track_id);
+    return track_id == kInvalidTrackId ? std::nullopt
+                                       : std::make_optional(track_id);
   }
 
   void SetPowerRailTrack(uint32_t index, TrackId track_id) {
@@ -73,12 +80,12 @@ class AndroidProbesTracker : public Destructible {
     power_rail_tracks_[index] = track_id;
   }
 
-  base::Optional<EnergyConsumerSpecs> GetEnergyBreakdownDescriptor(
+  std::optional<EnergyConsumerSpecs> GetEnergyBreakdownDescriptor(
       int32_t consumer_id) {
     auto it = energy_consumer_descriptors_.find(consumer_id);
     // Didn't receive the descriptor
     if (it == energy_consumer_descriptors_.end()) {
-      return base::nullopt;
+      return std::nullopt;
     }
     return it->second;
   }
@@ -98,10 +105,50 @@ class AndroidProbesTracker : public Destructible {
         EnergyConsumerSpecs{name, type, ordinal};
   }
 
+  std::optional<EntityStateDescriptor> GetEntityStateDescriptor(
+      int32_t entity_id,
+      int32_t state_id) {
+    uint64_t id = EntityStateKey(entity_id, state_id);
+    auto it = entity_state_descriptors_.find(id);
+    // Didn't receive the descriptor
+    if (it == entity_state_descriptors_.end()) {
+      return std::nullopt;
+    }
+    return it->second;
+  }
+
+  void SetEntityStateDescriptor(int32_t entity_id,
+                                int32_t state_id,
+                                StringId entity_name,
+                                StringId state_name) {
+    uint64_t id = EntityStateKey(entity_id, state_id);
+    auto it_descriptor = entity_state_descriptors_.find(id);
+
+    // Ignore repeated descriptors.
+    if (it_descriptor != entity_state_descriptors_.end())
+      return;
+
+    std::string overall_str =
+        "Entity residency: " + storage_->GetString(entity_name).ToStdString() +
+        " is " + storage_->GetString(state_name).ToStdString();
+
+    StringId overall = storage_->InternString(base::StringView(overall_str));
+
+    entity_state_descriptors_[id] =
+        EntityStateDescriptor{entity_name, state_name, overall};
+  }
+
  private:
+  TraceStorage* storage_;
   std::set<std::string> seen_packages_;
   std::vector<TrackId> power_rail_tracks_;
   std::unordered_map<int32_t, EnergyConsumerSpecs> energy_consumer_descriptors_;
+  std::unordered_map<uint64_t, EntityStateDescriptor> entity_state_descriptors_;
+
+  uint64_t EntityStateKey(int32_t entity_id, int32_t state_id) {
+    return (static_cast<uint64_t>(entity_id) << 32) |
+           static_cast<uint32_t>(state_id);
+  }
 };
 
 }  // namespace trace_processor

@@ -201,6 +201,9 @@ static constexpr protos::pbzero::BuiltinClock kDefaultTraceClock =
 protos::pbzero::BuiltinClock TrackEventInternal::clock_ = kDefaultTraceClock;
 
 // static
+bool TrackEventInternal::disallow_merging_with_system_tracks_ = false;
+
+// static
 void TrackEventInternal::EnableTracing(
     const TrackEventCategoryRegistry& registry,
     const protos::gen::TrackEventConfig& config,
@@ -386,9 +389,7 @@ void TrackEventInternal::ResetIncrementalState(
     const TrackEventTlsState& tls_state,
     const TraceTimestamp& timestamp) {
   auto sequence_timestamp = timestamp;
-  if (timestamp.clock_id !=
-          static_cast<uint32_t>(TrackEventInternal::GetClockId()) &&
-      timestamp.clock_id != kClockIdIncremental) {
+  if (timestamp.clock_id != kClockIdIncremental) {
     sequence_timestamp = TrackEventInternal::GetTraceTime();
   }
 

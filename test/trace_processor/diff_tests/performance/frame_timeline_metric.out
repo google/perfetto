@@ -1,6 +1,7 @@
 android_frame_timeline_metric {
-  total_frames: 5
+  total_frames: 11
   missed_app_frames: 3
+  dropped_frames: 1
 
   process {
     process {
@@ -10,12 +11,17 @@ android_frame_timeline_metric {
     missed_frames: 2
     missed_app_frames: 2
     missed_sf_frames: 0
-    frame_dur_max: 34
-    frame_dur_avg: 33
-    frame_dur_p50: 33
-    frame_dur_p90: 33
-    frame_dur_p95: 33
-    frame_dur_p99: 33
+    frame_dur_max: 34000000
+    frame_dur_avg: 33500000
+    frame_dur_p50: 33500000
+    frame_dur_p90: 33900000
+    frame_dur_p95: 33950000
+    frame_dur_p99: 33990000
+    frame_dur_ms_p50: 33.5
+    frame_dur_ms_p90: 33.9
+    frame_dur_ms_p95: 33.95
+    frame_dur_ms_p99: 33.99
+    dropped_frames: 0
   }
 
   process {
@@ -26,27 +32,58 @@ android_frame_timeline_metric {
     missed_frames: 1
     missed_app_frames: 1
     missed_sf_frames: 0
-    frame_dur_max: 16
-    frame_dur_avg: 16
-    frame_dur_p50: 16
-    frame_dur_p90: 16
-    frame_dur_p95: 16
-    frame_dur_p99: 16
+    frame_dur_max: 16000000
+    frame_dur_avg: 13333333
+    frame_dur_p50: 16000000
+    frame_dur_p90: 16000000
+    frame_dur_p95: 16000000
+    frame_dur_p99: 16000000
+    frame_dur_ms_p50: 16.0
+    frame_dur_ms_p90: 16.0
+    frame_dur_ms_p95: 16.0
+    frame_dur_ms_p99: 16.0
+    dropped_frames: 0
   }
-  
+
   process {
     process {
       name: "process3"
     }
-    total_frames: 1
-    missed_frames: 1
+    total_frames: 2
+    missed_frames: 2
     missed_app_frames: 0
     missed_sf_frames: 1
-    frame_dur_max: 4
-    frame_dur_avg: 4
-    frame_dur_p50: 4
-    frame_dur_p90: 4
-    frame_dur_p95: 4
-    frame_dur_p99: 4
+    frame_dur_max: 5000000
+    frame_dur_avg: 2499999
+    frame_dur_p50: 2499999
+    frame_dur_p90: 4499999
+    frame_dur_p95: 4749999
+    frame_dur_p99: 4949999
+    frame_dur_ms_p50: 2.4999995
+    frame_dur_ms_p90: 4.4999999
+    frame_dur_ms_p95: 4.74999995
+    frame_dur_ms_p99: 4.94999999
+    dropped_frames: 1
     }
+
+  process {
+    process {
+      name: "process4"
+    }
+    total_frames: 5
+    missed_frames: 4
+    missed_app_frames: 0
+    missed_sf_frames: 4
+    frame_dur_max: 2000000
+    frame_dur_avg: 1000000
+    frame_dur_p50: 500000
+    frame_dur_p90: 1800000
+    frame_dur_p95: 1900000
+    frame_dur_p99: 1980000
+    frame_dur_ms_p50: 0.500000
+    frame_dur_ms_p90: 1.800000
+    frame_dur_ms_p95: 1.9000000000000001
+    frame_dur_ms_p99: 1.980000
+    dropped_frames: 0
+  }
 }

@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 
 #include <map>
@@ -41,11 +42,10 @@ class MockTraceParser : public ProtoTraceParser {
  public:
   MockTraceParser(TraceProcessorContext* context) : ProtoTraceParser(context) {}
 
-  MOCK_METHOD4(MOCK_ParseFtracePacket,
-               void(uint32_t cpu,
-                    int64_t timestamp,
-                    const uint8_t* data,
-                    size_t length));
+  MOCK_METHOD(
+      void,
+      MOCK_ParseFtracePacket,
+      (uint32_t cpu, int64_t timestamp, const uint8_t* data, size_t length));
 
   void ParseFtraceEvent(uint32_t cpu,
                         int64_t timestamp,
@@ -54,8 +54,9 @@ class MockTraceParser : public ProtoTraceParser {
                            data.packet.length());
   }
 
-  MOCK_METHOD3(MOCK_ParseTracePacket,
-               void(int64_t ts, const uint8_t* data, size_t length));
+  MOCK_METHOD(void,
+              MOCK_ParseTracePacket,
+              (int64_t ts, const uint8_t* data, size_t length));
 
   void ParseTrackEvent(int64_t, TrackEventData) override {}
 
@@ -69,7 +70,7 @@ class MockTraceStorage : public TraceStorage {
  public:
   MockTraceStorage() : TraceStorage() {}
 
-  MOCK_METHOD1(InternString, StringId(base::StringView view));
+  MOCK_METHOD(StringId, InternString, (base::StringView view), (override));
 };
 
 class TraceSorterTest : public ::testing::Test {
@@ -297,13 +298,18 @@ TEST_F(TraceSorterTest, MultiQueueSorting) {
         EXPECT_TRUE(cpu_found);
       }));
 
-  for (int i = 0; i < 1000; i++) {
+  // Allocate a 1000 byte trace blob and push one byte chunks to be sorted with
+  // random timestamps. This will stress test the sorter with worst case
+  // scenarios and will (and has many times) expose any subtle bugs hiding in
+  // the sorter logic.
+  TraceBlobView tbv(TraceBlob::Allocate(1000));
+  for (uint16_t i = 0; i < 1000; i++) {
     int64_t ts = abs(static_cast<int64_t>(rnd_engine()));
-    int num_cpus = rnd_engine() % 3;
-    for (int j = 0; j < num_cpus; j++) {
+    uint8_t num_cpus = rnd_engine() % 3;
+    for (uint8_t j = 0; j < num_cpus; j++) {
       uint32_t cpu = static_cast<uint32_t>(rnd_engine() % 32);
       expectations[ts].push_back(cpu);
-      context_.sorter->PushFtraceEvent(cpu, ts, TraceBlobView(),
+      context_.sorter->PushFtraceEvent(cpu, ts, tbv.slice_off(i, 1),
                                        state.current_generation());
     }
   }

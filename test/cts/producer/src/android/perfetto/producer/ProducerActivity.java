@@ -47,7 +47,8 @@ public class ProducerActivity extends Activity {
         manager.createNotificationChannel(isolatedChannel);
 
         startForegroundService(new Intent(ProducerActivity.this, ProducerService.class));
-        startForegroundService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
+        // isolated services cannot be foreground
+        startService(new Intent(ProducerActivity.this, ProducerIsolatedService.class));
 
         System.loadLibrary("perfettocts_jni");
 

@@ -30,28 +30,12 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
-#include "src/trace_processor/sorter/trace_sorter_queue.h"
+#include "src/trace_processor/sorter/trace_token_buffer.h"
 #include "src/trace_processor/types/trace_processor_context.h"
+#include "src/trace_processor/util/bump_allocator.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-enum class EventType : uint8_t {
-  kFtraceEvent,
-  kTracePacket,
-  kInlineSchedSwitch,
-  kInlineSchedWaking,
-  kJsonValue,
-  kFuchsiaRecord,
-  kTrackEvent,
-  kSystraceLine,
-  kInvalid,
-  kSize = kInvalid,
-};
-
-namespace trace_sorter_internal {
-class VariadicQueue;
-}  // namespace trace_sorter_internal
 
 // This class takes care of sorting events parsed from the trace stream in
 // arbitrary order and pushing them to the next pipeline stages (parsing) in
@@ -100,9 +84,6 @@ class VariadicQueue;
 // within the first partition where sorting should start, and sort all events
 // from there to the end.
 class TraceSorter {
- private:
-  using VariadicQueue = trace_sorter_internal::VariadicQueue;
-
  public:
   enum class SortingMode {
     kDefault,
@@ -116,46 +97,47 @@ class TraceSorter {
 
   inline void PushTracePacket(int64_t timestamp,
                               RefPtr<PacketSequenceStateGeneration> state,
-                              TraceBlobView event) {
-    uint32_t offset = variadic_queue_.Append(
-        TracePacketData{std::move(event), std::move(state)});
-    AppendNonFtraceEvent(timestamp, offset, EventType::kTracePacket);
+                              TraceBlobView tbv) {
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTracePacket, id);
   }
 
   inline void PushJsonValue(int64_t timestamp, std::string json_value) {
-    uint32_t offset = variadic_queue_.Append(std::move(json_value));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kJsonValue);
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(JsonEvent{std::move(json_value)});
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kJsonValue, id);
   }
 
   inline void PushFuchsiaRecord(int64_t timestamp,
                                 FuchsiaRecord fuchsia_record) {
-    uint32_t offset = variadic_queue_.Append(std::move(fuchsia_record));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kFuchsiaRecord);
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(fuchsia_record));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kFuchsiaRecord, id);
   }
 
   inline void PushSystraceLine(SystraceLine systrace_line) {
-    auto ts = systrace_line.ts;
-    auto offset = variadic_queue_.Append(std::move(systrace_line));
-    AppendNonFtraceEvent(ts, offset, EventType::kSystraceLine);
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(systrace_line));
+    AppendNonFtraceEvent(systrace_line.ts,
+                         TimestampedEvent::Type::kSystraceLine, id);
   }
 
   inline void PushTrackEventPacket(int64_t timestamp,
                                    TrackEventData track_event) {
-    uint32_t offset = variadic_queue_.Append(std::move(track_event));
-    AppendNonFtraceEvent(timestamp, offset, EventType::kTrackEvent);
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(track_event));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTrackEvent, id);
   }
 
   inline void PushFtraceEvent(uint32_t cpu,
                               int64_t timestamp,
-                              TraceBlobView event,
+                              TraceBlobView tbv,
                               RefPtr<PacketSequenceStateGeneration> state) {
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
     auto* queue = GetQueue(cpu + 1);
-    uint32_t offset = variadic_queue_.Append(
-        TracePacketData{std::move(event), std::move(state)});
-    queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kFtraceEvent)});
+    queue->Append(timestamp, TimestampedEvent::Type::kFtraceEvent, id);
     UpdateAppendMaxTs(queue);
   }
+
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
                                     InlineSchedSwitch inline_sched_switch) {
@@ -166,29 +148,32 @@ class TraceSorter {
     // sorted however. Consider adding extra queues, or pushing them in a
     // merge-sort fashion
     // // instead.
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(std::move(inline_sched_switch));
     auto* queue = GetQueue(cpu + 1);
-    uint32_t offset = variadic_queue_.Append(inline_sched_switch);
-    queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kInlineSchedSwitch)});
+    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedSwitch, id);
     UpdateAppendMaxTs(queue);
   }
+
   inline void PushInlineFtraceEvent(uint32_t cpu,
                                     int64_t timestamp,
                                     InlineSchedWaking inline_sched_waking) {
+    TraceTokenBuffer::Id id =
+        token_buffer_.Append(std::move(inline_sched_waking));
     auto* queue = GetQueue(cpu + 1);
-
-    uint32_t offset = variadic_queue_.Append(inline_sched_waking);
-    queue->Append(TimestampedDescriptor{
-        timestamp, Descriptor(offset, EventType::kInlineSchedWaking)});
+    queue->Append(timestamp, TimestampedEvent::Type::kInlineSchedWaking, id);
     UpdateAppendMaxTs(queue);
   }
 
   void ExtractEventsForced() {
-    uint32_t cur_mem_block_offset = variadic_queue_.NextOffset();
-    SortAndExtractEventsUntilPacket(cur_mem_block_offset);
+    BumpAllocator::AllocId end_id = token_buffer_.PastTheEndAllocId();
+    SortAndExtractEventsUntilAllocId(end_id);
+    for (const auto& queue : queues_) {
+      PERFETTO_DCHECK(queue.events_.empty());
+    }
     queues_.clear();
 
-    offset_for_extraction_ = cur_mem_block_offset;
+    alloc_id_for_extraction_ = end_id;
     flushes_since_extraction_ = 0;
   }
 
@@ -200,77 +185,83 @@ class TraceSorter {
       return;
     }
 
-    SortAndExtractEventsUntilPacket(offset_for_extraction_);
-    offset_for_extraction_ = variadic_queue_.NextOffset();
+    SortAndExtractEventsUntilAllocId(alloc_id_for_extraction_);
+    alloc_id_for_extraction_ = token_buffer_.PastTheEndAllocId();
     flushes_since_extraction_ = 0;
   }
 
   int64_t max_timestamp() const { return append_max_ts_; }
 
  private:
-  // Stores offset and type of metadata.
-  struct Descriptor {
-   public:
-    static constexpr uint8_t kTypeBits = 4;
-    static constexpr uint64_t kTypeMask = (1 << kTypeBits) - 1;
-    static constexpr uint64_t kOffsetShift = kTypeBits;
-    static constexpr uint64_t kMaxType = kTypeMask;
+  struct TimestampedEvent {
+    enum class Type : uint8_t {
+      kFtraceEvent,
+      kTracePacket,
+      kInlineSchedSwitch,
+      kInlineSchedWaking,
+      kJsonValue,
+      kFuchsiaRecord,
+      kTrackEvent,
+      kSystraceLine,
+      kMax = kSystraceLine,
+    };
 
-    static_assert(static_cast<uint8_t>(EventType::kSize) <= kTypeMask,
-                  "Too many bits for type");
+    // Number of bits required to store the max element in |Type|.
+    static constexpr uint32_t kMaxTypeBits = 4;
+    static_assert(static_cast<uint8_t>(Type::kMax) <= (1 << kMaxTypeBits),
+                  "Max type does not fit inside storage");
 
-    Descriptor(uint32_t offset, EventType type)
-        : packed_value_((static_cast<uint64_t>(offset) << kOffsetShift) |
-                        static_cast<uint64_t>(type)) {}
-
-    uint32_t offset() const {
-      return static_cast<uint32_t>(packed_value_ >> kOffsetShift);
-    }
-
-    EventType type() const {
-      return static_cast<EventType>(packed_value_ & kTypeMask);
-    }
-
-   private:
-    uint64_t packed_value_ = 0;
-  };
-
-  struct TimestampedDescriptor {
+    // The timestamp of this event.
     int64_t ts;
-    Descriptor descriptor;
+
+    // The fields inside BumpAllocator::AllocId of this tokenized object
+    // corresponding to this event.
+    uint64_t chunk_index : BumpAllocator::kChunkIndexAllocIdBits;
+    uint64_t chunk_offset : BumpAllocator::kChunkOffsetAllocIdBits;
+
+    // The type of this event. GCC7 does not like bit-field enums (see
+    // https://stackoverflow.com/questions/36005063/gcc-suppress-warning-too-small-to-hold-all-values-of)
+    // so use an uint64_t instead and cast to the enum type.
+    uint64_t event_type : kMaxTypeBits;
+
+    BumpAllocator::AllocId alloc_id() const {
+      return BumpAllocator::AllocId{chunk_index, chunk_offset};
+    }
 
     // For std::lower_bound().
-    static inline bool Compare(const TimestampedDescriptor& x, int64_t ts) {
+    static inline bool Compare(const TimestampedEvent& x, int64_t ts) {
       return x.ts < ts;
     }
 
     // For std::sort().
-    inline bool operator<(const TimestampedDescriptor& desc) const {
-      return ts < desc.ts ||
-             (ts == desc.ts && descriptor.offset() < desc.descriptor.offset());
-    }
-
-    // For std::sort(). Without this the compiler will fall back on invoking
-    // move operators on temporary objects.
-    friend void swap(TimestampedDescriptor& a, TimestampedDescriptor& b) {
-      // TimestampedDescriptor is 16 bytes + trivially swappable so it can be
-      // done without doing any moving.
-      using AS =
-          typename std::aligned_storage<sizeof(TimestampedDescriptor),
-                                        alignof(TimestampedDescriptor)>::type;
-      using std::swap;
-      swap(reinterpret_cast<AS&>(a), reinterpret_cast<AS&>(b));
+    inline bool operator<(const TimestampedEvent& evt) const {
+      return std::tie(ts, chunk_index, chunk_offset) <
+             std::tie(evt.ts, evt.chunk_index, evt.chunk_offset);
     }
   };
-
-  static_assert(sizeof(TimestampedDescriptor) == 16,
-                "TimestampeDescriptor cannot grow beyond 16 bytes");
+  static_assert(sizeof(TimestampedEvent) == 16,
+                "TimestampedEvent must be equal to 16 bytes");
+  static_assert(std::is_trivially_copyable<TimestampedEvent>::value,
+                "TimestampedEvent must be trivially copyable");
+  static_assert(std::is_trivially_move_assignable<TimestampedEvent>::value,
+                "TimestampedEvent must be trivially move assignable");
+  static_assert(std::is_trivially_move_constructible<TimestampedEvent>::value,
+                "TimestampedEvent must be trivially move constructible");
+  static_assert(std::is_nothrow_swappable<TimestampedEvent>::value,
+                "TimestampedEvent must be trivially swappable");
 
   struct Queue {
-    inline void Append(TimestampedDescriptor ts_desc) {
-      auto ts = ts_desc.ts;
-      events_.emplace_back(std::move(ts_desc));
-      min_ts_ = std::min(min_ts_, ts);
+    void Append(int64_t ts,
+                TimestampedEvent::Type type,
+                TraceTokenBuffer::Id id) {
+      {
+        TimestampedEvent event;
+        event.ts = ts;
+        event.chunk_index = id.alloc_id.chunk_index;
+        event.chunk_offset = id.alloc_id.chunk_offset;
+        event.event_type = static_cast<uint8_t>(type);
+        events_.emplace_back(std::move(event));
+      }
 
       // Events are often seen in order.
       if (PERFETTO_LIKELY(ts >= max_ts_)) {
@@ -290,20 +281,21 @@ class TraceSorter {
         }
       }
 
+      min_ts_ = std::min(min_ts_, ts);
       PERFETTO_DCHECK(min_ts_ <= max_ts_);
     }
 
     bool needs_sorting() const { return sort_start_idx_ != 0; }
     void Sort();
 
-    base::CircularQueue<TimestampedDescriptor> events_;
+    base::CircularQueue<TimestampedEvent> events_;
     int64_t min_ts_ = std::numeric_limits<int64_t>::max();
     int64_t max_ts_ = 0;
     size_t sort_start_idx_ = 0;
     int64_t sort_min_ts_ = std::numeric_limits<int64_t>::max();
   };
 
-  void SortAndExtractEventsUntilPacket(uint64_t limit_packet_idx);
+  void SortAndExtractEventsUntilAllocId(BumpAllocator::AllocId alloc_id);
 
   inline Queue* GetQueue(size_t index) {
     if (PERFETTO_UNLIKELY(index >= queues_.size()))
@@ -312,10 +304,10 @@ class TraceSorter {
   }
 
   inline void AppendNonFtraceEvent(int64_t ts,
-                                   uint32_t offset,
-                                   EventType type) {
+                                   TimestampedEvent::Type event_type,
+                                   TraceTokenBuffer::Id id) {
     Queue* queue = GetQueue(0);
-    queue->Append(TimestampedDescriptor{ts, Descriptor{offset, type}});
+    queue->Append(ts, event_type, id);
     UpdateAppendMaxTs(queue);
   }
 
@@ -323,37 +315,35 @@ class TraceSorter {
     append_max_ts_ = std::max(append_max_ts_, queue->max_ts_);
   }
 
-  void ParseTracePacket(const TimestampedDescriptor& ts_desc);
-  void ParseFtracePacket(uint32_t cpu, const TimestampedDescriptor& ts_desc);
+  void ParseTracePacket(const TimestampedEvent&);
+  void ParseFtracePacket(uint32_t cpu, const TimestampedEvent&);
 
-  template <typename T>
-  T EvictTypedVariadic(const TimestampedDescriptor& ts_desc) {
-    return variadic_queue_.Evict<T>(ts_desc.descriptor.offset());
+  void MaybeExtractEvent(size_t queue_idx, const TimestampedEvent&);
+  void ExtractAndDiscardTokenizedObject(const TimestampedEvent& event);
+
+  TraceTokenBuffer::Id GetTokenBufferId(const TimestampedEvent& event) {
+    return TraceTokenBuffer::Id{event.alloc_id()};
   }
 
-  void EvictVariadic(const TimestampedDescriptor& ts_desc);
-
-  void MaybePushAndEvictEvent(size_t queue_idx,
-                              const TimestampedDescriptor& ts_desc)
-      PERFETTO_ALWAYS_INLINE;
-
-  TraceProcessorContext* context_;
+  TraceProcessorContext* context_ = nullptr;
   std::unique_ptr<TraceParser> parser_;
 
   // Whether we should ignore incremental extraction and just wait for
   // forced extractionn at the end of the trace.
   SortingMode sorting_mode_ = SortingMode::kDefault;
 
-  // The packet offset until which events should be extracted. Set based
-  // on the packet offset in |OnReadBuffer|.
-  uint32_t offset_for_extraction_ = 0;
+  // Buffer for storing tokenized objects while the corresponding events are
+  // being sorted.
+  TraceTokenBuffer token_buffer_;
+
+  // The AllocId until which events should be extracted. Set based
+  // on the AllocId in |OnReadBuffer|.
+  BumpAllocator::AllocId alloc_id_for_extraction_ =
+      token_buffer_.PastTheEndAllocId();
 
   // The number of flushes which have happened since the last incremental
   // extraction.
   uint32_t flushes_since_extraction_ = 0;
-
-  // Stores the metadata for each event type in a memory efficient manner.
-  VariadicQueue variadic_queue_;
 
   // queues_[0] is the general (non-ftrace) queue.
   // queues_[1] is the ftrace queue for CPU(0).

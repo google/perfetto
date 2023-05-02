@@ -15,7 +15,7 @@
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
-} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_types';
 import {
   autosaveConfigStore,
   recordTargetStore,
@@ -57,7 +57,7 @@ export const COUNT_AGGREGATION: Aggregation = {
 
 export function createEmptyNonSerializableState(): NonSerializableState {
   return {
-    pivotTableRedux: {
+    pivotTable: {
       queryResult: null,
       selectedPivots: [{kind: 'regular', table: 'slice', column: 'name'}],
       selectedAggregations: [
@@ -124,6 +124,15 @@ export function createEmptyState(): State {
       count: 0,
     },
 
+    ftracePagination: {
+      offset: 0,
+      count: 0,
+    },
+
+    ftraceFilter: {
+      excludedNames: [],
+    },
+
     status: {msg: '', timestamp: 0},
     currentSelection: null,
     currentFlamegraphState: null,
@@ -133,7 +142,7 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoveredLogsTimestamp: -1,
+    hoverCursorTimestamp: -1,
     hoveredNoteTimestamp: -1,
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,

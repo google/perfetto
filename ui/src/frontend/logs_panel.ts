@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
@@ -80,11 +80,11 @@ export class LogPanel extends Panel<{}> {
   }
 
   onRowOver(ts: number) {
-    globals.dispatch(Actions.setHoveredLogsTimestamp({ts}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
   }
 
   onRowOut() {
-    globals.dispatch(Actions.setHoveredLogsTimestamp({ts: -1}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1}));
   }
 
   private totalRows():

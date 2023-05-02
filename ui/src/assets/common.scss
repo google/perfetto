@@ -12,11 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+@import "typefaces";
 @import "fonts";
 
 :root {
-  --sidebar-width: 256px;
-  --topbar-height: 48px;
+  --sidebar-width: 230px;
+  --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
   --track-shell-width: 250px;
   --track-border-color: #00000025;
@@ -35,19 +37,7 @@
 }
 
 @mixin material-icon($content) {
-  direction: ltr;
-  display: inline-block;
-  font-family: "Material Icons";
-  font-size: 24px;
-  font-style: normal;
-  font-weight: normal;
-  letter-spacing: normal;
-  line-height: 1;
-  text-transform: none;
-  white-space: nowrap;
-  word-wrap: normal;
-  -webkit-font-feature-settings: "liga";
-  -webkit-font-smoothing: antialiased;
+  @include icon;
   content: $content;
 }
 
@@ -62,7 +52,7 @@
   overflow-wrap: break-word;
   font-family: "Roboto Condensed", sans-serif;
   font-weight: 300;
-  letter-spacing: -0.25px;
+  letter-spacing: -0.5px;
 }
 
 * {
@@ -85,6 +75,7 @@ body > main {
   padding: 0;
   margin: 0;
   overscroll-behavior: none;
+  overflow: hidden;
 }
 
 pre,
@@ -185,12 +176,13 @@ button.close {
   grid-area: alerts;
   background-color: #f2f2f2;
   > div {
-    font-family: "Raleway", sans-serif;
+    font-family: "Roboto", sans-serif;
     font-weight: 400;
     letter-spacing: 0.25px;
     padding: 1rem;
     display: flex;
     justify-content: space-between;
+    align-items: center;
     button {
       width: 24px;
       height: 24px;
@@ -211,36 +203,56 @@ $table-hover-color: hsl(214, 22%, 90%);
 
 $table-border-color: rgba(60, 76, 92, 0.4);
 
-.pivot-table {
+$bottom-tab-padding: 10px;
+
+@mixin table-component {
   @include bottom-panel-font;
   @include table-font-size;
 
   width: 100%;
   border-collapse: collapse;
 
-  thead,
-  i {
-    cursor: pointer;
-  }
   thead {
     font-weight: normal;
   }
+
+  tr:hover td {
+    background-color: $table-hover-color;
+  }
+
+  tr.header {
+    border-bottom: 1px solid $table-border-color;
+    text-align: center;
+  }
+
   td {
     padding: 2px 1px;
+
+    i.material-icons {
+      // Shrink the icons inside the table cells to increase the information
+      // density a little bit.
+      font-size: 16px;
+    }
+  }
+}
+
+.generic-table {
+  @include table-component;
+}
+
+.pivot-table {
+  @include table-component;
+
+  thead,
+  i {
+    cursor: pointer;
   }
   td.first {
     border-left: 1px solid $table-border-color;
     padding-left: 6px;
   }
-  tr.header {
-    border-bottom: 1px solid $table-border-color;
-    text-align: center;
-  }
   thead td.reorderable-cell {
     cursor: grab;
-  }
-  tr:hover td {
-    background-color: $table-hover-color;
   }
   .disabled {
     cursor: default;
@@ -304,6 +316,10 @@ $table-border-color: rgba(60, 76, 92, 0.4);
 .dropdown {
   display: inline-block;
   position: relative;
+}
+
+.dropdown-button {
+  cursor: pointer;
 }
 
 .popup-menu {
@@ -394,7 +410,7 @@ $table-border-color: rgba(60, 76, 92, 0.4);
 
     .chip {
       background-color: #bed6ff;
-      border-radius: 3px;
+      border-radius: $pf-border-radius;
       font-size: smaller;
       padding: 0 0.1rem;
       margin-left: 1ch;
@@ -427,6 +443,7 @@ $table-border-color: rgba(60, 76, 92, 0.4);
       display: flex;
       height: 100%;
       align-items: center;
+      justify-content: center;
 
       &:hover {
         background-color: #ebeef9;
@@ -455,6 +472,7 @@ $table-border-color: rgba(60, 76, 92, 0.4);
 }
 
 .details-panel-container {
+  box-shadow: #0000003b 0px 0px 3px 1px;
   position: relative;
   overflow-x: hidden;
   overflow-y: auto;
@@ -519,7 +537,7 @@ canvas.main-canvas {
 }
 
 .overview-timeline {
-  height: 100px;
+  height: 70px;
 }
 
 .time-axis-panel {
@@ -540,7 +558,7 @@ canvas.main-canvas {
 
 header.overview {
   display: flex;
-  align-content: center;
+  align-content: baseline;
   background-color: hsl(213, 22%, 82%);
   color: hsl(213, 22%, 20%);
   font-family: "Roboto Condensed", sans-serif;
@@ -792,9 +810,9 @@ button.query-ctrl {
   user-select: none;
 }
 
-.pivot-table-redux {
+.pivot-table {
   user-select: text;
-  padding: 10px;
+  padding: $bottom-tab-padding;
 
   button.mode-button {
     border-radius: 10px;
@@ -825,10 +843,6 @@ button.query-ctrl {
     // In regular pivot table cells, avoids wrapping the icon spacer to go on
     // a separate line.
     white-space: pre;
-
-    i.material-icons {
-      font-size: 16px;
-    }
   }
 }
 
@@ -886,7 +900,8 @@ button.query-ctrl {
   button {
     margin: 0 0.5rem;
 
-    i.material-icons {
+    i.material-icons,
+    i.material-icons-filled {
       font-size: 18px;
     }
   }

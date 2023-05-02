@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/build_config.h"
@@ -160,6 +161,7 @@ struct PERFETTO_EXPORT_COMPONENT SqlValue {
     kDouble,
     kString,
     kBytes,
+    kLastType = kBytes,
   };
 
   SqlValue() = default;

@@ -39,32 +39,31 @@ std::mutex& InitializedMutex() {
 // static
 void Tracing::InitializeInternal(const TracingInitArgs& args) {
   std::unique_lock<std::mutex> lock(InitializedMutex());
-  static TracingInitArgs init_args;
-  if (g_was_initialized) {
-    if (!(init_args == args)) {
-      PERFETTO_ELOG(
-          "Tracing::Initialize() called more than once with different args. "
-          "This is not supported, only the first call will have effect.");
-      PERFETTO_DCHECK(false);
+  // If it's the first time Initialize is called, set some global params.
+  if (!g_was_initialized) {
+    // Make sure the headers and implementation files agree on the build config.
+    PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
+    if (args.log_message_callback) {
+      base::SetLogMessageCallback(args.log_message_callback);
     }
-    return;
-  }
 
-  // Make sure the headers and implementation files agree on the build config.
-  PERFETTO_CHECK(args.dcheck_is_on_ == PERFETTO_DCHECK_IS_ON());
-  if (args.log_message_callback) {
-    base::SetLogMessageCallback(args.log_message_callback);
-  }
+    if (args.use_monotonic_clock) {
+      PERFETTO_CHECK(!args.use_monotonic_raw_clock);
+      internal::TrackEventInternal::SetClockId(
+          protos::pbzero::BUILTIN_CLOCK_MONOTONIC);
+    } else if (args.use_monotonic_raw_clock) {
+      internal::TrackEventInternal::SetClockId(
+          protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+    }
 
-  if (args.use_monotonic_raw_clock) {
-    internal::TrackEventInternal::SetClockId(
-        protos::pbzero::BUILTIN_CLOCK_MONOTONIC_RAW);
+    if (args.disallow_merging_with_system_tracks) {
+      internal::TrackEventInternal::SetDisallowMergingWithSystemTracks(true);
+    }
   }
 
   internal::TracingMuxerImpl::InitializeInstance(args);
   internal::TrackRegistry::InitializeInstance();
   g_was_initialized = true;
-  init_args = args;
 }
 
 // static
@@ -94,9 +93,11 @@ void Tracing::ResetForTesting() {
 }
 
 //  static
-std::unique_ptr<TracingSession> Tracing::NewTrace(BackendType backend) {
+std::unique_ptr<TracingSession> Tracing::NewTraceInternal(
+    BackendType backend,
+    TracingConsumerBackend* (*system_backend_factory)()) {
   return static_cast<internal::TracingMuxerImpl*>(internal::TracingMuxer::Get())
-      ->CreateTracingSession(backend);
+      ->CreateTracingSession(backend, system_backend_factory);
 }
 
 //  static

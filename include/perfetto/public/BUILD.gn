@@ -18,6 +18,22 @@ source_set("base") {
 }
 
 source_set("protozero") {
-  sources = [ "stream_writer.h" ]
-  public_deps = [ "./abi:protozero" ]
+  sources = [ "pb_utils.h" ]
+}
+
+source_set("public") {
+  sources = [
+    "data_source.h",
+    "pb_decoder.h",
+    "pb_macros.h",
+    "pb_msg.h",
+    "producer.h",
+    "stream_writer.h",
+  ]
+  public_deps = [
+    ":base",
+    ":protozero",
+    "./abi:public",
+    "./protos",
+  ]
 }

@@ -20,6 +20,7 @@
 
 #include <cinttypes>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -28,10 +29,10 @@
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/symbolizer/elf.h"
+#include "src/profiling/symbolizer/filesystem.h"
 #include "src/profiling/symbolizer/scoped_read_mmap.h"
 
 namespace perfetto {
@@ -125,17 +126,17 @@ bool InRange(const void* base,
 }
 
 template <typename E>
-base::Optional<uint64_t> GetLoadBias(void* mem, size_t size) {
+std::optional<uint64_t> GetLoadBias(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
-    return base::nullopt;
+    return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_phnum; ++i) {
     typename E::Phdr* phdr = GetPhdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, phdr, sizeof(typename E::Phdr))) {
       PERFETTO_ELOG("Corrupted ELF.");
-      return base::nullopt;
+      return std::nullopt;
     }
     if (phdr->p_type == PT_LOAD && phdr->p_flags & PF_X) {
       return phdr->p_vaddr - phdr->p_offset;
@@ -145,17 +146,17 @@ base::Optional<uint64_t> GetLoadBias(void* mem, size_t size) {
 }
 
 template <typename E>
-base::Optional<std::string> GetBuildId(void* mem, size_t size) {
+std::optional<std::string> GetBuildId(void* mem, size_t size) {
   const typename E::Ehdr* ehdr = static_cast<typename E::Ehdr*>(mem);
   if (!InRange(mem, size, ehdr, sizeof(typename E::Ehdr))) {
     PERFETTO_ELOG("Corrupted ELF.");
-    return base::nullopt;
+    return std::nullopt;
   }
   for (size_t i = 0; i < ehdr->e_shnum; ++i) {
     typename E::Shdr* shdr = GetShdr<E>(mem, ehdr, i);
     if (!InRange(mem, size, shdr, sizeof(typename E::Shdr))) {
       PERFETTO_ELOG("Corrupted ELF.");
-      return base::nullopt;
+      return std::nullopt;
     }
 
     if (shdr->sh_type != SHT_NOTE)
@@ -168,13 +169,13 @@ base::Optional<std::string> GetBuildId(void* mem, size_t size) {
 
       if (!InRange(mem, size, nhdr, sizeof(typename E::Nhdr))) {
         PERFETTO_ELOG("Corrupted ELF.");
-        return base::nullopt;
+        return std::nullopt;
       }
       if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4) {
         char* name = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr);
         if (!InRange(mem, size, name, 4)) {
           PERFETTO_ELOG("Corrupted ELF.");
-          return base::nullopt;
+          return std::nullopt;
         }
         if (memcmp(name, "GNU", 3) == 0) {
           const char* value = reinterpret_cast<char*>(nhdr) + sizeof(*nhdr) +
@@ -182,7 +183,7 @@ base::Optional<std::string> GetBuildId(void* mem, size_t size) {
 
           if (!InRange(mem, size, value, nhdr->n_descsz)) {
             PERFETTO_ELOG("Corrupted ELF.");
-            return base::nullopt;
+            return std::nullopt;
           }
           return std::string(value, nhdr->n_descsz);
         }
@@ -191,7 +192,7 @@ base::Optional<std::string> GetBuildId(void* mem, size_t size) {
                 base::AlignUp<4>(nhdr->n_descsz);
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 std::string SplitBuildID(const std::string& hex_build_id) {
@@ -216,88 +217,70 @@ struct BuildIdAndLoadBias {
   uint64_t load_bias;
 };
 
-base::Optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(
-    const std::string& fname) {
-  base::Optional<size_t> size = base::GetFileSize(fname);
-  if (!size.has_value()) {
-    PERFETTO_PLOG("Failed to get file size %s", fname.c_str());
-    return base::nullopt;
-  }
+std::optional<BuildIdAndLoadBias> GetBuildIdAndLoadBias(const char* fname,
+                                                        size_t size) {
   static_assert(EI_CLASS > EI_MAG3, "mem[EI_MAG?] accesses are in range.");
-  if (*size <= EI_CLASS)
-    return base::nullopt;
-  ScopedReadMmap map(fname.c_str(), *size);
+  if (size <= EI_CLASS)
+    return std::nullopt;
+  ScopedReadMmap map(fname, size);
   if (!map.IsValid()) {
     PERFETTO_PLOG("mmap");
-    return base::nullopt;
+    return std::nullopt;
   }
   char* mem = static_cast<char*>(*map);
 
-  if (!IsElf(mem, *size))
-    return base::nullopt;
+  if (!IsElf(mem, size))
+    return std::nullopt;
 
-  base::Optional<std::string> build_id;
-  base::Optional<uint64_t> load_bias;
+  std::optional<std::string> build_id;
+  std::optional<uint64_t> load_bias;
   switch (mem[EI_CLASS]) {
     case ELFCLASS32:
-      build_id = GetBuildId<Elf32>(mem, *size);
-      load_bias = GetLoadBias<Elf32>(mem, *size);
+      build_id = GetBuildId<Elf32>(mem, size);
+      load_bias = GetLoadBias<Elf32>(mem, size);
       break;
     case ELFCLASS64:
-      build_id = GetBuildId<Elf64>(mem, *size);
-      load_bias = GetLoadBias<Elf64>(mem, *size);
+      build_id = GetBuildId<Elf64>(mem, size);
+      load_bias = GetLoadBias<Elf64>(mem, size);
       break;
     default:
-      return base::nullopt;
+      return std::nullopt;
   }
   if (build_id && load_bias) {
     return BuildIdAndLoadBias{*build_id, *load_bias};
   }
-  return base::nullopt;
-}
-
-bool StartsWithElfMagic(const std::string& fname) {
-  base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
-  char magic[EI_MAG3 + 1];
-  if (!fd) {
-    PERFETTO_PLOG("Failed to open %s", fname.c_str());
-    return false;
-  }
-  ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
-  if (rd != sizeof(magic)) {
-    PERFETTO_PLOG("Failed to read %s", fname.c_str());
-    return false;
-  }
-  if (!IsElf(magic, static_cast<size_t>(rd))) {
-    PERFETTO_DLOG("%s not an ELF.", fname.c_str());
-    return false;
-  }
-  return true;
+  return std::nullopt;
 }
 
 std::map<std::string, FoundBinary> BuildIdIndex(std::vector<std::string> dirs) {
   std::map<std::string, FoundBinary> result;
-  for (const std::string& dir : dirs) {
-    std::vector<std::string> files;
-    base::Status status = base::ListFilesRecursive(dir, files);
-    if (!status.ok()) {
-      PERFETTO_PLOG("Failed to list directory %s", dir.c_str());
-      continue;
-    }
-    for (const std::string& basename : files) {
-      std::string fname = dir + "/" + basename;
-      if (!StartsWithElfMagic(fname)) {
-        continue;
+  WalkDirectories(std::move(dirs), [&result](const char* fname, size_t size) {
+    char magic[EI_MAG3 + 1];
+    // Scope file access. On windows OpenFile opens an exclusive lock.
+    // This lock needs to be released before mapping the file.
+    {
+      base::ScopedFile fd(base::OpenFile(fname, O_RDONLY));
+      if (!fd) {
+        PERFETTO_PLOG("Failed to open %s", fname);
+        return;
       }
-      base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-          GetBuildIdAndLoadBias(fname);
-      if (build_id_and_load_bias) {
-        result.emplace(build_id_and_load_bias->build_id,
-                       FoundBinary{fname, build_id_and_load_bias->load_bias});
+      ssize_t rd = base::Read(*fd, &magic, sizeof(magic));
+      if (rd != sizeof(magic)) {
+        PERFETTO_PLOG("Failed to read %s", fname);
+        return;
+      }
+      if (!IsElf(magic, static_cast<size_t>(rd))) {
+        PERFETTO_DLOG("%s not an ELF.", fname);
+        return;
       }
     }
-  }
-
+    std::optional<BuildIdAndLoadBias> build_id_and_load_bias =
+        GetBuildIdAndLoadBias(fname, size);
+    if (build_id_and_load_bias) {
+      result.emplace(build_id_and_load_bias->build_id,
+                     FoundBinary{fname, build_id_and_load_bias->load_bias});
+    }
+  });
   return result;
 }
 
@@ -315,7 +298,7 @@ bool ParseLlvmSymbolizerLine(const std::string& line,
   *file_name = line.substr(0, row_pos);
   auto line_no_str = line.substr(row_pos + 1, col_pos - row_pos - 1);
 
-  base::Optional<int32_t> opt_parsed_line_no = base::StringToInt32(line_no_str);
+  std::optional<int32_t> opt_parsed_line_no = base::StringToInt32(line_no_str);
   if (!opt_parsed_line_no || *opt_parsed_line_no < 0)
     return false;
   *line_no = static_cast<uint32_t>(*opt_parsed_line_no);
@@ -327,7 +310,7 @@ BinaryFinder::~BinaryFinder() = default;
 LocalBinaryIndexer::LocalBinaryIndexer(std::vector<std::string> roots)
     : buildid_to_file_(BuildIdIndex(std::move(roots))) {}
 
-base::Optional<FoundBinary> LocalBinaryIndexer::FindBinary(
+std::optional<FoundBinary> LocalBinaryIndexer::FindBinary(
     const std::string& abspath,
     const std::string& build_id) {
   auto it = buildid_to_file_.find(build_id);
@@ -335,7 +318,7 @@ base::Optional<FoundBinary> LocalBinaryIndexer::FindBinary(
     return it->second;
   PERFETTO_ELOG("Could not find Build ID: %s (file %s).",
                 base::ToHex(build_id).c_str(), abspath.c_str());
-  return base::nullopt;
+  return std::nullopt;
 }
 
 LocalBinaryIndexer::~LocalBinaryIndexer() = default;
@@ -343,14 +326,14 @@ LocalBinaryIndexer::~LocalBinaryIndexer() = default;
 LocalBinaryFinder::LocalBinaryFinder(std::vector<std::string> roots)
     : roots_(std::move(roots)) {}
 
-base::Optional<FoundBinary> LocalBinaryFinder::FindBinary(
+std::optional<FoundBinary> LocalBinaryFinder::FindBinary(
     const std::string& abspath,
     const std::string& build_id) {
-  auto p = cache_.emplace(abspath, base::nullopt);
+  auto p = cache_.emplace(abspath, std::nullopt);
   if (!p.second)
     return p.first->second;
 
-  base::Optional<FoundBinary>& cache_entry = p.first->second;
+  std::optional<FoundBinary>& cache_entry = p.first->second;
 
   for (const std::string& root_str : roots_) {
     cache_entry = FindBinaryInRoot(root_str, abspath, build_id);
@@ -362,23 +345,30 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinary(
   return cache_entry;
 }
 
-base::Optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
+std::optional<FoundBinary> LocalBinaryFinder::IsCorrectFile(
     const std::string& symbol_file,
     const std::string& build_id) {
   if (!base::FileExists(symbol_file)) {
-    return base::nullopt;
+    return std::nullopt;
   }
-  base::Optional<BuildIdAndLoadBias> build_id_and_load_bias =
-      GetBuildIdAndLoadBias(symbol_file);
+  // Openfile opens the file with an exclusive lock on windows.
+  size_t size = GetFileSize(symbol_file);
+
+  if (size == 0) {
+    return std::nullopt;
+  }
+
+  std::optional<BuildIdAndLoadBias> build_id_and_load_bias =
+      GetBuildIdAndLoadBias(symbol_file.c_str(), size);
   if (!build_id_and_load_bias)
-    return base::nullopt;
+    return std::nullopt;
   if (build_id_and_load_bias->build_id != build_id) {
-    return base::nullopt;
+    return std::nullopt;
   }
   return FoundBinary{symbol_file, build_id_and_load_bias->load_bias};
 }
 
-base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
+std::optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
     const std::string& root_str,
     const std::string& abspath,
     const std::string& build_id) {
@@ -414,7 +404,7 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
   // * $ROOT/foo.so
   // * $ROOT/.build-id/ab/cd1234.debug
 
-  base::Optional<FoundBinary> result;
+  std::optional<FoundBinary> result;
 
   std::string symbol_file = root_str + "/" + dirname + "/" + filename;
   result = IsCorrectFile(symbol_file, build_id);
@@ -456,7 +446,7 @@ base::Optional<FoundBinary> LocalBinaryFinder::FindBinaryInRoot(
     }
   }
 
-  return base::nullopt;
+  return std::nullopt;
 }
 
 LocalBinaryFinder::~LocalBinaryFinder() = default;
@@ -517,7 +507,7 @@ std::vector<std::vector<SymbolizedFrame>> LocalSymbolizer::Symbolize(
     const std::string& build_id,
     uint64_t load_bias,
     const std::vector<uint64_t>& addresses) {
-  base::Optional<FoundBinary> binary =
+  std::optional<FoundBinary> binary =
       finder_->FindBinary(mapping_name, build_id);
   if (!binary)
     return {};

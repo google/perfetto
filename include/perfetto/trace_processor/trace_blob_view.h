@@ -45,7 +45,7 @@ namespace trace_processor {
 //  - TraceBlob: writable, move-only, single-instance.
 //  - TraceBlobView: readable, copyable, multiple-instances can hold onto
 //                   (different sub-slices of) the same refcounted TraceBlob.
-class TraceBlobView {
+class alignas(8) TraceBlobView {
  public:
   // Takes ownership of the passed |blob|.
   static constexpr size_t kWholeBlob = std::numeric_limits<size_t>::max();
@@ -62,6 +62,11 @@ class TraceBlobView {
       length_ = static_cast<uint32_t>(length);
     }
     blob_.reset(new TraceBlob(std::move(blob)));
+  }
+
+  TraceBlobView(RefPtr<TraceBlob> blob, size_t offset, uint32_t length)
+      : blob_(std::move(blob)), data_(blob_->data() + offset), length_(length) {
+    PERFETTO_DCHECK(offset + length_ <= blob_->size());
   }
 
   // Trivial empty ctor.
@@ -105,9 +110,10 @@ class TraceBlobView {
   bool operator!=(const TraceBlobView& rhs) const { return !(*this == rhs); }
 
   const uint8_t* data() const { return data_; }
-  // TODO(primiano): normalize length() vs size() usage.
+  size_t offset() const { return static_cast<size_t>(data_ - blob_->data()); }
   size_t length() const { return length_; }
   size_t size() const { return length_; }
+  RefPtr<TraceBlob> blob() const { return blob_; }
 
  private:
   TraceBlobView(RefPtr<TraceBlob> blob, const uint8_t* data, uint32_t length)

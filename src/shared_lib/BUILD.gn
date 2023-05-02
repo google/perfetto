@@ -12,19 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-shared_library("libperfetto_c") {
+source_set("shared_lib") {
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/base",
     "../../include/perfetto/protozero",
-    "../../include/perfetto/public:protozero",
+    "../../include/perfetto/public",
     "../tracing:client_api",
     "../tracing:platform_impl",
   ]
   sources = [
+    "data_source.cc",
+    "heap_buffer.cc",
+    "pb_decoder.cc",
     "producer.cc",
+    "reset_for_testing.h",
     "stream_writer.cc",
     "stream_writer.h",
+    "tracing_session.cc",
   ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
+}
+
+shared_library("libperfetto_c") {
+  deps = [
+    ":shared_lib",
+    "../../gn:default_deps",
+  ]
+  public_deps = [ "../../include/perfetto/public" ]
 }

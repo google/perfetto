@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_EXT_BASE_PAGED_MEMORY_H_
 #define INCLUDE_PERFETTO_EXT_BASE_PAGED_MEMORY_H_
 
+#include <cstddef>
 #include <memory>
 
 #include "perfetto/base/build_config.h"

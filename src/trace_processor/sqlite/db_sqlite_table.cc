@@ -28,7 +28,7 @@ namespace trace_processor {
 
 namespace {
 
-base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
+std::optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
   switch (sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
     case SQLITE_INDEX_CONSTRAINT_IS:
@@ -54,7 +54,7 @@ base::Optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
     // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
-      return base::nullopt;
+      return std::nullopt;
     default:
       PERFETTO_FATAL("Currently unsupported constraint");
   }
@@ -142,10 +142,9 @@ void DbSqliteTable::RegisterTable(sqlite3* db,
   SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
 }
 
-void DbSqliteTable::RegisterTable(
-    sqlite3* db,
-    QueryCache* cache,
-    std::unique_ptr<DynamicTableGenerator> generator) {
+void DbSqliteTable::RegisterTable(sqlite3* db,
+                                  QueryCache* cache,
+                                  std::unique_ptr<TableFunction> generator) {
   // Figure out if the table needs explicit args (in the form of constraints
   // on hidden columns) passed to it in order to make the query valid.
   base::Status status = generator->ValidateConstraints(
@@ -222,10 +221,10 @@ void DbSqliteTable::BestIndex(const Table::Schema& schema,
 
   const auto& cs = qc.constraints();
   for (uint32_t i = 0; i < cs.size(); ++i) {
-    // SqliteOpToFilterOp will return nullopt for any constraint which we don't
-    // support filtering ourselves. Only omit filtering by SQLite when we can
-    // handle filtering.
-    base::Optional<FilterOp> opt_op = SqliteOpToFilterOp(cs[i].op);
+    // SqliteOpToFilterOp will return std::nullopt for any constraint which we
+    // don't support filtering ourselves. Only omit filtering by SQLite when we
+    // can handle filtering.
+    std::optional<FilterOp> opt_op = SqliteOpToFilterOp(cs[i].op);
     info->sqlite_omit_constraint[i] = opt_op.has_value();
   }
 
@@ -459,7 +458,7 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
                                   FilterHistory history) {
   // Clear out the iterator before filtering to ensure the destructor is run
   // before the table's destructor.
-  iterator_ = base::nullopt;
+  iterator_ = std::nullopt;
 
   // We reuse this vector to reduce memory allocations on nested subqueries.
   constraints_.resize(qc.constraints().size());
@@ -468,9 +467,9 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     const auto& cs = qc.constraints()[i];
     uint32_t col = static_cast<uint32_t>(cs.column);
 
-    // If we get a nullopt FilterOp, that means we should allow SQLite
+    // If we get a std::nullopt FilterOp, that means we should allow SQLite
     // to handle the constraint.
-    base::Optional<FilterOp> opt_op = SqliteOpToFilterOp(cs.op);
+    std::optional<FilterOp> opt_op = SqliteOpToFilterOp(cs.op);
     if (!opt_op)
       continue;
 
@@ -618,9 +617,8 @@ int DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
     // TODO(lalitm): investigate some other criteria where it is beneficial
     // to have a fast path and expand to them.
     mode_ = Mode::kSingleRow;
-    single_row_ = filter_map.size() == 1
-                      ? base::make_optional(filter_map.Get(0))
-                      : base::nullopt;
+    single_row_ = filter_map.size() == 1 ? std::make_optional(filter_map.Get(0))
+                                         : std::nullopt;
     eof_ = !single_row_.has_value();
   } else {
     mode_ = Mode::kTable;

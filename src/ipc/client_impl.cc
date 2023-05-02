@@ -191,6 +191,17 @@ void ClientImpl::OnDisconnect(base::UnixSocket*) {
         service_proxy->OnDisconnect();
     });
   }
+  for (const auto& it : queued_requests_) {
+    const QueuedRequest& queued_request = it.second;
+    if (queued_request.type != Frame::kMsgBindServiceFieldNumber) {
+      continue;
+    }
+    base::WeakPtr<ServiceProxy> service_proxy = queued_request.service_proxy;
+    task_runner_->PostTask([service_proxy] {
+      if (service_proxy)
+        service_proxy->OnConnect(false);
+    });
+  }
   service_bindings_.clear();
   queued_bindings_.clear();
 }

@@ -18,7 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-// Next id: 24.
+// Next id: 26.
 message FtraceConfig {
   repeated string ftrace_events = 1;
   repeated string atrace_categories = 2;
@@ -73,7 +73,7 @@ message FtraceConfig {
   // It does not disclose KASLR, symbol addresses are mangled.
   optional bool symbolize_ksyms = 13;
 
-  // When symbolize_ksyms=true, tetermines whether the traced_probes daemon
+  // When symbolize_ksyms=true, determines whether the traced_probes daemon
   // should keep the symbol map in memory (and reuse it for future tracing
   // sessions) or clear it (saving memory) and re-create it on each tracing
   // session (wasting cpu and wall time).
@@ -176,4 +176,20 @@ message FtraceConfig {
   // based monotonic clock for getting timestamps.
   // * Introduced in: Android U.
   optional bool use_monotonic_raw_clock = 24;
+
+  // Caution: under development as of 2023/03/01.
+  // If |instance_name| is not empty, then attempt to use that tracefs instance
+  // for event recording. Normally, this means
+  // `/sys/kernel/tracing/instances/$instance_name`.
+  //
+  // The name "hyp" is reserved.
+  //
+  // The instance must already exist, the tracing daemon *will not* create it
+  // for you as it typically doesn't have such permissions.
+  // Only a subset of features is guaranteed to work with non-default instances,
+  // at the time of writing:
+  //  * ftrace_events
+  //  * buffer_size_kb
+  // TODO(b/249050813): reword comment once instance support is stable.
+  optional string instance_name = 25;
 }

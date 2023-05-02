@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {hueForCpu} from '../common/colorizer';
@@ -34,7 +34,7 @@ import {Panel, PanelSize} from './panel';
 import {TimeScale} from './time_scale';
 
 export class OverviewTimelinePanel extends Panel {
-  private static HANDLE_SIZE_PX = 7;
+  private static HANDLE_SIZE_PX = 5;
 
   private width = 0;
   private gesture?: DragGestureHandler;
@@ -79,7 +79,7 @@ export class OverviewTimelinePanel extends Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     if (this.width === undefined) return;
     if (this.timeScale === undefined) return;
-    const headerHeight = 25;
+    const headerHeight = 20;
     const tracksHeight = size.height - headerHeight;
     const timeSpan = new TimeSpan(0, this.totTime.duration);
 
@@ -147,18 +147,18 @@ export class OverviewTimelinePanel extends Panel {
     ctx.fillRect(vizEndPx, headerHeight, 1, tracksHeight);
 
     const hbarWidth = OverviewTimelinePanel.HANDLE_SIZE_PX;
-    const hbarDivisionFactor = 3.5;
+    const hbarHeight = tracksHeight * 0.4;
     // Draw handlebar
     ctx.fillRect(
         vizStartPx - Math.floor(hbarWidth / 2) - 1,
         headerHeight,
         hbarWidth,
-        tracksHeight / hbarDivisionFactor);
+        hbarHeight);
     ctx.fillRect(
         vizEndPx - Math.floor(hbarWidth / 2),
         headerHeight,
         hbarWidth,
-        tracksHeight / hbarDivisionFactor);
+        hbarHeight);
   }
 
   private onMouseMove(e: MouseEvent) {

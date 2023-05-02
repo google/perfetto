@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {DataSourceDescriptor} from '../../common/protos';
 import {globals} from '../globals';
@@ -21,6 +21,8 @@ import {
   DropdownAttrs,
   Probe,
   ProbeAttrs,
+  Slider,
+  SliderAttrs,
   Textarea,
   TextareaAttrs,
   Toggle,
@@ -172,6 +174,23 @@ export class AndroidSettings implements
                     Requires Android 13 (T) or above.`,
           setEnabled: (cfg, val) => cfg.androidGameInterventionList = val,
           isEnabled: (cfg) => cfg.androidGameInterventionList,
-        } as ProbeAttrs));
+        } as ProbeAttrs),
+        m(Probe,
+          {
+            title: 'Network Tracing',
+            img: '',
+            descr: `Records detailed information on network packets.
+                      Requires Android 14 (U) or above.`,
+            setEnabled: (cfg, val) => cfg.androidNetworkTracing = val,
+            isEnabled: (cfg) => cfg.androidNetworkTracing,
+          } as ProbeAttrs,
+          m(Slider, {
+            title: 'Poll interval',
+            cssClass: '.thin',
+            values: [100, 250, 500, 1000, 2500],
+            unit: 'ms',
+            set: (cfg, val) => cfg.androidNetworkTracingPollMs = val,
+            get: (cfg) => cfg.androidNetworkTracingPollMs,
+          } as SliderAttrs)));
   }
 }

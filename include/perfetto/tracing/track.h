@@ -23,6 +23,7 @@
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/internal/compile_time_hash.h"
+#include "perfetto/tracing/internal/tracing_muxer.h"
 #include "perfetto/tracing/platform.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/track_event/counter_descriptor.gen.h"
@@ -172,22 +173,24 @@ struct PERFETTO_EXPORT_COMPONENT ProcessTrack : public Track {
 struct PERFETTO_EXPORT_COMPONENT ThreadTrack : public Track {
   const base::PlatformProcessId pid;
   const base::PlatformThreadId tid;
+  bool disallow_merging_with_system_tracks = false;
 
-  static ThreadTrack Current() { return ThreadTrack(base::GetThreadId()); }
+  static ThreadTrack Current();
 
   // Represents a thread in the current process.
-  static ThreadTrack ForThread(base::PlatformThreadId tid_) {
-    return ThreadTrack(tid_);
-  }
+  static ThreadTrack ForThread(base::PlatformThreadId tid_);
 
   void Serialize(protos::pbzero::TrackDescriptor*) const;
   protos::gen::TrackDescriptor Serialize() const;
 
  private:
-  explicit ThreadTrack(base::PlatformThreadId tid_)
+  explicit ThreadTrack(base::PlatformThreadId tid_,
+                       bool disallow_merging_with_system_tracks_)
       : Track(MakeThreadTrack(tid_)),
         pid(ProcessTrack::Current().pid),
-        tid(tid_) {}
+        tid(tid_),
+        disallow_merging_with_system_tracks(
+            disallow_merging_with_system_tracks_) {}
 };
 
 // A track for recording counter values with the TRACE_COUNTER macro. Counter

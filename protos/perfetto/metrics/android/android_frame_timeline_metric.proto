@@ -39,12 +39,14 @@ message AndroidFrameTimelineMetric {
     optional double frame_dur_ms_p90 = 15;
     optional double frame_dur_ms_p95 = 16;
     optional double frame_dur_ms_p99 = 17;
+    optional int64 dropped_frames = 18;
 
     reserved 1, 2;
   }
 
   optional int64 total_frames = 4;
   optional int64 missed_app_frames = 5;
+  optional int64 dropped_frames = 6;
 
   repeated ProcessBreakdown process = 2;
 

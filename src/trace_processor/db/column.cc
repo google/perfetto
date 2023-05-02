@@ -56,16 +56,16 @@ Column::Column(const char* name,
     bool is_storage_dense;
     switch (type_) {
       case ColumnType::kInt32:
-        is_storage_dense = storage<base::Optional<int32_t>>().IsDense();
+        is_storage_dense = storage<std::optional<int32_t>>().IsDense();
         break;
       case ColumnType::kUint32:
-        is_storage_dense = storage<base::Optional<uint32_t>>().IsDense();
+        is_storage_dense = storage<std::optional<uint32_t>>().IsDense();
         break;
       case ColumnType::kInt64:
-        is_storage_dense = storage<base::Optional<int64_t>>().IsDense();
+        is_storage_dense = storage<std::optional<int64_t>>().IsDense();
         break;
       case ColumnType::kDouble:
-        is_storage_dense = storage<base::Optional<double>>().IsDense();
+        is_storage_dense = storage<std::optional<double>>().IsDense();
         break;
       case ColumnType::kString:
         PERFETTO_FATAL("String column should not be nullable");
@@ -159,7 +159,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       overlay().FilterInto(rm, [this](uint32_t row) {
-        return !storage<base::Optional<T>>().Get(row).has_value();
+        return !storage<std::optional<T>>().Get(row).has_value();
       });
     } else {
       rm->Clear();
@@ -169,7 +169,7 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     PERFETTO_DCHECK(value.is_null());
     if (is_nullable) {
       overlay().FilterInto(rm, [this](uint32_t row) {
-        return storage<base::Optional<T>>().Get(row).has_value();
+        return storage<std::optional<T>>().Get(row).has_value();
       });
     }
     return;
@@ -227,7 +227,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kLt:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) < 0;
         }
         return cmp(storage<T>().Get(idx)) < 0;
@@ -236,7 +236,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kEq:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) == 0;
         }
         return cmp(storage<T>().Get(idx)) == 0;
@@ -245,7 +245,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kGt:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) > 0;
         }
         return cmp(storage<T>().Get(idx)) > 0;
@@ -254,7 +254,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kNe:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) != 0;
         }
         return cmp(storage<T>().Get(idx)) != 0;
@@ -263,7 +263,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kLe:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) <= 0;
         }
         return cmp(storage<T>().Get(idx)) <= 0;
@@ -272,7 +272,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kGe:
       overlay().FilterInto(rm, [this, &cmp](uint32_t idx) {
         if (is_nullable) {
-          auto opt_value = storage<base::Optional<T>>().Get(idx);
+          auto opt_value = storage<std::optional<T>>().Get(idx);
           return opt_value && cmp(*opt_value) >= 0;
         }
         return cmp(storage<T>().Get(idx)) >= 0;
@@ -486,8 +486,8 @@ void Column::StableSortNumeric(std::vector<uint32_t>* out) const {
 
   overlay().StableSort(out, [this](uint32_t a_idx, uint32_t b_idx) {
     if (is_nullable) {
-      auto a_val = storage<base::Optional<T>>().Get(a_idx);
-      auto b_val = storage<base::Optional<T>>().Get(b_idx);
+      auto a_val = storage<std::optional<T>>().Get(a_idx);
+      auto b_val = storage<std::optional<T>>().Get(b_idx);
 
       int res = compare::NullableNumeric(a_val, b_val);
       return desc ? res > 0 : res < 0;

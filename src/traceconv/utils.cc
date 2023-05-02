@@ -20,13 +20,13 @@
 
 #include <cinttypes>
 #include <memory>
+#include <optional>
 #include <ostream>
 #include <set>
 #include <utility>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"

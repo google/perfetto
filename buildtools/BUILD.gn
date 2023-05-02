@@ -143,6 +143,9 @@ config("protobuf_full_public_config") {
   cflags = []
   if (is_clang) {
     cflags += [ "-Wno-switch-enum" ]
+    if (is_win) {
+      cflags += [ "-Wno-undef" ]
+    }
   }
 }
 
@@ -819,12 +822,8 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:c++17",
     ]
-    if (perfetto_cpp11_until_q1_2023) {
-      configs -= [ "//gn/standalone:c++11" ]
-    } else {
-      configs -= [ "//gn/standalone:c++17" ]
-    }
     configs += [
       ":libc++config",
       "//gn/standalone/sanitizers:sanitizer_options_link_helper",
@@ -922,12 +921,8 @@ if (use_custom_libcxx) {
       "//gn/standalone:extra_warnings",
       "//gn/standalone:no_exceptions",
       "//gn/standalone:no_rtti",
+      "//gn/standalone:c++17",
     ]
-    if (perfetto_cpp11_until_q1_2023) {
-      configs -= [ "//gn/standalone:c++11" ]
-    } else {
-      configs -= [ "//gn/standalone:c++17" ]
-    }
     if ((is_android || is_mac) && !custom_libcxx_is_static) {
       # Use libc++_perfetto to avoid conflicting with system libc++
       output_name = "libc++_perfettto"
@@ -1181,39 +1176,54 @@ source_set("zlib") {
   visibility = _buildtools_visibility
   sources = [
     "zlib/adler32.c",
+    "zlib/chromeconf.h",
     "zlib/compress.c",
+    "zlib/contrib/optimizations/insert_string.h",
     "zlib/cpu_features.c",
+    "zlib/cpu_features.h",
     "zlib/crc32.c",
+    "zlib/crc32.h",
     "zlib/deflate.c",
+    "zlib/deflate.h",
     "zlib/gzclose.c",
+    "zlib/gzguts.h",
     "zlib/gzlib.c",
     "zlib/gzread.c",
     "zlib/gzwrite.c",
     "zlib/infback.c",
     "zlib/inffast.c",
+    "zlib/inffast.h",
+    "zlib/inffixed.h",
     "zlib/inflate.c",
+    "zlib/inflate.h",
     "zlib/inftrees.c",
+    "zlib/inftrees.h",
     "zlib/trees.c",
+    "zlib/trees.h",
     "zlib/uncompr.c",
+    "zlib/zconf.h",
+    "zlib/zlib.h",
     "zlib/zutil.c",
+    "zlib/zutil.h",
   ]
   configs -= [ "//gn/standalone:extra_warnings" ]
-  cflags = []
   public_configs = [ ":zlib_config" ]
   deps = [ "//gn:default_deps" ]
 
-  # TODO(primiano): look into ADLER32_SIMD_SSSE3 and other SIMD optimizations
-  # (from chromium's third_party/zlib/BUILD.gn).
   if (is_win) {
     defines = [ "X86_WINDOWS" ]
   }
+
+  # TODO(primiano): look into ADLER32_SIMD_SSSE3 and other SIMD optimizations
+  # (from chromium's third_party/zlib/BUILD.gn).
 }
 
 config("zlib_config") {
   visibility = _buildtools_visibility
-  if (!is_win) {
-    defines = [ "HAVE_HIDDEN" ]
-  }
+  defines = [
+    "ZLIB_IMPLEMENTATION",
+    "CHROMIUM_ZLIB_NO_CHROMECONF",
+  ]
   cflags = [
     # Using -isystem instead of include_dirs (-I), so we don't need to suppress
     # warnings coming from third-party headers. Doing so would mask warnings in
@@ -1310,11 +1320,6 @@ source_set("libunwindstack") {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
   public_configs = [ ":libunwindstack_config" ]
-
-  if (perfetto_cpp11_until_q1_2023) {
-    configs -= [ "//gn/standalone:c++11" ]
-    public_configs += [ "//gn/standalone:c++17" ]
-  }
 }
 
 config("bionic_kernel_uapi_headers") {
@@ -1423,16 +1428,6 @@ config("llvm_demangle_config") {
 source_set("llvm_demangle") {
   visibility = _buildtools_visibility
   configs -= [ "//gn/standalone:extra_warnings" ]
-
-  # NB: this is built under c++14 and linked into code that is c++11 by default.
-  # We rely on the ABIs being compatible for this to be sane. At the time of
-  # writing, the only c++14 specific code is behind an #ifndef NDEBUG, so we
-  # could keep building as c++11 in non-debug builds, but we always use c++14 for
-  # consistency.
-  if (perfetto_cpp11_until_q1_2023) {
-    configs -= [ "//gn/standalone:c++11" ]
-    configs += [ "//gn/standalone:c++14" ]
-  }
   public_configs = [ ":llvm_demangle_config" ]
   sources = [
     "llvm-project/llvm/include/llvm/Demangle/Demangle.h",

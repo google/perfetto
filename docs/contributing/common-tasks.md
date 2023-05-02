@@ -125,9 +125,8 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 2. Register the table with the trace processor in the constructor for the [TraceProcessorImpl class](/src/trace_processor/trace_processor_impl.cc).
 3. If also implementing ingestion of events into the table:
   1. Modify the appropriate parser class in [src/trace_processor/importers](/src/trace_processor/importers) and add the code to add rows to the newly added table.
-  2. Add a new diff test for the added parsing code and table using
-  `tools/add_tp_diff_test.py`.
-  3. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor binary>`.
+  2. Add a new diff test for the added parsing code and table.
+  3. Run the newly added test with `tools/diff_test_trace_processor.py <path to trace processor shell binary>`.
 4. Upload and land your change as normal.
 
 ## Adding new derived events

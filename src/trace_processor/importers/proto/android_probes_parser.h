@@ -36,15 +36,14 @@ class AndroidProbesParser {
   void ParseBatteryCounters(int64_t ts, ConstBytes);
   void ParsePowerRails(int64_t ts, ConstBytes);
   void ParseEnergyBreakdown(int64_t ts, ConstBytes);
+  void ParseEntityStateResidency(int64_t ts, ConstBytes);
   void ParseAndroidLogPacket(ConstBytes);
   void ParseAndroidLogEvent(ConstBytes);
   void ParseAndroidLogStats(ConstBytes);
   void ParseStatsdMetadata(ConstBytes);
-  void ParseAndroidPackagesList(ConstBytes);
   void ParseInitialDisplayState(int64_t ts, ConstBytes);
   void ParseAndroidSystemProperty(int64_t ts, ConstBytes);
   void ParseAndroidGameIntervention(ConstBytes);
-  void ParseNetworkPacketEvent(int64_t ts, ConstBytes);
 
  private:
   TraceProcessorContext* const context_;
@@ -57,15 +56,6 @@ class AndroidProbesParser {
   const StringId device_state_id_;
   const StringId battery_status_id_;
   const StringId plug_type_id_;
-
-  const StringId net_arg_length_;
-  const StringId net_arg_ip_proto_;
-  const StringId net_arg_tcp_flags_;
-  const StringId net_arg_tag_;
-  const StringId net_arg_local_port_;
-  const StringId net_arg_remote_port_;
-  const StringId net_ipproto_tcp_;
-  const StringId net_ipproto_udp_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

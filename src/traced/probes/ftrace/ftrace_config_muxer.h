@@ -18,9 +18,9 @@
 #define SRC_TRACED_PROBES_FTRACE_FTRACE_CONFIG_MUXER_H_
 
 #include <map>
+#include <optional>
 #include <set>
 
-#include "perfetto/ext/base/optional.h"
 #include "src/kernel_utils/syscall_table.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
@@ -44,7 +44,7 @@ struct FtraceDataSourceConfig {
   FtraceDataSourceConfig(EventFilter _event_filter,
                          EventFilter _syscall_filter,
                          CompactSchedConfig _compact_sched,
-                         base::Optional<FtracePrintFilterConfig> _print_filter,
+                         std::optional<FtracePrintFilterConfig> _print_filter,
                          std::vector<std::string> _atrace_apps,
                          std::vector<std::string> _atrace_categories,
                          bool _symbolize_ksyms,
@@ -72,7 +72,7 @@ struct FtraceDataSourceConfig {
 
   // Optional configuration that's used to filter "ftrace/print" events based on
   // the content of their "buf" field.
-  base::Optional<FtracePrintFilterConfig> print_filter;
+  std::optional<FtracePrintFilterConfig> print_filter;
 
   // Used only in Android for ATRACE_EVENT/os.Trace() userspace annotations.
   std::vector<std::string> atrace_apps;
@@ -164,6 +164,8 @@ class FtraceConfigMuxer {
   const std::set<size_t>& GetSyscallFilterForTesting() const {
     return current_state_.syscall_filter;
   }
+
+  size_t GetDataSourcesCount() const { return ds_configs_.size(); }
 
   // Returns the syscall ids for the current architecture
   // matching the (subjectively) most commonly used syscalls

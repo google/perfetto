@@ -23,6 +23,7 @@ perfetto_amalgamated_sql_header("gen_amalgamated_stdlib") {
     "chrome:chrome_sql",
     "common",
     "experimental",
+    "pkvm",
   ]
   generated_header = "amalgamated_stdlib.h"
   namespace = "stdlib"

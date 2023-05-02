@@ -22,9 +22,9 @@ import {
   STR_NULL,
 } from '../common/query_result';
 import {ChromeSliceSelection} from '../common/state';
-import {translateState} from '../common/thread_state';
 import {fromNs, toNs} from '../common/time';
 import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
+import {globals} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
@@ -34,7 +34,6 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {parseArgs} from './args_parser';
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export interface SelectionControllerArgs {
   engine: Engine;
@@ -311,19 +310,16 @@ export class SelectionController extends Controller<'main'> {
     return trackId;
   }
 
+  // TODO(altimin): We currently rely on the ThreadStateDetails for supporting
+  // marking the area (the rest goes is handled by ThreadStateTab
+  // directly. Refactor it to be plugin-friendly and remove this.
   async threadStateDetails(id: number) {
     const query = `
       SELECT
         ts,
-        thread_state.dur as dur,
-        state,
-        io_wait as ioWait,
-        thread_state.utid as utid,
-        thread_state.cpu as cpu,
-        sched.id as id,
-        thread_state.blocked_function as blockedFunction
+        thread_state.dur as dur
       from thread_state
-      left join sched using(ts) where thread_state.id = ${id}
+      where thread_state.id = ${id}
     `;
     const result = await this.args.engine.query(query);
 
@@ -332,25 +328,11 @@ export class SelectionController extends Controller<'main'> {
       const row = result.firstRow({
         ts: NUM,
         dur: NUM,
-        state: STR_NULL,
-        ioWait: NUM_NULL,
-        utid: NUM,
-        cpu: NUM_NULL,
-        id: NUM_NULL,
-        blockedFunction: STR_NULL,
       });
       const ts = row.ts;
       const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
       const dur = fromNs(row.dur);
-      const ioWait = row.ioWait === null ? undefined : row.ioWait > 0;
-      const state = translateState(row.state || undefined, ioWait);
-      const utid = row.utid;
-      const cpu = row.cpu === null ? undefined : row.cpu;
-      const sliceId = row.id === null ? undefined : row.id;
-      const blockedFunction =
-          row.blockedFunction === null ? undefined : row.blockedFunction;
-      const selected: ThreadStateDetails =
-          {ts: timeFromStart, dur, state, utid, cpu, sliceId, blockedFunction};
+      const selected: ThreadStateDetails = {ts: timeFromStart, dur};
       publishThreadStateDetails(selected);
     }
   }

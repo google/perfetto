@@ -14,7 +14,7 @@
 
 import {Draft} from 'immer';
 
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 import {globals} from '../frontend/globals';
 import {
@@ -23,7 +23,8 @@ import {
   TableColumn,
   tableColumnEquals,
   toggleEnabled,
-} from '../frontend/pivot_table_redux_types';
+} from '../frontend/pivot_table_types';
+import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 import {randomColor} from './colorizer';
 import {
@@ -40,11 +41,12 @@ import {
   CallsiteInfo,
   EngineMode,
   FlamegraphStateViewingOption,
+  FtraceFilterPatch,
   LoadedConfig,
-  LogsPagination,
   NewEngineMode,
   OmniboxState,
-  PivotTableReduxResult,
+  Pagination,
+  PivotTableResult,
   PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
@@ -61,7 +63,7 @@ import {
 } from './state';
 import {toNs} from './time';
 
-const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
+export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
 type StateDraft = Draft<State>;
 
@@ -274,11 +276,12 @@ export const StateActions = {
     };
   },
 
-  addDebugTrack(state: StateDraft, args: {engineId: string, name: string}):
+  addDebugTrack(
+      state: StateDraft,
+      args: {engineId: string, name: string, config: DebugTrackV2Config}):
       void {
         if (state.debugTrackId !== undefined) return;
         const trackId = generateNextId(state);
-        state.debugTrackId = trackId;
         this.addTrack(state, {
           id: trackId,
           engineId: args.engineId,
@@ -286,18 +289,15 @@ export const StateActions = {
           name: args.name,
           trackSortKey: PrimaryTrackSortKey.DEBUG_SLICE_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
-          config: {
-            maxDepth: 1,
-          },
+          config: args.config,
         });
         this.toggleTrackPinned(state, {trackId});
       },
 
-  removeDebugTrack(state: StateDraft, _: {}): void {
-    const {debugTrackId} = state;
-    if (debugTrackId === undefined) return;
-    removeTrack(state, debugTrackId);
-    state.debugTrackId = undefined;
+  removeDebugTrack(state: StateDraft, args: {trackId: string}): void {
+    const track = state.tracks[args.trackId];
+    assertTrue(track.kind === DEBUG_SLICE_TRACK_KIND);
+    removeTrack(state, args.trackId);
   },
 
   removeVisualisedArgTracks(state: StateDraft, args: {trackIds: string[]}) {
@@ -396,20 +396,6 @@ export const StateActions = {
   updateTrackConfig(state: StateDraft, args: {id: string, config: {}}) {
     if (state.tracks[args.id] === undefined) return;
     state.tracks[args.id].config = args.config;
-  },
-
-  executeQuery(
-      state: StateDraft,
-      args: {queryId: string; query: string, engineId?: string}): void {
-    state.queries[args.queryId] = {
-      id: args.queryId,
-      query: args.query,
-      engineId: args.engineId,
-    };
-  },
-
-  deleteQuery(state: StateDraft, args: {queryId: string}): void {
-    delete state.queries[args.queryId];
   },
 
   moveTrack(
@@ -795,6 +781,23 @@ export const StateActions = {
         state.pendingScrollId = args.scroll ? args.id : undefined;
       },
 
+  selectDebugSlice(state: StateDraft, args: {
+    id: number,
+    sqlTableName: string,
+    startS: number,
+    durationS: number,
+    trackId: string,
+  }): void {
+    state.currentSelection = {
+      kind: 'DEBUG_SLICE',
+      id: args.id,
+      sqlTableName: args.sqlTableName,
+      startS: args.startS,
+      durationS: args.durationS,
+      trackId: args.trackId,
+    };
+  },
+
   clearPendingScrollId(state: StateDraft, _: {}): void {
     state.pendingScrollId = undefined;
   },
@@ -823,8 +826,34 @@ export const StateActions = {
     state.currentSelection = null;
   },
 
-  updateLogsPagination(state: StateDraft, args: LogsPagination): void {
+  updateLogsPagination(state: StateDraft, args: Pagination): void {
     state.logsPagination = args;
+  },
+
+  updateFtracePagination(state: StateDraft, args: Pagination): void {
+    state.ftracePagination = args;
+  },
+
+  updateFtraceFilter(state: StateDraft, patch: FtraceFilterPatch) {
+    const {excludedNames: diffs} = patch;
+    const excludedNames = state.ftraceFilter.excludedNames;
+    for (const [addRemove, name] of diffs) {
+      switch (addRemove) {
+        case 'add':
+          if (!excludedNames.some((excluded: string) => excluded === name)) {
+            excludedNames.push(name);
+          }
+          break;
+        case 'remove':
+          state.ftraceFilter.excludedNames =
+              state.ftraceFilter.excludedNames.filter(
+                  (excluded: string) => excluded !== name);
+          break;
+        default:
+          assertUnreachable(addRemove);
+          break;
+      }
+    }
   },
 
   startRecording(state: StateDraft, _: {}): void {
@@ -945,10 +974,6 @@ export const StateActions = {
     state.lastRecordingError = undefined;
   },
 
-  setAnalyzePageQuery(state: StateDraft, args: {query: string}): void {
-    state.analyzePageQuery = args.query;
-  },
-
   requestSelectedMetric(state: StateDraft, _: {}): void {
     if (!state.metrics.availableMetrics) throw Error('No metrics available');
     if (state.metrics.selectedIndex === undefined) {
@@ -1006,8 +1031,8 @@ export const StateActions = {
     state.searchIndex = args.index;
   },
 
-  setHoveredLogsTimestamp(state: StateDraft, args: {ts: number}) {
-    state.hoveredLogsTimestamp = args.ts;
+  setHoverCursorTimestamp(state: StateDraft, args: {ts: number}) {
+    state.hoverCursorTimestamp = args.ts;
   },
 
   setHoveredNoteTimestamp(state: StateDraft, args: {ts: number}) {
@@ -1031,25 +1056,23 @@ export const StateActions = {
     }
   },
 
-  togglePivotTableRedux(state: StateDraft, args: {areaId: string|null}) {
-    state.nonSerializableState.pivotTableRedux.selectionArea =
-        args.areaId === null ?
+  togglePivotTable(state: StateDraft, args: {areaId: string|null}) {
+    state.nonSerializableState.pivotTable.selectionArea = args.areaId === null ?
         undefined :
         {areaId: args.areaId, tracks: globals.state.areas[args.areaId].tracks};
     if (args.areaId !==
-        state.nonSerializableState.pivotTableRedux.selectionArea?.areaId) {
-      state.nonSerializableState.pivotTableRedux.queryResult = null;
+        state.nonSerializableState.pivotTable.selectionArea?.areaId) {
+      state.nonSerializableState.pivotTable.queryResult = null;
     }
   },
 
   setPivotStateQueryResult(
-      state: StateDraft, args: {queryResult: PivotTableReduxResult|null}) {
-    state.nonSerializableState.pivotTableRedux.queryResult = args.queryResult;
+      state: StateDraft, args: {queryResult: PivotTableResult|null}) {
+    state.nonSerializableState.pivotTable.queryResult = args.queryResult;
   },
 
-  setPivotTableReduxConstrainToArea(
-      state: StateDraft, args: {constrain: boolean}) {
-    state.nonSerializableState.pivotTableRedux.constrainToArea = args.constrain;
+  setPivotTableConstrainToArea(state: StateDraft, args: {constrain: boolean}) {
+    state.nonSerializableState.pivotTable.constrainToArea = args.constrain;
   },
 
   dismissFlamegraphModal(state: StateDraft, _: {}) {
@@ -1058,41 +1081,40 @@ export const StateActions = {
 
   addPivotTableAggregation(
       state: StateDraft, args: {aggregation: Aggregation, after: number}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+    state.nonSerializableState.pivotTable.selectedAggregations.splice(
         args.after, 0, args.aggregation);
   },
 
   removePivotTableAggregation(state: StateDraft, args: {index: number}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations.splice(
+    state.nonSerializableState.pivotTable.selectedAggregations.splice(
         args.index, 1);
   },
 
   setPivotTableQueryRequested(
       state: StateDraft, args: {queryRequested: boolean}) {
-    state.nonSerializableState.pivotTableRedux.queryRequested =
-        args.queryRequested;
+    state.nonSerializableState.pivotTable.queryRequested = args.queryRequested;
   },
 
   setPivotTablePivotSelected(
       state: StateDraft, args: {column: TableColumn, selected: boolean}) {
     toggleEnabled(
         tableColumnEquals,
-        state.nonSerializableState.pivotTableRedux.selectedPivots,
+        state.nonSerializableState.pivotTable.selectedPivots,
         args.column,
         args.selected);
   },
 
   setPivotTableAggregationFunction(
       state: StateDraft, args: {index: number, function: AggregationFunction}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations[args.index]
+    state.nonSerializableState.pivotTable.selectedAggregations[args.index]
         .aggregationFunction = args.function;
   },
 
   setPivotTableSortColumn(
       state: StateDraft,
       args: {aggregationIndex: number, order: SortDirection}) {
-    state.nonSerializableState.pivotTableRedux.selectedAggregations =
-        state.nonSerializableState.pivotTableRedux.selectedAggregations.map(
+    state.nonSerializableState.pivotTable.selectedAggregations =
+        state.nonSerializableState.pivotTable.selectedAggregations.map(
             (agg, index) => ({
               column: agg.column,
               aggregationFunction: agg.aggregationFunction,
@@ -1114,26 +1136,24 @@ export const StateActions = {
 
   setPivotTableArgumentNames(
       state: StateDraft, args: {argumentNames: string[]}) {
-    state.nonSerializableState.pivotTableRedux.argumentNames =
-        args.argumentNames;
+    state.nonSerializableState.pivotTable.argumentNames = args.argumentNames;
   },
 
   changePivotTablePivotOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
-    const pivots = state.nonSerializableState.pivotTableRedux.selectedPivots;
-    state.nonSerializableState.pivotTableRedux.selectedPivots =
-        performReordering(
-            computeIntervals(pivots.length, args.from, args.to, args.direction),
-            pivots);
+    const pivots = state.nonSerializableState.pivotTable.selectedPivots;
+    state.nonSerializableState.pivotTable.selectedPivots = performReordering(
+        computeIntervals(pivots.length, args.from, args.to, args.direction),
+        pivots);
   },
 
   changePivotTableAggregationOrder(
       state: StateDraft,
       args: {from: number, to: number, direction: DropDirection}) {
     const aggregations =
-        state.nonSerializableState.pivotTableRedux.selectedAggregations;
-    state.nonSerializableState.pivotTableRedux.selectedAggregations =
+        state.nonSerializableState.pivotTable.selectedAggregations;
+    state.nonSerializableState.pivotTable.selectedAggregations =
         performReordering(
             computeIntervals(
                 aggregations.length, args.from, args.to, args.direction),

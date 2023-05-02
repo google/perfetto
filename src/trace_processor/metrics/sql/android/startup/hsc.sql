@@ -55,6 +55,18 @@ FROM functions
 JOIN android_startups launches ON launches.package GLOB '*' || functions.process_name || '*'
 WHERE functions.function_name GLOB "Choreographer#doFrame*" AND functions.ts > launches.ts;
 
+DROP VIEW IF EXISTS android_render_frame_times;
+CREATE VIEW android_render_frame_times AS
+SELECT
+  functions.ts AS ts,
+  functions.ts + functions.dur AS ts_end,
+  launches.package AS name,
+  launches.startup_id,
+  ROW_NUMBER() OVER(PARTITION BY launches.startup_id ORDER BY functions.ts ASC) AS number
+FROM functions
+JOIN android_startups launches ON launches.package GLOB '*' || functions.process_name || '*'
+WHERE functions.function_name GLOB "DrawFrame*" AND functions.ts > launches.ts;
+
 DROP VIEW IF EXISTS frame_times;
 CREATE VIEW frame_times AS
 SELECT startup_id AS launch_id, * FROM android_frame_times;
@@ -73,15 +85,15 @@ JOIN android_startups launches ON launches.package GLOB '*' || android_frame_tim
 WHERE android_frame_times.number = 2 AND android_frame_times.name GLOB "*roid.calcul*" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Calendar
+-- Using the DrawFrame slice from the render thread due to Calendar delaying its rendering
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
   launches.startup_id AS id,
-  android_frame_times.ts_end - launches.ts AS ts_total
-FROM android_frame_times
-JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.name GLOB "*id.calendar*" AND android_frame_times.startup_id = launches.startup_id
-ORDER BY ABS(android_frame_times.ts_end - (SELECT ts + dur FROM functions WHERE function_name GLOB "DrawFrame*" AND process_name GLOB "*id.calendar" ORDER BY ts LIMIT 1)) LIMIT 1;
+  android_render_frame_times.ts_end - launches.ts AS ts_total
+FROM android_render_frame_times
+JOIN android_startups launches ON launches.package GLOB '*' || android_render_frame_times.name || '*'
+WHERE android_render_frame_times.number = 5 AND android_render_frame_times.name GLOB "*id.calendar*" AND android_render_frame_times.startup_id = launches.startup_id;
 
 -- Camera
 INSERT INTO hsc_based_startup_times
@@ -125,6 +137,7 @@ JOIN android_startups launches ON launches.package GLOB '*' || android_frame_tim
 WHERE android_frame_times.number = 3 AND android_frame_times.name GLOB "*id.contacts" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Dialer
+-- Dialer only runs one animation at startup, use the last animation frame to indicate startup.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -132,7 +145,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*id.dialer" AND animator_name GLOB "*animator*" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*id.dialer" AND android_frame_times.startup_id = launches.startup_id LIMIT 1;
 
 -- Facebook
 INSERT INTO hsc_based_startup_times
@@ -179,6 +192,7 @@ WHERE android_frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GL
 ORDER BY ts_total LIMIT 1;
 
 -- Maps
+-- Use the 8th choreographer frame to indicate startup.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -186,7 +200,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*maps*" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.number = 8 AND android_frame_times.name GLOB "*maps*" AND android_frame_times.startup_id = launches.startup_id;
 
 -- Messages
 INSERT INTO hsc_based_startup_times
@@ -211,6 +225,7 @@ WHERE android_frame_times.ts < (SELECT ts FROM animators WHERE animator_name GLO
 ORDER BY ts_total DESC LIMIT 1;
 
 -- Photos
+-- Use the animator:translationZ slice as startup indicator.
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
@@ -218,7 +233,7 @@ SELECT
   android_frame_times.ts_end - launches.ts AS ts_total
 FROM android_frame_times
 JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 1 AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id;
+WHERE android_frame_times.ts > (SELECT ts + dur FROM animators WHERE process_name GLOB "*apps.photos" AND animator_name GLOB "animator:translationZ" ORDER BY (ts + dur) DESC LIMIT 1) AND android_frame_times.name GLOB "*apps.photos*" AND android_frame_times.startup_id = launches.startup_id LIMIT 1;
 
 -- Settings was deprecated in favor of reportFullyDrawn b/169694037.
 
@@ -255,11 +270,12 @@ WHERE android_frame_times.ts > (SELECT ts + dur FROM slices WHERE slices.name GL
 ORDER BY ts_total LIMIT 1;
 
 -- Youtube
+-- Use the 10th frame that is rendered
 INSERT INTO hsc_based_startup_times
 SELECT
   launches.package AS package,
   launches.startup_id AS id,
-  android_frame_times.ts_end - launches.ts AS ts_total
-FROM android_frame_times
-JOIN android_startups launches ON launches.package GLOB '*' || android_frame_times.name || '*'
-WHERE android_frame_times.number = 2 AND android_frame_times.name GLOB "*id.youtube" AND android_frame_times.startup_id = launches.startup_id;
+  android_render_frame_times.ts_end - launches.ts AS ts_total
+FROM android_render_frame_times
+JOIN android_startups launches ON launches.package GLOB '*' || android_render_frame_times.name || '*'
+WHERE android_render_frame_times.number = 10 AND android_render_frame_times.name GLOB "*id.youtube" AND android_render_frame_times.startup_id = launches.startup_id;

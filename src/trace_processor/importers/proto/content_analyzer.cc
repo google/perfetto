@@ -50,10 +50,12 @@ void ProtoContentAnalyzer::ProcessPacket(
   for (auto sample = computer_.GetNext(); sample.has_value();
        sample = computer_.GetNext()) {
     auto* value = map.Find(computer_.GetPath());
-    if (value)
-      *value += *sample;
-    else
-      map.Insert(computer_.GetPath(), *sample);
+    if (value) {
+      value->size += *sample;
+      ++value->count;
+    } else {
+      map.Insert(computer_.GetPath(), Sample{*sample, 1});
+    }
   }
 }
 
@@ -68,7 +70,7 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
         path_ids;
     for (auto sample = annotated_map.value().GetIterator(); sample; ++sample) {
       std::string path_string;
-      base::Optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
+      std::optional<tables::ExperimentalProtoPathTable::Id> previous_path_id;
       util::SizeProfileComputer::FieldPath path;
       for (const auto& field : sample.key()) {
         if (field.has_field_name()) {
@@ -123,8 +125,9 @@ void ProtoContentAnalyzer::NotifyEndOfFile() {
       content_row.path =
           context_->storage->InternString(base::StringView(path_string));
       content_row.path_id = *previous_path_id;
-      content_row.total_size = static_cast<int64_t>(sample.value());
-      content_row.size = static_cast<int64_t>(sample.value());
+      content_row.total_size = static_cast<int64_t>(sample.value().size);
+      content_row.size = static_cast<int64_t>(sample.value().size);
+      content_row.count = static_cast<int64_t>(sample.value().count);
       context_->storage->mutable_experimental_proto_content_table()->Insert(
           content_row);
     }

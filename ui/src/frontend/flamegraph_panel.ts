@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
@@ -40,6 +40,7 @@ import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
+import {Button} from './widgets/button';
 
 interface FlamegraphDetailsPanelAttrs {}
 
@@ -135,17 +136,14 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                     // Required to stop hot-key handling:
                     onkeydown: (e: Event) => e.stopPropagation(),
                   }),
-                  this.profileType === ProfileType.NATIVE_HEAP_PROFILE ||
-                          this.profileType === ProfileType.JAVA_HEAP_SAMPLES ?
-                      m('button.download',
-                        {
-                          onclick: () => {
-                            this.downloadPprof();
-                          },
+                  (this.profileType === ProfileType.NATIVE_HEAP_PROFILE ||
+                   this.profileType === ProfileType.JAVA_HEAP_SAMPLES) &&
+                      m(Button, {
+                        icon: 'file_download',
+                        onclick: () => {
+                          this.downloadPprof();
                         },
-                        m('i.material-icons', 'file_download'),
-                        'Download profile') :
-                      null,
+                      }),
                 ]),
             ]),
           m(`div[style=height:${height}px]`),
@@ -330,19 +328,16 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
 
   private static buildButtonComponent(
       viewingOption: FlamegraphStateViewingOption, text: string) {
-    const buttonsClass =
-        (globals.state.currentFlamegraphState &&
-         globals.state.currentFlamegraphState.viewingOption === viewingOption) ?
-        '.chosen' :
-        '';
-    return m(
-        `button${buttonsClass}`,
-        {
-          onclick: () => {
-            globals.dispatch(
-                Actions.changeViewFlamegraphState({viewingOption}));
-          },
-        },
-        text);
+    const active =
+        (globals.state.currentFlamegraphState !== null &&
+         globals.state.currentFlamegraphState.viewingOption === viewingOption);
+    return m(Button, {
+      label: text,
+      active,
+      minimal: true,
+      onclick: () => {
+        globals.dispatch(Actions.changeViewFlamegraphState({viewingOption}));
+      },
+    });
   }
 }

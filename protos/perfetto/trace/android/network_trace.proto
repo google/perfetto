@@ -33,7 +33,9 @@ message NetworkPacketEvent {
   // The name of the interface if available (e.g. 'rmnet0').
   optional string interface = 2;
 
-  // The length of the packet in bytes (wire_size - L2_header_size).
+  // The length of the packet in bytes (wire_size - L2_header_size). Ignored
+  // when using NetworkPacketEvent as the ctx in either NetworkPacketBundle or
+  // NetworkPacketContext.
   optional uint32 length = 3;
 
   // The Linux user id associated with the packet's socket.
@@ -53,4 +55,37 @@ message NetworkPacketEvent {
 
   // The remote udp/tcp port of the packet.
   optional uint32 remote_port = 9;
+}
+
+// NetworkPacketBundle bundles one or more packets sharing the same attributes.
+message NetworkPacketBundle {
+  oneof packet_context {
+    // The intern id for looking up the associated packet context.
+    uint64 iid = 1;
+
+    // The inlined context for events in this bundle.
+    NetworkPacketEvent ctx = 2;
+  }
+
+  // The timestamp of the i-th packet encoded as the nanoseconds since the
+  // enclosing TracePacket's timestamp.
+  repeated uint64 packet_timestamps = 3 [packed = true];
+
+  // The length of the i-th packet in bytes (wire_size - L2_header_size).
+  repeated uint32 packet_lengths = 4 [packed = true];
+
+  // Total number of packets in the bundle (when above aggregation_threshold).
+  optional uint32 total_packets = 5;
+
+  // Duration between first and last packet (when above aggregation_threshold).
+  optional uint64 total_duration = 6;
+
+  // Total packet length in bytes (when above aggregation_threshold).
+  optional uint64 total_length = 7;
+}
+
+// An internable packet context.
+message NetworkPacketContext {
+  optional uint64 iid = 1;
+  optional NetworkPacketEvent ctx = 2;
 }

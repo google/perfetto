@@ -18,7 +18,7 @@
 #define INCLUDE_PERFETTO_PUBLIC_PRODUCER_H_
 
 #include "perfetto/public/abi/backend_type.h"
-#include "perfetto/public/abi/producer.h"
+#include "perfetto/public/abi/producer_abi.h"
 
 // Arguments for PerfettoProducerInit. This struct is not ABI-stable, fields can
 // be added and rearranged.
@@ -29,12 +29,10 @@ struct PerfettoProducerInitArgs {
 
 // Initializes the global perfetto producer.
 static inline void PerfettoProducerInit(struct PerfettoProducerInitArgs args) {
-  if (args.backends & PERFETTO_BACKEND_IN_PROCESS &&
-      args.backends & PERFETTO_BACKEND_SYSTEM) {
-    PerfettoProducerInProcessAndSystemInit();
-  } else if (args.backends & PERFETTO_BACKEND_IN_PROCESS) {
+  if (args.backends & PERFETTO_BACKEND_IN_PROCESS) {
     PerfettoProducerInProcessInit();
-  } else if (args.backends & PERFETTO_BACKEND_SYSTEM) {
+  }
+  if (args.backends & PERFETTO_BACKEND_SYSTEM) {
     PerfettoProducerSystemInit();
   }
 }

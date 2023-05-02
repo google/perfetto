@@ -17,6 +17,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 
 #include <limits>
+#include <tuple>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"

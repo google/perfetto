@@ -89,6 +89,7 @@ test('filterVisibleSlices', () => {
   expect(filterVisibleSlices(
              [
                s(0, 100),
+
              ],
              10,
              90))

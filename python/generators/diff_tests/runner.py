@@ -20,11 +20,12 @@ import os
 import subprocess
 import sys
 import tempfile
+from binascii import unhexlify
 from dataclasses import dataclass
 from typing import List, Tuple, Optional
 
-from google.protobuf import text_format
-from python.generators.diff_tests.testing import TestCase, TestType
+from google.protobuf import text_format, message_factory, descriptor_pool
+from python.generators.diff_tests.testing import TestCase, TestType, BinaryProto
 from python.generators.diff_tests.utils import (
     ColorFormatter, create_message_factory, get_env, get_trace_descriptor_path,
     read_all_tests, serialize_python_trace, serialize_textproto_trace)
@@ -149,6 +150,39 @@ class TestCaseRunner:
   trace_descriptor_path: str
   colors: ColorFormatter
 
+  def __output_to_text_proto(self, actual: str, out: BinaryProto) -> str:
+    """Deserializes a binary proto and returns its text representation.
+
+  Args:
+    actual: (string) HEX encoded serialized proto message
+    message_type: (string) Message type
+
+  Returns:
+    Text proto
+  """
+    try:
+      raw_data = unhexlify(actual.splitlines()[-1][1:-1])
+      out_path = os.path.dirname(self.trace_processor_path)
+      descriptor_paths = [
+          f.path
+          for f in os.scandir(
+              os.path.join(ROOT_DIR, out_path, 'gen', 'protos', 'perfetto',
+                           'trace_processor'))
+          if f.is_file() and os.path.splitext(f.name)[1] == '.descriptor'
+      ]
+      descriptor_paths.append(
+          os.path.join(ROOT_DIR, out_path, 'gen', 'protos', 'third_party',
+                       'pprof', 'profile.descriptor'))
+      proto = create_message_factory(descriptor_paths, out.message_type)()
+      proto.ParseFromString(raw_data)
+      try:
+        return out.post_processing(proto)
+      except:
+        return '<Proto post processing failed>'
+      return text_format.MessageToString(proto)
+    except:
+      return '<Invalid input for proto deserializaiton>'
+
   def __run_metrics_test(self, trace_path: str,
                          metrics_message_factory) -> TestResult:
 
@@ -247,8 +281,11 @@ class TestCaseRunner:
     tmp_perf_file.close()
     os.remove(tmp_perf_file.name)
 
-    return TestResult(self.test,
-                      trace_path, cmd, expected, stdout.decode('utf8'),
+    actual = stdout.decode('utf8')
+    if self.test.blueprint.is_out_binaryproto():
+      actual = self.__output_to_text_proto(actual, self.test.blueprint.out)
+
+    return TestResult(self.test, trace_path, cmd, expected, actual,
                       stderr.decode('utf8'), tp.returncode, perf_lines)
 
   def __run(self, metrics_descriptor_paths: List[str],

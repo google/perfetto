@@ -18,10 +18,10 @@
 
 #include <cinttypes>
 #include <limits>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -39,16 +39,16 @@ namespace trace_processor {
 #if PERFETTO_BUILDFLAG(PERFETTO_TP_JSON)
 namespace {
 
-base::Optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
-                                                    bool version2) {
+std::optional<uint64_t> MaybeExtractFlowIdentifier(const Json::Value& value,
+                                                   bool version2) {
   std::string id_key = (version2 ? "bind_id" : "id");
   if (!value.isMember(id_key))
-    return base::nullopt;
+    return std::nullopt;
   auto id = value[id_key];
   if (id.isNumeric())
     return id.asUInt64();
   if (!id.isString())
-    return base::nullopt;
+    return std::nullopt;
   const char* c_string = id.asCString();
   return base::CStringToUInt64(c_string, 16);
 }
@@ -87,8 +87,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
     return;
   char phase = *ph.asCString();
 
-  base::Optional<uint32_t> opt_pid;
-  base::Optional<uint32_t> opt_tid;
+  std::optional<uint32_t> opt_pid;
+  std::optional<uint32_t> opt_tid;
 
   if (value.isMember("pid"))
     opt_pid = json::CoerceToUint32(value["pid"]);
@@ -132,8 +132,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
     // tdur will only exist on 'X' events.
     row.thread_dur = json::CoerceToTs(value["tdur"]);
     // JSON traces don't report these counters as part of slices.
-    row.thread_instruction_count = base::nullopt;
-    row.thread_instruction_delta = base::nullopt;
+    row.thread_instruction_count = std::nullopt;
+    row.thread_instruction_delta = std::nullopt;
     return row;
   };
 
@@ -191,7 +191,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
       break;
     }
     case 'X': {  // TRACE_EVENT (scoped event).
-      base::Optional<int64_t> opt_dur = json::CoerceToTs(value["dur"]);
+      std::optional<int64_t> opt_dur = json::CoerceToTs(value["dur"]);
       if (!opt_dur.has_value())
         return;
       TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
@@ -277,7 +277,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
         context_->storage->IncrementStats(stats::json_parser_failure);
         break;
       }
-      context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0);
+      context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0,
+                                      args_inserter);
       break;
     }
     case 's': {  // TRACE_EVENT_FLOW_START
@@ -332,7 +333,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
       }
       if (name == "process_name" && !value["args"]["name"].empty()) {
         const char* proc_name = value["args"]["name"].asCString();
-        procs->SetProcessMetadata(pid, base::nullopt, proc_name,
+        procs->SetProcessMetadata(pid, std::nullopt, proc_name,
                                   base::StringView());
         break;
       }

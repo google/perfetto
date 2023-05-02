@@ -24,6 +24,7 @@
 #include "perfetto/tracing/core/trace_config.h"
 
 #include "protos/perfetto/config/ftrace/ftrace_config.gen.h"
+#include "protos/perfetto/config/sys_stats/sys_stats_config.gen.h"
 
 namespace perfetto {
 namespace {
@@ -117,10 +118,13 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   std::vector<std::string> ftrace_events;
   std::vector<std::string> atrace_categories;
   std::vector<std::string> atrace_apps = options.atrace_apps;
+  bool has_hyp_category = false;
 
   for (const auto& category : options.categories) {
     if (base::Contains(category, '/')) {
       ftrace_events.push_back(category);
+    } else if (category == "hyp") {
+      has_hyp_category = true;
     } else {
       atrace_categories.push_back(category);
     }
@@ -132,6 +136,18 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
       frame_timeline->mutable_config()->set_name(
           "android.surfaceflinger.frametimeline");
     }
+
+    // For the disk category, add the diskstat data source
+    // to figure out disk io statistics.
+    if (category == "disk") {
+      protos::gen::SysStatsConfig cfg;
+      cfg.set_diskstat_period_ms(1000);
+
+      auto* sys_stats_ds = config->add_data_sources();
+      sys_stats_ds->mutable_config()->set_name("linux.sys_stats");
+      sys_stats_ds->mutable_config()->set_sys_stats_config_raw(
+          cfg.SerializeAsString());
+    }
   }
 
   config->set_duration_ms(static_cast<unsigned int>(duration_ms));
@@ -140,17 +156,33 @@ bool CreateConfigFromOptions(const ConfigOptions& options,
   if (max_file_size_kb)
     config->set_write_into_file(true);
   config->add_buffers()->set_size_kb(static_cast<unsigned int>(buffer_size_kb));
-  auto* ds_config = config->add_data_sources()->mutable_config();
-  ds_config->set_name("linux.ftrace");
-  protos::gen::FtraceConfig ftrace_cfg;
-  for (const auto& evt : ftrace_events)
-    ftrace_cfg.add_ftrace_events(evt);
-  for (const auto& cat : atrace_categories)
-    ftrace_cfg.add_atrace_categories(cat);
-  for (const auto& app : atrace_apps)
-    ftrace_cfg.add_atrace_apps(app);
-  ftrace_cfg.set_symbolize_ksyms(true);
-  ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
+
+  if (!ftrace_events.empty() || !atrace_categories.empty() ||
+      !atrace_apps.empty()) {
+    auto* ds_config = config->add_data_sources()->mutable_config();
+    ds_config->set_name("linux.ftrace");
+    protos::gen::FtraceConfig ftrace_cfg;
+    for (const auto& evt : ftrace_events)
+      ftrace_cfg.add_ftrace_events(evt);
+    for (const auto& cat : atrace_categories)
+      ftrace_cfg.add_atrace_categories(cat);
+    for (const auto& app : atrace_apps)
+      ftrace_cfg.add_atrace_apps(app);
+    ftrace_cfg.set_symbolize_ksyms(true);
+    ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
+  }
+
+  // pKVM hypervisor events are coming from a separate special instance called
+  // "hyp", we need a separate config for it.
+  if (has_hyp_category) {
+    auto* ds_config = config->add_data_sources()->mutable_config();
+    ds_config->set_name("linux.ftrace");
+    protos::gen::FtraceConfig ftrace_cfg;
+    ftrace_cfg.set_instance_name("hyp");
+    // Collect all known hypervisor traces.
+    ftrace_cfg.add_ftrace_events("hyp/*");
+    ds_config->set_ftrace_config_raw(ftrace_cfg.SerializeAsString());
+  }
 
   auto* ps_config = config->add_data_sources()->mutable_config();
   ps_config->set_name("linux.process_stats");

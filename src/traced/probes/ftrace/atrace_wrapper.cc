@@ -24,12 +24,12 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <optional>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/android_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
@@ -39,7 +39,7 @@ namespace perfetto {
 namespace {
 
 RunAtraceFunction g_run_atrace_for_testing = nullptr;
-base::Optional<bool> g_is_old_atrace_for_testing{};
+std::optional<bool> g_is_old_atrace_for_testing{};
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 // Args should include "atrace" for argv[0].

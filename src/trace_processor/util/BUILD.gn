@@ -207,6 +207,7 @@ source_set("profile_builder") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/trace_processor:demangle",
     "../../../include/perfetto/protozero:protozero",
+    "../../../protos/perfetto/trace_processor:zero",
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../containers",

@@ -17,6 +17,8 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_COMPILER_H_
 #define INCLUDE_PERFETTO_PUBLIC_COMPILER_H_
 
+#include <stddef.h>
+
 #if defined(__GNUC__) || defined(__clang__)
 #define PERFETTO_LIKELY(_x) __builtin_expect(!!(_x), 1)
 #define PERFETTO_UNLIKELY(_x) __builtin_expect(!!(_x), 0)
@@ -31,6 +33,22 @@
 #define PERFETTO_STATIC_CAST(TYPE, VAL) static_cast<TYPE>(VAL)
 #else
 #define PERFETTO_STATIC_CAST(TYPE, VAL) ((TYPE)(VAL))
+#endif
+
+// PERFETTO_REINTERPRET_CAST(TYPE, VAL): avoids the -Wold-style-cast warning
+// when writing code that needs to be compiled as C and C++.
+#ifdef __cplusplus
+#define PERFETTO_REINTERPRET_CAST(TYPE, VAL) reinterpret_cast<TYPE>(VAL)
+#else
+#define PERFETTO_REINTERPRET_CAST(TYPE, VAL) ((TYPE)(VAL))
+#endif
+
+// PERFETTO_NULL: avoids the -Wzero-as-null-pointer-constant warning when
+// writing code that needs to be compiled as C and C++.
+#ifdef __cplusplus
+#define PERFETTO_NULL nullptr
+#else
+#define PERFETTO_NULL NULL
 #endif
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_COMPILER_H_

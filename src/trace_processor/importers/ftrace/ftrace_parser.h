@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
+#include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
 #include "src/trace_processor/importers/ftrace/rss_stat_tracker.h"
 #include "src/trace_processor/importers/ftrace/sched_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/virtio_gpu_tracker.h"
@@ -278,6 +279,7 @@ class FtraceParser {
   IostatTracker iostat_tracker_;
   VirtioGpuTracker virtio_gpu_tracker_;
   MaliGpuEventTracker mali_gpu_event_tracker_;
+  PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;
@@ -348,6 +350,7 @@ class FtraceParser {
   const StringId cma_nr_test_fail_id_;
   const StringId syscall_ret_id_;
   const StringId syscall_args_id_;
+  const StringId replica_slice_id_;
   std::vector<StringId> syscall_arg_name_ids_;
 
   struct FtraceMessageStrings {
@@ -393,6 +396,9 @@ class FtraceParser {
   // A name collision is possible, always show if active wakelock exists
   // with a give name
   std::unordered_map<std::string, uint32_t> active_wakelock_to_count_;
+
+  // Record whether a suspend resume action is ongoing.
+  std::unordered_map<std::string, bool> ongoing_suspend_resume_actions;
 
   bool has_seen_first_ftrace_packet_ = false;
 

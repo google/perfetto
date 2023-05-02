@@ -23,9 +23,11 @@
 #include <array>
 #include <atomic>
 #include <bitset>
+#include <functional>
 #include <list>
 #include <map>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/time.h"
@@ -34,6 +36,7 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/tracing/backend_type.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/core/trace_config.h"
@@ -55,6 +58,10 @@ struct TracingInitArgs;
 
 namespace base {
 class TaskRunner;
+}
+
+namespace shlib {
+void ResetForTesting();
 }
 
 namespace test {
@@ -133,7 +140,9 @@ class TracingMuxerImpl : public TracingMuxer {
 
   void ActivateTriggers(const std::vector<std::string>&, uint32_t) override;
 
-  std::unique_ptr<TracingSession> CreateTracingSession(BackendType);
+  std::unique_ptr<TracingSession> CreateTracingSession(
+      BackendType,
+      TracingConsumerBackend* (*system_backend_factory)());
   std::unique_ptr<StartupTracingSession> CreateStartupTracingSession(
       const TraceConfig& config,
       Tracing::SetupStartupTracingOpts);
@@ -186,6 +195,7 @@ class TracingMuxerImpl : public TracingMuxer {
 
  private:
   friend class test::TracingMuxerImplInternalsForTest;
+  friend void shlib::ResetForTesting();
 
   // For each TracingBackend we create and register one ProducerImpl instance.
   // This talks to the producer-side of the service, gets start/stop requests
@@ -272,10 +282,7 @@ class TracingMuxerImpl : public TracingMuxer {
   // tracing sessions.
   class ConsumerImpl : public Consumer {
    public:
-    ConsumerImpl(TracingMuxerImpl*,
-                 BackendType,
-                 TracingBackendId,
-                 TracingSessionGlobalID);
+    ConsumerImpl(TracingMuxerImpl*, BackendType, TracingSessionGlobalID);
     ~ConsumerImpl() override;
 
     void Initialize(std::unique_ptr<ConsumerEndpoint> endpoint);
@@ -300,7 +307,6 @@ class TracingMuxerImpl : public TracingMuxer {
 
     TracingMuxerImpl* muxer_;
     BackendType const backend_type_;
-    TracingBackendId const backend_id_;
     TracingSessionGlobalID const session_id_;
     bool connected_ = false;
 
@@ -425,29 +431,42 @@ class TracingMuxerImpl : public TracingMuxer {
     std::function<void()> on_adopted;
   };
 
-  struct RegisteredBackend {
+  struct RegisteredProducerBackend {
     // Backends are supposed to have static lifetime.
-    TracingBackend* backend = nullptr;
+    TracingProducerBackend* backend = nullptr;
     TracingBackendId id = 0;
     BackendType type{};
 
     TracingBackend::ConnectProducerArgs producer_conn_args;
     std::unique_ptr<ProducerImpl> producer;
 
+    std::vector<RegisteredStartupSession> startup_sessions;
+  };
+
+  struct RegisteredConsumerBackend {
+    // Backends are supposed to have static lifetime.
+    TracingConsumerBackend* backend = nullptr;
+    BackendType type{};
     // The calling code can request more than one concurrently active tracing
     // session for the same backend. We need to create one consumer per session.
     std::vector<std::unique_ptr<ConsumerImpl>> consumers;
-
-    std::vector<RegisteredStartupSession> startup_sessions;
-
-    bool consumer_enabled = true;
   };
 
   void UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
                                      bool is_changed);
   explicit TracingMuxerImpl(const TracingInitArgs&);
   void Initialize(const TracingInitArgs& args);
+  void AddBackends(const TracingInitArgs& args);
+  void AddConsumerBackend(TracingConsumerBackend* backend, BackendType type);
+  void AddProducerBackend(TracingProducerBackend* backend,
+                          BackendType type,
+                          const TracingInitArgs& args);
   ConsumerImpl* FindConsumer(TracingSessionGlobalID session_id);
+  std::pair<ConsumerImpl*, RegisteredConsumerBackend*> FindConsumerAndBackend(
+      TracingSessionGlobalID session_id);
+  RegisteredProducerBackend* FindProducerBackendById(TracingBackendId id);
+  RegisteredProducerBackend* FindProducerBackendByType(BackendType type);
+  RegisteredConsumerBackend* FindConsumerBackendByType(BackendType type);
   void InitializeConsumer(TracingSessionGlobalID session_id);
   void OnConsumerDisconnected(ConsumerImpl* consumer);
   void OnProducerDisconnected(ProducerImpl* producer);
@@ -489,11 +508,18 @@ class TracingMuxerImpl : public TracingMuxer {
                                DataSourceInstanceID,
                                const FindDataSourceRes&);
   void AbortStartupTracingSession(TracingSessionGlobalID, BackendType);
+  // When ResetForTesting() is executed, `cb` will be called on the calling
+  // thread and on the muxer thread.
+  void AppendResetForTestingCallback(std::function<void()> cb);
 
   // WARNING: If you add new state here, be sure to update ResetForTesting.
   std::unique_ptr<base::TaskRunner> task_runner_;
   std::vector<RegisteredDataSource> data_sources_;
-  std::vector<RegisteredBackend> backends_;
+  // These lists can only have one backend per BackendType. The elements are
+  // sorted by BackendType priority (see BackendTypePriority). They always
+  // contain a fake low-priority kUnspecifiedBackend at the end.
+  std::list<RegisteredProducerBackend> producer_backends_;
+  std::list<RegisteredConsumerBackend> consumer_backends_;
   std::vector<RegisteredInterceptor> interceptors_;
   TracingPolicy* policy_ = nullptr;
 
@@ -512,7 +538,12 @@ class TracingMuxerImpl : public TracingMuxer {
   // After ResetForTesting() is called, holds tracing backends which needs to be
   // kept alive until all inbound references have gone away. See
   // SweepDeadBackends().
-  std::list<RegisteredBackend> dead_backends_;
+  std::list<RegisteredProducerBackend> dead_backends_;
+
+  // Test only member.
+  // Executes these cleanup functions on the calling thread and on the muxer
+  // thread when ResetForTesting() is called.
+  std::list<std::function<void()>> reset_callbacks_;
 
   PERFETTO_THREAD_CHECKER(thread_checker_)
 };

@@ -152,5 +152,49 @@ TEST_F(CreateConfigFromOptionsTest, FullConfig) {
   EXPECT_THAT(ftrace.atrace_apps(), Contains("com.android.chrome"));
 }
 
+TEST_F(CreateConfigFromOptionsTest, OnlyHypervisorTraces) {
+  options.buffer_size = "100mb";
+  options.time = "10s";
+  options.categories.push_back("hyp");
+  ASSERT_TRUE(CreateConfigFromOptions(options, &config));
+  EXPECT_EQ(config.duration_ms(), 10 * 1000u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 100 * 1024u);
+  EXPECT_EQ(config.data_sources()[0].config().name(), "linux.ftrace");
+  protos::gen::FtraceConfig ftrace;
+  ASSERT_TRUE(ftrace.ParseFromString(
+      config.data_sources()[0].config().ftrace_config_raw()));
+  EXPECT_THAT(ftrace.ftrace_events(), Contains("hyp/*"));
+  ASSERT_EQ(ftrace.instance_name(), "hyp");
+}
+
+TEST_F(CreateConfigFromOptionsTest, BothHypervisorAndHostFtraceTraces) {
+  options.buffer_size = "100mb";
+  options.time = "10s";
+  options.categories.push_back("hyp");
+  options.categories.push_back("sw");
+  options.categories.push_back("sched/sched_switch");
+  ASSERT_TRUE(CreateConfigFromOptions(options, &config));
+  EXPECT_EQ(config.duration_ms(), 10 * 1000u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 100 * 1024u);
+  EXPECT_EQ(config.buffers()[0].size_kb(), 100 * 1024u);
+  EXPECT_EQ(config.data_sources()[0].config().name(), "linux.ftrace");
+  {
+    protos::gen::FtraceConfig ftrace;
+    ASSERT_TRUE(ftrace.ParseFromString(
+        config.data_sources()[0].config().ftrace_config_raw()));
+    EXPECT_THAT(ftrace.ftrace_events(), Contains("sched/sched_switch"));
+    EXPECT_THAT(ftrace.atrace_categories(), Contains("sw"));
+    EXPECT_TRUE(ftrace.symbolize_ksyms());
+  }
+  EXPECT_EQ(config.data_sources()[1].config().name(), "linux.ftrace");
+  {
+    protos::gen::FtraceConfig ftrace;
+    ASSERT_TRUE(ftrace.ParseFromString(
+        config.data_sources()[1].config().ftrace_config_raw()));
+    EXPECT_THAT(ftrace.ftrace_events(), Contains("hyp/*"));
+    ASSERT_EQ(ftrace.instance_name(), "hyp");
+  }
+}
+
 }  // namespace
 }  // namespace perfetto

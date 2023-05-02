@@ -102,7 +102,7 @@ class TracedProto {
   // repeated and non-repeated complex fields are supported.
   template <typename FieldMetadata>
   TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage(
-      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>) {
+      FieldMetadata) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
@@ -121,8 +121,7 @@ class TracedProto {
   // string), but requires the |field| to be non-repeateable (i.e. optional).
   // For repeatable fields, AppendValue or AppendFrom should be used.
   template <typename FieldMetadata, typename ValueType>
-  void Set(protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
-           ValueType&& value) {
+  void Set(FieldMetadata, ValueType&& value) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
@@ -148,9 +147,7 @@ class TracedProto {
   // current message. If the field is not repeated, Set() should be used
   // instead.
   template <typename FieldMetadata, typename ValueType>
-  void AppendValue(
-      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
-      ValueType&& value) {
+  void AppendValue(FieldMetadata, ValueType&& value) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
@@ -174,9 +171,7 @@ class TracedProto {
   // current message. If the field is not repeated, Set() should be used
   // instead.
   template <typename FieldMetadata, typename ValueType>
-  void AppendFrom(
-      protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>,
-      ValueType&& value) {
+  void AppendFrom(FieldMetadata, ValueType&& value) {
     static_assert(std::is_base_of<MessageType,
                                   typename FieldMetadata::message_type>::value,
                   "Field should belong to the current message");
@@ -199,8 +194,7 @@ class TracedProto {
   // above and make these methods private.
   template <typename FieldMetadata>
   TracedProto<typename FieldMetadata::cpp_field_type> WriteNestedMessage() {
-    return WriteNestedMessage(
-        protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadata>());
+    return WriteNestedMessage(FieldMetadata());
   }
 
  private:
@@ -401,10 +395,9 @@ void WriteIntoTracedProto(TracedProto<MessageType> message, ValueType&& value) {
 }
 
 template <typename MessageType, typename FieldMetadataType, typename ValueType>
-void WriteTracedProtoField(
-    TracedProto<MessageType>& message,
-    protozero::proto_utils::internal::FieldMetadataHelper<FieldMetadataType>,
-    ValueType&& value) {
+void WriteTracedProtoField(TracedProto<MessageType>& message,
+                           FieldMetadataType,
+                           ValueType&& value) {
   static_assert(
       std::is_base_of<protozero::proto_utils::FieldMetadataBase,
                       FieldMetadataType>::value,

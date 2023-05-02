@@ -32,13 +32,14 @@ import {TimeSpan, toNs, toNsCeil, toNsFloor} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
-  globals as frontendGlobals,
+  FtraceStat,
+  globals,
   QuantizedLoad,
   ThreadDesc,
 } from '../frontend/globals';
 import {showModal} from '../frontend/modal';
 import {
-  publishHasFtrace,
+  publishFtraceCounters,
   publishMetricError,
   publishOverviewData,
   publishThreads,
@@ -77,15 +78,14 @@ import {
   FlowEventsController,
   FlowEventsControllerArgs,
 } from './flow_events_controller';
-import {globals} from './globals';
+import {FtraceController} from './ftrace_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
 import {MetricsController} from './metrics_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
-  PivotTableReduxController,
-} from './pivot_table_redux_controller';
-import {QueryController, QueryControllerArgs} from './query_controller';
+  PivotTableController,
+} from './pivot_table_controller';
 import {SearchController} from './search_controller';
 import {
   SelectionController,
@@ -122,8 +122,9 @@ const METRICS = [
 ];
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
   const id = `forceMetric${m}`;
-  let name = m.split('_').join(' ') + ' metric';
+  let name = m.split('_').join(' ');
   name = name[0].toUpperCase() + name.slice(1);
+  name = 'Metric: ' + name;
   const flag = featureFlags.register({
     id,
     name,
@@ -207,7 +208,7 @@ export class TraceController extends Controller<States> {
       case 'init':
         this.loadTrace()
             .then((mode) => {
-              frontendGlobals.dispatch(Actions.setEngineReady({
+              globals.dispatch(Actions.setEngineReady({
                 engineId: this.engineId,
                 ready: true,
                 mode,
@@ -241,21 +242,6 @@ export class TraceController extends Controller<States> {
           const trackCtlFactory = trackControllerRegistry.get(trackCfg.kind);
           const trackArgs: TrackControllerArgs = {trackId, engine};
           childControllers.push(Child(trackId, trackCtlFactory, trackArgs));
-        }
-
-        // Create a QueryController for each query.
-        for (const queryId of Object.keys(globals.state.queries)) {
-          // If the expected engineId was not specified in the query, we
-          // assume it's current engine id. The engineId is not specified
-          // for instances with queries created prior to the creation of the
-          // first engine.
-          const expectedEngineId = globals.state.engine?.id;
-          // Check that we are executing the query on the correct engine.
-          if (expectedEngineId !== engine.id) {
-            continue;
-          }
-          const queryArgs: QueryControllerArgs = {queryId, engine};
-          childControllers.push(Child(queryId, QueryController, queryArgs));
         }
 
         for (const argName of globals.state.visualisedArgs) {
@@ -312,12 +298,16 @@ export class TraceController extends Controller<States> {
           app: globals,
         }));
         childControllers.push(
-          Child('pivot_table_redux', PivotTableReduxController, {engine}));
+            Child('pivot_table', PivotTableController, {engine}));
 
         childControllers.push(Child('logs', LogsController, {
           engine,
           app: globals,
         }));
+
+        childControllers.push(
+            Child('ftrace', FtraceController, {engine, app: globals}));
+
         childControllers.push(
           Child('traceError', TraceErrorController, {engine}));
         childControllers.push(Child('metrics', MetricsController, {engine}));
@@ -331,7 +321,7 @@ export class TraceController extends Controller<States> {
   }
 
   onDestroy() {
-    frontendGlobals.engines.delete(this.engineId);
+    globals.engines.delete(this.engineId);
   }
 
   private async loadTrace(): Promise<EngineMode> {
@@ -349,7 +339,7 @@ export class TraceController extends Controller<States> {
       engineMode = 'HTTP_RPC';
       engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
       engine.errorHandler = (err) => {
-        frontendGlobals.dispatch(
+        globals.dispatch(
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
@@ -371,11 +361,10 @@ export class TraceController extends Controller<States> {
       this.engine.enableMetatrace(
         assertExists(getEnabledMetatracingCategories()));
     }
-    frontendGlobals.bottomTabList =
-      new BottomTabList(engine.getProxy('BottomTabList'));
+    globals.bottomTabList = new BottomTabList(engine.getProxy('BottomTabList'));
 
-    frontendGlobals.engines.set(this.engineId, engine);
-    frontendGlobals.dispatch(Actions.setEngineReady({
+    globals.engines.set(this.engineId, engine);
+    globals.dispatch(Actions.setEngineReady({
       engineId: this.engineId,
       ready: false,
       mode: engineMode,
@@ -445,7 +434,7 @@ export class TraceController extends Controller<States> {
     if (!shownJsonWarning) {
       // When in embedded mode, the host app will control which trace format
       // it passes to Perfetto, so we don't need to show this warning.
-      if (isJsonTrace && !frontendGlobals.embeddedMode) {
+      if (isJsonTrace && !globals.embeddedMode) {
         showJsonWarning();
         // Save that the warning has been shown. Value is irrelevant since only
         // the presence of key is going to be checked.
@@ -455,7 +444,7 @@ export class TraceController extends Controller<States> {
 
     const emptyOmniboxState = {
       omnibox: '',
-      mode: frontendGlobals.state.omniboxState.mode || 'SEARCH',
+      mode: globals.state.omniboxState.mode || 'SEARCH',
     };
 
     const actions: DeferredAction[] = [
@@ -476,7 +465,7 @@ export class TraceController extends Controller<States> {
       resolution,
     }));
 
-    frontendGlobals.dispatchMultiple(actions);
+    globals.dispatchMultiple(actions);
     Router.navigate(`#!/viewer?local_cache_key=${traceUuid}`);
 
     // Make sure the helper views are available before we start adding tracks.
@@ -494,25 +483,24 @@ export class TraceController extends Controller<States> {
     await this.loadTimelineOverview(traceTime);
 
     {
-      // A quick heuristic to check if the trace has ftrace events. This is
-      // based on the assumption that most traces that have ftrace either:
-      // - Are proto traces captured via perfetto, in which case traced_probes
-      //   emits ftrace per-cpu stats that end up in the stats table.
-      // - Have a raw event with non-zero cpu or utid.
-      // Notes:
-      // - The "+1 > 1" is to avoid pushing down the constraints to the "raw"
-      //   table, which would compute a full column filter without being aware
-      //   of the limit 1, and instead delegate the filtering to the iterator.
-      const query = `select '_' as _ from raw
-          where cpu + 1 > 1 or utid + 1 > 1 limit 1`;
+      // Pull out the counts ftrace events by name
+      const query = `select
+            name,
+            count(*) as cnt
+          from ftrace_event
+          group by name
+          order by cnt desc`;
       const result = await assertExists(this.engine).query(query);
-      const hasFtrace = result.numRows() > 0;
-      publishHasFtrace(hasFtrace);
+      const counters: FtraceStat[] = [];
+      const it = result.iter({name: STR, cnt: NUM});
+      for (let row = 0; it.valid(); it.next(), row++) {
+        counters.push({name: it.name, count: it.cnt});
+      }
+      publishFtraceCounters(counters);
     }
 
-    frontendGlobals.dispatch(Actions.removeDebugTrack({}));
-    frontendGlobals.dispatch(Actions.sortThreadTracks({}));
-    frontendGlobals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
+    globals.dispatch(Actions.sortThreadTracks({}));
+    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     await this.selectFirstHeapProfile();
     if (PERF_SAMPLE_FLAG.get()) {
@@ -531,7 +519,7 @@ export class TraceController extends Controller<States> {
     if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ANNOTATION_FLAG.get()) {
       const reliableRangeStart = await computeTraceReliableRangeStart(engine);
       if (reliableRangeStart > 0) {
-        frontendGlobals.dispatch(Actions.addAutomaticNote({
+        globals.dispatch(Actions.addAutomaticNote({
           timestamp: reliableRangeStart,
           color: '#ff0000',
           text: 'Reliable Range Start',
@@ -554,7 +542,7 @@ export class TraceController extends Controller<States> {
     const upid = row.upid;
     const leftTs = toNs(globals.state.traceTime.startSec);
     const rightTs = toNs(globals.state.traceTime.endSec);
-    frontendGlobals.dispatch(Actions.selectPerfSamples(
+    globals.dispatch(Actions.selectPerfSamples(
         {id: 0, upid, leftTs, rightTs, type: ProfileType.PERF_SAMPLE}));
   }
 
@@ -576,15 +564,14 @@ export class TraceController extends Controller<States> {
     const ts = row.ts;
     const type = profileType(row.type);
     const upid = row.upid;
-    frontendGlobals.dispatch(
-        Actions.selectHeapProfile({id: 0, upid, ts, type}));
+    globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }
 
   private async listTracks() {
     this.updateStatus('Loading tracks');
     const engine = assertExists<Engine>(this.engine);
     const actions = await decideTracks(this.engineId, engine);
-    frontendGlobals.dispatchMultiple(actions);
+    globals.dispatchMultiple(actions);
   }
 
   private async listThreads() {
@@ -777,7 +764,7 @@ export class TraceController extends Controller<States> {
     for (const it = metricsResult.iter({name: STR}); it.valid(); it.next()) {
       availableMetrics.push(it.name);
     }
-    frontendGlobals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
+    globals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
 
     const availableMetricsSet = new Set<string>(availableMetrics);
     for (const [flag, metric] of FLAGGED_METRICS) {
@@ -896,7 +883,7 @@ export class TraceController extends Controller<States> {
   }
 
   private updateStatus(msg: string): void {
-    frontendGlobals.dispatch(Actions.updateStatus({
+    globals.dispatch(Actions.updateStatus({
       msg,
       timestamp: Date.now() / 1000,
     }));

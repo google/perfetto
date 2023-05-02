@@ -43,6 +43,8 @@ class ProtoFactory:
 
     def create_message_factory(message_type):
       message_desc = self.descriptor_pool.FindMessageTypeByName(message_type)
+      if hasattr(message_factory, 'GetMessageClass'):
+        return message_factory.GetMessageClass(message_desc)
       return message_factory.MessageFactory().GetPrototype(message_desc)
 
     # Create proto messages to correctly communicate with the RPC API by sending

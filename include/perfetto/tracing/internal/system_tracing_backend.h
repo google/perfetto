@@ -28,43 +28,39 @@ class TaskRunner;
 
 class Producer;
 
-// A built-in implementation of TracingBackend that connects to the system
-// tracing daemon (traced) via a UNIX socket using the perfetto built-in
-// proto-based IPC mechanism. Instantiated when the embedder calls
-// Tracing::Initialize(kSystemBackend). It allows to get app-traces fused
-// together with system traces, useful to correlate on the timeline system
-// events (e.g. scheduling slices from the kernel) with in-app events.
+// Built-in implementations of TracingProducerBackend and TracingConsumerBackend
+// that connect to the system tracing daemon (traced) via a UNIX socket using
+// the perfetto built-in proto-based IPC mechanism. Instantiated when the
+// embedder calls Tracing::Initialize(kSystemBackend). They allow to get
+// app-traces fused together with system traces, useful to correlate on the
+// timeline system events (e.g. scheduling slices from the kernel) with in-app
+// events.
 namespace internal {
 
-// Full backend (with producer and consumer)
-class PERFETTO_EXPORT_COMPONENT SystemTracingBackend : public TracingBackend {
+// Producer backend
+class PERFETTO_EXPORT_COMPONENT SystemProducerTracingBackend
+    : public TracingProducerBackend {
  public:
-  static TracingBackend* GetInstance();
+  static TracingProducerBackend* GetInstance();
 
-  // TracingBackend implementation.
   std::unique_ptr<ProducerEndpoint> ConnectProducer(
       const ConnectProducerArgs&) override;
-  std::unique_ptr<ConsumerEndpoint> ConnectConsumer(
-      const ConnectConsumerArgs&) override;
 
  private:
-  SystemTracingBackend();
+  SystemProducerTracingBackend();
 };
 
-// Producer only backend.
-class PERFETTO_EXPORT_COMPONENT SystemTracingProducerOnlyBackend
-    : public TracingBackend {
+// Consumer backend
+class PERFETTO_EXPORT_COMPONENT SystemConsumerTracingBackend
+    : public TracingConsumerBackend {
  public:
-  static TracingBackend* GetInstance();
+  static TracingConsumerBackend* GetInstance();
 
-  // TracingBackend implementation.
-  std::unique_ptr<ProducerEndpoint> ConnectProducer(
-      const ConnectProducerArgs&) override;
   std::unique_ptr<ConsumerEndpoint> ConnectConsumer(
       const ConnectConsumerArgs&) override;
 
  private:
-  SystemTracingProducerOnlyBackend();
+  SystemConsumerTracingBackend();
 };
 
 }  // namespace internal

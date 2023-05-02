@@ -24,12 +24,12 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/thread_task_runner.h"
@@ -390,7 +390,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     return;
   }
 
-  base::Optional<std::vector<std::string>> normalized_cmdlines =
+  std::optional<std::vector<std::string>> normalized_cmdlines =
       NormalizeCmdlines(heapprofd_config.process_cmdline());
   if (!normalized_cmdlines.has_value()) {
     PERFETTO_ELOG("Rejecting data source due to invalid cmdline in config.");
@@ -416,7 +416,7 @@ void HeapprofdProducer::SetupDataSource(DataSourceInstanceID id,
     }
   }
 
-  base::Optional<uint64_t> start_cputime_sec;
+  std::optional<uint64_t> start_cputime_sec;
   if (heapprofd_config.max_heapprofd_cpu_secs() > 0) {
     start_cputime_sec = GetCputimeSecForCurrentProcess();
 

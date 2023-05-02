@@ -16,19 +16,21 @@
 
 #include "src/tools/proto_merger/proto_merger.h"
 
+#include <optional>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
-#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/string_utils.h"
 
 namespace perfetto {
 namespace proto_merger {
 namespace {
 
 template <typename Key, typename Value>
-base::Optional<Value> FindInMap(const std::map<Key, Value>& map,
-                                const Key& key) {
+std::optional<Value> FindInMap(const std::map<Key, Value>& map,
+                               const Key& key) {
   auto it = map.find(key);
-  return it == map.end() ? base::nullopt : base::make_optional(it->second);
+  return it == map.end() ? std::nullopt : std::make_optional(it->second);
 }
 
 // Finds the given 'name' in the vector by comparing against
@@ -181,8 +183,21 @@ base::Status MergeField(const ProtoFile::Field& input,
         input.packageless_type.c_str(), upstream.packageless_type.c_str());
   }
 
-  // If the packageless type mathces, the type should also match.
-  PERFETTO_CHECK(input.type == upstream.type);
+  // If the packageless type name is the same but the type is different
+  // mostly we should error however sometimes it is useful to allow downstream
+  // to 'alias' an upstream type. For example 'Foo' to an existing internal
+  // type in another package 'my.private.Foo'.
+  if (input.type != upstream.type) {
+    if (!base::EndsWith(upstream.type, "Atom")) {
+      return base::ErrStatus(
+          "Upstream field with id %d and name '%s' "
+          "(source of truth name: '%s') uses the type '%s' but we have the "
+          "existing downstream type '%s'. Resolve this manually either by "
+          "allowing this explicitly in proto_merger or editing the proto.",
+          input.number, input.name.c_str(), upstream.name.c_str(),
+          upstream.type.c_str(), input.type.c_str());
+    }
+  }
 
   // Get the comments, label and the name from the source of truth.
   out.leading_comments = upstream.leading_comments;
@@ -253,8 +268,8 @@ base::Status MergeRecursive(
       continue;
 
     // If the input value doesn't exist, create a fake "input" that we can pass
-    // to the merge functon. This basically has the effect that the upstream
-    // item is taken but *not* recrusively; i.e. any fields which are inside the
+    // to the merge function. This basically has the effect that the upstream
+    // item is taken but *not* recursively; i.e. any fields which are inside the
     // message/oneof are checked against the allowlist individually. If we just
     // took the whole upstream here, we could add fields which were not
     // allowlisted.

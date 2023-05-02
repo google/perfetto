@@ -18,11 +18,11 @@ import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
+import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 import {ControllerFactory} from './controller';
-import {globals} from './globals';
 
 interface TrackConfig {}
 
@@ -35,7 +35,8 @@ type TrackConfigWithNamespace = TrackConfig&{namespace: string};
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
 export abstract class TrackController<
-    Config, Data extends TrackData = TrackData> extends Controller<'main'> {
+    Config extends TrackConfig, Data extends TrackData = TrackData> extends
+    Controller<'main'> {
   readonly trackId: string;
   readonly engine: Engine;
   private data?: TrackData;

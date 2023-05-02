@@ -1,0 +1,59 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Generic list with y-overflow, move me to a common file if we want to reuse.
+.pf-list {
+  overflow-y: auto;
+}
+
+.pf-multiselect-popup {
+  font-family: $pf-font;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 280px;
+  max-height: 300px;
+  margin: 5px;
+  & > .pf-search-bar {
+    margin-bottom: 8px;
+    display: flex;
+    & > .pf-search-box {
+      flex-grow: 1;
+    }
+  }
+  .pf-multiselect-item {
+    display: block; // Put each item on a new line
+    margin-top: 5px;
+  }
+  .pf-multiselect-header {
+    align-items: baseline;
+    display: flex;
+    position: sticky;
+    top: 0;
+    font-size: 1em;
+    background-color: white;
+    z-index: 1;
+    font-size: 0.75em;
+    border-bottom: solid 1px $pf-minimal-foreground;
+    padding-bottom: 2px;
+    min-width: max-content;
+    & > span {
+      margin-right: auto;
+    }
+  }
+  .pf-multiselect-container {
+    position: relative;
+    margin-bottom: 16px;
+  }
+}

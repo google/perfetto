@@ -12,31 +12,34 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+
 .flags-page {
   overflow-y: scroll;
 }
 
 .flags-content {
-  max-width: 90ch;
+  max-width: 100ch;
   width: 60%;
   margin: 0 auto;
   padding: 3rem;
   display: grid;
-  grid-row-gap: 1rem;
 
   h1 {
     font-size: larger;
+    margin: 1rem 1rem;
   }
 
   button {
     background: none;
     border: 1px solid rgb(218, 220, 224);
-    border-radius: 3px;
+    border-radius: $pf-border-radius;
     color: rgb(25, 103, 210);
     font-size: 0.8125rem;
     padding: 8px 12px;
     cursor: pointer;
     font-weight: 500;
+    margin: 3px 0.5rem;
   }
 }
 
@@ -45,9 +48,9 @@
   grid-template:
     "title control" auto
     "description control" auto / 1fr auto;
-
-  row-gap: 0.5rem;
-  align-content: center;
+  row-gap: 0.3rem;
+  padding: 1rem 1rem;
+  align-items: center;
 
   select {
     grid-area: control;
@@ -69,4 +72,8 @@
   .description {
     font-size: smaller;
   }
+}
+
+.flag-widget:nth-child(2n + 1) {
+  background-color: #0000000a;
 }

@@ -34,8 +34,8 @@ source_set("minimal") {
     "memory_tracker_snapshot_parser.h",
     "metadata_minimal_module.cc",
     "metadata_minimal_module.h",
-    "metadata_tracker.cc",
-    "metadata_tracker.h",
+    "network_trace_module.cc",
+    "network_trace_module.h",
     "packet_analyzer.cc",
     "packet_analyzer.h",
     "packet_sequence_state.h",
@@ -236,6 +236,7 @@ source_set("unittests") {
     "active_chrome_processes_tracker_unittest.cc",
     "heap_graph_tracker_unittest.cc",
     "heap_profile_tracker_unittest.cc",
+    "network_trace_module_unittest.cc",
     "perf_sample_tracker_unittest.cc",
     "proto_trace_parser_unittest.cc",
   ]

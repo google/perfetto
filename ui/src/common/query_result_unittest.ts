@@ -12,9 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as protoNamespace from '../gen/protos';
+import protoNamespace from '../gen/protos';
 
-import {createQueryResult, NUM, NUM_NULL, STR, STR_NULL} from './query_result';
+import {
+  createQueryResult,
+  decodeInt64Varint,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from './query_result';
 
 const T = protoNamespace.perfetto.protos.QueryResult.CellsBatch.CellType;
 const QueryResultProto = protoNamespace.perfetto.protos.QueryResult;
@@ -341,4 +348,116 @@ test('QueryResult.WaitMoreRows', async () => {
 
   expect(qr.isComplete()).toBe(true);
   expect(qr.numRows()).toBe(2);
+});
+
+describe('decodeInt64Varint', () => {
+  test('Parsing empty input should throw an error', () => {
+    expect(() => decodeInt64Varint(new Uint8Array(), 0))
+        .toThrow('Index out of range');
+  });
+
+  test('Parsing single byte positive integers', () => {
+    const testData: Array<[Uint8Array, BigInt]> = [
+      [new Uint8Array([0x00]), BigInt(0)],
+      [new Uint8Array([0x01]), BigInt(1)],
+      [new Uint8Array([0x7f]), BigInt(127)],
+    ];
+
+    testData.forEach(([input, expected]) => {
+      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+    });
+  });
+
+  test('Parsing multi-byte positive integers', () => {
+    const testData: Array<[Uint8Array, BigInt]> = [
+      [new Uint8Array([0x80, 0x01]), BigInt(128)],
+      [new Uint8Array([0xff, 0x7f]), BigInt(16383)],
+      [new Uint8Array([0x80, 0x80, 0x01]), BigInt(16384)],
+      [new Uint8Array([0xff, 0xff, 0x7f]), BigInt(2097151)],
+      [
+        new Uint8Array([
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0x00,
+        ]),
+        BigInt('9223372036854775807'),
+      ],
+    ];
+
+    testData.forEach(([input, expected]) => {
+      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+    });
+  });
+
+  test('Parsing negative integers', () => {
+    const testData: Array<[Uint8Array, BigInt]> = [
+      [
+        new Uint8Array([
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0x01,
+        ]),
+        BigInt(-1),
+      ],
+      [
+        new Uint8Array([
+          0xfe,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0xff,
+          0x01,
+        ]),
+        BigInt(-2),
+      ],
+      [
+        new Uint8Array([
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x80,
+          0x01,
+        ]),
+        BigInt('-9223372036854775808'),
+      ],
+    ];
+
+    testData.forEach(([input, expected]) => {
+      expect(decodeInt64Varint(input, 0)).toEqual(expected);
+    });
+  });
+
+  test('Parsing with incomplete varint should throw an error', () => {
+    const testData: Array<Uint8Array> = [
+      new Uint8Array([0x80]),
+      new Uint8Array([0x80, 0x80]),
+    ];
+
+    testData.forEach((input) => {
+      expect(() => decodeInt64Varint(input, 0)).toThrow('Index out of range');
+    });
+  });
 });

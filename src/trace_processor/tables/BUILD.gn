@@ -18,32 +18,34 @@ import("../../../gn/test.gni")
 perfetto_tp_tables("tables_python") {
   sources = [
     "android_tables.py",
+    "counter_tables.py",
+    "flow_tables.py",
+    "memory_tables.py",
     "metadata_tables.py",
+    "profiler_tables.py",
+    "slice_tables.py",
+    "trace_proto_tables.py",
+    "track_tables.py",
   ]
   generate_docs = true
 }
 
 source_set("tables") {
   sources = [
-    "android_tables.h",
     "counter_tables.h",
     "flow_tables.h",
     "macros.h",
     "macros_internal.h",
-    "memory_tables.h",
-    "metadata_tables.h",
     "profiler_tables.h",
     "slice_tables.h",
     "table_destructors.cc",
-    "trace_proto_tables.h",
-    "track_tables.h",
   ]
   deps = [
-    ":tables_python",
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/base",
     "../db",
   ]
+  public_deps = [ ":tables_python" ]
 }
 
 perfetto_tp_tables("py_tables_unittest") {
@@ -61,6 +63,7 @@ source_set("unittests") {
     ":tables",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../db",
   ]
 }
 

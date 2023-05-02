@@ -23,7 +23,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-struct SystraceLine {
+struct alignas(8) SystraceLine {
   int64_t ts;
   uint32_t pid;
   uint32_t cpu;

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
@@ -27,10 +27,11 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {EngineMode, TraceArrayBufferSource} from '../common/state';
-import * as version from '../gen/perfetto_version';
+import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 
 import {Animation} from './animation';
 import {onClickCopy} from './clipboard';
+import {downloadData, downloadUrl} from './download_utils';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {
@@ -38,6 +39,7 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
+import {runQueryInNewTab} from './query_result_tab';
 import {Router} from './router';
 import {isDownloadable, isShareable} from './trace_attrs';
 import {
@@ -132,29 +134,21 @@ const HIRING_BANNER_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
+  id: 'showWidgetsPageInNav',
+  name: 'Show widgets page',
+  description: 'Show a link to the widgets page in the side bar.',
+  defaultValue: false,
+});
+
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
 
-function createCannedQuery(query: string): (_: Event) => void {
+function createCannedQuery(query: string, title: string): (_: Event) => void {
   return (e: Event) => {
     e.preventDefault();
-    globals.dispatch(Actions.executeQuery({
-      queryId: 'command',
-      query,
-    }));
-  };
-}
-
-function showDebugTrack(): (_: Event) => void {
-  return (e: Event) => {
-    e.preventDefault();
-    globals.dispatch(Actions.addDebugTrack({
-      // The debug track will only be shown once we have a currentEngineId which
-      // is not undefined.
-      engineId: assertExists(globals.state.engine).id,
-      name: 'Debug Slices',
-    }));
+    runQueryInNewTab(query, title);
   };
 }
 
@@ -199,6 +193,12 @@ const SECTIONS: Section[] = [
         i: 'filter_none',
       },
       {t: 'Record new trace', a: navigateRecord, i: 'fiber_smart_record'},
+      {
+        t: 'Widgets',
+        a: navigateWidgets,
+        i: 'widgets',
+        isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
+      },
     ],
   },
 
@@ -289,7 +289,7 @@ const SECTIONS: Section[] = [
     summary: 'Documentation & Bugs',
     items: [
       {t: 'Keyboard shortcuts', a: openHelp, i: 'help'},
-      {t: 'Documentation', a: 'https://perfetto.dev', i: 'find_in_page'},
+      {t: 'Documentation', a: 'https://perfetto.dev/docs', i: 'find_in_page'},
       {t: 'Flags', a: navigateFlags, i: 'emoji_flags'},
       {
         t: 'Report a bug',
@@ -304,12 +304,6 @@ const SECTIONS: Section[] = [
     summary: 'Compute summary statistics',
     items: [
       {
-        t: 'Show Debug Track',
-        a: showDebugTrack(),
-        i: 'view_day',
-        isVisible: () => globals.state.engine !== undefined,
-      },
-      {
         t: 'Record metatrace',
         a: recordMetatrace,
         i: 'fiber_smart_record',
@@ -323,32 +317,35 @@ const SECTIONS: Section[] = [
       },
       {
         t: 'All Processes',
-        a: createCannedQuery(ALL_PROCESSES_QUERY),
+        a: createCannedQuery(ALL_PROCESSES_QUERY, 'All Processes'),
         i: 'search',
       },
       {
         t: 'CPU Time by process',
-        a: createCannedQuery(CPU_TIME_FOR_PROCESSES),
+        a: createCannedQuery(CPU_TIME_FOR_PROCESSES, 'CPU Time by process'),
         i: 'search',
       },
       {
         t: 'Cycles by p-state by CPU',
-        a: createCannedQuery(CYCLES_PER_P_STATE_PER_CPU),
+        a: createCannedQuery(
+            CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU'),
         i: 'search',
       },
       {
         t: 'CPU Time by CPU by process',
-        a: createCannedQuery(CPU_TIME_BY_CPU_BY_PROCESS),
+        a: createCannedQuery(
+            CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process'),
         i: 'search',
       },
       {
         t: 'Heap Graph: Bytes per type',
-        a: createCannedQuery(HEAP_GRAPH_BYTES_PER_TYPE),
+        a: createCannedQuery(
+            HEAP_GRAPH_BYTES_PER_TYPE, 'Heap Graph: Bytes per type'),
         i: 'search',
       },
       {
         t: 'Debug SQL performance',
-        a: createCannedQuery(SQL_STATS),
+        a: createCannedQuery(SQL_STATS, 'Recent SQL queries'),
         i: 'bug_report',
       },
     ],
@@ -546,6 +543,11 @@ function navigateRecord(e: Event) {
   Router.navigate('#!/record');
 }
 
+function navigateWidgets(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/widgets');
+}
+
 function navigateAnalyze(e: Event) {
   e.preventDefault();
   Router.navigate('#!/query');
@@ -607,17 +609,6 @@ function shareTrace(e: Event) {
   }
 }
 
-function downloadUrl(url: string, fileName: string) {
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = fileName;
-  a.target = '_blank';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
 function downloadTrace(e: Event) {
   e.preventDefault();
   if (!isDownloadable() || !isTraceLoaded()) return;
@@ -648,7 +639,7 @@ function downloadTrace(e: Event) {
   } else {
     throw new Error(`Download from ${JSON.stringify(src)} is not supported`);
   }
-  downloadUrl(url, fileName);
+  downloadUrl(fileName, url);
 }
 
 function getCurrentEngine(): Engine|undefined {
@@ -720,11 +711,7 @@ async function finaliseMetatrace(e: Event) {
     throw new Error(`Failed to read metatrace: ${result.error}`);
   }
 
-  const blob = new Blob(
-      [result.metatrace, jsEvents], {type: 'application/octet-stream'});
-  const url = URL.createObjectURL(blob);
-
-  downloadUrl(url, 'metatrace');
+  downloadData('metatrace', result.metatrace, jsEvents);
 }
 
 
@@ -860,11 +847,11 @@ const SidebarFooter: m.Component = {
             '.version',
             m('a',
               {
-                href: `${GITILES_URL}/+/${version.SCM_REVISION}/ui`,
+                href: `${GITILES_URL}/+/${SCM_REVISION}/ui`,
                 title: `Channel: ${getCurrentChannel()}`,
                 target: '_blank',
               },
-              `${version.VERSION.substr(0, 11)}`),
+              `${VERSION.substr(0, 11)}`),
             ),
     );
   },
@@ -996,6 +983,7 @@ export class Sidebar implements m.ClassComponent {
         {
           class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
           // 150 here matches --sidebar-timing in the css.
+          // TODO(hjd): Should link to the CSS variable.
           ontransitionstart: () => this._redrawWhileAnimating.start(150),
           ontransitionend: () => this._redrawWhileAnimating.stop(),
         },

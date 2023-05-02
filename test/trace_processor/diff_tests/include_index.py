@@ -55,8 +55,10 @@ from diff_tests.parsing.tests_debug_annotation import ParsingDebugAnnotation
 from diff_tests.parsing.tests_memory_counters import ParsingMemoryCounters
 from diff_tests.parsing.tests_rss_stats import ParsingRssStats
 from diff_tests.performance.tests import Performance
+from diff_tests.pkvm.tests import Pkvm
 from diff_tests.power.tests import Power
 from diff_tests.power.tests_energy_breakdown import PowerEnergyBreakdown
+from diff_tests.power.tests_entity_state_residency import EntityStateResidency
 from diff_tests.power.tests_linux_sysfs_power import LinuxSysfsPower
 from diff_tests.power.tests_power_rails import PowerPowerRails
 from diff_tests.power.tests_voltage_and_scaling import PowerVoltageAndScaling
@@ -107,6 +109,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Chrome(index_path, 'chrome', 'Chrome').fetch(),
       *Cros(index_path, 'cros', 'Cros').fetch(),
       *Dynamic(index_path, 'dynamic', 'Dynamic').fetch(),
+      *EntityStateResidency(index_path, 'power',
+                            'EntityStateResidency').fetch(),
       *Fs(index_path, 'fs', 'Fs').fetch(),
       *Fuchsia(index_path, 'fuchsia', 'Fuchsia').fetch(),
       *Functions(index_path, 'functions', 'Functions').fetch(),
@@ -126,6 +130,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ParsingMemoryCounters(index_path, 'parsing',
                              'ParsingMemoryCounters').fetch(),
       *Performance(index_path, 'performance', 'Performance').fetch(),
+      *Pkvm(index_path, 'pkvm', 'Pkvm').fetch(),
       *Power(index_path, 'power', 'Power').fetch(),
       *PowerPowerRails(index_path, 'power', 'PowerPowerRails').fetch(),
       *PowerVoltageAndScaling(index_path, 'power',

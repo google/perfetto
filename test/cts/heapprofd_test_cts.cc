@@ -28,6 +28,7 @@
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
+#include "protos/perfetto/config/process_stats/process_stats_config.gen.h"
 #include "protos/perfetto/config/profiling/heapprofd_config.gen.h"
 #include "protos/perfetto/trace/profiling/profile_common.gen.h"
 #include "protos/perfetto/trace/profiling/profile_packet.gen.h"
@@ -210,9 +211,7 @@ void AssertExpectedMallocsPresent(
   ASSERT_TRUE(found_alloc);
 }
 
-// Check that `packets` contain some allocations performed by
-// kJavaAllocActivity.
-void AssertExpectedArtAllocsPresent(
+void AssertHasSampledAllocs(
     const std::vector<protos::gen::TracePacket>& packets) {
   ASSERT_GT(packets.size(), 0u);
 
@@ -322,7 +321,7 @@ TEST(HeapprofdCtsTest, JavaHeapRuntime) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileRuntime(app_name, kJavaAllocActivity,
                                        /*heap_names=*/{"com.android.art"});
-  AssertExpectedArtAllocsPresent(packets);
+  AssertHasSampledAllocs(packets);
   StopApp(app_name);
 }
 
@@ -330,8 +329,59 @@ TEST(HeapprofdCtsTest, JavaHeapStartup) {
   std::string app_name = "android.perfetto.cts.app.debuggable";
   const auto& packets = ProfileStartup(app_name, kJavaAllocActivity,
                                        /*heap_names=*/{"com.android.art"});
-  AssertExpectedArtAllocsPresent(packets);
+  AssertHasSampledAllocs(packets);
   StopApp(app_name);
+}
+
+TEST(HeapprofdCtsTest, ProfilePlatformProcess) {
+  int target_pid = PidForProcessName("/system/bin/traced_probes");
+  ASSERT_GT(target_pid, 0) << "failed to find pid for target process";
+
+  // Construct config.
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(20 * 1024);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(8000);
+  trace_config.set_unique_session_name(RandomSessionName().c_str());
+
+  // process.stats to cause work in traced_probes
+  protos::gen::ProcessStatsConfig ps_config;
+  ps_config.set_proc_stats_poll_ms(100);
+  ps_config.set_record_thread_names(true);
+
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("linux.process_stats");
+  ds_config->set_process_stats_config_raw(ps_config.SerializeAsString());
+
+  // profile native heap of traced_probes
+  protos::gen::HeapprofdConfig heapprofd_config;
+  heapprofd_config.set_sampling_interval_bytes(kTestSamplingInterval);
+  heapprofd_config.add_pid(static_cast<uint64_t>(target_pid));
+  heapprofd_config.set_block_client(true);
+
+  ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.heapprofd");
+  ds_config->set_heapprofd_config_raw(heapprofd_config.SerializeAsString());
+
+  // Collect trace.
+  base::TestTaskRunner task_runner;
+  TestHelper helper(&task_runner);
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled(15000 /*ms*/);
+  helper.ReadData();
+  helper.WaitForReadData();
+  auto packets = helper.trace();
+
+  int target_pid_after = PidForProcessName("/system/bin/traced_probes");
+  ASSERT_EQ(target_pid, target_pid_after) << "traced_probes died during test";
+
+  if (IsUserBuild())
+    AssertNoProfileContents(packets);
+  else
+    AssertHasSampledAllocs(packets);
 }
 
 }  // namespace

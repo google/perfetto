@@ -52,6 +52,36 @@ class Fuchsia(TestSuite):
         19677791779,3,96082,"S",20,1680
         """))
 
+  def test_fuchsia_sched(self):
+    return DiffTestBlueprint(
+        trace=DataPath('fuchsia_trace_sched.fxt'),
+        query="""
+        SELECT
+          ts,
+          cpu,
+          dur,
+          end_state,
+          priority,
+          tid
+        FROM sched
+        JOIN thread USING(utid)
+        ORDER BY ts
+        LIMIT 10;
+        """,
+        out=Csv("""
+        "ts","cpu","dur","end_state","priority","tid"
+        68988611421,3,313611,"S",3122,3196
+        68988925032,3,98697,"S",3122,23416
+        68988957574,0,632536,"S",3122,3189
+        68989023729,3,51371,"S",3122,3196
+        68989075100,3,46773,"R",3122,25332
+        68989121873,3,53620,"S",2147483647,24654
+        68989175493,3,5241,"S",3122,25332
+        68989180734,3,138507,"S",3122,30933
+        68989319241,3,25028,"S",3122,30297
+        68989344269,3,52723,"S",3122,28343
+        """))
+
   def test_fuchsia_smoke_slices(self):
     return DiffTestBlueprint(
         trace=DataPath('fuchsia_trace.fxt'),

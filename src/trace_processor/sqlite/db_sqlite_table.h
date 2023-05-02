@@ -19,7 +19,7 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/dynamic/dynamic_table_generator.h"
+#include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
@@ -82,11 +82,11 @@ class DbSqliteTable : public SqliteTable {
     std::unique_ptr<Table> dynamic_table_;
 
     // Only valid for Mode::kSingleRow.
-    base::Optional<uint32_t> single_row_;
+    std::optional<uint32_t> single_row_;
 
     // Only valid for Mode::kTable.
-    base::Optional<Table> db_table_;
-    base::Optional<Table::Iterator> iterator_;
+    std::optional<Table> db_table_;
+    std::optional<Table::Iterator> iterator_;
 
     bool eof_ = true;
 
@@ -116,7 +116,7 @@ class DbSqliteTable : public SqliteTable {
     const Table* static_table;
 
     // Only valid when computation == TableComputation::kDynamic.
-    std::unique_ptr<DynamicTableGenerator> generator;
+    std::unique_ptr<TableFunction> generator;
   };
 
   static void RegisterTable(sqlite3* db,
@@ -126,7 +126,7 @@ class DbSqliteTable : public SqliteTable {
 
   static void RegisterTable(sqlite3* db,
                             QueryCache* cache,
-                            std::unique_ptr<DynamicTableGenerator> generator);
+                            std::unique_ptr<TableFunction> generator);
 
   DbSqliteTable(sqlite3*, Context context);
   virtual ~DbSqliteTable() override;
@@ -166,7 +166,7 @@ class DbSqliteTable : public SqliteTable {
   const Table* static_table_ = nullptr;
 
   // Only valid when computation_ == TableComputation::kDynamic.
-  std::unique_ptr<DynamicTableGenerator> generator_;
+  std::unique_ptr<TableFunction> generator_;
 };
 
 }  // namespace trace_processor

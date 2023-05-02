@@ -18,11 +18,11 @@ import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {toNs} from '../../common/time';
+import {globals} from '../../frontend/globals';
 import {
   Config,
   THREAD_STATE_TRACK_KIND,
 } from '../../tracks/thread_state';
-import {globals} from '../globals';
 
 import {AggregationController} from './aggregation_controller';
 

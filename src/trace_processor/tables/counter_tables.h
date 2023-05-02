@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_TABLES_COUNTER_TABLES_H_
 
 #include "src/trace_processor/tables/macros.h"
-#include "src/trace_processor/tables/track_tables.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -32,9 +32,7 @@ namespace tables {
   C(int64_t, ts, Column::Flag::kSorted)                \
   C(CounterTrackTable::Id, track_id)                   \
   C(double, value)                                     \
-  C(base::Optional<uint32_t>, arg_set_id)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_COUNTER_TABLE_DEF);
+  C(std::optional<uint32_t>, arg_set_id)
 
 }  // namespace tables
 }  // namespace trace_processor

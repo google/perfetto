@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
 import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';

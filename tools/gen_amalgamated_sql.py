@@ -64,8 +64,10 @@ struct FileToSql {
 };
 '''
 
-def filename_to_variable(filename):
-  return "k" + "".join([x.capitalize() for x in filename.split("_")])
+
+def filename_to_variable(filename: str):
+  return "k" + "".join(
+      [x.capitalize() for x in filename.replace(os.path.sep, '_').split("_")])
 
 
 def main():
@@ -114,8 +116,7 @@ def main():
 
     # Create the C++ variable for each SQL file.
     for path, sql in sql_outputs.items():
-      name = os.path.basename(path)
-      variable = filename_to_variable(os.path.splitext(name)[0])
+      variable = filename_to_variable(os.path.splitext(path)[0])
       output.write('\nconst char {}[] = '.format(variable))
       # MSVC doesn't like string literals that are individually longer than 16k.
       # However it's still fine "if" "we" "concatenate" "many" "of" "them".
@@ -135,8 +136,7 @@ def main():
     # Create mapping of filename to variable name for each variable.
     output.write("\nconst FileToSql kFileToSql[] = {")
     for path in sql_outputs.keys():
-      name = os.path.basename(path)
-      variable = filename_to_variable(os.path.splitext(name)[0])
+      variable = filename_to_variable(os.path.splitext(path)[0])
 
       # This is for Windows which has \ as a path separator.
       path = path.replace("\\", "/")

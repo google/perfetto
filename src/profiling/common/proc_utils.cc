@@ -20,9 +20,9 @@
 #include <unistd.h>
 
 #include <cinttypes>
+#include <optional>
 
 #include "perfetto/ext/base/file_utils.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/profiling/common/proc_cmdline.h"
 
@@ -30,8 +30,8 @@ namespace perfetto {
 namespace profiling {
 namespace {
 
-base::Optional<uint32_t> ParseProcStatusSize(const std::string& status,
-                                             const std::string& key) {
+std::optional<uint32_t> ParseProcStatusSize(const std::string& status,
+                                            const std::string& key) {
   auto entry_idx = status.find(key);
   if (entry_idx == std::string::npos)
     return {};
@@ -47,32 +47,32 @@ base::Optional<uint32_t> ParseProcStatusSize(const std::string& status,
 }
 }  // namespace
 
-base::Optional<std::string> ReadStatus(pid_t pid) {
+std::optional<std::string> ReadStatus(pid_t pid) {
   std::string path = "/proc/" + std::to_string(pid) + "/status";
   std::string status;
   bool read_proc = base::ReadFile(path, &status);
   if (!read_proc) {
     PERFETTO_ELOG("Failed to read %s", path.c_str());
-    return base::nullopt;
+    return std::nullopt;
   }
-  return base::Optional<std::string>(status);
+  return std::optional<std::string>(status);
 }
 
-base::Optional<uint32_t> GetRssAnonAndSwap(const std::string& status) {
+std::optional<uint32_t> GetRssAnonAndSwap(const std::string& status) {
   auto anon_rss = ParseProcStatusSize(status, "RssAnon:");
   auto swap = ParseProcStatusSize(status, "VmSwap:");
   if (anon_rss.has_value() && swap.has_value()) {
     return *anon_rss + *swap;
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   for (auto it = pids->begin(); it != pids->end();) {
     const pid_t pid = *it;
 
-    base::Optional<std::string> status = ReadStatus(pid);
-    base::Optional<uint32_t> rss_and_swap;
+    std::optional<std::string> status = ReadStatus(pid);
+    std::optional<uint32_t> rss_and_swap;
     if (status)
       rss_and_swap = GetRssAnonAndSwap(*status);
 
@@ -87,10 +87,10 @@ void RemoveUnderAnonThreshold(uint32_t min_size_kb, std::set<pid_t>* pids) {
   }
 }
 
-base::Optional<Uids> GetUids(const std::string& status) {
+std::optional<Uids> GetUids(const std::string& status) {
   auto entry_idx = status.find("Uid:");
   if (entry_idx == std::string::npos)
-    return base::nullopt;
+    return std::nullopt;
 
   Uids uids;
   const char* str = &status[entry_idx + 4];
@@ -98,22 +98,22 @@ base::Optional<Uids> GetUids(const std::string& status) {
 
   uids.real = strtoull(str, &endptr, 10);
   if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
+    return std::nullopt;
 
   str = endptr;
   uids.effective = strtoull(str, &endptr, 10);
   if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
+    return std::nullopt;
 
   str = endptr;
   uids.saved_set = strtoull(str, &endptr, 10);
   if (*endptr != ' ' && *endptr != '\t')
-    return base::nullopt;
+    return std::nullopt;
 
   str = endptr;
   uids.filesystem = strtoull(str, &endptr, 10);
   if (*endptr != '\n' && *endptr != '\0')
-    return base::nullopt;
+    return std::nullopt;
   return uids;
 }
 
@@ -146,7 +146,7 @@ ssize_t NormalizeCmdLine(char** cmdline_ptr, size_t size) {
   return first_arg - start;
 }
 
-base::Optional<std::vector<std::string>> NormalizeCmdlines(
+std::optional<std::vector<std::string>> NormalizeCmdlines(
     const std::vector<std::string>& cmdlines) {
   std::vector<std::string> normalized_cmdlines;
   normalized_cmdlines.reserve(cmdlines.size());
@@ -160,11 +160,11 @@ base::Optional<std::vector<std::string>> NormalizeCmdlines(
     if (size == -1) {
       PERFETTO_PLOG("Failed to normalize cmdline %s. Stopping the parse.",
                     cmdlines[i].c_str());
-      return base::nullopt;
+      return std::nullopt;
     }
     normalized_cmdlines.emplace_back(cmdline_cstr, static_cast<size_t>(size));
   }
-  return base::make_optional(normalized_cmdlines);
+  return std::make_optional(normalized_cmdlines);
 }
 
 // This is mostly the same as GetHeapprofdProgramProperty in

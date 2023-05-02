@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as protos from '../gen/protos';
+import protos from '../gen/protos';
 
 // Aliases protos to avoid the super nested namespaces.
 // See https://www.typescriptlang.org/docs/handbook/namespaces.html#aliases
@@ -25,6 +25,8 @@ import BufferConfig = protos.perfetto.protos.TraceConfig.BufferConfig;
 import ChromeConfig = protos.perfetto.protos.ChromeConfig;
 import TrackEventConfig = protos.perfetto.protos.TrackEventConfig;
 import ConsumerPort = protos.perfetto.protos.ConsumerPort;
+import NetworkPacketTraceConfig =
+    protos.perfetto.protos.NetworkPacketTraceConfig;
 import NativeContinuousDumpConfig =
     protos.perfetto.protos.HeapprofdConfig.ContinuousDumpConfig;
 import JavaContinuousDumpConfig =
@@ -112,6 +114,7 @@ export {
   JavaHprofConfig,
   MeminfoCounters,
   NativeContinuousDumpConfig,
+  NetworkPacketTraceConfig,
   ProcessStatsConfig,
   PerfettoMetatrace,
   ReadBuffersRequest,

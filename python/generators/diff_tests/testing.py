@@ -16,9 +16,11 @@
 import inspect
 import os
 from dataclasses import dataclass
-from typing import List, Union
+from typing import List, Union, Callable
 from enum import Enum
 import re
+
+from google.protobuf import text_format
 
 TestName = str
 
@@ -54,6 +56,18 @@ class TextProto:
 
 
 @dataclass
+class BinaryProto:
+  message_type: str
+  contents: str
+  # Comparing protos is tricky. For example, repeated fields might be written in
+  # any order. To help with that you can specify a `post_processing` function
+  # that will be called with the actual proto message object before converting
+  # it to text representation and doing the comparison with `contents`. This
+  # gives us a chance to e.g. sort messages in a repeated field.
+  post_processing: Callable = text_format.MessageToString
+
+
+@dataclass
 class Systrace:
   contents: str
 
@@ -71,7 +85,7 @@ class DiffTestBlueprint:
 
   trace: Union[Path, DataPath, Json, Systrace, TextProto]
   query: Union[str, Path, DataPath, Metric]
-  out: Union[Path, DataPath, Json, Csv, TextProto]
+  out: Union[Path, DataPath, Json, Csv, TextProto, BinaryProto]
 
   def is_trace_file(self):
     return isinstance(self.trace, Path)
@@ -99,6 +113,9 @@ class DiffTestBlueprint:
 
   def is_out_texproto(self):
     return isinstance(self.out, TextProto)
+
+  def is_out_binaryproto(self):
+    return isinstance(self.out, BinaryProto)
 
   def is_out_csv(self):
     return isinstance(self.out, Csv)

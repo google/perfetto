@@ -28,6 +28,12 @@ perfetto_proto_library("@TYPE@") {
   }
 }
 
+perfetto_proto_library("stack_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "stack.descriptor"
+  sources = [ "stack.proto" ]
+}
+
 perfetto_proto_library("metrics_impl_@TYPE@") {
   proto_generators = [
     "zero",

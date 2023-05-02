@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
@@ -22,8 +22,88 @@ import {timeToCode} from '../common/time';
 import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
+
+interface ContextMenuItem {
+  name: string;
+  shouldDisplay(slice: SliceDetails): boolean;
+  getAction(slice: SliceDetails): void;
+}
+
+const ITEMS: ContextMenuItem[] = [
+  {
+    name: 'Average duration',
+    shouldDisplay: (slice: SliceDetails) => slice.name !== undefined,
+    getAction: (slice: SliceDetails) => runQueryInNewTab(
+        `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
+        `${slice.name} average dur`,
+        ),
+  },
+  {
+    name: 'Binder by TXN',
+    shouldDisplay: () => true,
+    getAction: () => runQueryInNewTab(
+        `SELECT IMPORT('android.binder');
+
+         SELECT *
+         FROM android_sync_binder_metrics_by_txn
+         ORDER BY client_dur DESC`,
+        'Binder by TXN',
+        ),
+  },
+  {
+    name: 'Lock graph',
+    shouldDisplay: (slice: SliceDetails) => slice.id !== undefined,
+    getAction: (slice: SliceDetails) => runQueryInNewTab(
+        `SELECT IMPORT('android.monitor_contention');
+         DROP TABLE IF EXISTS FAST;
+         CREATE TABLE FAST
+         AS
+         WITH slice_process AS (
+         SELECT process.name, process.upid FROM slice
+         JOIN thread_track ON thread_track.id = slice.track_id
+         JOIN thread USING(utid)
+         JOIN process USING(upid)
+         WHERE slice.id = ${slice.id!}
+         )
+         SELECT * FROM android_monitor_contention_chain, slice_process
+         WHERE android_monitor_contention_chain.upid = slice_process.upid;
+
+         WITH
+         R AS (
+         SELECT
+           id,
+           dur,
+           CAT_STACKS(blocked_thread_name || ':' || short_blocked_method,
+             blocking_thread_name || ':' || short_blocking_method) AS stack
+         FROM FAST
+         WHERE parent_id IS NULL
+         UNION ALL
+         SELECT
+         c.id,
+         c.dur AS dur,
+         CAT_STACKS(stack, blocking_thread_name || ':' || short_blocking_method) AS stack
+         FROM FAST c, R AS p
+         WHERE p.id = c.parent_id
+         )
+         SELECT TITLE.process_name, EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof
+         FROM R, (SELECT process_name FROM FAST LIMIT 1) TITLE;`,
+        'Lock graph',
+        ),
+  },
+];
+
+function getSliceContextMenuItems(slice: SliceDetails): PopupMenuItem[] {
+  return ITEMS.filter((item) => item.shouldDisplay(slice)).map((item) => {
+    return {
+      itemType: 'regular',
+      text: item.name,
+      callback: () => item.getAction(slice),
+    };
+  });
+}
 
 // Table row contents is one of two things:
 // 1. Key-value pair
@@ -202,57 +282,19 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
       }
 
       defaultBuilder.add(
-          'Slice ID', sliceInfo.id ? sliceInfo.id.toString() : 'Unknown');
+          'Slice ID',
+          (sliceInfo.id !== undefined) ? sliceInfo.id.toString() : 'Unknown');
       if (sliceInfo.description) {
         for (const [key, value] of sliceInfo.description) {
           defaultBuilder.add(key, value);
         }
       }
-
-      const rightPanel = new Map<string, TableBuilder>();
-
-      const immediatelyPrecedingByFlowSlices = [];
-      const immediatelyFollowingByFlowSlices = [];
-      for (const flow of globals.connectedFlows) {
-        if (flow.begin.sliceId === sliceInfo.id) {
-          immediatelyFollowingByFlowSlices.push(
-              {flow: flow.end, dur: flow.dur});
-        }
-        if (flow.end.sliceId === sliceInfo.id) {
-          immediatelyPrecedingByFlowSlices.push(
-              {flow: flow.begin, dur: flow.dur});
-        }
-      }
-
-      // This is Chrome-specific bits:
-      const isRunTask = sliceInfo.name === 'ThreadControllerImpl::RunTask' ||
-          sliceInfo.name === 'ThreadPool_RunTask';
-      const isPostTask = sliceInfo.name === 'ThreadPool_PostTask' ||
-          sliceInfo.name === 'SequenceManager PostTask';
-
-      // RunTask and PostTask are always same-process, so we can skip
-      // emitting process name for them.
-      this.fillFlowPanel(
-          'Preceding flows',
-          immediatelyPrecedingByFlowSlices,
-          !isRunTask,
-          rightPanel);
-      this.fillFlowPanel(
-          'Following flows',
-          immediatelyFollowingByFlowSlices,
-          !isPostTask,
-          rightPanel);
-
-      const argsBuilder = new TableBuilder();
-      this.fillArgs(sliceInfo, argsBuilder);
-      rightPanel.set('Arguments', argsBuilder);
-
       return m(
           '.details-panel',
           m('.details-panel-heading', m('h2', `Slice Details`)),
           m('.details-table-multicolumn', [
             this.renderTable(defaultBuilder, '.half-width-panel'),
-            this.renderTables(rightPanel, '.half-width-panel'),
+            this.renderRhs(sliceInfo),
           ]));
     } else {
       return m(
@@ -328,16 +370,15 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
         itemType: 'regular',
         text: 'Find slices with the same arg value',
         callback: () => {
-          globals.dispatch(Actions.executeQuery({
-            queryId: `slices_with_arg_value_${fullKey}=${argValue}`,
-            query: `
-              select slice.* 
+          runQueryInNewTab(
+              `
+              select slice.*
               from slice
               join args using (arg_set_id)
               where key=${sqliteString(fullKey)} and display_value=${
-                sqliteString(argValue)}
+                  sqliteString(argValue)}
           `,
-          }));
+              `Arg: ${sqliteString(fullKey)}=${sqliteString(argValue)}`);
         },
       },
       {
@@ -350,15 +391,62 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     ];
   }
 
-  renderTables(
-      builders: Map<string, TableBuilder>,
-      additionalClasses: string = ''): m.Vnode {
-    const rows: m.Vnode[] = [];
+  renderRhs(sliceInfo: SliceDetails): m.Vnode {
+    const builders = new Map<string, TableBuilder>();
+
+    const immediatelyPrecedingByFlowSlices = [];
+    const immediatelyFollowingByFlowSlices = [];
+    for (const flow of globals.connectedFlows) {
+      if (flow.begin.sliceId === sliceInfo.id) {
+        immediatelyFollowingByFlowSlices.push({flow: flow.end, dur: flow.dur});
+      }
+      if (flow.end.sliceId === sliceInfo.id) {
+        immediatelyPrecedingByFlowSlices.push(
+            {flow: flow.begin, dur: flow.dur});
+      }
+    }
+
+    // This is Chrome-specific bits:
+    const isRunTask = sliceInfo.name === 'ThreadControllerImpl::RunTask' ||
+        sliceInfo.name === 'ThreadPool_RunTask';
+    const isPostTask = sliceInfo.name === 'ThreadPool_PostTask' ||
+        sliceInfo.name === 'SequenceManager PostTask';
+
+    // RunTask and PostTask are always same-process, so we can skip
+    // emitting process name for them.
+    this.fillFlowPanel(
+        'Preceding flows',
+        immediatelyPrecedingByFlowSlices,
+        !isRunTask,
+        builders);
+    this.fillFlowPanel(
+        'Following flows',
+        immediatelyFollowingByFlowSlices,
+        !isPostTask,
+        builders);
+
+    const argsBuilder = new TableBuilder();
+    this.fillArgs(sliceInfo, argsBuilder);
+    builders.set('Arguments', argsBuilder);
+
+    const rows: m.Vnode<any, any>[] = [];
     for (const [name, builder] of builders) {
       rows.push(m('h3', name));
       rows.push(this.renderTable(builder));
     }
-    return m(`div${additionalClasses}`, rows);
+
+    const contextMenuItems = getSliceContextMenuItems(sliceInfo);
+    if (contextMenuItems.length > 0) {
+      rows.push(
+          m(PopupMenuButton,
+            {
+              icon: 'arrow_drop_down',
+              items: contextMenuItems,
+            },
+            'Contextual Options'));
+    }
+
+    return m('.half-width-panel', rows);
   }
 
   renderTable(builder: TableBuilder, additionalClasses: string = ''): m.Vnode {
@@ -391,7 +479,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
               contents));
         const value = row.contents.value;
         if (typeof value === 'string') {
-          renderedRow.push(m('td.value', value));
+          renderedRow.push(m('td.value', this.mayLinkify(value)));
         } else {
           // Type of value being a record is not propagated into the callback
           // for some reason, extracting necessary parts as constants instead.
@@ -421,5 +509,12 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
     }
 
     return m(`table.auto-layout${additionalClasses}`, rows);
+  }
+
+  private mayLinkify(what: string): string|m.Vnode {
+    if (what.startsWith('http://') || what.startsWith('https://')) {
+      return m('a', {href: what, target: '_blank'}, what);
+    }
+    return what;
   }
 }

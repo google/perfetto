@@ -16,3 +16,4 @@ experience. We will discuss how we instrument our Snapchat app such that we can
 have the necessary signals for explainability. Additionally, we will describe
 how we incorporate tracing into our development process from local debugging,
 to performance tests and finally in production."
+- [Microsoft: Perfetto tooling for analyzing Android, Linux, and Chromium browser performance](https://devblogs.microsoft.com/performance-diagnostics/perfetto-tooling-for-analyzing-android-linux-and-chromium-browser-performance-microsoft-performance-tools-linux-android/)

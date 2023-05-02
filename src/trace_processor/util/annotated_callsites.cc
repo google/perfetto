@@ -17,9 +17,9 @@
 #include "src/trace_processor/util/annotated_callsites.h"
 
 #include <iostream>
+#include <optional>
 
-#include "perfetto/ext/base/optional.h"
-#include "src/trace_processor/tables/profiler_tables.h"
+#include "src/trace_processor/tables/profiler_tables_py.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
@@ -30,13 +30,13 @@ AnnotatedCallsites::AnnotatedCallsites(const TraceProcessorContext* context)
       // String to identify trampoline frames. If the string does not exist in
       // TraceProcessor's StringPool (nullopt) then there will be no trampoline
       // frames in the trace so there is no point in adding it to the pool to do
-      // all comparisons, instead we initialize the member to nullopt and the
-      // string comparisons will all fail.
+      // all comparisons, instead we initialize the member to std::nullopt and
+      // the string comparisons will all fail.
       art_jni_trampoline_(
           context->storage->string_pool().GetId("art_jni_trampoline")) {}
 
 AnnotatedCallsites::State AnnotatedCallsites::GetState(
-    base::Optional<CallsiteId> id) {
+    std::optional<CallsiteId> id) {
   if (!id) {
     return State::kInitial;
   }
@@ -75,8 +75,8 @@ AnnotatedCallsites::Get(
   // only the libart frames does not clean up all of the JNI-related frames.
   auto frame = *context_.storage->stack_profile_frame_table().FindById(
       callsite.frame_id());
-  // art_jni_trampoline_ could be nullopt if the string does not exist in the
-  // StringPool, but that also means no frame will ever have that name.
+  // art_jni_trampoline_ could be std::nullopt if the string does not exist in
+  // the StringPool, but that also means no frame will ever have that name.
   if (art_jni_trampoline_.has_value() &&
       frame.name() == art_jni_trampoline_.value()) {
     return {State::kKeepNext, CallsiteAnnotation::kCommonFrame};

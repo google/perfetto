@@ -55,6 +55,8 @@ struct CompactSchedWakingFormat {
   uint16_t prio_offset;
   FtraceFieldType prio_type;
   uint16_t comm_offset;
+  uint16_t common_flags_offset;
+  FtraceFieldType common_flags_type;
 };
 
 // Pre-parsed format of a subset of scheduling events, for use during ftrace
@@ -70,7 +72,8 @@ struct CompactSchedEventFormat {
 };
 
 CompactSchedEventFormat ValidateFormatForCompactSched(
-    const std::vector<Event>& events);
+    const std::vector<Event>& events,
+    const std::vector<Field>& common_fields);
 
 CompactSchedEventFormat InvalidCompactSchedEventFormatForTesting();
 
@@ -134,6 +137,7 @@ class CompactSchedWakingBuffer {
   protozero::PackedVarInt& target_cpu() { return target_cpu_; }
   protozero::PackedVarInt& prio() { return prio_; }
   protozero::PackedVarInt& comm_index() { return comm_index_; }
+  protozero::PackedVarInt& common_flags() { return common_flags_; }
 
   size_t size() const {
     // Caller should fill all per-field buffers at the same rate.
@@ -158,6 +162,7 @@ class CompactSchedWakingBuffer {
   protozero::PackedVarInt prio_;
   // Interning indices of the comm values. See |CommInterner|.
   protozero::PackedVarInt comm_index_;
+  protozero::PackedVarInt common_flags_;
 };
 
 class CommInterner {

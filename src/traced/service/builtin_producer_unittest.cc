@@ -39,8 +39,10 @@ class MockBuiltinProducer : public BuiltinProducer {
   MockBuiltinProducer(base::TaskRunner* task_runner)
       : BuiltinProducer(task_runner, /*lazy_stop_delay_ms=*/0) {}
 
-  MOCK_METHOD2(SetAndroidProperty,
-               bool(const std::string&, const std::string&));
+  MOCK_METHOD(bool,
+              SetAndroidProperty,
+              (const std::string&, const std::string&),
+              (override));
 };
 
 TEST(BuiltinProducerTest, LazyHeapprofdSimple) {

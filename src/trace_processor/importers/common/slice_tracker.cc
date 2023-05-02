@@ -38,11 +38,11 @@ SliceTracker::SliceTracker(TraceProcessorContext* context)
 
 SliceTracker::~SliceTracker() = default;
 
-base::Optional<SliceId> SliceTracker::Begin(int64_t timestamp,
-                                            TrackId track_id,
-                                            StringId category,
-                                            StringId raw_name,
-                                            SetArgsCallback args_callback) {
+std::optional<SliceId> SliceTracker::Begin(int64_t timestamp,
+                                           TrackId track_id,
+                                           StringId category,
+                                           StringId raw_name,
+                                           SetArgsCallback args_callback) {
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   tables::SliceTable::Row row(timestamp, kPendingDuration, track_id, category,
@@ -77,12 +77,12 @@ void SliceTracker::BeginLegacyUnnestable(tables::SliceTable::Row row,
   });
 }
 
-base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
-                                             TrackId track_id,
-                                             StringId category,
-                                             StringId raw_name,
-                                             int64_t duration,
-                                             SetArgsCallback args_callback) {
+std::optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
+                                            TrackId track_id,
+                                            StringId category,
+                                            StringId raw_name,
+                                            int64_t duration,
+                                            SetArgsCallback args_callback) {
   PERFETTO_DCHECK(duration >= 0);
 
   const StringId name =
@@ -93,11 +93,11 @@ base::Optional<SliceId> SliceTracker::Scoped(int64_t timestamp,
   });
 }
 
-base::Optional<SliceId> SliceTracker::End(int64_t timestamp,
-                                          TrackId track_id,
-                                          StringId category,
-                                          StringId raw_name,
-                                          SetArgsCallback args_callback) {
+std::optional<SliceId> SliceTracker::End(int64_t timestamp,
+                                         TrackId track_id,
+                                         StringId category,
+                                         StringId raw_name,
+                                         SetArgsCallback args_callback) {
   const StringId name =
       context_->slice_translation_table->TranslateName(raw_name);
   auto finder = [this, category, name](const SlicesStack& stack) {
@@ -106,23 +106,23 @@ base::Optional<SliceId> SliceTracker::End(int64_t timestamp,
   return CompleteSlice(timestamp, track_id, args_callback, finder);
 }
 
-base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
-                                               StringId category,
-                                               StringId name,
-                                               SetArgsCallback args_callback) {
+std::optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
+                                              StringId category,
+                                              StringId name,
+                                              SetArgsCallback args_callback) {
   auto* it = stacks_.Find(track_id);
   if (!it)
-    return base::nullopt;
+    return std::nullopt;
 
   auto& stack = it->slice_stack;
   if (stack.empty())
-    return base::nullopt;
+    return std::nullopt;
 
   auto* slices = context_->storage->mutable_slice_table();
-  base::Optional<uint32_t> stack_idx =
+  std::optional<uint32_t> stack_idx =
       MatchingIncompleteSliceIndex(stack, name, category);
   if (!stack_idx.has_value())
-    return base::nullopt;
+    return std::nullopt;
 
   tables::SliceTable::RowNumber num = stack[*stack_idx].row;
   tables::SliceTable::RowReference ref = num.ToRowReference(slices);
@@ -135,7 +135,7 @@ base::Optional<uint32_t> SliceTracker::AddArgs(TrackId track_id,
   return num.row_number();
 }
 
-base::Optional<SliceId> SliceTracker::StartSlice(
+std::optional<SliceId> SliceTracker::StartSlice(
     int64_t timestamp,
     TrackId track_id,
     SetArgsCallback args_callback,
@@ -143,7 +143,7 @@ base::Optional<SliceId> SliceTracker::StartSlice(
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
-    return base::nullopt;
+    return std::nullopt;
   }
   prev_timestamp_ = timestamp;
 
@@ -159,7 +159,7 @@ base::Optional<SliceId> SliceTracker::StartSlice(
     // If this is an unnestable track, don't start a new slice if one already
     // exists.
     if (!stack.empty()) {
-      return base::nullopt;
+      return std::nullopt;
     }
   }
 
@@ -168,12 +168,12 @@ base::Optional<SliceId> SliceTracker::StartSlice(
 
   size_t depth = stack.size();
 
-  base::Optional<tables::SliceTable::RowReference> parent_ref =
-      depth == 0 ? base::nullopt
-                 : base::make_optional(stack.back().row.ToRowReference(slices));
+  std::optional<tables::SliceTable::RowReference> parent_ref =
+      depth == 0 ? std::nullopt
+                 : std::make_optional(stack.back().row.ToRowReference(slices));
   int64_t parent_stack_id = parent_ref ? parent_ref->stack_id() : 0;
-  base::Optional<tables::SliceTable::Id> parent_id =
-      parent_ref ? base::make_optional(parent_ref->id()) : base::nullopt;
+  std::optional<tables::SliceTable::Id> parent_id =
+      parent_ref ? std::make_optional(parent_ref->id()) : std::nullopt;
 
   SliceId id = inserter();
   tables::SliceTable::RowReference ref = *slices->FindById(id);
@@ -185,7 +185,7 @@ base::Optional<SliceId> SliceTracker::StartSlice(
     PERFETTO_DLOG("Last slice: %s", parent_name.c_str());
     PERFETTO_DLOG("Current slice: %s", name.c_str());
     PERFETTO_DFATAL("Slices with too large depth found.");
-    return base::nullopt;
+    return std::nullopt;
   }
   StackPush(track_id, ref);
 
@@ -204,35 +204,35 @@ base::Optional<SliceId> SliceTracker::StartSlice(
   return id;
 }
 
-base::Optional<SliceId> SliceTracker::CompleteSlice(
+std::optional<SliceId> SliceTracker::CompleteSlice(
     int64_t timestamp,
     TrackId track_id,
     SetArgsCallback args_callback,
-    std::function<base::Optional<uint32_t>(const SlicesStack&)> finder) {
+    std::function<std::optional<uint32_t>(const SlicesStack&)> finder) {
   // At this stage all events should be globally timestamp ordered.
   if (timestamp < prev_timestamp_) {
     context_->storage->IncrementStats(stats::slice_out_of_order);
-    return base::nullopt;
+    return std::nullopt;
   }
   prev_timestamp_ = timestamp;
 
   auto it = stacks_.Find(track_id);
   if (!it)
-    return base::nullopt;
+    return std::nullopt;
 
   TrackInfo& track_info = *it;
   SlicesStack& stack = track_info.slice_stack;
   MaybeCloseStack(timestamp, stack, track_id);
   if (stack.empty())
-    return base::nullopt;
+    return std::nullopt;
 
   auto* slices = context_->storage->mutable_slice_table();
-  base::Optional<uint32_t> stack_idx = finder(stack);
+  std::optional<uint32_t> stack_idx = finder(stack);
 
   // If we are trying to close slices that are not open on the stack (e.g.,
   // slices that began before tracing started), bail out.
   if (!stack_idx)
-    return base::nullopt;
+    return std::nullopt;
 
   const auto& slice_info = stack[stack_idx.value()];
 
@@ -266,8 +266,8 @@ base::Optional<SliceId> SliceTracker::CompleteSlice(
 
 // Returns the first incomplete slice in the stack with matching name and
 // category. We assume null category/name matches everything. Returns
-// nullopt if no matching slice is found.
-base::Optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
+// std::nullopt if no matching slice is found.
+std::optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
     const SlicesStack& stack,
     StringId name,
     StringId category) {
@@ -277,19 +277,19 @@ base::Optional<uint32_t> SliceTracker::MatchingIncompleteSliceIndex(
         stack[static_cast<size_t>(i)].row.ToRowReference(slices);
     if (ref.dur() != kPendingDuration)
       continue;
-    base::Optional<StringId> other_category = ref.category();
+    std::optional<StringId> other_category = ref.category();
     if (!category.is_null() && (!other_category || other_category->is_null() ||
                                 category != other_category)) {
       continue;
     }
-    base::Optional<StringId> other_name = ref.name();
+    std::optional<StringId> other_name = ref.name();
     if (!name.is_null() && other_name && !other_name->is_null() &&
         name != other_name) {
       continue;
     }
     return static_cast<uint32_t>(i);
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 void SliceTracker::MaybeAddTranslatableArgs(SliceInfo& slice_info) {
@@ -339,14 +339,14 @@ void SliceTracker::SetOnSliceBeginCallback(OnSliceBeginCallback callback) {
   on_slice_begin_callback_ = callback;
 }
 
-base::Optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
+std::optional<SliceId> SliceTracker::GetTopmostSliceOnTrack(
     TrackId track_id) const {
   const auto* iter = stacks_.Find(track_id);
   if (!iter)
-    return base::nullopt;
+    return std::nullopt;
   const auto& stack = iter->slice_stack;
   if (stack.empty())
-    return base::nullopt;
+    return std::nullopt;
   const auto& slice = context_->storage->slice_table();
   return stack.back().row.ToRowReference(slice).id();
 }

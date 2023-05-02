@@ -46,6 +46,24 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
     std::unordered_map<uint64_t, StringId> string_table;
     std::unordered_map<uint64_t, FuchsiaThreadInfo> thread_table;
 
+    // Returns a StringId for the given FXT string ref id.
+    StringId GetString(uint64_t string_ref) {
+      auto search = string_table.find(string_ref);
+      if (search != string_table.end()) {
+        return search->second;
+      }
+      return kNullStringId;
+    }
+
+    // Returns a FuchsiaThreadInfo for the given FXT thread ref id.
+    FuchsiaThreadInfo GetThread(uint64_t thread_ref) {
+      auto search = thread_table.find(thread_ref);
+      if (search != thread_table.end()) {
+        return search->second;
+      }
+      return {0, 0};
+    }
+
     uint64_t ticks_per_second = 1000000000;
   };
 
@@ -55,9 +73,16 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
 
     FuchsiaThreadInfo info;
     int64_t last_ts{0};
-    base::Optional<tables::SchedSliceTable::RowNumber> last_slice_row;
-    base::Optional<tables::ThreadStateTable::RowNumber> last_state_row;
+    std::optional<tables::SchedSliceTable::RowNumber> last_slice_row;
+    std::optional<tables::ThreadStateTable::RowNumber> last_state_row;
   };
+
+  void SwitchFrom(Thread* thread,
+                  int64_t ts,
+                  uint32_t cpu,
+                  uint32_t thread_state);
+  void SwitchTo(Thread* thread, int64_t ts, uint32_t cpu, int32_t weight);
+  void Wake(Thread* thread, int64_t ts, uint32_t cpu);
 
   // Allocates or returns an existing Thread instance for the given tid.
   Thread& GetThread(uint64_t tid) {
@@ -88,10 +113,17 @@ class FuchsiaTraceTokenizer : public ChunkedTraceReader {
   StringId running_string_id_;
   StringId runnable_string_id_;
   StringId preempted_string_id_;
+  StringId waking_string_id_;
   StringId blocked_string_id_;
   StringId suspended_string_id_;
   StringId exit_dying_string_id_;
   StringId exit_dead_string_id_;
+
+  // Interned string ids for record arguments.
+  StringId incoming_weight_id_;
+  StringId outgoing_weight_id_;
+  StringId weight_id_;
+  StringId process_id_;
 
   // Map from tid to Thread.
   std::unordered_map<uint64_t, Thread> threads_;

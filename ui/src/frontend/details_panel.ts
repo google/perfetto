@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
-import {QueryResponse} from '../common/queries';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
+import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -32,14 +32,14 @@ import {
   FlowEventsAreaSelectedPanel,
   FlowEventsPanel,
 } from './flow_events_panel';
+import {FtracePanel} from './ftrace_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
-import {PivotTableRedux} from './pivot_table_redux';
-import {QueryTable} from './query_table';
+import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
-import {ThreadStatePanel} from './thread_state_panel';
+import {ThreadStateTab} from './thread_state_tab';
 
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
@@ -177,30 +177,6 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
-// For queries that are supposed to be displayed in the bottom bar, return a
-// name for a tab. Otherwise, return null.
-function userVisibleQueryName(id: string): string|null {
-  if (id === 'command') {
-    return 'Omnibox Query';
-  }
-  if (id === 'analyze-page-query') {
-    return 'Standalone Query';
-  }
-  if (id.startsWith('command_')) {
-    return 'Pinned Query';
-  }
-  if (id.startsWith('pivot_table_details_')) {
-    return 'Pivot Table Details';
-  }
-  if (id.startsWith('slices_with_arg_value_')) {
-    return `Arg: ${id.substr('slices_with_arg_value_'.length)}`;
-  }
-  if (id === 'chrome_scroll_jank_long_tasks') {
-    return 'Scroll Jank: long tasks';
-  }
-  return null;
-}
-
 function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
   const currentSelectionTag = 'current_selection';
   const bottomTabList = globals.bottomTabList;
@@ -230,6 +206,25 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         });
       }
       break;
+    case 'THREAD_STATE':
+      bottomTabList.addTab({
+        kind: ThreadStateTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          id: newSelection.id,
+        },
+      });
+      break;
+    case 'DEBUG_SLICE':
+      bottomTabList.addTab({
+        kind: DebugSliceDetailsTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          sqlTableName: newSelection.sqlTableName,
+          id: newSelection.id,
+        },
+      });
+      break;
     default:
       bottomTabList.closeTabByTag(currentSelectionTag);
   }
@@ -249,9 +244,9 @@ export class DetailsPanel implements m.ClassComponent {
     const detailsPanels: DetailsPanel[] = [];
 
     if (globals.bottomTabList) {
-      for (const tab of globals.bottomTabList.tabs) {
+      for (const tab of globals.bottomTabList.getTabs()) {
         detailsPanels.push({
-          key: tab.uuid,
+          key: tab.tag ?? tab.uuid,
           name: tab.getTitle(),
           vnode: tab.createPanelVnode(),
         });
@@ -315,13 +310,6 @@ export class DetailsPanel implements m.ClassComponent {
             vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
           });
           break;
-        case 'THREAD_STATE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(ThreadStatePanel, {key: 'thread_state'}),
-          });
-          break;
         default:
           break;
       }
@@ -334,34 +322,27 @@ export class DetailsPanel implements m.ClassComponent {
       });
     }
 
-    const queryResults = [];
-    for (const queryId of globals.queryResults.keys()) {
-      const readableName = userVisibleQueryName(queryId);
-      if (readableName !== null) {
-        queryResults.push({queryId, name: readableName});
+    const trackGroup = globals.state.trackGroups['ftrace-track-group'];
+    if (trackGroup) {
+      const {collapsed} = trackGroup;
+      if (!collapsed) {
+        detailsPanels.push({
+          key: 'ftrace_events',
+          name: 'Ftrace Events',
+          vnode: m(FtracePanel, {key: 'ftrace_panel'}),
+        });
       }
     }
 
-    for (const {queryId, name} of queryResults) {
-      const count =
-          (globals.queryResults.get(queryId) as QueryResponse).rows.length;
-      detailsPanels.push({
-        key: `query_result_${queryId}`,
-        name: `${name} (${count})`,
-        vnode: m(QueryTable, {key: `query_${queryId}`, queryId}),
-      });
-    }
-
-
-    if (globals.state.nonSerializableState.pivotTableRedux.selectionArea !==
+    if (globals.state.nonSerializableState.pivotTable.selectionArea !==
         undefined) {
       detailsPanels.push({
-        key: 'pivot_table_redux',
+        key: 'pivot_table',
         name: 'Pivot Table',
-        vnode: m(PivotTableRedux, {
-          key: 'pivot_table_redux',
+        vnode: m(PivotTable, {
+          key: 'pivot_table',
           selectionArea:
-              globals.state.nonSerializableState.pivotTableRedux.selectionArea,
+              globals.state.nonSerializableState.pivotTable.selectionArea,
         }),
       });
     }

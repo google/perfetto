@@ -114,11 +114,6 @@ export interface CounterDetails {
 export interface ThreadStateDetails {
   ts?: number;
   dur?: number;
-  state?: string;
-  utid?: number;
-  cpu?: number;
-  sliceId?: number;
-  blockedFunction?: string;
 }
 
 export interface FlamegraphDetails {
@@ -163,6 +158,27 @@ export interface ThreadDesc {
   cmdline?: string;
 }
 type ThreadMap = Map<number, ThreadDesc>;
+
+export interface FtraceEvent {
+  id: number;
+  ts: number;
+  name: string;
+  cpu: number;
+  thread: string|null;
+  process: string|null;
+  args: string;
+}
+
+export interface FtracePanelData {
+  events: FtraceEvent[];
+  offset: number;
+  numEvents: number;  // Number of events in the visible window
+}
+
+export interface FtraceStat {
+  name: string;
+  count: number;
+}
 
 function getRoot() {
   // Works out the root directory where the content should be served from
@@ -216,11 +232,12 @@ class Globals {
   private _traceErrors?: number = undefined;
   private _metricError?: string = undefined;
   private _metricResult?: MetricResult = undefined;
-  private _hasFtrace?: boolean = undefined;
   private _jobStatus?: Map<ConversionJobName, ConversionJobStatus> = undefined;
   private _router?: Router = undefined;
   private _embeddedMode?: boolean = undefined;
   private _hideSidebar?: boolean = undefined;
+  private _ftraceCounters?: FtraceStat[] = undefined;
+  private _ftracePanelData?: FtracePanelData = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -450,11 +467,15 @@ class Globals {
   }
 
   get hasFtrace(): boolean {
-    return !!this._hasFtrace;
+    return Boolean(this._ftraceCounters && this._ftraceCounters.length > 0);
   }
 
-  set hasFtrace(value: boolean) {
-    this._hasFtrace = value;
+  get ftraceCounters(): FtraceStat[]|undefined {
+    return this._ftraceCounters;
+  }
+
+  set ftraceCounters(value: FtraceStat[]|undefined) {
+    this._ftraceCounters = value;
   }
 
   getConversionJobStatus(name: ConversionJobName): ConversionJobStatus {
@@ -542,6 +563,14 @@ class Globals {
 
   getCurrentEngine(): EngineConfig|undefined {
     return this.state.engine;
+  }
+
+  get ftracePanelData(): FtracePanelData|undefined {
+    return this._ftracePanelData;
+  }
+
+  set ftracePanelData(data: FtracePanelData|undefined) {
+    this._ftracePanelData = data;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

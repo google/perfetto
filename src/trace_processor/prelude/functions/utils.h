@@ -255,7 +255,7 @@ base::Status ExtractArg::Run(TraceStorage* storage,
   uint32_t arg_set_id = static_cast<uint32_t>(sqlite3_value_int(argv[0]));
   const char* key = reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
 
-  base::Optional<Variadic> opt_value;
+  std::optional<Variadic> opt_value;
   RETURN_IF_ERROR(storage->ExtractArg(arg_set_id, key, &opt_value));
 
   if (!opt_value)
@@ -321,8 +321,10 @@ base::Status AbsTimeStr::Run(ClockTracker* tracker,
   }
 
   int64_t ts = sqlite3_value_int64(argv[0]);
-  base::Optional<std::string> iso8601 = tracker->FromTraceTimeAsISO8601(ts);
-  if (!iso8601.has_value()) {
+  base::StatusOr<std::string> iso8601 = tracker->FromTraceTimeAsISO8601(ts);
+  if (!iso8601.ok()) {
+    // We are returning an OkStatus, because one bad timestamp shouldn't stop
+    // the query.
     return base::OkStatus();
   }
 
@@ -362,11 +364,12 @@ base::Status ToMonotonic::Run(ClockTracker* tracker,
   }
 
   int64_t ts = sqlite3_value_int64(argv[0]);
-  base::Optional<int64_t> monotonic =
+  base::StatusOr<int64_t> monotonic =
       tracker->FromTraceTime(protos::pbzero::BUILTIN_CLOCK_MONOTONIC, ts);
 
-  if (!monotonic.has_value()) {
-    // This means we'll return NULL
+  if (!monotonic.ok()) {
+    // We are returning an OkStatus, because one bad timestamp shouldn't stop
+    // the query.
     return base::OkStatus();
   }
 

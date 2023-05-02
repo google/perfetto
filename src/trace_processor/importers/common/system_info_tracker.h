@@ -17,7 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SYSTEM_INFO_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_SYSTEM_INFO_TRACKER_H_
 
-#include "perfetto/ext/base/optional.h"
+#include <optional>
+
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -42,12 +43,12 @@ class SystemInfoTracker : public Destructible {
 
   void SetKernelVersion(base::StringView name, base::StringView release);
 
-  base::Optional<VersionNumber> GetKernelVersion() { return version_; }
+  std::optional<VersionNumber> GetKernelVersion() { return version_; }
 
  private:
   explicit SystemInfoTracker();
 
-  base::Optional<VersionNumber> version_;
+  std::optional<VersionNumber> version_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

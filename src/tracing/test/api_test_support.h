@@ -28,6 +28,9 @@
 
 #include <stdint.h>
 
+#include <functional>
+#include <string>
+
 #include "perfetto/tracing.h"
 
 namespace perfetto {
@@ -52,6 +55,9 @@ class SystemService {
 
   void Clean();
 
+  // Restarts this SystemService. Producer and consumers will be disconnected.
+  void Restart();
+
  private:
   SystemService(const SystemService&) = delete;
   SystemService& operator=(const SystemService&) = delete;
@@ -75,9 +81,31 @@ struct TestTempFile {
 // The caller must close(2) the returned TempFile.fd.
 TestTempFile CreateTempFile();
 
+class DataSourceInternalForTest {
+ public:
+  template <typename DerivedDataSource>
+  static void ClearTlsState() {
+    internal::DataSourceThreadLocalState*& tls_state =
+        DerivedDataSource::tls_state_;
+    if (tls_state) {
+      tls_state = nullptr;
+    }
+  }
+};
+
 class TracingMuxerImplInternalsForTest {
  public:
   static bool DoesSystemBackendHaveSMB();
+  static void ClearIncrementalState();
+
+  template <typename DerivedDataSource>
+  static void ClearDataSourceTlsStateOnReset() {
+    AppendResetForTestingCallback(
+        [] { DataSourceInternalForTest::ClearTlsState<DerivedDataSource>(); });
+  }
+
+ private:
+  static void AppendResetForTestingCallback(std::function<void()>);
 };
 
 }  // namespace test

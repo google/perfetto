@@ -20,6 +20,7 @@
     <option name="config-descriptor:metadata" key="parameter" value="not_multi_abi" />
     <option name="config-descriptor:metadata" key="parameter" value="secondary_user" />
     <option name="test-suite-tag" value="cts" />
+    <option name="config-descriptor:metadata" key="mainline-param" value="com.google.android.art.apex" />
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true" />
         <option name="test-file-name" value="CtsPerfettoProducerApp.apk" />
@@ -27,7 +28,6 @@
         <option name="test-file-name" value="CtsPerfettoReleaseApp.apk" />
         <option name="test-file-name" value="CtsPerfettoProfileableApp.apk" />
         <option name="test-file-name" value="CtsPerfettoNonProfileableApp.apk" />
-        <option name="test-file-name" value="CtsPerfettoReporterApp.apk" />
     </target_preparer>
     <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
         <option name="cleanup" value="true" />
@@ -44,4 +44,17 @@
         <!-- test-timeout unit is ms -->
         <option name="native-test-timeout" value="40000" />
     </test>
+
+    <!-- When this test is run in a Mainline context (e.g. with `mts-tradefed`), only enable it if
+         one of the Mainline modules below is present on the device used for testing. -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.MainlineTestModuleController">
+        <!-- ART Mainline Module (internal version). -->
+        <option name="mainline-module-package-name" value="com.google.android.art" />
+        <!-- ART Mainline Module (external (AOSP) version). -->
+        <option name="mainline-module-package-name" value="com.android.art" />
+    </object>
+
+    <!-- Only run tests if the device under test is SDK version 31 (Android 12)
+         or above, where ART is an updatable Mainline module. -->
+    <object type="module_controller" class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
 </configuration>

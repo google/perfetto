@@ -17,9 +17,12 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_TOKENIZER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_PROTO_PROTO_TRACE_TOKENIZER_H_
 
+#include <cstdint>
 #include <vector>
 
+#include "perfetto/base/status.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/status.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -112,9 +115,14 @@ class ProtoTraceTokenizer {
 
   template <typename Callback = util::Status(TraceBlobView)>
   util::Status ParseInternal(TraceBlobView whole_buf, Callback callback) {
+    static constexpr auto kLengthDelimited =
+        protozero::proto_utils::ProtoWireType::kLengthDelimited;
     const uint8_t* const start = whole_buf.data();
     protos::pbzero::Trace::Decoder decoder(whole_buf.data(), whole_buf.size());
     for (auto it = decoder.packet(); it; ++it) {
+      if (PERFETTO_UNLIKELY(it->type() != kLengthDelimited)) {
+        return base::ErrStatus("Failed to parse TracePacket bounds");
+      }
       protozero::ConstBytes packet = *it;
       TraceBlobView sliced = whole_buf.slice(packet.data, packet.size);
       RETURN_IF_ERROR(ParsePacket(std::move(sliced), callback));

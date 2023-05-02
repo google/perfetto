@@ -245,8 +245,8 @@ size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   return res;
 }
 
-base::Optional<LineWithOffset> FindLineWithOffset(base::StringView str,
-                                                  uint32_t offset) {
+std::optional<LineWithOffset> FindLineWithOffset(base::StringView str,
+                                                 uint32_t offset) {
   static constexpr char kNewLine = '\n';
   uint32_t line_offset = 0;
   uint32_t line_count = 1;
@@ -265,7 +265,7 @@ base::Optional<LineWithOffset> FindLineWithOffset(base::StringView str,
       return LineWithOffset{line, offset - line_offset, line_count};
     }
   }
-  return base::nullopt;
+  return std::nullopt;
 }
 
 }  // namespace base

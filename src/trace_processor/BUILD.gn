@@ -157,7 +157,6 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../protozero",
       "db",
-      "dynamic",
       "importers/android_bugreport",
       "importers/common",
       "importers/ftrace:full",
@@ -172,6 +171,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "metrics",
       "prelude/functions",
       "prelude/operators",
+      "prelude/table_functions",
       "sqlite",
       "stdlib:gen_amalgamated_stdlib",
       "storage",
@@ -221,6 +221,8 @@ if (enable_perfetto_trace_processor_sqlite) {
         "../../protos/perfetto/metrics:descriptor",
         "../../protos/perfetto/trace:descriptor",
         "../../protos/perfetto/trace:test_extensions_descriptor",
+        "../../protos/perfetto/trace_processor:stack_descriptor",
+        "../../protos/third_party/pprof:profile_descriptor",
       ]
     }
   }
@@ -285,9 +287,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
-      "dynamic:unittests",
       "prelude/functions:unittests",
       "prelude/operators:unittests",
+      "prelude/table_functions:unittests",
       "sqlite:unittests",
     ]
   }

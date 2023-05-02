@@ -110,7 +110,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceProducer) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.add_buffers()->set_size_kb(64);
   trace_config.set_duration_ms(3000);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -319,7 +319,7 @@ TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
   const auto& packets = helper.trace();
   ASSERT_GT(packets.size(), 0u);
 
-  base::Optional<protos::gen::FtraceStats> stats;
+  std::optional<protos::gen::FtraceStats> stats;
   for (const auto& packet : packets) {
     if (!packet.has_ftrace_stats() ||
         packet.ftrace_stats().phase() !=

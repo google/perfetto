@@ -135,7 +135,7 @@ PerfSampleTracker::SamplingStreamInfo PerfSampleTracker::GetSamplingStreamInfo(
   if (cpu_it != seq_state->per_cpu.end())
     return {seq_state->perf_session_id, cpu_it->second.timebase_track_id};
 
-  base::Optional<PerfSampleDefaults::Decoder> perf_defaults;
+  std::optional<PerfSampleDefaults::Decoder> perf_defaults;
   if (nullable_defaults && nullable_defaults->has_perf_sample_defaults()) {
     perf_defaults.emplace(nullable_defaults->perf_sample_defaults());
   }

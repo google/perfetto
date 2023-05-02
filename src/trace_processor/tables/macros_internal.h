@@ -34,7 +34,7 @@ class RootParentTable : public Table {
  public:
   struct Row {
    public:
-    Row(std::nullptr_t) {}
+    Row(std::nullptr_t = nullptr) {}
 
     const char* type() const { return type_; }
 
@@ -87,7 +87,7 @@ struct IdHelper<RootParentTable, Class> {
 class MacroTable : public Table {
  protected:
   // Constructors for tables created by the regular constructor.
-  MacroTable(StringPool* pool, const Table* parent)
+  MacroTable(StringPool* pool, const Table* parent = nullptr)
       : Table(pool), allow_inserts_(true), parent_(parent) {
     if (!parent) {
       overlays_.emplace_back();
@@ -576,7 +576,7 @@ class AbstractConstRowReference {
                                                                               \
     struct Row : parent_class_name::Row {                                     \
       /*                                                                      \
-       * Expands to Row(col_type1 col1_c, base::Optional<col_type2> col2_c,   \
+       * Expands to Row(col_type1 col1_c, std::optional<col_type2> col2_c,    \
        * ...)                                                                 \
        */                                                                     \
       Row(PERFETTO_TP_ALL_COLUMNS(DEF, PERFETTO_TP_ROW_CONSTRUCTOR)           \
@@ -841,18 +841,18 @@ class AbstractConstRowReference {
     }                                                                         \
                                                                               \
     /* Returns a ConstRowReference to the row pointed to by |find_id|. */     \
-    base::Optional<ConstRowReference> FindById(Id find_id) const {            \
-      base::Optional<uint32_t> row = id().IndexOf(find_id);                   \
+    std::optional<ConstRowReference> FindById(Id find_id) const {             \
+      std::optional<uint32_t> row = id().IndexOf(find_id);                    \
       if (!row)                                                               \
-        return base::nullopt;                                                 \
+        return std::nullopt;                                                  \
       return ConstRowReference(this, *row);                                   \
     }                                                                         \
                                                                               \
     /* Returns a RowReference to the row pointed to by |find_id|. */          \
-    base::Optional<RowReference> FindById(Id find_id) {                       \
-      base::Optional<uint32_t> row = id().IndexOf(find_id);                   \
+    std::optional<RowReference> FindById(Id find_id) {                        \
+      std::optional<uint32_t> row = id().IndexOf(find_id);                    \
       if (!row)                                                               \
-        return base::nullopt;                                                 \
+        return std::nullopt;                                                  \
       return RowReference(this, *row);                                        \
     }                                                                         \
                                                                               \

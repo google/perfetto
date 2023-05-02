@@ -1,0 +1,74 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+@import "theme";
+
+.pf-popup-portal {
+  position: absolute;
+  z-index: 10; // Hack to show popups over certain other elements
+}
+
+.pf-popup {
+  background: white;
+  border: solid 1px $pf-colour-thin-border;
+  border-radius: $pf-border-radius;
+  box-shadow: 2px 2px 16px rgba(0, 0, 0, 0.2);
+  .pf-popup-content {
+    // Ensures all content is rendered above the arrow
+    position: relative;
+  }
+}
+
+.pf-popup-arrow,
+.pf-popup-arrow::before {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: inherit;
+  border: inherit;
+}
+
+.pf-popup-arrow {
+  visibility: hidden;
+}
+
+.pf-popup-arrow::before {
+  visibility: visible;
+  content: "";
+  transform: rotate(45deg);
+}
+
+.pf-popup[data-popper-placement^="top"] > .pf-popup-arrow {
+  bottom: -4px;
+  border-top: none;
+  border-left: none;
+}
+
+.pf-popup[data-popper-placement^="bottom"] > .pf-popup-arrow {
+  top: -6px;
+  border-bottom: none;
+  border-right: none;
+}
+
+.pf-popup[data-popper-placement^="left"] > .pf-popup-arrow {
+  right: -4px;
+  border-bottom: none;
+  border-left: none;
+}
+
+.pf-popup[data-popper-placement^="right"] > .pf-popup-arrow {
+  left: -6px;
+  border-top: none;
+  border-right: none;
+}

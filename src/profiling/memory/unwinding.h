@@ -85,6 +85,9 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
       : delegate_(delegate),
         thread_task_runner_(std::move(thread_task_runner)) {}
 
+  ~UnwindingWorker() override;
+  UnwindingWorker(UnwindingWorker&&) = default;
+
   // Public API safe to call from other threads.
   void PostDisconnectSocket(pid_t pid);
   void PostPurgeProcess(pid_t pid);
@@ -149,19 +152,11 @@ class UnwindingWorker : public base::UnixSocket::EventListener {
   std::map<pid_t, ClientData> client_data_;
   Delegate* delegate_;
 
-  // Task runner with a dedicated thread. Keep last as instances this class are
-  // currently (incorrectly) being destroyed on the main thread, instead of the
-  // task thread. By destroying this task runner first, we ensure that the
-  // UnwindingWorker is not active while the rest of its state is being
-  // destroyed. Additionally this ensures that the destructing thread sees a
-  // consistent view of the memory due to the ThreadTaskRunner's destructor
-  // joining a thread.
-  //
-  // Additionally, keep the destructor defaulted, as its body would still race
-  // against an active task thread.
-  //
-  // TODO(rsavitski): make the task thread own the object's lifetime (likely by
-  // refactoring base::ThreadTaskRunner).
+  // Task runner with a dedicated thread. Keep last. By destroying this task
+  // runner first, we ensure that the UnwindingWorker is not active while the
+  // rest of its state is being destroyed. Additionally this ensures that the
+  // destructing thread sees a consistent view of the memory due to the
+  // ThreadTaskRunner's destructor joining a thread.
   base::ThreadTaskRunner thread_task_runner_;
 };
 

@@ -27,6 +27,7 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/base/test/test_task_runner.h"
 #include "src/base/test/utils.h"
+#include "src/perfetto_cmd/bugreport_path.h"
 #include "test/gtest_and_gmock.h"
 #include "test/test_helper.h"
 
@@ -64,6 +65,19 @@ std::string RandomTraceFileName() {
   path.append("-");
   path.append(std::to_string(suffix++));
   return path;
+}
+
+// For the SaveForBugreport* tests.
+TraceConfig CreateTraceConfigForBugreportTest() {
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(4096);
+  trace_config.set_duration_ms(60000);  // Will never hit this.
+  trace_config.set_bugreport_score(10);
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->mutable_for_testing()->set_message_count(3);
+  ds_config->mutable_for_testing()->set_message_size(10);
+  return trace_config;
 }
 
 class PerfettoCmdlineTest : public ::testing::Test {
@@ -118,6 +132,68 @@ class PerfettoCmdlineTest : public ::testing::Test {
     // deadlocks.
     PERFETTO_CHECK(exec_allowed_);
     return Exec("trigger_perfetto", std::move(args), std::move(std_in));
+  }
+
+  // This is in common to the 3 TEST_F SaveForBugreport* fixtures, which differ
+  // only in the config, passed here as input.
+  void RunBugreportTest(protos::gen::TraceConfig trace_config,
+                        bool check_original_trace = true) {
+    const std::string path = RandomTraceFileName();
+
+    auto perfetto_proc = ExecPerfetto(
+        {
+            "-o",
+            path,
+            "-c",
+            "-",
+        },
+        trace_config.SerializeAsString());
+
+    auto perfetto_br_proc = ExecPerfetto({
+        "--save-for-bugreport",
+    });
+
+    // Start the service and connect a simple fake producer.
+    StartServiceIfRequiredNoNewExecsAfterThis();
+
+    auto* fake_producer = ConnectFakeProducer();
+    ASSERT_TRUE(fake_producer);
+
+    std::thread background_trace([&perfetto_proc]() {
+      std::string stderr_str;
+      ASSERT_EQ(0, perfetto_proc.Run(&stderr_str)) << stderr_str;
+    });
+
+    // Wait for the producer to start, and then write out packets.
+    WaitForProducerEnabled();
+    auto on_data_written = task_runner_.CreateCheckpoint("data_written");
+    fake_producer->ProduceEventBatch(WrapTask(on_data_written));
+    task_runner_.RunUntilCheckpoint("data_written");
+
+    ASSERT_EQ(0, perfetto_br_proc.Run(&stderr_)) << "stderr: " << stderr_;
+    perfetto_proc.SendSigterm();
+    background_trace.join();
+
+    auto check_trace_contents = [](std::string trace_path) {
+      // Read the trace written in the fixed location
+      // (/data/misc/perfetto-traces/ on Android, /tmp/ on Linux/Mac) and make
+      // sure it has the right contents.
+      std::string trace_str;
+      base::ReadFile(trace_path, &trace_str);
+      ASSERT_FALSE(trace_str.empty());
+      protos::gen::Trace trace;
+      ASSERT_TRUE(trace.ParseFromString(trace_str));
+      int test_packets = 0;
+      for (const auto& p : trace.packet())
+        test_packets += p.has_for_testing() ? 1 : 0;
+      ASSERT_EQ(test_packets, 3) << trace_path;
+    };
+
+    // Verify that both the original trace and the cloned bugreport contain
+    // the expected contents.
+    check_trace_contents(GetBugreportTracePath());
+    if (check_original_trace)
+      check_trace_contents(path);
   }
 
   // Tests are allowed to freely use these variables.
@@ -758,6 +834,39 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
       EXPECT_EQ("trigger_name", packet.trigger().trigger_name());
     }
   }
+}
+
+TEST_F(PerfettoCmdlineTest, SaveForBugreport) {
+  TraceConfig trace_config = CreateTraceConfigForBugreportTest();
+  RunBugreportTest(std::move(trace_config));
+}
+
+TEST_F(PerfettoCmdlineTest, SaveForBugreport_WriteIntoFile) {
+  TraceConfig trace_config = CreateTraceConfigForBugreportTest();
+  trace_config.set_file_write_period_ms(60000);  // Will never hit this.
+  trace_config.set_write_into_file(true);
+  RunBugreportTest(std::move(trace_config));
+}
+
+// Tests that SaveTraceForBugreport() works also if the trace has triggers
+// defined and those triggers have not been hit. This is a regression test for
+// b/188008375 .
+#if PERFETTO_BUILDFLAG(PERFETTO_ANDROID_BUILD)
+// Disabled due to b/191940560
+#define MAYBE_SaveForBugreport_Triggers DISABLED_SaveForBugreport_Triggers
+#else
+#define MAYBE_SaveForBugreport_Triggers SaveForBugreport_Triggers
+#endif
+TEST_F(PerfettoCmdlineTest, MAYBE_SaveForBugreport_Triggers) {
+  TraceConfig trace_config = CreateTraceConfigForBugreportTest();
+  trace_config.set_duration_ms(0);  // set_trigger_timeout_ms is used instead.
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  trigger->set_stop_delay_ms(1);
+  RunBugreportTest(std::move(trace_config), /*check_original_trace=*/false);
 }
 
 }  // namespace perfetto

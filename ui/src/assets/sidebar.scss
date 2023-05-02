@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+
 .sidebar {
   --sidebar-padding-bottom: 40px;
   --sidebar-timing: 0.15s;
@@ -38,11 +40,11 @@
     height: var(--topbar-height);
     line-height: var(--topbar-height);
     vertical-align: middle;
-    padding: 0 20px;
+    padding: 0 12px;
     color: #fff;
     overflow: visible;
     .brand {
-      height: 40px;
+      height: 36px;
       margin-top: 4px;
     }
     &::before {
@@ -53,10 +55,10 @@
       display: block;
       position: absolute;
       font-size: 10px;
-      line-height: 10px;
-      font-family: "Raleway", sans-serif;
-      left: 155px;
+      line-height: 5px;
+      font-family: "Roboto", sans-serif;
       top: 7px;
+      right: 48px;
     }
     &.canary::before {
       content: "CANARY";
@@ -121,17 +123,15 @@
           cursor: pointer;
           > h1,
           > h2 {
-            font-family: "Raleway", sans-serif;
             letter-spacing: 0.25px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            margin: 0 24px;
+            margin: 0 12px;
           }
           > h1 {
             color: #fff;
             font-size: 15px;
-            font-weight: 500;
           }
           > h2 {
             @include transition();
@@ -189,10 +189,7 @@
           a {
             line-height: 24px;
             font-size: 14px;
-            font-weight: 400;
-            font-family: "Raleway", sans-serif;
-            letter-spacing: 0.5px;
-            padding: 5px 24px;
+            padding: 4px 12px;
             text-decoration: none;
             display: block;
             &.pending {
@@ -225,6 +222,7 @@
           }
           .material-icons {
             margin-right: 10px;
+            font-size: 20px;
           }
           &:hover {
             background-color: #373f4b;
@@ -265,13 +263,19 @@
     }
 
     > .dbg-info-square {
+      font-family: "Roboto Condensed", sans-serif;
       width: 24px;
-      height: 22px;
-      line-height: 22px;
+      height: 24px;
+      line-height: 24px;
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      align-items: center;
+
       margin: 1px 0;
       background: #12161b;
       color: #4e71b3;
-      border-radius: 5px;
+      border-radius: $pf-border-radius;
       font-size: 12px;
       text-align: center;
       &.green {

@@ -28,10 +28,7 @@ import {
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
 import {toNs} from '../common/time';
-import {
-  FlamegraphDetails,
-  globals as frontendGlobals,
-} from '../frontend/globals';
+import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {
   Config as PerfSampleConfig,
@@ -40,7 +37,6 @@ import {
 
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';
-import {globals} from './globals';
 
 export function profileType(s: string): ProfileType {
   if (isProfileType(s)) {
@@ -131,11 +127,11 @@ export class FlamegraphController extends Controller<'main'> {
       const upids = [];
       if (!area) {
         this.checkCompletionAndPublishFlamegraph(
-            {...frontendGlobals.flamegraphDetails, isInAreaSelection: false});
+            {...globals.flamegraphDetails, isInAreaSelection: false});
         return;
       }
       for (const trackId of area.tracks) {
-        const trackState = frontendGlobals.state.tracks[trackId];
+        const trackState = globals.state.tracks[trackId];
         if (!trackState ||
             trackState.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
           continue;
@@ -144,10 +140,10 @@ export class FlamegraphController extends Controller<'main'> {
       }
       if (upids.length === 0) {
         this.checkCompletionAndPublishFlamegraph(
-            {...frontendGlobals.flamegraphDetails, isInAreaSelection: false});
+            {...globals.flamegraphDetails, isInAreaSelection: false});
         return;
       }
-      frontendGlobals.dispatch(Actions.openFlamegraph({
+      globals.dispatch(Actions.openFlamegraph({
         upids,
         startNs: toNs(area.startSec),
         endNs: toNs(area.endSec),
@@ -155,7 +151,7 @@ export class FlamegraphController extends Controller<'main'> {
         viewingOption: PERF_SAMPLES_KEY,
       }));
     }
-    const selection = frontendGlobals.state.currentFlamegraphState;
+    const selection = globals.state.currentFlamegraphState;
     if (!selection || !this.shouldRequestData(selection)) {
       return;
     }

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {hex} from 'color-convert';
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
@@ -22,7 +22,7 @@ import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {BLANK_CHECKBOX, CHECKBOX, STAR, STAR_BORDER} from './icons';
+import {BLANK_CHECKBOX, CHECKBOX, PIN} from './icons';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {SliceRect, Track} from './track';
@@ -99,7 +99,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               globals.dispatch(
                   Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
             },
-            i: isPinned(attrs.trackState.id) ? STAR : STAR_BORDER,
+            i: PIN,
+            filledIcon: isPinned(attrs.trackState.id),
             tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
             showButton: isPinned(attrs.trackState.id),
             fullHeight: true,
@@ -240,11 +241,14 @@ interface TrackComponentAttrs {
 }
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
+    // TODO(hjd): The min height below must match the track_shell_title
+    // max height in common.scss so we should read it from CSS to avoid
+    // them going out of sync.
     return m(
         '.track',
         {
           style: {
-            height: `${Math.max(24, attrs.track.getHeight())}px`,
+            height: `${Math.max(18, attrs.track.getHeight())}px`,
           },
           id: 'track_' + attrs.trackState.id,
         },
@@ -268,15 +272,17 @@ export interface TrackButtonAttrs {
   tooltip: string;
   showButton: boolean;
   fullHeight?: boolean;
+  filledIcon?: boolean;
 }
 export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
     return m(
-        'i.material-icons.track-button',
+        'i.track-button',
         {
           class: [
             (attrs.showButton ? 'show' : ''),
             (attrs.fullHeight ? 'full-height' : ''),
+            (attrs.filledIcon ? 'material-icons-filled' : 'material-icons'),
           ].filter(Boolean)
                      .join(' '),
           onclick: attrs.action,
@@ -385,27 +391,16 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoveredLogsTimestamp !== -1) {
+    if (globals.state.hoverCursorTimestamp !== -1) {
       drawVerticalLineAtTime(
           ctx,
           localState.timeScale,
-          globals.state.hoveredLogsTimestamp,
+          globals.state.hoverCursorTimestamp,
           size.height,
           `#344596`);
     }
-    if (globals.state.currentSelection !== null) {
-      if (globals.state.currentSelection.kind === 'NOTE') {
-        const note = globals.state.notes[globals.state.currentSelection.id];
-        if (note.noteType === 'DEFAULT') {
-          drawVerticalLineAtTime(
-              ctx,
-              localState.timeScale,
-              note.timestamp,
-              size.height,
-              note.color);
-        }
-      }
 
+    if (globals.state.currentSelection !== null) {
       if (globals.state.currentSelection.kind === 'SLICE' &&
           globals.sliceDetails.wakeupTs !== undefined) {
         drawVerticalLineAtTime(
@@ -436,6 +431,9 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
             size.height,
             transparentNoteColor,
             1);
+      } else if (note.noteType === 'DEFAULT') {
+        drawVerticalLineAtTime(
+            ctx, localState.timeScale, note.timestamp, size.height, note.color);
       }
     }
   }

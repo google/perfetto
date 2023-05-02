@@ -287,6 +287,8 @@ config("protobuf_gen_config") {
       "-Wno-undefined-reinterpret-cast",
       "-Wno-inconsistent-missing-destructor-override",
       "-Wno-unused-parameter",
+      "-Wno-shadow-field-in-constructor",
+      "-Wno-zero-as-null-pointer-constant",
     ]
   }
 

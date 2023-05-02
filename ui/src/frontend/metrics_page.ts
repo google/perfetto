@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {globals} from './globals';
 import {createPage} from './pages';
+import {Button} from './widgets/button';
 
 function getCurrSelectedMetric() {
   const {availableMetrics, selectedIndex} = globals.state.metrics;
@@ -64,9 +65,10 @@ class MetricPicker implements m.ClassComponent {
         },
         availableMetrics.map(
             (metric) => m('option', {value: metric, key: metric}, metric))),
-      m('button.metric-run-button',
-        {onclick: () => globals.dispatch(Actions.requestSelectedMetric({}))},
-        'Run'),
+      m(Button, {
+        onclick: () => globals.dispatch(Actions.requestSelectedMetric({})),
+        label: 'Run',
+      }),
     ]);
   }
 }

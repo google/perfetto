@@ -29,6 +29,7 @@ source_set("common") {
     "../../../protos/third_party/pprof:zero",
     "../../base",
     "../../protozero",
+    "../../trace_processor:lib",
     "../../trace_processor/util:proto_profiler",
   ]
   sources = [ "main.cc" ]

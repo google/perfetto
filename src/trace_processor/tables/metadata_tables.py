@@ -16,6 +16,8 @@
 from python.generators.trace_processor_table.public import Alias
 from python.generators.trace_processor_table.public import Column as C
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
+from python.generators.trace_processor_table.public import CppDouble
 from python.generators.trace_processor_table.public import CppInt64
 from python.generators.trace_processor_table.public import CppOptional
 from python.generators.trace_processor_table.public import CppString
@@ -78,10 +80,12 @@ PROCESS_TABLE = Table(
                   (e.g. sched_process_free ftrace event on Linux/Android).
                 ''',
             'parent_upid':
-                '''
+                ColumnDoc(
+                    '''
                   The upid of the process which caused this process to be
                   spawned.
                 ''',
+                    joinable='process.upid'),
             'uid':
                 ColumnDoc(
                     'The Unix user id of the process.',
@@ -144,7 +148,9 @@ THREAD_TABLE = Table(
                   sched_process_free ftrace event on Linux/Android).
                 ''',
             'upid':
-                'The process hosting this thread.',
+                ColumnDoc(
+                    'The process hosting this thread.',
+                    joinable='process.upid'),
             'is_main_thread':
                 '''
                   Boolean indicating if this thread is the main thread
@@ -152,8 +158,193 @@ THREAD_TABLE = Table(
                 '''
         }))
 
+RAW_TABLE = Table(
+    class_name='RawTable',
+    sql_name='raw',
+    columns=[
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('name', CppString()),
+        C('cpu', CppUint32()),
+        C('utid', CppUint32()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''''',
+        group='Misc',
+        columns={
+            'arg_set_id': '''''',
+            'ts': '''''',
+            'name': '''''',
+            'cpu': '''''',
+            'utid': ''''''
+        }))
+
+ARG_TABLE = Table(
+    class_name='ArgTable',
+    sql_name='internal_args',
+    columns=[
+        C('arg_set_id', CppUint32(), flags=ColumnFlag.SORTED),
+        C('flat_key', CppString()),
+        C('key', CppString()),
+        C('int_value', CppOptional(CppInt64())),
+        C('string_value', CppOptional(CppString())),
+        C('real_value', CppOptional(CppDouble())),
+        C('value_type', CppString()),
+    ],
+    wrapping_sql_view=WrappingSqlView(view_name='args'),
+    tabledoc=TableDoc(
+        doc='''''',
+        group='Misc',
+        columns={
+            'arg_set_id': '''''',
+            'flat_key': '''''',
+            'key': '''''',
+            'int_value': '''''',
+            'string_value': '''''',
+            'real_value': '''''',
+            'value_type': ''''''
+        }))
+
+METADATA_TABLE = Table(
+    class_name='MetadataTable',
+    sql_name='metadata',
+    columns=[
+        C('name', CppString()),
+        C('key_type', CppString()),
+        C('int_value', CppOptional(CppInt64())),
+        C('str_value', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''''',
+        group='Misc',
+        columns={
+            'name': '''''',
+            'key_type': '''''',
+            'int_value': '''''',
+            'str_value': ''''''
+        }))
+
+FILEDESCRIPTOR_TABLE = Table(
+    class_name='FiledescriptorTable',
+    sql_name='filedescriptor',
+    columns=[
+        C('ufd', CppInt64()),
+        C('fd', CppInt64()),
+        C('ts', CppOptional(CppInt64())),
+        C('upid', CppOptional(CppUint32())),
+        C('path', CppOptional(CppString())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of filedescriptors collected during the trace
+        ''',
+        group='Misc',
+        columns={
+            'ufd':
+                '''Unique fd. This is != the OS fd.
+This is a monotonic number associated to each
+filedescriptor. The OS assigned fd cannot be used as
+primary key because fds are recycled by most kernels.''',
+            'fd':
+                '''The OS id for this process. Note: this is *not*
+unique over the lifetime of the trace so cannot be
+used as a primary key. Use |ufd| instead.''',
+            'ts':
+                '''The timestamp for when the fd was collected.''',
+            'upid':
+                ''' The upid of the process which
+opened the filedescriptor.''',
+            'path':
+                '''The path to the file or device backing the fd
+In case this was a socket the path will be the port
+number.'''
+        }))
+
+EXP_MISSING_CHROME_PROC_TABLE = Table(
+    class_name='ExpMissingChromeProcTable',
+    sql_name='experimental_missing_chrome_processes',
+    columns=[
+        C('upid', CppUint32()),
+        C('reliable_from', CppOptional(CppInt64())),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Experimental table, subject to arbitrary breaking changes.
+        ''',
+        group='Misc',
+        columns={
+            'upid': '''''',
+            'reliable_from': ''''''
+        }))
+
+CPU_TABLE = Table(
+    class_name='CpuTable',
+    sql_name='cpu',
+    columns=[
+        C('cluster_id', CppUint32()),
+        C('processor', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Contains information of processes seen during the trace
+        ''',
+        group='Misc',
+        columns={
+            'cluster_id':
+                '''the cluster id is shared by CPUs in
+the same cluster''',
+            'processor':
+                '''a string describing this core'''
+        }))
+
+CPU_FREQ_TABLE = Table(
+    class_name='CpuFreqTable',
+    sql_name='cpu_freq',
+    columns=[
+        C('cpu_id', CppTableId(CPU_TABLE)),
+        C('freq', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''''', group='Misc', columns={
+            'cpu_id': '''''',
+            'freq': ''''''
+        }))
+
+CLOCK_SNAPSHOT_TABLE = Table(
+    class_name='ClockSnapshotTable',
+    sql_name='clock_snapshot',
+    columns=[
+        C('ts', CppInt64()),
+        C('clock_id', CppInt64()),
+        C('clock_name', CppOptional(CppString())),
+        C('clock_value', CppInt64()),
+        C('snapshot_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          Contains all the mapping between clock snapshots and trace time.
+
+NOTE: this table is not sorted by timestamp; this is why we omit the
+sorted flag on the ts column.
+        ''',
+        group='Misc',
+        columns={
+            'ts':
+                '''timestamp of the snapshot in trace time.''',
+            'clock_id':
+                '''id of the clock (corresponds to the id in the trace).''',
+            'clock_name':
+                '''the name of the clock for builtin clocks or null
+otherwise.''',
+            'clock_value':
+                '''timestamp of the snapshot in clock time.''',
+            'snapshot_id':
+                '''the index of this snapshot (only useful for debugging)'''
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
-    THREAD_TABLE,
-    PROCESS_TABLE,
+    ARG_TABLE, CLOCK_SNAPSHOT_TABLE, CPU_FREQ_TABLE, CPU_TABLE,
+    EXP_MISSING_CHROME_PROC_TABLE, FILEDESCRIPTOR_TABLE, METADATA_TABLE,
+    PROCESS_TABLE, RAW_TABLE, THREAD_TABLE
 ]

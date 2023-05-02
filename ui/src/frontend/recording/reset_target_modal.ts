@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {
   RecordingPageController,
 } from '../../common/recordingV2/recording_page_controller';
@@ -69,7 +69,6 @@ function assembleWebusbSection(
       m('.logo-wrapping', m('i.material-icons', 'usb')),
       m('.record-modal-description',
         m('h3', 'Android device over WebUSB'),
-        m('h4', 'JustWorks from the browser with one click'),
         m('text',
           'Android developers: this option cannot co-operate ' +
               'with the adb host on your machine. Only one entity between ' +

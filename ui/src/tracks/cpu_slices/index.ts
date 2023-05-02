@@ -317,9 +317,13 @@ class CpuSliceTrack extends Track<Config, Data> {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
       }
-      title = cropText(title, charWidth, rectWidth);
-      subTitle = cropText(subTitle, charWidth, rectWidth);
-      const rectXCenter = rectStart + rectWidth / 2;
+      const right =
+          Math.min(timeScale.timeToPx(visibleWindowTime.end), rectEnd);
+      const left = Math.max(rectStart, 0);
+      const visibleWidth = Math.max(right - left, 1);
+      title = cropText(title, charWidth, visibleWidth);
+      subTitle = cropText(subTitle, charWidth, visibleWidth);
+      const rectXCenter = left + visibleWidth / 2;
       ctx.fillStyle = '#fff';
       ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);

@@ -29,6 +29,8 @@ import {
   CpuProfileDetails,
   FlamegraphDetails,
   Flow,
+  FtracePanelData,
+  FtraceStat,
   globals,
   QuantizedLoad,
   SliceDetails,
@@ -87,8 +89,8 @@ export function publishCpuProfileDetails(details: CpuProfileDetails) {
   globals.publishRedraw();
 }
 
-export function publishHasFtrace(hasFtrace: boolean) {
-  globals.hasFtrace = hasFtrace;
+export function publishFtraceCounters(counters: FtraceStat[]) {
+  globals.ftraceCounters = counters;
   globals.publishRedraw();
 }
 
@@ -194,5 +196,10 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
     }
   }
 
+  globals.publishRedraw();
+}
+
+export function publishFtracePanelData(data: FtracePanelData) {
+  globals.ftracePanelData = data;
   globals.publishRedraw();
 }

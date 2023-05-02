@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import * as m from 'mithril';
-
-import {Actions} from '../common/actions';
+import m from 'mithril';
 
 import {globals} from './globals';
+import {STAR} from './icons';
+
 import {
   arrayOf,
   bool,
@@ -26,6 +26,8 @@ import {
   ValidatedType,
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
+import {Icon} from './widgets/icon';
+import {runAnalyzeQuery} from './analyze_page';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -59,24 +61,22 @@ export class HistoryItemComponent implements
     return m(
         '.history-item',
         m('.history-item-buttons',
+          m(
+              'button',
+              {
+                onclick: () => {
+                  queryHistoryStorage.setStarred(
+                      vnode.attrs.index, !vnode.attrs.entry.starred);
+                  globals.rafScheduler.scheduleFullRedraw();
+                },
+              },
+              m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
+              ),
           m('button',
             {
-              onclick: () => {
-                queryHistoryStorage.setStarred(
-                    vnode.attrs.index, !vnode.attrs.entry.starred);
-                globals.rafScheduler.scheduleFullRedraw();
-              },
+              onclick: () => runAnalyzeQuery(query),
             },
-            m('i.material-icons',
-              vnode.attrs.entry.starred ? 'star' : 'star_outline')),
-          m('button',
-            {
-              onclick: () => {
-                globals.dispatch(Actions.executeQuery(
-                    {queryId: 'analyze-page-query', query}));
-              },
-            },
-            m('i.material-icons', 'play_arrow')),
+            m(Icon, {icon: 'play_arrow'})),
           m('button',
             {
               onclick: () => {
@@ -84,7 +84,7 @@ export class HistoryItemComponent implements
                 globals.rafScheduler.scheduleFullRedraw();
               },
             },
-            m('i.material-icons', 'delete'))),
+            m(Icon, {icon: 'delete'}))),
         m('pre', query));
   }
 }

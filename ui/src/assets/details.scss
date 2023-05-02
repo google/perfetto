@@ -41,14 +41,14 @@
         padding: 3px 10px 0 10px;
         margin-top: 3px;
         font-size: 13px;
-        border-radius: 5px 5px 0 0;
-        background-color: hsla(0, 0%, 75%, 1);
-        border-top: solid 1px hsla(0, 0%, 75%, 1);
-        border-left: solid 1px hsla(0, 0%, 75%, 1);
+        border-radius: 3px 3px 0 0;
+        background-color: #0000000f;
         border-right: solid 1px hsla(0, 0%, 75%, 1);
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
+        z-index: 5;
+        box-shadow: #0000003b 0px 0px 3px 1px;
 
         &[active] {
           background-color: white;
@@ -61,6 +61,10 @@
         &:hover {
           cursor: pointer;
           background-color: hsla(0, 0%, 85%, 1);
+        }
+
+        &:nth-child(1) {
+          margin-left: 3px;
         }
       }
     }
@@ -120,6 +124,12 @@
     padding: 10px 0 5px 0;
     position: sticky;
     top: 0;
+
+    // Relative/absolute/etc.. (non static) elements stack on top of this sticky
+    // header, so setting the z-index here to 1 forces this header to render
+    // over the top of other elements in the underlying panels.
+    z-index: 1;
+
     display: flex;
     background: white;
     &.aggregation {
@@ -188,27 +198,6 @@
         display: inline-flex;
         justify-content: flex-end;
       }
-      button {
-        width: fit-content;
-        height: 20px;
-        padding: 3px;
-        padding-top: 0;
-        margin: 2px;
-        font-size: 12px;
-        opacity: 0.5;
-        &.download {
-          opacity: 1;
-          padding-top: 3px;
-          height: 21px;
-        }
-        &.chosen {
-          opacity: 1;
-        }
-        .material-icons {
-          font-size: 15px;
-          margin-right: 3px;
-        }
-      }
       .title {
         justify-self: start;
         margin-left: 5px;
@@ -270,17 +259,35 @@
     table-layout: auto;
   }
 
-  button {
-    background-color: #262f3c;
-    color: #fff;
-    font-size: 0.875rem;
-    padding-left: 1rem;
-    padding-right: 1rem;
-    padding-top: 0.5rem;
-    padding-bottom: 0.5rem;
-    border-radius: 0.25rem;
-    margin-top: 12px;
-    margin-left: 10px;
+  .slice-details-latency-panel {
+    // This panel is set to relative to make this panel a positioned element
+    // This is to allow the absolute text panels below to be positioned relative
+    // to this panel and not our parent.
+    position: relative;
+    font-size: 13px;
+    user-select: text;
+
+    .text-detail {
+      font-size: 10px;
+    }
+
+    .slice-details-wakeup-text {
+      position: absolute;
+      left: 40px;
+      top: 20px;
+    }
+
+    .slice-details-latency-text {
+      position: absolute;
+      left: 106px;
+      top: 90px;
+    }
+
+    .slice-details-image {
+      user-select: none;
+      width: 360px;
+      height: 300px;
+    }
   }
 }
 
@@ -601,6 +608,115 @@
 
         &.row-header:first-child {
           padding-left: 15px;
+        }
+      }
+    }
+  }
+}
+
+.pf-details-table {
+  margin: 10px;
+}
+
+.ftrace-panel {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  font-family: "Roboto Condensed", sans-serif;
+  user-select: text;
+
+  .sticky {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background-color: white;
+    color: #3c4b5d;
+    padding: 5px 10px;
+    display: grid;
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+  }
+
+  .ftrace-rows-label {
+    display: flex;
+    align-items: center;
+  }
+
+  header.stale {
+    color: grey;
+  }
+
+  .rows {
+    position: relative;
+    direction: ltr;
+    min-width: 100%;
+    font-size: 12px;
+
+    .row {
+      @include transition();
+      position: absolute;
+      min-width: 100%;
+      line-height: 20px;
+      background-color: hsl(214, 22%, 100%);
+      white-space: nowrap;
+
+      &:nth-child(even) {
+        background-color: hsl(214, 22%, 95%);
+      }
+
+      &:hover {
+        background-color: $table-hover-color;
+      }
+
+      .cell {
+        font-family: var(--monospace-font);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin-right: 8px;
+        display: inline-block;
+
+        .colour {
+          display: inline-block;
+          height: 10px;
+          width: 10px;
+          margin-right: 4px;
+        }
+
+        &:first-child {
+          margin-left: 8px;
+        }
+
+        &:last-child {
+          margin-right: 8px;
+        }
+
+        &:only-child {
+          width: 100%;
+        }
+
+        // Timestamp
+        &:nth-child(1) {
+          width: 13em;
+          // text-align: right;
+        }
+
+        // Name
+        &:nth-child(2) {
+          width: 24em;
+        }
+
+        // CPU
+        &:nth-child(3) {
+          width: 3em;
+        }
+
+        // Process
+        &:nth-child(4) {
+          width: 24em;
+        }
+
+        &.row-header {
+          font-weight: bold;
         }
       }
     }

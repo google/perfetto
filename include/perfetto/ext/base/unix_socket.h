@@ -22,6 +22,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/export.h"

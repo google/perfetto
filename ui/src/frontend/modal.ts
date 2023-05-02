@@ -53,16 +53,14 @@
 // For one-show use-cases it's still possible to just use:
 // showModal({title: 'Foo', content, buttons: ...});
 
-import * as m from 'mithril';
+import m from 'mithril';
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {globals} from './globals';
 
-type AnyAttrsVnode = m.Vnode<unknown, {}>;
-
 export interface ModalDefinition {
   title: string;
-  content: AnyAttrsVnode;
+  content: m.Children|(() => m.Children);
   vAlign?: 'MIDDLE' /* default */ | 'TOP';
   buttons?: Button[];
   close?: boolean;
@@ -151,11 +149,19 @@ class ModalImpl implements m.ClassComponent<ModalImplAttrs> {
                     'button[aria-label=Close Modal]',
                     {onclick: () => attrs.parent.close()},
                     m.trust('&#x2715'),
+                    ),
                 ),
-            ),
-            m('main', attrs.content),
+            m('main', this.renderContent(attrs.content)),
             m('footer', buttons),
-        ));
+            ));
+  }
+
+  private renderContent(content: m.Children|(() => m.Children)): m.Children {
+    if (typeof content === 'function') {
+      return content();
+    } else {
+      return content;
+    }
   }
 
   oncreate(vnode: m.VnodeDOM<ModalImplAttrs>) {

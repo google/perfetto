@@ -13,7 +13,7 @@
 // limitations under the License.
 
 
-import * as m from 'mithril';
+import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';
@@ -711,7 +711,7 @@ function recordMenu(routePage: string) {
             m('.sub', 'Buffer mode, size and duration'))),
         m('a[href="#!/record/instructions"]',
           m(`li${routePage === 'instructions' ? '.active' : ''}`,
-            m('i.material-icons.rec', 'fiber_manual_record'),
+            m('i.material-icons-filled.rec', 'fiber_manual_record'),
             m('.title', 'Recording command'),
             m('.sub', 'Manually record trace'))),
         PERSIST_CONFIG_FLAG.get() ?

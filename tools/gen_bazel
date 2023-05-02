@@ -148,7 +148,7 @@ def gen_version_header(target):
   label.outs += target.outputs
   label.cmd = r'$(location gen_version_header_py)'
   label.cmd += r' --cpp_out=$@ --changelog=$(location CHANGELOG)'
-  label.exec_tools += [':gen_version_header_py']
+  label.tools += [':gen_version_header_py']
   return [label]
 
 
@@ -294,7 +294,6 @@ class BazelLabel(object):
     self.deps = []
     self.external_deps = []
     self.tools = []
-    self.exec_tools = []
     self.outs = []
     self.exports = []
     self.main = None
@@ -318,7 +317,7 @@ class BazelLabel(object):
     any_deps = len(self.deps) + len(self.external_deps) > 0
     ORD = [
         'name', 'srcs', 'hdrs', 'visibility', 'data', 'deps', 'outs', 'cmd',
-        'tools', 'exec_tools', 'exports', 'main', 'python_version'
+        'tools', 'exports', 'main', 'python_version'
     ]
     hasher = lambda x: sum((99,) + tuple(ord(c) for c in x))
     key_sorter = lambda kv: ORD.index(kv[0]) if kv[0] in ORD else hasher(kv[0])

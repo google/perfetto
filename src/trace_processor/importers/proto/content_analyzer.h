@@ -33,9 +33,13 @@ namespace trace_processor {
 // Interface for a module that processes track event information.
 class ProtoContentAnalyzer : public PacketAnalyzer {
  public:
+  struct Sample {
+    size_t size;
+    size_t count;
+  };
   using PathToSamplesMap =
       base::FlatHashMap<util::SizeProfileComputer::FieldPath,
-                        size_t,
+                        Sample,
                         util::SizeProfileComputer::FieldPathHasher>;
   using SampleAnnotation = PacketAnalyzer::SampleAnnotation;
 

@@ -22,13 +22,13 @@ namespace perfetto {
 namespace internal {
 
 // static
-TracingBackend* SystemTracingBackend::GetInstance() {
+TracingProducerBackend* SystemProducerTracingBackend::GetInstance() {
   PERFETTO_FATAL("System tracing not implemented");
   return nullptr;
 }
 
 // static
-TracingBackend* SystemTracingProducerOnlyBackend::GetInstance() {
+TracingConsumerBackend* SystemConsumerTracingBackend::GetInstance() {
   PERFETTO_FATAL("System tracing not implemented");
   return nullptr;
 }

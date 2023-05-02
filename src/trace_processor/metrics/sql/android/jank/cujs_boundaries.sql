@@ -21,11 +21,12 @@ CREATE TABLE android_jank_cuj_vsync_boundary AS
 SELECT
   cuj.cuj_id,
   cuj.upid, -- also store upid to simplify further queries
+  cuj.layer_id,  -- also store layer_id to simplify further queries
   MIN(vsync) AS vsync_min,
   MAX(vsync) AS vsync_max
 FROM android_jank_cuj cuj
 JOIN android_jank_cuj_do_frame_slice USING (cuj_id)
-GROUP BY cuj.cuj_id, cuj.upid;
+GROUP BY cuj.cuj_id, cuj.upid, cuj.layer_id;
 
 -- Similarly, extract the min/max vsync for the SF from
 -- commit/compose/onMessageInvalidate slices on its main thread.

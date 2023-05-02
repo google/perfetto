@@ -34,7 +34,6 @@ perfetto_component("protozero") {
     "gen_field_helpers.cc",
     "message.cc",
     "message_arena.cc",
-    "message_handle.cc",
     "packed_repeated_fields.cc",
     "proto_decoder.cc",
     "scattered_heap_buffer.cc",

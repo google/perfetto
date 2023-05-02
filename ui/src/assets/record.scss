@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+
 :root {
   --record-text-color: #333;
 }
@@ -30,7 +32,7 @@
   max-width: 900px;
   min-height: 500px;
   margin: auto;
-  border-radius: 5px;
+  border-radius: $pf-border-radius;
   box-shadow: 0 1px 2px 0 #aaa, 0 1px 3px 1px #eee;
   background-color: #fff;
   display: grid;
@@ -53,7 +55,7 @@
     height: 100%;
     text-align: center;
     padding: 180px 30px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Roboto", sans-serif;
     font-size: 25px;
   }
 }
@@ -72,8 +74,6 @@
     flex-direction: row;
 
     .logo-wrapping {
-      border-radius: 50%;
-      background-color: #f0f0f0;
       width: 150px;
       height: 150px;
       display: inline-block;
@@ -81,7 +81,7 @@
       align-self: center;
 
       i.material-icons {
-        color: #0000ff;
+        color: #16161d;
         font-size: 150px;
       }
     }
@@ -127,7 +127,7 @@
 
       input[type="text"] {
         flex-grow: 1;
-        border-radius: 4px;
+        border-radius: $pf-border-radius;
         border: 1px solid #dcdcdc;
         padding: 3px;
         margin: 0 10px;
@@ -169,7 +169,7 @@
 
   .record-modal-button,
   .record-modal-button-high {
-    border-radius: 0.25rem;
+    border-radius: $pf-border-radius;
     border-style: none;
     border-width: 0;
   }
@@ -234,7 +234,7 @@
         margin: 10px;
         text-align: center;
         background-color: #eee;
-        font-family: "Raleway", sans-serif;
+        font-family: "Roboto", sans-serif;
         font-size: 17px;
         @media (max-width: 1280px) {
           font-size: 1.6vw;
@@ -366,7 +366,7 @@
     padding: 0 1em;
     font-size: 15px;
     letter-spacing: 0.5px;
-    font-family: "Raleway", sans-serif;
+    font-family: "Roboto", sans-serif;
     font-weight: 600;
     color: #666;
     display: grid;
@@ -378,12 +378,10 @@
 
     i {
       margin: auto;
-      border-radius: 100%;
       font-size: 32px;
       width: 38px;
       height: 38px;
       padding: 3px;
-      background: #eee;
       grid-area: icon;
     }
 
@@ -476,7 +474,7 @@
     margin-right: 10px;
     text-align: center;
     justify-items: center;
-    font-family: "Raleway", sans-serif;
+    font-family: "Roboto", sans-serif;
     padding: 7px;
 
     &:hover:enabled {
@@ -542,7 +540,7 @@
       }
       &::placeholder {
         color: #b4b7ba;
-        font-family: "Raleway", sans-serif;
+        font-family: "Roboto", sans-serif;
         font-weight: 400;
       }
     }
@@ -564,7 +562,7 @@
 
   > header {
     text-align: center;
-    font-family: "Raleway", sans-serif;
+    font-family: "Roboto", sans-serif;
     font-size: 20px;
     padding: 15px 10px;
     color: #333;
@@ -801,7 +799,7 @@
       margin: 5px;
       text-align: center;
       background-color: #eee;
-      font-family: "Raleway", sans-serif;
+      font-family: "Roboto", sans-serif;
       font-size: 20px;
       @media (max-width: 1280px) {
         font-size: 1.6vw;
@@ -1175,7 +1173,7 @@
         text-align: center;
         margin: 3px;
         background-color: #eee;
-        font-family: "Raleway", sans-serif;
+        font-family: "Roboto", sans-serif;
         flex-grow: 1;
         font-size: 17px;
         @media (max-width: 1280px) {
@@ -1202,7 +1200,7 @@
       border-radius: 10px;
       text-align: center;
       justify-items: center;
-      font-family: "Raleway", sans-serif;
+      font-family: "Roboto", sans-serif;
       padding: 7px;
       background-color: hsl(88, 50%, 67%);
 

@@ -19,9 +19,9 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/importers/common/process_tracker.h"
 #include "src/trace_processor/importers/common/track_tracker.h"
-#include "src/trace_processor/importers/proto/metadata_tracker.h"
 #include "src/trace_processor/importers/proto/packet_sequence_state.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/importers/proto/track_event_tracker.h"
@@ -114,7 +114,8 @@ ModuleResult TrackEventTokenizer::TokenizeTrackDescriptorPacket(
     track_event_tracker_->ReserveDescriptorThreadTrack(
         track.uuid(), track.parent_uuid(), name_id,
         static_cast<uint32_t>(thread.pid()),
-        static_cast<uint32_t>(thread.tid()), packet_timestamp);
+        static_cast<uint32_t>(thread.tid()), packet_timestamp,
+        track.disallow_merging_with_system_tracks());
   } else if (track.has_process()) {
     protos::pbzero::ProcessDescriptor::Decoder process(track.process());
 
@@ -251,9 +252,9 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    auto trace_ts = context_->clock_tracker->ToTraceTime(
+    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.has_value())
+    if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (int64_t ts_absolute_us = event.timestamp_absolute_us()) {
     // One-off absolute timestamps don't affect delta computation.
@@ -261,9 +262,9 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
 
     // Legacy TrackEvent timestamp fields are in MONOTONIC domain. Adjust to
     // trace time if we have a clock snapshot.
-    auto trace_ts = context_->clock_tracker->ToTraceTime(
+    base::StatusOr<int64_t> trace_ts = context_->clock_tracker->ToTraceTime(
         protos::pbzero::BUILTIN_CLOCK_MONOTONIC, timestamp);
-    if (trace_ts.has_value())
+    if (trace_ts.ok())
       timestamp = trace_ts.value();
   } else if (packet.has_timestamp()) {
     timestamp = packet_timestamp;
@@ -326,7 +327,7 @@ void TrackEventTokenizer::TokenizeTrackEventPacket(
       return;
     }
 
-    base::Optional<double> value;
+    std::optional<double> value;
     if (event.has_counter_value()) {
       value = track_event_tracker_->ConvertToAbsoluteCounterValue(
           track_uuid, packet.trusted_packet_sequence_id(),
@@ -407,7 +408,7 @@ base::Status TrackEventTokenizer::AddExtraCounterValues(
           "Ignoring TrackEvent with more extra_{double_,}counter_values than "
           "TrackEventData::kMaxNumExtraCounters");
     }
-    base::Optional<double> abs_value =
+    std::optional<double> abs_value =
         track_event_tracker_->ConvertToAbsoluteCounterValue(
             *track_uuid_it, trusted_packet_sequence_id,
             static_cast<double>(*value_it));

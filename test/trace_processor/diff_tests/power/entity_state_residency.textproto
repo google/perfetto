@@ -1,0 +1,76 @@
+packet {
+  timestamp: 1
+
+  entity_state_residency {
+    power_entity_state {
+      entity_index: 0
+      state_index: 0
+      entity_name: "Bluetooth"
+      state_name: "Idle"
+    }
+    power_entity_state {
+      entity_index: 0
+      state_index: 1
+      entity_name: "Bluetooth"
+      state_name: "Active"
+    }
+    power_entity_state {
+      entity_index: 1
+      state_index: 0
+      entity_name: "PCIe-Modem"
+      state_name: "UP"
+    }
+    power_entity_state {
+      entity_index: 1
+      state_index: 1
+      entity_name: "PCIe-Modem"
+      state_name: "DOWN"
+    }
+    residency {
+      entity_index: 0
+      state_index: 0
+      total_time_in_state_ms: 1000
+    }
+    residency {
+      entity_index: 0
+      state_index: 1
+      total_time_in_state_ms: 2000
+    }
+    residency {
+      entity_index: 1
+      state_index: 0
+      total_time_in_state_ms: 10000
+    }
+    residency {
+      entity_index: 1
+      state_index: 1
+      total_time_in_state_ms: 20000
+    }
+  }
+}
+packet {
+  timestamp: 2
+
+  entity_state_residency {
+    residency {
+      entity_index: 0
+      state_index: 0
+      total_time_in_state_ms: 3000
+    }
+    residency {
+      entity_index: 0
+      state_index: 1
+      total_time_in_state_ms: 4000
+    }
+    residency {
+      entity_index: 1
+      state_index: 0
+      total_time_in_state_ms: 30000
+    }
+    residency {
+      entity_index: 1
+      state_index: 1
+      total_time_in_state_ms: 40000
+    }
+  }
+}

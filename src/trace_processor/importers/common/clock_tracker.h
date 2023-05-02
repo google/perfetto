@@ -22,18 +22,22 @@
 #include <array>
 #include <cinttypes>
 #include <map>
+#include <optional>
 #include <random>
 #include <set>
 #include <vector>
 
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/optional.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/importers/common/metadata_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 
+class ClockTrackerTest;
 class TraceProcessorContext;
 
 // This class handles synchronization of timestamps across different clock
@@ -43,8 +47,10 @@ class TraceProcessorContext;
 // The API is fairly simple (but the inner operation is not):
 // - AddSnapshot(map<clock_id, timestamp>): pushes a set of clocks that have
 //   been snapshotted at the same time (within technical limits).
-// - Convert(src_clock_id, src_timestamp, target_clock_id):
-//   converts a timestamp between two clock domains.
+// - ToTraceTime(src_clock_id, src_timestamp):
+//   converts a timestamp between clock domain and TraceTime.
+// - FromTraceTime(target_clock_id, src_timestamp):
+//   converts a timestamp between TraceTime and clock domain.
 //
 // Concepts:
 // - Snapshot hash:
@@ -112,83 +118,65 @@ class TraceProcessorContext;
 
 class ClockTracker {
  public:
-  using ClockId = uint64_t;
+  using ClockId = int64_t;
+
+  explicit ClockTracker(TraceProcessorContext*);
+  virtual ~ClockTracker();
+
+  // Clock description.
+  struct Clock {
+    explicit Clock(ClockId clock_id) : id(clock_id) {}
+    Clock(ClockId clock_id, int64_t unit, bool incremental)
+        : id(clock_id), unit_multiplier_ns(unit), is_incremental(incremental) {}
+
+    ClockId id;
+    int64_t unit_multiplier_ns = 1;
+    bool is_incremental = false;
+  };
+
+  // Timestamp with clock.
+  struct ClockTimestamp {
+    ClockTimestamp(ClockId id, int64_t ts) : clock(id), timestamp(ts) {}
+    ClockTimestamp(ClockId id, int64_t ts, int64_t unit, bool incremental)
+        : clock(id, unit, incremental), timestamp(ts) {}
+
+    Clock clock;
+    int64_t timestamp;
+  };
 
   // IDs in the range [64, 128) are reserved for sequence-scoped clock ids.
   // They can't be passed directly in ClockTracker calls and must be resolved
   // to 64-bit global clock ids by calling SeqScopedClockIdToGlobal().
-  static bool IsReservedSeqScopedClockId(ClockId clock_id) {
+  static bool IsSequenceClock(ClockId clock_id) {
     return clock_id >= 64 && clock_id < 128;
   }
 
   // Converts a sequence-scoped clock ids to a global clock id that can be
   // passed as argument to ClockTracker functions.
-  static ClockId SeqScopedClockIdToGlobal(uint32_t seq_id, uint32_t clock_id) {
-    PERFETTO_DCHECK(IsReservedSeqScopedClockId(clock_id));
-    return (static_cast<uint64_t>(seq_id) << 32) | clock_id;
+  static ClockId SeqenceToGlobalClock(uint32_t seq_id, uint32_t clock_id) {
+    PERFETTO_DCHECK(IsSequenceClock(clock_id));
+    return (static_cast<int64_t>(seq_id) << 32) | clock_id;
   }
-
-  // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
-  // a ClockId returned by SeqScopedClockIdToGlobal().
-  static bool ClockIsSeqScoped(ClockId global_clock_id) {
-    // If the id is > 2**32, this is a sequence-scoped clock id translated into
-    // the global namespace.
-    return (global_clock_id >> 32) > 0;
-  }
-
-  explicit ClockTracker(TraceStorage*);
-  virtual ~ClockTracker();
-
-  // Clock description and its value in a snapshot.
-  struct ClockValue {
-    ClockValue(ClockId id, int64_t ts) : clock_id(id), absolute_timestamp(ts) {}
-    ClockValue(ClockId id, int64_t ts, int64_t unit, bool incremental)
-        : clock_id(id),
-          absolute_timestamp(ts),
-          unit_multiplier_ns(unit),
-          is_incremental(incremental) {}
-
-    ClockId clock_id;
-    int64_t absolute_timestamp;
-    int64_t unit_multiplier_ns = 1;
-    bool is_incremental = false;
-  };
 
   // Appends a new snapshot for the given clock domains.
   // This is typically called by the code that reads the ClockSnapshot packet.
   // Returns the internal snapshot id of this set of clocks.
-  uint32_t AddSnapshot(const std::vector<ClockValue>&);
+  uint32_t AddSnapshot(const std::vector<ClockTimestamp>&);
 
-  // Converts a timestamp between two clock domains. Tries to use the cache
-  // first (only for single-path resolutions), then falls back on path finding
-  // as described in the header.
-  base::Optional<int64_t> Convert(ClockId src_clock_id,
-                                  int64_t src_timestamp,
-                                  ClockId target_clock_id) {
-    if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
-      for (const auto& ce : cache_) {
-        if (ce.src != src_clock_id || ce.target != target_clock_id)
-          continue;
-        int64_t ns = ce.src_domain->ToNs(src_timestamp);
-        if (ns >= ce.min_ts_ns && ns < ce.max_ts_ns)
-          return ns + ce.translation_ns;
-      }
+  base::StatusOr<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
+    if (PERFETTO_UNLIKELY(!trace_time_clock_id_used_for_conversion_)) {
+      context_->metadata_tracker->SetMetadata(
+          metadata::trace_time_clock_id,
+          Variadic::Integer(trace_time_clock_id_));
+      trace_time_clock_id_used_for_conversion_ = true;
     }
-    return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
-  }
-
-  base::Optional<int64_t> ConvertSlowpath(ClockId src_clock_id,
-                                          int64_t src_timestamp,
-                                          ClockId target_clock_id);
-
-  base::Optional<int64_t> ToTraceTime(ClockId clock_id, int64_t timestamp) {
     trace_time_clock_id_used_for_conversion_ = true;
     if (clock_id == trace_time_clock_id_)
       return timestamp;
     return Convert(clock_id, timestamp, trace_time_clock_id_);
   }
 
-  base::Optional<int64_t> FromTraceTime(ClockId to_clock_id,
+  base::StatusOr<int64_t> FromTraceTime(ClockId to_clock_id,
                                         int64_t timestamp) {
     trace_time_clock_id_used_for_conversion_ = true;
     if (to_clock_id == trace_time_clock_id_)
@@ -196,10 +184,10 @@ class ClockTracker {
     return Convert(trace_time_clock_id_, timestamp, to_clock_id);
   }
 
-  base::Optional<std::string> FromTraceTimeAsISO8601(int64_t timestamp);
+  base::StatusOr<std::string> FromTraceTimeAsISO8601(int64_t timestamp);
 
   void SetTraceTimeClock(ClockId clock_id) {
-    PERFETTO_DCHECK(!IsReservedSeqScopedClockId(clock_id));
+    PERFETTO_DCHECK(!IsSequenceClock(clock_id));
     if (trace_time_clock_id_used_for_conversion_ &&
         trace_time_clock_id_ != clock_id) {
       PERFETTO_ELOG("Not updating trace time clock from %" PRIu64 " to %" PRIu64
@@ -209,6 +197,8 @@ class ClockTracker {
       return;
     }
     trace_time_clock_id_ = clock_id;
+    context_->metadata_tracker->SetMetadata(
+        metadata::trace_time_clock_id, Variadic::Integer(trace_time_clock_id_));
   }
 
   void set_cache_lookups_disabled_for_testing(bool v) {
@@ -220,6 +210,9 @@ class ClockTracker {
 
   // 0th argument is the source clock, 1st argument is the target clock.
   using ClockGraphEdge = std::tuple<ClockId, ClockId, SnapshotHash>;
+
+  // TODO(b/273263113): Remove in the next stages.
+  friend class ClockTrackerTest;
 
   // A value-type object that carries the information about the path between
   // two clock domains. It's used by the BFS algorithm.
@@ -305,6 +298,38 @@ class ClockTracker {
   ClockTracker(const ClockTracker&) = delete;
   ClockTracker& operator=(const ClockTracker&) = delete;
 
+  base::StatusOr<int64_t> ConvertSlowpath(ClockId src_clock_id,
+                                          int64_t src_timestamp,
+                                          ClockId target_clock_id);
+
+  // Converts a timestamp between two clock domains. Tries to use the cache
+  // first (only for single-path resolutions), then falls back on path finding
+  // as described in the header.
+  base::StatusOr<int64_t> Convert(ClockId src_clock_id,
+                                  int64_t src_timestamp,
+                                  ClockId target_clock_id) {
+    if (PERFETTO_LIKELY(!cache_lookups_disabled_for_testing_)) {
+      for (const auto& cached_clock_path : cache_) {
+        if (cached_clock_path.src != src_clock_id ||
+            cached_clock_path.target != target_clock_id)
+          continue;
+        int64_t ns = cached_clock_path.src_domain->ToNs(src_timestamp);
+        if (ns >= cached_clock_path.min_ts_ns &&
+            ns < cached_clock_path.max_ts_ns)
+          return ns + cached_clock_path.translation_ns;
+      }
+    }
+    return ConvertSlowpath(src_clock_id, src_timestamp, target_clock_id);
+  }
+
+  // Returns whether |global_clock_id| represents a sequence-scoped clock, i.e.
+  // a ClockId returned by SeqScopedClockIdToGlobal().
+  static bool IsConvertedSequenceClock(ClockId global_clock_id) {
+    // If the id is > 2**32, this is a sequence-scoped clock id translated into
+    // the global namespace.
+    return (global_clock_id >> 32) > 0;
+  }
+
   ClockPath FindPath(ClockId src, ClockId target);
 
   ClockDomain* GetClock(ClockId clock_id) {
@@ -313,7 +338,7 @@ class ClockTracker {
     return &it->second;
   }
 
-  TraceStorage* const storage_;
+  TraceProcessorContext* const context_;
   ClockId trace_time_clock_id_ = 0;
   std::map<ClockId, ClockDomain> clocks_;
   std::set<ClockGraphEdge> graph_;

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "widgets/theme";
+
 // The opacity changes are only transitional. Once the `modalFadeOut` animation
 // reaches the end, the Mithril component that renders .modal-backdrop
 // (and .modal-dialog) is fully destroyed and removed from the DOM.
@@ -57,7 +59,6 @@
 .modal-dialog {
   position: absolute;
   z-index: 100;
-  border: 1px solid #333;
   background-color: #fff;
   margin: auto;
   min-width: 25vw;
@@ -65,7 +66,7 @@
   padding: 30px;
   max-width: 90vw;
   max-height: 90vh;
-  border-radius: 4px;
+  border-radius: $pf-border-radius;
   overflow-y: auto;
   top: 50%;
   left: 50%;
@@ -86,7 +87,7 @@
     h2 {
       margin-top: 0;
       margin-bottom: 0;
-      font-family: "Raleway", sans-serif;
+      font-family: "Roboto", sans-serif;
       font-weight: 600;
       font-size: 1.25rem;
       line-height: 1.25;

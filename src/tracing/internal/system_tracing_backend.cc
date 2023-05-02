@@ -34,10 +34,17 @@
 
 namespace perfetto {
 namespace internal {
-namespace {
 
-std::unique_ptr<ProducerEndpoint> CreateProducerEndpoint(
-    const TracingBackend::ConnectProducerArgs& args) {
+// static
+TracingProducerBackend* SystemProducerTracingBackend::GetInstance() {
+  static auto* instance = new SystemProducerTracingBackend();
+  return instance;
+}
+
+SystemProducerTracingBackend::SystemProducerTracingBackend() {}
+
+std::unique_ptr<ProducerEndpoint> SystemProducerTracingBackend::ConnectProducer(
+    const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
 
   std::unique_ptr<SharedMemory> shm;
@@ -67,22 +74,15 @@ std::unique_ptr<ProducerEndpoint> CreateProducerEndpoint(
   return endpoint;
 }
 
-}  // namespace
-
 // static
-TracingBackend* SystemTracingBackend::GetInstance() {
-  static auto* instance = new SystemTracingBackend();
+TracingConsumerBackend* SystemConsumerTracingBackend::GetInstance() {
+  static auto* instance = new SystemConsumerTracingBackend();
   return instance;
 }
 
-SystemTracingBackend::SystemTracingBackend() {}
+SystemConsumerTracingBackend::SystemConsumerTracingBackend() {}
 
-std::unique_ptr<ProducerEndpoint> SystemTracingBackend::ConnectProducer(
-    const ConnectProducerArgs& args) {
-  return CreateProducerEndpoint(args);
-}
-
-std::unique_ptr<ConsumerEndpoint> SystemTracingBackend::ConnectConsumer(
+std::unique_ptr<ConsumerEndpoint> SystemConsumerTracingBackend::ConnectConsumer(
     const ConnectConsumerArgs& args) {
 #if PERFETTO_BUILDFLAG(PERFETTO_SYSTEM_CONSUMER)
   auto endpoint = ConsumerIPCClient::Connect(GetConsumerSocket(), args.consumer,
@@ -94,30 +94,6 @@ std::unique_ptr<ConsumerEndpoint> SystemTracingBackend::ConnectConsumer(
   PERFETTO_FATAL("System backend consumer support disabled");
   return nullptr;
 #endif
-}
-
-// static
-TracingBackend* SystemTracingProducerOnlyBackend::GetInstance() {
-  static auto* instance = new SystemTracingProducerOnlyBackend();
-  return instance;
-}
-
-SystemTracingProducerOnlyBackend::SystemTracingProducerOnlyBackend() {}
-
-std::unique_ptr<ProducerEndpoint>
-SystemTracingProducerOnlyBackend::ConnectProducer(
-    const ConnectProducerArgs& args) {
-  return CreateProducerEndpoint(args);
-}
-
-std::unique_ptr<ConsumerEndpoint>
-SystemTracingProducerOnlyBackend::ConnectConsumer(
-    const ConnectConsumerArgs& args) {
-  base::ignore_result(args);
-  PERFETTO_FATAL(
-      "System backend consumer support disabled. "
-      "TracingInitArgs::enable_system_consumer was false");
-  return nullptr;
 }
 
 }  // namespace internal

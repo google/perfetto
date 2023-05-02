@@ -44,8 +44,10 @@ class TestAndroidSystemPropertyDataSource
                                         /* session_id */ 0,
                                         std::move(writer)) {}
 
-  MOCK_METHOD1(ReadProperty,
-               const base::Optional<std::string>(const std::string&));
+  MOCK_METHOD(const std::optional<std::string>,
+              ReadProperty,
+              (const std::string&),
+              (override));
 };
 
 class AndroidSystemPropertyDataSourceTest : public ::testing::Test {
@@ -79,9 +81,9 @@ TEST_F(AndroidSystemPropertyDataSourceTest, Success) {
   auto data_source = CreateAndroidSystemPropertyDataSource(BuildConfig(
       {"debug.tracing.screen_state", "debug.tracing.screen_brightness"}));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_state"))
-      .WillOnce(Return(base::make_optional("2")));
+      .WillOnce(Return(std::make_optional("2")));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_brightness"))
-      .WillOnce(Return(base::make_optional("0.123456")));
+      .WillOnce(Return(std::make_optional("0.123456")));
   data_source->Start();
 
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
@@ -112,9 +114,9 @@ TEST_F(AndroidSystemPropertyDataSourceTest, Failure) {
   auto data_source = CreateAndroidSystemPropertyDataSource(BuildConfig(
       {"debug.tracing.screen_state", "debug.tracing.screen_brightness"}));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_state"))
-      .WillOnce(Return(base::nullopt));
+      .WillOnce(Return(std::nullopt));
   EXPECT_CALL(*data_source, ReadProperty("debug.tracing.screen_brightness"))
-      .WillOnce(Return(base::nullopt));
+      .WillOnce(Return(std::nullopt));
   data_source->Start();
 
   protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();

@@ -22,6 +22,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <set>
 #include <utility>
@@ -31,7 +32,6 @@
 #include "perfetto/base/status.h"
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/circular_queue.h"
-#include "perfetto/ext/base/optional.h"
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/uuid.h"
 #include "perfetto/ext/base/weak_ptr.h"
@@ -143,11 +143,11 @@ class TracingServiceImpl : public TracingService {
       return allowed_target_buffers_.count(buffer_id);
     }
 
-    base::Optional<BufferID> buffer_id_for_writer(WriterID writer_id) const {
+    std::optional<BufferID> buffer_id_for_writer(WriterID writer_id) const {
       const auto it = writers_.find(writer_id);
       if (it != writers_.end())
         return it->second;
-      return base::nullopt;
+      return std::nullopt;
     }
 
     uid_t uid() const { return uid_; }
@@ -632,14 +632,14 @@ class TracingServiceImpl : public TracingService {
     uint64_t max_file_size_bytes = 0;
     uint64_t bytes_written_into_file = 0;
 
-    // Set when using SaveTraceForBugreport(). This callback will be called
-    // when the tracing session ends and the data has been saved into the file.
-    std::function<void()> on_disable_callback_for_bugreport;
-    bool seized_for_bugreport = false;
-
     // Periodic task for snapshotting service events (e.g. clocks, sync markers
     // etc)
     base::PeriodicTask snapshot_periodic_task;
+
+    // Deferred task that stops the trace when |duration_ms| expires. This is
+    // to handle the case of |prefer_suspend_clock_for_duration| which cannot
+    // use PostDelayedTask.
+    base::PeriodicTask timed_stop_task;
 
     // When non-NULL the packets should be post-processed using the filter.
     std::unique_ptr<protozero::MessageFilter> trace_filter;
@@ -675,6 +675,10 @@ class TracingServiceImpl : public TracingService {
   // session doesn't exists.
   TracingSession* GetTracingSession(TracingSessionID);
 
+  // Returns a pointer to the tracing session that has the highest
+  // TraceConfig.bugreport_score, if any, or nullptr.
+  TracingSession* FindTracingSessionWithMaxBugreportScore();
+
   // Returns a pointer to the |tracing_sessions_| entry, matching the given
   // uid and detach key, or nullptr if no such session exists.
   TracingSession* GetDetachedSession(uid_t, const std::string& key);
@@ -703,12 +707,10 @@ class TracingServiceImpl : public TracingService {
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
-  void EmitSeizedForBugreportLifecycleEvent(std::vector<TracePacket>*);
   void MaybeEmitUuidAndTraceConfig(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
-  bool MaybeSaveTraceForBugreport(std::function<void()> callback);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
   void OnDisableTracingTimeout(TracingSessionID);
   void DisableTracingNotifyConsumerAndFlushFile(TracingSession*);
@@ -759,6 +761,8 @@ class TracingServiceImpl : public TracingService {
                             const std::string& trigger_name);
   size_t PurgeExpiredAndCountTriggerInWindow(int64_t now_ns,
                                              uint64_t trigger_name_hash);
+  static void StopOnDurationMsExpiry(base::WeakPtr<TracingServiceImpl>,
+                                     TracingSessionID);
 
   base::TaskRunner* const task_runner_;
   std::unique_ptr<SharedMemory::Factory> shm_factory_;

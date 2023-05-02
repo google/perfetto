@@ -48,24 +48,13 @@ def compute_breakdown(tp: TraceProcessor,
   """)
 
   tp.query("""
+    SELECT IMPORT('android.slices');
     CREATE VIEW modded_names AS
     SELECT
       slice.id,
       slice.depth,
       slice.stack_id,
-      CASE
-        WHEN slice.name LIKE 'Choreographer#doFrame%'
-          THEN 'Choreographer#doFrame'
-        WHEN slice.name LIKE 'DrawFrames%'
-          THEN 'DrawFrames'
-        WHEN slice.name LIKE '/data/app%.apk'
-          THEN 'APK load'
-        WHEN slice.name LIKE 'OpenDexFilesFromOat%'
-          THEN 'OpenDexFilesFromOat'
-        WHEN slice.name LIKE 'Open oat file%'
-          THEN 'Open oat file'
-        ELSE slice.name
-      END AS modded_name
+      ANDROID_STANDARDIZE_SLICE_NAME(slice.name) AS modded_name
     FROM slice
   """)
 

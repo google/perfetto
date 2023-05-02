@@ -57,6 +57,7 @@ class AndroidPowerDataSource : public ProbesDataSource {
   void WriteBatteryCounters();
   void WritePowerRailsData();
   void WriteEnergyEstimationBreakdown();
+  void WriteEntityStateResidency();
 
   // Battery counters.
   std::bitset<8> counters_enabled_;
@@ -66,6 +67,9 @@ class AndroidPowerDataSource : public ProbesDataSource {
 
   // Energy estimation.
   bool energy_breakdown_collection_enabled_ = false;
+
+  // Entity state residency
+  bool entity_state_residency_collection_enabled_ = false;
 
   uint32_t poll_interval_ms_ = 0;
   bool should_emit_descriptors_ = true;

@@ -43,9 +43,10 @@ class ConsumerEndpoint;
 class Producer;
 class ProducerEndpoint;
 
-class PERFETTO_EXPORT_COMPONENT TracingBackend {
+// Responsible for connecting to the producer.
+class PERFETTO_EXPORT_COMPONENT TracingProducerBackend {
  public:
-  virtual ~TracingBackend();
+  virtual ~TracingProducerBackend();
 
   // Connects a Producer instance and obtains a ProducerEndpoint, which is
   // essentially a 1:1 channel between one Producer and the Service.
@@ -77,6 +78,12 @@ class PERFETTO_EXPORT_COMPONENT TracingBackend {
 
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       const ConnectProducerArgs&) = 0;
+};
+
+// Responsible for connecting to the consumer.
+class PERFETTO_EXPORT_COMPONENT TracingConsumerBackend {
+ public:
+  virtual ~TracingConsumerBackend();
 
   // As above, for the Consumer-side.
   struct ConnectConsumerArgs {
@@ -89,6 +96,12 @@ class PERFETTO_EXPORT_COMPONENT TracingBackend {
   };
   virtual std::unique_ptr<ConsumerEndpoint> ConnectConsumer(
       const ConnectConsumerArgs&) = 0;
+};
+
+class PERFETTO_EXPORT_COMPONENT TracingBackend : public TracingProducerBackend,
+                                                 public TracingConsumerBackend {
+ public:
+  ~TracingBackend() override;
 };
 
 }  // namespace perfetto

@@ -15,9 +15,13 @@
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
-import {colorCompare, colorToStr, GRAY_COLOR} from '../common/colorizer';
-import {NUM, QueryResult} from '../common/query_result';
-import {SelectionKind} from '../common/state';
+import {
+  colorCompare,
+  colorToStr,
+  UNEXPECTED_PINK_COLOR,
+} from '../common/colorizer';
+import {NUM} from '../common/query_result';
+import {Selection, SelectionKind} from '../common/state';
 import {fromNs, toNs} from '../common/time';
 
 import {checkerboardExcept} from './checkerboard';
@@ -25,6 +29,7 @@ import {globals} from './globals';
 import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {NewTrackArgs, SliceRect, Track} from './track';
+import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -33,12 +38,9 @@ export const SLICE_FLAGS_INSTANT = 2;
 
 // Slices smaller than this don't get any text:
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
-// Slices smaller than this aren't rendered at all.
-const SLICE_MIN_WIDTH_PX = 0.1;
+const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const CHEVRON_WIDTH_PX = 10;
-const DEFAULT_SLICE_COLOR = GRAY_COLOR;
-
-// TODO(hjd): Implement caching.
+const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK_COLOR;
 
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
@@ -131,11 +133,12 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 // If you need temporally overlapping slices, look at AsyncSliceTrack, which
 // merges several tracks into one visual track.
 export const BASE_SLICE_ROW = {
-  id: NUM,     // The slice ID, for selection / lookups.
-  tsq: NUM,    // Quantized |ts|. This class owns the quantization logic.
-  ts: NUM,     // Start time in nanoseconds.
-  dur: NUM,    // Duration in nanoseconds. -1 = incomplete, 0 = instant.
-  depth: NUM,  // Vertical depth.
+  id: NUM,      // The slice ID, for selection / lookups.
+  tsq: NUM,     // Quantized |ts|. This class owns the quantization logic.
+  tsqEnd: NUM,  // Quantized |ts+dur|. The end bucket.
+  ts: NUM,      // Start time in nanoseconds.
+  dur: NUM,     // Duration in nanoseconds. -1 = incomplete, 0 = instant.
+  depth: NUM,   // Vertical depth.
 };
 
 export type BaseSliceRow = typeof BASE_SLICE_ROW;
@@ -166,14 +169,17 @@ export interface BaseSliceTrackTypes {
 export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
                                                    BaseSliceTrackTypes> extends
     Track<T['config']> {
-  // This is the slice cache.
-  private slices = new Array<CastInternal<T['slice']>>();
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
 
-  // These are the over-skirted cached bounds.
-  private slicesStartNs = -1;
-  private slicesEndNs = -1;
-  private slicesBucketNs = -1;
+  // This is the over-skirted cached bounds:
+  private slicesKey: CacheKey = CacheKey.zero();
+
+  // This is the currently 'cached' slices:
+  private slices = new Array<CastInternal<T['slice']>>();
+
+  // This is the slices cache:
+  private cache: TrackCache<Array<CastInternal<T['slice']>>> =
+      new TrackCache(5);
 
   private readonly tableName: string;
   private maxDurNs = 0;
@@ -198,13 +204,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // TODO(hjd): Replace once we have cancellable query sequences.
   private isDestroyed = false;
 
-  // TODO(hjd): Remove when updating selection.
-  // We shouldn't know here about CHROME_SLICE. Maybe should be set by
-  // whatever deals with that. Dunno the namespace of selection is weird. For
-  // most cases in non-ambiguous (because most things are a 'slice'). But some
-  // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
-  protected selectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
-
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
   // OnSliceOverArgs {slice?: T['slice']}) so it makes future extensions
@@ -216,7 +215,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   onSliceOver(_args: OnSliceOverArgs<T['slice']>): void {}
   onSliceOut(_args: OnSliceOutArgs<T['slice']>): void {}
   onSliceClick(_args: OnSliceClickArgs<T['slice']>): void {}
-  prepareSlices(slices: Array<T['slice']>): void {
+
+  // The API contract of onUpdatedSlices() is:
+  //  - I am going to draw these slices in the near future.
+  //  - I am not going to draw any slice that I haven't passed here first.
+  //  - This is guaranteed to be called at least once on every global
+  //    state update.
+  //  - This is NOT guaranteed to be called on every frame. For instance you
+  //    cannot use this to do some colour-based animation.
+  onUpdatedSlices(slices: Array<T['slice']>): void {
     this.highlightHovererdAndSameTitle(slices);
   }
 
@@ -227,6 +234,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   constructor(args: NewTrackArgs) {
     super(args);
     this.frontendOnly = true;  // Disable auto checkerboarding.
+    // TODO(hjd): Handle pinned tracks, which current cause a crash
+    // since the tableName we generate is the same for both.
     this.tableName = `track_${this.trackId}`.replace(/[^a-zA-Z0-9_]+/g, '_');
 
     // Work out the extra columns.
@@ -246,52 +255,38 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   }
 
   onFullRedraw(): void {
-    // TODO(hjd): Call this only when cache changes. See discussion:
-    // What we want to do here is give the Impl a chance to colour the slice,
-    // e.g. depending on the currently selected thread or process.
-    // Here's an interesting thought. We have two options here:
-    //   A) We could pass only the vizSlices, but then we'd have to call this
-    //      @ 60FPS (because vizSlices changes as we pan).
-    //   B) We could call this only on full redraws (when the state changes),
-    //      but then the track needs to process *all* cached slices, not just
-    //      the visible ones. It's okay now (it's a 2x factor) but might get
-    //      worse if we cache several layers of slices at various resolutions.
-    // But there's an escape, I think. I think the right thing to do is:
-    // - For now call it on the full slices, but only on full redraws.
-    // - When we get caching, call it every time we switch "cached quantization
-    //  level", which is a way in the middle between 60FPS and full redraws..
-    // Overall the API contract of this prepareSlices() call is:
-    //  - I am going to draw these slices in the near future.
-    //  - I am not going to draw any slice that I haven't passed here first.
-    //  - This is guaranteed to be called at least on every state change.
-    //  - This is NOT guaranteed to be called on every frame. For instance you
-    //    cannot use this to do some colour-based animation.
-
     // Give a chance to the embedder to change colors and other stuff.
-    this.prepareSlices(this.slices);
+    this.onUpdatedSlices(this.slices);
+  }
+
+  protected isSelectionHandled(selection: Selection): boolean {
+    // TODO(hjd): Remove when updating selection.
+    // We shouldn't know here about CHROME_SLICE. Maybe should be set by
+    // whatever deals with that. Dunno the namespace of selection is weird. For
+    // most cases in non-ambiguous (because most things are a 'slice'). But some
+    // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
+    const supportedSelectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
+    return supportedSelectionKinds.includes(selection.kind);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
-    const {timeScale} = globals.frontendLocalState;
+    const timeScale = globals.frontendLocalState.timeScale;
     const vizTime = globals.frontendLocalState.visibleWindowTime;
 
-    // If the visible time range is outside the cached area, requests
-    // asynchronously new data from the SQL engine.
-    this.maybeRequestData();
+    {
+      const windowSizePx = Math.max(1, timeScale.endPx - timeScale.startPx);
+      const rawStartNs = toNs(vizTime.start);
+      const rawEndNs = toNs(vizTime.end);
+      const rawSlicesKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
+
+      // If the visible time range is outside the cached area, requests
+      // asynchronously new data from the SQL engine.
+      this.maybeRequestData(rawSlicesKey);
+    }
 
     // In any case, draw whatever we have (which might be stale/incomplete).
-
-    // If the cached trace slices don't fully cover the visible time range,
-    // show a gray rectangle with a "Loading..." label.
-    checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        timeScale.timeToPx(vizTime.start),
-        timeScale.timeToPx(vizTime.end),
-        timeScale.timeToPx(fromNs(this.slicesStartNs)),
-        timeScale.timeToPx(fromNs(this.slicesEndNs)));
 
     let charWidth = this.charWidth;
     if (charWidth < 0) {
@@ -307,7 +302,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     let selection = globals.state.currentSelection;
 
-    if (!selection || !this.selectionKinds.includes(selection.kind)) {
+    if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }
 
@@ -376,8 +371,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
         const w = Math.max(slice.w - 2, 2);
         drawIncompleteSlice(ctx, slice.x, y, w, sliceHeight);
-      } else if (slice.w > SLICE_MIN_WIDTH_PX) {
-        ctx.fillRect(slice.x, y, slice.w, sliceHeight);
+      } else {
+        const w = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
+        ctx.fillRect(slice.x, y, w, sliceHeight);
       }
     }
 
@@ -428,6 +424,16 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       ctx.closePath();
     }
 
+    // If the cached trace slices don't fully cover the visible time range,
+    // show a gray rectangle with a "Loading..." label.
+    checkerboardExcept(
+        ctx,
+        this.getHeight(),
+        timeScale.timeToPx(vizTime.start),
+        timeScale.timeToPx(vizTime.end),
+        timeScale.timeToPx(fromNs(this.slicesKey.startNs)),
+        timeScale.timeToPx(fromNs(this.slicesKey.endNs)));
+
     // TODO(hjd): Remove this.
     // The only thing this does is drawing the sched latency arrow. We should
     // have some abstraction for that arrow (ideally the same we'd use for
@@ -443,7 +449,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       } else {
         this.drawTrackHoverTooltip(ctx, this.hoverPos, tooltip[0], tooltip[1]);
       }
-    }  // if (howSlice)
+    }  // if (hoveredSlice)
   }
 
   onDestroy() {
@@ -455,7 +461,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // This method figures out if the visible window is outside the bounds of
   // the cached data and if so issues new queries (i.e. sorta subsumes the
   // onBoundsChange).
-  async maybeRequestData() {
+  private async maybeRequestData(rawSlicesKey: CacheKey) {
     // Important: this method is async and is invoked on every frame. Care
     // must be taken to avoid piling up queries on every frame, hence the FSM.
     if (this.sqlState === 'UNINITIALIZED') {
@@ -480,23 +486,39 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       return;
     }
 
-    const resolutionNs = toNs(globals.getCurResolution());
-    const vizTime = globals.frontendLocalState.visibleWindowTime;
-
-    const startNs = toNs(vizTime.start);
-    const endNs = toNs(vizTime.end);
-
-    // TODO(hjd): figure out / centralize the resolution steps.
-    // Will handle this at the same time as cacheing.
-    const bucketNs = resolutionNs;
-
-    if (startNs >= this.slicesStartNs && endNs <= this.slicesEndNs &&
-        bucketNs === this.slicesBucketNs) {
+    if (rawSlicesKey.isCoveredBy(this.slicesKey)) {
       return;  // We have the data already, no need to re-query
     }
 
+    // Determine the cache key:
+    const slicesKey = rawSlicesKey.normalize();
+    if (!rawSlicesKey.isCoveredBy(slicesKey)) {
+      throw new Error(`Normalization error ${slicesKey.toString()} ${
+          rawSlicesKey.toString()}`);
+    }
+
+    const maybeCachedSlices = this.cache.lookup(slicesKey);
+    if (maybeCachedSlices) {
+      this.slicesKey = slicesKey;
+      this.onUpdatedSlices(maybeCachedSlices);
+      this.slices = maybeCachedSlices;
+      return;
+    }
+
     this.sqlState = 'QUERY_PENDING';
-    const queryTsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+    const bucketNs = slicesKey.bucketNs;
+    let queryTsq;
+    let queryTsqEnd;
+    // When we're zoomed into the level of single ns there is no point
+    // doing quantization (indeed it causes bad artifacts) so instead
+    // we use ts / ts+dur directly.
+    if (bucketNs === 1) {
+      queryTsq = 'ts';
+      queryTsqEnd = 'ts + dur';
+    } else {
+      queryTsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+      queryTsqEnd = `(ts + dur + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+    }
 
     const extraCols = this.extraSqlColumns.join(',');
     let depthCol = 'depth';
@@ -518,12 +540,16 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // - Avoid the union if we know we don't have any -1 slices.
     // - Maybe we don't need the union at all and can deal in TS?
     if (this.isDestroyed) {
+      this.sqlState = 'QUERY_DONE';
       return;
     }
+    // TODO(hjd): Count and expose the number of slices summarized in
+    // each bucket?
     const queryRes = await this.engine.query(`
     with q1 as (
       select
         ${queryTsq} as tsq,
+        ${queryTsqEnd} as tsqEnd,
         ts,
         max(dur) as dur,
         id,
@@ -531,13 +557,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         ${extraCols ? ',' + extraCols : ''}
       from ${this.tableName}
       where
-        ts >= ${startNs - this.maxDurNs /* - durNs */} and
-        ts <= ${endNs /* + durNs */}
+        ts >= ${slicesKey.startNs - this.maxDurNs /* - durNs */} and
+        ts <= ${slicesKey.endNs /* + durNs */}
       group by ${maybeGroupByDepth} tsq
       order by tsq),
     q2 as (
       select
         ${queryTsq} as tsq,
+        ${queryTsqEnd} as tsqEnd,
         ts,
         -1 as dur,
         id,
@@ -552,32 +579,29 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       group by ${maybeGroupByDepth} tsq
       order by tsq
     `);
-    this.convertQueryResultToSlices(queryRes, startNs, endNs, bucketNs);
-    this.sqlState = 'QUERY_DONE';
-    globals.rafScheduler.scheduleRedraw();
-  }
 
-  // Here convert each row to a Slice. We do what we can do generically
-  // in the base class, and delegate the rest to the impl via that rowToSlice()
-  // abstract call.
-  convertQueryResultToSlices(
-      queryRes: QueryResult, startNs: number, endNs: number, bucketNs: number) {
+    // Here convert each row to a Slice. We do what we can do
+    // generically in the base class, and delegate the rest to the impl
+    // via that rowToSlice() abstract call.
     const slices = new Array<CastInternal<T['slice']>>(queryRes.numRows());
     const it = queryRes.iter(this.getRowSpec());
 
     let maxDataDepth = this.maxDataDepth;
-    this.slicesStartNs = startNs;
-    this.slicesEndNs = endNs;
-    this.slicesBucketNs = bucketNs;
+    this.slicesKey = slicesKey;
     for (let i = 0; it.valid(); it.next(), ++i) {
       maxDataDepth = Math.max(maxDataDepth, it.depth);
-
-      // Construct the base slice. The Impl will construct and return the full
-      // derived T["slice"] (e.g. CpuSlice) in the rowToSlice() method.
+      // Construct the base slice. The Impl will construct and return
+      // the full derived T["slice"] (e.g. CpuSlice) in the
+      // rowToSlice() method.
       slices[i] = this.rowToSliceInternal(it);
     }
     this.maxDataDepth = maxDataDepth;
+    this.onUpdatedSlices(slices);
+    this.cache.insert(slicesKey, slices);
     this.slices = slices;
+
+    this.sqlState = 'QUERY_DONE';
+    globals.rafScheduler.scheduleRedraw();
   }
 
   private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {
@@ -589,20 +613,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   rowToSlice(row: T['row']): T['slice'] {
     const startNsQ = row.tsq;
-    const startNs = row.ts;
+    const endNsQ = row.tsqEnd;
     let flags = 0;
-    let durNs: number;
     if (row.dur === -1) {
-      durNs = toNs(globals.state.traceTime.endSec) - startNs;
       flags |= SLICE_FLAGS_INCOMPLETE;
-    } else {
-      flags |= (row.dur === 0) ? SLICE_FLAGS_INSTANT : 0;
-      durNs = row.dur;
+    } else if (row.dur === 0) {
+      flags |= SLICE_FLAGS_INSTANT;
     }
-    const endNs = startNs + durNs;
-    const bucketNs = this.slicesBucketNs;
-    let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-    endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
 
     return {
       id: row.id,
@@ -742,9 +759,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     ctx.fill();
   }
 
-  // This is a good default implemenation for highlighting slices. By default
-  // prepareSlices() calls this. However, if the XxxSliceTrack impl overrides
-  // prepareSlices() this gives them a chance to call the highlighting witout
+  // This is a good default implementation for highlighting slices. By default
+  // onUpdatedSlices() calls this. However, if the XxxSliceTrack impl overrides
+  // onUpdatedSlices() this gives them a chance to call the highlighting without
   // having to reimplement it.
   protected highlightHovererdAndSameTitle(slices: Slice[]) {
     for (const slice of slices) {

@@ -15,10 +15,10 @@
 import {extractDurationFromTraceConfig} from '../base/trace_config_utils';
 import {extractTraceConfig} from '../base/trace_config_utils';
 import {isAdbTarget} from '../common/state';
+import {globals} from '../frontend/globals';
 
 import {Adb} from './adb_interfaces';
 import {ReadBuffersResponse} from './consumer_port_types';
-import {globals} from './globals';
 import {Consumer, RpcConsumerPort} from './record_controller_interfaces';
 
 export enum AdbConnectionState {

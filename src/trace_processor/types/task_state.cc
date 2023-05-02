@@ -18,6 +18,8 @@
 
 #include <string.h>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace ftrace_utils {
@@ -25,7 +27,7 @@ namespace ftrace_utils {
 // static
 TaskState TaskState::FromRawPrevState(
     uint16_t raw_state,
-    base::Optional<VersionNumber> kernel_version) {
+    std::optional<VersionNumber> kernel_version) {
   return TaskState(raw_state, kernel_version);
 }
 
@@ -53,7 +55,7 @@ TaskState TaskState::FromParsedFlags(uint16_t parsed_state) {
 // Note to maintainers: if changing the default kernel assumption or the 4.4
 // codepath, you'll need to update ToRawStateOnlyForSystraceConversions().
 TaskState::TaskState(uint16_t raw_state,
-                     base::Optional<VersionNumber> opt_version) {
+                     std::optional<VersionNumber> opt_version) {
   // Values up to and including 0x20 (EXIT_ZOMBIE) never changed, so map them
   // directly onto ParsedFlag (we use the same flag bits for convenience).
   parsed_ = raw_state & (0x40 - 1);

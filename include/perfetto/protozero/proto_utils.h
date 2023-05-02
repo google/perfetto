@@ -23,6 +23,7 @@
 #include <type_traits>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/public/pb_utils.h"
 
 // Helper macro for the constexpr functions containing
 // the switch statement: if C++14 is supported, this macro
@@ -253,21 +254,7 @@ void StaticAssertSingleBytePreamble() {
 inline const uint8_t* ParseVarInt(const uint8_t* start,
                                   const uint8_t* end,
                                   uint64_t* out_value) {
-  const uint8_t* pos = start;
-  uint64_t value = 0;
-  for (uint32_t shift = 0; pos < end && shift < 64u; shift += 7) {
-    // Cache *pos into |cur_byte| to prevent that the compiler dereferences the
-    // pointer twice (here and in the if() below) due to char* aliasing rules.
-    uint8_t cur_byte = *pos++;
-    value |= static_cast<uint64_t>(cur_byte & 0x7f) << shift;
-    if ((cur_byte & 0x80) == 0) {
-      // In valid cases we get here.
-      *out_value = value;
-      return pos;
-    }
-  }
-  *out_value = 0;
-  return start;
+  return PerfettoPbParseVarInt(start, end, out_value);
 }
 
 enum class RepetitionType {
@@ -302,21 +289,6 @@ struct FieldMetadata : public FieldMetadataBase {
   using message_type = MessageType;
 };
 
-namespace internal {
-
-// Ideally we would create variables of FieldMetadata<...> type directly,
-// but before C++17's support for constexpr inline variables arrive, we have to
-// actually use pointers to inline functions instead to avoid having to define
-// symbols in *.pbzero.cc files.
-//
-// Note: protozero bindings will generate Message::kFieldName variable and which
-// can then be passed to TRACE_EVENT macro for inline writing of typed messages.
-// The fact that the former can be passed to the latter is a part of the stable
-// API, while the particular type is not and users should not rely on it.
-template <typename T>
-using FieldMetadataHelper = T (*)(void);
-
-}  // namespace internal
 }  // namespace proto_utils
 }  // namespace protozero
 

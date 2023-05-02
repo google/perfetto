@@ -91,7 +91,7 @@ class TypedColumn : public Column {
   void Append(T v) { mutable_storage()->Append(Serializer::Serialize(v)); }
 
   // Returns the row containing the given value in the Column.
-  base::Optional<uint32_t> IndexOf(sql_value_type v) const {
+  std::optional<uint32_t> IndexOf(sql_value_type v) const {
     return Column::IndexOf(ToSqlValue(v));
   }
 
@@ -190,7 +190,7 @@ class IdColumn : public Column {
 
   Id operator[](uint32_t row) const { return Id(overlay().Get(row)); }
 
-  base::Optional<uint32_t> IndexOf(Id id) const {
+  std::optional<uint32_t> IndexOf(Id id) const {
     return overlay().RowOf(id.value);
   }
 

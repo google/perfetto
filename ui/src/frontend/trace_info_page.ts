@@ -13,10 +13,10 @@
 // limitations under the License.
 
 
-import * as m from 'mithril';
+import m from 'mithril';
 
-import {Actions} from '../common/actions';
-import {QueryResponse} from '../common/queries';
+import {EngineProxy} from '../common/engine';
+import {QueryResponse, runQuery} from '../common/queries';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -30,25 +30,36 @@ interface StatsSectionAttrs {
   queryId: string;
 }
 
+function getEngine(name: string): EngineProxy|undefined {
+  const currentEngine = globals.getCurrentEngine();
+  if (currentEngine === undefined) return undefined;
+  const engineId = currentEngine.id;
+  return globals.engines.get(engineId)?.getProxy(name);
+}
+
 // Generic class that generate a <section> + <table> from the stats table.
 // The caller defines the query constraint, title and styling.
 // Used for errors, data losses and debugging sections.
 class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
-  private queryDispatched = false;
+  private queryResponse?: QueryResponse;
+
+  constructor({attrs}: m.CVnode<StatsSectionAttrs>) {
+    const engine = getEngine('StatsSection');
+    if (engine === undefined) {
+      return;
+    }
+    const query = `select name, value, cast(ifnull(idx, '') as text) as idx,
+              description, severity, source from stats
+              where ${attrs.sqlConstraints || '1=1'}
+              order by name, idx`;
+    runQuery(query, engine).then((resp: QueryResponse) => {
+      this.queryResponse = resp;
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
 
   view({attrs}: m.CVnode<StatsSectionAttrs>) {
-    if (!this.queryDispatched) {
-      this.queryDispatched = true;
-      globals.dispatch(Actions.executeQuery({
-        queryId: attrs.queryId,
-        query: `select name, value, cast(ifnull(idx, '') as text) as idx,
-                description, severity, source from stats
-                where ${attrs.sqlConstraints || '1=1'}
-                order by name, idx`,
-      }));
-    }
-
-    const resp = globals.queryResults.get(attrs.queryId) as QueryResponse;
+    const resp = this.queryResponse;
     if (resp === undefined || resp.totalRowCount === 0) {
       return m('');
     }
@@ -95,15 +106,14 @@ class MetricErrors implements m.ClassComponent {
 }
 
 class TraceMetadata implements m.ClassComponent {
-  private queryDispatched = false;
-  private readonly QUERY_ID = 'info_metadata';
+  private queryResponse?: QueryResponse;
 
-  view() {
-    if (!this.queryDispatched) {
-      this.queryDispatched = true;
-      globals.dispatch(Actions.executeQuery({
-        queryId: this.QUERY_ID,
-        query: `with 
+  constructor() {
+    const engine = getEngine('StatsSection');
+    if (engine === undefined) {
+      return;
+    }
+    const query = `with 
           metadata_with_priorities as (select
             name, ifnull(str_value, cast(int_value as text)) as value,
             name in (
@@ -119,11 +129,16 @@ class TraceMetadata implements m.ClassComponent {
           )
           select name, value
           from metadata_with_priorities 
-          order by priority desc, name`,
-      }));
-    }
+          order by priority desc, name`;
+    runQuery(query, engine).then((resp: QueryResponse) => {
+      this.queryResponse = resp;
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
 
-    const resp = globals.queryResults.get(this.QUERY_ID) as QueryResponse;
+
+  view() {
+    const resp = this.queryResponse;
     if (resp === undefined || resp.totalRowCount === 0) {
       return m('');
     }
@@ -150,15 +165,14 @@ class TraceMetadata implements m.ClassComponent {
 }
 
 class AndroidGameInterventionList implements m.ClassComponent {
-  private queryDispatched = false;
-  private readonly QUERY_ID = 'info_android_game_intervention_list';
+  private queryResponse?: QueryResponse;
 
-  view() {
-    if (!this.queryDispatched) {
-      this.queryDispatched = true;
-      globals.dispatch(Actions.executeQuery({
-        queryId: this.QUERY_ID,
-        query: `select
+  constructor() {
+    const engine = getEngine('StatsSection');
+    if (engine === undefined) {
+      return;
+    }
+    const query = `select
                 package_name,
                 uid,
                 current_mode,
@@ -174,11 +188,16 @@ class AndroidGameInterventionList implements m.ClassComponent {
                 battery_mode_downscale,
                 battery_mode_use_angle,
                 battery_mode_fps
-                from android_game_intervention_list`,
-      }));
-    }
+                from android_game_intervention_list`;
+    runQuery(query, engine).then((resp: QueryResponse) => {
+      this.queryResponse = resp;
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
 
-    const resp = globals.queryResults.get(this.QUERY_ID) as QueryResponse;
+
+  view() {
+    const resp = this.queryResponse;
     if (resp === undefined || resp.totalRowCount === 0) {
       return m('');
     }
@@ -249,20 +268,24 @@ class AndroidGameInterventionList implements m.ClassComponent {
 }
 
 class PackageList implements m.ClassComponent {
-  private queryDispatched = false;
-  private readonly QUERY_ID = 'info_package_list';
+  private queryResponse?: QueryResponse;
+
+  constructor() {
+    const engine = getEngine('StatsSection');
+    if (engine === undefined) {
+      return;
+    }
+    const query = `select package_name, version_code, debuggable,
+                profileable_from_shell from package_list`;
+    runQuery(query, engine).then((resp: QueryResponse) => {
+      this.queryResponse = resp;
+      globals.rafScheduler.scheduleFullRedraw();
+    });
+  }
+
 
   view() {
-    if (!this.queryDispatched) {
-      this.queryDispatched = true;
-      globals.dispatch(Actions.executeQuery({
-        queryId: this.QUERY_ID,
-        query: `select package_name, version_code, debuggable,
-                profileable_from_shell from package_list`,
-      }));
-    }
-
-    const resp = globals.queryResults.get(this.QUERY_ID) as QueryResponse;
+    const resp = this.queryResponse;
     if (resp === undefined || resp.totalRowCount === 0) {
       return m('');
     }

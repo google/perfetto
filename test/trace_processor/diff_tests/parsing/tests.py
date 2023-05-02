@@ -636,7 +636,10 @@ class Parsing(TestSuite):
           timestamp: 101000002
           chrome_metadata {
             background_tracing_metadata {
-              triggered_rule {}
+              triggered_rule {
+                name_hash: 1595654158
+              }
+              scenario_name_hash: 3005533841
             }
             chrome_version_code: 101
             enabled_categories: "cat1,cat2,cat3"

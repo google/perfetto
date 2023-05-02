@@ -43,6 +43,7 @@
   * [Trace Processor (SQL)](analysis/trace-processor.md)
   * [Batch Trace Processor](analysis/batch-trace-processor.md)
   * [Standard library](analysis/stdlib-docs.autogen)
+  * [Built-in Functions](analysis/builtin.md)
   * [Trace-based metrics](analysis/metrics.md)
   * [Common queries](analysis/common-queries.md)
   * [SQL tables](analysis/sql-tables.autogen)

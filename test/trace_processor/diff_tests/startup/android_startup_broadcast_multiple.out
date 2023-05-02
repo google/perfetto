@@ -24,8 +24,8 @@ android_startup {
     system_state {
       dex2oat_running: false
       installd_running: false
-      broadcast_dispatched_count: 12
-      broadcast_received_count: 11
+      broadcast_dispatched_count: 24
+      broadcast_received_count: 52
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }

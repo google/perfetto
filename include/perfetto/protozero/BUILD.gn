@@ -13,7 +13,10 @@
 # limitations under the License.
 
 source_set("protozero") {
-  public_deps = [ "../base" ]
+  public_deps = [
+    "../base",
+    "../public:protozero",
+  ]
   sources = [
     "contiguous_memory_range.h",
     "copyable_ptr.h",

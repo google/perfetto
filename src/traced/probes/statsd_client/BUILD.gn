@@ -26,13 +26,17 @@ source_set("statsd_client") {
     "../../../../protos/perfetto/trace/statsd:cpp",
     "../../../../protos/perfetto/trace/statsd:zero",
     "../../../../protos/third_party/statsd:config_zero",
+    "../../../android_internal:headers",
+    "../../../android_internal:lazy_library_loader",
     "../../../base",
     "../../../protozero:proto_ring_buffer",
     "../common",
   ]
   sources = [
-    "statsd_data_source.cc",
-    "statsd_data_source.h",
+    "common.cc",
+    "common.h",
+    "statsd_binder_data_source.cc",
+    "statsd_binder_data_source.h",
   ]
 }
 
@@ -52,5 +56,5 @@ perfetto_unittest_source_set("unittests") {
     "../../../../src/tracing/test:test_support",
     "../common:test_support",
   ]
-  sources = [ "statsd_data_source_unittest.cc" ]
+  sources = [ "common_unittest.cc" ]
 }

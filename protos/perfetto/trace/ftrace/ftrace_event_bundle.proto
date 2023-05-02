@@ -61,6 +61,7 @@ message FtraceEventBundle {
     // One per event, index into |intern_table| corresponding to the
     // comm field of the event.
     repeated uint32 waking_comm_index = 11 [packed = true];
+    repeated uint32 waking_common_flags = 12 [packed = true];
   }
   optional CompactSched compact_sched = 4;
 
