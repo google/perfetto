@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/event_fd.h"
 #include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/thread_task_runner.h"
 #include "perfetto/ext/base/unix_task_runner.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/consumer.h"
@@ -116,6 +117,8 @@ class PerfettoCmd : public Consumer {
   // will have no effect.
   void NotifyBgProcessPipe(BgProcessStatus status);
 
+  void OnCloneSnapshotTriggerReceived(TracingSessionID);
+
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   static base::ScopedFile CreateUnlinkedTmpFile();
   void SaveTraceIntoIncidentOrCrash();
@@ -162,6 +165,13 @@ class PerfettoCmd : public Consumer {
   // How long we expect to trace for or 0 if the trace is indefinite.
   uint32_t expected_duration_ms_ = 0;
   bool trace_data_timeout_armed_ = false;
+
+  // The aux thread that is used to invoke secondary instances of PerfettoCmd
+  // to create snapshots. This is used only when the trace config involves a
+  // CLONE_SNAPSHOT trigger.
+  std::unique_ptr<base::ThreadTaskRunner> snapshot_thread_;
+  int snapshot_count_ = 0;
+  std::string snapshot_config_;
 
   base::WeakPtrFactory<PerfettoCmd> weak_factory_{this};
 };
