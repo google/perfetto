@@ -8464,6 +8464,7 @@ filegroup {
     name: "perfetto_src_cloud_trace_processor_sources",
     srcs: [
         "src/cloud_trace_processor/trace_processor_wrapper.cc",
+        "src/cloud_trace_processor/worker_impl.cc",
     ],
 }
 
