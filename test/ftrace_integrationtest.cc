@@ -244,7 +244,7 @@ TEST_F(PerfettoFtraceIntegrationTest, MAYBE_KernelAddressSymbolization) {
   helper.WaitForConsumerConnect();
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.add_buffers()->set_size_kb(64);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
