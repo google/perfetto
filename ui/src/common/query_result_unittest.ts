@@ -358,9 +358,9 @@ describe('decodeInt64Varint', () => {
 
   test('Parsing single byte positive integers', () => {
     const testData: Array<[Uint8Array, BigInt]> = [
-      [new Uint8Array([0x00]), BigInt(0)],
-      [new Uint8Array([0x01]), BigInt(1)],
-      [new Uint8Array([0x7f]), BigInt(127)],
+      [new Uint8Array([0x00]), 0n],
+      [new Uint8Array([0x01]), 1n],
+      [new Uint8Array([0x7f]), 127n],
     ];
 
     testData.forEach(([input, expected]) => {
@@ -370,10 +370,10 @@ describe('decodeInt64Varint', () => {
 
   test('Parsing multi-byte positive integers', () => {
     const testData: Array<[Uint8Array, BigInt]> = [
-      [new Uint8Array([0x80, 0x01]), BigInt(128)],
-      [new Uint8Array([0xff, 0x7f]), BigInt(16383)],
-      [new Uint8Array([0x80, 0x80, 0x01]), BigInt(16384)],
-      [new Uint8Array([0xff, 0xff, 0x7f]), BigInt(2097151)],
+      [new Uint8Array([0x80, 0x01]), 128n],
+      [new Uint8Array([0xff, 0x7f]), 16383n],
+      [new Uint8Array([0x80, 0x80, 0x01]), 16384n],
+      [new Uint8Array([0xff, 0xff, 0x7f]), 2097151n],
       [
         new Uint8Array([
           0xff,
@@ -387,7 +387,7 @@ describe('decodeInt64Varint', () => {
           0xff,
           0x00,
         ]),
-        BigInt('9223372036854775807'),
+        9223372036854775807n,
       ],
     ];
 
@@ -411,7 +411,7 @@ describe('decodeInt64Varint', () => {
           0xff,
           0x01,
         ]),
-        BigInt(-1),
+        -1n,
       ],
       [
         new Uint8Array([
@@ -426,7 +426,7 @@ describe('decodeInt64Varint', () => {
           0xff,
           0x01,
         ]),
-        BigInt(-2),
+        -2n,
       ],
       [
         new Uint8Array([
@@ -441,7 +441,7 @@ describe('decodeInt64Varint', () => {
           0x80,
           0x01,
         ]),
-        BigInt('-9223372036854775808'),
+        -9223372036854775808n,
       ],
     ];
 

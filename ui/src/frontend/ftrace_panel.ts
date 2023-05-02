@@ -105,6 +105,11 @@ export class FtracePanel extends Panel<{}> {
   onremove({dom}: m.CVnodeDOM) {
     const sc = this.scrollContainer(dom);
     sc.removeEventListener('scroll', this.onScroll);
+
+    globals.dispatch(Actions.updateFtracePagination({
+      offset: 0,
+      count: 0,
+    }));
   }
 
   onScroll = (e: Event) => {

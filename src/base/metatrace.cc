@@ -36,13 +36,6 @@ std::atomic<uint64_t> RingBuffer::rd_index_;
 std::atomic<bool> RingBuffer::has_overruns_;
 Record RingBuffer::bankruptcy_record_;
 
-#if !PERFETTO_IS_AT_LEAST_CPP17()
-constexpr size_t RingBuffer::kCapacity;
-constexpr uint16_t Record::kTypeMask;
-constexpr uint16_t Record::kTypeCounter;
-constexpr uint16_t Record::kTypeEvent;
-#endif
-
 namespace {
 
 // std::function<> is not trivially de/constructible. This struct wraps it in a

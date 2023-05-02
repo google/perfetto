@@ -25,6 +25,7 @@ from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import CppUint32
 
 TRACK_TABLE = Table(
+    python_module=__file__,
     class_name="TrackTable",
     sql_name="track",
     columns=[
@@ -62,6 +63,7 @@ TRACK_TABLE = Table(
         }))
 
 PROCESS_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name="ProcessTrackTable",
     sql_name="process_track",
     columns=[
@@ -81,6 +83,7 @@ PROCESS_TRACK_TABLE = Table(
         }))
 
 THREAD_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='ThreadTrackTable',
     sql_name='thread_track',
     columns=[
@@ -101,6 +104,7 @@ THREAD_TRACK_TABLE = Table(
         }))
 
 CPU_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='CpuTrackTable',
     sql_name='cpu_track',
     columns=[
@@ -113,6 +117,7 @@ CPU_TRACK_TABLE = Table(
         columns={'cpu': 'The CPU associated with this track'}))
 
 GPU_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='GpuTrackTable',
     sql_name='gpu_track',
     columns=[
@@ -134,6 +139,7 @@ GPU_TRACK_TABLE = Table(
         }))
 
 COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='CounterTrackTable',
     sql_name='counter_track',
     columns=[
@@ -156,6 +162,7 @@ COUNTER_TRACK_TABLE = Table(
         }))
 
 THREAD_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='ThreadCounterTrackTable',
     sql_name='thread_counter_track',
     columns=[
@@ -174,6 +181,7 @@ THREAD_COUNTER_TRACK_TABLE = Table(
         }))
 
 PROCESS_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='ProcessCounterTrackTable',
     sql_name='process_counter_track',
     columns=[
@@ -193,6 +201,7 @@ PROCESS_COUNTER_TRACK_TABLE = Table(
         }))
 
 CPU_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='CpuCounterTrackTable',
     sql_name='cpu_counter_track',
     columns=[
@@ -205,6 +214,7 @@ CPU_COUNTER_TRACK_TABLE = Table(
         columns={'cpu': 'The CPU this track is associated with'}))
 
 IRQ_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='IrqCounterTrackTable',
     sql_name='irq_counter_track',
     columns=[
@@ -217,6 +227,7 @@ IRQ_COUNTER_TRACK_TABLE = Table(
         columns={'irq': 'The identifier for the hardirq.'}))
 
 SOFTIRQ_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='SoftirqCounterTrackTable',
     sql_name='softirq_counter_track',
     columns=[
@@ -229,6 +240,7 @@ SOFTIRQ_COUNTER_TRACK_TABLE = Table(
         columns={'softirq': 'The identifier for the softirq.'}))
 
 GPU_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='GpuCounterTrackTable',
     sql_name='gpu_counter_track',
     columns=[
@@ -241,6 +253,7 @@ GPU_COUNTER_TRACK_TABLE = Table(
         columns={'gpu_id': 'The identifier for the GPU.'}))
 
 PERF_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='PerfCounterTrackTable',
     sql_name='perf_counter_track',
     columns=[
@@ -265,6 +278,7 @@ PERF_COUNTER_TRACK_TABLE = Table(
         }))
 
 ENERGY_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='EnergyCounterTrackTable',
     sql_name='energy_counter_track',
     columns=[
@@ -286,6 +300,7 @@ ENERGY_COUNTER_TRACK_TABLE = Table(
         }))
 
 UID_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='UidCounterTrackTable',
     sql_name='uid_counter_track',
     columns=[
@@ -298,6 +313,7 @@ UID_COUNTER_TRACK_TABLE = Table(
         columns={'uid': 'uid of process for which breakdowns are emitted'}))
 
 ENERGY_PER_UID_COUNTER_TRACK_TABLE = Table(
+    python_module=__file__,
     class_name='EnergyPerUidCounterTrackTable',
     sql_name='energy_per_uid_counter_track',
     columns=[

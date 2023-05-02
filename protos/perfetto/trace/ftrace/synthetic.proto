@@ -11,3 +11,6 @@ message RssStatThrottledFtraceEvent {
   optional uint32 mm_id = 3;
   optional int64 size = 4;
 }
+message SuspendResumeMinimalFtraceEvent {
+  optional uint32 start = 1;
+}

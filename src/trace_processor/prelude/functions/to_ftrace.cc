@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/sqlite/sqlite_raw_table.h"
-
-#include <cinttypes>
+#include "src/trace_processor/prelude/functions/to_ftrace.h"
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/importers/common/system_info_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -538,46 +538,24 @@ void ArgsSerializer::WriteValue(const Variadic& value) {
 
 }  // namespace
 
-SqliteRawTable::SqliteRawTable(sqlite3* db, Context context)
-    : DbSqliteTable(db,
-                    {context.cache, TableComputation::kStatic,
-                     &context.context->storage->raw_table(), nullptr}),
-      serializer_(context.context) {
-  auto fn = [](sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-    auto* thiz = static_cast<SqliteRawTable*>(sqlite3_user_data(ctx));
-    thiz->ToSystrace(ctx, argc, argv);
-  };
-  sqlite3_create_function(db, "to_ftrace", 1,
-                          SQLITE_UTF8 | SQLITE_DETERMINISTIC, this, fn, nullptr,
-                          nullptr);
-}
-
-SqliteRawTable::~SqliteRawTable() = default;
-
-void SqliteRawTable::RegisterTable(sqlite3* db,
-                                   QueryCache* cache,
-                                   TraceProcessorContext* context) {
-  SqliteTable::Register<SqliteRawTable, Context>(db, Context{cache, context},
-                                                 "raw");
-}
-
-void SqliteRawTable::ToSystrace(sqlite3_context* ctx,
-                                int argc,
-                                sqlite3_value** argv) {
+base::Status ToFtrace::Run(Context* context,
+                           size_t argc,
+                           sqlite3_value** argv,
+                           SqlValue& out,
+                           Destructors& destructors) {
   if (argc != 1 || sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
-    sqlite3_result_error(ctx, "Usage: to_ftrace(id)", -1);
-    return;
+    return base::ErrStatus("Usage: to_ftrace(id)");
   }
   uint32_t row = static_cast<uint32_t>(sqlite3_value_int64(argv[0]));
 
-  auto str = serializer_.SerializeToString(row);
+  auto str = context->serializer.SerializeToString(row);
   if (str.get() == nullptr) {
-    base::StackString<128> err("to_ftrace: Cannot serialize row id %u", row);
-    sqlite3_result_error(ctx, err.c_str(), -1);
-    return;
+    return base::ErrStatus("to_ftrace: Cannot serialize row id %u", row);
   }
 
-  sqlite3_result_text(ctx, str.release(), -1, str.get_deleter());
+  out = SqlValue::String(str.release());
+  destructors.string_destructor = str.get_deleter();
+  return base::OkStatus();
 }
 
 SystraceSerializer::SystraceSerializer(TraceProcessorContext* context)

@@ -42,9 +42,6 @@ constexpr uint8_t kChunkNeedsPatching =
     SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
 }  // namespace.
 
-#if !PERFETTO_IS_AT_LEAST_CPP17()
-constexpr size_t TraceBuffer::ChunkRecord::kMaxSize;
-#endif
 const size_t TraceBuffer::InlineChunkHeaderSize = sizeof(ChunkRecord);
 
 // static
@@ -106,7 +103,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   // up in a fragmented state where size_to_end() < sizeof(ChunkRecord).
   const size_t record_size =
       base::AlignUp<sizeof(ChunkRecord)>(size + sizeof(ChunkRecord));
-  TRACE_BUFFER_DLOG("CopyChunk @ %lu, size=%zu", wptr_ - begin(), record_size);
+  TRACE_BUFFER_DLOG("CopyChunk @ %" PRIdPTR ", size=%zu", wptr_ - begin(), record_size);
   if (PERFETTO_UNLIKELY(record_size > max_chunk_size_)) {
     stats_.set_abi_violations(stats_.abi_violations() + 1);
     PERFETTO_DCHECK(suppress_client_dchecks_for_testing_);
@@ -199,7 +196,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     }
 
     uint8_t* wptr = reinterpret_cast<uint8_t*>(prev);
-    TRACE_BUFFER_DLOG("  overriding chunk @ %lu, size=%zu", wptr - begin(),
+    TRACE_BUFFER_DLOG("  overriding chunk @ %" PRIdPTR ", size=%zu", wptr - begin(),
                       record_size);
 
     // Update chunk meta data stored in the index, as it may have changed.
@@ -208,7 +205,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     record_meta->set_complete(chunk_complete);
 
     // Override the ChunkRecord contents at the original |wptr|.
-    TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr - begin(),
+    TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr - begin(),
                       uintptr_t(wptr - begin()) + record_size, record_size);
     WriteChunkRecord(wptr, record, src, size);
     TRACE_BUFFER_DLOG("Chunk raw: %s",
@@ -268,7 +265,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
       key, ChunkMeta(chunk_off, num_fragments, chunk_complete, chunk_flags,
                      producer_uid_trusted, producer_pid_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
-  TRACE_BUFFER_DLOG("  copying @ [%lu - %lu] %zu", wptr_ - begin(),
+  TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + record_size, record_size);
   WriteChunkRecord(wptr_, record, src, size);
   TRACE_BUFFER_DLOG("Chunk raw: %s", base::HexDump(wptr_, record_size).c_str());
@@ -358,7 +355,7 @@ ssize_t TraceBuffer::DeleteNextChunksFor(size_t bytes_to_clear) {
         will_remove = true;
       }
       TRACE_BUFFER_DLOG(
-          "  del index {%" PRIu32 ",%" PRIu32 ",%u} @ [%lu - %lu] %d",
+          "  del index {%" PRIu32 ",%" PRIu32 ",%u} @ [%" PRIdPTR " - %" PRIdPTR "] %d",
           key.producer_id, key.writer_id, key.chunk_id,
           next_chunk_ptr - begin(), next_chunk_ptr - begin() + next_chunk.size,
           will_remove);
@@ -392,7 +389,7 @@ void TraceBuffer::AddPaddingRecord(size_t size) {
   PERFETTO_DCHECK(size >= sizeof(ChunkRecord) && size <= ChunkRecord::kMaxSize);
   ChunkRecord record(size);
   record.is_padding = 1;
-  TRACE_BUFFER_DLOG("AddPaddingRecord @ [%lu - %lu] %zu", wptr_ - begin(),
+  TRACE_BUFFER_DLOG("AddPaddingRecord @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + size, size);
   WriteChunkRecord(wptr_, record, nullptr, size - sizeof(ChunkRecord));
   stats_.set_padding_bytes_written(stats_.padding_bytes_written() + size);
@@ -584,6 +581,8 @@ bool TraceBuffer::ReadNextTracePacket(
 
     const ProducerID trusted_producer_id = read_iter_.producer_id();
     const WriterID writer_id = read_iter_.writer_id();
+    const ProducerAndWriterID producer_and_writer_id =
+        MkProducerAndWriterID(trusted_producer_id, writer_id);
     const uid_t trusted_uid = chunk_meta->trusted_uid;
     const pid_t trusted_pid = chunk_meta->trusted_pid;
 
@@ -648,7 +647,7 @@ bool TraceBuffer::ReadNextTracePacket(
         // iteration. This happens by virtue of ReadNextPacketInChunk()
         // incrementing the |num_fragments_read| and marking the fragment as
         // read even if we didn't really.
-        ReadNextPacketInChunk(chunk_meta, nullptr);
+        ReadNextPacketInChunk(producer_and_writer_id, chunk_meta, nullptr);
         chunk_meta->set_last_read_packet_skipped(true);
         previous_packet_dropped = true;
         continue;
@@ -656,7 +655,8 @@ bool TraceBuffer::ReadNextTracePacket(
 
       if (action == kReadOnePacket) {
         // The easy peasy case B.
-        ReadPacketResult result = ReadNextPacketInChunk(chunk_meta, packet);
+        ReadPacketResult result =
+            ReadNextPacketInChunk(producer_and_writer_id, chunk_meta, packet);
 
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
           *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
@@ -777,8 +777,10 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
         // In the unlikely case of a corrupted packet (corrupted or empty
         // fragment), invalidate the all stitching and move on to the next chunk
         // in the same sequence, if any.
-        packet_corruption |= ReadNextPacketInChunk(&*read_iter_, packet) ==
-                             ReadPacketResult::kFailedInvalidPacket;
+        auto pw_id = MkProducerAndWriterID(it.producer_id(), it.writer_id());
+        packet_corruption |=
+            ReadNextPacketInChunk(pw_id, &*read_iter_, packet) ==
+            ReadPacketResult::kFailedInvalidPacket;
       }
       if (read_iter_.cur == it.cur)
         break;
@@ -798,6 +800,7 @@ TraceBuffer::ReadAheadResult TraceBuffer::ReadAhead(TracePacket* packet) {
 }
 
 TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
+    ProducerAndWriterID producer_and_writer_id,
     ChunkMeta* const chunk_meta,
     TracePacket* packet) {
   PERFETTO_DCHECK(chunk_meta->num_fragments_read < chunk_meta->num_fragments);
@@ -867,6 +870,8 @@ TraceBuffer::ReadPacketResult TraceBuffer::ReadNextPacketInChunk(
                         chunk_meta->is_complete())) {
     stats_.set_chunks_read(stats_.chunks_read() + 1);
     stats_.set_bytes_read(stats_.bytes_read() + chunk_record->size);
+    auto* writer_stats = writer_stats_.Insert(producer_and_writer_id, {}).first;
+    writer_stats->used_chunk_hist.Add(chunk_meta->cur_fragment_offset);
   } else {
     // We have at least one more packet to parse. It should be within the chunk.
     if (chunk_meta->cur_fragment_offset + sizeof(ChunkRecord) >=

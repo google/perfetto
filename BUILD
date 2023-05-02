@@ -1082,10 +1082,19 @@ perfetto_filegroup(
         "src/trace_processor/db/base_id.h",
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column.h",
+        "src/trace_processor/db/column_overlay.h",
         "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/column_storage.h",
         "src/trace_processor/db/column_storage_overlay.h",
         "src/trace_processor/db/compare.h",
+        "src/trace_processor/db/null_overlay.h",
+        "src/trace_processor/db/numeric_storage.cc",
+        "src/trace_processor/db/numeric_storage.h",
+        "src/trace_processor/db/sorting_overlay.h",
+        "src/trace_processor/db/storage.cc",
+        "src/trace_processor/db/storage.h",
+        "src/trace_processor/db/storage_overlay.h",
+        "src/trace_processor/db/storage_variants.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
         "src/trace_processor/db/typed_column.h",
@@ -1117,6 +1126,8 @@ perfetto_filegroup(
         "src/trace_processor/importers/common/async_track_set_tracker.cc",
         "src/trace_processor/importers/common/async_track_set_tracker.h",
         "src/trace_processor/importers/common/chunked_trace_reader.h",
+        "src/trace_processor/importers/common/clock_converter.cc",
+        "src/trace_processor/importers/common/clock_converter.h",
         "src/trace_processor/importers/common/clock_tracker.cc",
         "src/trace_processor/importers/common/clock_tracker.h",
         "src/trace_processor/importers/common/deobfuscation_mapping_table.cc",
@@ -1702,6 +1713,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_metrics_sql_webview_webview",
     srcs = [
+        "src/trace_processor/metrics/sql/webview/webview_jank_approximation.sql",
         "src/trace_processor/metrics/sql/webview/webview_power_usage.sql",
     ],
 )
@@ -1743,6 +1755,17 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/trace_processor/metrics:gen_cc_all_webview_metrics_descriptor
+perfetto_cc_proto_descriptor(
+    name = "src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_webview_descriptor",
+    ],
+    outs = [
+        "src/trace_processor/metrics/all_webview_metrics.descriptor.h",
+    ],
+)
+
 # GN target: //src/trace_processor/metrics:gen_cc_metrics_descriptor
 perfetto_cc_proto_descriptor(
     name = "src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -1767,6 +1790,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_prelude_functions_functions",
     srcs = [
+        "src/trace_processor/prelude/functions/clock_functions.h",
         "src/trace_processor/prelude/functions/create_function.cc",
         "src/trace_processor/prelude/functions/create_function.h",
         "src/trace_processor/prelude/functions/create_function_internal.cc",
@@ -1785,6 +1809,8 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/sqlite3_str_split.h",
         "src/trace_processor/prelude/functions/stack_functions.cc",
         "src/trace_processor/prelude/functions/stack_functions.h",
+        "src/trace_processor/prelude/functions/to_ftrace.cc",
+        "src/trace_processor/prelude/functions/to_ftrace.h",
         "src/trace_processor/prelude/functions/utils.h",
         "src/trace_processor/prelude/functions/window_functions.h",
     ],
@@ -1832,6 +1858,41 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/prelude/table_functions:tables
+perfetto_cc_tp_tables(
+    name = "src_trace_processor_prelude_table_functions_tables",
+    srcs = [
+        "src/trace_processor/prelude/table_functions/tables.py",
+    ],
+    deps = [
+        ":src_trace_processor_tables_tables_python",
+    ],
+    outs = [
+        "src/trace_processor/prelude/table_functions/tables_py.h",
+    ],
+)
+
+# GN target: //src/trace_processor/prelude/tables_views:sources
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_tables_views_sources",
+    srcs = [
+        "src/trace_processor/prelude/tables_views/tables.sql",
+        "src/trace_processor/prelude/tables_views/views.sql",
+    ],
+)
+
+# GN target: //src/trace_processor/prelude/tables_views:tables_views
+perfetto_cc_amalgamated_sql(
+    name = "src_trace_processor_prelude_tables_views_tables_views",
+    deps = [
+        ":src_trace_processor_prelude_tables_views_sources",
+    ],
+    outs = [
+        "src/trace_processor/prelude/tables_views/tables_views.h",
+    ],
+    namespace = "prelude::tables_views",
+)
+
 # GN target: //src/trace_processor/rpc:httpd
 perfetto_filegroup(
     name = "src_trace_processor_rpc_httpd",
@@ -1872,8 +1933,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.h",
-        "src/trace_processor/sqlite/sqlite_raw_table.cc",
-        "src/trace_processor/sqlite/sqlite_raw_table.h",
+        "src/trace_processor/sqlite/sqlite_engine.cc",
+        "src/trace_processor/sqlite/sqlite_engine.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
         "src/trace_processor/sqlite/stats_table.cc",
@@ -1930,6 +1991,7 @@ perfetto_filegroup(
     name = "src_trace_processor_stdlib_common_common",
     srcs = [
         "src/trace_processor/stdlib/common/counters.sql",
+        "src/trace_processor/stdlib/common/cpus.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
         "src/trace_processor/stdlib/common/percentiles.sql",
         "src/trace_processor/stdlib/common/slices.sql",
@@ -1986,12 +2048,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_tables_tables",
     srcs = [
-        "src/trace_processor/tables/counter_tables.h",
-        "src/trace_processor/tables/flow_tables.h",
-        "src/trace_processor/tables/macros.h",
         "src/trace_processor/tables/macros_internal.h",
-        "src/trace_processor/tables/profiler_tables.h",
-        "src/trace_processor/tables/slice_tables.h",
         "src/trace_processor/tables/table_destructors.cc",
     ],
 )
@@ -2036,7 +2093,6 @@ perfetto_filegroup(
         "src/trace_processor/types/task_state.h",
         "src/trace_processor/types/tcp_state.h",
         "src/trace_processor/types/trace_processor_context.h",
-        "src/trace_processor/types/variadic.cc",
         "src/trace_processor/types/variadic.h",
         "src/trace_processor/types/version_number.h",
     ],
@@ -2545,6 +2601,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_tracing_core_core",
     srcs = [
+        "src/tracing/core/histogram.h",
         "src/tracing/core/id_allocator.cc",
         "src/tracing/core/id_allocator.h",
         "src/tracing/core/null_trace_writer.cc",
@@ -2697,7 +2754,9 @@ perfetto_filegroup(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_proto_library(
     name = "config_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
@@ -2719,7 +2778,9 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_cc_proto_library(
     name = "config_cc_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2728,7 +2789,9 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_java_proto_library(
     name = "config_java_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2737,7 +2800,9 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_java_lite_proto_library(
     name = "config_java_proto_lite",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2746,7 +2811,9 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/config:source_set]
 perfetto_py_proto_library(
     name = "config_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":config_proto",
     ],
@@ -2830,7 +2897,9 @@ perfetto_py_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_proto_library(
     name = "metrics_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":protos_perfetto_metrics_android_protos",
         ":protos_perfetto_metrics_protos",
@@ -2840,7 +2909,9 @@ perfetto_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_cc_proto_library(
     name = "metrics_cc_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2849,7 +2920,9 @@ perfetto_cc_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_java_proto_library(
     name = "metrics_java_proto",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2858,7 +2931,9 @@ perfetto_java_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_java_lite_proto_library(
     name = "metrics_java_proto_lite",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -2867,7 +2942,9 @@ perfetto_java_lite_proto_library(
 # GN target: [//protos/perfetto/metrics:source_set]
 perfetto_py_proto_library(
     name = "metrics_py_pb2",
-    visibility = PERFETTO_CONFIG.public_visibility,
+    visibility = [
+        "//visibility:public",
+    ],
     deps = [
         ":metrics_proto",
     ],
@@ -3676,6 +3753,33 @@ perfetto_proto_library(
     ],
 )
 
+# GN target: //protos/perfetto/metrics/webview:descriptor
+perfetto_proto_descriptor(
+    name = "protos_perfetto_metrics_webview_descriptor",
+    deps = [
+        ":protos_perfetto_metrics_webview_protos",
+    ],
+    outs = [
+        "protos_perfetto_metrics_webview_descriptor.bin",
+    ],
+)
+
+# GN target: //protos/perfetto/metrics/webview:source_set
+perfetto_proto_library(
+    name = "protos_perfetto_metrics_webview_protos",
+    srcs = [
+        "protos/perfetto/metrics/webview/all_webview_metrics.proto",
+        "protos/perfetto/metrics/webview/webview_jank_approximation.proto",
+    ],
+    visibility = [
+        PERFETTO_CONFIG.proto_library_visibility,
+    ],
+    deps = [
+        ":protos_perfetto_metrics_android_protos",
+        ":protos_perfetto_metrics_protos",
+    ],
+)
+
 # GN target: //protos/perfetto/trace/android:source_set
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_protos",
@@ -4112,7 +4216,6 @@ perfetto_cc_protozero_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_processor_protos",
     srcs = [
-        "protos/perfetto/trace_processor/cloud_trace_processor.proto",
         "protos/perfetto/trace_processor/metatrace_categories.proto",
         "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
@@ -4652,6 +4755,7 @@ perfetto_cc_library(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
@@ -4738,8 +4842,10 @@ perfetto_cc_library(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.sqlite +
@@ -4803,6 +4909,7 @@ perfetto_cc_binary(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
@@ -4881,8 +4988,10 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
            ] + PERFETTO_CONFIG.deps.jsoncpp +
            PERFETTO_CONFIG.deps.linenoise +
@@ -5013,6 +5122,7 @@ perfetto_cc_binary(
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_table_functions",
+        ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_sqlite",
         ":src_trace_processor_sqlite_sqlite_minimal",
@@ -5089,8 +5199,10 @@ perfetto_cc_binary(
                ":src_trace_processor_importers_proto_gen_cc_trace_descriptor",
                ":src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
                ":src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
+               ":src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
                ":src_trace_processor_metrics_gen_cc_metrics_descriptor",
                ":src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
+               ":src_trace_processor_prelude_tables_views_tables_views",
                ":src_trace_processor_stdlib_gen_amalgamated_stdlib",
                ":src_traceconv_gen_cc_trace_descriptor",
            ] + PERFETTO_CONFIG.deps.jsoncpp +

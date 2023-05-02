@@ -17,6 +17,7 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
@@ -27,6 +28,8 @@
 #include "src/trace_processor/util/interned_message_view.h"
 #include "test/gtest_and_gmock.h"
 
+#include <cstdint>
+#include <limits>
 #include <sstream>
 
 namespace perfetto {
@@ -50,6 +53,15 @@ class ProtoToArgsParserTest : public ::testing::Test,
   void AddInternedSourceLocation(uint64_t iid, TraceBlobView data) {
     interned_source_locations_[iid] = std::unique_ptr<InternedMessageView>(
         new InternedMessageView(std::move(data)));
+  }
+
+  template <typename T, typename... Ts>
+  void CreatedPackedVarint(protozero::PackedVarInt& var, T p, Ts... ps) {
+    var.Reset();
+    std::array<T, sizeof...(ps) + 1> list = {p, ps...};
+    for (T v : list) {
+      var.Append(v);
+    }
   }
 
  private:
@@ -526,6 +538,119 @@ TEST_F(ProtoToArgsParserTest, WidthAndSignednessOfScalars) {
                           "field_sfixed64 field_sfixed64 -9223372036854775808",
                           "field_uint64 field_uint64 9223372036854775808",
                           "field_fixed64 field_fixed64 9223372036854775808"));
+}
+
+TEST_F(ProtoToArgsParserTest, PackedFields) {
+  using namespace protozero::test::protos::pbzero;
+  protozero::HeapBuffered<PackedRepeatedFields> msg{kChunkSize, kChunkSize};
+
+  protozero::PackedVarInt varint;
+  CreatedPackedVarint(varint, 0, std::numeric_limits<int32_t>::min(),
+                      std::numeric_limits<int32_t>::max());
+  msg->set_field_int32(varint);
+
+  CreatedPackedVarint(varint, 0ll, std::numeric_limits<int64_t>::min(),
+                      std::numeric_limits<int64_t>::max());
+  msg->set_field_int64(varint);
+
+  CreatedPackedVarint(varint, 0u, std::numeric_limits<uint32_t>::min(),
+                      std::numeric_limits<uint32_t>::max());
+  msg->set_field_uint32(varint);
+
+  CreatedPackedVarint(varint, 0ull, std::numeric_limits<uint64_t>::min(),
+                      std::numeric_limits<uint64_t>::max());
+  msg->set_field_uint64(varint);
+
+  CreatedPackedVarint(varint, BigEnum::BEGIN, BigEnum::END);
+  msg->set_big_enum(varint);
+
+  protozero::PackedFixedSizeInt<uint32_t> fixed32;
+  fixed32.Append(0);
+  fixed32.Append(std::numeric_limits<uint32_t>::min());
+  fixed32.Append(std::numeric_limits<uint32_t>::max());
+  msg->set_field_fixed32(fixed32);
+
+  protozero::PackedFixedSizeInt<int32_t> sfixed32;
+  sfixed32.Append(0);
+  sfixed32.Append(std::numeric_limits<int32_t>::min());
+  sfixed32.Append(std::numeric_limits<int32_t>::max());
+  msg->set_field_sfixed32(sfixed32);
+
+  protozero::PackedFixedSizeInt<float> pfloat;
+  pfloat.Append(0);
+  pfloat.Append(-4839.349f);
+  pfloat.Append(std::numeric_limits<float>::min());
+  pfloat.Append(std::numeric_limits<float>::max());
+  msg->set_field_float(pfloat);
+
+  protozero::PackedFixedSizeInt<uint64_t> fixed64;
+  fixed64.Append(0);
+  fixed64.Append(std::numeric_limits<uint64_t>::min());
+  fixed64.Append(std::numeric_limits<uint64_t>::max());
+  msg->set_field_fixed64(fixed64);
+
+  protozero::PackedFixedSizeInt<int64_t> sfixed64;
+  sfixed64.Append(0);
+  sfixed64.Append(std::numeric_limits<int64_t>::min());
+  sfixed64.Append(std::numeric_limits<int64_t>::max());
+  msg->set_field_sfixed64(sfixed64);
+
+  protozero::PackedFixedSizeInt<double> pdouble;
+  pdouble.Append(0);
+  pdouble.Append(-48948908.349);
+  pdouble.Append(std::numeric_limits<double>::min());
+  pdouble.Append(std::numeric_limits<double>::max());
+  msg->set_field_double(pdouble);
+
+  auto binary_proto = msg.SerializeAsArray();
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(kTestMessagesDescriptor.data(),
+                                              kTestMessagesDescriptor.size());
+  ProtoToArgsParser parser(pool);
+  ASSERT_TRUE(status.ok()) << "Failed to parse kTestMessagesDescriptor: "
+                           << status.message();
+
+  status = parser.ParseMessage(
+      protozero::ConstBytes{binary_proto.data(), binary_proto.size()},
+      ".protozero.test.protos.PackedRepeatedFields", nullptr, *this);
+
+  EXPECT_TRUE(status.ok()) << "ParseMessage failed with error: "
+                           << status.message();
+
+  EXPECT_THAT(
+      args(),
+      testing::ElementsAre(
+          "field_int32 field_int32[0] 0",
+          "field_int32 field_int32[1] -2147483648",
+          "field_int32 field_int32[2] 2147483647",
+          "field_int64 field_int64[0] 0",
+          "field_int64 field_int64[1] -9223372036854775808",
+          "field_int64 field_int64[2] 9223372036854775807",
+          "field_uint32 field_uint32[0] 0", "field_uint32 field_uint32[1] 0",
+          "field_uint32 field_uint32[2] 4294967295",
+          "field_uint64 field_uint64[0] 0", "field_uint64 field_uint64[1] 0",
+          "field_uint64 field_uint64[2] 18446744073709551615",
+          "big_enum big_enum[0] BEGIN", "big_enum big_enum[1] END",
+          "field_fixed32 field_fixed32[0] 0",
+          "field_fixed32 field_fixed32[1] 0",
+          "field_fixed32 field_fixed32[2] 4294967295",
+          "field_sfixed32 field_sfixed32[0] 0",
+          "field_sfixed32 field_sfixed32[1] -2147483648",
+          "field_sfixed32 field_sfixed32[2] 2147483647",
+          "field_float field_float[0] 0", "field_float field_float[1] -4839.35",
+          "field_float field_float[2] 1.17549e-38",
+          "field_float field_float[3] 3.40282e+38",
+          "field_fixed64 field_fixed64[0] 0",
+          "field_fixed64 field_fixed64[1] 0",
+          "field_fixed64 field_fixed64[2] 18446744073709551615",
+          "field_sfixed64 field_sfixed64[0] 0",
+          "field_sfixed64 field_sfixed64[1] -9223372036854775808",
+          "field_sfixed64 field_sfixed64[2] 9223372036854775807",
+          "field_double field_double[0] 0",
+          "field_double field_double[1] -4.89489e+07",
+          "field_double field_double[2] 2.22507e-308",
+          "field_double field_double[3] 1.79769e+308"));
 }
 
 }  // namespace

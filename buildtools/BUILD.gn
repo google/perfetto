@@ -129,6 +129,13 @@ config("protobuf_config") {
 
   defines = [ "HAVE_PTHREAD=1" ]
   cflags = []
+
+  # Fixed upstream in:
+  # https://github.com/protocolbuffers/protobuf/pull/10112
+  # But we don't have that yet.
+  if (is_mac) {
+    cflags += [ "-Wno-deprecated-declarations" ]
+  }
   if (!is_clang && !is_win) {  # implies gcc
     cflags += [ "-Wno-stringop-overread" ]
   }

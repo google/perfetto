@@ -21,7 +21,6 @@ import re
 import argparse
 import tempfile
 import subprocess
-import hashlib
 from compat import iteritems
 
 SOURCE_TARGET = [
@@ -36,13 +35,6 @@ ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 SCRIPT_PATH = 'tools/gen_binary_descriptors'
 
 
-def hash_path(path):
-  hash = hashlib.sha1()
-  with open(os.path.join(ROOT_DIR, path), 'rb') as f:
-    hash.update(f.read())
-  return hash.hexdigest()
-
-
 def find_protoc():
   for root, _, files in os.walk(os.path.join(ROOT_DIR, 'out')):
     if 'protoc' in files:
@@ -50,26 +42,7 @@ def find_protoc():
   return None
 
 
-def check(source, target):
-  assert os.path.exists(os.path.join(ROOT_DIR, target)), \
-      'Output file {} does not exist and so cannot be checked'.format(target)
-
-  sha1_file = target + '.sha1'
-  assert os.path.exists(sha1_file), \
-      'SHA1 file {} does not exist and so cannot be checked'.format(sha1_file)
-
-  with open(sha1_file, 'rb') as f:
-    s = f.read()
-
-  hashes = re.findall(r'// SHA1\((.*)\)\n// (.*)\n', s.decode())
-  assert sorted([SCRIPT_PATH, source]) == sorted([key for key, _ in hashes])
-  for path, expected_sha1 in hashes:
-    actual_sha1 = hash_path(os.path.join(ROOT_DIR, path))
-    assert actual_sha1 == expected_sha1, \
-        'In {} hash given for {} did not match'.format(target, path)
-
-
-def generate(source, target, protoc_path):
+def generate(source, target, protoc_path, check_only):
   # delete=False + manual unlink is required for Windows. Otherwise the temp
   # file is kept locked exclusively and unaccassible until it's destroyed.
   with tempfile.NamedTemporaryFile(delete=False) as fdescriptor:
@@ -86,22 +59,16 @@ def generate(source, target, protoc_path):
     s = fdescriptor.read()
     fdescriptor.close()
     os.remove(fdescriptor.name)
+
+    if check_only:
+      with open(target, 'rb') as old:
+        old_content = old.read()
+        if (s != old_content):
+          raise AssertionError('Target {} does not match', target)
+      return
+
     with open(target, 'wb') as out:
       out.write(s)
-
-    sha1_path = target + '.sha1'
-    with open(sha1_path, 'wb') as c:
-      c.write("""
-// SHA1({script_path})
-// {script_hash}
-// SHA1({source_path})
-// {source_hash}
-  """.format(
-          script_path=SCRIPT_PATH,
-          script_hash=hash_path(__file__),
-          source_path=source,
-          source_hash=hash_path(os.path.join(source)),
-      ).encode())
 
 
 def main():
@@ -112,15 +79,12 @@ def main():
 
   try:
     for source, target in SOURCE_TARGET:
-      if args.check_only:
-        check(source, target)
-      else:
-        protoc = args.protoc or find_protoc()
-        assert protoc, 'protoc not found specific (--protoc PROTOC_PATH)'
-        assert os.path.exists(protoc), '{} does not exist'.format(protoc)
-        if protoc is not args.protoc:
-          print('Using protoc: {}'.format(protoc))
-        generate(source, target, protoc)
+      protoc = args.protoc or find_protoc()
+      assert protoc, 'protoc not found specific (--protoc PROTOC_PATH)'
+      assert os.path.exists(protoc), '{} does not exist'.format(protoc)
+      if protoc is not args.protoc:
+        print('Using protoc: {}'.format(protoc))
+      generate(source, target, protoc, args.check_only)
   except AssertionError as e:
     if not str(e):
       raise

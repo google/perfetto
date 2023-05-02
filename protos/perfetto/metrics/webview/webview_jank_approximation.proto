@@ -18,4 +18,10 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-service CloudTraceProcessorWorkerService {}
+message WebViewJankApproximation {
+  optional int32 webview_janks = 1;
+  optional int32 webview_janks_without_startup = 2;
+  optional int32 webview_app_janks = 3;
+  optional int32 webview_total_janks = 4;
+  optional int32 total_janks = 5;
+}

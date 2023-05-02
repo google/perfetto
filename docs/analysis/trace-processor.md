@@ -256,10 +256,10 @@ It takes an `arg_set_id` and `key` as input and returns the value looked
 up in the `args` table.
 
 For example, to retrieve the `prev_comm` field for `sched_switch` events in
-the `raw` table.
+the `ftrace_event` table.
 ```sql
 SELECT EXTRACT_ARG(arg_set_id, 'prev_comm')
-FROM raw
+FROM ftrace_event
 WHERE name = 'sched_switch'
 ```
 
@@ -271,7 +271,7 @@ SELECT
     FROM args
     WHERE key = 'prev_comm' AND args.arg_set_id = raw.arg_set_id
   )
-FROM raw
+FROM ftrace_event
 WHERE name = 'sched_switch'
 ```
 
@@ -311,7 +311,8 @@ SELECT
   cpu,
   value as freq
 FROM counter
-JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id;
+JOIN cpu_counter_track ON counter.track_id = cpu_counter_track.id
+WHERE cpu_counter_track.name = 'cpufreq';
 
 -- Create the span joined table which combines cpu frequency with
 -- scheduling slices.

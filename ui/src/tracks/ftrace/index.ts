@@ -29,12 +29,7 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 
 
 export interface Data extends TrackData {
-  // Total number of  events within [start, end], before any quantization.
-  numEvents: number;
-
-  // Below: data quantized by resolution and aggregated by event priority.
   timestamps: Float64Array;
-
   names: string[];
 }
 
@@ -68,7 +63,6 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
       select
         cast(ts / ${quantNs} as integer) * ${quantNs} as tsQuant,
         type,
-        count(type) as numEvents,
         name
       from ftrace_event
       where
@@ -78,23 +72,21 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
       order by tsQuant limit ${LIMIT};`);
 
     const rowCount = queryRes.numRows();
-    const result = {
+    const result: Data = {
       start,
       end,
       resolution,
       length: rowCount,
-      numEvents: 0,
       timestamps: new Float64Array(rowCount),
       names: [],
-    } as Data;
+    };
 
     const it = queryRes.iter(
-        {tsQuant: NUM, type: STR, numEvents: NUM, name: STR},
+        {tsQuant: NUM, type: STR, name: STR},
     );
     for (let row = 0; it.valid(); it.next(), row++) {
       result.timestamps[row] = fromNs(it.tsQuant);
       result.names[row] = it.name;
-      result.numEvents += it.numEvents;
     }
     return result;
   }

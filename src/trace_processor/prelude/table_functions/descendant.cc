@@ -19,6 +19,7 @@
 #include <memory>
 #include <set>
 
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 #include "src/trace_processor/util/status_macros.h"

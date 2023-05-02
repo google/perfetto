@@ -139,7 +139,8 @@ void DbSqliteTable::RegisterTable(sqlite3* db,
                                   const Table* table,
                                   const std::string& name) {
   Context context{cache, TableComputation::kStatic, table, nullptr};
-  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name);
+  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name,
+                                                RegistrationFlags{});
 }
 
 void DbSqliteTable::RegisterTable(sqlite3* db,
@@ -149,13 +150,14 @@ void DbSqliteTable::RegisterTable(sqlite3* db,
   // on hidden columns) passed to it in order to make the query valid.
   base::Status status = generator->ValidateConstraints(
       QueryConstraints(std::numeric_limits<uint64_t>::max()));
-  bool requires_args = !status.ok();
 
   std::string table_name = generator->TableName();
   Context context{cache, TableComputation::kDynamic, nullptr,
                   std::move(generator)};
-  SqliteTable::Register<DbSqliteTable, Context>(
-      db, std::move(context), table_name, false, requires_args);
+  RegistrationFlags flags;
+  flags.requires_hidden_constraints = !status.ok();
+  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context),
+                                                table_name, flags);
 }
 
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {

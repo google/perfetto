@@ -209,14 +209,18 @@ SELECT
       'time_gc_total', (
         SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id)))
       ),
+      'time_dex_open_thread_main',
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.startup_id,
+        'OpenDexFilesFromOat*'),
       'time_lock_contention_thread_main',
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-       launches.startup_id,
+        launches.startup_id,
         'Lock contention on*'
       ),
       'time_monitor_contention_thread_main',
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-       launches.startup_id,
+        launches.startup_id,
         'Lock contention on a monitor*'
       ),
       'time_before_start_process', (
@@ -279,6 +283,14 @@ SELECT
         ORDER BY slice_name
       )
     ),
+    'verify_class', (
+      SELECT RepeatedField(AndroidStartupMetric_VerifyClass(
+        'name', STR_SPLIT(slice_name, "VerifyClass ", 1),
+        'dur_ns', slice_dur))
+      FROM android_thread_slices_for_all_startups
+      WHERE startup_id = launches.startup_id AND slice_name GLOB "VerifyClass *"
+      ORDER BY slice_dur DESC
+    ),
     'startup_concurrent_to_launch', (
       SELECT RepeatedField(package)
       FROM android_startups l
@@ -303,6 +315,26 @@ SELECT
     ),
     'slow_start_reason', (SELECT RepeatedField(slow_cause)
       FROM (
+        SELECT 'No baseline or cloud profiles' AS slow_cause
+        WHERE MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.startup_id, launches.package)
+
+        UNION ALL
+        SELECT 'Optimized artifacts missing, run from apk'
+        WHERE  RUN_FROM_APK_FOR_LAUNCH(launches.startup_id)
+
+        UNION ALL
+        SELECT 'Unlock running during launch'
+        WHERE IS_UNLOCK_RUNNING_DURING_LAUNCH(launches.startup_id)
+
+        UNION ALL
+        SELECT 'App in debuggable mode'
+        WHERE IS_PROCESS_DEBUGGABLE(launches.package)
+
+        UNION ALL
+        SELECT 'GC Activity'
+        WHERE TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id) > 0
+
+        UNION ALL
         SELECT 'dex2oat running during launch' AS slow_cause
         WHERE
           DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 0
@@ -334,11 +366,10 @@ SELECT
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 155e6
 
         UNION ALL
-        SELECT 'Time spent in OpenDexFilesFromOat*'
+        SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*'
           AS slow_cause
-        WHERE
-          ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'OpenDexFilesFromOat*')
-            > launches.dur * 0.2
+        WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
+          launches.startup_id, 'OpenDexFilesFromOat*') > launches.dur * 0.2
 
         UNION ALL
         SELECT 'Time spent in bindApplication'
@@ -364,9 +395,7 @@ SELECT
             > launches.dur * 0.15
 
         UNION ALL
-        SELECT 'Potential CPU contention with '
-          || MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id)
-          AS slow_cause
+        SELECT 'Potential CPU contention with another process' AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
           AND MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id) IS NOT NULL
 
@@ -396,10 +425,6 @@ SELECT
         ) > launches.dur * 0.15
 
         UNION ALL
-        SELECT 'GC Activity'
-        WHERE TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id) > 0
-
-        UNION ALL
         SELECT 'JIT compiled methods'
         WHERE (
           SELECT COUNT(1)
@@ -422,14 +447,6 @@ SELECT
         ) > 50
 
         UNION ALL
-        SELECT 'No baseline or cloud profiles'
-        WHERE MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.startup_id, launches.package)
-
-        UNION ALL
-        SELECT 'Optimized artifacts missing, run from apk'
-        WHERE  RUN_FROM_APK_FOR_LAUNCH(launches.startup_id)
-
-        UNION ALL
         SELECT 'Startup running concurrent to launch'
         WHERE EXISTS(
           SELECT package
@@ -444,14 +461,6 @@ SELECT
           SELECT COUNT(1)
           FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launches.startup_id, 2e7)
         ) > 0
-
-        UNION ALL
-        SELECT 'Unlock running during launch'
-        WHERE IS_UNLOCK_RUNNING_DURING_LAUNCH(launches.startup_id)
-
-        UNION ALL
-        SELECT 'App in debuggable mode'
-        WHERE IS_PROCESS_DEBUGGABLE(launches.package)
 
       )
     )
