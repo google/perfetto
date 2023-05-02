@@ -23,7 +23,7 @@
 // error status, returns the status from the current function.
 #define RETURN_IF_ERROR(expr)                           \
   do {                                                  \
-    util::Status status_macro_internal_status = (expr); \
+    base::Status status_macro_internal_status = (expr); \
     if (!status_macro_internal_status.ok())             \
       return status_macro_internal_status;              \
   } while (0)
