@@ -15,11 +15,12 @@
 source_set("cloud_trace_processor") {
   sources = [
     "environment.h",
-    "manager.h",
+    "orchestrator.h",
     "worker.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../base",
     "../base/threading",
   ]
 }
