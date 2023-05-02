@@ -399,6 +399,8 @@
       line-height: 12.5px;
       margin-top: -5px;
       opacity: 0;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     &:hover {
