@@ -1,11 +1,21 @@
 Unreleased:
   Tracing service and probes:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+v34.0 - 2023-05-02:
+  Tracing service and probes:
     * --continuous-dump in tools/java_heap_dump now keeps recording until it
       receives CTRL+C.
   Trace Processor:
     *
   UI:
-    *
+    * Add support for parsing large integers from Trace Processor into
+      bigint. This is the default behaviour for unknown fields and can
+      be enabled specifically via the LONG and LONG_NULL column types.
   SDK:
     * Changed the type of the static constexpr metadata on protozero
       generated bindings from a function returning the metadata to
