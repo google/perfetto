@@ -32,8 +32,9 @@ import {
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PopupMenuButton, PopupMenuItem} from '../../frontend/popup_menu';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {Button} from '../../frontend/widgets/button';
+import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -259,18 +260,11 @@ class CounterTrack extends Track<Config, Data> {
       {name: 'DELTA_FROM_PREVIOUS', humanName: 'Delta'},
       {name: 'RATE', humanName: 'Rate'},
     ];
-    const items: PopupMenuItem[] = [];
-    for (const scale of scales) {
-      let text;
-      if (currentScale === scale.name) {
-        text = `*${scale.humanName}*`;
-      } else {
-        text = scale.humanName;
-      }
-      items.push({
-        itemType: 'regular',
-        text,
-        callback: () => {
+    const menuItems = scales.map((scale) => {
+      return m(MenuItem, {
+        label: scale.humanName,
+        active: currentScale === scale.name,
+        onclick: () => {
           this.config.scale = scale.name;
           Actions.updateTrackConfig({
             id: this.trackState.id,
@@ -278,11 +272,15 @@ class CounterTrack extends Track<Config, Data> {
           });
         },
       });
-    }
-    return m(PopupMenuButton, {
-      icon: 'show_chart',
-      items,
     });
+
+    return m(
+        PopupMenu2,
+        {
+          trigger: m(Button, {icon: 'show_chart', minimal: true}),
+        },
+        menuItems,
+    );
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
