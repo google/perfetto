@@ -22,7 +22,9 @@ assert(
 # RPC transport. Allows wrapping with any RPC framework capable of handling
 # protobufs.
 static_library("cloud_trace_processor") {
+  complete_static_lib = true
   deps = [ ":sources" ]
+  public_deps = [ "../../include/perfetto/ext/cloud_trace_processor" ]
 }
 
 source_set("sources") {
