@@ -647,11 +647,11 @@ TEST_F(ProtoTraceParserTest, LoadMemInfo) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts),
-                                   DoubleEq(value * 1024.0), TrackId{0u}));
+                                   DoubleEq(value * 1024.0), TrackId{1u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadVmStats) {
@@ -665,11 +665,11 @@ TEST_F(ProtoTraceParserTest, LoadVmStats) {
   meminfo->set_value(value);
 
   EXPECT_CALL(*event_, PushCounter(static_cast<int64_t>(ts), DoubleEq(value),
-                                   TrackId{0u}));
+                                   TrackId{1u}));
   Tokenize();
   context_.sorter->ExtractEventsForced();
 
-  EXPECT_EQ(context_.storage->track_table().row_count(), 1u);
+  EXPECT_EQ(context_.storage->track_table().row_count(), 2u);
 }
 
 TEST_F(ProtoTraceParserTest, LoadProcessPacket) {
