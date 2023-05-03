@@ -128,7 +128,8 @@ export function toPbtxt(configBuffer: Uint8Array): string {
     return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
         value.startsWith('STAT_') || value.startsWith('LID_') ||
         value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
-        value === 'RING_BUFFER';
+        value === 'RING_BUFFER' || value === 'BACKGROUND' ||
+        value === 'USER_INITIATED';
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -139,9 +140,10 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   function is64BitNumber(key: string): boolean {
     return [
       'maxFileSizeBytes',
+      'pid',
       'samplingIntervalBytes',
       'shmemSizeBytes',
-      'pid',
+      'timestampUnitMultiplier',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
