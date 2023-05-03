@@ -15,7 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../classnames';
 
-interface FormAttrs {
+export interface FormAttrs {
   // List of space separated class names forwarded to the icon.
   className?: string;
   // Remaining attributes forwarded to the underlying HTML <button>.
