@@ -39,7 +39,6 @@ source_set("sources") {
     "../../include/perfetto/ext/cloud_trace_processor",
     "../../protos/perfetto/cloud_trace_processor:lite",
     "../base",
-    "../base/http",
     "../base/threading",
     "../protozero",
     "../protozero:proto_ring_buffer",
