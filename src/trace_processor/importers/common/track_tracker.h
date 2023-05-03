@@ -174,10 +174,12 @@ class TrackTracker {
              std::tie(r.source_id, r.upid, r.source_scope);
     }
   };
+  static constexpr size_t kGroupCount =
+      static_cast<uint32_t>(Group::kSizeSentinel);
 
   TrackId InternTrackForGroup(Group group);
 
-  std::vector<std::optional<TrackId>> group_track_ids_;
+  std::array<std::optional<TrackId>, kGroupCount> group_track_ids_;
 
   std::map<UniqueTid, TrackId> thread_tracks_;
   std::map<UniquePid, TrackId> process_tracks_;
