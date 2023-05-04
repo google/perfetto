@@ -32,7 +32,6 @@ if (perfetto_build_with_android) {
       "health_hal.cc",
       "incident_service.cc",
       "power_stats.cc",
-      "statsd.cc",
       "statsd_logging.cc",
       "statsd.cc",
       "tracing_service_proxy.cc",
@@ -55,7 +54,7 @@ if (perfetto_build_with_android) {
       "services",
       "tracingproxy",
       "utils",
-      "statspull",
+      "libstatspull",
     ]
 
     # This target should never depend on any other perfetto target to avoid ODR
