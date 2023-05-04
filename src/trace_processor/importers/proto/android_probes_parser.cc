@@ -62,7 +62,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       screen_state_id_(context->storage->InternString("ScreenState")),
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
-      plug_type_id_(context->storage->InternString("PlugType")) {}
+      plug_type_id_(context->storage->InternString("PlugType")),
+      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
@@ -118,7 +119,9 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   }
 }
 
-void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
+void AndroidProbesParser::ParsePowerRails(int64_t ts,
+                                          uint64_t trace_packet_ts,
+                                          ConstBytes blob) {
   protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
 
   // Descriptors should have been processed at tokenization time.
@@ -134,12 +137,16 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
   auto opt_track = tracker->GetPowerRailTrack(desc.index());
   if (opt_track.has_value()) {
     // The tokenization makes sure that this field is always present and
-    // is equal to the packet's timestamp (as the packet was forged in
-    // the tokenizer).
+    // is equal to the packet's timestamp that was passed to us via the sorter.
     PERFETTO_DCHECK(desc.has_timestamp_ms());
     PERFETTO_DCHECK(ts / 1000000 == static_cast<int64_t>(desc.timestamp_ms()));
-    context_->event_tracker->PushCounter(ts, static_cast<double>(desc.energy()),
-                                         *opt_track);
+    auto maybe_counter_id = context_->event_tracker->PushCounter(
+        ts, static_cast<double>(desc.energy()), *opt_track);
+    if (maybe_counter_id) {
+      context_->args_tracker->AddArgsTo(*maybe_counter_id)
+          .AddArg(rail_packet_timestamp_id_,
+                  Variadic::UnsignedInteger(trace_packet_ts));
+    }
   } else {
     context_->storage->IncrementStats(stats::power_rail_unknown_index);
   }
