@@ -4071,7 +4071,9 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   // Message 0: root Trace proto.
   filt.AddNestedField(1 /* root trace.packet*/, 1);
   filt.EndMessage();
-  // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
+  // Message 1: TracePacket proto. Allow only the `for_testing` and `trace_uuid`
+  // sub-fields.
+  filt.AddSimpleField(protos::pbzero::TracePacket::kTraceUuidFieldNumber);
   filt.AddSimpleField(protos::pbzero::TracePacket::kForTestingFieldNumber);
   filt.EndMessage();
   trace_config.mutable_trace_filter()->set_bytecode(filt.Serialize());
@@ -4100,8 +4102,17 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   }
 
   auto clone_done = task_runner.CreateCheckpoint("clone_done");
-  EXPECT_CALL(*consumer2, OnSessionCloned(true, ""))
-      .WillOnce(InvokeWithoutArgs(clone_done));
+  base::Uuid clone_uuid;
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(Invoke(
+          [clone_done, &clone_uuid](const Consumer::OnSessionClonedArgs& args) {
+            ASSERT_TRUE(args.success);
+            ASSERT_TRUE(args.error.empty());
+            ASSERT_NE(args.uuid.msb(), 0);
+            ASSERT_NE(args.uuid.lsb(), 0);
+            clone_uuid = args.uuid;
+            clone_done();
+          }));
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
   producer->WaitForFlush({writers[0].get(), writers[1].get()});
@@ -4145,6 +4156,16 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   // Check that the `timestamp` field is filtered out.
   EXPECT_THAT(packets,
               Each(Property(&protos::gen::TracePacket::has_timestamp, false)));
+
+  // Check that the UUID in the trace matches the UUID passed to to the
+  // OnCloneSession consumer API.
+  EXPECT_THAT(
+      packets,
+      Contains(Property(
+          &protos::gen::TracePacket::trace_uuid,
+          AllOf(
+              Property(&protos::gen::TraceUuid::msb, Eq(clone_uuid.msb())),
+              Property(&protos::gen::TraceUuid::lsb, Eq(clone_uuid.lsb()))))));
 }
 
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {

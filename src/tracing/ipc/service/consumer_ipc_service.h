@@ -94,7 +94,7 @@ class ConsumerIPCService : public protos::gen::ConsumerPort {
     void OnAttach(bool, const TraceConfig&) override;
     void OnTraceStats(bool, const TraceStats&) override;
     void OnObservableEvents(const ObservableEvents&) override;
-    void OnSessionCloned(bool, const std::string&) override;
+    void OnSessionCloned(const OnSessionClonedArgs&) override;
 
     void CloseObserveEventsResponseStream();
 
