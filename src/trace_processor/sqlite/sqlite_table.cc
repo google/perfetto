@@ -22,6 +22,7 @@
 #include <map>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
@@ -175,7 +176,7 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
     qc.AddOrderBy(column, desc);
   }
 
-  int ret = ModifyConstraints(&qc);
+  int ret = SetStatusAndReturn(ModifyConstraints(&qc));
   if (ret != SQLITE_OK)
     return ret;
 
@@ -235,16 +236,16 @@ int SqliteTable::BestIndexInternal(sqlite3_index_info* idx) {
   return SQLITE_OK;
 }
 
-int SqliteTable::ModifyConstraints(QueryConstraints*) {
-  return SQLITE_OK;
+base::Status SqliteTable::ModifyConstraints(QueryConstraints*) {
+  return base::OkStatus();
 }
 
 int SqliteTable::FindFunction(const char*, FindFunctionFn*, void**) {
   return 0;
 }
 
-int SqliteTable::Update(int, sqlite3_value**, sqlite3_int64*) {
-  return SQLITE_READONLY;
+base::Status SqliteTable::Update(int, sqlite3_value**, sqlite3_int64*) {
+  return base::OkStatus();
 }
 
 bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
@@ -280,10 +281,6 @@ SqliteTable::Cursor::Cursor(SqliteTable* table) : table_(table) {
   pVtab = table;
 }
 SqliteTable::Cursor::~Cursor() = default;
-
-int SqliteTable::Cursor::RowId(sqlite3_int64*) {
-  return SQLITE_ERROR;
-}
 
 SqliteTable::Column::Column(size_t index,
                             std::string name,
