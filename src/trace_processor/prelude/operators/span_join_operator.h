@@ -321,27 +321,12 @@ class SpanJoinOperatorTable : public SqliteTable {
     Cursor(SpanJoinOperatorTable*, sqlite3* db);
     ~Cursor() override = default;
 
-    int Filter(const QueryConstraints& qc,
-               sqlite3_value** argv,
-               FilterHistory) override {
-      base::Status status = FilterInner(qc, argv);
-      if (!status.ok()) {
-        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
-        return SQLITE_ERROR;
-      }
-      return SQLITE_OK;
-    }
-    int Next() override {
-      base::Status status = NextInner();
-      if (!status.ok()) {
-        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
-        return SQLITE_ERROR;
-      }
-      return SQLITE_OK;
-    }
-
-    int Column(sqlite3_context* context, int N) override;
-    int Eof() override;
+    base::Status Filter(const QueryConstraints& qc,
+                        sqlite3_value** argv,
+                        FilterHistory) override;
+    base::Status Next() override;
+    base::Status Column(sqlite3_context* context, int N) override;
+    bool Eof() override;
 
    private:
     Cursor(Cursor&) = delete;
@@ -351,11 +336,7 @@ class SpanJoinOperatorTable : public SqliteTable {
     Cursor& operator=(Cursor&&) = default;
 
     bool IsOverlappingSpan();
-
-    base::Status NextInner();
-    base::Status FilterInner(const QueryConstraints& qc, sqlite3_value** argv);
     util::Status FindOverlappingSpan();
-
     Query* FindEarliestFinishQuery();
 
     Query t1_;

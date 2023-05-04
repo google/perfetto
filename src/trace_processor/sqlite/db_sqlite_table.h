@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
@@ -46,12 +47,12 @@ class DbSqliteTable : public SqliteTable {
     Cursor& operator=(Cursor&&) = default;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints& qc,
-               sqlite3_value** argv,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints& qc,
+                        sqlite3_value** argv,
+                        FilterHistory) override;
+    base::Status Next() override;
+    bool Eof() override;
+    base::Status Column(sqlite3_context*, int N) override;
 
    private:
     enum class Mode {
@@ -136,7 +137,7 @@ class DbSqliteTable : public SqliteTable {
                     const char* const*,
                     SqliteTable::Schema*) override final;
   std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int ModifyConstraints(QueryConstraints*) override final;
+  base::Status ModifyConstraints(QueryConstraints*) override final;
   int BestIndex(const QueryConstraints&, BestIndexInfo*) override final;
 
   // These static functions are useful to allow other callers to make use
