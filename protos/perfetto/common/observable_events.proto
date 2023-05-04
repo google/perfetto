@@ -35,6 +35,11 @@ message ObservableEvents {
     // Introduced in Android 11 (R).
     TYPE_ALL_DATA_SOURCES_STARTED = 2;
 
+    // When a tracing session has one or more triggers of type CLONE_SNAPSHOT
+    // and a matching trigger is hit, the service will send this notification to
+    // the consumer after |stop_delay_ms|.
+    TYPE_CLONE_TRIGGER_HIT = 4;
+
     // Note: internally these are used as OR flags. Next values: 4, 8, 16, ...
 
     // TODO(eseckler): Extend this for producer & data source registrations.
@@ -52,6 +57,15 @@ message ObservableEvents {
     optional DataSourceInstanceState state = 3;
   }
 
+  message CloneTriggerHit {
+    // The TracingSessionID of the original tracing session which had a
+    // CLONE_SNAPSHOT trigger defined. This is necessary just because the
+    // consumer has no idea of what is the TSID of its own tracing session and
+    // there is no other good way to plumb it.
+    optional int64 tracing_session_id = 1;
+  }
+
   repeated DataSourceInstanceStateChange instance_state_changes = 1;
   optional bool all_data_sources_started = 2;
+  optional CloneTriggerHit clone_trigger_hit = 3;
 }
