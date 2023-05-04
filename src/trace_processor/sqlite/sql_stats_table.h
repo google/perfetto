@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
@@ -42,16 +43,16 @@ class SqlStatsTable : public SqliteTable {
   // Implementation of the SQLite cursor interface.
   class Cursor : public SqliteTable::Cursor {
    public:
-    Cursor(SqlStatsTable* storage);
+    explicit Cursor(SqlStatsTable* storage);
     ~Cursor() override;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints&,
-               sqlite3_value**,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints&,
+                        sqlite3_value**,
+                        FilterHistory) override;
+    base::Status Next() override;
+    bool Eof() override;
+    base::Status Column(sqlite3_context*, int N) override;
 
    private:
     Cursor(Cursor&) = delete;

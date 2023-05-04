@@ -41,12 +41,12 @@ class CreatedViewFunction : public SqliteTable {
     explicit Cursor(CreatedViewFunction* table);
     ~Cursor() override;
 
-    int Filter(const QueryConstraints& qc,
-               sqlite3_value**,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context* context, int N) override;
+    base::Status Filter(const QueryConstraints& qc,
+                        sqlite3_value**,
+                        FilterHistory) override;
+    base::Status Next() override;
+    bool Eof() override;
+    base::Status Column(sqlite3_context* context, int N) override;
 
    private:
     ScopedStmt scoped_stmt_;
@@ -279,9 +279,9 @@ CreatedViewFunction::Cursor::Cursor(CreatedViewFunction* table)
 
 CreatedViewFunction::Cursor::~Cursor() = default;
 
-int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
-                                        sqlite3_value** argv,
-                                        FilterHistory) {
+base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
+                                                 sqlite3_value** argv,
+                                                 FilterHistory) {
   PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "CREATE_VIEW_FUNCTION",
                     [this](metatrace::Record* r) {
                       r->AddArg("Function",
@@ -305,10 +305,8 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     // We only support equality constraints as we're expecting "input arguments"
     // to our "function".
     if (!sqlite_utils::IsOpEq(cs.op)) {
-      table_->SetErrorMessage(
-          sqlite3_mprintf("%s: non-equality constraint passed",
-                          table_->prototype_.function_name.c_str()));
-      return SQLITE_ERROR;
+      return base::ErrStatus("%s: non-equality constraint passed",
+                             table_->prototype_.function_name.c_str());
     }
 
     const auto& arg = table_->prototype_.arguments[col_to_arg_idx(cs.column)];
@@ -316,11 +314,9 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
         argv[i], sql_argument::TypeToSqlValueType(arg.type()),
         sql_argument::TypeToHumanFriendlyString(arg.type()));
     if (!status.ok()) {
-      table_->SetErrorMessage(
-          sqlite3_mprintf("%s: argument %s (index %u) %s",
-                          table_->prototype_.function_name.c_str(),
-                          arg.name().c_str(), i, status.c_message()));
-      return SQLITE_ERROR;
+      return base::ErrStatus("%s: argument %s (index %zu) %s",
+                             table_->prototype_.function_name.c_str(),
+                             arg.name().c_str(), i, status.c_message());
     }
 
     seen_argument_constraints++;
@@ -328,12 +324,11 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
 
   // Verify that we saw one valid constriant for every input argument.
   if (seen_argument_constraints < table_->prototype_.arguments.size()) {
-    table_->SetErrorMessage(sqlite3_mprintf(
-        "%s: missing value for input argument. Saw %u arguments but expected "
-        "%u",
+    return base::ErrStatus(
+        "%s: missing value for input argument. Saw %zu arguments but expected "
+        "%zu",
         table_->prototype_.function_name.c_str(), seen_argument_constraints,
-        table_->prototype_.arguments.size()));
-    return SQLITE_ERROR;
+        table_->prototype_.arguments.size());
   }
 
   // Prepare the SQL definition as a statement using SQLite.
@@ -364,10 +359,7 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     const auto& arg = table_->prototype_.arguments[index];
     auto status = MaybeBindArgument(stmt_, table_->prototype_.function_name,
                                     arg, argv[i]);
-    if (!status.ok()) {
-      table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
-      return SQLITE_ERROR;
-    }
+    RETURN_IF_ERROR(status);
   }
 
   // Reset the next call count - this is necessary because the same cursor
@@ -376,26 +368,25 @@ int CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   return Next();
 }
 
-int CreatedViewFunction::Cursor::Next() {
+base::Status CreatedViewFunction::Cursor::Next() {
   int ret = sqlite3_step(stmt_);
   is_eof_ = ret == SQLITE_DONE;
   next_call_count_++;
   if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
-    table_->SetErrorMessage(sqlite3_mprintf(
+    return base::ErrStatus(
         "%s: SQLite error while stepping statement: %s",
         table_->prototype_.function_name.c_str(),
         sqlite_utils::FormatErrorMessage(stmt_, std::nullopt, table_->db_, ret)
-            .c_message()));
-    return ret;
+            .c_message());
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int CreatedViewFunction::Cursor::Eof() {
+bool CreatedViewFunction::Cursor::Eof() {
   return is_eof_;
 }
 
-int CreatedViewFunction::Cursor::Column(sqlite3_context* ctx, int i) {
+base::Status CreatedViewFunction::Cursor::Column(sqlite3_context* ctx, int i) {
   size_t idx = static_cast<size_t>(i);
   if (table_->IsReturnValueColumn(idx)) {
     sqlite3_result_value(ctx, sqlite3_column_value(stmt_, i));
@@ -409,7 +400,7 @@ int CreatedViewFunction::Cursor::Column(sqlite3_context* ctx, int i) {
     PERFETTO_DCHECK(table_->IsPrimaryKeyColumn(idx));
     sqlite3_result_int(ctx, next_call_count_);
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 }  // namespace
