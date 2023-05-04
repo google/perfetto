@@ -103,22 +103,19 @@ class SqliteTable : public sqlite3_vtab {
     // Methods to be implemented by derived table classes.
 
     // Called to intialise the cursor with the constraints of the query.
-    virtual int Filter(const QueryConstraints& qc,
-                       sqlite3_value**,
-                       FilterHistory) = 0;
+    virtual base::Status Filter(const QueryConstraints& qc,
+                                sqlite3_value**,
+                                FilterHistory) = 0;
 
     // Called to forward the cursor to the next row in the table.
-    virtual int Next() = 0;
+    virtual base::Status Next() = 0;
 
     // Called to check if the cursor has reached eof. Column will be called iff
     // this method returns true.
-    virtual int Eof() = 0;
+    virtual bool Eof() = 0;
 
     // Used to extract the value from the column at index |N|.
-    virtual int Column(sqlite3_context* context, int N) = 0;
-
-    // Optional methods to implement.
-    virtual int RowId(sqlite3_int64*);
+    virtual base::Status Column(sqlite3_context* context, int N) = 0;
 
    protected:
     Cursor(Cursor&) = delete;
@@ -129,6 +126,10 @@ class SqliteTable : public sqlite3_vtab {
 
    private:
     friend class SqliteTable;
+
+    int SetStatusAndReturn(base::Status status) {
+      return table_->SetStatusAndReturn(status);
+    }
 
     SqliteTable* table_ = nullptr;
   };
@@ -297,7 +298,7 @@ class SqliteTable : public sqlite3_vtab {
     module->xDisconnect = destroy_fn;
     module->xDestroy = destroy_fn;
     module->xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
-      return static_cast<TTable*>(t)->OpenInternal(c);
+      return static_cast<SqliteTable*>(t)->OpenInternal(c);
     };
     module->xClose = [](sqlite3_vtab_cursor* c) {
       delete static_cast<TCursor*>(c);
@@ -308,24 +309,28 @@ class SqliteTable : public sqlite3_vtab {
     };
     module->xFilter = [](sqlite3_vtab_cursor* vc, int i, const char* s, int a,
                          sqlite3_value** v) {
-      auto* c = static_cast<Cursor*>(vc);
-      bool is_cached = c->table_->ReadConstraints(i, s, a);
+      bool is_cached =
+          static_cast<Cursor*>(vc)->table_->ReadConstraints(i, s, a);
 
       auto history = is_cached ? Cursor::FilterHistory::kSame
                                : Cursor::FilterHistory::kDifferent;
-      return static_cast<TCursor*>(c)->Filter(c->table_->qc_cache_, v, history);
+      auto* cursor = static_cast<TCursor*>(vc);
+      return cursor->SetStatusAndReturn(cursor->Filter(
+          static_cast<Cursor*>(vc)->table_->qc_cache_, v, history));
     };
     module->xNext = [](sqlite3_vtab_cursor* c) {
-      return static_cast<TCursor*>(c)->Next();
+      auto* cursor = static_cast<TCursor*>(c);
+      return cursor->SetStatusAndReturn(cursor->Next());
     };
     module->xEof = [](sqlite3_vtab_cursor* c) {
-      return static_cast<TCursor*>(c)->Eof();
+      return static_cast<int>(static_cast<TCursor*>(c)->Eof());
     };
     module->xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
-      return static_cast<TCursor*>(c)->Column(a, b);
+      auto* cursor = static_cast<TCursor*>(c);
+      return cursor->SetStatusAndReturn(cursor->Column(a, b));
     };
-    module->xRowid = [](sqlite3_vtab_cursor* c, sqlite3_int64* r) {
-      return static_cast<TCursor*>(c)->RowId(r);
+    module->xRowid = [](sqlite3_vtab_cursor*, sqlite3_int64*) {
+      return SQLITE_ERROR;
     };
     module->xFindFunction =
         [](sqlite3_vtab* t, int, const char* name,
@@ -336,7 +341,8 @@ class SqliteTable : public sqlite3_vtab {
     if (flags.writable) {
       module->xUpdate = [](sqlite3_vtab* t, int a, sqlite3_value** v,
                            sqlite3_int64* r) {
-        return static_cast<TTable*>(t)->Update(a, v, r);
+        auto* table = static_cast<TTable*>(t);
+        return table->SetStatusAndReturn(table->Update(a, v, r));
       };
     }
 
@@ -372,16 +378,11 @@ class SqliteTable : public sqlite3_vtab {
 
   // Optional metods to implement.
   using FindFunctionFn = void (*)(sqlite3_context*, int, sqlite3_value**);
-  virtual int ModifyConstraints(QueryConstraints* qc);
+  virtual base::Status ModifyConstraints(QueryConstraints* qc);
   virtual int FindFunction(const char* name, FindFunctionFn* fn, void** args);
 
   // At registration time, the function should also pass true for |read_write|.
-  virtual int Update(int, sqlite3_value**, sqlite3_int64*);
-
-  void SetErrorMessage(char* error) {
-    sqlite3_free(zErrMsg);
-    zErrMsg = error;
-  }
+  virtual base::Status Update(int, sqlite3_value**, sqlite3_int64*);
 
   const Schema& schema() const { return schema_; }
   const std::string& module_name() const { return module_name_; }
@@ -400,6 +401,15 @@ class SqliteTable : public sqlite3_vtab {
   // Overriden functions from sqlite3_vtab.
   int OpenInternal(sqlite3_vtab_cursor**);
   int BestIndexInternal(sqlite3_index_info*);
+
+  int SetStatusAndReturn(base::Status status) {
+    if (!status.ok()) {
+      sqlite3_free(zErrMsg);
+      zErrMsg = sqlite3_mprintf("%s", status.c_message());
+      return SQLITE_ERROR;
+    }
+    return SQLITE_OK;
+  }
 
   SqliteTable(const SqliteTable&) = delete;
   SqliteTable& operator=(const SqliteTable&) = delete;
