@@ -35,15 +35,15 @@ class StatsTable : public SqliteTable {
   enum Column { kName = 0, kIndex, kSeverity, kSource, kValue, kDescription };
   class Cursor : public SqliteTable::Cursor {
    public:
-    Cursor(StatsTable*);
+    explicit Cursor(StatsTable*);
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints&,
-               sqlite3_value**,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints&,
+                        sqlite3_value**,
+                        FilterHistory) override;
+    base::Status Next() override;
+    bool Eof() override;
+    base::Status Column(sqlite3_context*, int N) override;
 
    private:
     Cursor(Cursor&) = delete;
