@@ -60,6 +60,17 @@ CLEANUP_OLD_DIRS = [
     'buildtools/emsdk',  # Moved to buildtools/{mac,linux64}/emsdk
     'buildtools/test_data',  # Moved to test/data by r.android.com/1539381 .
     'buildtools/d8',  # Removed by r.android.com/1424334 .
+
+    # Build toools moved to third_party/ by r.android.com/2327602 .
+    'buildtools/mac/clang-format',
+    'buildtools/mac/gn',
+    'buildtools/mac/ninja',
+    'buildtools/linux64/clang-format',
+    'buildtools/linux64/gn',
+    'buildtools/linux64/ninja',
+    'buildtools/win/clang-format.exe',
+    'buildtools/win/gn.exe',
+    'buildtools/win/ninja.exe',
 ]
 
 # Dependencies required to build code on the host or when targeting desktop OS.
@@ -67,22 +78,22 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # GN. From https://chrome-infra-packages.appspot.com/dl/gn/gn/.
     # git_revision:0725d7827575b239594fbc8fd5192873a1d62f44 .
     Dependency(
-        'buildtools/mac/gn',
+        'third_party/gn/gn',
         'https://storage.googleapis.com/perfetto/gn-mac-1968-0725d782',
         '9ced623a664560bba38bbadb9b91158ca4186358c847e17ab7d982b351373c2e',
         'darwin', 'x64'),
     Dependency(
-        'buildtools/mac/gn',
+        'third_party/gn/gn',
         'https://storage.googleapis.com/perfetto/gn-mac-arm64-1968-0725d782',
         'd22336b5210b4dad5e36e8c28ce81187f491822cf4d8fd0a257b30d6bee3fd3f',
         'darwin', 'arm64'),
     Dependency(
-        'buildtools/linux64/gn',
+        'third_party/gn/gn',
         'https://storage.googleapis.com/perfetto/gn-linux64-1968-0725d782',
         'f706aaa0676e3e22f5fc9ca482295d7caee8535d1869f99efa2358177b64f5cd',
         'linux', 'x64'),
     Dependency(
-        'buildtools/win/gn.exe',
+        'third_party/gn/gn.exe',
         'https://storage.googleapis.com/perfetto/gn-win-1968-0725d782',
         '001f777f023c7a6959c778fb3a6b6cfc63f6baef953410ecdeaec350fb12285b',
         'windows', 'x64'),
@@ -90,19 +101,19 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
     # clang-format
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.sha1
     Dependency(
-        'buildtools/mac/clang-format',
+        'third_party/clang-format/clang-format',
         'https://storage.googleapis.com/chromium-clang-format/62bde1baa7196ad9df969fc1f06b66360b1a927b',
         '6df686a937443cbe6efc013467a7ba5f98d3f187eb7765bb7abc6ce47626cf66',
         'darwin', 'all'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
-        'buildtools/linux64/clang-format',
+        'third_party/clang-format/clang-format',
         'https://storage.googleapis.com/chromium-clang-format/1baf0089e895c989a311b6a38ed94d0e8be4c0a7',
         'd02a97a87e8c28898033aaf5986967b24dc47ebd5b376e1cd93e5009f22cd75e',
         'linux', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
     Dependency(
-        'buildtools/win/clang-format.exe',
+        'third_party/clang-format/clang-format.exe',
         'https://storage.googleapis.com/chromium-clang-format/d4afd4eba27022f5f6d518133aebde57281677c9',
         '2ba1b4d3ade90ea80316890b598ab5fc16777572be26afec6ce23117da121b80',
         'windows', 'x64'),
@@ -115,17 +126,17 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
 
     # Ninja
     Dependency(
-        'buildtools/mac/ninja',
+        'third_party/ninja/ninja',
         'https://storage.googleapis.com/perfetto/ninja-mac-x64_and_arm64-182',
         '36e8b7aaa06911e1334feb664dd731a1cd69a15eb916a231a3d10ff65fca2c73',
         'darwin', 'all'),
     Dependency(
-        'buildtools/linux64/ninja',
+        'third_party/ninja/ninja',
         'https://storage.googleapis.com/perfetto/ninja-linux64-182',
         '54ac6a01362190aaabf4cf276f9c8982cdf11b225438940fdde3339be0f2ecdc',
         'linux', 'x64'),
     Dependency(
-        'buildtools/win/ninja.exe',
+        'third_party/ninja/ninja.exe',
         'https://storage.googleapis.com/perfetto/ninja-win-182',
         '09ced0fcd1a4dec7d1b798a2cf9ce5d20e5d2fbc2337343827f192ce47d0f491',
         'windows', 'x64'),
@@ -458,16 +469,23 @@ def RmtreeIfExists(path):
 
   if not os.path.exists(path):
     return
+  third_party_path = os.path.abspath(os.path.join(ROOT_DIR, 'third_party'))
   buildtools_path = os.path.abspath(os.path.join(ROOT_DIR, 'buildtools'))
   test_path = os.path.abspath(os.path.join(ROOT_DIR, 'test', 'data'))
   if (not os.path.abspath(path).startswith(buildtools_path) and
-      not os.path.abspath(path).startswith(test_path)):
+      not os.path.abspath(path).startswith(test_path) and
+      not os.path.abspath(path).startswith(third_party_path)):
     # Safety check to prevent that some merge confilct ends up doing some
     # rm -rf / or similar.
-    logging.fatal('Cannot remove %s: outside of buildtools and test/data', path)
+    logging.fatal(
+        'Cannot remove %s: outside of {buildtools, test/data, third_party}',
+        path)
     sys.exit(1)
   logging.info('Removing %s' % path)
-  shutil.rmtree(path, onerror=del_read_only_for_windows)
+  if os.path.isdir(path):
+    shutil.rmtree(path, onerror=del_read_only_for_windows)
+  else:
+    os.remove(path)
 
 
 def CheckoutGitRepo(path, git_url, revision, check_only):
@@ -538,6 +556,21 @@ def CheckHashes():
             dep.source_url, dep.checksum, actual_checksum))
 
 
+def CheckDepotToolsIsRecent():
+  gn_py_path = shutil.which('gn.py')
+  if gn_py_path is None:
+    return True  # depot_tools doesn't seem to be installed in the PATH.
+  dt_dir = os.path.abspath(os.path.dirname(gn_py_path))
+  cmd = ['git', '-C', dt_dir, 'merge-base', '--is-ancestor', 'a0cf4321', 'HEAD']
+  git_ret = subprocess.call(cmd, stderr=subprocess.DEVNULL)
+  if git_ret == 0:
+    return True
+  print('\033[91mYour depot_tools revision is too old. Please run:\033[0m')
+  print('git -C %s fetch origin && git -C %s checkout -B main -t origin/main' %
+        (dt_dir, dt_dir))
+  return False
+
+
 def Main():
   parser = argparse.ArgumentParser()
   parser.add_argument(
@@ -567,6 +600,9 @@ def Main():
   target_os = system().lower()
   if args.ui and target_os == 'windows':
     print('Building the UI on Windows is unsupported')
+    return 1
+
+  if not CheckDepotToolsIsRecent():
     return 1
 
   deps = BUILD_DEPS_HOST
