@@ -22,6 +22,7 @@
 #include <bitset>
 #include <numeric>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -64,24 +65,24 @@ SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
 
 SqlStatsTable::Cursor::~Cursor() = default;
 
-int SqlStatsTable::Cursor::Filter(const QueryConstraints&,
-                                  sqlite3_value**,
-                                  FilterHistory) {
+base::Status SqlStatsTable::Cursor::Filter(const QueryConstraints&,
+                                           sqlite3_value**,
+                                           FilterHistory) {
   *this = Cursor(table_);
   num_rows_ = storage_->sql_stats().size();
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int SqlStatsTable::Cursor::Next() {
+base::Status SqlStatsTable::Cursor::Next() {
   row_++;
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int SqlStatsTable::Cursor::Eof() {
+bool SqlStatsTable::Cursor::Eof() {
   return row_ >= num_rows_;
 }
 
-int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
+base::Status SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
   const TraceStorage::SqlStats& stats = storage_->sql_stats();
   switch (col) {
     case Column::kQuery:
@@ -98,7 +99,7 @@ int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
       sqlite3_result_int64(context, stats.times_ended()[row_]);
       break;
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

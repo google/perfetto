@@ -290,6 +290,7 @@ SELECT
       FROM android_thread_slices_for_all_startups
       WHERE startup_id = launches.startup_id AND slice_name GLOB "VerifyClass *"
       ORDER BY slice_dur DESC
+      LIMIT 5
     ),
     'startup_concurrent_to_launch', (
       SELECT RepeatedField(package)
