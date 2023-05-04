@@ -10,6 +10,8 @@ v34.0 - 2023-05-02:
   Tracing service and probes:
     * --continuous-dump in tools/java_heap_dump now keeps recording until it
       receives CTRL+C.
+    * Add CLONE_SNAPSHOT triggers for non-destructive snapshots of the trace
+      buffer without tracing interruption.
   Trace Processor:
     *
   UI:
