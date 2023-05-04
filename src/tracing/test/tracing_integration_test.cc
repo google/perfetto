@@ -97,7 +97,7 @@ class MockConsumer : public Consumer {
   MOCK_METHOD(void, OnAttach, (bool, const TraceConfig&), (override));
   MOCK_METHOD(void, OnTraceStats, (bool, const TraceStats&), (override));
   MOCK_METHOD(void, OnObservableEvents, (const ObservableEvents&), (override));
-  MOCK_METHOD(void, OnSessionCloned, (bool, const std::string&), (override));
+  MOCK_METHOD(void, OnSessionCloned, (const OnSessionClonedArgs&), (override));
 
   // Workaround, gmock doesn't support yet move-only types, passing a pointer.
   void OnTraceData(std::vector<TracePacket> packets, bool has_more) {
