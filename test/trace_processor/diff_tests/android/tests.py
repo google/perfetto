@@ -111,6 +111,54 @@ class Android(TestSuite):
         """,
         out=Path('android_system_property_slice.out'))
 
+  def test_android_battery_stats_event_slices(self):
+    # The following has three events
+    # * top (123, mail) from 1000 to 9000 explicit
+    # * job (456, mail_job) starting at 3000 (end is inferred as trace end)
+    # * job (789, video_job) ending at 4000 (start is inferred as trace start)
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|+top=123:\"mail\"\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|+job=456:\"mail_job\"\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|-job=789:\"video_job\"\n"
+              }
+            }
+            event {
+              timestamp: 9000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|-top=123:\"mail\"\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_event_slices
+        ORDER BY str_value;
+        """,
+        out=Path('android_battery_stats_event_slices.out'))
+
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
