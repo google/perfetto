@@ -81,6 +81,7 @@ class ProfilingMetrics(TestSuite):
               obj_count: 6
               reachable_obj_count: 3
               anon_rss_and_swap_size: 4096000
+              oom_score_adj: 0
               roots {
                 root_type: "ROOT_JAVA_FRAME"
                 type_name: "DeobfuscatedA[]"
