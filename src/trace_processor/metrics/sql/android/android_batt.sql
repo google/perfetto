@@ -49,8 +49,16 @@ FROM (
 )
 GROUP BY group_id;
 
+DROP VIEW IF EXISTS suspend_slice_from_minimal;
+CREATE VIEW suspend_slice_from_minimal AS
+SELECT ts, dur
+FROM track t JOIN slice s ON s.track_id = t.id
+WHERE t.name = 'Suspend/Resume Minimal';
+
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
+SELECT ts, dur FROM suspend_slice_from_minimal
+UNION ALL
 SELECT
   ts,
   dur
@@ -62,7 +70,10 @@ JOIN
 WHERE
   track.name = 'Suspend/Resume Latency'
   AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
-  AND dur != -1;
+  AND dur != -1
+  AND NOT EXISTS(SELECT * FROM suspend_slice_from_minimal);
+
+DROP VIEW suspend_slice_from_minimal;
 
 SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'screen_state',
