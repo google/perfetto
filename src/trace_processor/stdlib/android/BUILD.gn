@@ -21,6 +21,7 @@ perfetto_sql_source_set("android") {
     "battery_stats.sql",
     "binder.sql",
     "monitor_contention.sql",
+    "network_packets.sql",
     "process_metadata.sql",
     "slices.sql",
   ]
