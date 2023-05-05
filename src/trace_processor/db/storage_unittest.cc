@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <numeric>
 #include "src/trace_processor/db/numeric_storage.h"
 
 #include "test/gtest_and_gmock.h"
@@ -49,14 +50,30 @@ TEST(StorageUnittest, StableSort) {
 }
 
 TEST(StorageUnittest, CompareSlow) {
-  std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  uint32_t size = 10;
+  std::vector<uint32_t> data_vec(size);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), ColumnType::kUint32);
-  BitVector::Builder builder(10);
-  storage.CompareSlow(FilterOp::kGe, SqlValue::Long(5), data_vec.data(), 10,
+  BitVector::Builder builder(size);
+  storage.CompareSlow(FilterOp::kGe, SqlValue::Long(5), data_vec.data(), size,
                       builder);
   BitVector bv = std::move(builder).Build();
 
   ASSERT_EQ(bv.CountSetBits(), 5u);
+  ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
+}
+
+TEST(StorageUnittest, CompareSlowLarge) {
+  uint32_t size = 1025;
+  std::vector<uint32_t> data_vec(size);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), ColumnType::kUint32);
+  BitVector::Builder builder(size);
+  storage.CompareSlow(FilterOp::kGe, SqlValue::Long(5), data_vec.data(), size,
+                      builder);
+  BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.CountSetBits(), 1020u);
   ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
 }
 
