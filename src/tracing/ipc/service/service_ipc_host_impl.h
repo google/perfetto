@@ -33,7 +33,8 @@ class Host;
 // producer_ipc_service.cc and consumer_ipc_service.cc.
 class ServiceIPCHostImpl : public ServiceIPCHost {
  public:
-  ServiceIPCHostImpl(base::TaskRunner*);
+  explicit ServiceIPCHostImpl(base::TaskRunner*,
+                              TracingService::InitOpts init_opts = {});
   ~ServiceIPCHostImpl() override;
 
   // ServiceIPCHost implementation.
@@ -51,6 +52,7 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   void Shutdown();
 
   base::TaskRunner* const task_runner_;
+  const TracingService::InitOpts init_opts_;
   std::unique_ptr<TracingService> svc_;  // The service business logic.
 
   // The IPC host that listens on the Producer socket. It owns the
