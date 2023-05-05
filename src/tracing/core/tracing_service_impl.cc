@@ -16,9 +16,6 @@
 
 #include "src/tracing/core/tracing_service_impl.h"
 
-#include "perfetto/base/build_config.h"
-#include "perfetto/tracing/core/forward_decls.h"
-
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
@@ -304,15 +301,18 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
 // static
 std::unique_ptr<TracingService> TracingService::CreateInstance(
     std::unique_ptr<SharedMemory::Factory> shm_factory,
-    base::TaskRunner* task_runner) {
+    base::TaskRunner* task_runner,
+    InitOpts init_opts) {
   return std::unique_ptr<TracingService>(
-      new TracingServiceImpl(std::move(shm_factory), task_runner));
+      new TracingServiceImpl(std::move(shm_factory), task_runner, init_opts));
 }
 
 TracingServiceImpl::TracingServiceImpl(
     std::unique_ptr<SharedMemory::Factory> shm_factory,
-    base::TaskRunner* task_runner)
+    base::TaskRunner* task_runner,
+    InitOpts init_opts)
     : task_runner_(task_runner),
+      init_opts_(init_opts),
       shm_factory_(std::move(shm_factory)),
       uid_(base::GetCurrentUserId()),
       buffer_ids_(kMaxTraceBufferID),
@@ -854,6 +854,17 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     tracing_session->write_period_ms = write_period_ms;
     tracing_session->max_file_size_bytes = cfg.max_file_size_bytes();
     tracing_session->bytes_written_into_file = 0;
+  }
+
+  if (!cfg.compress_from_cli() &&
+      cfg.compression_type() == TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+    if (init_opts_.compressor_fn) {
+      tracing_session->compress_deflate = true;
+    } else {
+      PERFETTO_LOG(
+          "COMPRESSION_TYPE_DEFLATE is not supported in the current build "
+          "configuration. Skipping compression");
+    }
   }
 
   // Initialize the log buffers.
@@ -2327,6 +2338,8 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
 
   MaybeFilterPackets(tracing_session, &packets);
 
+  MaybeCompressPackets(tracing_session, &packets);
+
   if (!*has_more) {
     // We've observed some extremely high memory usage by scudo after
     // MaybeFilterPackets in the past. The original bug (b/195145848) is fixed
@@ -2377,6 +2390,16 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
                               filtered_packet.size, kMaxTracePacketSliceSize,
                               &packet);
   }
+}
+
+void TracingServiceImpl::MaybeCompressPackets(
+    TracingSession* tracing_session,
+    std::vector<TracePacket>* packets) {
+  if (!tracing_session->compress_deflate) {
+    return;
+  }
+
+  init_opts_.compressor_fn(packets);
 }
 
 bool TracingServiceImpl::WriteIntoFile(TracingSession* tracing_session,

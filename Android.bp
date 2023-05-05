@@ -593,6 +593,7 @@ cc_library_shared {
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
         ":perfetto_src_tracing_core_service",
+        ":perfetto_src_tracing_core_zlib_compressor",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_default_socket",
         ":perfetto_src_tracing_ipc_producer_producer",
@@ -660,10 +661,19 @@ cc_library_shared {
     defaults: [
         "perfetto_defaults",
     ],
+    cflags: [
+        "-DZLIB_IMPLEMENTATION",
+    ],
     target: {
         android: {
             shared_libs: [
                 "liblog",
+                "libz",
+            ],
+        },
+        host: {
+            static_libs: [
+                "libz",
             ],
         },
     },
@@ -11301,6 +11311,15 @@ filegroup {
         "src/tracing/core/trace_packet_unittest.cc",
         "src/tracing/core/trace_writer_impl_unittest.cc",
         "src/tracing/core/tracing_service_impl_unittest.cc",
+        "src/tracing/core/zlib_compressor_unittest.cc",
+    ],
+}
+
+// GN: //src/tracing/core:zlib_compressor
+filegroup {
+    name: "perfetto_src_tracing_core_zlib_compressor",
+    srcs: [
+        "src/tracing/core/zlib_compressor.cc",
     ],
 }
 
@@ -12117,6 +12136,7 @@ cc_test {
         ":perfetto_src_tracing_core_service",
         ":perfetto_src_tracing_core_test_support",
         ":perfetto_src_tracing_core_unittests",
+        ":perfetto_src_tracing_core_zlib_compressor",
         ":perfetto_src_tracing_ipc_common",
         ":perfetto_src_tracing_ipc_consumer_consumer",
         ":perfetto_src_tracing_ipc_default_socket",
