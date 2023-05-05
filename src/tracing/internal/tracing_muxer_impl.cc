@@ -1164,7 +1164,8 @@ void TracingMuxerImpl::RegisterInterceptor(
         }
         // Only allow certain interceptors for now.
         if (descriptor.name() != "test_interceptor" &&
-            descriptor.name() != "console") {
+            descriptor.name() != "console" &&
+            descriptor.name() != "etwexport") {
           PERFETTO_ELOG(
               "Interceptors are experimental. If you want to use them, please "
               "get in touch with the project maintainers "
