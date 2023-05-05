@@ -1,5 +1,9 @@
 Unreleased:
   Tracing service and probes:
+    * Compression has been moved from perfetto_cmd to traced. Now compression is
+      supported even with write_into_file. The `compress_from_cli` config option
+      can be used to restore the old behavior.
+  Trace Processor:
     *
   UI:
     *

@@ -799,8 +799,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       packet_writer_ = CreateFilePacketWriter(trace_out_stream_.get());
   }
 
-  if (trace_config_->compression_type() ==
-      TraceConfig::COMPRESSION_TYPE_DEFLATE) {
+  // TODO(b/281043457): this code path will go away after Android U. Compression
+  // has been moved to the service. This code is here only as a fallback in case
+  // of bugs in the U timeframe.
+  if (trace_config_->compress_from_cli() &&
+      trace_config_->compression_type() ==
+          TraceConfig::COMPRESSION_TYPE_DEFLATE) {
     if (packet_writer_) {
 #if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
       packet_writer_ = CreateZipPacketWriter(std::move(packet_writer_));
