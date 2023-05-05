@@ -21,8 +21,9 @@ import("../../gn/test.gni")
 # tracing, acting as a Consumer.
 executable("perfetto") {
   deps = [
-    ":perfetto_cmd",
+    "../../:libperfetto",
     "../../gn:default_deps",
+    "../../include/perfetto/ext/traced",
   ]
   sources = [ "main.cc" ]
 }

@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
 #include "src/perfetto_cmd/perfetto_cmd.h"
 
 #include <sys/sendfile.h>
@@ -187,3 +192,5 @@ base::ScopedFile PerfettoCmd::CreateUnlinkedTmpFile() {
 }
 
 }  // namespace perfetto
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
