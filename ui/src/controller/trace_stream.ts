@@ -15,7 +15,7 @@
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 
-const SLICE_SIZE = 32 * 1024 * 1024;
+export const TRACE_SLICE_SIZE = 32 * 1024 * 1024;
 
 // The object returned by TraceStream.readChunk() promise.
 export interface TraceChunk {
@@ -62,7 +62,7 @@ export class TraceFileStream implements TraceStream {
   }
 
   readChunk(): Promise<TraceChunk> {
-    const sliceEnd = Math.min(this.bytesRead + SLICE_SIZE, this.traceFile.size);
+    const sliceEnd = Math.min(this.bytesRead + TRACE_SLICE_SIZE, this.traceFile.size);
     const slice = this.traceFile.slice(this.bytesRead, sliceEnd);
     this.pendingRead = defer<TraceChunk>();
     this.reader.readAsArrayBuffer(slice);
@@ -82,7 +82,7 @@ export class TraceBufferStream implements TraceStream {
 
   readChunk(): Promise<TraceChunk> {
     assertTrue(this.bytesRead <= this.traceBuf.byteLength);
-    const len = Math.min(SLICE_SIZE, this.traceBuf.byteLength - this.bytesRead);
+    const len = Math.min(TRACE_SLICE_SIZE, this.traceBuf.byteLength - this.bytesRead);
     const data = new Uint8Array(this.traceBuf.slice(this.bytesRead, this.bytesRead + len));
     this.bytesRead += len;
     return Promise.resolve({
