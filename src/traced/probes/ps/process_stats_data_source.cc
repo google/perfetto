@@ -96,6 +96,7 @@ ProcessStatsDataSource::ProcessStatsDataSource(
   record_thread_names_ = cfg.record_thread_names();
   dump_all_procs_on_start_ = cfg.scan_all_processes_on_start();
   resolve_process_fds_ = cfg.resolve_process_fds();
+  scan_smaps_rollup_ = cfg.scan_smaps_rollup();
 
   enable_on_demand_dumps_ = true;
   for (auto quirk = cfg.quirks(); quirk; ++quirk) {
@@ -495,6 +496,11 @@ void ProcessStatsDataSource::WriteAllProcessStats() {
     if (proc_status.empty())
       continue;
 
+    if (scan_smaps_rollup_) {
+      std::string proc_smaps_rollup = ReadProcPidFile(pid, "smaps_rollup");
+      proc_status.append(proc_smaps_rollup);
+    }
+
     if (!WriteMemCounters(pid, proc_status)) {
       // If WriteMemCounters() fails the pid is very likely a kernel thread
       // that has a valid /proc/[pid]/status but no memory values. In this
@@ -605,6 +611,38 @@ bool ProcessStatsDataSource::WriteMemCounters(int32_t pid,
         if (counter != cached.vm_swap_kb) {
           GetOrCreateStatsProcess(pid)->set_vm_swap_kb(counter);
           cached.vm_swap_kb = counter;
+        }
+      // The entries below come from smaps_rollup, WriteAllProcessStats merges
+      // everything into the same buffer for convenience.
+      } else if (strcmp(key.data(), "Rss") == 0) {
+         auto counter = ToU32(value.data());
+        if (counter != cached.smr_rss_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_rss_kb(counter);
+          cached.smr_rss_kb = counter;
+        }
+      } else if (strcmp(key.data(), "Pss") == 0) {
+         auto counter = ToU32(value.data());
+        if (counter != cached.smr_pss_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_pss_kb(counter);
+          cached.smr_pss_kb = counter;
+        }
+      } else if (strcmp(key.data(), "Pss_Anon") == 0) {
+         auto counter = ToU32(value.data());
+        if (counter != cached.smr_pss_anon_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_pss_anon_kb(counter);
+          cached.smr_pss_anon_kb = counter;
+        }
+      } else if (strcmp(key.data(), "Pss_File") == 0) {
+         auto counter = ToU32(value.data());
+        if (counter != cached.smr_pss_file_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_pss_file_kb(counter);
+          cached.smr_pss_file_kb = counter;
+        }
+      } else if (strcmp(key.data(), "Pss_Shmem") == 0) {
+         auto counter = ToU32(value.data());
+        if (counter != cached.smr_pss_shmem_kb) {
+          GetOrCreateStatsProcess(pid)->set_smr_pss_shmem_kb(counter);
+          cached.smr_pss_shmem_kb = counter;
         }
       }
 
