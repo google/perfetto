@@ -833,6 +833,7 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
+  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   // TODO(primiano): add CPU cost for change this value.
   optional uint32 proc_stats_poll_ms = 4;
@@ -861,6 +862,10 @@ message ProcessStatsConfig {
   // new fds opened after initially scanning a process will not be
   // recognized.
   optional bool resolve_process_fds = 9;
+
+  // If enabled memory stats from /proc/pid/smaps_rollup will be included
+  // in process stats.
+  optional bool scan_smaps_rollup = 10;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -11241,6 +11246,13 @@ message ProcessStats {
     optional uint32 chrome_peak_resident_set_kb = 14;
 
     repeated FDInfo fds = 15;
+
+    // These fields are set only when scan_smaps_rollup=true
+    optional uint64 smr_rss_kb = 16;
+    optional uint64 smr_pss_kb = 17;
+    optional uint64 smr_pss_anon_kb = 18;
+    optional uint64 smr_pss_file_kb = 19;
+    optional uint64 smr_pss_shmem_kb = 20;
   }
   repeated Process processes = 1;
 
