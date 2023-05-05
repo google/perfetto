@@ -71,6 +71,7 @@
 #include "protos/perfetto/trace/ftrace/signal.pbzero.h"
 #include "protos/perfetto/trace/ftrace/skb.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sock.pbzero.h"
+#include "protos/perfetto/trace/ftrace/synthetic.pbzero.h"
 #include "protos/perfetto/trace/ftrace/systrace.pbzero.h"
 #include "protos/perfetto/trace/ftrace/task.pbzero.h"
 #include "protos/perfetto/trace/ftrace/tcp.pbzero.h"
@@ -232,6 +233,10 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cpu_idle_name_id_(context->storage->InternString("cpuidle")),
       suspend_resume_name_id_(
           context->storage->InternString("Suspend/Resume Latency")),
+      suspend_resume_minimal_name_id_(
+          context->storage->InternString("Suspend/Resume Minimal")),
+      suspend_resume_minimal_slice_name_id_(
+          context->storage->InternString("Suspended")),
       kfree_skb_name_id_(context->storage->InternString("Kfree Skb IP Prot")),
       ion_total_id_(context->storage->InternString("mem.ion")),
       ion_change_id_(context->storage->InternString("mem.ion_change")),
@@ -868,6 +873,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kSuspendResumeFieldNumber: {
         ParseSuspendResume(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kSuspendResumeMinimalFieldNumber: {
+        ParseSuspendResumeMinimal(ts, fld_bytes);
         break;
       }
       case FtraceEvent::kDrmVblankEventFieldNumber:
@@ -2922,6 +2931,26 @@ void FtraceParser::ParseSuspendResume(int64_t timestamp,
   context_->slice_tracker->Begin(timestamp, start_id, suspend_resume_name_id_,
                                  slice_name_id);
   ongoing_suspend_resume_actions[current_action] = true;
+}
+
+void FtraceParser::ParseSuspendResumeMinimal(int64_t timestamp,
+                                             protozero::ConstBytes blob) {
+  protos::pbzero::SuspendResumeMinimalFtraceEvent::Decoder evt(blob.data,
+                                                               blob.size);
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      suspend_resume_minimal_name_id_);
+
+  if (evt.start()) {
+    TrackId start_id = context_->async_track_set_tracker->Begin(
+        async_track, static_cast<int64_t>(0));
+    context_->slice_tracker->Begin(timestamp, start_id,
+                                   suspend_resume_minimal_name_id_,
+                                   suspend_resume_minimal_slice_name_id_);
+  } else {
+    TrackId end_id = context_->async_track_set_tracker->End(
+        async_track, static_cast<int64_t>(0));
+    context_->slice_tracker->End(timestamp, end_id);
+  }
 }
 
 void FtraceParser::ParseSchedCpuUtilCfs(int64_t timestamp,
