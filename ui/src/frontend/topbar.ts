@@ -242,14 +242,18 @@ class TraceErrorIcon implements m.ClassComponent {
     if (!errors && !globals.metricError || mode === COMMAND) return;
     const message = errors ? `${errors} import or data loss errors detected.` :
                              `Metric error detected.`;
-    return m(
-        'a.error',
-        {href: '#!/info'},
-        m('i.material-icons',
-          {
-            title: message + ` Click for more info.`,
-          },
-          'announcement'));
+    const icon = m(
+      'i.material-icons',
+      {
+        title: message + ` Click for more info.`
+      },
+      'announcement');
+
+    if (globals.viewOpener) {
+      const viewOpener = globals.viewOpener;
+      return m('button.error', {onclick: () => viewOpener('#!/info')}, icon);
+    }
+    return m('a.error', {href: '#!/info'}, icon);
   }
 }
 
