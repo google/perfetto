@@ -17,6 +17,8 @@ import m from 'mithril';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
+import {EngineProxy} from '../common/engine';
+import {runQuery} from '../common/queries';
 import {timeToCode} from '../common/time';
 
 import {FlowPoint, globals, SliceDetails} from './globals';
@@ -52,6 +54,29 @@ const ITEMS: ContextMenuItem[] = [
          ORDER BY client_dur DESC`,
         'Binder by TXN',
         ),
+  },
+  {
+    name: 'Binder call names',
+    shouldDisplay: () => true,
+    getAction: (slice: SliceDetails) => {
+      const engine = getEngine();
+      if (engine === undefined) return;
+      runQuery(`SELECT IMPORT('android.binder');`, engine)
+          .then(
+              () => runQueryInNewTab(
+                  `
+                SELECT s.ts, s.dur, tx.aidl_name AS name, s.id
+                FROM android_sync_binder_metrics_by_txn tx
+                  JOIN slice s ON tx.binder_txn_id = s.id
+                  JOIN thread_track ON s.track_id = thread_track.id
+                  JOIN thread USING (utid)
+                  JOIN process USING (upid)
+                WHERE aidl_name IS NOT NULL
+                  AND pid = ${slice.pid}
+                  AND tid = ${slice.tid}`,
+                  `Binder names (${slice.processName}:${slice.tid})`,
+                  ));
+    },
   },
   {
     name: 'Lock graph',
@@ -108,6 +133,15 @@ function getSliceContextMenuItems(slice: SliceDetails): PopupMenuItem[] {
       callback: () => item.getAction(slice),
     };
   });
+}
+
+function getEngine(): EngineProxy|undefined {
+  const engineId = globals.getCurrentEngine()?.id;
+  if (engineId === undefined) {
+    return undefined;
+  }
+  const engine = globals.engines.get(engineId)?.getProxy('SlicePanel');
+  return engine;
 }
 
 // Table row contents is one of two things:
