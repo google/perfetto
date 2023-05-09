@@ -95,7 +95,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         `.track-shell[draggable=true]`,
         {
           class: `${highlightClass} ${dragClass} ${dropClass}`,
-          onmousedown: this.onmousedown.bind(this),
           ondragstart: this.ondragstart.bind(this),
           ondragend: this.ondragend.bind(this),
           ondragover: this.ondragover.bind(this),
@@ -145,12 +144,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               ''));
   }
 
-  onmousedown(e: MouseEvent) {
-    // Prevent that the click is intercepted by the PanAndZoomHandler and that
-    // we start panning while dragging.
-    e.stopPropagation();
-  }
-
   ondragstart(e: DragEvent) {
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
@@ -158,7 +151,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     globals.rafScheduler.scheduleFullRedraw();
     dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
     dataTransfer.setDragImage(new Image(), 0, 0);
-    e.stopImmediatePropagation();
   }
 
   ondragend() {
