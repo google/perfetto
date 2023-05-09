@@ -175,4 +175,28 @@ android_blocking_calls_cuj_metric {
       min_dur_ms: 10
     }
   }
+  cuj {
+    id: 6
+    name: "WITH_NAMED_BINDER_TRANSACTION"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+    }
+    ts: 40000000
+    dur: 10000000
+    blocking_calls {
+      name: "AIDL::java::IWindowManager::hasNavigationBar::server"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "binder transaction"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+  }
 }
