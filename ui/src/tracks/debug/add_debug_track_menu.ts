@@ -109,7 +109,7 @@ export class AddDebugTrackMenu implements
             FormButtonBar,
             m(Button, {
               label: 'Show',
-              className: 'pf-close-parent-popup-on-click',
+              dismissPopup: true,
               onclick: (e: Event) => {
                 e.preventDefault();
                 addDebugTrack(
