@@ -48,12 +48,16 @@ export class Tree implements m.ClassComponent<TreeAttrs> {
 }
 
 interface TreeNodeAttrs {
-  // Content to display on the left hand column.
+  // Content to display in the left hand column.
   // If omitted, this side will be blank.
   left?: m.Child;
-  // Content to display on the right hand column.
+  // Content to display in the right hand column.
   // If omitted, this side will be left blank.
   right?: m.Child;
+  // Content to display in the right hand column when the node is collapsed.
+  // If omitted, the value of `right` shall be shown when collapsed instead.
+  // If the node has no children, this value is never shown.
+  summary?: m.Child;
   // Whether this node is collapsed or not.
   // If omitted, collapsed state 'uncontrolled' - i.e. controlled internally.
   collapsed?: boolean;
@@ -86,8 +90,13 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
     );
   }
 
-  private renderRight({attrs: {right}}: m.CVnode<TreeNodeAttrs>) {
-    return m('.pf-tree-right', right);
+  private renderRight(vnode: m.CVnode<TreeNodeAttrs>) {
+    const {attrs: {right, summary}} = vnode;
+    if (hasChildren(vnode) && this.collapsed) {
+      return m('.pf-tree-right', summary ?? right);
+    } else {
+      return m('.pf-tree-right', right);
+    }
   }
 
   private renderChildren(vnode: m.CVnode<TreeNodeAttrs>) {
