@@ -65,9 +65,6 @@ export interface PopupAttrs {
   isOpen?: boolean;
   // Called when the popup isOpen state should be changed in controlled mode.
   onChange?: OnChangeCallback;
-  // Close the popup if clicked on.
-  // Defaults to false.
-  closeOnContentClick?: boolean;
   // Space delimited class names applied to the popup div.
   className?: string;
   // Whether to show a little arrow pointing to our trigger element.
@@ -90,6 +87,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
+  static readonly DISMISS_POPUP_CLASS = 'pf-dismiss-popup';
 
   view({attrs, children}: m.CVnode<PopupAttrs>): m.Children {
     const {
@@ -242,8 +240,17 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   };
 
   private handleContentClick = (e: Event) => {
+    // Close the popup if the clicked element:
+    // - Is a direct descendant of this popup
+    // - Has the magic class
     const target = e.target as HTMLElement;
-    if (target.closest('.pf-close-parent-popup-on-click')) {
+    const childPopup = this.popupElement?.querySelector('.pf-popup');
+    if (childPopup) {
+      if (childPopup.contains(target)) {
+        return;
+      }
+    }
+    if (target.closest(`.${Popup.DISMISS_POPUP_CLASS}`)) {
       this.closePopup();
     }
   };
