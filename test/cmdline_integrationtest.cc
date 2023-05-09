@@ -81,6 +81,13 @@ TraceConfig CreateTraceConfigForBugreportTest() {
   return trace_config;
 }
 
+class ScopedFileRemove {
+ public:
+  explicit ScopedFileRemove(const std::string& path) : path_(path) {}
+  ~ScopedFileRemove() { remove(path_.c_str()); }
+  std::string path_;
+};
+
 class PerfettoCmdlineTest : public ::testing::Test {
  public:
   void SetUp() override {
@@ -141,6 +148,7 @@ class PerfettoCmdlineTest : public ::testing::Test {
                         bool check_original_trace = true,
                         bool use_explicit_clone = false) {
     const std::string path = RandomTraceFileName();
+    ScopedFileRemove remove_on_test_exit(path);
 
     auto perfetto_proc = ExecPerfetto(
         {
@@ -367,6 +375,7 @@ TEST_F(PerfettoCmdlineTest, StartTracingTrigger) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "-o",
@@ -461,6 +470,7 @@ TEST_F(PerfettoCmdlineTest, StopTracingTrigger) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "-o",
@@ -565,6 +575,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(NoDataNoFileWithoutTrigger)) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "--dropbox",
@@ -619,6 +630,7 @@ TEST_F(PerfettoCmdlineTest, StopTracingTriggerFromConfig) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "-o",
@@ -722,6 +734,7 @@ TEST_F(PerfettoCmdlineTest, TriggerFromConfigStopsFileOpening) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   std::string triggers = R"(
     activate_triggers: "trigger_name_2"
     activate_triggers: "trigger_name"
@@ -785,6 +798,7 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "-o",
@@ -864,6 +878,7 @@ TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
   // (could deadlock) to fork after we've spawned some threads which might
   // printf (and thus hold locks).
   const std::string path = RandomTraceFileName();
+  ScopedFileRemove remove_on_test_exit(path);
   auto perfetto_proc = ExecPerfetto(
       {
           "-o",
@@ -943,6 +958,15 @@ TEST_F(PerfettoCmdlineTest, Clone) {
   TraceConfig trace_config = CreateTraceConfigForBugreportTest();
   RunBugreportTest(std::move(trace_config), /*check_original_trace=*/true,
                    /*use_explicit_clone=*/true);
+}
+
+// Regression test for b/279753347 .
+TEST_F(PerfettoCmdlineTest, UnavailableBugreportLeavesNoEmptyFiles) {
+  ScopedFileRemove remove_on_test_exit(GetBugreportTracePath());
+  Exec perfetto_br_proc = ExecPerfetto({"--save-for-bugreport"});
+  StartServiceIfRequiredNoNewExecsAfterThis();
+  perfetto_br_proc.Run(&stderr_);
+  ASSERT_FALSE(base::FileExists(GetBugreportTracePath()));
 }
 
 // Tests that SaveTraceForBugreport() works also if the trace has triggers
