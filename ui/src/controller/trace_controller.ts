@@ -39,6 +39,7 @@ import {
 } from '../frontend/globals';
 import {showModal} from '../frontend/modal';
 import {
+  clearOverviewData,
   publishFtraceCounters,
   publishMetricError,
   publishOverviewData,
@@ -610,6 +611,8 @@ export class TraceController extends Controller<States> {
   }
 
   private async loadTimelineOverview(traceTime: TimeSpan) {
+    clearOverviewData();
+
     const engine = assertExists<Engine>(this.engine);
     const numSteps = 100;
     const stepSec = traceTime.duration / numSteps;
