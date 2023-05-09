@@ -17,6 +17,10 @@ import("perfetto.gni")
 template("perfetto_tp_tables") {
   config_name = target_name + "_config"
   action_name = target_name
+  relative_args = [
+    "--relative-input-dir",
+    rebase_path(perfetto_root_path, root_build_dir),
+  ]
 
   config(config_name) {
     include_dirs = [ root_gen_dir ]
@@ -32,15 +36,17 @@ template("perfetto_tp_tables") {
     }
 
     deps = [ "$perfetto_root_path/python:trace_processor_table_generator" ]
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
     public_configs = [ ":$config_name" ]
 
     gen_args = [
       "--gen-dir",
-      rebase_path("$root_gen_dir", root_build_dir),
+      rebase_path("$root_gen_dir/$perfetto_root_path", root_build_dir),
     ]
     input_args = [ "--inputs" ] + rebase_path(invoker.sources, root_build_dir)
-    output_args = [ "--outputs" ] + rebase_path(outputs, root_build_dir)
-    args = gen_args + input_args + output_args
+    args = gen_args + input_args + relative_args
 
     metadata = {
       perfetto_action_type_for_generator = [ "tp_tables" ]
@@ -56,7 +62,7 @@ template("perfetto_tp_tables") {
       deps = [ "$perfetto_root_path/python:trace_processor_table_generator" ]
       outputs = [ "$target_gen_dir/$docs_name.json" ]
       args = [ "--out" ] + rebase_path(outputs, root_build_dir) +
-             rebase_path(invoker.sources, root_build_dir)
+             rebase_path(invoker.sources, root_build_dir) + relative_args
     }
   }
 }

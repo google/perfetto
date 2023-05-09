@@ -19,23 +19,14 @@
 #include <optional>
 
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace tables {
-
-#define PERFETTO_TP_ANNOTATED_CALLSTACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(ExperimentalAnnotatedCallstackTable,                        \
-       "experimental_annotated_callstack")                         \
-  PARENT(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF, C)                \
-  C(StringId, annotation)                                          \
-  C(tables::StackProfileCallsiteTable::Id, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_ANNOTATED_CALLSTACK_TABLE_DEF);
 
 ExperimentalAnnotatedCallstackTable::~ExperimentalAnnotatedCallstackTable() =
     default;

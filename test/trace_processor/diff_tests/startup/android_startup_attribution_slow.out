@@ -45,6 +45,10 @@ android_startup {
         dur_ns: 50000000000
         dur_ms: 50000
       }
+      time_dex_open_thread_main {
+        dur_ns: 20000000000
+        dur_ms: 20000.0
+      }
     }
     activity_hosting_process_count: 1
     process {
@@ -73,9 +77,21 @@ android_startup {
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }
+    verify_class {
+      name: "vr"
+      dur_ns: 30000000000
+    }
+    verify_class {
+      name: "vp"
+      dur_ns: 5000000000
+    }
+    verify_class {
+      name: "dl"
+      dur_ns: 5000000000
+    }
     startup_type: "hot"
-    slow_start_reason: "JIT Activity"
     slow_start_reason: "GC Activity"
+    slow_start_reason: "JIT Activity"
     slow_start_reason: "JIT compiled methods"
   }
 }

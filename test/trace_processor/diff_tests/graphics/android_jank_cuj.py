@@ -31,9 +31,14 @@ SF_PID = 1050
 # RenderEngine thread
 SF_RETID = 1055
 
+PROCESS_TRACK = 1234
+FIRST_CUJ_TRACK = 321
+SHADE_CUJ_TRACK = 654
+CANCELED_CUJ_TRACK = 987
 
-def add_main_thread_instant(trace, ts, buf):
-  trace.add_atrace_instant(ts=ts, tid=PID, pid=PID, buf=buf)
+def add_instant_for_track(trace, ts, track, name):
+  trace.add_track_event_slice(ts=ts, dur=0, track=track, name=name)
+
 
 def add_main_thread_atrace(trace, ts, ts_end, buf):
   trace.add_atrace_begin(ts=ts, tid=PID, pid=PID, buf=buf)
@@ -88,10 +93,14 @@ def add_frame(trace,
               ts_draw_frame,
               ts_end_draw_frame,
               ts_gpu=None,
-              ts_end_gpu=None):
+              ts_end_gpu=None,
+              resync=False):
   add_main_thread_atrace(trace, ts_do_frame, ts_end_do_frame,
                          "Choreographer#doFrame %d" % vsync)
-
+  if resync:
+    add_main_thread_atrace(trace, ts_do_frame, ts_end_do_frame,
+                           "Choreographer#doFrame - resynced to %d in 0.0s"
+                           % (vsync+1))
   gpu_idx = 1000 + vsync * 10 + 1
   if ts_gpu is None:
     gpu_fence_message = "GPU completion fence %d has signaled"
@@ -108,14 +117,13 @@ def add_frame(trace,
 
 
 def add_sf_frame(trace,
-                 vsync,
-                 ts_commit,
-                 ts_end_commit,
-                 ts_composite,
-                 ts_end_composite,
-                 ts_compose_surfaces=None,
-                 ts_end_compose_surfaces=None):
-
+    vsync,
+    ts_commit,
+    ts_end_commit,
+    ts_composite,
+    ts_end_composite,
+    ts_compose_surfaces=None,
+    ts_end_compose_surfaces=None):
   add_sf_main_thread_atrace(trace, ts_commit, ts_end_commit,
                             "commit %d" % vsync)
   add_sf_main_thread_atrace_begin(trace, ts_composite, "composite %d" % vsync)
@@ -160,13 +168,13 @@ def add_actual_display_frame_events(ts, dur, token, cookie=None, jank=None):
 
 
 def add_actual_surface_frame_events(ts,
-                                    dur,
-                                    token,
-                                    cookie=None,
-                                    jank=None,
-                                    on_time_finish_override=None,
-                                    display_frame_token_override=None,
-                                    layer_name=LAYER):
+    dur,
+    token,
+    cookie=None,
+    jank=None,
+    on_time_finish_override=None,
+    display_frame_token_override=None,
+    layer_name=LAYER):
   if cookie is None:
     cookie = token + 1
   jank_type = jank if jank is not None else 1
@@ -208,17 +216,32 @@ trace.add_thread(
     tid=JITID, tgid=PID, cmdline="Jit thread pool", name="Jit thread pool")
 trace.add_thread(
     tid=SF_RETID, tgid=SF_PID, cmdline="RenderEngine", name="RenderEngine")
+trace.add_process_track_descriptor(PROCESS_TRACK, pid=PID)
+trace.add_track_descriptor(FIRST_CUJ_TRACK, parent=PROCESS_TRACK)
+trace.add_track_descriptor(SHADE_CUJ_TRACK, parent=PROCESS_TRACK)
+trace.add_track_descriptor(CANCELED_CUJ_TRACK, parent=PROCESS_TRACK)
+trace.add_track_event_slice_begin(ts=5, track=FIRST_CUJ_TRACK,
+                                  name="J<FIRST_CUJ>")
+trace.add_track_event_slice_end(ts=100_000_000, track=FIRST_CUJ_TRACK)
+trace.add_track_event_slice_begin(ts=10, track=SHADE_CUJ_TRACK,
+                                  name="J<SHADE_ROW_EXPAND>")
+trace.add_track_event_slice_end(ts=901_000_010, track=SHADE_CUJ_TRACK)
+add_instant_for_track(trace, ts=11, track=SHADE_CUJ_TRACK, name="FT#layerId#0")
+add_instant_for_track(
+    trace,
+    ts=950_100_000,
+    track=SHADE_CUJ_TRACK,
+    name="FT#MissedHWUICallback#150")
+add_instant_for_track(
+    trace,
+    ts=950_100_000,
+    track=SHADE_CUJ_TRACK,
+    name="FT#MissedSFCallback#150")
+
+trace.add_track_event_slice_begin(
+    ts=100_100_000, track=CANCELED_CUJ_TRACK, name="J<CANCELED>")
+trace.add_track_event_slice_end(ts=999_000_000, track=CANCELED_CUJ_TRACK)
 trace.add_ftrace_packet(cpu=0)
-trace.add_atrace_async_begin(ts=5, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
-trace.add_atrace_async_begin(ts=10, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
-add_main_thread_instant(trace, ts=11, buf="J<SHADE_ROW_EXPAND>#FT#layerId#0")
-trace.add_atrace_async_end(
-    ts=100_000_000, tid=PID, pid=PID, buf="J<FIRST_CUJ>")
-trace.add_atrace_async_begin(
-    ts=100_100_000, tid=PID, pid=PID, buf="J<CANCELED>")
-trace.add_atrace_async_end(
-    ts=901_000_010, tid=PID, pid=PID, buf="J<SHADE_ROW_EXPAND>")
-trace.add_atrace_async_end(ts=999_000_000, tid=PID, pid=PID, buf="J<CANCELED>")
 
 trace.add_atrace_counter(
     ts=150_000_000,
@@ -296,7 +319,8 @@ add_frame(
     ts_draw_frame=4_000_000,
     ts_end_draw_frame=5_000_000,
     ts_gpu=10_000_000,
-    ts_end_gpu=15_000_000)
+    ts_end_gpu=15_000_000,
+    resync=True)
 add_main_thread_atrace(
     trace, ts=1_500_000, ts_end=2_000_000, buf="binder transaction")
 add_render_thread_atrace(
@@ -585,7 +609,6 @@ add_frame(
     ts_gpu=None,
     ts_end_gpu=None)
 
-
 # Actual timeline slice starts 0.5ms after doFrame
 add_frame(
     trace,
@@ -621,7 +644,8 @@ add_frame(
     ts_gpu=1_400_000_000,
     ts_end_gpu=1_500_000_000)
 
-add_main_thread_instant(trace, ts=990_000_000, buf="J<CANCELED>#FT#cancel#0")
+add_instant_for_track(trace, ts=990_000_000, track=CANCELED_CUJ_TRACK,
+                      name="FT#cancel#0")
 
 add_expected_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
 add_actual_display_frame_events(ts=1_000_000_000, dur=16_000_000, token=10)
@@ -683,7 +707,8 @@ add_expected_surface_frame_events(ts=300_000_000, dur=20_000_000, token=110)
 add_actual_surface_frame_events(ts=300_000_000, cookie=112, dur=61_000_000,
                                 token=110)
 add_actual_surface_frame_events(ts=300_000_000, cookie=114, dur=80_000_000,
-                                token=110, jank=64, layer_name="TX - JankyLayer#1")
+                                token=110, jank=64,
+                                layer_name="TX - JankyLayer#1")
 
 add_expected_surface_frame_events(ts=400_000_000, dur=20_000_000, token=120)
 add_actual_surface_frame_events(

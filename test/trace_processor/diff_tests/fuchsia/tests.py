@@ -231,3 +231,27 @@ class Fuchsia(TestSuite):
         "Update time(ms)",21
         "Vsync interval",900
         """))
+
+  def test_fuchsia_args_import(self):
+    return DiffTestBlueprint(
+        trace=DataPath('fuchsia_events_and_args.fxt'),
+        query="""
+        SELECT key,int_value,string_value,real_value,value_type,display_value
+        FROM args
+        LIMIT 12;
+        """,
+        out=Csv("""
+        "key","int_value","string_value","real_value","value_type","display_value"
+        "SomeNullArg","[NULL]","null","[NULL]","string","null"
+        "Someuint32",2145,"[NULL]","[NULL]","int","2145"
+        "Someuint64",423621626134123415,"[NULL]","[NULL]","int","423621626134123415"
+        "Someint32",-7,"[NULL]","[NULL]","int","-7"
+        "Someint64",-234516543631231,"[NULL]","[NULL]","int","-234516543631231"
+        "Somedouble","[NULL]","[NULL]",3.141500,"real","3.1415"
+        "ping","[NULL]","pong","[NULL]","string","pong"
+        "somepointer",3285933758964,"[NULL]","[NULL]","pointer","0x2fd10ea19f4"
+        "someotherpointer",43981,"[NULL]","[NULL]","pointer","0xabcd"
+        "somekoid",18,"[NULL]","[NULL]","int","18"
+        "somebool",1,"[NULL]","[NULL]","bool","true"
+        "someotherbool",0,"[NULL]","[NULL]","bool","false"
+        """))

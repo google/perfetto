@@ -28,6 +28,11 @@ perfetto_cc_proto_descriptor("gen_cc_all_chrome_metrics_descriptor") {
   descriptor_target = "../../../protos/perfetto/metrics/chrome:descriptor"
 }
 
+perfetto_cc_proto_descriptor("gen_cc_all_webview_metrics_descriptor") {
+  descriptor_name = "all_webview_metrics.descriptor"
+  descriptor_target = "../../../protos/perfetto/metrics/webview:descriptor"
+}
+
 source_set("metrics") {
   sources = [
     "metrics.cc",
@@ -47,6 +52,7 @@ source_set("metrics") {
   ]
   public_deps = [
     ":gen_cc_all_chrome_metrics_descriptor",
+    ":gen_cc_all_webview_metrics_descriptor",
     ":gen_cc_metrics_descriptor",
     "../util",
     "../util:descriptors",

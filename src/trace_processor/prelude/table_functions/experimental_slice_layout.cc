@@ -20,11 +20,13 @@
 
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace tables {
+
 ExperimentalSliceLayoutTable::~ExperimentalSliceLayoutTable() = default;
 }
 

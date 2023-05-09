@@ -128,7 +128,8 @@ export function toPbtxt(configBuffer: Uint8Array): string {
     return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
         value.startsWith('STAT_') || value.startsWith('LID_') ||
         value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
-        value === 'RING_BUFFER';
+        value === 'RING_BUFFER' || value === 'BACKGROUND' ||
+        value === 'USER_INITIATED';
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -139,9 +140,10 @@ export function toPbtxt(configBuffer: Uint8Array): string {
   function is64BitNumber(key: string): boolean {
     return [
       'maxFileSizeBytes',
+      'pid',
       'samplingIntervalBytes',
       'shmemSizeBytes',
-      'pid',
+      'timestampUnitMultiplier',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
@@ -414,7 +416,7 @@ export class RecordController extends Controller<'main'> implements Consumer {
       _callback: RPCImplCallback) {
     try {
       const state = globals.state;
-      // TODO(hjd): This is a bit weird. We implicity send each RPC message to
+      // TODO(hjd): This is a bit weird. We implicitly send each RPC message to
       // whichever target is currently selected (creating that target if needed)
       // it would be nicer if the setup/teardown was more explicit.
       const target = await this.getTargetController(state.recordingTarget);

@@ -50,11 +50,11 @@ cuj_state_markers AS (
   SELECT
     cujs.cuj_id,
     CASE
-      WHEN cuj_state_marker.name GLOB '*#FT#begin*' THEN 'begin'
-      WHEN cuj_state_marker.name GLOB '*#FT#deferMonitoring*' THEN 'deferMonitoring'
-      WHEN cuj_state_marker.name GLOB '*#FT#end*' THEN 'end'
-      WHEN cuj_state_marker.name GLOB '*#FT#cancel*' THEN 'cancel'
-      WHEN cuj_state_marker.name GLOB '*#FT#layerId*' THEN 'layerId'
+      WHEN cuj_state_marker.name GLOB '*FT#begin*' THEN 'begin'
+      WHEN cuj_state_marker.name GLOB '*FT#deferMonitoring*' THEN 'deferMonitoring'
+      WHEN cuj_state_marker.name GLOB '*FT#end*' THEN 'end'
+      WHEN cuj_state_marker.name GLOB '*FT#cancel*' THEN 'cancel'
+      WHEN cuj_state_marker.name GLOB '*FT#layerId*' THEN 'layerId'
     ELSE 'other'
     END AS marker_type,
     cuj_state_marker.name as marker_name
@@ -62,8 +62,11 @@ cuj_state_markers AS (
   LEFT JOIN slice cuj_state_marker
     ON cuj_state_marker.ts >= cujs.ts
       AND cuj_state_marker.ts < cujs.ts_end
-      -- e.g. J<CUJ_NAME>#FT#end#0
-      AND cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
+  LEFT JOIN track marker_track on marker_track.id = cuj_state_marker.track_id
+  WHERE
+    -- e.g. J<CUJ_NAME>#FT#end#0 this for backward compatibility
+    cuj_state_marker.name GLOB (cujs.cuj_slice_name || "#FT#*")
+    OR (marker_track.name = cuj_slice_name and cuj_state_marker.name GLOB 'FT#*')
 )
 SELECT
   cujs.*,
@@ -87,7 +90,19 @@ SELECT
     FROM cuj_state_markers csm
     WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*layerId#*'
     LIMIT 1
-  ) AS layer_id
+  ) AS layer_id,
+  (
+    SELECT CAST(STR_SPLIT(csm.marker_name, 'beginVsync#', 1) AS INTEGER)
+    FROM cuj_state_markers csm
+    WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*beginVsync#*'
+    LIMIT 1
+  ) AS begin_vsync,
+  (
+    SELECT CAST(STR_SPLIT(csm.marker_name, 'endVsync#', 1) AS INTEGER)
+    FROM cuj_state_markers csm
+    WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*endVsync#*'
+    LIMIT 1
+  ) AS end_vsync
 FROM cujs
 WHERE
   state != 'canceled'

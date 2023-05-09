@@ -545,12 +545,13 @@ void HeapprofdProducer::StartDataSource(DataSourceInstanceID id,
   const auto continuous_dump_config = heapprofd_config.continuous_dump_config();
   uint32_t dump_interval = continuous_dump_config.dump_interval_ms();
   if (dump_interval) {
+    data_source.dump_interval_ms = dump_interval;
     auto weak_producer = weak_factory_.GetWeakPtr();
     task_runner_->PostDelayedTask(
-        [weak_producer, id, dump_interval] {
+        [weak_producer, id] {
           if (!weak_producer)
             return;
-          weak_producer->DoContinuousDump(id, dump_interval);
+          weak_producer->DoDrainAndContinuousDump(id);
         },
         continuous_dump_config.dump_phase_ms());
   }
@@ -632,21 +633,56 @@ void HeapprofdProducer::ShutdownDataSource(DataSource* data_source) {
       data_source->stop_timeout_ms);
 }
 
-void HeapprofdProducer::DoContinuousDump(DataSourceInstanceID id,
-                                         uint32_t dump_interval) {
+void HeapprofdProducer::DoDrainAndContinuousDump(DataSourceInstanceID id) {
   auto it = data_sources_.find(id);
   if (it == data_sources_.end())
     return;
   DataSource& data_source = it->second;
-  DumpProcessesInDataSource(&data_source);
+  PERFETTO_DCHECK(data_source.pending_free_drains == 0);
+
+  for (auto& [pid, process_state] : data_source.process_states) {
+    UnwinderForPID(pid).PostDrainFree(data_source.id, pid);
+    data_source.pending_free_drains++;
+  }
+
+  // In case there are no pending free drains, dump immediately.
+  DoContinuousDump(&data_source);
+}
+
+void HeapprofdProducer::DoContinuousDump(DataSource* ds) {
+  if (ds->pending_free_drains != 0) {
+    return;
+  }
+
+  DumpProcessesInDataSource(ds);
+  auto id = ds->id;
   auto weak_producer = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
-      [weak_producer, id, dump_interval] {
+      [weak_producer, id] {
         if (!weak_producer)
           return;
-        weak_producer->DoContinuousDump(id, dump_interval);
+        weak_producer->DoDrainAndContinuousDump(id);
       },
-      dump_interval);
+      ds->dump_interval_ms);
+}
+
+void HeapprofdProducer::PostDrainDone(UnwindingWorker*,
+                                      DataSourceInstanceID ds_id) {
+  auto weak_this = weak_factory_.GetWeakPtr();
+  task_runner_->PostTask([weak_this, ds_id] {
+    if (weak_this)
+      weak_this->DrainDone(ds_id);
+  });
+}
+
+void HeapprofdProducer::DrainDone(DataSourceInstanceID ds_id) {
+  auto it = data_sources_.find(ds_id);
+  if (it == data_sources_.end()) {
+    return;
+  }
+  DataSource& data_source = it->second;
+  data_source.pending_free_drains--;
+  DoContinuousDump(&data_source);
 }
 
 // static

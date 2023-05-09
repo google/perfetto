@@ -113,7 +113,6 @@ const METRICS = [
   'android_dma_heap',
   'android_surfaceflinger',
   'android_batt',
-  'android_camera',
   'android_other_traces',
   'chrome_dropped_frames',
   'chrome_long_latency',
@@ -486,7 +485,7 @@ export class TraceController extends Controller<States> {
       // Pull out the counts ftrace events by name
       const query = `select
             name,
-            count(*) as cnt
+            count(name) as cnt
           from ftrace_event
           group by name
           order by cnt desc`;

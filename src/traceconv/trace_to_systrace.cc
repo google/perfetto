@@ -33,9 +33,6 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/traceconv/utils.h"
 
-#define FILTER_RAW_EVENTS \
-  " where not (name like \"chrome_event.%\" or name like \"track_event.%\")"
-
 namespace perfetto {
 namespace trace_to_text {
 
@@ -168,8 +165,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
                      Keep truncate_keep) {
   using trace_processor::Iterator;
 
-  static const char kRawEventsCountSql[] =
-      "select count(1) from raw" FILTER_RAW_EVENTS;
+  static const char kRawEventsCountSql[] = "select count(1) from ftrace_event";
   uint32_t raw_events = 0;
   auto e_callback = [&raw_events](Iterator* it, base::StringWriter*) {
     raw_events = static_cast<uint32_t>(it->Get(0).long_value);
@@ -235,7 +231,7 @@ int ExtractRawEvents(TraceWriter* trace_writer,
   const uint32_t max_ftrace_events = (140 * 1024 * 1024) / 130;
 
   static const char kRawEventsQuery[] =
-      "select to_ftrace(id) from raw" FILTER_RAW_EVENTS;
+      "select to_ftrace(id) from ftrace_event";
 
   // 1. Write the appropriate header for the file type.
   if (wrapped_in_json) {

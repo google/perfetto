@@ -103,22 +103,19 @@ class SqliteTable : public sqlite3_vtab {
     // Methods to be implemented by derived table classes.
 
     // Called to intialise the cursor with the constraints of the query.
-    virtual int Filter(const QueryConstraints& qc,
-                       sqlite3_value**,
-                       FilterHistory) = 0;
+    virtual base::Status Filter(const QueryConstraints& qc,
+                                sqlite3_value**,
+                                FilterHistory) = 0;
 
     // Called to forward the cursor to the next row in the table.
-    virtual int Next() = 0;
+    virtual base::Status Next() = 0;
 
     // Called to check if the cursor has reached eof. Column will be called iff
     // this method returns true.
-    virtual int Eof() = 0;
+    virtual bool Eof() = 0;
 
     // Used to extract the value from the column at index |N|.
-    virtual int Column(sqlite3_context* context, int N) = 0;
-
-    // Optional methods to implement.
-    virtual int RowId(sqlite3_int64*);
+    virtual base::Status Column(sqlite3_context* context, int N) = 0;
 
    protected:
     Cursor(Cursor&) = delete;
@@ -129,6 +126,10 @@ class SqliteTable : public sqlite3_vtab {
 
    private:
     friend class SqliteTable;
+
+    int SetStatusAndReturn(base::Status status) {
+      return table_->SetStatusAndReturn(status);
+    }
 
     SqliteTable* table_ = nullptr;
   };
@@ -185,31 +186,54 @@ class SqliteTable : public sqlite3_vtab {
     int64_t estimated_rows = 0;
   };
 
-  template <typename Context>
-  struct TableDescriptor {
-    SqliteTable::Factory<Context> factory;
-    Context context;
-    sqlite3_module module = {};
+  struct RegistrationFlags {
+    // Specifies whether the table can also be written to.
+    bool writable = false;
+
+    enum TableType {
+      // A table which automatically exists in the main schema and cannot be
+      // created with CREATE VIRTUAL TABLE.
+      // Note: the name value here matches the naming in the vtable docs of
+      // SQLite.
+      kEponymousOnly,
+
+      // A table which automatically exists in the main schema and can also be
+      // created with CREATE VIRTUAL TABLE.
+      // Note: the name value here matches the naming in the vtable docs of
+      // SQLite.
+      kEponymous,
+
+      // A table which must be explicitly created using a CREATE VIRTUAL TABLE
+      // statement (i.e. does exist automatically) but does not have any
+      // backing state beyond the arguments passed to it.
+      kExplicitCreateStateless,
+    };
+    TableType type = TableType::kEponymousOnly;
+
+    // Whether the table requires some number of hidden constraints to be passed
+    // to be able to the queried (i.e. a SELECT * FROM table would not work).
+    bool requires_hidden_constraints = false;
   };
 
   SqliteTable();
 
   // Called by derived classes to register themselves with the SQLite db.
-  // |read_write| specifies whether the table can also be written to.
-  // |requires_args| should be true if the table requires arguments in order to
-  // be instantiated.
   // Note: this function is inlined here because we use the TTable template to
   // devirtualise the function calls.
   template <typename TTable, typename Context = const TraceStorage*>
   static void Register(sqlite3* db,
                        Context ctx,
                        const std::string& module_name,
-                       bool read_write = false,
-                       bool requires_args = false) {
+                       RegistrationFlags flags) {
     using TCursor = typename TTable::Cursor;
 
-    std::unique_ptr<TableDescriptor<Context>> desc(
-        new TableDescriptor<Context>());
+    struct TableDescriptor {
+      SqliteTable::Factory<Context> factory;
+      Context context;
+      sqlite3_module module = {};
+    };
+
+    std::unique_ptr<TableDescriptor> desc(new TableDescriptor());
     desc->context = std::move(ctx);
     desc->factory = GetFactory<TTable, Context>();
     sqlite3_module* module = &desc->module;
@@ -218,7 +242,7 @@ class SqliteTable : public sqlite3_vtab {
     auto create_fn = [](sqlite3* xdb, void* arg, int argc,
                         const char* const* argv, sqlite3_vtab** tab,
                         char** pzErr) {
-      auto* xdesc = static_cast<TableDescriptor<Context>*>(arg);
+      auto* xdesc = static_cast<TableDescriptor*>(arg);
       auto table = xdesc->factory(xdb, std::move(xdesc->context));
 
       // SQLite guarantees that argv[0] will be the "module" name: this is the
@@ -256,12 +280,25 @@ class SqliteTable : public sqlite3_vtab {
       return SQLITE_OK;
     };
 
-    module->xCreate = create_fn;
+    switch (flags.type) {
+      case RegistrationFlags::kEponymousOnly:
+        module->xCreate = nullptr;
+        break;
+      case RegistrationFlags::kEponymous:
+        module->xCreate = create_fn;
+        break;
+      case RegistrationFlags::kExplicitCreateStateless:
+        // TODO(lalitm): this is not accurate as we're basically creating an
+        // eponymous table. Change this to be a different function once we can
+        // do so easily.
+        module->xCreate = create_fn;
+        break;
+    }
     module->xConnect = create_fn;
     module->xDisconnect = destroy_fn;
     module->xDestroy = destroy_fn;
     module->xOpen = [](sqlite3_vtab* t, sqlite3_vtab_cursor** c) {
-      return static_cast<TTable*>(t)->OpenInternal(c);
+      return static_cast<SqliteTable*>(t)->OpenInternal(c);
     };
     module->xClose = [](sqlite3_vtab_cursor* c) {
       delete static_cast<TCursor*>(c);
@@ -272,24 +309,28 @@ class SqliteTable : public sqlite3_vtab {
     };
     module->xFilter = [](sqlite3_vtab_cursor* vc, int i, const char* s, int a,
                          sqlite3_value** v) {
-      auto* c = static_cast<Cursor*>(vc);
-      bool is_cached = c->table_->ReadConstraints(i, s, a);
+      bool is_cached =
+          static_cast<Cursor*>(vc)->table_->ReadConstraints(i, s, a);
 
       auto history = is_cached ? Cursor::FilterHistory::kSame
                                : Cursor::FilterHistory::kDifferent;
-      return static_cast<TCursor*>(c)->Filter(c->table_->qc_cache_, v, history);
+      auto* cursor = static_cast<TCursor*>(vc);
+      return cursor->SetStatusAndReturn(cursor->Filter(
+          static_cast<Cursor*>(vc)->table_->qc_cache_, v, history));
     };
     module->xNext = [](sqlite3_vtab_cursor* c) {
-      return static_cast<TCursor*>(c)->Next();
+      auto* cursor = static_cast<TCursor*>(c);
+      return cursor->SetStatusAndReturn(cursor->Next());
     };
     module->xEof = [](sqlite3_vtab_cursor* c) {
-      return static_cast<TCursor*>(c)->Eof();
+      return static_cast<int>(static_cast<TCursor*>(c)->Eof());
     };
     module->xColumn = [](sqlite3_vtab_cursor* c, sqlite3_context* a, int b) {
-      return static_cast<TCursor*>(c)->Column(a, b);
+      auto* cursor = static_cast<TCursor*>(c);
+      return cursor->SetStatusAndReturn(cursor->Column(a, b));
     };
-    module->xRowid = [](sqlite3_vtab_cursor* c, sqlite3_int64* r) {
-      return static_cast<TCursor*>(c)->RowId(r);
+    module->xRowid = [](sqlite3_vtab_cursor*, sqlite3_int64*) {
+      return SQLITE_ERROR;
     };
     module->xFindFunction =
         [](sqlite3_vtab* t, int, const char* name,
@@ -297,23 +338,26 @@ class SqliteTable : public sqlite3_vtab {
           return static_cast<TTable*>(t)->FindFunction(name, fn, args);
         };
 
-    if (read_write) {
+    if (flags.writable) {
       module->xUpdate = [](sqlite3_vtab* t, int a, sqlite3_value** v,
                            sqlite3_int64* r) {
-        return static_cast<TTable*>(t)->Update(a, v, r);
+        auto* table = static_cast<TTable*>(t);
+        return table->SetStatusAndReturn(table->Update(a, v, r));
       };
     }
 
     int res = sqlite3_create_module_v2(
         db, module_name.c_str(), module, desc.release(),
-        [](void* arg) { delete static_cast<TableDescriptor<Context>*>(arg); });
+        [](void* arg) { delete static_cast<TableDescriptor*>(arg); });
     PERFETTO_CHECK(res == SQLITE_OK);
 
     // Register virtual tables into an internal 'perfetto_tables' table. This is
     // used for iterating through all the tables during a database export. Note
-    // that virtual tables requiring arguments aren't registered because they
-    // can't be automatically instantiated for exporting.
-    if (!requires_args) {
+    // that virtual tables which requires explicit CREATE statements or require
+    // hidden constraints cannot be inserted.
+    bool explicit_create =
+        flags.type == RegistrationFlags::kExplicitCreateStateless;
+    if (!explicit_create && !flags.requires_hidden_constraints) {
       char* insert_sql =
           sqlite3_mprintf("INSERT INTO perfetto_tables(name) VALUES('%q')",
                           module_name.c_str());
@@ -334,16 +378,11 @@ class SqliteTable : public sqlite3_vtab {
 
   // Optional metods to implement.
   using FindFunctionFn = void (*)(sqlite3_context*, int, sqlite3_value**);
-  virtual int ModifyConstraints(QueryConstraints* qc);
+  virtual base::Status ModifyConstraints(QueryConstraints* qc);
   virtual int FindFunction(const char* name, FindFunctionFn* fn, void** args);
 
   // At registration time, the function should also pass true for |read_write|.
-  virtual int Update(int, sqlite3_value**, sqlite3_int64*);
-
-  void SetErrorMessage(char* error) {
-    sqlite3_free(zErrMsg);
-    zErrMsg = error;
-  }
+  virtual base::Status Update(int, sqlite3_value**, sqlite3_int64*);
 
   const Schema& schema() const { return schema_; }
   const std::string& module_name() const { return module_name_; }
@@ -362,6 +401,15 @@ class SqliteTable : public sqlite3_vtab {
   // Overriden functions from sqlite3_vtab.
   int OpenInternal(sqlite3_vtab_cursor**);
   int BestIndexInternal(sqlite3_index_info*);
+
+  int SetStatusAndReturn(base::Status status) {
+    if (!status.ok()) {
+      sqlite3_free(zErrMsg);
+      zErrMsg = sqlite3_mprintf("%s", status.c_message());
+      return SQLITE_ERROR;
+    }
+    return SQLITE_OK;
+  }
 
   SqliteTable(const SqliteTable&) = delete;
   SqliteTable& operator=(const SqliteTable&) = delete;

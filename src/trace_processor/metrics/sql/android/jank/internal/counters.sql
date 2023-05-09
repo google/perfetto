@@ -51,6 +51,30 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+DROP TABLE IF EXISTS cuj_marker_missed_callback;
+CREATE TABLE cuj_marker_missed_callback AS
+SELECT
+  marker_track.name AS cuj_slice_name,
+  marker.ts,
+  marker.name AS marker_name
+FROM slice marker
+JOIN track marker_track on  marker_track.id = marker.track_id
+WHERE marker.name GLOB '*FT#Missed*';
+
+SELECT CREATE_FUNCTION(
+   'ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name STRING, ts_min INT, ts_max INT, callback_missed STRING)',
+   'INT',
+   '
+   SELECT IFNULL(SUM(marker_name GLOB $callback_missed), 0)
+   FROM cuj_marker_missed_callback
+   WHERE
+     cuj_slice_name = $cuj_slice_name
+     AND ts >= $ts_min
+     AND ($ts_max IS NULL OR ts <= $ts_max)
+   ORDER BY ts ASC LIMIT 1
+   '
+);
+
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.
@@ -60,6 +84,7 @@ WITH cujs_ordered AS (
   SELECT
     cuj_id,
     cuj_name,
+    cuj_slice_name,
     upid,
     state,
     ts_end,
@@ -83,5 +108,7 @@ SELECT
   ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
   ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
   -- convert ms to nanos to align with the unit for `dur` in the other tables
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max
+  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
+  ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,
+  ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*HWUI*') AS hwui_callback_missed_frames
 FROM cujs_ordered cuj;

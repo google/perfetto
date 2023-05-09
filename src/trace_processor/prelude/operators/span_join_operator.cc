@@ -24,6 +24,7 @@
 #include <utility>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -110,17 +111,14 @@ SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
 
 void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
                                           const TraceStorage* storage) {
-  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
+  RegistrationFlags flags;
+  flags.type = RegistrationFlags::kExplicitCreateStateless;
 
+  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join", flags);
   SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
-
+                                               flags);
   SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
-                                               /* read_write */ false,
-                                               /* requires_args */ true);
+                                               flags);
 }
 
 util::Status SpanJoinOperatorTable::Init(int argc,
@@ -411,9 +409,9 @@ SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
 
-base::Status SpanJoinOperatorTable::Cursor::FilterInner(
-    const QueryConstraints& qc,
-    sqlite3_value** argv) {
+base::Status SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
+                                                   sqlite3_value** argv,
+                                                   FilterHistory) {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SPAN_JOIN_XFILTER");
 
   bool t1_partitioned_mixed =
@@ -435,7 +433,7 @@ base::Status SpanJoinOperatorTable::Cursor::FilterInner(
   return FindOverlappingSpan();
 }
 
-base::Status SpanJoinOperatorTable::Cursor::NextInner() {
+base::Status SpanJoinOperatorTable::Cursor::Next() {
   RETURN_IF_ERROR(next_query_->Next());
   return FindOverlappingSpan();
 }
@@ -556,11 +554,12 @@ SpanJoinOperatorTable::Cursor::FindEarliestFinishQuery() {
   return t1_less ? &t1_ : &t2_;
 }
 
-int SpanJoinOperatorTable::Cursor::Eof() {
+bool SpanJoinOperatorTable::Cursor::Eof() {
   return t1_.IsEof() || t2_.IsEof();
 }
 
-int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
+base::Status SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context,
+                                                   int N) {
   PERFETTO_DCHECK(t1_.IsReal() || t2_.IsReal());
 
   switch (N) {
@@ -598,7 +597,7 @@ int SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
         t2_.ReportSqliteResult(context, locator.col_index);
     }
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 SpanJoinOperatorTable::Query::Query(SpanJoinOperatorTable* table,

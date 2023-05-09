@@ -460,7 +460,7 @@ $bottom-tab-padding: 10px;
 .scrolling-panel-container {
   position: relative;
   overflow-x: hidden;
-  overflow-y: auto;
+  overflow-y: scroll; // Always show vertical scrollbar
   flex: 1 1 auto;
   will-change: transform; // Force layer creation.
   display: grid;

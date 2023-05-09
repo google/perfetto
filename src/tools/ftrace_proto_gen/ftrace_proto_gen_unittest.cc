@@ -56,6 +56,10 @@ TEST(FtraceEventParserTest, InferProtoType) {
   EXPECT_EQ(InferProtoType(Field{"char foo", 0, 0, false}).ToString(),
             "string");
 
+  EXPECT_EQ(InferProtoType(Field{"bool foo", 0, 8, true}).ToString(), "uint32");
+  EXPECT_EQ(InferProtoType(Field{"bool foo", 0, 8, false}).ToString(),
+            "uint32");
+
   EXPECT_EQ(
       InferProtoType(Field{"unsigned long args[6]", 0, 0, false}).ToString(),
       "uint64");

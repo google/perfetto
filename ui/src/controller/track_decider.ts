@@ -265,20 +265,21 @@ class TrackDecider {
 
   async addGlobalAsyncTracks(engine: EngineProxy): Promise<void> {
     const rawGlobalAsyncTracks = await engine.query(`
-      with global_tracks as materialized (
+      with tracks_with_slices as materialized (
+        select distinct track_id
+        from slice
+      ),
+      global_tracks as (
         select
           track.parent_id as parent_id,
           track.id as track_id,
-          track.name as name,
-          count(1) cnt
+          track.name as name
         from track
-        join slice on slice.track_id = track.id
+        join tracks_with_slices on tracks_with_slices.track_id = track.id
         where
           track.type = "track"
           or track.type = "gpu_track"
           or track.type = "cpu_track"
-        group by track_id
-        having cnt > 0
       ),
       global_tracks_grouped as (
         select
@@ -402,45 +403,6 @@ class TrackDecider {
           },
         });
       }
-    }
-  }
-
-  async addGlobalCounterTracks(engine: EngineProxy): Promise<void> {
-    // Add global or GPU counter tracks that are not bound to any pid/tid.
-    const globalCounters = await engine.query(`
-    select name, id
-    from (
-      select name, id
-      from counter_track
-      where type = 'counter_track'
-      union
-      select name, id
-      from gpu_counter_track
-      where name != 'gpufreq'
-    )
-    order by name
-  `);
-
-    const it = globalCounters.iter({
-      name: STR,
-      id: NUM,
-    });
-
-    for (; it.valid(); it.next()) {
-      const name = it.name;
-      const trackId = it.id;
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind: COUNTER_TRACK_KIND,
-        name,
-        trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
-          name,
-          trackId,
-          scale: getCounterScale(name),
-        },
-      });
     }
   }
 
@@ -720,15 +682,12 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select
-            cpu,
-            count(*) as cnt
+    const query = `select distinct cpu
           from ftrace_event
-          where cpu + 1 > 1 or utid + 1 > 1
-          group by cpu`;
+          where cpu + 1 > 1 or utid + 1 > 1`;
 
     const result = await engine.query(query);
-    const it = result.iter({cpu: NUM, cnt: NUM});
+    const it = result.iter({cpu: NUM});
 
     let groupUuid = undefined;
     let summaryTrackId = undefined;

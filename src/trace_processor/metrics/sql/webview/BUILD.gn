@@ -18,5 +18,8 @@ import("../../../../../gn/perfetto_sql.gni")
 assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_sql_source_set("webview") {
-  sources = [ "webview_power_usage.sql" ]
+  sources = [
+    "webview_jank_approximation.sql",
+    "webview_power_usage.sql",
+  ]
 }

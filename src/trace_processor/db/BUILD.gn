@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
 
 source_set("db") {
@@ -19,10 +20,19 @@ source_set("db") {
     "base_id.h",
     "column.cc",
     "column.h",
+    "column_overlay.h",
     "column_storage.cc",
     "column_storage.h",
     "column_storage_overlay.h",
     "compare.h",
+    "null_overlay.h",
+    "numeric_storage.cc",
+    "numeric_storage.h",
+    "sorting_overlay.h",
+    "storage.cc",
+    "storage.h",
+    "storage_overlay.h",
+    "storage_variants.h",
     "table.cc",
     "table.h",
     "typed_column.h",
@@ -40,16 +50,21 @@ source_set("db") {
   ]
 }
 
+perfetto_tp_tables("view_unittest") {
+  sources = [ "view_unittest.py" ]
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
-    "table_unittest.cc",
+    "storage_unittest.cc",
     "view_unittest.cc",
   ]
   deps = [
     ":db",
+    ":view_unittest",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../base",

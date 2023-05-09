@@ -277,16 +277,16 @@ void SystraceParser::ParseSystracePoint(
         // once the UI has support for displaying instants.
       } else if (point.name == "ScreenState") {
         // Promote ScreenState to its own top level counter.
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
+        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+            TrackTracker::Group::kDeviceState, screen_state_id_);
         context_->event_tracker->PushCounter(
             ts, static_cast<double>(point.int_value), track);
         return;
       } else if (point.name.StartsWith("battery_stats.")) {
         // Promote battery_stats conters to global tracks.
         StringId name_id = context_->storage->InternString(point.name);
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(name_id);
+        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+            TrackTracker::Group::kPower, name_id);
         context_->event_tracker->PushCounter(
             ts, static_cast<double>(point.int_value), track);
         return;
