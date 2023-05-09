@@ -26,37 +26,6 @@ namespace trace_processor {
 namespace column {
 
 namespace {
-// As we don't template those functions, we need to use std::visitor to type
-// `start`, hence this wrapping.
-inline uint32_t UpperBoundIndex(NumericValue val,
-                                const void* start,
-                                uint32_t num_elements) {
-  return std::visit(
-      [start, num_elements](auto val_data) {
-        using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(start);
-        auto upper =
-            std::upper_bound(typed_start, typed_start + num_elements, val_data);
-        return static_cast<uint32_t>(std::distance(typed_start, upper));
-      },
-      val);
-}
-
-// As we don't template those functions, we need to use std::visitor to type
-// `start`, hence this wrapping.
-inline uint32_t LowerBoundIndex(NumericValue val,
-                                const void* start,
-                                uint32_t num_elements) {
-  return std::visit(
-      [start, num_elements](auto val_data) {
-        using T = decltype(val_data);
-        const T* typed_start = static_cast<const T*>(start);
-        auto upper =
-            std::lower_bound(typed_start, typed_start + num_elements, val_data);
-        return static_cast<uint32_t>(std::distance(typed_start, upper));
-      },
-      val);
-}
 
 // Templated part of FastPathComparison.
 template <typename T>
@@ -127,9 +96,10 @@ void NumericStorage::StableSort(std::vector<uint32_t>& out) const {
 // Responsible for invoking templated version of FastPathComparison.
 void NumericStorage::CompareFast(FilterOp op,
                                  SqlValue sql_val,
-                                 const void* start,
+                                 uint32_t offset,
                                  uint32_t num_elements,
                                  BitVector::Builder& builder) const {
+  PERFETTO_DCHECK(num_elements % BitVector::kBitsInWord == 0);
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
 
   // If the value is invalid we should just ignore those elements.
@@ -139,9 +109,9 @@ void NumericStorage::CompareFast(FilterOp op,
     return;
   }
   std::visit(
-      [op, start, num_elements, &builder](auto num_val) {
+      [this, op, offset, num_elements, &builder](auto num_val) {
         using T = decltype(num_val);
-        auto* typed_start = static_cast<const T*>(start);
+        auto* typed_start = static_cast<const T*>(data_) + offset;
         TypedFastPathComparison(num_val, op, typed_start, num_elements,
                                 builder);
       },
@@ -151,7 +121,7 @@ void NumericStorage::CompareFast(FilterOp op,
 // Responsible for invoking templated version of SlowPathComparison.
 void NumericStorage::CompareSlow(FilterOp op,
                                  SqlValue sql_val,
-                                 const void* start,
+                                 uint32_t offset,
                                  uint32_t num_elements,
                                  BitVector::Builder& builder) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
@@ -164,18 +134,42 @@ void NumericStorage::CompareSlow(FilterOp op,
   }
 
   std::visit(
-      [op, start, num_elements, &builder](auto val) {
+      [this, op, offset, num_elements, &builder](auto val) {
         using T = decltype(val);
-        auto* typed_start = static_cast<const T*>(start);
+        auto* typed_start = static_cast<const T*>(data_) + offset;
         TypedSlowPathComparison(val, op, typed_start, num_elements, builder);
       },
       *val);
 }
 
+uint32_t NumericStorage::UpperBoundIndex(NumericValue val) const {
+  return std::visit(
+      [this](auto val_data) {
+        using T = decltype(val_data);
+        const T* typed_start = static_cast<const T*>(data_);
+        auto upper =
+            std::upper_bound(typed_start, typed_start + size_, val_data);
+        return static_cast<uint32_t>(std::distance(typed_start, upper));
+      },
+      val);
+}
+
+// As we don't template those functions, we need to use std::visitor to type
+// `start`, hence this wrapping.
+uint32_t NumericStorage::LowerBoundIndex(NumericValue val) const {
+  return std::visit(
+      [this](auto val_data) {
+        using T = decltype(val_data);
+        const T* typed_start = static_cast<const T*>(data_);
+        auto lower =
+            std::lower_bound(typed_start, typed_start + size_, val_data);
+        return static_cast<uint32_t>(std::distance(typed_start, lower));
+      },
+      val);
+}
+
 void NumericStorage::CompareSorted(FilterOp op,
                                    SqlValue sql_val,
-                                   const void* start,
-                                   uint32_t num_elements,
                                    RowMap& rm) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (!val.has_value() || op == FilterOp::kIsNotNull ||
@@ -186,33 +180,33 @@ void NumericStorage::CompareSorted(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq: {
-      uint32_t beg = LowerBoundIndex(*val, start, num_elements);
-      uint32_t end = UpperBoundIndex(*val, start, num_elements);
+      uint32_t beg = LowerBoundIndex(*val);
+      uint32_t end = UpperBoundIndex(*val);
       RowMap sec(beg, end);
       rm.Intersect(sec);
       return;
     }
     case FilterOp::kLe: {
-      uint32_t end = UpperBoundIndex(*val, start, num_elements);
+      uint32_t end = UpperBoundIndex(*val);
       RowMap sec(0, end);
       rm.Intersect(sec);
       return;
     }
     case FilterOp::kLt: {
-      uint32_t end = LowerBoundIndex(*val, start, num_elements);
+      uint32_t end = LowerBoundIndex(*val);
       RowMap sec(0, end);
       rm.Intersect(sec);
       return;
     }
     case FilterOp::kGe: {
-      uint32_t beg = LowerBoundIndex(*val, start, num_elements);
-      RowMap sec(beg, num_elements);
+      uint32_t beg = LowerBoundIndex(*val);
+      RowMap sec(beg, size_);
       rm.Intersect(sec);
       return;
     }
     case FilterOp::kGt: {
-      uint32_t beg = UpperBoundIndex(*val, start, num_elements);
-      RowMap sec(beg, num_elements);
+      uint32_t beg = UpperBoundIndex(*val);
+      RowMap sec(beg, size_);
       rm.Intersect(sec);
       return;
     }
