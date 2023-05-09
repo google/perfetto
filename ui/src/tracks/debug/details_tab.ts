@@ -27,7 +27,7 @@ import {Timestamp} from '../../frontend/widgets/timestamp';
 import {Tree, TreeNode} from '../../frontend/widgets/tree';
 import {ARG_PREFIX} from './add_debug_track_menu';
 
-interface DebugSliceDetalsTabConfig {
+interface DebugSliceDetailsTabConfig {
   sqlTableName: string;
   id: number;
 }
@@ -53,7 +53,8 @@ function dictToTree(dict: {[key: string]: m.Child}): m.Children {
   return m(Tree, children);
 }
 
-export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
+export class DebugSliceDetailsTab extends
+    BottomTab<DebugSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.DebugSliceDetailsTab';
 
   data: {[key: string]: ColumnType}|undefined;
@@ -93,7 +94,7 @@ export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
       }
     }
     return m(
-        'div.details-panel',
+        '.details-panel',
         m('header.overview', m('span', 'Debug Slice')),
         m('.details-table-multicolumn',
           {
