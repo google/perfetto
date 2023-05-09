@@ -45,6 +45,19 @@ def add_async_trace(trace, ts, ts_end, buf, pid):
   trace.add_atrace_async_end(ts=ts_end, tid=pid, pid=pid, buf=buf)
 
 
+def add_binder_transaction(trace, tx_pid, rx_pid, start_ts, end_ts):
+  trace.add_binder_transaction(
+      transaction_id=tx_pid,
+      ts_start=start_ts,
+      ts_end=end_ts,
+      tid=tx_pid,
+      pid=tx_pid,
+      reply_id=rx_pid,
+      reply_ts_start=start_ts,
+      reply_ts_end=end_ts,
+      reply_tid=rx_pid,
+      reply_pid=rx_pid)
+
 # Adds a set of predefined blocking calls in places near the cuj boundaries to
 # verify that only the portion inside the cuj is counted in the metric.
 def add_cuj_with_blocking_calls(trace, cuj_name, pid):
@@ -148,6 +161,31 @@ def add_overlapping_cujs_with_blocking_calls(trace, start_ts, pid):
       pid=pid)
 
 
+def add_cuj_with_named_binder_transaction(pid, rx_pid):
+  cuj_begin = 40_000_000
+  cuj_end = 50_000_000
+
+  add_async_trace(
+      trace,
+      ts=cuj_begin,
+      ts_end=cuj_end,
+      buf="L<WITH_NAMED_BINDER_TRANSACTION>",
+      pid=pid)
+
+  add_binder_transaction(
+      trace, tx_pid=pid, rx_pid=rx_pid, start_ts=cuj_begin, end_ts=cuj_end)
+
+  # Slice inside the binder reply, to give a name to the binder call.
+  # The named binder slice introduced should be the length of the entire
+  # transaction even if the "name" slice only covers some of the binder reply.
+  add_main_thread_atrace(
+      trace,
+      ts=cuj_begin + 1_000_000,
+      ts_end=cuj_end - 1_000_000,
+      buf="AIDL::java::IWindowManager::hasNavigationBar::server",
+      pid=rx_pid)
+
+
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
   trace.add_process(
@@ -179,6 +217,8 @@ add_all_blocking_calls_in_cuj(trace, pid=THIRD_PROCESS_PID)
 
 add_overlapping_cujs_with_blocking_calls(trace, pid=SYSUI_PID,
                                          start_ts=20_000_000)
+
+add_cuj_with_named_binder_transaction(pid=SYSUI_PID, rx_pid=LAUNCHER_PID)
 
 # Note that J<*> events are not tested here.
 # See test_android_blocking_calls_on_jank_cujs.
