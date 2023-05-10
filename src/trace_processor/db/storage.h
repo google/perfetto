@@ -38,7 +38,7 @@ class Storage {
   // on as much data as possible.
   virtual void CompareFast(FilterOp op,
                            SqlValue value,
-                           const void* start,
+                           uint32_t offset,
                            uint32_t compare_elements_count,
                            BitVector::Builder&) const = 0;
 
@@ -47,17 +47,16 @@ class Storage {
   // avoided if possible, with `FastSeriesComparison` used instead.
   virtual void CompareSlow(FilterOp op,
                            SqlValue value,
-                           const void* data_start,
+                           uint32_t offset,
                            uint32_t compare_elements_count,
                            BitVector::Builder&) const = 0;
 
-  // Compares sorted (asc) series of |num_elements| of data from |data_start| to
-  // comparator value. Should be used where possible.
-  virtual void CompareSorted(FilterOp op,
-                             SqlValue value,
-                             const void* data_start,
-                             uint32_t compare_elements_count,
-                             RowMap&) const = 0;
+  // Compares sorted (asc) series data with comparator value. Should be used
+  // where possible.
+  virtual void CompareSorted(FilterOp op, SqlValue value, RowMap&) const = 0;
+
+  // Number of elements in stored data.
+  virtual uint32_t size() const = 0;
 };
 
 }  // namespace column
