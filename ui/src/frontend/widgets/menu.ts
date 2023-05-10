@@ -86,7 +86,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
 
     const classes = classNames(
         active && 'pf-active',
-        !disabled && closePopupOnClick && 'pf-close-parent-popup-on-click',
+        !disabled && closePopupOnClick && Popup.DISMISS_POPUP_CLASS,
     );
 
     return m(
@@ -146,7 +146,6 @@ export class PopupMenu2 implements m.ClassComponent<PopupMenu2Attrs> {
         {
           trigger,
           position: popupPosition,
-          closeOnContentClick: true,
           ...popupAttrs,
         },
         m(Menu, children));
