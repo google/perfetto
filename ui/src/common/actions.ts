@@ -798,6 +798,23 @@ export const StateActions = {
     };
   },
 
+  selectTopLevelScrollSlice(state: StateDraft, args: {
+    id: number,
+    sqlTableName: string,
+    startS: number,
+    durationS: number,
+    trackId: string,
+  }): void {
+    state.currentSelection = {
+      kind: 'TOP_LEVEL_SCROLL',
+      id: args.id,
+      sqlTableName: args.sqlTableName,
+      startS: args.startS,
+      durationS: args.durationS,
+      trackId: args.trackId,
+    };
+  },
+
   clearPendingScrollId(state: StateDraft, _: {}): void {
     state.pendingScrollId = undefined;
   },
