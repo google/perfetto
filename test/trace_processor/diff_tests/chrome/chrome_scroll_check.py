@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2021 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -28,17 +28,22 @@ from chrome_scroll_helper import ChromeScrollHelper
 
 helper = ChromeScrollHelper(trace, start_id=1234, start_gesture_id=5678)
 
+# First scroll
 helper.begin(from_ms=0, dur_ms=10)
 helper.update(from_ms=15, dur_ms=10)
-# The next update should be recognized as janky
-helper.update(from_ms=30, dur_ms=30)
-helper.end(from_ms=70, dur_ms=10)
+helper.update(from_ms=30, dur_ms=10)
+helper.end(from_ms=45, dur_ms=10)
 
-helper.begin(from_ms=100, dur_ms=10)
-helper.update(from_ms=115, dur_ms=10)
-# The next update doesn't get to GPU, therefore would not be a part of jank
-# calculation
-helper.update(from_ms=130, dur_ms=30, gets_to_gpu=False)
-helper.end(from_ms=170, dur_ms=10)
+# Second scroll
+helper.begin(from_ms=60, dur_ms=10)
+helper.update(from_ms=75, dur_ms=10)
+helper.end(from_ms=90, dur_ms=10)
+
+# Third scroll, won't have a GestureScrollEnd value.
+helper.begin(from_ms=120, dur_ms=10)
+helper.update(from_ms=135, dur_ms=10)
+helper.update(from_ms=150, dur_ms=10)
+helper.update(from_ms=150, dur_ms=10)
+helper.update(from_ms=180, dur_ms=10)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
