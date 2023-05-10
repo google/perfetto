@@ -14,31 +14,14 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_OVERLAY_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_OVERLAY_H_
-
-#include <variant>
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/column.h"
 #include "src/trace_processor/db/column_overlay.h"
-#include "src/trace_processor/db/storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace column {
 
-// Overlay responsible for doing operations on storage.
-class StorageOverlay : public ColumnOverlay {
- public:
-  explicit StorageOverlay(const Storage* storage) : storage_(storage) {}
-  void Filter(FilterOp, SqlValue, RowMap&) override;
-  void Sort(std::vector<uint32_t>&) override;
+ColumnOverlay::~ColumnOverlay() = default;
 
- private:
-  const Storage* storage_;
-};
 }  // namespace column
 }  // namespace trace_processor
 }  // namespace perfetto
-
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_OVERLAY_H_
