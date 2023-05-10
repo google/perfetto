@@ -607,6 +607,27 @@ export const WidgetsPage = createPage({
                 m(Button, {label: 'Cancel', minimal: true}),
               )),
           }),
+        m('h2', 'Nested Popups'),
+        m(
+          WidgetShowcase, {
+            renderWidget: () => m(
+              Popup,
+              {
+                trigger: m(Button, {label: 'Open the popup'}),
+              },
+              m(PopupMenu2,
+                {
+                  trigger: m(Button, {label: 'Select an option'}),
+                },
+                m(MenuItem, {label: 'Option 1'}),
+                m(MenuItem, {label: 'Option 2'}),
+              ),
+              m(Button, {
+                label: 'Done',
+                dismissPopup: true,
+              }),
+            ),
+          }),
     );
   },
 });
