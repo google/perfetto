@@ -135,3 +135,14 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
     return collapsed;
   }
 }
+
+export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
+  const children: m.Child[] = [];
+  for (const key of Object.keys(dict)) {
+    children.push(m(TreeNode, {
+      left: key,
+      right: dict[key],
+    }));
+  }
+  return m(Tree, children);
+}

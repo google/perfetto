@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Panel for the top-level scrolls. For now, just show the scroll id, but we
+// can add things like scroll event count, janks, etc. as needed.
+
 import m from 'mithril';
 
 import {ColumnType} from '../../common/query_result';
@@ -26,31 +29,19 @@ import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {dictToTree} from '../../frontend/widgets/tree';
 
-import {ARG_PREFIX} from './add_debug_track_menu';
-
-interface DebugSliceDetailsTabConfig {
+interface TopLevelScrollTabConfig {
   sqlTableName: string;
   id: number;
 }
 
-function SqlValueToString(val: ColumnType) {
-  if (val instanceof Uint8Array) {
-    return `<blob length=${val.length}>`;
-  }
-  if (val === null) {
-    return 'NULL';
-  }
-  return val.toString();
-}
-
-export class DebugSliceDetailsTab extends
-    BottomTab<DebugSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.DebugSliceDetailsTab';
+export class TopLevelScrollDetailsTab extends
+    BottomTab<TopLevelScrollTabConfig> {
+  static readonly kind = 'org.perfetto.TopLevelScrollDetailsTab';
 
   data: {[key: string]: ColumnType}|undefined;
 
-  static create(args: NewBottomTabArgs): DebugSliceDetailsTab {
-    return new DebugSliceDetailsTab(args);
+  static create(args: NewBottomTabArgs): TopLevelScrollDetailsTab {
+    return new TopLevelScrollDetailsTab(args);
   }
 
   constructor(args: NewBottomTabArgs) {
@@ -69,35 +60,20 @@ export class DebugSliceDetailsTab extends
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
-    // TODO(stevegolton): These type assertions are dangerous, but no more
-    // dangerous than they used to be before this change.
+
     const left = dictToTree({
-      'Name': this.data['name'] as string,
+      'Scroll Id (gesture_scroll_id)': `${this.data['id']}`,
       'Start time': m(Timestamp, {ts: timestampFromSqlNanos(this.data['ts'])}),
       'Duration': m(Duration, {dur: Number(this.data['dur'])}),
-      'Debug slice id': `${this.config.sqlTableName}[${this.config.id}]`,
     });
-    const args: {[key: string]: m.Child} = {};
-    for (const key of Object.keys(this.data)) {
-      if (key.startsWith(ARG_PREFIX)) {
-        args[key.substr(ARG_PREFIX.length)] = SqlValueToString(this.data[key]);
-      }
-    }
     return m(
         '.details-panel',
-        m('header.overview', m('span', 'Debug Slice')),
-        m('.details-table-multicolumn',
-          {
-            style: {
-              'user-select': 'text',
-            },
-          },
-          m('.half-width-panel', left),
-          m('.half-width-panel', dictToTree(args))));
+        m('header.overview', m('span', `${this.data['name']}`)),
+        m('.details-table-multicolumn', m('.half-width-panel', left)));
   }
 
   getTitle(): string {
-    return `Current Selection`;
+    return `Current Chrome Scroll`;
   }
 
   isLoading() {
@@ -109,4 +85,4 @@ export class DebugSliceDetailsTab extends
   }
 }
 
-bottomTabRegistry.register(DebugSliceDetailsTab);
+bottomTabRegistry.register(TopLevelScrollDetailsTab);
