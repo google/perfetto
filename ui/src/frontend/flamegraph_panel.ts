@@ -31,7 +31,6 @@ import {
 import {timeToCode} from '../common/time';
 import {profileType} from '../controller/flamegraph_controller';
 
-import {PerfettoMouseEvent} from './events';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Modal, ModalDefinition} from './modal';
@@ -41,6 +40,7 @@ import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {Button} from './widgets/button';
+import {findRef} from './widgets/utils';
 
 interface FlamegraphDetailsPanelAttrs {}
 
@@ -71,6 +71,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private updateFocusRegexDebounced = debounce(() => {
     this.updateFocusRegex();
   }, 20);
+  private canvas?: HTMLCanvasElement;
 
   view() {
     const flamegraphDetails = globals.flamegraphDetails;
@@ -91,25 +92,6 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
           0;
       return m(
           '.details-panel',
-          {
-            onclick: (e: PerfettoMouseEvent) => {
-              if (this.flamegraph !== undefined) {
-                this.onMouseClick({y: e.layerY, x: e.layerX});
-              }
-              return false;
-            },
-            onmousemove: (e: PerfettoMouseEvent) => {
-              if (this.flamegraph !== undefined) {
-                this.onMouseMove({y: e.layerY, x: e.layerX});
-                globals.rafScheduler.scheduleRedraw();
-              }
-            },
-            onmouseout: () => {
-              if (this.flamegraph !== undefined) {
-                this.onMouseOut();
-              }
-            },
-          },
           this.maybeShowModal(flamegraphDetails.graphIncomplete),
           m('.details-panel-heading.flamegraph-profile',
             {onclick: (e: MouseEvent) => e.stopPropagation()},
@@ -146,7 +128,20 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                       }),
                 ]),
             ]),
-          m(`div[style=height:${height}px]`),
+          m(`canvas[ref=canvas]`, {
+            style: `height:${height}px; width:100%`,
+            onmousemove: (e: MouseEvent) => {
+              const {offsetX, offsetY} = e;
+              this.onMouseMove({x: offsetX, y: offsetY});
+            },
+            onmouseout: () => {
+              this.onMouseOut();
+            },
+            onclick: (e: MouseEvent) => {
+              const {offsetX, offsetY} = e;
+              this.onMouseClick({x: offsetX, y: offsetY});
+            },
+          }),
       );
     } else {
       return m(
@@ -256,7 +251,53 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         this.nodeRendering(), flamegraphData, data.expandedCallsite);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  oncreate({dom}: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+    this.canvas = FlamegraphDetailsPanel.findCanvasElement(dom);
+    // TODO(stevegolton): If we truely want to be standalone, then we shouldn't
+    // rely on someone else calling the rafScheduler when the window is resized,
+    // but it's good enough for now as we know the ViewerPage will do it.
+    globals.rafScheduler.addRedrawCallback(this.rafRedrawCallback);
+  }
+
+  onupdate({dom}: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+    this.canvas = FlamegraphDetailsPanel.findCanvasElement(dom);
+  }
+
+  onremove(_vnode: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+    globals.rafScheduler.removeRedrawCallback(this.rafRedrawCallback);
+  }
+
+  private static findCanvasElement(dom: Element): HTMLCanvasElement|undefined {
+    const canvas = findRef(dom, 'canvas');
+    if (canvas && canvas instanceof HTMLCanvasElement) {
+      return canvas;
+    } else {
+      return undefined;
+    }
+  }
+
+  private rafRedrawCallback = () => {
+    if (this.canvas) {
+      const canvas = this.canvas;
+      canvas.width = canvas.offsetWidth * devicePixelRatio;
+      canvas.height = canvas.offsetHeight * devicePixelRatio;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.save();
+        ctx.scale(devicePixelRatio, devicePixelRatio);
+        const {offsetWidth: width, offsetHeight: height} = canvas;
+        this.renderLocalCanvas(ctx, {width, height});
+        ctx.restore();
+      }
+    }
+  };
+
+  renderCanvas() {
+    // No-op
+  }
+
+  private renderLocalCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     this.changeFlamegraphData();
     const current = globals.state.currentFlamegraphState;
     if (current === null) return;
@@ -265,22 +306,24 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
             current.viewingOption === ALLOC_SPACE_MEMORY_ALLOCATED_KEY ?
         'B' :
         '';
-    this.flamegraph.draw(ctx, size.width, size.height, 0, HEADER_HEIGHT, unit);
+    this.flamegraph.draw(ctx, size.width, size.height, 0, 0, unit);
   }
 
-  onMouseClick({x, y}: {x: number, y: number}): boolean {
+  private onMouseClick({x, y}: {x: number, y: number}): boolean {
     const expandedCallsite = this.flamegraph.onMouseClick({x, y});
     globals.dispatch(Actions.expandFlamegraphState({expandedCallsite}));
     return true;
   }
 
-  onMouseMove({x, y}: {x: number, y: number}): boolean {
+  private onMouseMove({x, y}: {x: number, y: number}): boolean {
     this.flamegraph.onMouseMove({x, y});
+    globals.rafScheduler.scheduleFullRedraw();
     return true;
   }
 
-  onMouseOut() {
+  private onMouseOut() {
     this.flamegraph.onMouseOut();
+    globals.rafScheduler.scheduleFullRedraw();
   }
 
   private static selectViewingOptions(profileType: ProfileType) {
