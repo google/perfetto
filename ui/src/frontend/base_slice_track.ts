@@ -181,7 +181,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private cache: TrackCache<Array<CastInternal<T['slice']>>> =
       new TrackCache(5);
 
-  private readonly tableName: string;
+  protected readonly tableName: string;
   private maxDurNs = 0;
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';

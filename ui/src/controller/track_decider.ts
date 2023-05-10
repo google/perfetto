@@ -61,6 +61,12 @@ import {
   PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
+import {
+  ENABLE_SCROLL_JANK_PLUGIN_V2,
+  INPUT_LATENCY_TRACK,
+} from '../tracks/scroll_jank';
+import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
+import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const TRACKS_V2_FLAG = featureFlags.register({
@@ -207,6 +213,25 @@ class TrackDecider {
     }
   }
 
+  async addScrollJankTracks(engine: Engine): Promise<void> {
+    const topLevelScrolls = addTopLevelScrollTrack(engine);
+    const topLevelScrollsResult = await topLevelScrolls;
+    let originalLength = this.tracksToAdd.length;
+    this.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
+    for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] =
+          topLevelScrollsResult.tracksToAdd[i];
+    }
+
+    originalLength = this.tracksToAdd.length;
+    const eventLatencies = addLatenciesTrack(engine);
+    const eventLatencyResult = await eventLatencies;
+    this.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
+    for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+    }
+  }
+
   async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
     const cpus = await this.engine.getCpus();
 
@@ -309,6 +334,7 @@ class TrackDecider {
     });
 
     const parentIdToGroupId = new Map<number, string>();
+    let scrollJankRendered = false;
 
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
@@ -353,6 +379,13 @@ class TrackDecider {
         }
       }
 
+      if (ENABLE_SCROLL_JANK_PLUGIN_V2.get() && !scrollJankRendered &&
+          name.includes(INPUT_LATENCY_TRACK)) {
+        // This ensures that the scroll jank tracks render above the tracks
+        // for GestureScrollUpdate.
+        await this.addScrollJankTracks(this.engine);
+        scrollJankRendered = true;
+      }
       const track = {
         engineId: this.engineId,
         kind,
