@@ -518,3 +518,25 @@ class ChromeScrollJank(TestSuite):
         30000000,1
         115000000,0
         """))
+
+  def test_chrome_scrolls(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_scroll_check.py'),
+        query="""
+        SELECT IMPORT('chrome.chrome_scrolls');
+
+        SELECT
+          id,
+          ts,
+          dur,
+          scroll_start_ts,
+          scroll_end_ts
+        FROM chrome_scrolls
+        ORDER by id;
+        """,
+        out=Csv("""
+        "id","ts","dur","scroll_start_ts","scroll_end_ts"
+        5678,0,55000000,0,45000000
+        5679,60000000,40000000,60000000,90000000
+        5680,120000000,70000000,120000000,-1
+        """))

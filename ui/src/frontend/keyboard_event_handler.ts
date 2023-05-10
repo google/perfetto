@@ -245,7 +245,9 @@ function findTimeRangeOfSelection(): {startTs: number, endTs: number} {
     }
   } else if (selection.kind === 'LOG') {
     // TODO(hjd): Make focus selection work for logs.
-  } else if (selection.kind === 'DEBUG_SLICE') {
+  } else if (
+      selection.kind === 'DEBUG_SLICE' ||
+      selection.kind === 'TOP_LEVEL_SCROLL') {
     startTs = selection.startS;
     if (selection.durationS > 0) {
       endTs = startTs + selection.durationS;
