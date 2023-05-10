@@ -28,37 +28,39 @@ namespace column {
 
 class NumericStorage : public Storage {
  public:
-  NumericStorage(const void* data, ColumnType type)
-      : type_(type), data_(data) {}
+  NumericStorage(void* data, uint32_t size, ColumnType type)
+      : type_(type), data_(data), size_(size) {}
 
   void StableSort(std::vector<uint32_t>&) const override;
 
   void CompareFast(FilterOp op,
                    SqlValue val,
-                   const void* start,
+                   uint32_t offset,
                    uint32_t num_elements,
                    BitVector::Builder& builder) const override;
 
-  // Inefficiently compares series of |num_elements| of data from |data_start|
-  // to comparator value and appends results to BitVector::Builder. Should be
-  // avoided if possible, with `FastSeriesComparison` used instead.
   void CompareSlow(FilterOp op,
                    SqlValue val,
-                   const void* start,
+                   uint32_t offset,
                    uint32_t num_elements,
                    BitVector::Builder& builder) const override;
 
-  // Compares sorted (asc) series of |num_elements| of data from |data_start| to
-  // comparator value. Should be used where possible.
-  void CompareSorted(FilterOp op,
-                     SqlValue val,
-                     const void* data_start,
-                     uint32_t num_elements,
-                     RowMap&) const override;
+  void CompareSorted(FilterOp op, SqlValue val, RowMap&) const override;
+
+  uint32_t size() const override { return size_; }
 
  private:
+  // As we don't template those functions, we need to use std::visitor to type
+  // `start`, hence this wrapping.
+  uint32_t UpperBoundIndex(NumericValue val) const;
+
+  // As we don't template those functions, we need to use std::visitor to type
+  // `start`, hence this wrapping.
+  uint32_t LowerBoundIndex(NumericValue val) const;
+
   const ColumnType type_;
   const void* data_;
+  const uint32_t size_;
 };
 
 }  // namespace column
