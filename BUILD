@@ -2176,6 +2176,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_stdlib_chrome_chrome_sql",
     srcs = [
+        "src/trace_processor/stdlib/chrome/chrome_scrolls.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
     ],
 )

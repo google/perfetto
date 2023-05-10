@@ -293,6 +293,7 @@
 
 .details-table-multicolumn {
   display: flex;
+  user-select: 'text';
 }
 
 .flow-link:hover {

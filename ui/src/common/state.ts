@@ -18,6 +18,8 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {TopLevelScrollSelection} from '../tracks/scroll_jank/scroll_track';
+
 import {Direction} from './event_set';
 
 /**
@@ -377,8 +379,8 @@ export interface LogSelection {
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection)&
-    {trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection|
+     TopLevelScrollSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
