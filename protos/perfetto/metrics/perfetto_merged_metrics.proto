@@ -1593,7 +1593,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 34.
+  // Next id: 35.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -1666,6 +1666,10 @@ message AndroidStartupMetric {
     // Time spent in opening dex files on the main thread of the process
     // being started up.
     optional Slice time_dex_open_thread_main = 33;
+
+    // Time spent in dlopening .so files on the main thread of the process
+    // being started up.
+    optional Slice time_dlopen_thread_main = 34;
 
     // Removed: was other_process_to_activity_cpu_ratio.
     reserved 12;
@@ -1766,7 +1770,7 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 20
+  // Next id: 21
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1821,6 +1825,9 @@ message AndroidStartupMetric {
 
     // Contains information about the class verification.
     repeated VerifyClass verify_class = 19;
+
+    // Contains the dlopen file names.
+    repeated string dlopen_file = 20;
 
     // Package name of startups running concurrent to the launch.
     repeated string startup_concurrent_to_launch = 18;
