@@ -23,6 +23,7 @@ import subprocess
 import stat
 import sys
 import tempfile
+import time
 import zipfile
 
 from collections import namedtuple
@@ -410,8 +411,22 @@ NODE_MODULES_STATUS_FILE = os.path.join(UI_DIR, 'node_modules', '.last_install')
 TEST_DATA_SCRIPT = os.path.join(TOOLS_DIR, 'test_data')
 
 
+def CheckCallRetry(*args, **kwargs):
+  """ Like subprocess.check_call, with retries up to 5 times. """
+  MAX_ATTEMPTS = 5
+  for attempt in range(1, MAX_ATTEMPTS + 1):
+    try:
+      return subprocess.check_call(*args, **kwargs)
+    except subprocess.CalledProcessError as error:
+      if attempt == MAX_ATTEMPTS:
+        raise error
+      else:
+        logging.error(error)
+        time.sleep(attempt * 3)
+
+
 def DownloadURL(url, out_file):
-  subprocess.check_call(['curl', '-L', '-#', '-o', out_file, url])
+  CheckCallRetry(['curl', '-L', '-#', '-o', out_file, url])
 
 
 def GetArch():
@@ -498,10 +513,10 @@ def CheckoutGitRepo(path, git_url, revision, check_only):
   MkdirRecursive(path)
   logging.info('Fetching %s @ %s into %s', git_url, revision, path)
   subprocess.check_call(['git', 'init', path], cwd=path)
-  subprocess.check_call(
-      ['git', 'fetch', '--quiet', '--depth', '1', git_url, revision], cwd=path)
+  CheckCallRetry(['git', 'fetch', '--quiet', '--depth', '1', git_url, revision],
+                 cwd=path)
   subprocess.check_call(['git', 'checkout', revision, '--quiet'], cwd=path)
-  subprocess.check_call(
+  CheckCallRetry(
       ['git', 'submodule', 'update', '--init', '--recursive', '--quiet'],
       cwd=path)
   assert (IsGitRepoCheckoutOutAtRevision(path, revision))
