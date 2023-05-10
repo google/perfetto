@@ -565,7 +565,10 @@ export const WidgetsPage = createPage({
               }),
               m(
                   TreeNode,
-                  {left: 'Args', right: 'foo: bar, baz: qux'},
+                  {
+                    left: 'Args',
+                    summary: 'foo: string, baz: string, quux: string[4]',
+                  },
                   m(TreeNode, {left: 'foo', right: 'bar'}),
                   m(TreeNode, {left: 'baz', right: 'qux'}),
                   m(
