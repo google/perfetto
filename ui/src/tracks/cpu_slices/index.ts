@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
@@ -23,7 +24,15 @@ import {
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
-import {fromNs, timeToString, toNs} from '../../common/time';
+import {
+  fromNs,
+  toNs,
+  TPDuration,
+  TPTime,
+  tpTimeFromSeconds,
+  tpTimeToNanos,
+  tpTimeToString,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -102,16 +111,19 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     this.cachedBucketNs = bucketNs;
   }
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const resolutionNs = toNs(resolution);
+    assertTrue(
+        BigintMath.popcount(resolution) === 1,
+        `${resolution} is not a power of 2`);
+    const resolutionNs = Number(resolution);
 
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
     assertTrue(Math.log2(resolutionNs) % 1 === 0);
 
-    const boundStartNs = toNs(start);
-    const boundEndNs = toNs(end);
+    const boundStartNs = tpTimeToNanos(start);
+    const boundEndNs = tpTimeToNanos(end);
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
@@ -223,7 +235,7 @@ class CpuSliceTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {visibleTimeScale, windowSpan} = globals.frontendLocalState;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -233,28 +245,35 @@ class CpuSliceTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        windowSpan.start,
+        windowSpan.end,
+        visibleTimeScale.tpTimeToPx(data.start),
+        visibleTimeScale.tpTimeToPx(data.end));
 
     this.renderSlices(ctx, data);
   }
 
   renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      visibleWindowTime,
+    } = globals.frontendLocalState;
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
+
+    const visWindowEndPx = visibleTimeScale.hpTimeToPx(visibleWindowTime.end);
 
     ctx.textAlign = 'center';
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    const rawStartIdx =
-        data.ends.findIndex((end) => end >= visibleWindowTime.start);
+    const startSec = visibleWindowTime.start.seconds;
+    const endSec = visibleWindowTime.end.seconds;
+
+    const rawStartIdx = data.ends.findIndex((end) => end >= startSec);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+    const [, rawEndIdx] = searchSegment(data.starts, endSec);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     for (let i = startIdx; i < endIdx; i++) {
@@ -266,10 +285,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
       if (data.ids[i] === data.lastRowId && data.isIncomplete[i]) {
-        tEnd = visibleWindowTime.end;
+        tEnd = visibleWindowTime.end.seconds;
       }
-      const rectStart = timeScale.timeToPx(tStart);
-      const rectEnd = timeScale.timeToPx(tEnd);
+      const rectStart = visibleTimeScale.secondsToPx(tStart);
+      const rectEnd = visibleTimeScale.secondsToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
@@ -317,8 +336,7 @@ class CpuSliceTrack extends Track<Config, Data> {
           title = `${threadInfo.threadName} [${threadInfo.tid}]`;
         }
       }
-      const right =
-          Math.min(timeScale.timeToPx(visibleWindowTime.end), rectEnd);
+      const right = Math.min(visWindowEndPx, rectEnd);
       const left = Math.max(rectStart, 0);
       const visibleWidth = Math.max(right - left, 1);
       title = cropText(title, charWidth, visibleWidth);
@@ -341,8 +359,8 @@ class CpuSliceTrack extends Track<Config, Data> {
         const tEnd = data.ends[startIndex];
         const utid = data.utids[startIndex];
         const color = colorForThread(globals.threads.get(utid));
-        const rectStart = timeScale.timeToPx(tStart);
-        const rectEnd = timeScale.timeToPx(tEnd);
+        const rectStart = visibleTimeScale.secondsToPx(tStart);
+        const rectEnd = visibleTimeScale.secondsToPx(tEnd);
         const rectWidth = Math.max(1, rectEnd - rectStart);
 
         // Draw a rectangle around the slice that is currently selected.
@@ -353,7 +371,7 @@ class CpuSliceTrack extends Track<Config, Data> {
         ctx.closePath();
         // Draw arrow from wakeup time of current slice.
         if (details.wakeupTs) {
-          const wakeupPos = timeScale.timeToPx(details.wakeupTs);
+          const wakeupPos = visibleTimeScale.tpTimeToPx(details.wakeupTs);
           const latencyWidth = rectStart - wakeupPos;
           drawDoubleHeadedArrow(
               ctx,
@@ -362,7 +380,8 @@ class CpuSliceTrack extends Track<Config, Data> {
               latencyWidth,
               latencyWidth >= 20);
           // Latency time with a white semi-transparent background.
-          const displayText = timeToString(tStart - details.wakeupTs);
+          const latency = tpTimeFromSeconds(tStart) - details.wakeupTs;
+          const displayText = tpTimeToString(latency);
           const measured = ctx.measureText(displayText);
           if (latencyWidth >= measured.width + 2) {
             ctx.fillStyle = 'rgba(255,255,255,0.7)';
@@ -383,7 +402,8 @@ class CpuSliceTrack extends Track<Config, Data> {
 
       // Draw diamond if the track being drawn is the cpu of the waker.
       if (this.config.cpu === details.wakerCpu && details.wakeupTs) {
-        const wakeupPos = Math.floor(timeScale.timeToPx(details.wakeupTs));
+        const wakeupPos =
+            Math.floor(visibleTimeScale.tpTimeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
         ctx.fillStyle = 'black';
@@ -411,13 +431,13 @@ class CpuSliceTrack extends Track<Config, Data> {
     const data = this.data();
     this.mousePos = pos;
     if (data === undefined) return;
-    const {timeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.frontendLocalState;
     if (pos.y < MARGIN_TOP || pos.y > MARGIN_TOP + RECT_HEIGHT) {
       this.utidHoveredInThisTrack = -1;
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
-    const t = timeScale.pxToTime(pos.x);
+    const t = visibleTimeScale.pxToHpTime(pos.x).seconds;
     let hoveredUtid = -1;
 
     for (let i = 0; i < data.starts.length; i++) {
@@ -445,8 +465,8 @@ class CpuSliceTrack extends Track<Config, Data> {
   onMouseClick({x}: {x: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(x);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(x).seconds;
     const index = search(data.starts, time);
     const id = index === -1 ? undefined : data.ids[index];
     if (!id || this.utidHoveredInThisTrack === -1) return false;

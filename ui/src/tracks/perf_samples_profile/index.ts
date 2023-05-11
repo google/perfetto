@@ -17,7 +17,12 @@ import {Actions} from '../../common/actions';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
-import {fromNs, toNs} from '../../common/time';
+import {
+  fromNs,
+  TPDuration,
+  TPTime,
+  tpTimeFromSeconds,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -39,7 +44,7 @@ export interface Config {
 
 class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     if (this.config.upid === undefined) {
       return {
@@ -99,7 +104,7 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {
-      timeScale,
+      visibleTimeScale,
     } = globals.frontendLocalState;
     const data = this.data();
 
@@ -115,7 +120,7 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          timeScale.timeToPx(fromNs(centerX)),
+          visibleTimeScale.secondsToPx(fromNs(centerX)),
           this.centerY,
           isHovered,
           strokeWidth);
@@ -144,10 +149,11 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    const {timeScale} = globals.frontendLocalState;
-    const time = toNs(timeScale.pxToTime(x));
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(x).nanos;
     const [left, right] = searchSegment(data.tsStartsNs, time);
-    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
+    const index =
+        this.findTimestampIndex(left, visibleTimeScale, data, x, y, right);
     this.hoveredTs = index === -1 ? undefined : data.tsStartsNs[index];
   }
 
@@ -158,9 +164,11 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
+    const {
+      visibleTimeScale: timeScale,
+    } = globals.frontendLocalState;
 
-    const time = toNs(timeScale.pxToTime(x));
+    const time = timeScale.pxToHpTime(x).nanos;
     const [left, right] = searchSegment(data.tsStartsNs, time);
 
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
@@ -170,8 +178,8 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       globals.makeSelection(Actions.selectPerfSamples({
         id: index,
         upid: this.config.upid,
-        leftTs: ts,
-        rightTs: ts,
+        leftTs: tpTimeFromSeconds(ts),
+        rightTs: tpTimeFromSeconds(ts),
         type: ProfileType.PERF_SAMPLE,
       }));
       return true;
@@ -185,13 +193,13 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStartsNs[left]));
+      const centerX = timeScale.secondsToPx(fromNs(data.tsStartsNs[left]));
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStartsNs[right]));
+      const centerX = timeScale.secondsToPx(fromNs(data.tsStartsNs[right]));
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }

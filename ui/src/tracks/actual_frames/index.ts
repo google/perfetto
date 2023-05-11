@@ -14,7 +14,7 @@
 
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, STR} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {fromNs, TPDuration, TPTime, tpTimeToNanos} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -51,16 +51,17 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
   private maxDurNs = 0;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const startNs = tpTimeToNanos(start);
+    const endNs = tpTimeToNanos(end);
 
     const pxSize = this.pxSize();
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
-    const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
+    const bucketNs =
+        Math.max(Math.round(Number(resolution) * pxSize / 2) * 2, 1);
 
     if (this.maxDurNs === 0) {
       const maxDurResult = await this.query(`

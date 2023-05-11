@@ -19,7 +19,7 @@ import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
-import {timeToCode} from '../common/time';
+import {timeToCode, tpDurationToSeconds, tpTimeToCode} from '../common/time';
 
 import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
@@ -295,7 +295,9 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           !sliceInfo.category || sliceInfo.category === '[NULL]' ?
               'N/A' :
               sliceInfo.category);
-      defaultBuilder.add('Start time', timeToCode(sliceInfo.ts));
+      defaultBuilder.add(
+          'Start time',
+          tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start));
       if (sliceInfo.absTime !== undefined) {
         defaultBuilder.add('Absolute Time', sliceInfo.absTime);
       }
@@ -305,9 +307,11 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           sliceInfo.threadDur !== undefined) {
         // If we have valid thread duration, also display a percentage of
         // |threadDur| compared to |dur|.
-        const threadDurFractionSuffix = sliceInfo.threadDur === -1 ?
+        const ratio = tpDurationToSeconds(sliceInfo.threadDur) /
+            tpDurationToSeconds(sliceInfo.dur);
+        const threadDurFractionSuffix = sliceInfo.threadDur === -1n ?
             '' :
-            ` (${(sliceInfo.threadDur / sliceInfo.dur * 100).toFixed(2)}%)`;
+            ` (${(ratio * 100).toFixed(2)}%)`;
         defaultBuilder.add(
             'Thread duration',
             this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur) +

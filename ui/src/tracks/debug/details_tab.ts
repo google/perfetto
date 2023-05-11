@@ -15,13 +15,14 @@
 import m from 'mithril';
 
 import {ColumnType} from '../../common/query_result';
+import {tpDurationFromSql, tpTimeFromSql} from '../../common/time';
 import {
   BottomTab,
   bottomTabRegistry,
   NewBottomTabArgs,
 } from '../../frontend/bottom_tab';
 import {globals} from '../../frontend/globals';
-import {timestampFromSqlNanos} from '../../frontend/sql_types';
+import {asTPTimestamp} from '../../frontend/sql_types';
 import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {dictToTree} from '../../frontend/widgets/tree';
@@ -69,12 +70,11 @@ export class DebugSliceDetailsTab extends
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
-    // TODO(stevegolton): These type assertions are dangerous, but no more
-    // dangerous than they used to be before this change.
     const left = dictToTree({
       'Name': this.data['name'] as string,
-      'Start time': m(Timestamp, {ts: timestampFromSqlNanos(this.data['ts'])}),
-      'Duration': m(Duration, {dur: Number(this.data['dur'])}),
+      'Start time':
+          m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data['ts']))}),
+      'Duration': m(Duration, {dur: tpDurationFromSql(this.data['dur'])}),
       'Debug slice id': `${this.config.sqlTableName}[${this.config.id}]`,
     });
     const args: {[key: string]: m.Child} = {};
