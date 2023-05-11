@@ -159,6 +159,44 @@ class Android(TestSuite):
         """,
         out=Path('android_battery_stats_event_slices.out'))
 
+  def test_android_battery_stats_counters(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_state
+        ORDER BY ts, track_name;
+        """,
+        out=Path('android_battery_stats_state.out'))
+
+
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
