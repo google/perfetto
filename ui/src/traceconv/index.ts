@@ -18,6 +18,7 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
+import {TPTime} from '../common/time';
 import traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;
@@ -176,7 +177,7 @@ interface ConvertTraceToPprofArgs {
   kind: 'ConvertTraceToPprof';
   trace: Blob;
   pid: number;
-  ts: number;
+  ts: TPTime;
 }
 
 function isConvertTraceToPprof(msg: Args): msg is ConvertTraceToPprofArgs {
@@ -186,8 +187,7 @@ function isConvertTraceToPprof(msg: Args): msg is ConvertTraceToPprofArgs {
   return true;
 }
 
-async function ConvertTraceToPprof(
-trace: Blob, pid: number, ts: number) {
+async function ConvertTraceToPprof(trace: Blob, pid: number, ts: TPTime) {
   const jobName = 'convert_pprof';
   updateJobStatus(jobName, ConversionJobStatus.InProgress);
   const args = [

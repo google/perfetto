@@ -16,14 +16,23 @@ import {assertTrue} from '../base/logging';
 import {Arg, Args} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {
+  LONG,
   NUM,
   NUM_NULL,
   STR,
   STR_NULL,
 } from '../common/query_result';
 import {ChromeSliceSelection} from '../common/state';
-import {fromNs, toNs} from '../common/time';
-import {SliceDetails, ThreadStateDetails} from '../frontend/globals';
+import {
+  tpDurationFromSql,
+  TPTime,
+  tpTimeFromSql,
+} from '../common/time';
+import {
+  CounterDetails,
+  SliceDetails,
+  ThreadStateDetails,
+} from '../frontend/globals';
 import {globals} from '../frontend/globals';
 import {
   publishCounterDetails,
@@ -176,10 +185,10 @@ export class SelectionController extends Controller<'main'> {
         case 'id':
           break;
         case 'ts':
-          ts = fromNs(Number(v)) - globals.state.traceTime.startSec;
+          ts = tpTimeFromSql(v);
           break;
         case 'thread_ts':
-          threadTs = fromNs(Number(v));
+          threadTs = tpTimeFromSql(v);
           break;
         case 'absTime':
           if (v) absTime = `${v}`;
@@ -188,10 +197,10 @@ export class SelectionController extends Controller<'main'> {
           name = `${v}`;
           break;
         case 'dur':
-          dur = fromNs(Number(v));
+          dur = tpDurationFromSql(v);
           break;
         case 'thread_dur':
-          threadDur = fromNs(Number(v));
+          threadDur = tpDurationFromSql(v);
           break;
         case 'category':
         case 'cat':
@@ -326,13 +335,13 @@ export class SelectionController extends Controller<'main'> {
     const selection = globals.state.currentSelection;
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
-        ts: NUM,
-        dur: NUM,
+        ts: LONG,
+        dur: LONG,
       });
-      const ts = row.ts;
-      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-      const dur = fromNs(row.dur);
-      const selected: ThreadStateDetails = {ts: timeFromStart, dur};
+      const selected: ThreadStateDetails = {
+        ts: row.ts,
+        dur: row.dur,
+      };
       publishThreadStateDetails(selected);
     }
   }
@@ -353,8 +362,8 @@ export class SelectionController extends Controller<'main'> {
     const selection = globals.state.currentSelection;
     if (result.numRows() > 0 && selection) {
       const row = result.firstRow({
-        ts: NUM,
-        dur: NUM,
+        ts: LONG,
+        dur: LONG,
         priority: NUM,
         endState: STR_NULL,
         utid: NUM,
@@ -362,15 +371,14 @@ export class SelectionController extends Controller<'main'> {
         threadStateId: NUM_NULL,
       });
       const ts = row.ts;
-      const timeFromStart = fromNs(ts) - globals.state.traceTime.startSec;
-      const dur = fromNs(row.dur);
+      const dur = row.dur;
       const priority = row.priority;
       const endState = row.endState;
       const utid = row.utid;
       const cpu = row.cpu;
       const threadStateId = row.threadStateId || undefined;
       const selected: SliceDetails = {
-        ts: timeFromStart,
+        ts,
         dur,
         priority,
         endState,
@@ -391,7 +399,8 @@ export class SelectionController extends Controller<'main'> {
     }
   }
 
-  async counterDetails(ts: number, rightTs: number, id: number) {
+  async counterDetails(ts: TPTime, rightTs: TPTime, id: number):
+      Promise<CounterDetails> {
     const counter = await this.args.engine.query(
         `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
     const row = counter.iter({
@@ -407,17 +416,15 @@ export class SelectionController extends Controller<'main'> {
           IFNULL(value, 0) as value
         FROM counter WHERE ts < ${ts} and track_id = ${trackId}`);
     const previousValue = previous.firstRow({value: NUM}).value;
-    const endTs =
-        rightTs !== -1 ? rightTs : toNs(globals.state.traceTime.endSec);
+    const endTs = rightTs !== -1n ? rightTs : globals.state.traceTime.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
-    const startTime = fromNs(ts) - globals.state.traceTime.startSec;
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     const name = uiTrackId ? globals.state.tracks[uiTrackId].name : undefined;
-    return {startTime, value, delta, duration, name};
+    return {startTime: ts, value, delta, duration, name};
   }
 
-  async schedulingDetails(ts: number, utid: number|Long) {
+  async schedulingDetails(ts: TPTime, utid: number|Long) {
     // Find the ts of the first wakeup before the current slice.
     const wakeResult = await this.args.engine.query(`
       select ts, waker_utid as wakerUtid
@@ -430,7 +437,7 @@ export class SelectionController extends Controller<'main'> {
       return undefined;
     }
 
-    const wakeFirstRow = wakeResult.firstRow({ts: NUM, wakerUtid: NUM_NULL});
+    const wakeFirstRow = wakeResult.firstRow({ts: LONG, wakerUtid: NUM_NULL});
     const wakeupTs = wakeFirstRow.ts;
     const wakerUtid = wakeFirstRow.wakerUtid;
     if (wakerUtid === null) {
@@ -449,7 +456,7 @@ export class SelectionController extends Controller<'main'> {
     // If this is the first sched slice for this utid or if the wakeup found
     // was after the previous slice then we know the wakeup was for this slice.
     if (prevSchedResult.numRows() !== 0 &&
-        wakeupTs < prevSchedResult.firstRow({ts: NUM}).ts) {
+        wakeupTs < prevSchedResult.firstRow({ts: LONG}).ts) {
       return undefined;
     }
 
@@ -468,7 +475,7 @@ export class SelectionController extends Controller<'main'> {
     }
 
     const wakerRow = wakerResult.firstRow({cpu: NUM});
-    return {wakeupTs: fromNs(wakeupTs), wakerUtid, wakerCpu: wakerRow.cpu};
+    return {wakeupTs, wakerUtid, wakerCpu: wakerRow.cpu};
   }
 
   async computeThreadDetails(utid: number):

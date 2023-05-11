@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {timeToCode} from '../../common/time';
+import {tpTimeToCode} from '../../common/time';
 import {toTraceTime, TPTimestamp} from '../sql_types';
 
 interface TimestampAttrs {
@@ -23,6 +23,6 @@ interface TimestampAttrs {
 
 export class Timestamp implements m.ClassComponent<TimestampAttrs> {
   view(vnode: m.Vnode<TimestampAttrs>) {
-    return timeToCode(toTraceTime(vnode.attrs.ts));
+    return tpTimeToCode(toTraceTime(vnode.attrs.ts));
   }
 }

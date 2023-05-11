@@ -15,7 +15,14 @@
 import {colorForTid} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {
+  fromNs,
+  TPDuration,
+  TPTime,
+  tpTimeFromNanos,
+  tpTimeToNanos,
+  tpTimeToSeconds,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -45,10 +52,10 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SUMMARY_TRACK;
   private setup = false;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const startNs = tpTimeToNanos(start);
+    const endNs = tpTimeToNanos(end);
 
     if (this.setup === false) {
       await this.query(
@@ -85,9 +92,9 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    // |resolution| is in s/px we want # ns for 10px window:
+    // |resolution| is in ns/px we want # ns for 10px window:
     // Max value with 1 so we don't end up with resolution 0.
-    const bucketSizeNs = Math.max(1, Math.round(resolution * 10 * 1e9));
+    const bucketSizeNs = Math.max(1, Math.round(Number(resolution) * 10));
     const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
     const windowDurNs = Math.max(1, endNs - windowStartNs);
 
@@ -98,14 +105,14 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       where rowid = 0;`);
 
     return this.computeSummary(
-        fromNs(windowStartNs), end, resolution, bucketSizeNs);
+        tpTimeFromNanos(windowStartNs), end, resolution, bucketSizeNs);
   }
 
   private async computeSummary(
-      start: number, end: number, resolution: number,
+      start: TPTime, end: TPTime, resolution: TPDuration,
       bucketSizeNs: number): Promise<Data> {
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const startNs = Number(start);
+    const endNs = Number(end);
     const numBuckets =
         Math.min(Math.ceil((endNs - startNs) / bucketSizeNs), LIMIT);
 
@@ -167,25 +174,28 @@ class ProcessSummaryTrack extends Track<Config, Data> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      windowSpan,
+    } = globals.frontendLocalState;
     const data = this.data();
     if (data === undefined) return;  // Can't possibly draw anything.
 
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        windowSpan.start,
+        windowSpan.end,
+        visibleTimeScale.tpTimeToPx(data.start),
+        visibleTimeScale.tpTimeToPx(data.end));
 
     this.renderSummary(ctx, data);
   }
 
   // TODO(dproy): Dedup with CPU slices.
   renderSummary(ctx: CanvasRenderingContext2D, data: Data): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
-    const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
+    const {visibleTimeScale, windowSpan} = globals.frontendLocalState;
+    const startPx = windowSpan.start;
     const bottomY = TRACK_HEIGHT;
 
     let lastX = startPx;
@@ -202,9 +212,10 @@ class ProcessSummaryTrack extends Track<Config, Data> {
     for (let i = 0; i < data.utilizations.length; i++) {
       // TODO(dproy): Investigate why utilization is > 1 sometimes.
       const utilization = Math.min(data.utilizations[i], 1);
-      const startTime = i * data.bucketSizeSeconds + data.start;
+      const startTime =
+          i * data.bucketSizeSeconds + tpTimeToSeconds(data.start);
 
-      lastX = Math.floor(timeScale.timeToPx(startTime));
+      lastX = Math.floor(visibleTimeScale.secondsToPx(startTime));
 
       ctx.lineTo(lastX, lastY);
       lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));
