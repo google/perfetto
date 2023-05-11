@@ -357,7 +357,7 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
     // args in arrays.
     std::stable_sort(interned.begin(), interned.end(),
                      [](const Arg& a, const Arg& b) {
-                       return a.first.raw_id() < b.second.raw_id();
+                       return a.first.raw_id() < b.first.raw_id();
                      });
 
     // Compute the correct key for each arg, possibly adding an index to
@@ -373,20 +373,16 @@ void ProtoTraceParser::ParseMetatraceEvent(int64_t ts, ConstBytes blob) {
         inserter->AddArg(key, Variadic::String(it->second));
       } else {
         constexpr size_t kMaxIndexSize = 20;
-        base::StringView key_str = context_->storage->GetString(key);
+        NullTermStringView key_str = context_->storage->GetString(key);
         if (key_str.size() >= sizeof(buffer) - kMaxIndexSize) {
           PERFETTO_DLOG("Ignoring arg with unreasonbly large size");
           continue;
         }
 
-        base::StringWriter writer(buffer, sizeof(buffer));
-        writer.AppendString(key_str);
-        writer.AppendChar('[');
-        writer.AppendUnsignedInt(current_idx);
-        writer.AppendChar(']');
-
+        base::StackString<2048> array_key("%s[%u]", key_str.c_str(),
+                                          current_idx);
         StringId new_key =
-            context_->storage->InternString(writer.GetStringView());
+            context_->storage->InternString(array_key.string_view());
         inserter->AddArg(key, new_key, Variadic::String(it->second));
 
         current_idx = key == next_key ? current_idx + 1 : 0;
