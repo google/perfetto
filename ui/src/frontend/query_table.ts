@@ -14,13 +14,15 @@
 
 
 import m from 'mithril';
+import {BigintMath} from '../base/bigint_math';
 
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {ColumnType, Row} from '../common/query_result';
-import {fromNs} from '../common/time';
-import {Anchor} from './anchor';
+import {TPTime, tpTimeFromNanos} from '../common/time';
+import {TPDuration} from '../common/time';
 
+import {Anchor} from './anchor';
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
@@ -38,6 +40,16 @@ interface QueryTableRowAttrs {
 }
 
 // Convert column value to number if it's a bigint or a number, otherwise throw
+function colToTimestamp(colValue: ColumnType): TPTime {
+  if (typeof colValue === 'bigint') {
+    return colValue;
+  } else if (typeof colValue === 'number') {
+    return tpTimeFromNanos(colValue);
+  } else {
+    throw Error('Value is not a number or a bigint');
+  }
+}
+
 function colToNumber(colValue: ColumnType): number {
   if (typeof colValue === 'bigint') {
     return Number(colValue);
@@ -46,6 +58,15 @@ function colToNumber(colValue: ColumnType): number {
   } else {
     throw Error('Value is not a number or a bigint');
   }
+}
+
+function colToDuration(colValue: ColumnType): TPDuration {
+  return colToTimestamp(colValue);
+}
+
+function clampDurationLower(
+    dur: TPDuration, lowerClamp: TPDuration): TPDuration {
+  return BigintMath.max(dur, lowerClamp);
 }
 
 class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
@@ -65,15 +86,14 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
     // the slice.
     event.stopPropagation();
 
-    const sliceStart = fromNs(colToNumber(row.ts));
+    const sliceStart = colToTimestamp(row.ts);
     // row.dur can be negative. Clamp to 1ns.
-    const sliceDur = fromNs(Math.max(colToNumber(row.dur), 1));
+    const sliceDur = clampDurationLower(colToDuration(row.dur), 1n);
     const sliceEnd = sliceStart + sliceDur;
-    const trackId: number = colToNumber(row.track_id);
+    const trackId = colToNumber(row.track_id);
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
     if (uiTrackId === undefined) return;
     verticalScrollToTrack(uiTrackId, true);
-    // TODO(stevegolton) Soon this function will only accept Bigints
     focusHorizontalRange(sliceStart, sliceEnd);
 
     let sliceId: number|undefined;

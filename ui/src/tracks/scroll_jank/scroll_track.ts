@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TPTime} from 'src/common/time';
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
@@ -39,8 +40,8 @@ export interface TopLevelScrollSelection {
   kind: 'TOP_LEVEL_SCROLL';
   id: number;
   sqlTableName: string;
-  startS: number;
-  durationS: number;
+  start: TPTime;
+  duration: TPTime;
 }
 
 export {Data} from '../chrome_slices';
@@ -86,8 +87,8 @@ export class TopLevelScrollTrack extends
     globals.dispatch(Actions.selectTopLevelScrollSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
-      startS: args.slice.startS,
-      durationS: args.slice.durationS,
+      start: args.slice.start,
+      duration: args.slice.duration,
       trackId: this.trackId,
     }));
   }
