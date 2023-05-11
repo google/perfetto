@@ -18,7 +18,13 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, STR} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {
+  fromNs,
+  TPDuration,
+  TPTime,
+  tpTimeFromNanos,
+  tpTimeFromSeconds,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {profileType} from '../../controller/flamegraph_controller';
 import {
@@ -42,7 +48,7 @@ export interface Config {
 
 class HeapProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     if (this.config.upid === undefined) {
       return {
@@ -111,7 +117,7 @@ class HeapProfileTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {
-      timeScale,
+      visibleTimeScale: timeScale,
     } = globals.frontendLocalState;
     const data = this.data();
 
@@ -122,11 +128,12 @@ class HeapProfileTrack extends Track<Config, Data> {
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
-          selection.kind === 'HEAP_PROFILE' && selection.ts === centerX;
+          selection.kind === 'HEAP_PROFILE' &&
+          selection.ts === tpTimeFromSeconds(centerX);
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          timeScale.timeToPx(fromNs(centerX)),
+          timeScale.secondsToPx(fromNs(centerX)),
           this.centerY,
           isHovered,
           strokeWidth);
@@ -155,8 +162,10 @@ class HeapProfileTrack extends Track<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    const {timeScale} = globals.frontendLocalState;
-    const time = toNs(timeScale.pxToTime(x));
+    const {
+      visibleTimeScale: timeScale,
+    } = globals.frontendLocalState;
+    const time = timeScale.pxToHpTime(x).nanos;
     const [left, right] = searchSegment(data.tsStarts, time);
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
     this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
@@ -169,15 +178,18 @@ class HeapProfileTrack extends Track<Config, Data> {
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
+    const {
+      visibleTimeScale: timeScale,
+    } = globals.frontendLocalState;
 
-    const time = toNs(timeScale.pxToTime(x));
+    const time = timeScale.pxToHpTime(x).nanos;
     const [left, right] = searchSegment(data.tsStarts, time);
 
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
 
     if (index !== -1) {
-      const ts = data.tsStarts[index];
+      // TODO(stevegolton): Remove conversion from number to bigint.
+      const ts = tpTimeFromNanos(data.tsStarts[index]);
       const type = data.types[index];
       globals.makeSelection(Actions.selectHeapProfile(
           {id: index, upid: this.config.upid, ts, type}));
@@ -192,13 +204,13 @@ class HeapProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[left]));
+      const centerX = timeScale.secondsToPx(fromNs(data.tsStarts[left]));
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[right]));
+      const centerX = timeScale.secondsToPx(fromNs(data.tsStarts[right]));
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }

@@ -18,13 +18,14 @@
 import m from 'mithril';
 
 import {ColumnType} from '../../common/query_result';
+import {tpDurationFromSql, tpTimeFromSql} from '../../common/time';
 import {
   BottomTab,
   bottomTabRegistry,
   NewBottomTabArgs,
 } from '../../frontend/bottom_tab';
 import {globals} from '../../frontend/globals';
-import {timestampFromSqlNanos} from '../../frontend/sql_types';
+import {asTPTimestamp} from '../../frontend/sql_types';
 import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {dictToTree} from '../../frontend/widgets/tree';
@@ -63,8 +64,9 @@ export class TopLevelScrollDetailsTab extends
 
     const left = dictToTree({
       'Scroll Id (gesture_scroll_id)': `${this.data['id']}`,
-      'Start time': m(Timestamp, {ts: timestampFromSqlNanos(this.data['ts'])}),
-      'Duration': m(Duration, {dur: Number(this.data['dur'])}),
+      'Start time':
+          m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data['ts']))}),
+      'Duration': m(Duration, {dur: tpDurationFromSql(this.data['dur'])}),
     });
     return m(
         '.details-panel',

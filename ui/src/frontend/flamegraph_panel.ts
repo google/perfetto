@@ -28,7 +28,7 @@ import {
   FlamegraphStateViewingOption,
   ProfileType,
 } from '../common/state';
-import {timeToCode} from '../common/time';
+import {tpTimeToCode} from '../common/time';
 import {profileType} from '../controller/flamegraph_controller';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
@@ -64,7 +64,7 @@ const RENDER_OBJ_COUNT: NodeRendering = {
 
 export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private profileType?: ProfileType = undefined;
-  private ts = 0;
+  private ts = 0n;
   private pids: number[] = [];
   private flamegraph: Flamegraph = new Flamegraph([]);
   private focusRegex = '';
@@ -76,12 +76,12 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   view() {
     const flamegraphDetails = globals.flamegraphDetails;
     if (flamegraphDetails && flamegraphDetails.type !== undefined &&
-        flamegraphDetails.startNs !== undefined &&
-        flamegraphDetails.durNs !== undefined &&
+        flamegraphDetails.start !== undefined &&
+        flamegraphDetails.dur !== undefined &&
         flamegraphDetails.pids !== undefined &&
         flamegraphDetails.upids !== undefined) {
       this.profileType = profileType(flamegraphDetails.type);
-      this.ts = flamegraphDetails.startNs + flamegraphDetails.durNs;
+      this.ts = flamegraphDetails.start + flamegraphDetails.dur;
       this.pids = flamegraphDetails.pids;
       if (flamegraphDetails.flamegraph) {
         this.flamegraph.updateDataIfChanged(
@@ -108,7 +108,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                         toSelectedCallsite(
                             flamegraphDetails.expandedCallsite)}`),
                   m('div.time',
-                    `Snapshot time: ${timeToCode(flamegraphDetails.durNs)}`),
+                    `Snapshot time: ${tpTimeToCode(flamegraphDetails.dur)}`),
                   m('input[type=text][placeholder=Focus]', {
                     oninput: (e: Event) => {
                       const target = (e.target as HTMLInputElement);

@@ -17,10 +17,18 @@ import {assertFalse} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../../common/high_precision_time';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
-import {fromNs, toNs} from '../../common/time';
+import {
+  fromNs,
+  TPDuration,
+  TPTime,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -46,7 +54,7 @@ export interface Config {
 class ThreadStateTrackController extends TrackController<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
 
-  private maxDurNs = 0;
+  private maxDurNs: TPDuration = 0n;
 
   async onSetup() {
     await this.query(`
@@ -66,19 +74,15 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       select ifnull(max(dur), 0) as maxDur
       from ${this.tableName('thread_state')}
     `);
-    this.maxDurNs = queryRes.firstRow({maxDur: NUM}).maxDur;
+    this.maxDurNs = queryRes.firstRow({maxDur: LONG}).maxDur;
   }
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const resolutionNs = toNs(resolution);
-    const startNs = toNs(start);
-    const endNs = toNs(end);
-
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
     const bucketNs =
-        Math.max(Math.round(resolutionNs * this.pxSize() / 2) * 2, 1);
+        Math.max(Math.round(Number(resolution) * this.pxSize() / 2) * 2, 1);
 
     const query = `
       select
@@ -92,8 +96,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
         ifnull(id, -1) as id
       from ${this.tableName('thread_state')}
       where
-        ts >= ${startNs - this.maxDurNs} and
-        ts <= ${endNs}
+        ts >= ${start - this.maxDurNs} and
+        ts <= ${end}
       group by tsq, is_sleep
       order by tsq
     `;
@@ -186,7 +190,11 @@ class ThreadStateTrack extends Track<Config, Data> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale: timeScale,
+      visibleWindowTime,
+      windowSpan,
+    } = globals.frontendLocalState;
     const data = this.data();
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
@@ -199,10 +207,10 @@ class ThreadStateTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end),
+        windowSpan.start,
+        windowSpan.end,
+        timeScale.tpTimeToPx(data.start),
+        timeScale.tpTimeToPx(data.end),
     );
 
     ctx.textAlign = 'center';
@@ -220,14 +228,19 @@ class ThreadStateTrack extends Track<Config, Data> {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const state = data.strings[data.state[i]];
-      if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
+      const timeSpan = new HighPrecisionTimeSpan(
+          HighPrecisionTime.fromSeconds(tStart),
+          HighPrecisionTime.fromSeconds(tEnd),
+      );
+
+      if (!visibleWindowTime.intersects(timeSpan)) {
         continue;
       }
 
       // Don't display a slice for Task Dead.
       if (state === 'x') continue;
-      const rectStart = timeScale.timeToPx(tStart);
-      const rectEnd = timeScale.timeToPx(tEnd);
+      const rectStart = timeScale.secondsToPx(tStart);
+      const rectEnd = timeScale.secondsToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
 
       const currentSelection = globals.state.currentSelection;
@@ -255,10 +268,9 @@ class ThreadStateTrack extends Track<Config, Data> {
       if (isSelected) {
         drawRectOnSelected = () => {
           const rectStart =
-              Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
+              Math.max(0 - EXCESS_WIDTH, timeScale.secondsToPx(tStart));
           const rectEnd = Math.min(
-              timeScale.timeToPx(visibleWindowTime.end) + EXCESS_WIDTH,
-              timeScale.timeToPx(tEnd));
+              windowSpan.end + EXCESS_WIDTH, timeScale.secondsToPx(tEnd));
           const color = colorForState(state);
           ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
           ctx.beginPath();
@@ -278,9 +290,9 @@ class ThreadStateTrack extends Track<Config, Data> {
   onMouseClick({x}: {x: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(x);
-    const index = search(data.starts, time);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(x);
+    const index = search(data.starts, time.nanos);
     if (index === -1) return false;
 
     const id = data.ids[index];

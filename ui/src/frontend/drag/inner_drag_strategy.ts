@@ -23,8 +23,8 @@ export class InnerDragStrategy extends DragStrategy {
 
   onDrag(x: number) {
     const move = x - this.dragStartPx;
-    const tStart = this.timeScale.pxToTime(this.pixelBounds[0] + move);
-    const tEnd = this.timeScale.pxToTime(this.pixelBounds[1] + move);
+    const tStart = this.map.pxToHpTime(this.pixelBounds[0] + move);
+    const tEnd = this.map.pxToHpTime(this.pixelBounds[1] + move);
     super.updateGlobals(tStart, tEnd);
   }
 
