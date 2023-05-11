@@ -292,7 +292,7 @@ class ThreadStateTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const index = search(data.starts, time.nanos);
+    const index = search(data.starts, time.seconds);
     if (index === -1) return false;
 
     const id = data.ids[index];
