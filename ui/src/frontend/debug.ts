@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {produce} from 'immer';
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
@@ -19,12 +20,14 @@ import {getSchema} from '../common/schema';
 
 import {globals} from './globals';
 
+
 declare global {
   interface Window {
     m: typeof m;
     getSchema: typeof getSchema;
     globals: typeof globals;
     Actions: typeof Actions;
+    produce: typeof produce;
   }
 }
 
@@ -33,4 +36,5 @@ export function registerDebugGlobals() {
   window.m = m;
   window.globals = globals;
   window.Actions = Actions;
+  window.produce = produce;
 }

@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {PluginContext} from '../../common/plugin_api';
-import {NUM, NUM_NULL, STR} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {LONG_NULL, NUM, STR} from '../../common/query_result';
+import {fromNs, TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -43,26 +43,24 @@ export interface Data extends TrackData {
 
 class AsyncSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ASYNC_SLICE_TRACK_KIND;
-  private maxDurNs = 0;
+  private maxDurNs: TPDuration = 0n;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNs(start);
-    const endNs = toNs(end);
-
     const pxSize = this.pxSize();
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
-    const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
+    const bucketNs =
+        Math.max(Math.round(Number(resolution) * pxSize / 2) * 2, 1);
 
-    if (this.maxDurNs === 0) {
+    if (this.maxDurNs === 0n) {
       const maxDurResult = await this.query(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
         as maxDur from experimental_slice_layout
         where filter_track_ids = '${this.config.trackIds.join(',')}'
       `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
+      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
     }
 
     const queryRes = await this.query(`
@@ -78,8 +76,8 @@ class AsyncSliceTrackController extends TrackController<Config, Data> {
       from experimental_slice_layout
       where
         filter_track_ids = '${this.config.trackIds.join(',')}' and
-        ts >= ${startNs - this.maxDurNs} and
-        ts <= ${endNs}
+        ts >= ${start - this.maxDurNs} and
+        ts <= ${end}
       group by tsq, layout_depth
       order by tsq, layout_depth
     `);

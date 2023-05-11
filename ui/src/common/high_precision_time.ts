@@ -1,0 +1,258 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {assertTrue} from '../base/logging';
+import {Span, TPTime} from './time';
+
+export type RoundMode = 'round'|'floor'|'ceil';
+
+// Stores a time as a bigint and an offset which is capable of:
+// - Storing and reproducing "TPTime"s without losing precision.
+// - Storing time with sub-nanosecond precision.
+// This class is immutable - each operation returns a new object.
+export class HighPrecisionTime {
+  // Time in nanoseconds == base + offset
+  // offset is kept in the range 0 <= x < 1 to avoid losing precision
+  readonly base: bigint;
+  readonly offset: number;
+
+  static get ZERO(): HighPrecisionTime {
+    return new HighPrecisionTime(0n);
+  }
+
+  constructor(base: bigint = 0n, offset: number = 0) {
+    // Normalize offset to sit in the range 0.0 <= x < 1.0
+    const offsetFloor = Math.floor(offset);
+    this.base = base + BigInt(offsetFloor);
+    this.offset = offset - offsetFloor;
+  }
+
+  static fromTPTime(timestamp: TPTime): HighPrecisionTime {
+    return new HighPrecisionTime(timestamp, 0);
+  }
+
+  static fromNanos(nanos: number|bigint) {
+    if (typeof nanos === 'number') {
+      return new HighPrecisionTime(0n, nanos);
+    } else if (typeof nanos === 'bigint') {
+      return new HighPrecisionTime(nanos);
+    } else {
+      const value: never = nanos;
+      throw new Error(`Value ${value} is neither a number nor a bigint`);
+    }
+  }
+
+  static fromSeconds(seconds: number) {
+    const nanos = seconds * 1e9;
+    const offset = nanos - Math.floor(nanos);
+    return new HighPrecisionTime(BigInt(Math.floor(nanos)), offset);
+  }
+
+  static max(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
+    return a.isGreaterThan(b) ? a : b;
+  }
+
+  static min(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
+    return a.isLessThan(b) ? a : b;
+  }
+
+  toTPTime(roundMode: RoundMode = 'floor'): TPTime {
+    switch (roundMode) {
+      case 'round':
+        return this.base + BigInt(Math.round(this.offset));
+      case 'floor':
+        return this.base;
+      case 'ceil':
+        return this.base + BigInt(Math.ceil(this.offset));
+      default:
+        const exhaustiveCheck: never = roundMode;
+        throw new Error(`Unhandled roundMode case: ${exhaustiveCheck}`);
+    }
+  }
+
+  get nanos(): number {
+    // WARNING: Number(bigint) can be surprisingly slow.
+    // WARNING: Precision may be lost here.
+    return Number(this.base) + this.offset;
+  }
+
+  get seconds(): number {
+    // WARNING: Number(bigint) can be surprisingly slow.
+    // WARNING: Precision may be lost here.
+    return (Number(this.base) + this.offset) / 1e9;
+  }
+
+  add(other: HighPrecisionTime): HighPrecisionTime {
+    return new HighPrecisionTime(
+        this.base + other.base, this.offset + other.offset);
+  }
+
+  addNanos(nanos: number|bigint): HighPrecisionTime {
+    return this.add(HighPrecisionTime.fromNanos(nanos));
+  }
+
+  addSeconds(seconds: number): HighPrecisionTime {
+    return new HighPrecisionTime(this.base, this.offset + seconds * 1e9);
+  }
+
+  addTPTime(ts: TPTime): HighPrecisionTime {
+    return new HighPrecisionTime(this.base + ts, this.offset);
+  }
+
+  subtract(other: HighPrecisionTime): HighPrecisionTime {
+    return new HighPrecisionTime(
+        this.base - other.base, this.offset - other.offset);
+  }
+
+  subtractTPTime(ts: TPTime): HighPrecisionTime {
+    return this.addTPTime(-ts);
+  }
+
+  subtractNanos(nanos: number|bigint): HighPrecisionTime {
+    return this.add(HighPrecisionTime.fromNanos(-nanos));
+  }
+
+  divide(divisor: number): HighPrecisionTime {
+    return this.multiply(1 / divisor);
+  }
+
+  multiply(factor: number): HighPrecisionTime {
+    const factorFloor = Math.floor(factor);
+    const newBase = this.base * BigInt(factorFloor);
+    const additionalBit = Number(this.base) * (factor - factorFloor);
+    const newOffset = factor * this.offset + additionalBit;
+    return new HighPrecisionTime(newBase, newOffset);
+  }
+
+  // Return true if other time is within some epsilon, default 1 femtosecond
+  equals(other: HighPrecisionTime, epsilon: number = 1e-6): boolean {
+    return Math.abs(this.subtract(other).nanos) < epsilon;
+  }
+
+  isLessThan(other: HighPrecisionTime): boolean {
+    if (this.base < other.base) {
+      return true;
+    } else if (this.base === other.base) {
+      return this.offset < other.offset;
+    } else {
+      return false;
+    }
+  }
+
+  isLessThanOrEqual(other: HighPrecisionTime): boolean {
+    if (this.equals(other)) {
+      return true;
+    } else {
+      return this.isLessThan(other);
+    }
+  }
+
+  isGreaterThan(other: HighPrecisionTime): boolean {
+    return !this.isLessThanOrEqual(other);
+  }
+
+  isGreaterThanOrEqual(other: HighPrecisionTime): boolean {
+    return !this.isLessThan(other);
+  }
+
+  clamp(lower: HighPrecisionTime, upper: HighPrecisionTime): HighPrecisionTime {
+    if (this.isLessThan(lower)) {
+      return lower;
+    } else if (this.isGreaterThan(upper)) {
+      return upper;
+    } else {
+      return this;
+    }
+  }
+
+  toString(): string {
+    const offsetAsString = this.offset.toString();
+    if (offsetAsString === '0') {
+      return this.base.toString();
+    } else {
+      return `${this.base}${offsetAsString.substring(1)}`;
+    }
+  }
+}
+
+export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
+  readonly start: HighPrecisionTime;
+  readonly end: HighPrecisionTime;
+
+  constructor(start: TPTime|HighPrecisionTime, end: TPTime|HighPrecisionTime) {
+    this.start = (start instanceof HighPrecisionTime) ?
+        start :
+        HighPrecisionTime.fromTPTime(start);
+    this.end = (end instanceof HighPrecisionTime) ?
+        end :
+        HighPrecisionTime.fromTPTime(end);
+    assertTrue(
+        this.start.isLessThanOrEqual(this.end),
+        `TimeSpan start [${this.start}] cannot be greater than end [${
+            this.end}]`);
+  }
+
+  static fromTpTime(start: TPTime, end: TPTime): HighPrecisionTimeSpan {
+    return new HighPrecisionTimeSpan(
+        HighPrecisionTime.fromTPTime(start),
+        HighPrecisionTime.fromTPTime(end),
+    );
+  }
+
+  static get ZERO(): HighPrecisionTimeSpan {
+    return new HighPrecisionTimeSpan(
+        HighPrecisionTime.ZERO,
+        HighPrecisionTime.ZERO,
+    );
+  }
+
+  get duration(): HighPrecisionTime {
+    return this.end.subtract(this.start);
+  }
+
+  get midpoint(): HighPrecisionTime {
+    return this.start.add(this.end).divide(2);
+  }
+
+  equals(other: Span<HighPrecisionTime>): boolean {
+    return this.start.equals(other.start) && this.end.equals(other.end);
+  }
+
+  contains(x: HighPrecisionTime|Span<HighPrecisionTime>): boolean {
+    if (x instanceof HighPrecisionTime) {
+      return this.start.isLessThanOrEqual(x) && x.isLessThan(this.end);
+    } else {
+      return this.start.isLessThanOrEqual(x.start) &&
+          x.end.isLessThanOrEqual(this.end);
+    }
+  }
+
+  intersects(x: Span<HighPrecisionTime>): boolean {
+    return !(
+        x.end.isLessThanOrEqual(this.start) ||
+        x.start.isGreaterThanOrEqual(this.end));
+  }
+
+  add(time: HighPrecisionTime): Span<HighPrecisionTime> {
+    return new HighPrecisionTimeSpan(this.start.add(time), this.end.add(time));
+  }
+
+  // Move the start and end away from each other a certain amount
+  pad(time: HighPrecisionTime): Span<HighPrecisionTime> {
+    return new HighPrecisionTimeSpan(
+        this.start.subtract(time),
+        this.end.add(time),
+    );
+  }
+}

@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {BigintMath} from '../base/bigint_math';
 
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';
-import {TimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
@@ -28,7 +28,6 @@ import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
-import {computeZoom} from './time_scale';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
@@ -53,8 +52,9 @@ function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
     const area = globals.frontendLocalState.selectedArea ?
         globals.frontendLocalState.selectedArea :
         globals.state.areas[selection.areaId];
-    const start = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
-    const end = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const start = visibleTimeScale.tpTimeToPx(area.start);
+    const end = visibleTimeScale.tpTimeToPx(area.end);
     const startDrag = mousePos - TRACK_SHELL_WIDTH;
     const startDistance = Math.abs(start - startDrag);
     const endDistance = Math.abs(end - startDrag);
@@ -119,21 +119,14 @@ class TraceViewer implements m.ClassComponent {
       element: panZoomEl,
       contentOffsetX: SIDEBAR_WIDTH,
       onPanned: (pannedPx: number) => {
+        const {
+          visibleTimeScale,
+        } = globals.frontendLocalState;
+
         this.keepCurrentSelection = true;
-        const traceTime = globals.state.traceTime;
-        const vizTime = globals.frontendLocalState.visibleWindowTime;
-        const origDelta = vizTime.duration;
-        const tDelta = frontendLocalState.timeScale.deltaPxToDuration(pannedPx);
-        let tStart = vizTime.start + tDelta;
-        let tEnd = vizTime.end + tDelta;
-        if (tStart < traceTime.startSec) {
-          tStart = traceTime.startSec;
-          tEnd = tStart + origDelta;
-        } else if (tEnd > traceTime.endSec) {
-          tEnd = traceTime.endSec;
-          tStart = tEnd - origDelta;
-        }
-        frontendLocalState.updateVisibleTime(new TimeSpan(tStart, tEnd));
+        const tDelta = visibleTimeScale.pxDeltaToDuration(pannedPx);
+        frontendLocalState.panVisibleWindow(tDelta);
+
         // If the user has panned they no longer need the hint.
         localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
         globals.rafScheduler.scheduleRedraw();
@@ -141,11 +134,10 @@ class TraceViewer implements m.ClassComponent {
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
         // TODO(hjd): Avoid hardcoding TRACK_SHELL_WIDTH.
         // TODO(hjd): Improve support for zooming in overview timeline.
-        const span = frontendLocalState.visibleWindowTime;
-        const scale = frontendLocalState.timeScale;
         const zoomPx = zoomedPositionPx - TRACK_SHELL_WIDTH;
-        const newSpan = computeZoom(scale, span, 1 - zoomRatio, zoomPx);
-        frontendLocalState.updateVisibleTime(newSpan);
+        const rect = vnode.dom.getBoundingClientRect();
+        const centerPoint = zoomPx / (rect.width - TRACK_SHELL_WIDTH);
+        frontendLocalState.zoomVisibleWindow(1 - zoomRatio, centerPoint);
         globals.rafScheduler.scheduleRedraw();
       },
       editSelection: (currentPx: number) => {
@@ -159,7 +151,7 @@ class TraceViewer implements m.ClassComponent {
           currentY: number,
           editing: boolean) => {
         const traceTime = globals.state.traceTime;
-        const scale = frontendLocalState.timeScale;
+        const {visibleTimeScale} = frontendLocalState;
         this.keepCurrentSelection = true;
         if (editing) {
           const selection = globals.state.currentSelection;
@@ -167,33 +159,40 @@ class TraceViewer implements m.ClassComponent {
             const area = globals.frontendLocalState.selectedArea ?
                 globals.frontendLocalState.selectedArea :
                 globals.state.areas[selection.areaId];
-            let newTime = scale.pxToTime(currentX - TRACK_SHELL_WIDTH);
+            let newTime =
+                visibleTimeScale.pxToHpTime(currentX - TRACK_SHELL_WIDTH)
+                    .toTPTime();
             // Have to check again for when one boundary crosses over the other.
             const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
-            const keepTime =
-                curBoundary === 'START' ? area.endSec : area.startSec;
+            const keepTime = curBoundary === 'START' ? area.end : area.start;
             // Don't drag selection outside of current screen.
             if (newTime < keepTime) {
-              newTime = Math.max(newTime, scale.pxToTime(scale.startPx));
+              newTime = BigintMath.max(
+                  newTime, visibleTimeScale.timeSpan.start.toTPTime());
             } else {
-              newTime = Math.min(newTime, scale.pxToTime(scale.endPx));
+              newTime = BigintMath.max(
+                  newTime, visibleTimeScale.timeSpan.end.toTPTime());
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
             frontendLocalState.selectArea(
-                Math.max(Math.min(keepTime, newTime), traceTime.startSec),
-                Math.min(Math.max(keepTime, newTime), traceTime.endSec),
+                BigintMath.max(
+                    BigintMath.min(keepTime, newTime), traceTime.start),
+                BigintMath.min(
+                    BigintMath.max(keepTime, newTime), traceTime.end),
                 globals.state.areas[selection.areaId].tracks);
           }
         } else {
           let startPx = Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           let endPx = Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           if (startPx < 0 && endPx < 0) return;
-          startPx = Math.max(startPx, scale.startPx);
-          endPx = Math.min(endPx, scale.endPx);
+          startPx = Math.max(startPx, visibleTimeScale.pxSpan.start);
+          endPx = Math.min(endPx, visibleTimeScale.pxSpan.end);
           frontendLocalState.selectArea(
-              scale.pxToTime(startPx), scale.pxToTime(endPx));
+              visibleTimeScale.pxToHpTime(startPx).toTPTime('floor'),
+              visibleTimeScale.pxToHpTime(endPx).toTPTime('ceil'),
+          );
           frontendLocalState.areaY.start = dragStartY;
           frontendLocalState.areaY.end = currentY;
         }
@@ -271,6 +270,9 @@ class TraceViewer implements m.ClassComponent {
           m('.pan-and-zoom-content',
             {
               onclick: () => {
+                // TODO(stevegolton): Make it possible to click buttons and
+                // things on this element without deselecting the selected
+                // element!
                 // We don't want to deselect when panning/drag selecting.
                 if (this.keepCurrentSelection) {
                   this.keepCurrentSelection = false;
