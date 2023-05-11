@@ -1,0 +1,4 @@
+"ts","dur","track_name","str_value","int_value"
+1000,8000,"battery_stats.top","mail",123
+3000,-1,"battery_stats.job","mail_job",456
+1000,3000,"battery_stats.job","video_job",789
