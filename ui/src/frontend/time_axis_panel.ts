@@ -14,11 +14,15 @@
 
 import m from 'mithril';
 
-import {timeToString} from '../common/time';
+import {
+  tpTimeToSeconds,
+  tpTimeToString,
+} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
+  getMaxMajorTicks,
   TickGenerator,
   TickType,
   timeScaleForVisibleWindow,
@@ -35,20 +39,32 @@ export class TimeAxisPanel extends Panel {
     ctx.font = '10px Roboto Condensed';
     ctx.textAlign = 'left';
 
-    const startTime = timeToString(globals.state.traceTime.startSec);
+    const startTime = tpTimeToString(globals.state.traceTime.start);
     ctx.fillText(startTime + ' +', 6, 11);
 
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
+    ctx.clip();
+
     // Draw time axis.
-    const timeScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-    if (timeScale.timeSpan.duration > 0 && timeScale.widthPx > 0) {
-      const tickGen = new TickGenerator(timeScale);
-      for (const {type, time, position} of tickGen) {
+    const span = globals.frontendLocalState.visibleWindow.timestampSpan;
+    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
+      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+      const tickGen =
+          new TickGenerator(span, maxMajorTicks, globals.state.traceTime.start);
+      for (const {type, time} of tickGen) {
+        const position = Math.floor(map.tpTimeToPx(time));
+        const sec = tpTimeToSeconds(time - globals.state.traceTime.start);
         if (type === TickType.MAJOR) {
           ctx.fillRect(position, 0, 1, size.height);
-          ctx.fillText(time.toFixed(tickGen.digits) + ' s', position + 5, 10);
+          ctx.fillText(sec.toFixed(tickGen.digits) + ' s', position + 5, 10);
         }
       }
     }
+
+    ctx.restore();
 
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
   }

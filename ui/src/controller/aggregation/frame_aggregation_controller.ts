@@ -15,7 +15,6 @@
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
-import {toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
@@ -48,8 +47,8 @@ export class FrameAggregationController extends AggregationController {
         MAX(dur) as maxDur
         FROM actual_frame_timeline_slice
         WHERE track_id IN (${selectedSqlTrackIds}) AND
-        ts + dur > ${toNs(area.startSec)} AND
-        ts < ${toNs(area.endSec)} group by jank_type`;
+        ts + dur > ${area.start} AND
+        ts < ${area.end} group by jank_type`;
 
     await engine.query(query);
     return true;

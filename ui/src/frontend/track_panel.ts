@@ -362,20 +362,20 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const localState = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.frontendLocalState;
     const selection = globals.state.currentSelection;
     const trackState = this.trackState;
     if (!selection || selection.kind !== 'AREA' || trackState === undefined) {
       return;
     }
     const selectedArea = globals.state.areas[selection.areaId];
+    const selectedAreaDuration = selectedArea.end - selectedArea.start;
     if (selectedArea.tracks.includes(trackState.id)) {
-      const timeScale = localState.timeScale;
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
-          timeScale.timeToPx(selectedArea.startSec) + TRACK_SHELL_WIDTH,
+          visibleTimeScale.tpTimeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
           0,
-          timeScale.deltaTimeToPx(selectedArea.endSec - selectedArea.startSec),
+          visibleTimeScale.durationToPx(selectedAreaDuration),
           size.height);
     }
   }
@@ -396,20 +396,20 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     this.highlightIfTrackSelected(ctx, size);
 
-    const localState = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.frontendLocalState;
     // Draw vertical line when hovering on the notes panel.
-    if (globals.state.hoveredNoteTimestamp !== -1) {
+    if (globals.state.hoveredNoteTimestamp !== -1n) {
       drawVerticalLineAtTime(
           ctx,
-          localState.timeScale,
+          visibleTimeScale,
           globals.state.hoveredNoteTimestamp,
           size.height,
           `#aaa`);
     }
-    if (globals.state.hoverCursorTimestamp !== -1) {
+    if (globals.state.hoverCursorTimestamp !== -1n) {
       drawVerticalLineAtTime(
           ctx,
-          localState.timeScale,
+          visibleTimeScale,
           globals.state.hoverCursorTimestamp,
           size.height,
           `#344596`);
@@ -420,7 +420,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
           globals.sliceDetails.wakeupTs !== undefined) {
         drawVerticalLineAtTime(
             ctx,
-            localState.timeScale,
+            visibleTimeScale,
             globals.sliceDetails.wakeupTs,
             size.height,
             `black`);
@@ -434,21 +434,21 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
             'rgba(' + hex.rgb(note.color.substr(1)).toString() + ', 0.65)';
         drawVerticalLineAtTime(
             ctx,
-            localState.timeScale,
-            globals.state.areas[note.areaId].startSec,
+            visibleTimeScale,
+            globals.state.areas[note.areaId].start,
             size.height,
             transparentNoteColor,
             1);
         drawVerticalLineAtTime(
             ctx,
-            localState.timeScale,
-            globals.state.areas[note.areaId].endSec,
+            visibleTimeScale,
+            globals.state.areas[note.areaId].end,
             size.height,
             transparentNoteColor,
             1);
       } else if (note.noteType === 'DEFAULT') {
         drawVerticalLineAtTime(
-            ctx, localState.timeScale, note.timestamp, size.height, note.color);
+            ctx, visibleTimeScale, note.timestamp, size.height, note.color);
       }
     }
   }

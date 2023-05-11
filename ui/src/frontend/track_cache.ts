@@ -52,6 +52,7 @@ export const BUCKETS_PER_PIXEL = 2;
 // In other words the normal window is a superset of the data of the
 // non-normal window at a higher resolution. Normalization is used to
 // avoid re-fetching data on tiny zooms/moves/resizes.
+// TODO(stevegolton): Convert to bigint timestamps.
 export class CacheKey {
   readonly startNs: number;
   readonly endNs: number;
