@@ -16,6 +16,7 @@
 
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CACHE_H_
+
 #include <optional>
 
 #include "src/trace_processor/db/table.h"

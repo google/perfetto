@@ -103,12 +103,13 @@ perfetto_cc_library(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
+        ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
         ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
+        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
@@ -2023,6 +2024,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/prelude/table_functions:interface
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_table_functions_interface",
+    srcs = [
+        "src/trace_processor/prelude/table_functions/table_function.cc",
+        "src/trace_processor/prelude/table_functions/table_function.h",
+    ],
+)
+
 # GN target: //src/trace_processor/prelude/table_functions:table_functions
 perfetto_filegroup(
     name = "src_trace_processor_prelude_table_functions_table_functions",
@@ -2047,8 +2057,6 @@ perfetto_filegroup(
         "src/trace_processor/prelude/table_functions/experimental_slice_layout.h",
         "src/trace_processor/prelude/table_functions/flamegraph_construction_algorithms.cc",
         "src/trace_processor/prelude/table_functions/flamegraph_construction_algorithms.h",
-        "src/trace_processor/prelude/table_functions/table_function.cc",
-        "src/trace_processor/prelude/table_functions/table_function.h",
         "src/trace_processor/prelude/table_functions/view.cc",
         "src/trace_processor/prelude/table_functions/view.h",
     ],
@@ -2120,6 +2128,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/sqlite:query_constraints
+perfetto_filegroup(
+    name = "src_trace_processor_sqlite_query_constraints",
+    srcs = [
+        "src/trace_processor/sqlite/query_constraints.cc",
+        "src/trace_processor/sqlite/query_constraints.h",
+    ],
+)
+
 # GN target: //src/trace_processor/sqlite:sqlite
 perfetto_filegroup(
     name = "src_trace_processor_sqlite_sqlite",
@@ -2127,27 +2144,17 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
         "src/trace_processor/sqlite/query_cache.h",
+        "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.h",
         "src/trace_processor/sqlite/sqlite_engine.cc",
         "src/trace_processor/sqlite/sqlite_engine.h",
+        "src/trace_processor/sqlite/sqlite_table.cc",
+        "src/trace_processor/sqlite/sqlite_table.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
         "src/trace_processor/sqlite/stats_table.cc",
         "src/trace_processor/sqlite/stats_table.h",
-    ],
-)
-
-# GN target: //src/trace_processor/sqlite:sqlite_minimal
-perfetto_filegroup(
-    name = "src_trace_processor_sqlite_sqlite_minimal",
-    srcs = [
-        "src/trace_processor/sqlite/query_constraints.cc",
-        "src/trace_processor/sqlite/query_constraints.h",
-        "src/trace_processor/sqlite/scoped_db.h",
-        "src/trace_processor/sqlite/sqlite_table.cc",
-        "src/trace_processor/sqlite/sqlite_table.h",
-        "src/trace_processor/sqlite/sqlite_utils.h",
     ],
 )
 
@@ -5003,11 +5010,12 @@ perfetto_cc_library(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
+        ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
         ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
+        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
@@ -5157,13 +5165,14 @@ perfetto_cc_binary(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
+        ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
         ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
         ":src_trace_processor_sorter_sorter",
+        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
@@ -5370,11 +5379,12 @@ perfetto_cc_binary(
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
         ":src_trace_processor_prelude_operators_operators",
+        ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
         ":src_trace_processor_prelude_table_functions_tables",
         ":src_trace_processor_sorter_sorter",
+        ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",
-        ":src_trace_processor_sqlite_sqlite_minimal",
         ":src_trace_processor_storage_minimal",
         ":src_trace_processor_storage_storage",
         ":src_trace_processor_tables_tables",
