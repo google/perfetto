@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {hueForCpu} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, NUM_NULL, QueryResult} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {fromNs, TPDuration, TPTime, tpTimeToNanos} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -96,15 +97,17 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     this.cachedBucketNs = bucketNs;
   }
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
-    const resolutionNs = toNs(resolution);
-    assertTrue(Math.log2(resolutionNs) % 1 === 0);
+    assertTrue(
+        BigintMath.popcount(resolution) === 1,
+        `${resolution} is not a power of 2`);
+    const resolutionNs = Number(resolution);
 
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const startNs = tpTimeToNanos(start);
+    const endNs = tpTimeToNanos(end);
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
@@ -289,7 +292,11 @@ class CpuFreqTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      visibleWindowTime,
+      windowSpan,
+    } = globals.frontendLocalState;
     const data = this.data();
 
     if (data === undefined || data.timestamps.length === 0) {
@@ -302,7 +309,7 @@ class CpuFreqTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
     assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
-    const endPx = timeScale.timeToPx(visibleWindowTime.end);
+    const endPx = windowSpan.end;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -326,17 +333,18 @@ class CpuFreqTrack extends Track<Config, Data> {
     ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 55%)`;
 
     const calculateX = (timestamp: number) => {
-      return Math.floor(timeScale.timeToPx(timestamp));
+      return Math.floor(visibleTimeScale.secondsToPx(timestamp));
     };
     const calculateY = (value: number) => {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
     };
 
-    const [rawStartIdx] =
-        searchSegment(data.timestamps, visibleWindowTime.start);
+    const startSec = visibleWindowTime.start.seconds;
+    const endSec = visibleWindowTime.end.seconds;
+    const [rawStartIdx] = searchSegment(data.timestamps, startSec);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.timestamps, visibleWindowTime.end);
+    const [, rawEndIdx] = searchSegment(data.timestamps, endSec);
     const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
 
     ctx.beginPath();
@@ -383,10 +391,10 @@ class CpuFreqTrack extends Track<Config, Data> {
       // coordinates. Instead we use floating point which prevents flickering as
       // we pan and zoom; this relies on the browser anti-aliasing pixels
       // correctly.
-      const x = timeScale.timeToPx(data.timestamps[i]);
+      const x = visibleTimeScale.secondsToPx(data.timestamps[i]);
       const xEnd = i === data.lastIdleValues.length - 1 ?
           finalX :
-          timeScale.timeToPx(data.timestamps[i + 1]);
+          visibleTimeScale.secondsToPx(data.timestamps[i + 1]);
 
       const width = xEnd - x;
       const height = calculateY(data.lastFreqKHz[i]) - zeroY;
@@ -402,10 +410,10 @@ class CpuFreqTrack extends Track<Config, Data> {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
+      const xStart = Math.floor(visibleTimeScale.secondsToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+          Math.floor(visibleTimeScale.secondsToPx(this.hoveredTsEnd));
       const y = zeroY - Math.round((this.hoveredValue / yMax) * RECT_HEIGHT);
 
       // Highlight line.
@@ -446,18 +454,18 @@ class CpuFreqTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        windowSpan.start,
+        windowSpan.end,
+        visibleTimeScale.tpTimeToPx(data.start),
+        visibleTimeScale.tpTimeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
     this.mousePos = pos;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(pos.x);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(pos.x).seconds;
 
     const [left, right] = searchSegment(data.timestamps, time);
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];

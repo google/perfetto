@@ -61,7 +61,7 @@ import {
   UtidToTrackSortKey,
   VisibleState,
 } from './state';
-import {toNs} from './time';
+import {TPDuration, TPTime} from './time';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -89,8 +89,8 @@ export interface PostedTrace {
 }
 
 export interface PostedScrollToRange {
-  timeStart: number;
-  timeEnd: number;
+  timeStart: TPTime;
+  timeEnd: TPTime;
   viewPercentage?: number;
 }
 
@@ -552,7 +552,7 @@ export const StateActions = {
 
   addAutomaticNote(
       state: StateDraft,
-      args: {timestamp: number, color: string, text: string}): void {
+      args: {timestamp: TPTime, color: string, text: string}): void {
     const id = generateNextId(state);
     state.notes[id] = {
       noteType: 'DEFAULT',
@@ -563,7 +563,7 @@ export const StateActions = {
     };
   },
 
-  addNote(state: StateDraft, args: {timestamp: number, color: string}): void {
+  addNote(state: StateDraft, args: {timestamp: TPTime, color: string}): void {
     const id = generateNextId(state);
     state.notes[id] = {
       noteType: 'DEFAULT',
@@ -606,14 +606,10 @@ export const StateActions = {
   },
 
   markArea(state: StateDraft, args: {area: Area, persistent: boolean}): void {
+    const {start, end, tracks} = args.area;
+    assertTrue(start <= end);
     const areaId = generateNextId(state);
-    assertTrue(args.area.endSec >= args.area.startSec);
-    state.areas[areaId] = {
-      id: areaId,
-      startSec: args.area.startSec,
-      endSec: args.area.endSec,
-      tracks: args.area.tracks,
-    };
+    state.areas[areaId] = {id: areaId, start, end, tracks};
     const noteId = args.persistent ? generateNextId(state) : '0';
     const color = args.persistent ? randomColor() : '#344596';
     state.notes[noteId] = {
@@ -667,7 +663,7 @@ export const StateActions = {
 
   selectCounter(
       state: StateDraft,
-      args: {leftTs: number, rightTs: number, id: number, trackId: string}):
+      args: {leftTs: TPTime, rightTs: TPTime, id: number, trackId: string}):
       void {
         state.currentSelection = {
           kind: 'COUNTER',
@@ -680,7 +676,7 @@ export const StateActions = {
 
   selectHeapProfile(
       state: StateDraft,
-      args: {id: number, upid: number, ts: number, type: ProfileType}): void {
+      args: {id: number, upid: number, ts: TPTime, type: ProfileType}): void {
     state.currentSelection = {
       kind: 'HEAP_PROFILE',
       id: args.id,
@@ -690,8 +686,8 @@ export const StateActions = {
     };
     this.openFlamegraph(state, {
       type: args.type,
-      startNs: toNs(state.traceTime.startSec),
-      endNs: args.ts,
+      start: state.traceTime.start,
+      end: args.ts,
       upids: [args.upid],
       viewingOption: DEFAULT_VIEWING_OPTION,
     });
@@ -700,8 +696,8 @@ export const StateActions = {
   selectPerfSamples(state: StateDraft, args: {
     id: number,
     upid: number,
-    leftTs: number,
-    rightTs: number,
+    leftTs: TPTime,
+    rightTs: TPTime,
     type: ProfileType
   }): void {
     state.currentSelection = {
@@ -714,8 +710,8 @@ export const StateActions = {
     };
     this.openFlamegraph(state, {
       type: args.type,
-      startNs: args.leftTs,
-      endNs: args.rightTs,
+      start: args.leftTs,
+      end: args.rightTs,
       upids: [args.upid],
       viewingOption: PERF_SAMPLES_KEY,
     });
@@ -723,16 +719,16 @@ export const StateActions = {
 
   openFlamegraph(state: StateDraft, args: {
     upids: number[],
-    startNs: number,
-    endNs: number,
+    start: TPTime,
+    end: TPTime,
     type: ProfileType,
     viewingOption: FlamegraphStateViewingOption
   }): void {
     state.currentFlamegraphState = {
       kind: 'FLAMEGRAPH_STATE',
       upids: args.upids,
-      startNs: args.startNs,
-      endNs: args.endNs,
+      start: args.start,
+      end: args.end,
       type: args.type,
       viewingOption: args.viewingOption,
       focusRegex: '',
@@ -784,16 +780,16 @@ export const StateActions = {
   selectDebugSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
-    startS: number,
-    durationS: number,
+    start: TPTime,
+    duration: TPDuration,
     trackId: string,
   }): void {
     state.currentSelection = {
       kind: 'DEBUG_SLICE',
       id: args.id,
       sqlTableName: args.sqlTableName,
-      startS: args.startS,
-      durationS: args.durationS,
+      start: args.start,
+      duration: args.duration,
       trackId: args.trackId,
     };
   },
@@ -801,16 +797,16 @@ export const StateActions = {
   selectTopLevelScrollSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
-    startS: number,
-    durationS: number,
+    start: TPTime,
+    duration: TPTime,
     trackId: string,
   }): void {
     state.currentSelection = {
       kind: 'TOP_LEVEL_SCROLL',
       id: args.id,
       sqlTableName: args.sqlTableName,
-      startS: args.startS,
-      durationS: args.durationS,
+      start: args.start,
+      duration: args.duration,
       trackId: args.trackId,
     };
   },
@@ -910,25 +906,17 @@ export const StateActions = {
   },
 
   selectArea(state: StateDraft, args: {area: Area}): void {
+    const {start, end, tracks} = args.area;
+    assertTrue(start <= end);
     const areaId = generateNextId(state);
-    assertTrue(args.area.endSec >= args.area.startSec);
-    state.areas[areaId] = {
-      id: areaId,
-      startSec: args.area.startSec,
-      endSec: args.area.endSec,
-      tracks: args.area.tracks,
-    };
+    state.areas[areaId] = {id: areaId, start, end, tracks};
     state.currentSelection = {kind: 'AREA', areaId};
   },
 
   editArea(state: StateDraft, args: {area: Area, areaId: string}): void {
-    assertTrue(args.area.endSec >= args.area.startSec);
-    state.areas[args.areaId] = {
-      id: args.areaId,
-      startSec: args.area.startSec,
-      endSec: args.area.endSec,
-      tracks: args.area.tracks,
-    };
+    const {start, end, tracks} = args.area;
+    assertTrue(start <= end);
+    state.areas[args.areaId] = {id: args.areaId, start, end, tracks};
   },
 
   reSelectArea(state: StateDraft, args: {areaId: string, noteId: string}):
@@ -1048,11 +1036,11 @@ export const StateActions = {
     state.searchIndex = args.index;
   },
 
-  setHoverCursorTimestamp(state: StateDraft, args: {ts: number}) {
+  setHoverCursorTimestamp(state: StateDraft, args: {ts: TPTime}) {
     state.hoverCursorTimestamp = args.ts;
   },
 
-  setHoveredNoteTimestamp(state: StateDraft, args: {ts: number}) {
+  setHoveredNoteTimestamp(state: StateDraft, args: {ts: TPTime}) {
     state.hoveredNoteTimestamp = args.ts;
   },
 
