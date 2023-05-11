@@ -18,7 +18,7 @@ import {StringListPatch} from 'src/common/state';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
-import {formatTimestamp} from '../common/time';
+import {formatTPTime, TPTime} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -117,12 +117,12 @@ export class FtracePanel extends Panel<{}> {
     this.recomputeVisibleRowsAndUpdate(scrollContainer);
   };
 
-  onRowOver(ts: number) {
+  onRowOver(ts: TPTime) {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
   }
 
   onRowOut() {
-    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
   }
 
   private renderRowsLabel() {
@@ -188,8 +188,7 @@ export class FtracePanel extends Panel<{}> {
       for (let i = 0; i < events.length; i++) {
         const {ts, name, cpu, process, args} = events[i];
 
-        const timestamp =
-            formatTimestamp(ts / 1e9 - globals.state.traceTime.startSec);
+        const timestamp = formatTPTime(ts - globals.state.traceTime.start);
 
         const rank = i + offset;
 
@@ -204,7 +203,7 @@ export class FtracePanel extends Panel<{}> {
             `.row`,
             {
               style: {top: `${(rank + 1.0) * ROW_H}px`},
-              onmouseover: this.onRowOver.bind(this, ts / 1e9),
+              onmouseover: this.onRowOver.bind(this, ts),
               onmouseout: this.onRowOut.bind(this),
             },
             m('.cell', timestamp),

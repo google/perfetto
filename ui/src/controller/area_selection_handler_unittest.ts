@@ -20,7 +20,7 @@ import {AreaSelectionHandler} from './area_selection_handler';
 
 test('validAreaAfterUndefinedArea', () => {
   const areaId = '0';
-  const latestArea: AreaById = {startSec: 0, endSec: 1, tracks: [], id: areaId};
+  const latestArea: AreaById = {start: 0n, end: 1n, tracks: [], id: areaId};
   globals.state = createEmptyState();
   globals.state.currentSelection = {kind: 'AREA', areaId};
   globals.state.areas[areaId] = latestArea;
@@ -35,7 +35,7 @@ test('validAreaAfterUndefinedArea', () => {
 test('UndefinedAreaAfterValidArea', () => {
   const previousAreaId = '0';
   const previous:
-      AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
+      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
   globals.state = createEmptyState();
   globals.state.currentSelection = {
     kind: 'AREA',
@@ -71,7 +71,7 @@ test('UndefinedAreaAfterUndefinedArea', () => {
 test('validAreaAfterValidArea', () => {
   const previousAreaId = '0';
   const previous:
-      AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
+      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
   globals.state = createEmptyState();
   globals.state.currentSelection = {
     kind: 'AREA',
@@ -82,8 +82,7 @@ test('validAreaAfterValidArea', () => {
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '1';
-  const current:
-      AreaById = {startSec: 1, endSec: 2, tracks: [], id: currentAreaId};
+  const current: AreaById = {start: 1n, end: 2n, tracks: [], id: currentAreaId};
   globals.state.currentSelection = {
     kind: 'AREA',
     areaId: currentAreaId,
@@ -98,7 +97,7 @@ test('validAreaAfterValidArea', () => {
 test('sameAreaSelected', () => {
   const previousAreaId = '0';
   const previous:
-      AreaById = {startSec: 0, endSec: 1, tracks: [], id: previousAreaId};
+      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
   globals.state = createEmptyState();
   globals.state.currentSelection = {
     kind: 'AREA',
@@ -109,8 +108,7 @@ test('sameAreaSelected', () => {
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '0';
-  const current:
-      AreaById = {startSec: 0, endSec: 1, tracks: [], id: currentAreaId};
+  const current: AreaById = {start: 0n, end: 1n, tracks: [], id: currentAreaId};
   globals.state.currentSelection = {
     kind: 'AREA',
     areaId: currentAreaId,
@@ -128,7 +126,7 @@ test('NonAreaSelectionAfterUndefinedArea', () => {
   areaSelectionHandler.getAreaChange();
 
   globals.state
-      .currentSelection = {kind: 'COUNTER', leftTs: 0, rightTs: 0, id: 1};
+      .currentSelection = {kind: 'COUNTER', leftTs: 0n, rightTs: 0n, id: 1};
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 
   expect(hasAreaChanged).toEqual(false);
