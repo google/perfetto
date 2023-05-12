@@ -27,6 +27,7 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 #pylint: disable=wrong-import-position
 from python.generators.trace_processor_table.public import ColumnDoc
+from python.generators.trace_processor_table.public import ColumnFlag
 import python.generators.trace_processor_table.util as util
 from python.generators.trace_processor_table.util import ParsedTable
 from python.generators.trace_processor_table.util import ParsedColumn
@@ -41,6 +42,10 @@ def gen_json_for_column(table: ParsedTable,
   # id and type columns should be skipped if the table specifies so.
   is_skippable_col = col.is_implicit_id or col.is_implicit_type
   if table.table.tabledoc.skip_id_and_type and is_skippable_col:
+    return None
+
+  # Ignore hidden columns in the documentation.
+  if ColumnFlag.HIDDEN in col.column.flags:
     return None
 
   # Our default assumption is the documentation for a column is a plain string
