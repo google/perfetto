@@ -70,6 +70,14 @@ export interface PopupAttrs {
   // Whether to show a little arrow pointing to our trigger element.
   // Defaults to true.
   showArrow?: boolean;
+  // Whether this popup should form a new popup group.
+  // When nesting popups, grouping controls how popups are closed.
+  // When closing popups via the Escape key, each group is closed one by one,
+  // starting at the topmost group in the stack.
+  // When using a magic button to close groups (see DISMISS_POPUP_GROUP_CLASS),
+  // only the group in which the button lives and it's children will be closed.
+  // Defaults to true.
+  createNewGroup?: boolean;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -87,7 +95,10 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
 
   private static readonly TRIGGER_REF = 'trigger';
   private static readonly POPUP_REF = 'popup';
-  static readonly DISMISS_POPUP_CLASS = 'pf-dismiss-popup';
+  static readonly POPUP_GROUP_CLASS = 'pf-popup-group';
+
+  // Any element with this class will close its containing popup group on click
+  static readonly DISMISS_POPUP_GROUP_CLASS = 'pf-dismiss-popup-group';
 
   view({attrs, children}: m.CVnode<PopupAttrs>): m.Children {
     const {
@@ -125,6 +136,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     const {
       className,
       showArrow = true,
+      createNewGroup = true,
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
@@ -166,7 +178,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         portalAttrs,
         m('.pf-popup',
           {
-            class: classNames(className),
+            class: classNames(
+                className, createNewGroup && Popup.POPUP_GROUP_CLASS),
             ref: Popup.POPUP_REF,
           },
           showArrow && m('.pf-popup-arrow[data-popper-arrow]'),
@@ -234,23 +247,29 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
   };
 
   private handleDocKeyPress = (e: KeyboardEvent) => {
-    if (this.closeOnEscape && e.key === 'Escape') {
-      this.closePopup();
+    // Close on escape keypress if we are in the toplevel group
+    const nextGroupElement =
+        this.popupElement?.querySelector(`.${Popup.POPUP_GROUP_CLASS}`);
+    if (!nextGroupElement) {
+      if (this.closeOnEscape && e.key === 'Escape') {
+        this.closePopup();
+      }
     }
   };
 
   private handleContentClick = (e: Event) => {
     // Close the popup if the clicked element:
-    // - Is a direct descendant of this popup
+    // - Is in the same group as this class
     // - Has the magic class
     const target = e.target as HTMLElement;
-    const childPopup = this.popupElement?.querySelector('.pf-popup');
+    const childPopup =
+        this.popupElement?.querySelector(`.${Popup.POPUP_GROUP_CLASS}`);
     if (childPopup) {
       if (childPopup.contains(target)) {
         return;
       }
     }
-    if (target.closest(`.${Popup.DISMISS_POPUP_CLASS}`)) {
+    if (target.closest(`.${Popup.DISMISS_POPUP_GROUP_CLASS}`)) {
       this.closePopup();
     }
   };
