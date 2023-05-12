@@ -80,7 +80,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         compact && 'pf-compact',
         minimal && 'pf-minimal',
         (icon && !label) && 'pf-icon-only',
-        dismissPopup && Popup.DISMISS_POPUP_CLASS,
+        dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
         className,
     );
 
