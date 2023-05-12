@@ -68,6 +68,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
             ...rest,
           }),
           showArrow: false,
+          createNewGroup: false,
         },
         children,
     );
@@ -86,7 +87,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
 
     const classes = classNames(
         active && 'pf-active',
-        !disabled && closePopupOnClick && Popup.DISMISS_POPUP_CLASS,
+        !disabled && closePopupOnClick && Popup.DISMISS_POPUP_GROUP_CLASS,
     );
 
     return m(
@@ -131,6 +132,14 @@ interface PopupMenu2Attrs {
   // Whether we should show the little arrow pointing to the trigger.
   // Defaults to true.
   showArrow?: boolean;
+  // Whether this popup should form a new popup group.
+  // When nesting popups, grouping controls how popups are closed.
+  // When closing popups via the Escape key, each group is closed one by one,
+  // starting at the topmost group in the stack.
+  // When using a magic button to close groups (see DISMISS_POPUP_GROUP_CLASS),
+  // only the group in which the button lives and it's children will be closed.
+  // Defaults to true.
+  createNewGroup?: boolean;
 }
 
 // A combination of a Popup and a Menu component.
