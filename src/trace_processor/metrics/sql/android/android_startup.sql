@@ -213,6 +213,10 @@ SELECT
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
         launches.startup_id,
         'OpenDexFilesFromOat*'),
+      'time_dlopen_thread_main',
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.startup_id,
+        'dlopen:*.so'),
       'time_lock_contention_thread_main',
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
         launches.startup_id,
@@ -297,6 +301,11 @@ SELECT
       FROM android_startups l
       WHERE l.startup_id != launches.startup_id
         AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+    ),
+    'dlopen_file', (
+      SELECT RepeatedField(STR_SPLIT(slice_name, "dlopen: ", 1))
+      FROM android_thread_slices_for_all_startups s
+      WHERE startup_id = launches.startup_id AND slice_name GLOB "dlopen: *.so"
     ),
     'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
