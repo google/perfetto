@@ -679,8 +679,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-œ-
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Õ,
+‘.
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"“-
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupÛ
 TaskStateBreakdown$
@@ -697,7 +697,7 @@ maxRuntime$
 unknown (Runknown5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMs∂
+dur_ms (RdurMsö
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -729,7 +729,8 @@ toPostForkb
 time_gc_on_cpu (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeGcOnCpus
  time_lock_contention_thread_main (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeLockContentionThreadMainy
 #time_monitor_contention_thread_main  (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeMonitorContentionThreadMaine
-time_dex_open_thread_main! (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDexOpenThreadMainJJJJ\
+time_dex_open_thread_main! (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDexOpenThreadMainb
+time_dlopen_thread_main" (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDlopenThreadMainJJJJ\
 
 HscMetricsN
 full_startup (2+.perfetto.protos.AndroidStartupMetric.SliceRfullStartupd
@@ -765,7 +766,8 @@ firstFrame˜
 broadcast_received_count (RbroadcastReceivedCountF
  most_active_non_launch_processes (	RmostActiveNonLaunchProcesses&
 installd_dur_ns (RinstalldDurNs$
-dex2oat_dur_ns (Rdex2oatDurNsÔ	
+dex2oat_dur_ns (Rdex2oatDurNsê
+
 Startup
 
 startup_id (R	startupId!
@@ -784,7 +786,9 @@ activitiesq
 hsc (20.perfetto.protos.AndroidStartupMetric.HscMetricsRhscY
 report_fully_drawn	 (2+.perfetto.protos.AndroidStartupMetric.SliceRreportFullyDrawni
 optimization_status (28.perfetto.protos.AndroidStartupMetric.OptimizationStatusRoptimizationStatusT
-verify_class (21.perfetto.protos.AndroidStartupMetric.VerifyClassRverifyClass?
+verify_class (21.perfetto.protos.AndroidStartupMetric.VerifyClassRverifyClass
+dlopen_file (	R
+dlopenFile?
 startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
 slow_start_reason (	RslowStartReasonJ
