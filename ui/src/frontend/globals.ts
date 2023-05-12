@@ -39,6 +39,7 @@ type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}|undefined>;
 type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
+type ViewOpener = (url: string) => void;
 
 export interface SliceDetails {
   ts?: number;
@@ -250,6 +251,8 @@ class Globals {
   private _disableMainRendering?: boolean = undefined;
   private _disableHashBasedRouting?: boolean = undefined;
   private _cachePrefix: string = '';
+
+  private _viewOpener?: ViewOpener = undefined;
 
   // Init from session storage since correct value may be required very early on
   private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
@@ -619,6 +622,14 @@ class Globals {
 
   set ftracePanelData(data: FtracePanelData|undefined) {
     this._ftracePanelData = data;
+  }
+
+  get viewOpener(): ViewOpener | undefined {
+    return this._viewOpener;
+  }
+
+  set viewOpener(viewOpener: ViewOpener | undefined) {
+    this._viewOpener = viewOpener;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
