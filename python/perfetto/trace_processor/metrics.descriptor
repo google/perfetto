@@ -845,8 +845,8 @@ m
 build_id (	RbuildId
 address (Raddress(
 google_lookup_id (	RgoogleLookupId
-å
-3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"œ
+£
+3protos/perfetto/metrics/android/binder_metric.protoperfetto.protos"Ú
 AndroidBinderMetrice
 process_breakdown (28.perfetto.protos.AndroidBinderMetric.PerProcessBreakdownRprocessBreakdown{
 unaggregated_txn_breakdown (2=.perfetto.protos.AndroidBinderMetric.UnaggregatedTxnBreakdownRunaggregatedTxnBreakdown
@@ -855,7 +855,7 @@ m
 pid (Rpid
 
 slice_name (	R	sliceName
-count (Rcountƒ
+count (RcountÁ
 UnaggregatedTxnBreakdown
 	aidl_name (	RaidlName%
 client_process (	RclientProcess#
@@ -875,7 +875,11 @@ server_dur (R	serverDur^
 
 client_tid (R	clientTid
 
-server_tid (R	serverTidJJ	½
+server_tid (R	serverTid
+
+client_pid (R	clientPid
+
+server_pid (R	serverPidJJ	½
 ThreadStateBreakdown*
 thread_state_type (	RthreadStateType!
 thread_state (	RthreadState(
