@@ -196,6 +196,71 @@ class Android(TestSuite):
         """,
         out=Path('android_battery_stats_state.out'))
 
+  def test_android_network_activity(self):
+    # The following should have three activity regions:
+    # * uid=123 from 1000 to 2010 (note: end is max(ts)+idle_ns)
+    # * uid=456 from 1005 to 2015 (note: doesn't group with above due to name)
+    # * uid=123 from 3000 to 5500 (note: gap between 1010 to 3000 > idle_ns)
+    # Note: packet_timestamps are delta encoded from the base timestamp.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 123
+            }
+            packet_timestamps: [
+              1000, 1010,
+              3000, 3050, 4000, 4500
+            ],
+            packet_lengths: [
+              50, 50,
+              50, 50, 50, 50
+            ],
+          }
+        }
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 456
+            }
+            packet_timestamps: [1005, 1015]
+            packet_lengths: [100, 200]
+          }
+        }
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_INGRESS
+              interface: "loopback"
+              uid: 123
+            }
+            packet_timestamps: [6000]
+            packet_lengths: [100]
+          }
+        }
+        """),
+        query="""
+        SELECT RUN_METRIC(
+          'android/network_activity_template.sql',
+          'view_name', 'android_network_activity',
+          'group_by',  'package_name',
+          'filter',    'iface = "wlan"',
+          'idle_ns',   '1000',
+          'quant_ns',  '100'
+        );
+
+        SELECT * FROM android_network_activity
+        ORDER BY package_name, ts;
+        """,
+        out=Path('android_network_activity.out'))
 
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
