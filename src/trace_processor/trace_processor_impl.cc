@@ -513,7 +513,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   sqlite3_str_split_init(engine_.db());
   RegisterAdditionalModules(&context_);
-  InitializePreludeTablesViews(engine_.db());
 
   // New style function registration.
   if (cfg.enable_dev_features) {
@@ -569,6 +568,24 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       PERFETTO_ELOG("%s", status.c_message());
   }
 
+  const TraceStorage* storage = context_.storage.get();
+
+  // Operator tables.
+  engine_.RegisterVirtualTableModule<SpanJoinOperatorTable>(
+      "span_join", storage, SqliteTable::TableType::kExplicitCreate, false);
+  engine_.RegisterVirtualTableModule<SpanJoinOperatorTable>(
+      "span_left_join", storage, SqliteTable::TableType::kExplicitCreate,
+      false);
+  engine_.RegisterVirtualTableModule<SpanJoinOperatorTable>(
+      "span_outer_join", storage, SqliteTable::TableType::kExplicitCreate,
+      false);
+  engine_.RegisterVirtualTableModule<WindowOperatorTable>(
+      "window", storage, SqliteTable::TableType::kExplicitCreate, true);
+  RegisterCreateViewFunctionModule(&engine_);
+
+  // Initalize the tables and views in the prelude.
+  InitializePreludeTablesViews(engine_.db());
+
   auto stdlib_modules = GetStdlibModules();
   for (auto module_it = stdlib_modules.GetIterator(); module_it; ++module_it) {
     base::Status status =
@@ -580,15 +597,11 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   SetupMetrics(this, engine_.db(), &sql_metrics_,
                cfg.skip_builtin_metric_paths);
 
-  const TraceStorage* storage = context_.storage.get();
-
-  SqlStatsTable::RegisterTable(engine_.db(), storage);
-  StatsTable::RegisterTable(engine_.db(), storage);
-
-  // Operator tables.
-  SpanJoinOperatorTable::RegisterTable(engine_.db(), storage);
-  WindowOperatorTable::RegisterTable(engine_.db(), storage);
-  CreateViewFunction::RegisterTable(engine_.db());
+  // Legacy tables.
+  engine_.RegisterVirtualTableModule<SqlStatsTable>(
+      "sql_stats", storage, SqliteTable::TableType::kEponymousOnly, false);
+  engine_.RegisterVirtualTableModule<StatsTable>(
+      "stats", storage, SqliteTable::TableType::kEponymousOnly, false);
 
   // Tables dynamically generated at query time.
   RegisterTableFunction(std::unique_ptr<ExperimentalFlamegraph>(

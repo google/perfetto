@@ -106,20 +106,9 @@ std::string EscapedSqliteValueAsString(sqlite3_value* value) {
 
 }  // namespace
 
-SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const TraceStorage*)
+SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const void*)
     : db_(db) {}
-
-void SpanJoinOperatorTable::RegisterTable(sqlite3* db,
-                                          const TraceStorage* storage) {
-  RegistrationFlags flags;
-  flags.type = RegistrationFlags::kExplicitCreateStateless;
-
-  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_join", flags);
-  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_left_join",
-                                               flags);
-  SqliteTable::Register<SpanJoinOperatorTable>(db, storage, "span_outer_join",
-                                               flags);
-}
+SpanJoinOperatorTable::~SpanJoinOperatorTable() = default;
 
 util::Status SpanJoinOperatorTable::Init(int argc,
                                          const char* const* argv,
@@ -239,7 +228,7 @@ void SpanJoinOperatorTable::CreateSchemaColsForDefn(
   }
 }
 
-std::unique_ptr<SqliteTable::Cursor> SpanJoinOperatorTable::CreateCursor() {
+std::unique_ptr<SqliteTable::BaseCursor> SpanJoinOperatorTable::CreateCursor() {
   return std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
 }
 
@@ -404,10 +393,11 @@ std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
 }
 
 SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
-    : SqliteTable::Cursor(table),
+    : SqliteTable::BaseCursor(table),
       t1_(table, &table->t1_defn_, db),
       t2_(table, &table->t2_defn_, db),
       table_(table) {}
+SpanJoinOperatorTable::Cursor::~Cursor() = default;
 
 base::Status SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                                    sqlite3_value** argv,
