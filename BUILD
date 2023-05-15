@@ -2189,6 +2189,7 @@ perfetto_filegroup(
         "src/trace_processor/stdlib/android/network_packets.sql",
         "src/trace_processor/stdlib/android/process_metadata.sql",
         "src/trace_processor/stdlib/android/slices.sql",
+        "src/trace_processor/stdlib/android/statsd.sql",
     ],
 )
 
