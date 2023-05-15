@@ -21,7 +21,7 @@ SELECT IMPORT('common.timestamps');
 -- @arg value LONG    The counter value.
 -- @ret STRING        The human-readable name for the counter value.
 SELECT CREATE_FUNCTION(
-  'BATTERY_STATS_COUNTER_TO_STRING(track STRING, value LONG)',
+  'BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)',
   'STRING',
   '
   SELECT
@@ -125,16 +125,16 @@ SELECT CREATE_FUNCTION(
 --
 -- @column ts                  Timestamp in nanoseconds.
 -- @column dur                 The duration the state was active.
--- @column name                The name of the counter track.
+-- @column track_name          The name of the counter track.
 -- @column value               The counter value as a number.
 -- @column value_name          The counter value as a human-readable string.
 CREATE VIEW android_battery_stats_state AS
 SELECT
   ts,
-  name,
-  value,
-  BATTERY_STATS_VALUE_TO_STRING(name, value) AS value_name,
-  LEAD(ts, 1, TRACE_END()) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur
+  name AS track_name,
+  CAST(value AS INT64) AS value,
+  BATTERY_STATS_COUNTER_TO_STRING(name, value) AS value_name,
+  IFNULL(LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts, -1) AS dur
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id
