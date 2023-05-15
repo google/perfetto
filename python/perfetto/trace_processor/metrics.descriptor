@@ -1,11 +1,12 @@
 
-À
-6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"ô
+Ò
+6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"†
 AndroidProcessMetadata
 name (	Rname
 uid (RuidI
 package (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackageY
-packages_for_uid (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackagesForUidv
+packages_for_uid (2/.perfetto.protos.AndroidProcessMetadata.PackageRpackagesForUid
+pid	 (Rpidv
 Package!
 package_name (	RpackageName(
 apk_version_code (RapkVersionCode
