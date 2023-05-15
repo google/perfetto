@@ -31,7 +31,7 @@ class NumericStorage : public Storage {
   NumericStorage(void* data, uint32_t size, ColumnType type)
       : type_(type), data_(data), size_(size) {}
 
-  void StableSort(std::vector<uint32_t>&) const override;
+  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
   void CompareFast(FilterOp op,
                    SqlValue val,
