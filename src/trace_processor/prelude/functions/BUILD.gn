@@ -31,8 +31,6 @@ source_set("functions") {
     "layout_functions.h",
     "pprof_functions.cc",
     "pprof_functions.h",
-    "register_function.cc",
-    "register_function.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
     "stack_functions.cc",
@@ -66,6 +64,20 @@ source_set("functions") {
     "../../util:profile_builder",
     "../../util:sql_argument",
     "../../util:stdlib",
+  ]
+  public_deps = [ ":interface" ]
+}
+
+source_set("interface") {
+  sources = [
+    "sql_function.cc",
+    "sql_function.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../base",
   ]
 }
 
