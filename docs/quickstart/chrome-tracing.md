@@ -4,6 +4,8 @@ Perfetto can capture traces right from the Chrome browser on desktop. It capture
 
 > To record traces from Chrome on Android, follow the [instructions for recording Android system traces](/docs/quickstart/android-tracing.md) and enable the Chrome probe.
 
+>> If you are using [user build of Android](https://source.android.com/docs/setup/build/building#lunch), you'll have to enable integration with system Perfetto by switching chrome://flags#enable-perfetto-system-tracing to "Enabled" and restarting Chrome.
+
 ## Recording a trace
 
 1. Navigate to [ui.perfetto.dev](https://ui.perfetto.dev/) and select **"Record new trace"** from the left menu.
