@@ -1787,6 +1787,7 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/java_heap_histogram.sql",
         "src/trace_processor/metrics/sql/android/java_heap_stats.sql",
         "src/trace_processor/metrics/sql/android/mem_stats_priority_breakdown.sql",
+        "src/trace_processor/metrics/sql/android/network_activity_template.sql",
         "src/trace_processor/metrics/sql/android/p_state.sql",
         "src/trace_processor/metrics/sql/android/power_drain_in_watts.sql",
         "src/trace_processor/metrics/sql/android/power_profile_data.sql",
