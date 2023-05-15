@@ -133,6 +133,35 @@ message AndroidFrameTimelineMetric {
 
 // End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
+// Begin of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
+
+// Blocking calls inside System UI Notifications. Shows count and total duration for each.
+message AndroidSysUINotificationsBlockingCallsMetric {
+  repeated BlockingCall blocking_calls = 1;
+
+  // Blocking call on the main thread.
+  message BlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
+    // Total duration within the CUJ in nanoseconds
+    optional int64 total_dur_ns = 6;
+    // Maximal duration within the CUJ in nanoseconds
+    optional int64 max_dur_ns = 7;
+    // Minimal duration within the CUJ in nanoseconds
+    optional int64 min_dur_ns = 8;
+  }
+}
+
+// End of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
 // Metric used to generate a simplified view of the Trusty kworker events.
@@ -2042,7 +2071,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 50
+// Next id: 52
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2178,6 +2207,8 @@ message TraceMetrics {
   optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
 
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
+
+  optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
 
   // Demo extensions.
   extensions 450 to 499;
