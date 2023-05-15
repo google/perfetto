@@ -18,11 +18,14 @@
 #define SRC_TRACE_PROCESSOR_SQLITE_SQLITE_ENGINE_H_
 
 #include <sqlite3.h>
+#include <stdint.h>
 #include <functional>
 #include <memory>
 #include <type_traits>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/prelude/functions/sql_function.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
@@ -45,6 +48,7 @@ namespace trace_processor {
 class SqliteEngine {
  public:
   SqliteEngine();
+  ~SqliteEngine();
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
@@ -116,11 +120,27 @@ class SqliteEngine {
   base::StatusOr<std::unique_ptr<SqliteTable>> RestoreSqliteTable(
       const std::string& table_name);
 
+  // Gets the context for a registered SQL function.
+  //
+  // This API only exists for internal use. Most callers should never call this
+  // directly.
+  void* GetFunctionContext(const std::string& name, int argc);
+
   sqlite3* db() const { return db_.get(); }
 
  private:
+  struct FnHasher {
+    uint64_t operator()(const std::pair<std::string, int>& x) const {
+      base::Hasher hasher;
+      hasher.Update(x.first);
+      hasher.Update(x.second);
+      return hasher.digest();
+    }
+  };
+
   std::unique_ptr<QueryCache> query_cache_;
   base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
+  base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 
   ScopedDb db_;
 };
@@ -197,6 +217,7 @@ base::Status SqliteEngine::RegisterSqlFunction(const char* name,
   if (ret != SQLITE_OK) {
     return base::ErrStatus("Unable to register function with name %s", name);
   }
+  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
   return base::OkStatus();
 }
 
@@ -207,6 +228,7 @@ base::Status SqliteEngine::RegisterSqlFunction(
     std::unique_ptr<typename Function::Context> user_data,
     bool deterministic) {
   int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
+  void* fn_ctx = user_data.get();
   int ret = sqlite3_create_function_v2(
       db_.get(), name, static_cast<int>(argc), flags, user_data.release(),
       sqlite_internal::WrapSqlFunction<Function>, nullptr, nullptr,
@@ -214,6 +236,7 @@ base::Status SqliteEngine::RegisterSqlFunction(
   if (ret != SQLITE_OK) {
     return base::ErrStatus("Unable to register function with name %s", name);
   }
+  *fn_ctx_.Insert(std::make_pair(name, argc), fn_ctx).first = fn_ctx;
   return base::OkStatus();
 }
 
