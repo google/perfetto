@@ -43,6 +43,7 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
+      pid: 3
     }
     report_fully_drawn {
       dur_ns: 198000000000
