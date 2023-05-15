@@ -3637,6 +3637,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   cloned_session->flushes_requested = src->flushes_requested;
   cloned_session->flushes_succeeded = src->flushes_succeeded;
   cloned_session->flushes_failed = src->flushes_failed;
+  cloned_session->compress_deflate = src->compress_deflate;
   if (src->trace_filter) {
     // Copy the trace filter.
     cloned_session->trace_filter.reset(
