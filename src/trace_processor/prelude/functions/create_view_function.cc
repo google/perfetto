@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -34,19 +35,20 @@ namespace trace_processor {
 
 namespace {
 
-class CreatedViewFunction : public SqliteTable {
+class CreatedViewFunction final
+    : public TypedSqliteTable<CreatedViewFunction, void*> {
  public:
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
     explicit Cursor(CreatedViewFunction* table);
-    ~Cursor() override;
+    ~Cursor() final;
 
     base::Status Filter(const QueryConstraints& qc,
                         sqlite3_value**,
-                        FilterHistory) override;
-    base::Status Next() override;
-    bool Eof() override;
-    base::Status Column(sqlite3_context* context, int N) override;
+                        FilterHistory);
+    base::Status Next();
+    bool Eof();
+    base::Status Column(sqlite3_context* context, int N);
 
    private:
     ScopedStmt scoped_stmt_;
@@ -57,19 +59,11 @@ class CreatedViewFunction : public SqliteTable {
   };
 
   CreatedViewFunction(sqlite3*, void*);
-  ~CreatedViewFunction() override;
+  ~CreatedViewFunction() final;
 
-  base::Status Init(int argc, const char* const* argv, Schema*) override;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
-
-  static void Register(sqlite3* db) {
-    RegistrationFlags flags;
-    flags.type = RegistrationFlags::kExplicitCreateStateless;
-
-    SqliteTable::Register<CreatedViewFunction>(
-        db, nullptr, "internal_view_function_impl", flags);
-  }
+  base::Status Init(int argc, const char* const* argv, Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
 
  private:
   Schema CreateSchema();
@@ -249,7 +243,7 @@ SqliteTable::Schema CreatedViewFunction::CreateSchema() {
   return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
 }
 
-std::unique_ptr<SqliteTable::Cursor> CreatedViewFunction::CreateCursor() {
+std::unique_ptr<SqliteTable::BaseCursor> CreatedViewFunction::CreateCursor() {
   return std::unique_ptr<Cursor>(new Cursor(this));
 }
 
@@ -275,7 +269,7 @@ int CreatedViewFunction::BestIndex(const QueryConstraints& qc,
 }
 
 CreatedViewFunction::Cursor::Cursor(CreatedViewFunction* table)
-    : SqliteTable::Cursor(table), table_(table) {}
+    : SqliteTable::BaseCursor(table), table_(table) {}
 
 CreatedViewFunction::Cursor::~Cursor() = default;
 
@@ -488,8 +482,10 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   return base::OkStatus();
 }
 
-void CreateViewFunction::RegisterTable(sqlite3* db) {
-  CreatedViewFunction::Register(db);
+void RegisterCreateViewFunctionModule(SqliteEngine* engine) {
+  engine->RegisterVirtualTableModule<CreatedViewFunction>(
+      "internal_view_function_impl", nullptr,
+      SqliteTable::TableType::kExplicitCreate, false);
 }
 
 }  // namespace trace_processor

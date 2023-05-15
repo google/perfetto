@@ -25,9 +25,7 @@ namespace trace_processor {
 StatsTable::StatsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
-void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<StatsTable>(db, storage, "stats", RegistrationFlags{});
-}
+StatsTable::~StatsTable() = default;
 
 util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
@@ -47,8 +45,8 @@ util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
   return util::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::Cursor> StatsTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::BaseCursor> StatsTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
 }
 
 int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -56,7 +54,11 @@ int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 }
 
 StatsTable::Cursor::Cursor(StatsTable* table)
-    : SqliteTable::Cursor(table), table_(table), storage_(table->storage_) {}
+    : SqliteTable::BaseCursor(table),
+      table_(table),
+      storage_(table->storage_) {}
+
+StatsTable::Cursor::~Cursor() = default;
 
 base::Status StatsTable::Cursor::Filter(const QueryConstraints&,
                                         sqlite3_value**,
