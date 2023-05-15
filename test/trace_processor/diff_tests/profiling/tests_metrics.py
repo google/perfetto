@@ -71,6 +71,7 @@ class ProfilingMetrics(TestSuite):
             process {
               name: "system_server"
               uid: 1000
+              pid: 2
             }
             samples {
               ts: 10
