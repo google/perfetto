@@ -102,6 +102,7 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_functions_interface",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
@@ -2001,8 +2002,6 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/layout_functions.h",
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/pprof_functions.h",
-        "src/trace_processor/prelude/functions/register_function.cc",
-        "src/trace_processor/prelude/functions/register_function.h",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
         "src/trace_processor/prelude/functions/sqlite3_str_split.h",
         "src/trace_processor/prelude/functions/stack_functions.cc",
@@ -2011,6 +2010,15 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/to_ftrace.h",
         "src/trace_processor/prelude/functions/utils.h",
         "src/trace_processor/prelude/functions/window_functions.h",
+    ],
+)
+
+# GN target: //src/trace_processor/prelude/functions:interface
+perfetto_filegroup(
+    name = "src_trace_processor_prelude_functions_interface",
+    srcs = [
+        "src/trace_processor/prelude/functions/sql_function.cc",
+        "src/trace_processor/prelude/functions/sql_function.h",
     ],
 )
 
@@ -5010,6 +5018,7 @@ perfetto_cc_library(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_functions_interface",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
@@ -5165,6 +5174,7 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_functions_interface",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",
@@ -5379,6 +5389,7 @@ perfetto_cc_binary(
         ":src_trace_processor_metatrace",
         ":src_trace_processor_metrics_metrics",
         ":src_trace_processor_prelude_functions_functions",
+        ":src_trace_processor_prelude_functions_interface",
         ":src_trace_processor_prelude_operators_operators",
         ":src_trace_processor_prelude_table_functions_interface",
         ":src_trace_processor_prelude_table_functions_table_functions",

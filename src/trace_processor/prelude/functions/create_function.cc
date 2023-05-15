@@ -20,6 +20,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -31,7 +32,7 @@ namespace {
 
 struct CreatedFunction : public SqlFunction {
   struct Context {
-    sqlite3* db;
+    SqliteEngine* engine;
     Prototype prototype;
     sql_argument::Type return_type;
     std::string sql;
@@ -94,7 +95,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 
   int ret = sqlite3_step(ctx->stmt);
   RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
+      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
   if (ret == SQLITE_DONE) {
     // No return value means we just return don't set |out|.
     return base::OkStatus();
@@ -125,7 +126,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
   int ret = sqlite3_step(ctx->stmt);
   RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
+      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
     auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(ctx->stmt);
     return base::ErrStatus(
@@ -252,7 +253,7 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   // Prepare the SQL definition as a statement using SQLite.
   ScopedStmt stmt;
   sqlite3_stmt* stmt_raw = nullptr;
-  int ret = sqlite3_prepare_v2(ctx->db, sql_defn_str.data(),
+  int ret = sqlite3_prepare_v2(ctx->engine->db(), sql_defn_str.data(),
                                static_cast<int>(sql_defn_str.size()), &stmt_raw,
                                nullptr);
   if (ret != SQLITE_OK) {
@@ -261,18 +262,18 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
         "statement %s",
         prototype_str.ToStdString().c_str(),
         sqlite_utils::FormatErrorMessage(
-            stmt_raw, base::StringView(sql_defn_str), ctx->db, ret)
+            stmt_raw, base::StringView(sql_defn_str), ctx->engine->db(), ret)
             .c_message());
   }
   stmt.reset(stmt_raw);
 
   std::unique_ptr<CreatedFunction::Context> created(
-      new CreatedFunction::Context{ctx->db, std::move(prototype),
+      new CreatedFunction::Context{ctx->engine, std::move(prototype),
                                    *opt_return_type, std::move(sql_defn_str),
                                    stmt.get()});
   CreatedFunction::Context* created_ptr = created.get();
-  RETURN_IF_ERROR(RegisterSqlFunction<CreatedFunction>(
-      ctx->db, key.name.c_str(), created_argc, std::move(created)));
+  RETURN_IF_ERROR(ctx->engine->RegisterSqlFunction<CreatedFunction>(
+      key.name.c_str(), created_argc, std::move(created)));
   ctx->state->emplace(key, PerFunctionState{std::move(stmt), created_ptr});
 
   // CREATE_FUNCTION doesn't have a return value so just don't sent |out|.
