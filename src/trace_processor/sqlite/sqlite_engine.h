@@ -130,11 +130,11 @@ class SqliteEngine {
 
  private:
   struct FnHasher {
-    uint64_t operator()(const std::pair<std::string, int>& x) const {
+    size_t operator()(const std::pair<std::string, int>& x) const {
       base::Hasher hasher;
       hasher.Update(x.first);
       hasher.Update(x.second);
-      return hasher.digest();
+      return static_cast<size_t>(hasher.digest());
     }
   };
 
