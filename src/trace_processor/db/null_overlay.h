@@ -34,8 +34,8 @@ class NullOverlay : public ColumnOverlay {
                        const BitVector* null_bv)
       : inner_(std::move(inner)), null_bv_(null_bv) {}
 
-  void Filter(FilterOp, SqlValue, RowMap&) override;
-  void StableSort(uint32_t* rows, uint32_t rows_size) override;
+  void Filter(FilterOp, SqlValue, RowMap&) const override;
+  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
  private:
   std::unique_ptr<ColumnOverlay> inner_;
