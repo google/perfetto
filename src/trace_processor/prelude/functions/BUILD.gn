@@ -59,7 +59,7 @@ source_set("functions") {
     "../../importers/common",
     "../../importers/ftrace:ftrace_descriptors",
     "../../prelude/table_functions",
-    "../../sqlite:sqlite_minimal",
+    "../../sqlite",
     "../../storage",
     "../../types",
     "../../util",
@@ -78,6 +78,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
-    "../../sqlite:sqlite_minimal",
+    "../../sqlite",
   ]
 }
