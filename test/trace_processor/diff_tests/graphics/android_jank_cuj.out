@@ -16,6 +16,7 @@ android_jank_cuj {
         apk_version_code: 1
         debuggable: false
       }
+      pid: 1000
     }
     ts: 0
     dur: 123000000
@@ -196,6 +197,7 @@ android_jank_cuj {
         apk_version_code: 1
         debuggable: false
       }
+      pid: 1000
     }
     ts: 0
     dur: 901000010
