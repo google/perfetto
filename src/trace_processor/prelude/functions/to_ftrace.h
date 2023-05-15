@@ -19,7 +19,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_writer.h"
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
 
