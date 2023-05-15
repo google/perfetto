@@ -122,10 +122,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   SqliteEngine engine_;
 
-  // State necessary for CREATE_FUNCTION invocations. We store this here as we
-  // need to finalize any prepared statements *before* we destroy the database.
-  CreateFunction::State create_function_state_;
-
   DescriptorPool pool_;
 
   // Map from module name to module contents. Used for IMPORT function.
