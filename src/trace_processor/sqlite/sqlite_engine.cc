@@ -15,6 +15,9 @@
  */
 
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+
+#include <utility>
+
 #include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
@@ -68,6 +71,19 @@ SqliteEngine::SqliteEngine() : query_cache_(new QueryCache()) {
   db_.reset(std::move(db));
 }
 
+SqliteEngine::~SqliteEngine() {
+  // It is important to unregister any functions that have been registered with
+  // the database before destroying it. This is because functions can hold onto
+  // prepared statements, which must be finalized before database destruction.
+  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
+    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
+                                         it.key().second, SQLITE_UTF8, nullptr,
+                                         nullptr, nullptr, nullptr, nullptr);
+    PERFETTO_CHECK(ret == 0);
+  }
+  fn_ctx_.Clear();
+}
+
 void SqliteEngine::RegisterTable(const Table& table,
                                  const std::string& table_name) {
   DbSqliteTable::Context context{query_cache_.get(),
@@ -91,11 +107,6 @@ void SqliteEngine::RegisterTable(const Table& table,
 }
 
 void SqliteEngine::RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
-  // Figure out if the table needs explicit args (in the form of constraints
-  // on hidden columns) passed to it in order to make the query valid.
-  base::Status status = fn->ValidateConstraints(
-      QueryConstraints(std::numeric_limits<uint64_t>::max()));
-
   std::string table_name = fn->TableName();
   DbSqliteTable::Context context{query_cache_.get(),
                                  DbSqliteTable::TableComputation::kDynamic,
@@ -132,6 +143,11 @@ base::StatusOr<std::unique_ptr<SqliteTable>> SqliteEngine::RestoreSqliteTable(
                            table_name.c_str());
   }
   return std::move(*res);
+}
+
+void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
+  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
+  return res ? *res : nullptr;
 }
 
 }  // namespace trace_processor
