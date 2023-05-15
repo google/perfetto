@@ -9395,6 +9395,7 @@ filegroup {
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column_overlay.cc",
         "src/trace_processor/db/column_storage.cc",
+        "src/trace_processor/db/null_overlay.cc",
         "src/trace_processor/db/numeric_storage.cc",
         "src/trace_processor/db/storage.cc",
         "src/trace_processor/db/storage_overlay.cc",

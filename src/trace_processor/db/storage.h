@@ -31,7 +31,7 @@ class Storage {
   virtual ~Storage();
 
   // Changes the vector of indices to represent the sorted state of the column.
-  virtual void StableSort(std::vector<uint32_t>&) const = 0;
+  virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
 
   // Efficiently compares series of |num_elements| of data from |data_start| to
   // comparator value and appends results to BitVector::Builder. Should be used
