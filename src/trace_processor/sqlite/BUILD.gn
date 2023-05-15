@@ -46,6 +46,7 @@ source_set("sqlite") {
     "../db",
     "../importers/common",
     "../importers/ftrace:ftrace_descriptors",
+    "../prelude/functions:interface",
     "../prelude/table_functions:interface",
     "../storage",
     "../types",

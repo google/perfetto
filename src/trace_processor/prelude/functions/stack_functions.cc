@@ -31,7 +31,8 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -243,15 +244,16 @@ struct StackFromStackProfileFrameFunction : public SqlFunction {
 
 }  // namespace
 
-base::Status RegisterStackFunctions(sqlite3* db,
+base::Status RegisterStackFunctions(SqliteEngine* engine,
                                     TraceProcessorContext* context) {
-  RETURN_IF_ERROR(RegisterSqlFunction<CatStacksFunction>(
-      db, CatStacksFunction::kFunctionName, -1, context->storage.get()));
-  RETURN_IF_ERROR(RegisterSqlFunction<StackFromStackProfileFrameFunction>(
-      db, StackFromStackProfileFrameFunction::kFunctionName, 1,
-      context->storage.get()));
-  return RegisterSqlFunction<StackFromStackProfileCallsiteFunction>(
-      db, StackFromStackProfileCallsiteFunction::kFunctionName, -1,
+  RETURN_IF_ERROR(engine->RegisterSqlFunction<CatStacksFunction>(
+      CatStacksFunction::kFunctionName, -1, context->storage.get()));
+  RETURN_IF_ERROR(
+      engine->RegisterSqlFunction<StackFromStackProfileFrameFunction>(
+          StackFromStackProfileFrameFunction::kFunctionName, 1,
+          context->storage.get()));
+  return engine->RegisterSqlFunction<StackFromStackProfileCallsiteFunction>(
+      StackFromStackProfileCallsiteFunction::kFunctionName, -1,
       context->storage.get());
 }
 
