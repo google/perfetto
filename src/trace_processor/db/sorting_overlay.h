@@ -32,7 +32,7 @@ class SortingOverlay : public ColumnOverlay {
  public:
   explicit SortingOverlay(ColumnOverlay* ancestor);
   void Filter(FilterOp, SqlValue, RowMap&) override;
-  void Sort(std::vector<uint32_t>&) override;
+  void StableSort(uint32_t* rows_order, uint32_t rows_size) override;
 
  private:
   std::unique_ptr<ColumnOverlay> inner_;
