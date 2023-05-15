@@ -44,5 +44,8 @@ message AndroidProcessMetadata {
   // https://developer.android.com/guide/topics/manifest/manifest-element#uid
   repeated Package packages_for_uid = 8;
 
+  // Pid of the process name.
+  optional int64 pid = 9;
+
   reserved 3, 4, 5, 6;
 }
