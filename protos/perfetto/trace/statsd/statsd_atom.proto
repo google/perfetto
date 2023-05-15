@@ -20,7 +20,7 @@ package perfetto.protos;
 // Deliberate empty message. See comment on StatsdAtom#atom below.
 message Atom {}
 
-// One or more statsd atoms. Ideally this should continue to match:
+// One or more statsd atoms. This must continue to match:
 // perfetto/protos/third_party/statsd/shell_data.proto
 // So that we can efficiently add data from statsd directly to the
 // trace.
