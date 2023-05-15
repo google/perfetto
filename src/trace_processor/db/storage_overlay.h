@@ -32,7 +32,7 @@ class StorageOverlay : public ColumnOverlay {
  public:
   explicit StorageOverlay(const Storage* storage) : storage_(storage) {}
   void Filter(FilterOp, SqlValue, RowMap&) override;
-  void Sort(std::vector<uint32_t>&) override;
+  void StableSort(uint32_t* rows, uint32_t rows_size) override;
 
  private:
   const Storage* storage_;

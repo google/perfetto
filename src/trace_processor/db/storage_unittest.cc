@@ -17,6 +17,7 @@
 #include <numeric>
 #include "src/trace_processor/db/numeric_storage.h"
 
+#include "src/trace_processor/db/null_overlay.h"
 #include "src/trace_processor/db/storage_overlay.h"
 #include "test/gtest_and_gmock.h"
 
@@ -32,7 +33,7 @@ TEST(StorageUnittest, StableSortTrivial) {
 
   NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
   RowMap rm(0, 9);
-  storage.StableSort(out);
+  storage.StableSort(out.data(), 9);
 
   std::vector<uint32_t> stable_out{0, 3, 6, 1, 4, 7, 2, 5, 8};
   ASSERT_EQ(out, stable_out);
@@ -44,7 +45,7 @@ TEST(StorageUnittest, StableSort) {
 
   NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
   RowMap rm(0, 9);
-  storage.StableSort(out);
+  storage.StableSort(out.data(), 9);
 
   std::vector<uint32_t> stable_out{0, 6, 3, 1, 7, 4, 2, 5, 8};
   ASSERT_EQ(out, stable_out);
@@ -134,6 +135,112 @@ TEST(StorageOverlayUnittests, Filter) {
 
   ASSERT_EQ(rm.size(), 825u);
   ASSERT_EQ(rm.Get(0), 200u);
+}
+
+TEST(StorageOverlayUnittests, Sort) {
+  std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
+  std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
+
+  NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
+  StorageOverlay overlay(&storage);
+
+  overlay.StableSort(out.data(), 9);
+
+  std::vector<uint32_t> stable_out{0, 6, 3, 1, 7, 4, 2, 5, 8};
+  ASSERT_EQ(out, stable_out);
+}
+
+TEST(NullOverlayUnittest, FilterIsNull) {
+  std::vector<uint32_t> data_vec(10);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
+
+  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  NullOverlay overlay(std::move(storage_overlay), &bv);
+
+  RowMap rm(0, 10);
+  overlay.Filter(FilterOp::kIsNull, SqlValue::Long(5), rm);
+  ASSERT_EQ(rm.size(), 5u);
+  ASSERT_EQ(rm.Get(0), 1u);
+}
+
+TEST(NullOverlayUnittest, FilterIsNotNull) {
+  std::vector<uint32_t> data_vec(10);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
+  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  NullOverlay overlay(std::move(storage_overlay), &bv);
+
+  RowMap rm(0, 10);
+  overlay.Filter(FilterOp::kIsNotNull, SqlValue::Long(5), rm);
+
+  ASSERT_EQ(rm.size(), 5u);
+  ASSERT_EQ(rm.Get(0), 0u);
+}
+
+TEST(NullOverlayUnittest, Filter) {
+  uint32_t bv_size = 20;
+  uint32_t data_size = 10;
+
+  // Prepare storage
+  std::vector<uint32_t> data_vec(data_size);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), data_size, ColumnType::kUint32);
+
+  // Prepare NullOverlay
+  BitVector bv =
+      BitVector::Range(0, bv_size, [](uint32_t t) { return t % 2 == 0; });
+  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  NullOverlay overlay(std::move(storage_overlay), &bv);
+
+  RowMap rm(0, bv_size);
+  overlay.Filter(FilterOp::kGe, SqlValue::Long(5), rm);
+
+  ASSERT_EQ(rm.size(), 5u);
+  ASSERT_EQ(rm.Get(0), 10u);
+}
+
+TEST(NullOverlayUnittest, FilterLarge) {
+  uint32_t bv_size = 1000;
+  uint32_t data_size = 100;
+
+  // Prepare storage
+  std::vector<uint32_t> data_vec(data_size);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), data_size, ColumnType::kUint32);
+
+  // Prepare NullOverlay
+  BitVector bv =
+      BitVector::Range(800, bv_size, [](uint32_t t) { return t % 2 == 0; });
+  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  NullOverlay overlay(std::move(storage_overlay), &bv);
+
+  RowMap rm(0, bv_size);
+  overlay.Filter(FilterOp::kGe, SqlValue::Long(50), rm);
+
+  ASSERT_EQ(rm.size(), 50u);
+  ASSERT_EQ(rm.Get(0), 900u);
+}
+
+TEST(NullOverlayUnittest, Sort) {
+  // Prepare storage
+  std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
+  std::vector<uint32_t> out(18);
+  std::iota(out.begin(), out.end(), 0);
+  NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
+
+  // Prepare NullOverlay
+  BitVector bv = BitVector::Range(0, 18, [](uint32_t t) { return t % 2 == 0; });
+  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  NullOverlay overlay(std::move(storage_overlay), &bv);
+
+  overlay.StableSort(out.data(), 18);
+
+  std::vector<uint32_t> stable_out{1, 3, 5,  7, 9, 11, 13, 15, 17,
+                                   0, 6, 12, 2, 8, 14, 4,  10, 16};
+  ASSERT_EQ(out, stable_out);
 }
 
 }  // namespace

@@ -30,9 +30,12 @@ namespace column {
 // Overlay responsible for operations related to column nullability.
 class NullOverlay : public ColumnOverlay {
  public:
-  explicit NullOverlay(std::unique_ptr<ColumnOverlay>);
+  explicit NullOverlay(std::unique_ptr<ColumnOverlay> inner,
+                       const BitVector* null_bv)
+      : inner_(std::move(inner)), null_bv_(null_bv) {}
+
   void Filter(FilterOp, SqlValue, RowMap&) override;
-  void Sort(std::vector<uint32_t>&) override;
+  void StableSort(uint32_t* rows, uint32_t rows_size) override;
 
  private:
   std::unique_ptr<ColumnOverlay> inner_;
