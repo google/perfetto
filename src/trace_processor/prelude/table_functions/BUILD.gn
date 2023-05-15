@@ -39,8 +39,6 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
-    "table_function.cc",
-    "table_function.h",
     "view.cc",
     "view.h",
   ]
@@ -53,11 +51,25 @@ source_set("table_functions") {
     "../../db",
     "../../importers/proto:full",
     "../../importers/proto:minimal",
-    "../../sqlite:sqlite_minimal",
+    "../../sqlite",
     "../../storage",
     "../../tables",
     "../../types",
     "../../util",
+  ]
+  public_deps = [ ":interface" ]
+}
+
+source_set("interface") {
+  sources = [
+    "table_function.cc",
+    "table_function.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../base",
+    "../../db",
+    "../../sqlite:query_constraints",
   ]
 }
 

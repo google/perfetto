@@ -27,15 +27,7 @@ using namespace sqlite_utils;
 }  // namespace
 
 WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
-
-void WindowOperatorTable::RegisterTable(sqlite3* db,
-                                        const TraceStorage* storage) {
-  RegistrationFlags flags;
-  flags.writable = true;
-  flags.type = RegistrationFlags::kEponymous;
-
-  SqliteTable::Register<WindowOperatorTable>(db, storage, "window", flags);
-}
+WindowOperatorTable::~WindowOperatorTable() = default;
 
 base::Status WindowOperatorTable::Init(int,
                                        const char* const*,
@@ -62,8 +54,8 @@ base::Status WindowOperatorTable::Init(int,
   return base::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::Cursor> WindowOperatorTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::BaseCursor> WindowOperatorTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
 }
 
 int WindowOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -105,7 +97,8 @@ base::Status WindowOperatorTable::Update(int argc,
 }
 
 WindowOperatorTable::Cursor::Cursor(WindowOperatorTable* table)
-    : SqliteTable::Cursor(table), table_(table) {}
+    : SqliteTable::BaseCursor(table), table_(table) {}
+WindowOperatorTable::Cursor::~Cursor() = default;
 
 base::Status WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                                  sqlite3_value** argv,
