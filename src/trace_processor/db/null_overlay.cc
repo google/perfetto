@@ -22,7 +22,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace column {
 
-void NullOverlay::Filter(FilterOp op, SqlValue sql_val, RowMap& rm) {
+void NullOverlay::Filter(FilterOp op, SqlValue sql_val, RowMap& rm) const {
   if (op == FilterOp::kIsNull) {
     rm.Intersect(RowMap(null_bv_->Not()));
     return;
@@ -41,7 +41,7 @@ void NullOverlay::Filter(FilterOp op, SqlValue sql_val, RowMap& rm) {
   rm.Intersect(RowMap(null_bv_->Copy()).SelectRows(filtered_data_rm));
 }
 
-void NullOverlay::StableSort(uint32_t* rows, uint32_t rows_size) {
+void NullOverlay::StableSort(uint32_t* rows, uint32_t rows_size) const {
   uint32_t count_set_bits = null_bv_->CountSetBits();
 
   std::vector<uint32_t> non_null_rows(count_set_bits);
@@ -81,6 +81,7 @@ void NullOverlay::StableSort(uint32_t* rows, uint32_t rows_size) {
     rows[set_rows_offset + i] = storage_to_rows[non_null_rows[i]];
   }
 }
+
 }  // namespace column
 }  // namespace trace_processor
 }  // namespace perfetto

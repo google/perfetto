@@ -37,10 +37,10 @@ class ColumnOverlay {
 
   // Clears the rows of RowMap, on which data don't match the FilterOp operation
   // with SqlValue. Efficient.
-  virtual void Filter(FilterOp, SqlValue, RowMap&) = 0;
+  virtual void Filter(FilterOp, SqlValue, RowMap&) const = 0;
 
   // Sorts (ascending) provided vector of indices based on storage.
-  virtual void StableSort(uint32_t* rows, uint32_t rows_size) = 0;
+  virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
 };
 }  // namespace column
 }  // namespace trace_processor

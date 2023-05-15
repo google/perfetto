@@ -31,8 +31,8 @@ namespace column {
 class StorageOverlay : public ColumnOverlay {
  public:
   explicit StorageOverlay(const Storage* storage) : storage_(storage) {}
-  void Filter(FilterOp, SqlValue, RowMap&) override;
-  void StableSort(uint32_t* rows, uint32_t rows_size) override;
+  void Filter(FilterOp, SqlValue, RowMap&) const override;
+  void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
  private:
   const Storage* storage_;
