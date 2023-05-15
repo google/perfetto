@@ -77,13 +77,13 @@ inline void TypedSlowPathComparison(std::optional<NumericValue> val,
 
 }  // namespace
 
-void NumericStorage::StableSort(std::vector<uint32_t>& out) const {
+void NumericStorage::StableSort(uint32_t* rows, uint32_t rows_size) const {
   NumericValue val = *GetNumericTypeVariant(type_, SqlValue::Long(0));
   std::visit(
-      [this, &out](auto val_data) {
+      [this, &rows, rows_size](auto val_data) {
         using T = decltype(val_data);
         const T* typed_start = static_cast<const T*>(data_);
-        std::stable_sort(out.begin(), out.end(),
+        std::stable_sort(rows, rows + rows_size,
                          [typed_start](uint32_t a_idx, uint32_t b_idx) {
                            T first_val = typed_start[a_idx];
                            T second_val = typed_start[b_idx];

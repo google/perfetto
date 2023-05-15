@@ -40,7 +40,7 @@ class ColumnOverlay {
   virtual void Filter(FilterOp, SqlValue, RowMap&) = 0;
 
   // Sorts (ascending) provided vector of indices based on storage.
-  virtual void Sort(std::vector<uint32_t>&) = 0;
+  virtual void StableSort(uint32_t* rows, uint32_t rows_size) = 0;
 };
 }  // namespace column
 }  // namespace trace_processor
