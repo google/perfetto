@@ -219,6 +219,90 @@ void NumericStorage::CompareSorted(FilterOp op,
   return;
 }
 
+uint32_t NumericStorage::UpperBoundIndex(NumericValue val,
+                                         uint32_t* order) const {
+  return std::visit(
+      [this, order](auto val_data) {
+        using T = decltype(val_data);
+        const T* typed_start = static_cast<const T*>(data_);
+        auto upper = std::upper_bound(order, order + size_, val_data,
+                                      [typed_start](T val, uint32_t index) {
+                                        return val < *(typed_start + index);
+                                      });
+        return static_cast<uint32_t>(std::distance(order, upper));
+      },
+      val);
+}
+
+// As we don't template those functions, we need to use std::visitor to type
+// `start`, hence this wrapping.
+uint32_t NumericStorage::LowerBoundIndex(NumericValue val,
+                                         uint32_t* order) const {
+  return std::visit(
+      [this, order](auto val_data) {
+        using T = decltype(val_data);
+        const T* typed_start = static_cast<const T*>(data_);
+        auto lower = std::lower_bound(order, order + size_, val_data,
+                                      [typed_start](uint32_t index, T val) {
+                                        return *(typed_start + index) < val;
+                                      });
+        return static_cast<uint32_t>(std::distance(order, lower));
+      },
+      val);
+}
+
+void NumericStorage::CompareSortedIndexes(FilterOp op,
+                                          SqlValue sql_val,
+                                          uint32_t* order,
+                                          RowMap& rm) const {
+  std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
+  if (!val.has_value() || op == FilterOp::kIsNotNull ||
+      op == FilterOp::kIsNull || op == FilterOp::kGlob) {
+    rm.Clear();
+    return;
+  }
+
+  switch (op) {
+    case FilterOp::kEq: {
+      uint32_t beg = LowerBoundIndex(*val, order);
+      uint32_t end = UpperBoundIndex(*val, order);
+      std::vector<uint32_t> index(order + beg, order + end);
+      rm.Intersect(RowMap(std::move(index)));
+      return;
+    }
+    case FilterOp::kLe: {
+      uint32_t end = UpperBoundIndex(*val, order);
+      std::vector<uint32_t> index(order, order + end);
+      rm.Intersect(RowMap(std::move(index)));
+      return;
+    }
+    case FilterOp::kLt: {
+      uint32_t end = LowerBoundIndex(*val, order);
+      std::vector<uint32_t> index(order, order + end);
+      rm.Intersect(RowMap(std::move(index)));
+      return;
+    }
+    case FilterOp::kGe: {
+      uint32_t beg = LowerBoundIndex(*val, order);
+      std::vector<uint32_t> index(order + beg, order + size_);
+      rm.Intersect(RowMap(std::move(index)));
+      return;
+    }
+    case FilterOp::kGt: {
+      uint32_t beg = UpperBoundIndex(*val, order);
+      std::vector<uint32_t> index(order + beg, order + size_);
+      rm.Intersect(RowMap(std::move(index)));
+      return;
+    }
+    case FilterOp::kNe:
+    case FilterOp::kIsNull:
+    case FilterOp::kIsNotNull:
+    case FilterOp::kGlob:
+      rm.Clear();
+  }
+  return;
+}
+
 }  // namespace column
 }  // namespace trace_processor
 }  // namespace perfetto
