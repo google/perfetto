@@ -24,5 +24,6 @@ perfetto_sql_source_set("android") {
     "network_packets.sql",
     "process_metadata.sql",
     "slices.sql",
+    "statsd.sql",
   ]
 }
