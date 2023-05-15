@@ -47,6 +47,11 @@ class NumericStorage : public Storage {
 
   void CompareSorted(FilterOp op, SqlValue val, RowMap&) const override;
 
+  void CompareSortedIndexes(FilterOp op,
+                            SqlValue val,
+                            uint32_t* order,
+                            RowMap&) const override;
+
   uint32_t size() const override { return size_; }
 
  private:
@@ -57,6 +62,14 @@ class NumericStorage : public Storage {
   // As we don't template those functions, we need to use std::visitor to type
   // `start`, hence this wrapping.
   uint32_t LowerBoundIndex(NumericValue val) const;
+
+  // As we don't template those functions, we need to use std::visitor to type
+  // `start`, hence this wrapping.
+  uint32_t UpperBoundIndex(NumericValue val, uint32_t* order) const;
+
+  // As we don't template those functions, we need to use std::visitor to type
+  // `start`, hence this wrapping.
+  uint32_t LowerBoundIndex(NumericValue val, uint32_t* order) const;
 
   const ColumnType type_;
   const void* data_;

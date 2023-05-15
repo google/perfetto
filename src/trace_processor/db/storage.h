@@ -55,6 +55,13 @@ class Storage {
   // where possible.
   virtual void CompareSorted(FilterOp op, SqlValue value, RowMap&) const = 0;
 
+  // Compares sorted (asc) with `order` vector series with comparator value.
+  // Should be used where possible.
+  virtual void CompareSortedIndexes(FilterOp op,
+                                    SqlValue value,
+                                    uint32_t* order,
+                                    RowMap&) const = 0;
+
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;
 };

@@ -27,7 +27,7 @@ namespace column {
 
 namespace {
 
-TEST(StorageUnittest, StableSortTrivial) {
+TEST(NumericStorageUnittest, StableSortTrivial) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
@@ -39,7 +39,7 @@ TEST(StorageUnittest, StableSortTrivial) {
   ASSERT_EQ(out, stable_out);
 }
 
-TEST(StorageUnittest, StableSort) {
+TEST(NumericStorageUnittest, StableSort) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
 
@@ -51,7 +51,7 @@ TEST(StorageUnittest, StableSort) {
   ASSERT_EQ(out, stable_out);
 }
 
-TEST(StorageUnittest, CompareSlow) {
+TEST(NumericStorageUnittest, CompareSlow) {
   uint32_t size = 10;
   std::vector<uint32_t> data_vec(size);
   std::iota(data_vec.begin(), data_vec.end(), 0);
@@ -64,7 +64,7 @@ TEST(StorageUnittest, CompareSlow) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
 }
 
-TEST(StorageUnittest, CompareSlowLarge) {
+TEST(NumericStorageUnittest, CompareSlowLarge) {
   uint32_t size = 1025;
   std::vector<uint32_t> data_vec(size);
   std::iota(data_vec.begin(), data_vec.end(), 0);
@@ -77,7 +77,7 @@ TEST(StorageUnittest, CompareSlowLarge) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
 }
 
-TEST(StorageUnittest, CompareFast) {
+TEST(NumericStorageUnittest, CompareFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
@@ -89,7 +89,7 @@ TEST(StorageUnittest, CompareFast) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 100u);
 }
 
-TEST(StorageUnittest, CompareSorted) {
+TEST(NumericStorageUnittest, CompareSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
@@ -98,6 +98,51 @@ TEST(StorageUnittest, CompareSorted) {
 
   ASSERT_EQ(rm.size(), 28u);
   ASSERT_EQ(rm.Get(0), 100u);
+}
+
+TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
+  std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
+  std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
+
+  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  RowMap rm(0, 10);
+
+  storage.CompareSortedIndexes(FilterOp::kGe, SqlValue::Long(60),
+                               sorted_order.data(), rm);
+
+  ASSERT_EQ(rm.size(), 4u);
+  ASSERT_EQ(rm.Get(0), 3u);
+  ASSERT_EQ(rm.Get(1), 6u);
+  ASSERT_EQ(rm.Get(2), 5u);
+  ASSERT_EQ(rm.Get(3), 4u);
+}
+
+TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
+  std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
+  std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
+
+  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  RowMap rm(0, 10);
+
+  storage.CompareSortedIndexes(FilterOp::kLt, SqlValue::Long(60),
+                               sorted_order.data(), rm);
+
+  ASSERT_EQ(rm.size(), 6u);
+  ASSERT_EQ(rm.Get(0), 7u);
+}
+
+TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
+  std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
+  std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
+
+  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  RowMap rm(0, 10);
+
+  storage.CompareSortedIndexes(FilterOp::kEq, SqlValue::Long(60),
+                               sorted_order.data(), rm);
+
+  ASSERT_EQ(rm.size(), 1u);
+  ASSERT_EQ(rm.Get(0), 3u);
 }
 
 TEST(StorageOverlayUnittests, FilterIsNull) {
