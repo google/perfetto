@@ -31,8 +31,8 @@ namespace column {
 class SortingOverlay : public ColumnOverlay {
  public:
   explicit SortingOverlay(ColumnOverlay* ancestor);
-  void Filter(FilterOp, SqlValue, RowMap&) override;
-  void StableSort(uint32_t* rows_order, uint32_t rows_size) override;
+  void Filter(FilterOp, SqlValue, RowMap&) const override;
+  void StableSort(uint32_t* rows_order, uint32_t rows_size) const override;
 
  private:
   std::unique_ptr<ColumnOverlay> inner_;
