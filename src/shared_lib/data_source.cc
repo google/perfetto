@@ -98,7 +98,7 @@ class ShlibDataSource : public perfetto::DataSourceBase {
   void OnSetup(const SetupArgs& args) override {
     if (type_.on_setup_cb) {
       std::vector<uint8_t> serialized_config = args.config->SerializeAsArray();
-      inst_ctx_ = type_.on_setup_cb(
+      inst_ctx_ = type_.on_setup_cb(&type_,
           args.internal_instance_index, serialized_config.data(),
           serialized_config.size(), type_.cb_user_arg);
     }
@@ -112,14 +112,14 @@ class ShlibDataSource : public perfetto::DataSourceBase {
 
   void OnStart(const StartArgs& args) override {
     if (type_.on_start_cb) {
-      type_.on_start_cb(args.internal_instance_index, type_.cb_user_arg,
+      type_.on_start_cb(&type_, args.internal_instance_index, type_.cb_user_arg,
                         inst_ctx_);
     }
   }
 
   void OnStop(const StopArgs& args) override {
     if (type_.on_stop_cb) {
-      type_.on_stop_cb(
+      type_.on_stop_cb(&type_,
           args.internal_instance_index, type_.cb_user_arg, inst_ctx_,
           const_cast<PerfettoDsOnStopArgs*>(
               reinterpret_cast<const PerfettoDsOnStopArgs*>(&args)));
@@ -170,7 +170,7 @@ DataSourceInstanceThreadLocalState::ObjectWithDeleter CreateShlibTls(
     void* ctx) {
   auto* ds_impl = reinterpret_cast<PerfettoDsImpl*>(ctx);
 
-  void* custom_state = ds_impl->on_create_tls_cb(
+  void* custom_state = ds_impl->on_create_tls_cb(ds_impl,
       inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
       ds_impl->cb_user_arg);
   return DataSourceInstanceThreadLocalState::ObjectWithDeleter(
@@ -183,7 +183,7 @@ CreateShlibIncrementalState(DataSourceInstanceThreadLocalState* tls_inst,
                             void* ctx) {
   auto* ds_impl = reinterpret_cast<PerfettoDsImpl*>(ctx);
 
-  void* custom_state = ds_impl->on_create_incr_cb(
+  void* custom_state = ds_impl->on_create_incr_cb(ds_impl,
       inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
       ds_impl->cb_user_arg);
   return DataSourceInstanceThreadLocalState::ObjectWithDeleter(

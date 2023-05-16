@@ -54,7 +54,8 @@ PERFETTO_SDK_EXPORT struct PerfettoDsImpl* PerfettoDsImplCreate(void);
 // points to a serialized perfetto.protos.DataSourceConfig message,
 // `ds_config_size` bytes long. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
-typedef void* (*PerfettoDsOnSetupCb)(PerfettoDsInstanceIndex inst_id,
+typedef void* (*PerfettoDsOnSetupCb)(struct PerfettoDsImpl*,
+                                     PerfettoDsInstanceIndex inst_id,
                                      void* ds_config,
                                      size_t ds_config_size,
                                      void* user_arg);
@@ -62,7 +63,8 @@ typedef void* (*PerfettoDsOnSetupCb)(PerfettoDsInstanceIndex inst_id,
 // Called when tracing starts for a data source instance. `user_arg` is the
 // value passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return
 // value of PerfettoDsOnSetupCb.
-typedef void (*PerfettoDsOnStartCb)(PerfettoDsInstanceIndex inst_id,
+typedef void (*PerfettoDsOnStartCb)(struct PerfettoDsImpl*,
+                                    PerfettoDsInstanceIndex inst_id,
                                     void* user_arg,
                                     void* inst_ctx);
 
@@ -87,7 +89,8 @@ PERFETTO_SDK_EXPORT void PerfettoDsStopDone(struct PerfettoDsAsyncStopper*);
 // passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
 // PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
 // instance.
-typedef void (*PerfettoDsOnStopCb)(PerfettoDsInstanceIndex inst_id,
+typedef void (*PerfettoDsOnStopCb)(struct PerfettoDsImpl*,
+                                   PerfettoDsInstanceIndex inst_id,
                                    void* user_arg,
                                    void* inst_ctx,
                                    struct PerfettoDsOnStopArgs* args);
@@ -96,6 +99,7 @@ typedef void (*PerfettoDsOnStopCb)(PerfettoDsInstanceIndex inst_id,
 // instance `inst_id`. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
 typedef void* (*PerfettoDsOnCreateCustomState)(
+    struct PerfettoDsImpl*,
     PerfettoDsInstanceIndex inst_id,
     struct PerfettoDsTracerImpl* tracer,
     void* user_arg);
