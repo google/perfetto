@@ -105,6 +105,25 @@ TracingSession::~TracingSession() {
   PerfettoTracingSessionDestroy(session_);
 }
 
+bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
+  WaitableEvent notification;
+  bool result;
+  auto* cb = new std::function<void(bool)>([&](bool success) {
+    result = success;
+    notification.Notify();
+  });
+  PerfettoTracingSessionFlushAsync(
+      session_, timeout_ms,
+      [](PerfettoTracingSessionImpl*, bool success, void* user_arg) {
+        auto* f = reinterpret_cast<std::function<void(bool)>*>(user_arg);
+        (*f)(success);
+        delete f;
+      },
+      cb);
+  notification.WaitForNotification();
+  return result;
+}
+
 void TracingSession::StopBlocking() {
   stopped_ = true;
   PerfettoTracingSessionStopBlocking(session_);

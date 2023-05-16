@@ -95,6 +95,34 @@ typedef void (*PerfettoDsOnStopCb)(struct PerfettoDsImpl*,
                                    void* inst_ctx,
                                    struct PerfettoDsOnStopArgs* args);
 
+// Internal handle used to perform operations from the OnFlush callback.
+struct PerfettoDsOnFlushArgs;
+
+// Internal handle used to signal when the data source flush operation is
+// complete.
+struct PerfettoDsAsyncFlusher;
+
+// Tells the tracing service to postpone acknowledging the flushing of a data
+// source instance. The returned handle can be used to signal the tracing
+// service when the data source instance flushing has completed.
+PERFETTO_SDK_EXPORT struct PerfettoDsAsyncFlusher*
+PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
+
+// Tells the tracing service that the flush operation is complete for a data
+// source instance (whose stop operation was previously postponed with
+// PerfettoDsOnFlushArgsPostpone).
+PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
+
+// Called when tracing stops for a data source instance. `user_arg` is the value
+// passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
+// PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
+// instance.
+typedef void (*PerfettoDsOnFlushCb)(struct PerfettoDsImpl*,
+                                    PerfettoDsInstanceIndex inst_id,
+                                    void* user_arg,
+                                    void* inst_ctx,
+                                    struct PerfettoDsOnFlushArgs* args);
+
 // Creates custom state (either thread local state or incremental state) for
 // instance `inst_id`. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
@@ -117,6 +145,9 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnStartCallback(struct PerfettoDsImpl*,
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnStopCallback(struct PerfettoDsImpl*,
                                                      PerfettoDsOnStopCb);
+
+PERFETTO_SDK_EXPORT void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl*,
+                                                      PerfettoDsOnFlushCb);
 
 // Callbacks for custom per instance thread local state.
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnCreateTls(

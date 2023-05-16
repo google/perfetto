@@ -46,6 +46,7 @@ struct PerfettoDsImpl {
   PerfettoDsOnSetupCb on_setup_cb = nullptr;
   PerfettoDsOnStartCb on_start_cb = nullptr;
   PerfettoDsOnStopCb on_stop_cb = nullptr;
+  PerfettoDsOnFlushCb on_flush_cb = nullptr;
 
   // These are called to create/delete custom thread-local instance state.
   PerfettoDsOnCreateCustomState on_create_tls_cb = nullptr;
@@ -98,8 +99,8 @@ class ShlibDataSource : public perfetto::DataSourceBase {
   void OnSetup(const SetupArgs& args) override {
     if (type_.on_setup_cb) {
       std::vector<uint8_t> serialized_config = args.config->SerializeAsArray();
-      inst_ctx_ = type_.on_setup_cb(&type_,
-          args.internal_instance_index, serialized_config.data(),
+      inst_ctx_ = type_.on_setup_cb(
+          &type_, args.internal_instance_index, serialized_config.data(),
           serialized_config.size(), type_.cb_user_arg);
     }
     std::lock_guard<std::mutex> lock(type_.mu);
@@ -119,8 +120,8 @@ class ShlibDataSource : public perfetto::DataSourceBase {
 
   void OnStop(const StopArgs& args) override {
     if (type_.on_stop_cb) {
-      type_.on_stop_cb(&type_,
-          args.internal_instance_index, type_.cb_user_arg, inst_ctx_,
+      type_.on_stop_cb(
+          &type_, args.internal_instance_index, type_.cb_user_arg, inst_ctx_,
           const_cast<PerfettoDsOnStopArgs*>(
               reinterpret_cast<const PerfettoDsOnStopArgs*>(&args)));
     }
@@ -129,6 +130,15 @@ class ShlibDataSource : public perfetto::DataSourceBase {
     type_.enabled_instances.reset(args.internal_instance_index);
     if (type_.enabled_instances.none()) {
       type_.enabled.store(false, std::memory_order_release);
+    }
+  }
+
+  void OnFlush(const FlushArgs& args) override {
+    if (type_.on_flush_cb) {
+      type_.on_flush_cb(
+          &type_, args.internal_instance_index, type_.cb_user_arg, inst_ctx_,
+          const_cast<PerfettoDsOnFlushArgs*>(
+              reinterpret_cast<const PerfettoDsOnFlushArgs*>(&args)));
     }
   }
 
@@ -170,8 +180,8 @@ DataSourceInstanceThreadLocalState::ObjectWithDeleter CreateShlibTls(
     void* ctx) {
   auto* ds_impl = reinterpret_cast<PerfettoDsImpl*>(ctx);
 
-  void* custom_state = ds_impl->on_create_tls_cb(ds_impl,
-      inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
+  void* custom_state = ds_impl->on_create_tls_cb(
+      ds_impl, inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
       ds_impl->cb_user_arg);
   return DataSourceInstanceThreadLocalState::ObjectWithDeleter(
       custom_state, ds_impl->on_delete_tls_cb);
@@ -183,8 +193,8 @@ CreateShlibIncrementalState(DataSourceInstanceThreadLocalState* tls_inst,
                             void* ctx) {
   auto* ds_impl = reinterpret_cast<PerfettoDsImpl*>(ctx);
 
-  void* custom_state = ds_impl->on_create_incr_cb(ds_impl,
-      inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
+  void* custom_state = ds_impl->on_create_incr_cb(
+      ds_impl, inst_idx, reinterpret_cast<PerfettoDsTracerImpl*>(tls_inst),
       ds_impl->cb_user_arg);
   return DataSourceInstanceThreadLocalState::ObjectWithDeleter(
       custom_state, ds_impl->on_delete_incr_cb);
@@ -215,6 +225,12 @@ void PerfettoDsSetOnStopCallback(struct PerfettoDsImpl* ds_impl,
                                  PerfettoDsOnStopCb cb) {
   PERFETTO_CHECK(!ds_impl->IsRegistered());
   ds_impl->on_stop_cb = cb;
+}
+
+void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl* ds_impl,
+                                  PerfettoDsOnFlushCb cb) {
+  PERFETTO_CHECK(!ds_impl->IsRegistered());
+  ds_impl->on_flush_cb = cb;
 }
 
 void PerfettoDsSetOnCreateTls(struct PerfettoDsImpl* ds_impl,
@@ -307,6 +323,20 @@ PerfettoDsAsyncStopper* PerfettoDsOnStopArgsPostpone(
 }
 
 void PerfettoDsStopDone(PerfettoDsAsyncStopper* stopper) {
+  auto* cb = reinterpret_cast<std::function<void()>*>(stopper);
+  (*cb)();
+  delete cb;
+}
+
+PerfettoDsAsyncFlusher* PerfettoDsOnFlushArgsPostpone(
+    PerfettoDsOnFlushArgs* args) {
+  auto* cb = new std::function<void()>();
+  *cb = reinterpret_cast<const ShlibDataSource::FlushArgs*>(args)
+            ->HandleFlushAsynchronously();
+  return reinterpret_cast<PerfettoDsAsyncFlusher*>(cb);
+}
+
+void PerfettoDsFlushDone(PerfettoDsAsyncFlusher* stopper) {
   auto* cb = reinterpret_cast<std::function<void()>*>(stopper);
   (*cb)();
   delete cb;

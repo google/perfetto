@@ -41,6 +41,7 @@ using ::perfetto::shlib::test_utils::MsgField;
 using ::perfetto::shlib::test_utils::PbField;
 using ::perfetto::shlib::test_utils::StringField;
 using ::perfetto::shlib::test_utils::TracingSession;
+using ::perfetto::shlib::test_utils::WaitableEvent;
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
@@ -78,6 +79,13 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnStopArgs* args));
+  MOCK_METHOD(void,
+              OnFlush,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsOnFlushArgs* args));
   MOCK_METHOD(void*,
               OnCreateTls,
               (struct PerfettoDsImpl*,
@@ -92,30 +100,6 @@ class MockDs2Callbacks : testing::Mock {
                struct PerfettoDsTracerImpl* tracer,
                void* user_arg));
   MOCK_METHOD(void, OnDeleteIncr, (void*));
-};
-
-class Notification {
- public:
-  Notification() = default;
-  void Notify() {
-    std::unique_lock<std::mutex> lock(m_);
-    notified_ = true;
-    cv_.notify_one();
-  }
-  bool WaitForNotification() {
-    std::unique_lock<std::mutex> lock(m_);
-    cv_.wait(lock, [this] { return notified_; });
-    return notified_;
-  }
-  bool Notified() {
-    std::unique_lock<std::mutex> lock(m_);
-    return notified_;
-  }
-
- private:
-  std::mutex m_;
-  std::condition_variable cv_;
-  bool notified_ = false;
 };
 
 class SharedLibDataSourceTest : public testing::Test {
@@ -165,6 +149,13 @@ class SharedLibDataSourceTest : public testing::Test {
            void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnStop(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
+    callbacks.on_flush_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
     callbacks.on_create_tls_cb =
@@ -349,19 +340,19 @@ TEST_F(SharedLibDataSourceTest, Break) {
 TEST_F(SharedLibDataSourceTest, FlushCb) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
-  Notification notification;
+  WaitableEvent notification;
 
   PERFETTO_DS_TRACE(data_source_1, ctx) {
     PerfettoDsTracerFlush(
         &ctx,
         [](void* p_notification) {
-          static_cast<Notification*>(p_notification)->Notify();
+          static_cast<WaitableEvent*>(p_notification)->Notify();
         },
         &notification);
   }
 
   notification.WaitForNotification();
-  EXPECT_TRUE(notification.Notified());
+  EXPECT_TRUE(notification.IsNotified());
 }
 
 TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
@@ -376,7 +367,8 @@ TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
 
-  EXPECT_CALL(ds2_callbacks_, OnStop(_, _, kDataSource2UserArg, kInstancePtr, _))
+  EXPECT_CALL(ds2_callbacks_,
+              OnStop(_, _, kDataSource2UserArg, kInstancePtr, _))
       .WillOnce(SaveArg<1>(&stop_inst));
 
   tracing_session.StopBlocking();
@@ -389,12 +381,12 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
 
-  Notification stop_called;
+  WaitableEvent stop_called;
   struct PerfettoDsAsyncStopper* stopper;
 
   EXPECT_CALL(ds2_callbacks_, OnStop(_, _, kDataSource2UserArg, _, _))
-      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*, void*,
-                    struct PerfettoDsOnStopArgs* args) {
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnStopArgs* args) {
         stopper = PerfettoDsOnStopArgsPostpone(args);
         stop_called.Notify();
       });
@@ -403,6 +395,34 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
 
   stop_called.WaitForNotification();
   PerfettoDsStopDone(stopper);
+
+  t.join();
+}
+
+TEST_F(SharedLibDataSourceTest, FlushDone) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  WaitableEvent flush_called;
+  WaitableEvent flush_done;
+  struct PerfettoDsAsyncFlusher* flusher;
+
+  EXPECT_CALL(ds2_callbacks_, OnFlush(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnFlushArgs* args) {
+        flusher = PerfettoDsOnFlushArgsPostpone(args);
+        flush_called.Notify();
+      });
+
+  std::thread t([&]() {
+    tracing_session.FlushBlocking(/*timeout_ms=*/10000);
+    flush_done.Notify();
+  });
+
+  flush_called.WaitForNotification();
+  EXPECT_FALSE(flush_done.IsNotified());
+  PerfettoDsFlushDone(flusher);
+  flush_done.WaitForNotification();
 
   t.join();
 }
