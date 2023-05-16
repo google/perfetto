@@ -891,34 +891,36 @@ server_pid (R	serverPidJJ	½
 blocked_function (	RblockedFunction0
 blocked_function_dur (RblockedFunctionDur4
 blocked_function_count (RblockedFunctionCount
-¯
-?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"Ú
-
+Ÿ
+?protos/perfetto/metrics/android/monitor_contention_metric.protoperfetto.protos"Ê
 AndroidMonitorContentionMetricH
-node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnode©
+node (24.perfetto.protos.AndroidMonitorContentionMetric.NodeRnode™
 Node$
 node_parent_id (RnodeParentId
 node_id (RnodeId
 ts (Rts
-dur (Rdur'
-blocking_method (	RblockingMethod%
-blocked_method (	RblockedMethod2
-short_blocking_method (	RshortBlockingMethod0
-short_blocked_method (	RshortBlockedMethod!
-blocking_src	 (	RblockingSrc
+dur (Rdur!
+process_name (	RprocessName
+pid (Rpid!
+waiter_count (RwaiterCounti
+thread_states (2D.perfetto.protos.AndroidMonitorContentionMetric.ThreadStateBreakdownRthreadStatesu
+blocked_functions (2H.perfetto.protos.AndroidMonitorContentionMetric.BlockedFunctionBreakdownRblockedFunctions'
+blocking_method (	RblockingMethod2
+short_blocking_method (	RshortBlockingMethod!
+blocking_src	 (	RblockingSrc0
+blocking_thread_name (	RblockingThreadName5
+is_blocking_thread_main (RisBlockingThreadMain.
+blocking_thread_tid (RblockingThreadTid%
+blocked_method (	RblockedMethod0
+short_blocked_method (	RshortBlockedMethod
 blocked_src
  (	R
-blockedSrc!
-waiter_count (RwaiterCount.
-blocked_thread_name (	RblockedThreadName0
-blocking_thread_name (	RblockingThreadName!
-process_name (	RprocessName3
-is_blocked_thread_main (RisBlockedThreadMain5
-is_blocking_thread_main (RisBlockingThreadMain&
+blockedSrc.
+blocked_thread_name (	RblockedThreadName3
+is_blocked_thread_main (RisBlockedThreadMain,
+blocked_thread_tid (RblockedThreadTid&
 binder_reply_ts (RbinderReplyTs(
-binder_reply_tid (RbinderReplyTidi
-thread_states (2D.perfetto.protos.AndroidMonitorContentionMetric.ThreadStateBreakdownRthreadStatesu
-blocked_functions (2H.perfetto.protos.AndroidMonitorContentionMetric.BlockedFunctionBreakdownRblockedFunctions‘
+binder_reply_tid (RbinderReplyTid‘
 ThreadStateBreakdown!
 thread_state (	RthreadState(
 thread_state_dur (RthreadStateDur,
