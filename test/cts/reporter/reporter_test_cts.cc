@@ -42,6 +42,7 @@ TEST(PerfettoReporterTest, TestEndToEndReport) {
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
   trace_config.set_allow_user_build_tracing(true);
+  trace_config.set_unique_session_name("TestEndToEndReport");
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -72,6 +73,7 @@ TEST(PerfettoReporterTest, TestEndToEndReport) {
   auto perfetto_proc = Exec("perfetto",
                             {
                                 "--upload",
+                                "--no-guardrails",
                                 "-c",
                                 "-",
                             },
