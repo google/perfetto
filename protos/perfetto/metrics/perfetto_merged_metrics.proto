@@ -1193,28 +1193,38 @@ message AndroidMemoryUnaggregatedMetric {
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
+  // Next field id: 24
   message Node {
+    // Global context
     optional int64 node_parent_id = 1;
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
-    optional string blocking_method = 5;
-    optional string blocked_method = 6;
-    optional string short_blocking_method = 7;
-    optional string short_blocked_method = 8;
-    optional string blocking_src = 9;
-    optional string blocked_src = 10;
-    optional uint32 waiter_count = 11;
-    optional string blocked_thread_name = 12;
-    optional string blocking_thread_name = 13;
     optional string process_name = 14;
-    optional bool is_blocked_thread_main = 15;
-    optional bool is_blocking_thread_main = 16;
-    optional int64 binder_reply_ts = 17;
-    optional uint32 binder_reply_tid = 18;
-
+    optional uint32 pid = 23;
+    optional uint32 waiter_count = 11;
     repeated ThreadStateBreakdown thread_states = 19;
     repeated BlockedFunctionBreakdown blocked_functions = 20;
+
+    // Blocking context
+    optional string blocking_method = 5;
+    optional string short_blocking_method = 7;
+    optional string blocking_src = 9;
+    optional string blocking_thread_name = 13;
+    optional bool is_blocking_thread_main = 16;
+    optional uint32 blocking_thread_tid = 22;
+
+    // Blocked context
+    optional string blocked_method = 6;
+    optional string short_blocked_method = 8;
+    optional string blocked_src = 10;
+    optional string blocked_thread_name = 12;
+    optional bool is_blocked_thread_main = 15;
+    optional uint32 blocked_thread_tid = 21;
+
+    // Binder context
+    optional int64 binder_reply_ts = 17;
+    optional uint32 binder_reply_tid = 18;
   }
 
   message ThreadStateBreakdown {
