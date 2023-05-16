@@ -592,5 +592,26 @@ TEST(ProtoDecoderTest, OneBigFieldIdOnly) {
   ASSERT_FALSE(field.valid());
 }
 
+// Check what happens when trying to parse packed repeated field and finding a
+// mismatching wire type instead. A compliant protobuf decoder should accept it,
+// but protozero doesn't handle that. At least it shouldn't crash.
+TEST(ProtoDecoderTest, PacketRepeatedWireTypeMismatch) {
+  protozero::HeapBuffered<pbtest::PackedRepeatedFields> message;
+  // A proper packed encoding should have a length delimited wire type. Use a
+  // var int wire type instead.
+  constexpr int kFieldId = pbtest::PackedRepeatedFields::kFieldInt32FieldNumber;
+  message->AppendTinyVarInt(kFieldId, 5);
+  auto data = message.SerializeAsArray();
+
+  pbtest::PackedRepeatedFields::Decoder decoder(data.data(), data.size());
+  bool parse_error = false;
+  auto it = decoder.field_int32(&parse_error);
+  // The decoder doesn't return a parse error (maybe it should, but that has
+  // been the behavior since the beginning).
+  ASSERT_FALSE(parse_error);
+  // But the iterator returns 0 elements.
+  EXPECT_FALSE(it);
+}
+
 }  // namespace
 }  // namespace protozero
