@@ -679,8 +679,8 @@ cc_library_shared {
         "src/android_internal/health_hal.cc",
         "src/android_internal/incident_service.cc",
         "src/android_internal/power_stats.cc",
-        "src/android_internal/statsd_logging.cc",
         "src/android_internal/statsd.cc",
+        "src/android_internal/statsd_logging.cc",
         "src/android_internal/tracing_service_proxy.cc",
     ],
     shared_libs: [
