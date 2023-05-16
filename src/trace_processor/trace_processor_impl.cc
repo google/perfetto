@@ -596,7 +596,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   // Legacy tables.
   engine_.RegisterVirtualTableModule<SqlStatsTable>(
-      "sql_stats", storage, SqliteTable::TableType::kEponymousOnly, false);
+      "sqlstats", storage, SqliteTable::TableType::kEponymousOnly, false);
   engine_.RegisterVirtualTableModule<StatsTable>(
       "stats", storage, SqliteTable::TableType::kEponymousOnly, false);
 
