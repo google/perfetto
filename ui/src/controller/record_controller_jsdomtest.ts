@@ -32,7 +32,8 @@ test('SysConfig', () => {
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[0].config);
+  // TODO(hjd): This is all bad. Should just match the whole config.
+  const srcConfig = assertExists(sources[1].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceEvents.includes('raw_syscalls/sys_enter')).toBe(true);
@@ -45,7 +46,7 @@ test('cpu scheduling includes kSyms if OS >= S', () => {
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'S', name: 'Android S'}));
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[1].config);
+  const srcConfig = assertExists(sources[2].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(true);
@@ -58,7 +59,7 @@ test('cpu scheduling does not include kSyms if OS <= S', () => {
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[1].config);
+  const srcConfig = assertExists(sources[2].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(false);
@@ -72,7 +73,7 @@ test('kSyms can be enabled individually', () => {
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[0].config);
+  const srcConfig = assertExists(sources[1].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(true);
@@ -86,7 +87,7 @@ test('kSyms can be disabled individually', () => {
   const result =
       TraceConfig.decode(genConfigProto(config, {os: 'Q', name: 'Android Q'}));
   const sources = assertExists(result.dataSources);
-  const srcConfig = assertExists(sources[0].config);
+  const srcConfig = assertExists(sources[1].config);
   const ftraceConfig = assertExists(srcConfig.ftraceConfig);
   const ftraceEvents = assertExists(ftraceConfig.ftraceEvents);
   expect(ftraceConfig.symbolizeKsyms).toBe(false);
