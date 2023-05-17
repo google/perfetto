@@ -38,8 +38,10 @@ DROP TABLE IF EXISTS launch_thread_state_io_wait_dur_sum;
 CREATE TABLE launch_thread_state_io_wait_dur_sum AS
 SELECT startup_id, state, is_main_thread, thread_name, io_wait, SUM(dur) AS dur
 FROM launch_threads_by_thread_state l
+JOIN android_startup_processes p USING (startup_id)
 WHERE
-  is_main_thread
+  -- If it is a main thread, only add it if it is the lauching thread.
+  (is_main_thread AND p.startup_type NOT NULL)
   -- Allowlist specific threads which need this. Do not add to this list
   -- without careful consideration as every thread added here can cause
   -- memory usage to balloon.
