@@ -153,3 +153,10 @@ export function scrollToTrackAndTs(
   }
   horizontalScrollToTs(ts);
 }
+
+// Scroll vertically and horizontally to a track and time range
+export function reveal(
+    trackId: string|number, start: TPTime, end: TPTime, openGroup = false) {
+  verticalScrollToTrack(trackId, openGroup);
+  focusHorizontalRange(start, end);
+}
