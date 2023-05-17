@@ -19,6 +19,7 @@
 
 #include <sqlite3.h>
 #include <unordered_map>
+
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
@@ -26,9 +27,9 @@
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/status_macros.h"
-
-#include "src/trace_processor/prelude/functions/register_function.h"
 
 namespace perfetto {
 namespace trace_processor {

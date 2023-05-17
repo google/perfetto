@@ -40,12 +40,15 @@ constexpr uint32_t kProducerSocketTxTimeoutMs = 10;
 // Implements the publicly exposed factory method declared in
 // include/tracing/posix_ipc/posix_service_host.h.
 std::unique_ptr<ServiceIPCHost> ServiceIPCHost::CreateInstance(
-    base::TaskRunner* task_runner) {
-  return std::unique_ptr<ServiceIPCHost>(new ServiceIPCHostImpl(task_runner));
+    base::TaskRunner* task_runner,
+    TracingService::InitOpts init_opts) {
+  return std::unique_ptr<ServiceIPCHost>(
+      new ServiceIPCHostImpl(task_runner, init_opts));
 }
 
-ServiceIPCHostImpl::ServiceIPCHostImpl(base::TaskRunner* task_runner)
-    : task_runner_(task_runner) {}
+ServiceIPCHostImpl::ServiceIPCHostImpl(base::TaskRunner* task_runner,
+                                       TracingService::InitOpts init_opts)
+    : task_runner_(task_runner), init_opts_(init_opts) {}
 
 ServiceIPCHostImpl::~ServiceIPCHostImpl() {}
 
@@ -95,7 +98,8 @@ bool ServiceIPCHostImpl::DoStart() {
   std::unique_ptr<SharedMemory::Factory> shm_factory(
       new PosixSharedMemory::Factory());
 #endif
-  svc_ = TracingService::CreateInstance(std::move(shm_factory), task_runner_);
+  svc_ = TracingService::CreateInstance(std::move(shm_factory), task_runner_,
+                                        init_opts_);
 
   if (!producer_ipc_port_ || !consumer_ipc_port_) {
     Shutdown();

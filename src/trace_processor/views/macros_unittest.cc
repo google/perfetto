@@ -16,38 +16,30 @@
 
 #include "src/trace_processor/views/macros.h"
 
+#include "src/trace_processor/views/macros_unittest_py.h"
 #include "test/gtest_and_gmock.h"
-
-#include "src/trace_processor/tables/macros.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
-
-#define PERFETTO_TP_TEST_THREAD_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestThreadTable, "thread")                          \
-  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)             \
-  C(StringPool::Id, name)                                  \
-  C(int64_t, start_ts, Column::Flag::kSorted)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_THREAD_TABLE_DEF);
+namespace tables {
 
 #define PERFETTO_TP_TEST_EVENT_TABLE_DEF(NAME, PARENT, C) \
-  NAME(TestEventTable, "event")                           \
-  PARENT(PERFETTO_TP_ROOT_TABLE_PARENT_DEF, C)            \
+  NAME(MacrosEventTable, "event")                         \
   C(int64_t, ts, Column::Flag::kSorted)                   \
-  C(TestThreadTable::Id, thread_id)
-PERFETTO_TP_TABLE(PERFETTO_TP_TEST_EVENT_TABLE_DEF);
+  C(MacrosThreadTable::Id, thread_id)
 
-TestEventTable::~TestEventTable() = default;
-TestThreadTable::~TestThreadTable() = default;
+MacrosEventTable::~MacrosEventTable() = default;
+MacrosThreadTable::~MacrosThreadTable() = default;
+
+namespace {
 
 #define PERFETTO_TP_EVENT_VIEW_DEF(NAME, FROM, JOIN, COL, FCOL)             \
   NAME(TestEventView, "event_view")                                         \
   PERFETTO_TP_VIEW_EXPORT_FROM_COLS(PERFETTO_TP_TEST_EVENT_TABLE_DEF, FCOL) \
   COL(thread_name, thread, name)                                            \
   COL(thread_start_ts, thread, start_ts)                                    \
-  FROM(TestEventTable, event)                                               \
-  JOIN(TestThreadTable, thread, id, event, thread_id, View::kIdAlwaysPresent)
+  FROM(MacrosEventTable, event)                                             \
+  JOIN(MacrosThreadTable, thread, id, event, thread_id, View::kIdAlwaysPresent)
 PERFETTO_TP_DECLARE_VIEW(PERFETTO_TP_EVENT_VIEW_DEF);
 PERFETTO_TP_DEFINE_VIEW(TestEventView);
 
@@ -72,8 +64,8 @@ TEST(ViewMacrosUnittest, ColIdx) {
 }
 
 TEST(ViewMacrosUnittest, Schema) {
-  TestThreadTable thread{nullptr, nullptr};
-  TestEventTable event{nullptr, nullptr};
+  MacrosThreadTable thread{nullptr};
+  MacrosEventTable event{nullptr};
 
   TestEventView view{&event, &thread};
   auto schema = view.schema();
@@ -98,5 +90,6 @@ TEST(ViewMacrosUnittest, Schema) {
 }
 
 }  // namespace
+}  // namespace tables
 }  // namespace trace_processor
 }  // namespace perfetto

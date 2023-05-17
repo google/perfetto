@@ -69,7 +69,8 @@ namespace trace_processor {
 //
 // All other columns apart from timestamp (ts), duration (dur) and the join key
 // are passed through unchanged.
-class SpanJoinOperatorTable : public SqliteTable {
+class SpanJoinOperatorTable final
+    : public TypedSqliteTable<SpanJoinOperatorTable, const void*> {
  public:
   // Enum indicating whether the queries on the two inner tables should
   // emit shadows.
@@ -316,32 +317,17 @@ class SpanJoinOperatorTable : public SqliteTable {
   };
 
   // Base class for a cursor on the span table.
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
     Cursor(SpanJoinOperatorTable*, sqlite3* db);
-    ~Cursor() override = default;
+    ~Cursor() final;
 
-    int Filter(const QueryConstraints& qc,
-               sqlite3_value** argv,
-               FilterHistory) override {
-      base::Status status = FilterInner(qc, argv);
-      if (!status.ok()) {
-        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
-        return SQLITE_ERROR;
-      }
-      return SQLITE_OK;
-    }
-    int Next() override {
-      base::Status status = NextInner();
-      if (!status.ok()) {
-        table_->SetErrorMessage(sqlite3_mprintf("%s", status.c_message()));
-        return SQLITE_ERROR;
-      }
-      return SQLITE_OK;
-    }
-
-    int Column(sqlite3_context* context, int N) override;
-    int Eof() override;
+    base::Status Filter(const QueryConstraints& qc,
+                        sqlite3_value** argv,
+                        FilterHistory);
+    base::Status Next();
+    base::Status Column(sqlite3_context* context, int N);
+    bool Eof();
 
    private:
     Cursor(Cursor&) = delete;
@@ -351,11 +337,7 @@ class SpanJoinOperatorTable : public SqliteTable {
     Cursor& operator=(Cursor&&) = default;
 
     bool IsOverlappingSpan();
-
-    base::Status NextInner();
-    base::Status FilterInner(const QueryConstraints& qc, sqlite3_value** argv);
     util::Status FindOverlappingSpan();
-
     Query* FindEarliestFinishQuery();
 
     Query t1_;
@@ -369,15 +351,14 @@ class SpanJoinOperatorTable : public SqliteTable {
     SpanJoinOperatorTable* table_;
   };
 
-  SpanJoinOperatorTable(sqlite3*, const TraceStorage*);
-
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+  SpanJoinOperatorTable(sqlite3*, const void*);
+  ~SpanJoinOperatorTable() final;
 
   // Table implementation.
-  util::Status Init(int, const char* const*, SqliteTable::Schema*) override;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) override;
-  int FindFunction(const char* name, FindFunctionFn* fn, void** args) override;
+  util::Status Init(int, const char* const*, SqliteTable::Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
+  int FindFunction(const char* name, FindFunctionFn* fn, void** args) final;
 
  private:
   // Columns of the span operator table.

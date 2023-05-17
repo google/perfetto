@@ -153,6 +153,16 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.rss.watermark");
   proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
       oom_score_adj_id_;
+  proc_stats_process_names_[ProcessStats::Process::kSmrRssKbFieldNumber] =
+      context->storage->InternString("mem.smaps.rss");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssAnonKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.anon");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssFileKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.file");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssShmemKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.shmem");
 }
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
@@ -170,8 +180,8 @@ void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {
     base::StackString<512> track_name("%s.%s", tag_prefix.c_str(),
                                       counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(string_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kIo, string_id);
     context_->event_tracker->PushCounter(ts, value, track);
   };
 
@@ -244,7 +254,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     }
     // /proc/meminfo counters are in kB, convert to bytes
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        meminfo_strs_id_[key]);
+        TrackTracker::Group::kMemory, meminfo_strs_id_[key]);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(mi.value()) * 1024., track);
   }
@@ -259,7 +269,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
         "%.*s %.*s", int(key.size()), key.data(), int(devfreq_subtitle.size()),
         devfreq_subtitle.data());
     StringId name = context_->storage->InternString(counter_name.string_view());
-    TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kClockFrequency, name);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
   }
@@ -279,8 +290,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
       context_->storage->IncrementStats(stats::vmstat_unknown_keys);
       continue;
     }
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(vmstat_strs_id_[key]);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kMemory, vmstat_strs_id_[key]);
     context_->event_tracker->PushCounter(ts, static_cast<double>(vm.value()),
                                          track);
   }
@@ -348,22 +359,22 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
   }
 
   if (sys_stats.has_num_forks()) {
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(num_forks_name_id_);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kDeviceState, num_forks_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_forks()), track);
   }
 
   if (sys_stats.has_num_irq_total()) {
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        num_irq_total_name_id_);
+        TrackTracker::Group::kDeviceState, num_irq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_irq_total()), track);
   }
 
   if (sys_stats.has_num_softirq_total()) {
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        num_softirq_total_name_id_);
+        TrackTracker::Group::kDeviceState, num_softirq_total_name_id_);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(sys_stats.num_softirq_total()), track);
   }
@@ -380,7 +391,8 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
                                           node.c_str(), zone.c_str(), size_kb);
       StringId name =
           context_->storage->InternString(counter_name.string_view());
-      TrackId track = context_->track_tracker->InternGlobalCounterTrack(name);
+      TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+          TrackTracker::Group::kMemory, name);
       context_->event_tracker->PushCounter(ts, static_cast<double>(*order_it),
                                            track);
       order++;

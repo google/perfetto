@@ -43,8 +43,8 @@ void IostatTracker::ParseF2fsIostat(int64_t timestamp,
                                                    uint64_t value) {
     std::string track_name = tagPrefix + "." + std::string(counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(string_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kIo, string_id);
     context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
                                          track);
   };
@@ -83,8 +83,8 @@ void IostatTracker::ParseF2fsIostatLatency(int64_t timestamp,
                                                    uint64_t value) {
     std::string track_name = tagPrefix + "." + std::string(counter_name);
     StringId string_id = context_->storage->InternString(track_name.c_str());
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(string_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kIo, string_id);
     context_->event_tracker->PushCounter(timestamp, static_cast<double>(value),
                                          track);
   };

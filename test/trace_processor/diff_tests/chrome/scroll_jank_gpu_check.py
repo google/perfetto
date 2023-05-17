@@ -24,51 +24,9 @@ import synth_common
 from synth_common import ms_to_ns
 trace = synth_common.create_trace()
 
+from chrome_scroll_helper import ChromeScrollHelper
 
-class Helper:
-
-  def __init__(self, trace, start_id, start_gesture_id):
-    self.trace = trace
-    self.id = start_id
-    self.gesture_id = start_gesture_id
-
-  def begin(self, from_ms, dur_ms):
-    self.trace.add_input_latency_event_slice(
-        "GestureScrollBegin",
-        ts=ms_to_ns(from_ms),
-        dur=ms_to_ns(dur_ms),
-        track=self.id,
-        trace_id=self.id,
-        gesture_scroll_id=self.gesture_id,
-    )
-    self.id += 1
-
-  def update(self, from_ms, dur_ms, gets_to_gpu=True):
-    self.trace.add_input_latency_event_slice(
-        "GestureScrollUpdate",
-        ts=ms_to_ns(from_ms),
-        dur=ms_to_ns(dur_ms),
-        track=self.id,
-        trace_id=self.id,
-        gesture_scroll_id=self.gesture_id,
-        gets_to_gpu=gets_to_gpu,
-        is_coalesced=False,
-    )
-    self.id += 1
-
-  def end(self, from_ms, dur_ms):
-    self.trace.add_input_latency_event_slice(
-        "GestureScrollEnd",
-        ts=ms_to_ns(from_ms),
-        dur=ms_to_ns(dur_ms),
-        track=self.id,
-        trace_id=self.id,
-        gesture_scroll_id=self.gesture_id)
-    self.id += 1
-    self.gesture_id += 1
-
-
-helper = Helper(trace, start_id=1234, start_gesture_id=5678)
+helper = ChromeScrollHelper(trace, start_id=1234, start_gesture_id=5678)
 
 helper.begin(from_ms=0, dur_ms=10)
 helper.update(from_ms=15, dur_ms=10)

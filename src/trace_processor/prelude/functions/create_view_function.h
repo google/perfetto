@@ -20,10 +20,12 @@
 #include <sqlite3.h>
 #include <unordered_map>
 
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+class SqliteEngine;
 
 // Implementation of CREATE_VIEW_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
@@ -40,9 +42,9 @@ struct CreateViewFunction : public SqlFunction {
                           sqlite3_value** argv,
                           SqlValue& out,
                           Destructors&);
-
-  static void RegisterTable(sqlite3* db);
 };
+
+void RegisterCreateViewFunctionModule(SqliteEngine*);
 
 }  // namespace trace_processor
 }  // namespace perfetto

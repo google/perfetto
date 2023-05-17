@@ -45,11 +45,13 @@ SELECT AndroidBinderMetric(
         'client_ts', client_ts,
         'client_dur', client_dur,
         'client_tid', client_tid,
+        'client_pid', client_pid,
         'server_process', server_process,
         'server_thread', server_thread,
         'server_ts', server_ts,
         'server_dur', server_dur,
         'server_tid', server_tid,
+        'server_pid', server_pid,
         'thread_states', (
           SELECT RepeatedField(
             AndroidBinderMetric_ThreadStateBreakdown(

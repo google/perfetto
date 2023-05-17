@@ -12,13 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../../base/bigint_math';
 import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM, QueryResult} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {
+  fromNs,
+  TPDuration,
+  TPTime,
+  tpTimeFromSeconds,
+  tpTimeToNanos,
+} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -91,22 +98,23 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     this.cachedBucketNs = bucketNs;
   }
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     assertTrue(this.config.upid !== null);
 
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
-    const resolutionNs = toNs(resolution);
-    assertTrue(Math.log2(resolutionNs) % 1 === 0);
+    assertTrue(
+        BigintMath.popcount(resolution) === 1,
+        `${resolution} is not a power of 2`);
 
-    const startNs = toNs(start);
-    const endNs = toNs(end);
+    const startNs = tpTimeToNanos(start);
+    const endNs = tpTimeToNanos(end);
 
     // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
     // be an even number, so we can snap in the middle.
     const bucketNs =
-        Math.max(Math.round(resolutionNs * this.pxSize() / 2) * 2, 1);
+        Math.max(Math.round(Number(resolution) * this.pxSize() / 2) * 2, 1);
 
     const queryRes = await this.queryData(startNs, endNs, bucketNs);
     const numRows = queryRes.numRows();
@@ -144,7 +152,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       slices.ends[row] = fromNs(endNsQ);
       slices.cpus[row] = it.cpu;
       slices.utids[row] = it.utid;
-      slices.end = Math.max(slices.ends[row], slices.end);
+      slices.end =
+          BigintMath.max(tpTimeFromSeconds(slices.ends[row]), slices.end);
     }
     return slices;
   }
@@ -208,7 +217,10 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      visibleWindowTime,
+    } = globals.frontendLocalState;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -218,19 +230,20 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        visibleTimeScale.hpTimeToPx(visibleWindowTime.start),
+        visibleTimeScale.hpTimeToPx(visibleWindowTime.end),
+        visibleTimeScale.tpTimeToPx(data.start),
+        visibleTimeScale.tpTimeToPx(data.end));
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const rawStartIdx =
-        data.ends.findIndex((end) => end >= visibleWindowTime.start);
+    const startSeconds = visibleWindowTime.start.seconds;
+    const rawStartIdx = data.ends.findIndex((end) => end >= startSeconds);
     const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+    const [, rawEndIdx] =
+        searchSegment(data.starts, visibleWindowTime.end.seconds);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
@@ -241,8 +254,8 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
-      const rectStart = timeScale.timeToPx(tStart);
-      const rectEnd = timeScale.timeToPx(tEnd);
+      const rectStart = visibleTimeScale.secondsToPx(tStart);
+      const rectEnd = visibleTimeScale.secondsToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
       if (rectWidth < 0.3) continue;
 
@@ -294,8 +307,8 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
     const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
-    const {timeScale} = globals.frontendLocalState;
-    const t = timeScale.pxToTime(pos.x);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const t = visibleTimeScale.pxToHpTime(pos.x).seconds;
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {

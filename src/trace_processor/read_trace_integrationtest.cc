@@ -46,7 +46,23 @@ std::vector<uint8_t> ReadAllData(const base::ScopedFstream& f) {
   return raw_trace;
 }
 
-TEST(ReadTraceIntegrationTest, CompressedTrace) {
+bool ZlibSupported() {
+#if PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
+  return true;
+#else
+  return false;
+#endif
+}
+
+class ReadTraceIntegrationTest : public testing::Test {
+  void SetUp() override {
+    if (!ZlibSupported()) {
+      GTEST_SKIP() << "Gzip not enabled";
+    }
+  }
+};
+
+TEST_F(ReadTraceIntegrationTest, CompressedTrace) {
   base::ScopedFstream f = OpenTestTrace("test/data/compressed.pb");
   std::vector<uint8_t> raw_trace = ReadAllData(f);
 
@@ -68,7 +84,7 @@ TEST(ReadTraceIntegrationTest, CompressedTrace) {
   ASSERT_EQ(packet_count, 2412u);
 }
 
-TEST(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
+TEST_F(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
   base::ScopedFstream f = OpenTestTrace("test/data/unsorted_trace.json");
   std::vector<uint8_t> raw_trace = ReadAllData(f);
 
@@ -78,7 +94,7 @@ TEST(ReadTraceIntegrationTest, NonProtobufShouldNotDecompress) {
   ASSERT_FALSE(status.ok());
 }
 
-TEST(ReadTraceIntegrationTest, OuterGzipDecompressTrace) {
+TEST_F(ReadTraceIntegrationTest, OuterGzipDecompressTrace) {
   base::ScopedFstream f =
       OpenTestTrace("test/data/example_android_trace_30s.pb.gz");
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
@@ -96,7 +112,7 @@ TEST(ReadTraceIntegrationTest, OuterGzipDecompressTrace) {
   ASSERT_EQ(decompressed, raw_trace);
 }
 
-TEST(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
+TEST_F(ReadTraceIntegrationTest, DoubleGzipDecompressTrace) {
   base::ScopedFstream f = OpenTestTrace("test/data/compressed.pb.gz");
   std::vector<uint8_t> raw_compressed_trace = ReadAllData(f);
 

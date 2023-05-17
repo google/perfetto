@@ -23,16 +23,6 @@
 #include "perfetto/base/build_config.h"
 #include "perfetto/public/compiler.h"
 
-#if __cplusplus >= 201703
-#define PERFETTO_IS_AT_LEAST_CPP17() 1
-#elif defined(_MSVC_LANG) && _MSVC_LANG >= 201703L
-// Without additional flags, MSVC is not standard compliant and keeps
-// __cplusplus stuck at an old value, even with C++17
-#define PERFETTO_IS_AT_LEAST_CPP17() 1
-#else
-#define PERFETTO_IS_AT_LEAST_CPP17() 0
-#endif
-
 // __has_attribute is supported only by clang and recent versions of GCC.
 // Add a layer to wrap the __has_attribute macro.
 #if defined(__has_attribute)

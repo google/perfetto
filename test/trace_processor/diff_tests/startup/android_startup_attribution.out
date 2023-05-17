@@ -25,8 +25,8 @@ android_startup {
       }
       dur_ms: 999.9999
       time_dex_open {
-        dur_ns: 20
-        dur_ms: 2e-05
+        dur_ns: 499999845
+        dur_ms: 499.999845
       }
       time_verify_class {
         dur_ns: 40
@@ -45,6 +45,14 @@ android_startup {
         dur_ns: 50
         dur_ms: 5e-05
       }
+      time_dex_open_thread_main {
+        dur_ns: 499999845
+        dur_ms: 499.999845
+      }
+      time_dlopen_thread_main {
+        dur_ns: 2
+        dur_ms: 2e-06
+      }
     }
     activity_hosting_process_count: 1
     process {
@@ -60,6 +68,7 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
+      pid: 3
     }
     event_timestamps {
       intent_received: 100
@@ -106,8 +115,11 @@ android_startup {
       name: "dl"
       dur_ns: 5
     }
+    dlopen_file: "libandroid.so"
+    dlopen_file: "libandroid2.so"
     startup_type: "hot"
     slow_start_reason: "GC Activity"
+    slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Main Thread - Binder transactions blocked"
   }
 }

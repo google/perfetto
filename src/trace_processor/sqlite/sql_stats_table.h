@@ -20,6 +20,7 @@
 #include <limits>
 #include <memory>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
@@ -30,7 +31,8 @@ class TraceStorage;
 
 // A virtual table that allows to introspect performances of the SQL engine
 // for the kMaxLogEntries queries.
-class SqlStatsTable : public SqliteTable {
+class SqlStatsTable final
+    : public TypedSqliteTable<SqlStatsTable, const TraceStorage*> {
  public:
   enum Column {
     kQuery = 0,
@@ -40,18 +42,18 @@ class SqlStatsTable : public SqliteTable {
   };
 
   // Implementation of the SQLite cursor interface.
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
-    Cursor(SqlStatsTable* storage);
-    ~Cursor() override;
+    explicit Cursor(SqlStatsTable* storage);
+    ~Cursor() final;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints&,
-               sqlite3_value**,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints&,
+                        sqlite3_value**,
+                        FilterHistory);
+    base::Status Next();
+    bool Eof();
+    base::Status Column(sqlite3_context*, int N);
 
    private:
     Cursor(Cursor&) = delete;
@@ -67,13 +69,12 @@ class SqlStatsTable : public SqliteTable {
   };
 
   SqlStatsTable(sqlite3*, const TraceStorage* storage);
-
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+  ~SqlStatsTable() final;
 
   // Table implementation.
-  base::Status Init(int, const char* const*, Schema*) override;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  base::Status Init(int, const char* const*, Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
  private:
   const TraceStorage* const storage_;

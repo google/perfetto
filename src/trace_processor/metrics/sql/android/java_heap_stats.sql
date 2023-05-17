@@ -65,7 +65,7 @@ base_stats AS (
   SELECT * FROM base_stat_counts JOIN heap_roots_proto USING (upid, graph_sample_ts)
 ),
 -- Find closest value
-closest_anon_swap AS (
+closest_anon_swap_oom AS (
   SELECT
     upid,
     graph_sample_ts,
@@ -84,7 +84,23 @@ closest_anon_swap AS (
         -- accept it if close (500ms)
         OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
       ORDER BY diff LIMIT 1
-    ) AS val
+    ) AS anon_swap_val,
+    (
+      SELECT oom_score_val
+      FROM (
+        SELECT
+          ts, dur,
+          oom_score_val,
+          ABS(ts - base_stats.graph_sample_ts) AS diff
+        FROM oom_score_span
+        WHERE upid = base_stats.upid)
+      WHERE
+        (graph_sample_ts >= ts AND graph_sample_ts < ts + dur)
+        -- If the first memory sample for the UPID comes *after* the heap profile
+        -- accept it if close (500ms)
+        OR (graph_sample_ts < ts AND diff <= 500 * 1e6)
+      ORDER BY diff LIMIT 1
+    ) AS oom_score_val
   FROM base_stats
 ),
 -- Group by upid
@@ -100,10 +116,11 @@ heap_graph_sample_protos AS (
       'reachable_heap_native_size', reachable_native_size,
       'reachable_obj_count', reachable_obj_count,
       'roots', roots,
-      'anon_rss_and_swap_size', closest_anon_swap.val
+      'anon_rss_and_swap_size', closest_anon_swap_oom.anon_swap_val,
+      'oom_score_adj', closest_anon_swap_oom.oom_score_val
     )) AS sample_protos
   FROM base_stats
-  LEFT JOIN closest_anon_swap USING (upid, graph_sample_ts)
+  LEFT JOIN closest_anon_swap_oom USING (upid, graph_sample_ts)
   GROUP BY 1
 )
 SELECT JavaHeapStats(
