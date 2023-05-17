@@ -34,7 +34,7 @@ import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
 import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
-import {Tree, TreeLayout, TreeNode} from './widgets/tree';
+import {LazyTreeNode, Tree, TreeLayout, TreeNode} from './widgets/tree';
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -243,6 +243,18 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   }
 }
 
+function recursiveLazyTreeNode(
+    left: string, summary: string, hoardData: boolean): m.Children {
+  return m(LazyTreeNode, {
+    left,
+    summary,
+    hoardData,
+    fetchData: async () => {
+      await new Promise((r) => setTimeout(r, 200));
+      return () => recursiveLazyTreeNode(left, summary, hoardData);
+    },
+  });
+}
 
 export const WidgetsPage = createPage({
   view() {
@@ -563,6 +575,8 @@ export const WidgetsPage = createPage({
                 left: 'Process',
                 right: m(Anchor, {text: '/bin/foo[789]', icon: 'open_in_new'}),
               }),
+              recursiveLazyTreeNode('Lazy', '(hoarding)', true),
+              recursiveLazyTreeNode('Lazy', '(non-hoarding)', false),
               m(
                   TreeNode,
                   {

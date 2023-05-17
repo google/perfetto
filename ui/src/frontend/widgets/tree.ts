@@ -1,7 +1,10 @@
 import m from 'mithril';
+
 import {classNames} from '../classnames';
 import {globals} from '../globals';
+
 import {Button} from './button';
+import {Spinner} from './spinner';
 import {hasChildren} from './utils';
 
 export enum TreeLayout {
@@ -50,14 +53,14 @@ export class Tree implements m.ClassComponent<TreeAttrs> {
 interface TreeNodeAttrs {
   // Content to display in the left hand column.
   // If omitted, this side will be blank.
-  left?: m.Child;
+  left?: m.Children;
   // Content to display in the right hand column.
   // If omitted, this side will be left blank.
-  right?: m.Child;
+  right?: m.Children;
   // Content to display in the right hand column when the node is collapsed.
   // If omitted, the value of `right` shall be shown when collapsed instead.
   // If the node has no children, this value is never shown.
-  summary?: m.Child;
+  summary?: m.Children;
   // Whether this node is collapsed or not.
   // If omitted, collapsed state 'uncontrolled' - i.e. controlled internally.
   collapsed?: boolean;
@@ -92,7 +95,7 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
 
   private renderRight(vnode: m.CVnode<TreeNodeAttrs>) {
     const {attrs: {right, summary}} = vnode;
-    if (hasChildren(vnode) && this.collapsed) {
+    if (hasChildren(vnode) && this.isCollapsed(vnode)) {
       return m('.pf-tree-right', summary ?? right);
     } else {
       return m('.pf-tree-right', right);
@@ -145,4 +148,71 @@ export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
     }));
   }
   return m(Tree, children);
+}
+
+interface LazyTreeNodeAttrs {
+  // Same as TreeNode (see above).
+  left?: m.Children;
+  // Same as TreeNode (see above).
+  right?: m.Children;
+  // Same as TreeNode (see above).
+  summary?: m.Children;
+  // A callback to be called when the TreeNode is expanded, in order to fetch
+  // child nodes.
+  // The callback must return a promise to a function which returns m.Children.
+  // The reason the promise must return a function rather than the actual
+  // children is to avoid storing vnodes between render cycles, which is a bug
+  // in Mithril.
+  fetchData: () => Promise<() => m.Children>;
+  // Whether to keep child nodes in memory after the node has been collapsed.
+  // Defaults to true
+  hoardData?: boolean;
+}
+
+// This component is a TreeNode which only loads child nodes when it's expanded.
+// This allows us to represent huge trees without having to load all the data
+// up front, and even allows us to represent infinite or recursive trees.
+export class LazyTreeNode implements m.ClassComponent<LazyTreeNodeAttrs> {
+  private collapsed: boolean = true;
+  private renderChildren = this.renderSpinner;
+
+  private renderSpinner(): m.Children {
+    return m(TreeNode, {left: m(Spinner)});
+  }
+
+  view({attrs}: m.CVnode<LazyTreeNodeAttrs>): m.Children {
+    const {
+      left,
+      right,
+      summary,
+      fetchData,
+      hoardData = true,
+    } = attrs;
+
+    return m(
+        TreeNode,
+        {
+          left,
+          right,
+          summary,
+          collapsed: this.collapsed,
+          onCollapseChanged: (collapsed) => {
+            if (collapsed) {
+              if (!hoardData) {
+                this.renderChildren = this.renderSpinner;
+              }
+            } else {
+              fetchData().then((result) => {
+                if (!this.collapsed) {
+                  this.renderChildren = result;
+                  globals.rafScheduler.scheduleFullRedraw();
+                }
+              });
+            }
+            this.collapsed = collapsed;
+            globals.rafScheduler.scheduleFullRedraw();
+          },
+        },
+        this.renderChildren());
+  }
 }
