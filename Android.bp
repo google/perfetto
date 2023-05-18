@@ -13095,15 +13095,22 @@ cc_binary {
         "src/traced/service/main.cc",
     ],
     shared_libs: [
-        "liblog",
         "libperfetto",
     ],
+    host_supported: true,
     init_rc: [
         "perfetto.rc",
     ],
     defaults: [
         "perfetto_defaults",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "liblog",
+            ],
+        },
+    },
 }
 
 // GN: //src/profiling/perf:traced_perf
