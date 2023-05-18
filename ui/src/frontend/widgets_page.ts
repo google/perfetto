@@ -24,6 +24,7 @@ import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
+import {Form, FormButtonBar, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
@@ -33,7 +34,7 @@ import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
 import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
-import {Tree, TreeLayout, TreeNode} from './widgets/tree';
+import {LazyTreeNode, Tree, TreeLayout, TreeNode} from './widgets/tree';
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -242,6 +243,18 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
   }
 }
 
+function recursiveLazyTreeNode(
+    left: string, summary: string, hoardData: boolean): m.Children {
+  return m(LazyTreeNode, {
+    left,
+    summary,
+    hoardData,
+    fetchData: async () => {
+      await new Promise((r) => setTimeout(r, 200));
+      return () => recursiveLazyTreeNode(left, summary, hoardData);
+    },
+  });
+}
 
 export const WidgetsPage = createPage({
   view() {
@@ -540,7 +553,7 @@ export const WidgetsPage = createPage({
                     PopupMenu2,
                     {
                       trigger: m(Anchor, {
-                        text: 'SELECT * FROM raw WHERE id = 123',
+                        text: 'SELECT * FROM ftrace_event WHERE id = 123',
                         icon: 'unfold_more',
                       }),
                     },
@@ -562,9 +575,14 @@ export const WidgetsPage = createPage({
                 left: 'Process',
                 right: m(Anchor, {text: '/bin/foo[789]', icon: 'open_in_new'}),
               }),
+              recursiveLazyTreeNode('Lazy', '(hoarding)', true),
+              recursiveLazyTreeNode('Lazy', '(non-hoarding)', false),
               m(
                   TreeNode,
-                  {left: 'Args', right: 'foo: bar, baz: qux'},
+                  {
+                    left: 'Args',
+                    summary: 'foo: string, baz: string, quux: string[4]',
+                  },
                   m(TreeNode, {left: 'foo', right: 'bar'}),
                   m(TreeNode, {left: 'baz', right: 'qux'}),
                   m(
@@ -585,6 +603,45 @@ export const WidgetsPage = createPage({
           },
           wide: true,
         }),
+        m('h2', 'Form'),
+        m(
+          WidgetShowcase, {
+            renderWidget: () => m(
+              Form,
+              m(FormLabel, {for: 'foo'}, 'Foo'),
+              m(TextInput, {id: 'foo'}),
+              m(FormLabel, {for: 'bar'}, 'Bar'),
+              m(Select, {id: 'bar'}, [
+                m('option', {value: 'foo', label: 'Foo'}),
+                m('option', {value: 'bar', label: 'Bar'}),
+                m('option', {value: 'baz', label: 'Baz'}),
+              ]),
+              m(FormButtonBar,
+                m(Button, {label: 'Submit', rightIcon: 'chevron_right'}),
+                m(Button, {label: 'Cancel', minimal: true}),
+              )),
+          }),
+        m('h2', 'Nested Popups'),
+        m(
+          WidgetShowcase, {
+            renderWidget: () => m(
+              Popup,
+              {
+                trigger: m(Button, {label: 'Open the popup'}),
+              },
+              m(PopupMenu2,
+                {
+                  trigger: m(Button, {label: 'Select an option'}),
+                },
+                m(MenuItem, {label: 'Option 1'}),
+                m(MenuItem, {label: 'Option 2'}),
+              ),
+              m(Button, {
+                label: 'Done',
+                dismissPopup: true,
+              }),
+            ),
+          }),
     );
   },
 });

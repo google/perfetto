@@ -24,23 +24,6 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace tables {
-
-#define PERFETTO_TP_DESCENDANT_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(DescendantSliceTable, "descendant_slice")                \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                        \
-  C(uint32_t, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCENDANT_SLICE_TABLE_DEF);
-
-#define PERFETTO_TP_DESCENDANT_SLICE_BY_STACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(DescendantSliceByStackTable, "descendant_slice_by_stack")         \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                                 \
-  C(int64_t, start_stack_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_DESCENDANT_SLICE_BY_STACK_TABLE_DEF);
-
-}  // namespace tables
 
 class TraceProcessorContext;
 

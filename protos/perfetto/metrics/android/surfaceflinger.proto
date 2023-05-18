@@ -54,4 +54,32 @@ message AndroidSurfaceflingerMetric {
   // This also equals to the total duration of
   // "waiting for GPU completion <fence_num>" in SurfaceFlinger.
   optional double total_non_empty_gpu_waiting_dur_ms = 9;
+
+  message MetricsPerDisplay {
+    // Display ID in SF
+    optional string display_id = 1;
+
+    // Counts the number of missed frames in the trace.
+    optional uint32 missed_frames = 2;
+
+    // Counts the number of missed HWC frames in the trace.
+    optional uint32 missed_hwc_frames = 3;
+
+    // Counts the number of missed GPU frames in the trace.
+    optional uint32 missed_gpu_frames = 4;
+
+    // Calculate the number of missed frames divided by
+    // total frames
+    optional double missed_frame_rate = 5;
+
+    // Calculate the number of missed HWC frames divided by
+    // total HWC frames
+    optional double missed_hwc_frame_rate = 6;
+
+    // Calculate the number of missed GPU frames divided by
+    // total GPU frames
+    optional double missed_gpu_frame_rate = 7;
+  }
+
+  repeated MetricsPerDisplay metrics_per_display = 10;
 }

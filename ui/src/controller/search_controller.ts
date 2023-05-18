@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
 import {NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {TimeSpan} from '../common/time';
-import {toNs} from '../common/time';
+import {Span} from '../common/time';
+import {
+  TPDuration,
+  TPTime,
+  TPTimeSpan,
+} from '../common/time';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 
@@ -30,8 +35,8 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: TimeSpan;
-  private previousResolution: number;
+  private previousSpan: Span<TPTime>;
+  private previousResolution: TPDuration;
   private previousSearch: string;
   private updateInProgress: boolean;
   private setupInProgress: boolean;
@@ -39,11 +44,11 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TimeSpan(0, 1);
+    this.previousSpan = new TPTimeSpan(0n, 1n);
     this.previousSearch = '';
     this.updateInProgress = false;
     this.setupInProgress = true;
-    this.previousResolution = 1;
+    this.previousResolution = 1n;
     this.setup().finally(() => {
       this.setupInProgress = false;
       this.run();
@@ -70,9 +75,9 @@ export class SearchController extends Controller<'main'> {
         omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = new TimeSpan(visibleState.startSec, visibleState.endSec);
+    const newSpan = globals.stateVisibleTime();
     const newSearch = omniboxState.omnibox;
-    let newResolution = visibleState.resolution;
+    const newResolution = visibleState.resolution;
     if (this.previousSpan.contains(newSpan) &&
         this.previousResolution === newResolution &&
         newSearch === this.previousSearch) {
@@ -83,9 +88,8 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
     // N.B. Timestamps can be negative.
-    const start = newSpan.start - newSpan.duration;
-    const end = newSpan.end + newSpan.duration;
-    this.previousSpan = new TimeSpan(start, end);
+    const {start, end} = newSpan.pad(newSpan.duration);
+    this.previousSpan = new TPTimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
@@ -105,25 +109,12 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    let startNs = toNs(newSpan.start);
-    let endNs = toNs(newSpan.end);
-
-    // TODO(hjd): We shouldn't need to be so defensive here:
-    if (!Number.isFinite(startNs)) {
-      startNs = 0;
-    }
-    if (!Number.isFinite(endNs)) {
-      endNs = 1;
-    }
-    if (!Number.isFinite(newResolution)) {
-      newResolution = 1;
-    }
-
     this.updateInProgress = true;
-    const computeSummary = this.update(newSearch, startNs, endNs, newResolution)
-                               .then((summary) => {
-                                 publishSearch(summary);
-                               });
+    const computeSummary =
+        this.update(newSearch, newSpan.start, newSpan.end, newResolution)
+            .then((summary) => {
+              publishSearch(summary);
+            });
 
     const computeResults =
         this.specificSearch(newSearch).then((searchResults) => {
@@ -140,15 +131,14 @@ export class SearchController extends Controller<'main'> {
   onDestroy() {}
 
   private async update(
-      search: string, startNs: number, endNs: number,
-      resolution: number): Promise<SearchSummary> {
-    const quantumNs = Math.round(resolution * 10 * 1e9);
-
+      search: string, startNs: TPTime, endNs: TPTime,
+      resolution: TPDuration): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
-    startNs = Math.floor(startNs / quantumNs) * quantumNs;
+    const quantumNs = resolution * 10n;
+    startNs = BigintMath.quantizeFloor(startNs, quantumNs);
 
-    const windowDur = Math.max(endNs - startNs, 1);
+    const windowDur = BigintMath.max(endNs - startNs, 1n);
     await this.query(`update search_summary_window set
       window_start=${startNs},
       window_dur=${windowDur},

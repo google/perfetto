@@ -22,12 +22,18 @@ WITH frame_missed_counters AS (
     -- track should ever exist with this name (the track from
     -- surfaceflinger).
     ts - LAG(ts) OVER (ORDER BY ts) AS dur,
+    name,
+    INSTR(name, ' ') AS separator_pos,
     value
   FROM counter c
   JOIN process_counter_track t ON c.track_id = t.id
-  WHERE t.name = '{{track_name}}'
+  WHERE t.name GLOB '{{track_name}}*'
 )
 SELECT
+  CASE
+    WHEN separator_pos = 0 THEN 'unspecified'
+    ELSE SUBSTR(name, separator_pos + 1)
+  END AS display_id,
   ts,
   dur,
   value

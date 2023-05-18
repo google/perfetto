@@ -32,12 +32,7 @@ perfetto_tp_tables("tables_python") {
 
 source_set("tables") {
   sources = [
-    "counter_tables.h",
-    "flow_tables.h",
-    "macros.h",
     "macros_internal.h",
-    "profiler_tables.h",
-    "slice_tables.h",
     "table_destructors.cc",
   ]
   deps = [
@@ -54,10 +49,7 @@ perfetto_tp_tables("py_tables_unittest") {
 
 source_set("unittests") {
   testonly = true
-  sources = [
-    "macros_unittest.cc",
-    "py_tables_unittest.cc",
-  ]
+  sources = [ "py_tables_unittest.cc" ]
   deps = [
     ":py_tables_unittest",
     ":tables",
@@ -71,10 +63,13 @@ if (enable_perfetto_benchmarks) {
   source_set("benchmarks") {
     testonly = true
     deps = [
-      ":tables",
+      ":py_tables_benchmark",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
     ]
-    sources = [ "macros_benchmark.cc" ]
+    sources = [ "py_tables_benchmark.cc" ]
+  }
+  perfetto_tp_tables("py_tables_benchmark") {
+    sources = [ "py_tables_benchmark.py" ]
   }
 }

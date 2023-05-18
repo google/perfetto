@@ -52,11 +52,6 @@ bool IsReservationTargetBufferId(MaybeUnboundBufferID buffer_id) {
 SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
     SharedMemoryABI::PageLayout::kPageDiv1;
 
-#if !PERFETTO_IS_AT_LEAST_CPP17()
-// static
-constexpr BufferID SharedMemoryArbiterImpl::kInvalidBufferId;
-#endif
-
 // static
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
     SharedMemory* shared_memory,

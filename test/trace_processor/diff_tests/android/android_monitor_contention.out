@@ -12,7 +12,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "PackageManager"
+    blocked_thread_tid: 693
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -39,7 +42,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -66,7 +72,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -93,7 +102,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -120,7 +132,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1737055785896
@@ -154,7 +169,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "StorageUserConn"
+    blocked_thread_tid: 1759
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -171,7 +189,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "StorageUserConn"
+    blocked_thread_tid: 1759
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -208,7 +229,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -225,7 +249,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -242,7 +269,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -259,7 +289,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -276,7 +309,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -293,7 +329,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -310,7 +349,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -327,7 +369,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -344,7 +389,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -361,7 +409,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -378,7 +429,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -395,7 +449,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -412,7 +469,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -429,7 +489,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -446,7 +509,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -463,7 +529,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -480,7 +549,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -497,7 +569,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -514,7 +589,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -531,7 +609,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -548,7 +629,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -565,7 +649,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -582,7 +669,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -599,7 +689,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -616,7 +709,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -633,7 +729,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -650,7 +749,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -667,7 +769,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -684,7 +789,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -701,7 +809,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -718,7 +829,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -735,7 +849,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -752,7 +869,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -769,7 +889,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -786,7 +909,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -803,7 +929,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -820,7 +949,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -837,7 +969,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -854,7 +989,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -871,7 +1009,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -888,7 +1029,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -905,7 +1049,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -922,7 +1069,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -939,7 +1089,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -956,7 +1109,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -973,7 +1129,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -990,7 +1149,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1007,7 +1169,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1024,7 +1189,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1041,7 +1209,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.display"
+    blocked_thread_tid: 663
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1063,7 +1234,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1090,7 +1264,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1117,7 +1294,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1144,7 +1324,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "binder:642_11"
+    blocked_thread_tid: 2505
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1182,7 +1365,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1210,7 +1396,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1237,7 +1426,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -1269,7 +1461,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "binder:642_2"
+    blocked_thread_tid: 658
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1291,7 +1486,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1308,7 +1506,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1325,7 +1526,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1342,7 +1546,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1359,7 +1566,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1376,7 +1586,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1393,7 +1606,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1410,7 +1626,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1427,7 +1646,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1444,7 +1666,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1461,7 +1686,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1478,7 +1706,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1495,7 +1726,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1512,7 +1746,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1529,7 +1766,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1546,7 +1786,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1563,7 +1806,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1580,7 +1826,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_12"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2720
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -1597,7 +1846,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1624,7 +1876,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1651,7 +1906,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1678,7 +1936,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "batterystats-handler"
     blocked_thread_name: "binder:642_11"
+    blocked_thread_tid: 2505
+    blocking_thread_tid: 676
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1710,7 +1971,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1737,7 +2001,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1764,7 +2031,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1791,7 +2061,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1818,7 +2091,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1845,7 +2121,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1872,7 +2151,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1899,7 +2181,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1926,7 +2211,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1953,7 +2241,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -1980,7 +2271,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2007,7 +2301,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2034,7 +2331,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2061,7 +2361,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2088,7 +2391,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2115,7 +2421,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2142,7 +2451,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2169,7 +2481,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_11"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 2505
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2196,7 +2511,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2223,7 +2541,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2245,7 +2566,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "binder:642_2"
+    blocked_thread_tid: 658
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     binder_reply_ts: 1737145697570
@@ -2274,7 +2598,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "Thread-45"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 3486
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -2301,7 +2628,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2328,7 +2658,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2355,7 +2688,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2382,7 +2718,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2410,7 +2749,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "binder:642_14"
+    blocked_thread_tid: 3485
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -2442,7 +2784,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -2479,7 +2824,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2496,7 +2844,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2513,7 +2864,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2530,7 +2884,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "binder:642_11"
+    blocked_thread_tid: 2505
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1737164232343
@@ -2549,7 +2906,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2566,7 +2926,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2583,7 +2946,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2600,7 +2966,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2617,7 +2986,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2634,7 +3006,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2651,7 +3026,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2668,7 +3046,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2685,7 +3066,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2702,7 +3086,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2719,7 +3106,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2736,7 +3126,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2753,7 +3146,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2770,7 +3166,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2787,7 +3186,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2804,7 +3206,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2821,7 +3226,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2838,7 +3246,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -2855,7 +3266,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2882,7 +3296,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2909,7 +3326,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2936,7 +3356,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2963,7 +3386,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -2990,7 +3416,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3017,7 +3446,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3044,7 +3476,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3071,7 +3506,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3098,7 +3536,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3125,7 +3566,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3152,7 +3596,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3179,7 +3626,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -3206,7 +3656,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3233,7 +3686,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3260,7 +3716,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3287,7 +3746,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "binder:642_11"
+    blocked_thread_tid: 2505
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1737183173575
@@ -3316,7 +3778,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "binder:642_14"
+    blocked_thread_tid: 3485
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3343,7 +3808,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3370,7 +3838,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3397,7 +3868,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3424,7 +3898,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3451,7 +3928,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3478,7 +3958,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3505,7 +3988,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3532,7 +4018,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3559,7 +4048,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3586,7 +4078,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3613,7 +4108,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3640,7 +4138,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3667,7 +4168,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3694,7 +4198,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3721,7 +4228,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3748,7 +4258,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3775,7 +4288,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3802,7 +4318,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_14"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 3485
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3829,7 +4348,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3856,7 +4378,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3883,7 +4408,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3910,7 +4438,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3947,7 +4478,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -3964,7 +4498,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_2"
+    blocked_thread_tid: 658
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -3986,7 +4523,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_A"
+    blocked_thread_tid: 1675
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4008,7 +4548,10 @@ android_monitor_contention {
     waiter_count: 3
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_8"
+    blocked_thread_tid: 1548
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4030,7 +4573,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_F"
     blocked_thread_name: "binder:642_1"
+    blocked_thread_tid: 657
+    blocking_thread_tid: 2029
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4062,7 +4608,10 @@ android_monitor_contention {
     waiter_count: 4
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_13"
+    blocked_thread_tid: 2721
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4084,7 +4633,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4101,7 +4653,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4118,7 +4673,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4135,7 +4693,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4152,7 +4713,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4169,7 +4733,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4186,7 +4753,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4203,7 +4773,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4220,7 +4793,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4237,7 +4813,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4254,7 +4833,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4271,7 +4853,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4288,7 +4873,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4305,7 +4893,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4322,7 +4913,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4339,7 +4933,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -4356,7 +4953,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4383,7 +4983,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4405,7 +5008,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4432,7 +5038,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_2"
+    blocked_thread_tid: 658
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4459,7 +5068,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_A"
+    blocked_thread_tid: 1675
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4481,7 +5093,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_8"
+    blocked_thread_tid: 1548
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4508,7 +5123,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_13"
+    blocked_thread_tid: 2721
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4530,7 +5148,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_13"
     blocked_thread_name: "binder:642_12"
+    blocked_thread_tid: 2720
+    blocking_thread_tid: 2721
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1737229638872
@@ -4564,7 +5185,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_13"
     blocked_thread_name: "binder:642_8"
+    blocked_thread_tid: 1548
+    blocking_thread_tid: 2721
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4591,7 +5215,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_13"
     blocked_thread_name: "binder:642_A"
+    blocked_thread_tid: 1675
+    blocking_thread_tid: 2721
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4628,7 +5255,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "binder:642_13"
     blocked_thread_name: "binder:642_E"
+    blocked_thread_tid: 1934
+    blocking_thread_tid: 2721
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4650,7 +5280,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_8"
+    blocked_thread_tid: 1548
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4672,7 +5305,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_A"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1675
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4699,7 +5335,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "binder:642_E"
+    blocked_thread_tid: 1934
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4721,7 +5360,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -4743,7 +5385,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4770,7 +5415,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4797,7 +5445,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4824,7 +5475,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4851,7 +5505,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4878,7 +5535,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4905,7 +5565,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4932,7 +5595,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4959,7 +5625,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -4986,7 +5655,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5013,7 +5685,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5040,7 +5715,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5067,7 +5745,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5094,7 +5775,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5121,7 +5805,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5148,7 +5835,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5175,7 +5865,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5212,7 +5905,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
   }
@@ -5229,7 +5925,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 672
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5256,7 +5955,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5283,7 +5985,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "tworkPolicy.uid"
+    blocked_thread_tid: 1193
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5310,7 +6015,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5337,7 +6045,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5359,7 +6070,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5386,7 +6100,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5413,7 +6130,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5440,7 +6160,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5467,7 +6190,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5494,7 +6220,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5521,7 +6250,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5548,7 +6280,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5575,7 +6310,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5602,7 +6340,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5629,7 +6370,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5656,7 +6400,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5683,7 +6430,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5710,7 +6460,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5737,7 +6490,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5764,7 +6520,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5791,7 +6550,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5818,7 +6580,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "PackageManager"
+    blocked_thread_tid: 693
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5845,7 +6610,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "tworkPolicy.uid"
+    blocked_thread_tid: 1193
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5872,7 +6640,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5899,7 +6670,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5926,7 +6700,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 670
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -5953,7 +6730,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -5980,7 +6760,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6007,7 +6790,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "android.fg"
+    blocked_thread_tid: 660
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6034,7 +6820,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -6076,7 +6865,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "binder:642_1"
+    blocked_thread_tid: 657
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1739927686578
@@ -6115,7 +6907,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "StorageManagerService"
     blocked_thread_name: "binder:642_E"
+    blocked_thread_tid: 1934
+    blocking_thread_tid: 743
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1739931677940
@@ -6134,7 +6929,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "StorageManagerS"
+    blocked_thread_tid: 743
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6161,7 +6959,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
   }
@@ -6178,7 +6979,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6200,7 +7004,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6227,7 +7034,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "PackageManager"
+    blocked_thread_tid: 693
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6254,7 +7064,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6281,7 +7094,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6308,7 +7124,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_1"
+    blocked_thread_tid: 657
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6335,7 +7154,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6352,7 +7174,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6369,7 +7194,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6386,7 +7214,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_13"
+    blocked_thread_tid: 2721
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1739956996641
@@ -6415,7 +7246,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6432,7 +7266,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6449,7 +7286,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6466,7 +7306,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6483,7 +7326,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6500,7 +7346,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6517,7 +7366,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6534,7 +7386,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6551,7 +7406,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6568,7 +7426,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6585,7 +7446,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -6617,7 +7481,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6634,7 +7501,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "batterystats-ha"
+    blocked_thread_tid: 676
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6651,7 +7521,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6668,7 +7541,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "PowerManagerSer"
+    blocked_thread_tid: 687
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -6685,7 +7561,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3519
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6712,7 +7591,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "binder:642_E"
+    blocked_thread_tid: 1934
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     binder_reply_ts: 1739981897430
@@ -6741,7 +7623,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "main"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -6778,7 +7663,10 @@ android_monitor_contention {
     waiter_count: 2
     blocking_thread_name: "main"
     blocked_thread_name: "StorageManagerS"
+    blocked_thread_tid: 743
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -6800,7 +7688,10 @@ android_monitor_contention {
     waiter_count: 3
     blocking_thread_name: "main"
     blocked_thread_name: "binder:642_13"
+    blocked_thread_tid: 2721
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     binder_reply_ts: 1739982622780
@@ -6819,7 +7710,10 @@ android_monitor_contention {
     waiter_count: 3
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -6841,7 +7735,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3487
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -6868,7 +7765,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3519
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6895,7 +7795,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_13"
     blocked_thread_name: "system_server"
+    blocked_thread_tid: 642
+    blocking_thread_tid: 2721
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -6922,7 +7825,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3487
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -6949,7 +7855,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3519
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -6976,7 +7885,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "binder:642_1"
+    blocked_thread_tid: 657
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     binder_reply_ts: 1740012085111
@@ -7010,7 +7922,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.bg"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3519
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7037,7 +7952,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "binder:642_13"
+    blocked_thread_tid: 2721
+    blocking_thread_tid: 642
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     binder_reply_ts: 1740024094690
@@ -7066,7 +7984,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "StorageManagerS"
+    blocked_thread_tid: 743
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7098,7 +8019,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -7115,7 +8039,10 @@ android_monitor_contention {
     waiter_count: 1
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7137,7 +8064,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -7154,7 +8084,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -7171,7 +8104,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_E"
     blocked_thread_name: "tworkPolicy.uid"
+    blocked_thread_tid: 1193
+    blocking_thread_tid: 1934
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
   }
@@ -7188,7 +8124,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "fg"
+    blocked_thread_tid: 3516
+    blocking_thread_tid: 3487
     process_name: "com.android.providers.media.module"
+    pid: 3487
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -7215,7 +8154,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7242,7 +8184,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7269,7 +8214,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7296,7 +8244,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7323,7 +8274,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7350,7 +8304,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7377,7 +8334,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7404,7 +8364,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7431,7 +8394,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7458,7 +8424,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7485,7 +8454,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7512,7 +8484,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7539,7 +8514,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7566,7 +8544,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7593,7 +8574,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7620,7 +8604,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7647,7 +8634,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7674,7 +8664,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7701,7 +8694,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7728,7 +8724,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7755,7 +8754,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7782,7 +8784,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7809,7 +8814,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7836,7 +8844,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7863,7 +8874,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7890,7 +8904,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7917,7 +8934,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7944,7 +8964,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_1"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 657
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -7971,7 +8994,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -7998,7 +9024,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8025,7 +9054,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8052,7 +9084,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8079,7 +9114,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8106,7 +9144,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8133,7 +9174,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8160,7 +9204,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8187,7 +9234,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8214,7 +9264,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "android.ui"
     blocked_thread_name: "android.bg"
+    blocked_thread_tid: 670
+    blocking_thread_tid: 661
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8246,7 +9299,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8273,7 +9329,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "ActivityManager"
+    blocked_thread_tid: 671
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8300,7 +9359,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8327,7 +9389,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8354,7 +9419,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8381,7 +9449,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8408,7 +9479,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8435,7 +9509,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8462,7 +9539,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8489,7 +9569,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8516,7 +9599,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8543,7 +9629,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8570,7 +9659,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8597,7 +9689,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8624,7 +9719,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8651,7 +9749,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8678,7 +9779,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8705,7 +9809,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8732,7 +9839,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8759,7 +9869,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "binder:642_8"
     blocked_thread_name: "android.ui"
+    blocked_thread_tid: 661
+    blocking_thread_tid: 1548
     process_name: "system_server"
+    pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
     thread_states {
@@ -8786,7 +9899,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8813,7 +9929,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8840,7 +9959,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "sAsyncHandlerThread"
     blocked_thread_name: "d.process.media"
+    blocked_thread_tid: 2003
+    blocking_thread_tid: 2128
     process_name: "android.process.media"
+    pid: 2003
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8867,7 +9989,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "SysUiBg"
     blocked_thread_name: "ndroid.systemui"
+    blocked_thread_tid: 1253
+    blocking_thread_tid: 1331
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8894,7 +10019,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "SysUiBg"
     blocked_thread_name: "ndroid.systemui"
+    blocked_thread_tid: 1253
+    blocking_thread_tid: 1331
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8921,7 +10049,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "SysUiBg"
     blocked_thread_name: "ndroid.systemui"
+    blocked_thread_tid: 1253
+    blocking_thread_tid: 1331
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8948,7 +10079,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "SysUiBg"
     blocked_thread_name: "ndroid.systemui"
+    blocked_thread_tid: 1253
+    blocking_thread_tid: 1331
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -8975,7 +10109,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "SysUiBg"
     blocked_thread_name: "ndroid.systemui"
+    blocked_thread_tid: 1253
+    blocking_thread_tid: 1331
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: true
     is_blocking_thread_main: false
     thread_states {
@@ -9002,7 +10139,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "SysUiBg"
+    blocked_thread_tid: 1331
+    blocking_thread_tid: 1253
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -9024,7 +10164,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "plugin"
+    blocked_thread_tid: 1341
+    blocking_thread_tid: 1253
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {
@@ -9051,7 +10194,10 @@ android_monitor_contention {
     waiter_count: 0
     blocking_thread_name: "main"
     blocked_thread_name: "RenderThread"
+    blocked_thread_tid: 1436
+    blocking_thread_tid: 1253
     process_name: "com.android.systemui"
+    pid: 1253
     is_blocked_thread_main: false
     is_blocking_thread_main: true
     thread_states {

@@ -16,40 +16,14 @@
 
 #ifndef SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_ANCESTOR_H_
 #define SRC_TRACE_PROCESSOR_PRELUDE_TABLE_FUNCTIONS_ANCESTOR_H_
+
 #include <optional>
 
 #include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
-#include "src/trace_processor/tables/profiler_tables.h"
-#include "src/trace_processor/tables/slice_tables.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace tables {
-
-#define PERFETTO_TP_ANCESTOR_SLICE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(AncestorSliceTable, "ancestor_slice")                  \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                      \
-  C(tables::SliceTable::Id, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_SLICE_TABLE_DEF);
-
-#define PERFETTO_TP_ANCESTOR_STACK_PROFILE_CALLSITE_TABLE_DEF(NAME, PARENT, C) \
-  NAME(AncestorStackProfileCallsiteTable,                                      \
-       "experimental_ancestor_stack_profile_callsite")                         \
-  PARENT(PERFETTO_TP_STACK_PROFILE_CALLSITE_DEF, C)                            \
-  C(tables::StackProfileCallsiteTable::Id, start_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_STACK_PROFILE_CALLSITE_TABLE_DEF);
-
-#define PERFETTO_TP_ANCESTOR_SLICE_BY_STACK_TABLE_DEF(NAME, PARENT, C) \
-  NAME(AncestorSliceByStackTable, "ancestor_slice_by_stack")           \
-  PARENT(PERFETTO_TP_SLICE_TABLE_DEF, C)                               \
-  C(int64_t, start_stack_id, Column::Flag::kHidden)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_ANCESTOR_SLICE_BY_STACK_TABLE_DEF);
-
-}  // namespace tables
 
 class TraceProcessorContext;
 

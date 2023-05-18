@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TimeSpan, timeToCode} from './time';
+import {timeToCode, TPTime, TPTimeSpan} from './time';
 
 test('seconds to code', () => {
   expect(timeToCode(3)).toEqual('3s');
@@ -29,9 +29,67 @@ test('seconds to code', () => {
   expect(timeToCode(0)).toEqual('0s');
 });
 
-test('Time span equality', () => {
-  expect((new TimeSpan(0, 1)).equals(new TimeSpan(0, 1))).toBe(true);
-  expect((new TimeSpan(0, 1)).equals(new TimeSpan(0, 2))).toBe(false);
-  expect((new TimeSpan(0, 1)).equals(new TimeSpan(0, 1 + Number.EPSILON)))
-      .toBe(true);
+function mkSpan(start: TPTime, end: TPTime) {
+  return new TPTimeSpan(start, end);
+}
+
+describe('TPTimeSpan', () => {
+  it('throws when start is later than end', () => {
+    expect(() => mkSpan(1n, 0n)).toThrow();
+  });
+
+  it('can calc duration', () => {
+    expect(mkSpan(10n, 20n).duration).toBe(10n);
+  });
+
+  it('can calc midpoint', () => {
+    expect(mkSpan(10n, 20n).midpoint).toBe(15n);
+    expect(mkSpan(10n, 19n).midpoint).toBe(14n);
+    expect(mkSpan(10n, 10n).midpoint).toBe(10n);
+  });
+
+  it('can be compared', () => {
+    const x = mkSpan(10n, 20n);
+    expect(x.equals(mkSpan(10n, 20n))).toBeTruthy();
+    expect(x.equals(mkSpan(11n, 20n))).toBeFalsy();
+    expect(x.equals(mkSpan(10n, 19n))).toBeFalsy();
+  });
+
+  it('checks containment', () => {
+    const x = mkSpan(10n, 20n);
+
+    expect(x.contains(9n)).toBeFalsy();
+    expect(x.contains(10n)).toBeTruthy();
+    expect(x.contains(15n)).toBeTruthy();
+    expect(x.contains(20n)).toBeFalsy();
+    expect(x.contains(21n)).toBeFalsy();
+
+    expect(x.contains(mkSpan(12n, 18n))).toBeTruthy();
+    expect(x.contains(mkSpan(5n, 25n))).toBeFalsy();
+    expect(x.contains(mkSpan(5n, 15n))).toBeFalsy();
+    expect(x.contains(mkSpan(15n, 25n))).toBeFalsy();
+    expect(x.contains(mkSpan(0n, 10n))).toBeFalsy();
+    expect(x.contains(mkSpan(20n, 30n))).toBeFalsy();
+  });
+
+  it('checks intersection', () => {
+    const x = mkSpan(10n, 20n);
+
+    expect(x.intersects(mkSpan(0n, 10n))).toBeFalsy();
+    expect(x.intersects(mkSpan(5n, 15n))).toBeTruthy();
+    expect(x.intersects(mkSpan(12n, 18n))).toBeTruthy();
+    expect(x.intersects(mkSpan(15n, 25n))).toBeTruthy();
+    expect(x.intersects(mkSpan(20n, 30n))).toBeFalsy();
+    expect(x.intersects(mkSpan(5n, 25n))).toBeTruthy();
+  });
+
+  it('can add', () => {
+    const x = mkSpan(10n, 20n);
+    expect(x.add(5n)).toEqual(mkSpan(15n, 25n));
+  });
+
+  it('can pad', () => {
+    const x = mkSpan(10n, 20n);
+    expect(x.pad(5n)).toEqual(mkSpan(5n, 25n));
+  });
 });
