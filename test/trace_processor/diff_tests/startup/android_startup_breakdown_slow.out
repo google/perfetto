@@ -70,6 +70,7 @@ android_startup {
         apk_version_code: 123
         debuggable: false
       }
+      pid: 3
     }
     activities {
       name: "com.google.android.calendar.MainActivity"
@@ -106,7 +107,7 @@ android_startup {
     slow_start_reason: "Time spent in bindApplication"
     slow_start_reason: "Time spent in view inflation"
     slow_start_reason: "Time spent in ResourcesManager#getResources"
-    slow_start_reason: "Potential CPU contention with init"
+    slow_start_reason: "Potential CPU contention with another process"
     startup_type: "cold"
   }
 }

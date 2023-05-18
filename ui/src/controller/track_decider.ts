@@ -25,6 +25,7 @@ import {Engine, EngineProxy} from '../common/engine';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {pluginManager} from '../common/plugins';
 import {
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -61,6 +62,12 @@ import {
   PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
+import {
+  ENABLE_SCROLL_JANK_PLUGIN_V2,
+  INPUT_LATENCY_TRACK,
+} from '../tracks/scroll_jank';
+import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
+import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const TRACKS_V2_FLAG = featureFlags.register({
@@ -207,6 +214,25 @@ class TrackDecider {
     }
   }
 
+  async addScrollJankTracks(engine: Engine): Promise<void> {
+    const topLevelScrolls = addTopLevelScrollTrack(engine);
+    const topLevelScrollsResult = await topLevelScrolls;
+    let originalLength = this.tracksToAdd.length;
+    this.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
+    for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] =
+          topLevelScrollsResult.tracksToAdd[i];
+    }
+
+    originalLength = this.tracksToAdd.length;
+    const eventLatencies = addLatenciesTrack(engine);
+    const eventLatencyResult = await eventLatencies;
+    this.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
+    for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+    }
+  }
+
   async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
     const cpus = await this.engine.getCpus();
 
@@ -265,20 +291,21 @@ class TrackDecider {
 
   async addGlobalAsyncTracks(engine: EngineProxy): Promise<void> {
     const rawGlobalAsyncTracks = await engine.query(`
-      with global_tracks as materialized (
+      with tracks_with_slices as materialized (
+        select distinct track_id
+        from slice
+      ),
+      global_tracks as (
         select
           track.parent_id as parent_id,
           track.id as track_id,
-          track.name as name,
-          count(1) cnt
+          track.name as name
         from track
-        join slice on slice.track_id = track.id
+        join tracks_with_slices on tracks_with_slices.track_id = track.id
         where
           track.type = "track"
           or track.type = "gpu_track"
           or track.type = "cpu_track"
-        group by track_id
-        having cnt > 0
       ),
       global_tracks_grouped as (
         select
@@ -308,6 +335,7 @@ class TrackDecider {
     });
 
     const parentIdToGroupId = new Map<number, string>();
+    let scrollJankRendered = false;
 
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
@@ -352,6 +380,13 @@ class TrackDecider {
         }
       }
 
+      if (ENABLE_SCROLL_JANK_PLUGIN_V2.get() && !scrollJankRendered &&
+          name.includes(INPUT_LATENCY_TRACK)) {
+        // This ensures that the scroll jank tracks render above the tracks
+        // for GestureScrollUpdate.
+        await this.addScrollJankTracks(this.engine);
+        scrollJankRendered = true;
+      }
       const track = {
         engineId: this.engineId,
         kind,
@@ -402,45 +437,6 @@ class TrackDecider {
           },
         });
       }
-    }
-  }
-
-  async addGlobalCounterTracks(engine: EngineProxy): Promise<void> {
-    // Add global or GPU counter tracks that are not bound to any pid/tid.
-    const globalCounters = await engine.query(`
-    select name, id
-    from (
-      select name, id
-      from counter_track
-      where type = 'counter_track'
-      union
-      select name, id
-      from gpu_counter_track
-      where name != 'gpufreq'
-    )
-    order by name
-  `);
-
-    const it = globalCounters.iter({
-      name: STR,
-      id: NUM,
-    });
-
-    for (; it.valid(); it.next()) {
-      const name = it.name;
-      const trackId = it.id;
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind: COUNTER_TRACK_KIND,
-        name,
-        trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
-        trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
-          name,
-          trackId,
-          scale: getCounterScale(name),
-        },
-      });
     }
   }
 
@@ -720,15 +716,12 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select
-            cpu,
-            count(*) as cnt
+    const query = `select distinct cpu
           from ftrace_event
-          where cpu + 1 > 1 or utid + 1 > 1
-          group by cpu`;
+          where cpu + 1 > 1 or utid + 1 > 1`;
 
     const result = await engine.query(query);
-    const it = result.iter({cpu: NUM, cnt: NUM});
+    const it = result.iter({cpu: NUM});
 
     let groupUuid = undefined;
     let summaryTrackId = undefined;
@@ -1000,9 +993,9 @@ class TrackDecider {
       upid: NUM_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
-      startTs: NUM_NULL,
+      startTs: LONG_NULL,
       trackId: NUM,
-      endTs: NUM_NULL,
+      endTs: LONG_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1317,8 +1310,8 @@ class TrackDecider {
       upid: NUM,
       pid: NUM_NULL,
       processName: STR_NULL,
-      startTs: NUM_NULL,
-      endTs: NUM_NULL,
+      startTs: LONG_NULL,
+      endTs: LONG_NULL,
     });
     for (let i = 0; it.valid(); ++i, it.next()) {
       const pid = it.pid;

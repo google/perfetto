@@ -209,14 +209,22 @@ SELECT
       'time_gc_total', (
         SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id)))
       ),
+      'time_dex_open_thread_main',
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.startup_id,
+        'OpenDexFilesFromOat*'),
+      'time_dlopen_thread_main',
+      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+        launches.startup_id,
+        'dlopen:*.so'),
       'time_lock_contention_thread_main',
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-       launches.startup_id,
+        launches.startup_id,
         'Lock contention on*'
       ),
       'time_monitor_contention_thread_main',
       DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
-       launches.startup_id,
+        launches.startup_id,
         'Lock contention on a monitor*'
       ),
       'time_before_start_process', (
@@ -286,12 +294,18 @@ SELECT
       FROM android_thread_slices_for_all_startups
       WHERE startup_id = launches.startup_id AND slice_name GLOB "VerifyClass *"
       ORDER BY slice_dur DESC
+      LIMIT 5
     ),
     'startup_concurrent_to_launch', (
       SELECT RepeatedField(package)
       FROM android_startups l
       WHERE l.startup_id != launches.startup_id
         AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+    ),
+    'dlopen_file', (
+      SELECT RepeatedField(STR_SPLIT(slice_name, "dlopen: ", 1))
+      FROM android_thread_slices_for_all_startups s
+      WHERE startup_id = launches.startup_id AND slice_name GLOB "dlopen: *.so"
     ),
     'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
@@ -362,11 +376,10 @@ SELECT
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 155e6
 
         UNION ALL
-        SELECT 'Time spent in OpenDexFilesFromOat*'
+        SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*'
           AS slow_cause
-        WHERE
-          ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'OpenDexFilesFromOat*')
-            > launches.dur * 0.2
+        WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
+          launches.startup_id, 'OpenDexFilesFromOat*') > launches.dur * 0.2
 
         UNION ALL
         SELECT 'Time spent in bindApplication'
@@ -392,9 +405,7 @@ SELECT
             > launches.dur * 0.15
 
         UNION ALL
-        SELECT 'Potential CPU contention with '
-          || MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id)
-          AS slow_cause
+        SELECT 'Potential CPU contention with another process' AS slow_cause
         WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
           AND MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id) IS NOT NULL
 

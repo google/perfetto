@@ -43,6 +43,10 @@ source_set("service") {
     "../../tracing/core:service",
     "../../tracing/ipc/service",
   ]
+  if (enable_perfetto_zlib) {
+    deps += [ "../../tracing/core:zlib_compressor" ]
+  }
+
   sources = [
     "builtin_producer.cc",
     "builtin_producer.h",

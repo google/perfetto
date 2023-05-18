@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/stats_table.h"
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
@@ -24,9 +25,7 @@ namespace trace_processor {
 StatsTable::StatsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
 
-void StatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<StatsTable>(db, storage, "stats");
-}
+StatsTable::~StatsTable() = default;
 
 util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
@@ -46,8 +45,8 @@ util::Status StatsTable::Init(int, const char* const*, Schema* schema) {
   return util::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::Cursor> StatsTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::BaseCursor> StatsTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
 }
 
 int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -55,16 +54,20 @@ int StatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 }
 
 StatsTable::Cursor::Cursor(StatsTable* table)
-    : SqliteTable::Cursor(table), table_(table), storage_(table->storage_) {}
+    : SqliteTable::BaseCursor(table),
+      table_(table),
+      storage_(table->storage_) {}
 
-int StatsTable::Cursor::Filter(const QueryConstraints&,
-                               sqlite3_value**,
-                               FilterHistory) {
+StatsTable::Cursor::~Cursor() = default;
+
+base::Status StatsTable::Cursor::Filter(const QueryConstraints&,
+                                        sqlite3_value**,
+                                        FilterHistory) {
   *this = Cursor(table_);
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
+base::Status StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
   const auto kSqliteStatic = sqlite_utils::kSqliteStatic;
   switch (N) {
     case Column::kName:
@@ -114,16 +117,16 @@ int StatsTable::Cursor::Column(sqlite3_context* ctx, int N) {
       PERFETTO_FATAL("Unknown column %d", N);
       break;
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int StatsTable::Cursor::Next() {
+base::Status StatsTable::Cursor::Next() {
   static_assert(stats::kTypes[0] == stats::kSingle,
                 "the first stats entry cannot be indexed");
   const auto* cur_entry = &storage_->stats()[key_];
   if (stats::kTypes[key_] == stats::kIndexed) {
     if (++index_ != cur_entry->indexed_values.end()) {
-      return SQLITE_OK;
+      return base::OkStatus();
     }
   }
   while (++key_ < stats::kNumKeys) {
@@ -134,10 +137,10 @@ int StatsTable::Cursor::Next() {
       break;
     }
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int StatsTable::Cursor::Eof() {
+bool StatsTable::Cursor::Eof() {
   return key_ >= stats::kNumKeys;
 }
 

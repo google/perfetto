@@ -140,7 +140,7 @@ export class FlowEventsRenderer {
   }
 
   private getXCoordinate(ts: number): number {
-    return globals.frontendLocalState.timeScale.timeToPx(ts);
+    return globals.frontendLocalState.visibleTimeScale.secondsToPx(ts);
   }
 
   private getSliceRect(args: FlowEventsRendererArgs, point: FlowPoint):

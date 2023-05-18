@@ -29,6 +29,7 @@ from python.generators.trace_processor_table.public import CppSelfTableId
 from python.generators.trace_processor_table.public import WrappingSqlView
 
 PROCESS_TABLE = Table(
+    python_module=__file__,
     class_name='ProcessTable',
     sql_name='internal_process',
     columns=[
@@ -100,6 +101,7 @@ PROCESS_TABLE = Table(
         }))
 
 THREAD_TABLE = Table(
+    python_module=__file__,
     class_name='ThreadTable',
     sql_name='internal_thread',
     columns=[
@@ -159,27 +161,59 @@ THREAD_TABLE = Table(
         }))
 
 RAW_TABLE = Table(
+    python_module=__file__,
     class_name='RawTable',
     sql_name='raw',
     columns=[
         C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('name', CppString()),
         C('cpu', CppUint32()),
-        C('utid', CppUint32()),
+        C('utid', CppTableId(THREAD_TABLE)),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
-        doc='''''',
+        doc='''
+          Contains 'raw' events from the trace for some types of events. This
+          table only exists for debugging purposes and should not be relied on
+          in production usecases (i.e. metrics, standard library etc).
+        ''',
         group='Misc',
         columns={
-            'arg_set_id': '''''',
-            'ts': '''''',
-            'name': '''''',
-            'cpu': '''''',
-            'utid': ''''''
+            'arg_set_id':
+                ColumnDoc(
+                    'The set of key/value pairs associated with this event.',
+                    joinable='args.arg_set_id'),
+            'ts':
+                'The timestamp of this event.',
+            'name':
+                '''
+                  The name of the event. For ftrace events, this will be the
+                  ftrace event name.
+                ''',
+            'cpu':
+                'The CPU this event was emitted on.',
+            'utid':
+                'The thread this event was emitted on.'
         }))
 
+FTRACE_EVENT_TABLE = Table(
+    python_module=__file__,
+    class_name='FtraceEventTable',
+    sql_name='ftrace_event',
+    parent=RAW_TABLE,
+    columns=[],
+    tabledoc=TableDoc(
+        doc='''
+      Contains all the ftrace events in the trace. This table exists only for
+      debugging purposes and should not be relied on in production usecases
+      (i.e. metrics, standard library etc). Note also that this table might
+      be empty if raw ftrace parsing has been disabled.
+    ''',
+        group='Misc',
+        columns={}))
+
 ARG_TABLE = Table(
+    python_module=__file__,
     class_name='ArgTable',
     sql_name='internal_args',
     columns=[
@@ -206,6 +240,7 @@ ARG_TABLE = Table(
         }))
 
 METADATA_TABLE = Table(
+    python_module=__file__,
     class_name='MetadataTable',
     sql_name='metadata',
     columns=[
@@ -225,6 +260,7 @@ METADATA_TABLE = Table(
         }))
 
 FILEDESCRIPTOR_TABLE = Table(
+    python_module=__file__,
     class_name='FiledescriptorTable',
     sql_name='filedescriptor',
     columns=[
@@ -261,6 +297,7 @@ number.'''
         }))
 
 EXP_MISSING_CHROME_PROC_TABLE = Table(
+    python_module=__file__,
     class_name='ExpMissingChromeProcTable',
     sql_name='experimental_missing_chrome_processes',
     columns=[
@@ -278,6 +315,7 @@ EXP_MISSING_CHROME_PROC_TABLE = Table(
         }))
 
 CPU_TABLE = Table(
+    python_module=__file__,
     class_name='CpuTable',
     sql_name='cpu',
     columns=[
@@ -298,6 +336,7 @@ the same cluster''',
         }))
 
 CPU_FREQ_TABLE = Table(
+    python_module=__file__,
     class_name='CpuFreqTable',
     sql_name='cpu_freq',
     columns=[
@@ -311,6 +350,7 @@ CPU_FREQ_TABLE = Table(
         }))
 
 CLOCK_SNAPSHOT_TABLE = Table(
+    python_module=__file__,
     class_name='ClockSnapshotTable',
     sql_name='clock_snapshot',
     columns=[
@@ -344,7 +384,15 @@ otherwise.''',
 
 # Keep this list sorted.
 ALL_TABLES = [
-    ARG_TABLE, CLOCK_SNAPSHOT_TABLE, CPU_FREQ_TABLE, CPU_TABLE,
-    EXP_MISSING_CHROME_PROC_TABLE, FILEDESCRIPTOR_TABLE, METADATA_TABLE,
-    PROCESS_TABLE, RAW_TABLE, THREAD_TABLE
+    ARG_TABLE,
+    CLOCK_SNAPSHOT_TABLE,
+    CPU_FREQ_TABLE,
+    CPU_TABLE,
+    EXP_MISSING_CHROME_PROC_TABLE,
+    FILEDESCRIPTOR_TABLE,
+    METADATA_TABLE,
+    PROCESS_TABLE,
+    RAW_TABLE,
+    THREAD_TABLE,
+    FTRACE_EVENT_TABLE,
 ]

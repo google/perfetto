@@ -30,20 +30,22 @@ namespace trace_processor {
 // The stats table contains diagnostic info and errors that are either:
 // - Collected at trace time (e.g., ftrace buffer overruns).
 // - Generated at parsing time (e.g., clock events out-of-order).
-class StatsTable : public SqliteTable {
+class StatsTable final
+    : public TypedSqliteTable<StatsTable, const TraceStorage*> {
  public:
   enum Column { kName = 0, kIndex, kSeverity, kSource, kValue, kDescription };
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
-    Cursor(StatsTable*);
+    explicit Cursor(StatsTable*);
+    ~Cursor() final;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints&,
-               sqlite3_value**,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints&,
+                        sqlite3_value**,
+                        FilterHistory);
+    base::Status Next();
+    bool Eof();
+    base::Status Column(sqlite3_context*, int N);
 
    private:
     Cursor(Cursor&) = delete;
@@ -58,14 +60,13 @@ class StatsTable : public SqliteTable {
     TraceStorage::Stats::IndexMap::const_iterator index_{};
   };
 
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
-
   StatsTable(sqlite3*, const TraceStorage*);
+  ~StatsTable() final;
 
   // Table implementation.
-  util::Status Init(int, const char* const*, SqliteTable::Schema*) override;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  util::Status Init(int, const char* const*, SqliteTable::Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
  private:
   const TraceStorage* const storage_;

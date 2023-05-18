@@ -333,6 +333,44 @@ TEST_F(FuchsiaTraceParserTest, InlineInstantEvent) {
   EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
 }
 
+TEST_F(FuchsiaTraceParserTest, BooleanArguments) {
+  // Inline name of 8 bytes
+  uint64_t name_ref = uint64_t{0x8008} << 48;
+  // Inline category of 8 bytes
+  uint64_t category_ref = uint64_t{0x8008} << 32;
+  // Inline threadref
+  uint64_t threadref = uint64_t{0};
+  // 2 arguments
+  uint64_t argument_count = uint64_t{2} << 20;
+  // Instant Event
+  uint64_t event_type = 0 << 16;
+  uint64_t size = 8 << 4;
+  uint64_t record_type = 4;
+
+  auto header = name_ref | category_ref | threadref | event_type |
+                argument_count | size | record_type;
+  push_word(header);
+  // Timestamp
+  push_word(0xAAAAAAAAAAAAAAAA);
+  // Pid + tid
+  push_word(0xBBBBBBBBBBBBBBBB);
+  push_word(0xCCCCCCCCCCCCCCCC);
+  // Inline Category
+  push_word(0xDDDDDDDDDDDDDDDD);
+  // Inline Name
+  push_word(0xEEEEEEEEEEEEEEEE);
+  // Boolean argument true
+  push_word(0x0000'0001'8008'0029);
+  // 8 byte arg name stream
+  push_word(0x0000'0000'0000'0000);
+  // Boolean argument false
+  push_word(0x0000'0000'8008'002A);
+  // 8 byte arg name stream
+  push_word(0x0000'0000'0000'0000);
+  EXPECT_TRUE(Tokenize().ok());
+  EXPECT_EQ(context_.storage->stats()[stats::fuchsia_invalid_event].value, 0);
+}
+
 TEST_F(FuchsiaTraceParserTest, FxtWithProtos) {
   // Serialize some protos to bytes
   protozero::HeapBuffered<protos::pbzero::Trace> protos;

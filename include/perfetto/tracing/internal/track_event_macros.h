@@ -156,7 +156,7 @@
 // C++17 doesn't like a move constructor being defined for the EventFinalizer
 // class but C++11 and MSVC doesn't compile without it being defined so support
 // both.
-#if PERFETTO_IS_AT_LEAST_CPP17() && !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
+#if !PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
 #define PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD delete
 #else
 #define PERFETTO_INTERNAL_EVENT_FINALIZER_KEYWORD default

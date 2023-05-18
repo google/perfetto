@@ -1,0 +1,84 @@
+/*
+ * Copyright (C) 2022 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#ifndef INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_
+#define INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_
+
+#include <memory>
+#include <vector>
+
+#include "perfetto/ext/base/threading/future.h"
+#include "perfetto/ext/base/threading/stream.h"
+
+namespace perfetto {
+
+namespace base {
+class ThreadPool;
+}
+
+namespace protos {
+class TracePoolShardCreateArgs;
+class TracePoolShardCreateResponse;
+
+class TracePoolShardSetTracesArgs;
+class TracePoolShardSetTracesResponse;
+
+class TracePoolShardQueryArgs;
+class TracePoolShardQueryResponse;
+
+class TracePoolShardDestroyArgs;
+class TracePoolShardDestroyResponse;
+}  // namespace protos
+
+namespace cloud_trace_processor {
+
+class CtpEnvironment;
+
+// Interface for a CloudTraceProcessor "Worker".
+//
+// See CloudTraceProcessorWorker RPC service for high-level documentation.
+class Worker {
+ public:
+  virtual ~Worker();
+
+  // Returns an in-process implementation of the Worker given an instance of
+  // |CtpEnvironment| and a |ThreadPool|. The |CtpEnvironment| will be used to
+  // perform any interaction with the OS (e.g. opening and reading files) and
+  // the |ThreadPool| will be used to dispatch requests to TraceProcessor.
+  static std::unique_ptr<Worker> CreateInProcesss(CtpEnvironment*,
+                                                  base::ThreadPool*);
+
+  // Creates a TracePoolShard which will be owned by this worker.
+  virtual base::StatusOrFuture<protos::TracePoolShardCreateResponse>
+  TracePoolShardCreate(const protos::TracePoolShardCreateArgs&) = 0;
+
+  // Associates the provided list of traces to this TracePoolShard.
+  virtual base::StatusOrStream<protos::TracePoolShardSetTracesResponse>
+  TracePoolShardSetTraces(const protos::TracePoolShardSetTracesArgs&) = 0;
+
+  // Executes a SQL query on the specified TracePoolShard.
+  virtual base::StatusOrStream<protos::TracePoolShardQueryResponse>
+  TracePoolShardQuery(const protos::TracePoolShardQueryArgs&) = 0;
+
+  // Destroys the TracePoolShard with the specified id.
+  virtual base::StatusOrFuture<protos::TracePoolShardDestroyResponse>
+  TracePoolShardDestroy(const protos::TracePoolShardDestroyArgs&) = 0;
+};
+
+}  // namespace cloud_trace_processor
+}  // namespace perfetto
+
+#endif  // INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_

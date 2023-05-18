@@ -53,3 +53,13 @@ message MaliMaliKCPUFENCEWAITENDFtraceEvent {
   optional uint32 kctx_id = 4;
   optional uint32 id = 5;
 }
+message MaliMaliCSFINTERRUPTSTARTFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
+message MaliMaliCSFINTERRUPTENDFtraceEvent {
+  optional int32 kctx_tgid = 1;
+  optional uint32 kctx_id = 2;
+  optional uint64 info_val = 3;
+}
