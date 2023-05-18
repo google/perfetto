@@ -20,7 +20,9 @@
 #include <sqlite3.h>
 #include <unordered_map>
 
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,25 +36,7 @@ struct CreateFunction : public SqlFunction {
     // void* to avoid leaking state.
     void* created_functon_context;
   };
-  struct NameAndArgc {
-    std::string name;
-    int argc;
-
-    struct Hasher {
-      std::size_t operator()(const NameAndArgc& s) const noexcept;
-    };
-    bool operator==(const NameAndArgc& other) const {
-      return name == other.name && argc == other.argc;
-    }
-  };
-  using State = std::unordered_map<NameAndArgc,
-                                   CreateFunction::PerFunctionState,
-                                   NameAndArgc::Hasher>;
-
-  struct Context {
-    sqlite3* db;
-    State* state;
-  };
+  using Context = SqliteEngine;
 
   static constexpr bool kVoidReturn = true;
 

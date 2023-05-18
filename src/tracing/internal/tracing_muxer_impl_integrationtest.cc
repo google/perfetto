@@ -25,6 +25,12 @@ using ::testing::Property;
 
 class TracingMuxerImplIntegrationTest : public testing::Test {
  protected:
+  void SetUp() override {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    GTEST_SKIP() << "Unix sockets not supported on windows";
+#endif
+  }
+
   // Sets the environment variable `name` to `value`. Restores it to the
   // previous value when the test finishes.
   void SetEnvVar(const char* name, const char* value) {
@@ -38,7 +44,7 @@ class TracingMuxerImplIntegrationTest : public testing::Test {
     base::SetEnv(name, value);
   }
 
-  ~TracingMuxerImplIntegrationTest() {
+  ~TracingMuxerImplIntegrationTest() override {
     perfetto::Tracing::ResetForTesting();
     while (!prev_state_.empty()) {
       const EnvVar& var = prev_state_.top();

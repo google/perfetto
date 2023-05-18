@@ -18,7 +18,8 @@ SELECT IMPORT('android.process_metadata');
 
 DROP VIEW IF EXISTS process_metadata_table;
 CREATE VIEW process_metadata_table AS
-SELECT * FROM android_process_metadata;
+SELECT android_process_metadata.*, pid FROM android_process_metadata
+JOIN process USING(upid);
 
 DROP VIEW IF EXISTS uid_package_count;
 CREATE VIEW uid_package_count AS
@@ -43,6 +44,7 @@ SELECT
   NULL_IF_EMPTY(AndroidProcessMetadata(
     'name', process_name,
     'uid', uid,
+    'pid', pid,
     'package', NULL_IF_EMPTY(AndroidProcessMetadata_Package(
       'package_name', package_name,
       'apk_version_code', version_code,

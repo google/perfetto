@@ -42,6 +42,8 @@ def parse_columns(docs: Union['stdlib.TableViewDocs', 'stdlib.ViewFunctionDocs']
     m = re.match(Pattern['column'], line)
     if last_col:
       cols[last_col] = ' '.join(last_desc)
+    if not m:
+      print(f'Expected line {line} to match @column format', file=sys.stderr)
     last_col, last_desc = m.group(1), [m.group(2)]
 
   cols[last_col] = ' '.join(last_desc)
@@ -79,6 +81,8 @@ def parse_ret(docs: "stdlib.FunctionDocs") -> Tuple[str, str]:
       desc.append(get_text(line))
 
     m = re.match(Pattern['return_arg'], line)
+    if not m:
+      print(f'Expected line {line} to match @ret format', file=sys.stderr)
     ret_type, desc = m.group(1), [m.group(2)]
   return (ret_type, ' '.join(desc))
 

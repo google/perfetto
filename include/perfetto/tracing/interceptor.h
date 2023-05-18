@@ -187,7 +187,7 @@ class PERFETTO_EXPORT_COMPONENT InterceptorBase {
   // To define your own state, subclass this with the same name in the
   // interceptor class. A reference to the state can then be looked up through
   // context.GetThreadLocalState() in the trace packet interceptor function.
-  class ThreadLocalState {
+  class PERFETTO_EXPORT_COMPONENT ThreadLocalState {
    public:
     virtual ~ThreadLocalState();
   };

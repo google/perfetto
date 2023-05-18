@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../gn/perfetto_tp_tables.gni")
 import("../../../gn/test.gni")
 
 source_set("views") {
@@ -28,10 +29,15 @@ source_set("views") {
   ]
 }
 
+perfetto_tp_tables("macros_unittest") {
+  sources = [ "macros_unittest.py" ]
+}
+
 source_set("unittests") {
   testonly = true
   sources = [ "macros_unittest.cc" ]
   deps = [
+    ":macros_unittest",
     ":views",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",

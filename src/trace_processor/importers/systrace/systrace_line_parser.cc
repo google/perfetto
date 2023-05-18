@@ -216,8 +216,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string clock_name_str = args["name"] + subtitle;
     StringId clock_name =
         context_->storage->InternString(base::StringView(clock_name_str));
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(clock_name);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kClockFrequency, clock_name);
     context_->event_tracker->PushCounter(line.ts, rate.value(), track);
   } else if (line.event_name == "workqueue_execute_start") {
     auto split = base::SplitString(line.args_str, "function ");
@@ -232,8 +232,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string thermal_zone = args["thermal_zone"] + " Temperature";
     StringId track_name =
         context_->storage->InternString(base::StringView(thermal_zone));
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(track_name);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kThermals, track_name);
     auto temp = base::StringToInt32(args["temp"]);
     if (!temp.has_value()) {
       return util::Status("Could not convert temp");
@@ -243,8 +243,8 @@ util::Status SystraceLineParser::ParseLine(const SystraceLine& line) {
     std::string type = args["type"] + " Cooling Device";
     StringId track_name =
         context_->storage->InternString(base::StringView(type));
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(track_name);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kThermals, track_name);
     auto target = base::StringToDouble(args["target"]);
     if (!target.has_value()) {
       return util::Status("Could not convert target");

@@ -58,18 +58,18 @@ class PowerPowerRails(TestSuite):
     return DiffTestBlueprint(
         trace=Path('power_rails.textproto'),
         query="""
-        SELECT ts, value, t.name AS name
+        SELECT ts, extract_arg(arg_set_id,'packet_ts') as packet_ts, value, t.name AS name
         FROM counter c JOIN counter_track t ON t.id = c.track_id
         ORDER BY ts
         LIMIT 20;
         """,
         out=Csv("""
-        "ts","value","name"
-        3000000,333.000000,"power.test_rail_uws"
-        3000000,0.000000,"power.test_rail_uws"
-        3000004,1000.000000,"Testing"
-        3000005,999.000000,"power.test_rail2_uws"
-        5000000,666.000000,"power.test_rail_uws"
+        "ts","packet_ts","value","name"
+        3000000,3000003,333.000000,"power.test_rail_uws"
+        3000000,3000005,0.000000,"power.test_rail_uws"
+        3000004,"[NULL]",1000.000000,"Testing"
+        3000005,3000005,999.000000,"power.test_rail2_uws"
+        5000000,3000005,666.000000,"power.test_rail_uws"
         """))
 
   def test_power_rails_well_known_power_rails(self):

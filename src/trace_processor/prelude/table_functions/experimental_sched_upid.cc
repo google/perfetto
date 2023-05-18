@@ -16,17 +16,14 @@
 
 #include "src/trace_processor/prelude/table_functions/experimental_sched_upid.h"
 
+#include "src/trace_processor/prelude/table_functions/tables_py.h"
+
 namespace perfetto {
 namespace trace_processor {
 namespace tables {
-#define PERFETTO_TP_SCHED_UPID_TABLE_DEF(NAME, PARENT, C)     \
-  NAME(ExperimentalSchedUpidTable, "experimental_sched_upid") \
-  PARENT(PERFETTO_TP_SCHED_SLICE_TABLE_DEF, C)                \
-  C(std::optional<UniquePid>, upid)
-
-PERFETTO_TP_TABLE(PERFETTO_TP_SCHED_UPID_TABLE_DEF);
 
 ExperimentalSchedUpidTable::~ExperimentalSchedUpidTable() = default;
+
 }  // namespace tables
 
 ExperimentalSchedUpid::ExperimentalSchedUpid(

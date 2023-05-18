@@ -452,6 +452,63 @@ TEST(BitVectorUnittest, IterateSetBitsStartsCorrectly) {
   ASSERT_FALSE(it);
 }
 
+TEST(BitVectorUnittest, IntersectRange) {
+  BitVector bv = BitVector::Range(1, 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector intersected = bv.IntersectRange(3, 10);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 4u);
+  ASSERT_EQ(intersected.CountSetBits(), 3u);
+}
+
+TEST(BitVectorUnittest, IntersectRangeFromStart) {
+  BitVector bv = BitVector::Range(1, 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector intersected = bv.IntersectRange(0, 10);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 2u);
+  ASSERT_EQ(intersected.CountSetBits(), 4u);
+}
+
+TEST(BitVectorUnittest, IntersectRange2) {
+  BitVector bv{true, false, true, true, false, true};
+  BitVector intersected = bv.IntersectRange(2, 4);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 2u);
+}
+
+TEST(BitVectorUnittest, IntersectRangeAfterWord) {
+  BitVector bv =
+      BitVector::Range(64 + 1, 64 + 20, [](uint32_t t) { return t % 2 == 0; });
+  BitVector intersected = bv.IntersectRange(64 + 3, 64 + 10);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 64 + 4u);
+  ASSERT_EQ(intersected.CountSetBits(), 3u);
+}
+
+TEST(BitVectorUnittest, IntersectRangeSetBitsBeforeRange) {
+  BitVector bv = BitVector::Range(10, 30, [](uint32_t t) { return t < 15; });
+  BitVector intersected = bv.IntersectRange(16, 50);
+
+  ASSERT_FALSE(intersected.CountSetBits());
+}
+
+TEST(BitVectorUnittest, IntersectRangeSetBitOnBoundary) {
+  BitVector bv = BitVector(10, false);
+  bv.Set(5);
+  BitVector intersected = bv.IntersectRange(5, 20);
+
+  ASSERT_EQ(intersected.CountSetBits(), 1u);
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 5u);
+}
+
+TEST(BitVectorUnittest, IntersectRangeStressTest) {
+  BitVector bv =
+      BitVector::Range(65, 1024 + 1, [](uint32_t t) { return t % 2 == 0; });
+  BitVector intersected = bv.IntersectRange(30, 500);
+
+  ASSERT_EQ(intersected.IndexOfNthSet(0), 66u);
+  ASSERT_EQ(intersected.CountSetBits(), 217u);
+}
+
 TEST(BitVectorUnittest, Range) {
   BitVector bv = BitVector::Range(1, 9, [](uint32_t t) { return t % 3 == 0; });
   ASSERT_EQ(bv.size(), 9u);
@@ -515,6 +572,22 @@ TEST(BitVectorUnittest, Builder) {
   ASSERT_FALSE(bv.IsSet(2));
 }
 
+TEST(BitVectorUnittest, BuilderCountSetBits) {
+  // 16 words and 1 bit
+  BitVector::Builder builder(1025);
+
+  // 100100011010001010110011110001001 as a hex literal, with 15 set bits.
+  uint64_t word = 0x123456789;
+  for (uint32_t i = 0; i < 16; ++i) {
+    builder.AppendWord(word);
+  }
+  builder.Append(1);
+  BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.CountSetBits(500), 120u);
+  ASSERT_EQ(bv.CountSetBits(), 16 * 15 + 1u);
+}
+
 TEST(BitVectorUnittest, BuilderStressTest) {
   // Space for 128 words and 1 bit
   uint32_t size = 8 * 1024 + 1;
@@ -533,7 +606,7 @@ TEST(BitVectorUnittest, BuilderStressTest) {
   ASSERT_EQ(builder.BitsUntilFull(), size - 1024);
   ASSERT_EQ(builder.BitsUntilWordBoundaryOrFull(), 0u);
 
-  // 100100011010001010110011110001001 as a hex literal.
+  // 100100011010001010110011110001001 as a hex literal, with 15 set bits.
   uint64_t word = 0x123456789;
 
   // Add all of the remaining words.
@@ -550,6 +623,8 @@ TEST(BitVectorUnittest, BuilderStressTest) {
   builder.Append(1);
 
   BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.CountSetBits(), 2681u);
   ASSERT_EQ(bv.size(), 8u * 1024u + 1u);
 
   ASSERT_TRUE(bv.IsSet(0));

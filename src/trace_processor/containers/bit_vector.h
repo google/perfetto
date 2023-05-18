@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -45,13 +46,15 @@ class BitVector {
   using AllBitsIterator = internal::AllBitsIterator;
   using SetBitsIterator = internal::SetBitsIterator;
 
+  static constexpr uint32_t kBitsInWord = 64;
+
   // Builder class which allows efficiently creating a BitVector by appending
   // words. Using this class is generally far more efficient than trying to set
   // bits directly in a BitVector or even appending one bit at a time.
   class Builder {
    public:
     // Creates a Builder for building a BitVector of |size| bits.
-    explicit Builder(uint32_t size) : words_(WordCeil(size)), size_(size) {}
+    explicit Builder(uint32_t size) : words_(WordCount(size)), size_(size) {}
 
     // Skips forward |n| bits leaving them as zeroed.
     void Skip(uint32_t n) {
@@ -86,17 +89,10 @@ class BitVector {
       std::vector<uint32_t> counts(no_blocks);
 
       // Calculate counts only for full blocks.
-      for (uint32_t i = 1; i < no_blocks - 1; ++i) {
-        counts[i] +=
-            counts[i - 1] +
-            ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
+      for (uint32_t i = 1; i < no_blocks; ++i) {
+        counts[i] = counts[i - 1] +
+                    ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
       }
-      if (size_ % Block::kBits == 0) {
-        counts[no_blocks - 1] +=
-            counts[no_blocks - 2] +
-            ConstBlock(&words_[Block::kWords * (no_blocks - 2)]).CountSetBits();
-      }
-
       return BitVector{std::move(words_), std::move(counts), size_};
     }
 
@@ -104,7 +100,7 @@ class BitVector {
     // appended to this builder before having to fallback to |Append| due to
     // being close to the end.
     uint32_t BitsInCompleteWordsUntilFull() {
-      uint32_t next_word = WordCeil(global_bit_offset_);
+      uint32_t next_word = WordCount(global_bit_offset_);
       uint32_t end_word = WordFloor(size_);
       uint32_t complete_words = next_word < end_word ? end_word - next_word : 0;
       return complete_words * BitWord::kBits;
@@ -150,24 +146,7 @@ class BitVector {
   BitVector Copy() const;
 
   // Create a bitwise Not copy of the bitvector.
-  BitVector Not() const {
-    Builder builder(size());
-
-    // Append all words from all blocks except the last one.
-    uint32_t full_words = size() / BitWord::kBits;
-    for (uint32_t i = 0; i < full_words; ++i) {
-      builder.AppendWord(ConstBitWord(&words_[i]).Not());
-    }
-
-    // Append bits from the last word.
-    uint32_t bits_from_last_word = size() % BitWord::kBits;
-    ConstBitWord last_word(&words_[full_words]);
-    for (uint32_t i = 0; i < bits_from_last_word; ++i) {
-      builder.Append(!last_word.IsSet(i));
-    }
-
-    return std::move(builder).Build();
-  }
+  BitVector Not() const;
 
   // Returns the size of the bitvector.
   uint32_t size() const { return static_cast<uint32_t>(size_); }
@@ -298,75 +277,7 @@ class BitVector {
   // Truncates the BitVector if |size| < |size()| or fills the new space with
   // |filler| if |size| > |size()|. Calling this method is a noop if |size| ==
   // |size()|.
-  void Resize(uint32_t new_size, bool filler = false) {
-    uint32_t old_size = size_;
-    if (new_size == old_size)
-      return;
-
-    // Empty bitvectors should be memory efficient so we don't keep any data
-    // around in the bitvector.
-    if (new_size == 0) {
-      words_.clear();
-      counts_.clear();
-      size_ = 0;
-      return;
-    }
-
-    // Compute the address of the new last bit in the bitvector.
-    Address last_addr = IndexToAddress(new_size - 1);
-    uint32_t old_blocks_size = static_cast<uint32_t>(counts_.size());
-    uint32_t new_blocks_size = last_addr.block_idx + 1;
-
-    // Resize the block and count vectors to have the correct number of entries.
-    words_.resize(Block::kWords * new_blocks_size);
-    counts_.resize(new_blocks_size);
-
-    if (new_size > old_size) {
-      if (filler) {
-        // If the new space should be filled with ones, then set all the bits
-        // between the address of the old size and the new last address.
-        const Address& start = IndexToAddress(old_size);
-        Set(start, last_addr);
-
-        // We then need to update the counts vector to match the changes we
-        // made to the blocks.
-
-        // We start by adding the bits we set in the first block to the
-        // cummulative count before the range we changed.
-        Address end_of_block = {start.block_idx,
-                                {Block::kWords - 1, BitWord::kBits - 1}};
-        uint32_t count_in_block_after_end =
-            AddressToIndex(end_of_block) - AddressToIndex(start) + 1;
-        uint32_t set_count = CountSetBits() + count_in_block_after_end;
-
-        for (uint32_t i = start.block_idx + 1; i <= last_addr.block_idx; ++i) {
-          // Set the count to the cummulative count so far.
-          counts_[i] = set_count;
-
-          // Add a full block of set bits to the count.
-          set_count += Block::kBits;
-        }
-      } else {
-        // If the newly added bits are false, we just need to update the
-        // counts vector with the current size of the bitvector for all
-        // the newly added blocks.
-        if (new_blocks_size > old_blocks_size) {
-          uint32_t count = CountSetBits();
-          for (uint32_t i = old_blocks_size; i < new_blocks_size; ++i) {
-            counts_[i] = count;
-          }
-        }
-      }
-    } else {
-      // Throw away all the bits after the new last bit. We do this to make
-      // future lookup, append and resize operations not have to worrying about
-      // trailing garbage bits in the last block.
-      BlockFromIndex(last_addr.block_idx).ClearAfter(last_addr.block_offset);
-    }
-
-    // Actually update the size.
-    size_ = new_size;
-  }
+  void Resize(uint32_t new_size, bool filler = false);
 
   // Creates a BitVector of size |end| with the bits between |start| and |end|
   // filled by calling the filler function |f(index of bit)|.
@@ -378,7 +289,7 @@ class BitVector {
   static BitVector Range(uint32_t start, uint32_t end, Filler f) {
     // Compute the block index and bitvector index where we start and end
     // working one block at a time.
-    uint32_t start_fast_block = BlockCeil(start);
+    uint32_t start_fast_block = BlockCount(start);
     uint32_t start_fast_idx = BlockToIndex(start_fast_block);
     BitVector bv(start, false);
 
@@ -422,6 +333,10 @@ class BitVector {
 
     return bv;
   }
+
+  // Creates a BitVector of size |end| bit the bits between |start| and |end|
+  // filled with corresponding bits |this| BitVector.
+  BitVector IntersectRange(uint32_t range_start, uint32_t range_end) const;
 
   // Requests the removal of unused capacity.
   // Matches the semantics of std::vector::shrink_to_fit.
@@ -469,7 +384,7 @@ class BitVector {
   static constexpr uint32_t ApproxBytesCost(uint32_t n) {
     // The two main things making up a bitvector is the cost of the blocks of
     // bits and the cost of the counts vector.
-    return BlockCeil(n) * Block::kBits + BlockCeil(n) * sizeof(uint32_t);
+    return BlockCount(n) * Block::kBits + BlockCount(n) * sizeof(uint32_t);
   }
 
  private:
@@ -926,11 +841,10 @@ class BitVector {
     return idx / BitWord::kBits;
   }
 
-  // Returns the number of words which would be required to store a bit at
-  // |idx|.
-  static uint32_t WordCeil(uint32_t idx) {
-    // See |BlockCeil| for an explanation of this trick.
-    return (idx + BitWord::kBits - 1) / BitWord::kBits;
+  // Returns number of words (int64_t) required to store |bit_count| bits.
+  static uint32_t WordCount(uint32_t bit_count) {
+    // See |BlockCount| for an explanation of this trick.
+    return (bit_count + BitWord::kBits - 1) / BitWord::kBits;
   }
 
   static Address IndexToAddress(uint32_t idx) {
@@ -949,17 +863,16 @@ class BitVector {
            addr.block_offset.bit_idx;
   }
 
-  // Rounds |idx| up to the nearest block boundary and returns the block
-  // index. If |idx| is already on a block boundary, the current block is
-  // returned.
+  // Returns number of blocks (arrays of 8 int64_t) required to store
+  // |bit_count| bits.
   //
   // This is useful to be able to find indices where "fast" algorithms can
   // start which work on entire blocks.
-  static constexpr uint32_t BlockCeil(uint32_t idx) {
-    // Adding |Block::kBits - 1| gives us a quick way to get the ceil. We
+  static constexpr uint32_t BlockCount(uint32_t bit_count) {
+    // Adding |Block::kBits - 1| gives us a quick way to get the count. We
     // do this instead of adding 1 at the end because that gives incorrect
-    // answers for index % Block::kBits == 0.
-    return (idx + Block::kBits - 1) / Block::kBits;
+    // answers for bit_count % Block::kBits == 0.
+    return (bit_count + Block::kBits - 1) / Block::kBits;
   }
 
   // Returns the index of the block which would store |idx|.

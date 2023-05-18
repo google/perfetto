@@ -13,6 +13,14 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+DROP TABLE IF EXISTS vsync_missed_callback;
+CREATE TABLE vsync_missed_callback AS
+SELECT CAST(STR_SPLIT(name, 'Callback#', 1) AS INTEGER) AS vsync,
+       MAX(name GLOB '*SF*') as sf_callback_missed,
+       MAX(name GLOB '*HWUI*') as hwui_callback_missed
+FROM slice
+WHERE name GLOB '*FT#Missed*Callback*'
+GROUP BY vsync;
 
 DROP TABLE IF EXISTS android_jank_cuj_frame_timeline;
 CREATE TABLE android_jank_cuj_frame_timeline AS
@@ -35,6 +43,8 @@ SELECT
     OR jank_type GLOB '*SurfaceFlinger Scheduling*'
     OR jank_type GLOB '*Prediction Error*'
     OR jank_type GLOB '*Display HAL*') AS sf_missed,
+  IFNULL(MAX(sf_callback_missed), 0) AS sf_callback_missed,
+  IFNULL(MAX(hwui_callback_missed), 0) AS hwui_callback_missed,
   -- We use MIN to check if ALL layers finished on time
   MIN(on_time_finish) AS on_time_finish,
   MAX(timeline.ts + timeline.dur) AS ts_end_actual,
@@ -54,6 +64,7 @@ JOIN actual_timeline_with_vsync timeline
     AND vsync <= vsync_max
 LEFT JOIN expected_frame_timeline_slice expected
   ON expected.upid = timeline.upid AND expected.name = timeline.name
+LEFT JOIN vsync_missed_callback missed_callback USING(vsync)
 WHERE
   boundary.layer_id IS NULL
   OR (
@@ -99,6 +110,8 @@ SELECT
   frame_base.*,
   app_missed,
   sf_missed,
+  sf_callback_missed,
+  hwui_callback_missed,
   on_time_finish,
   ts_end_actual - ts AS dur,
   ts_end_actual - ts_do_frame_start AS dur_unadjusted,
