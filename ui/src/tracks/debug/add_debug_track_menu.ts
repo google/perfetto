@@ -89,7 +89,7 @@ export class AddDebugTrackMenu implements
         m(FormLabel,
           {for: 'track_name',
           },
-          'Name'),
+          'Track name'),
         m(TextInput, {
           id: 'track_name',
           onkeydown: (e: KeyboardEvent) => {
