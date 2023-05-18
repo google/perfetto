@@ -19,6 +19,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <condition_variable>
+#include <mutex>
+
 #include <unwindstack/MachineArm.h>
 #include <unwindstack/MachineArm64.h>
 #include <unwindstack/MachineMips.h>
