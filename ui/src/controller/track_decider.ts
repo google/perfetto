@@ -198,14 +198,39 @@ class TrackDecider {
     return 'Unknown';
   }
 
+  async guessCpuSizes(): Promise<Map<number, string>> {
+    const cpuToSize = new Map<number, string>();
+    await this.engine.query(`
+      SELECT IMPORT('common.cpus');
+    `);
+    const result = await this.engine.query(`
+      SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
+    `);
+
+    const it = result.iter({
+      cpu: NUM,
+      size: STR,
+    });
+
+    for (; it.valid(); it.next()) {
+      cpuToSize.set(it.cpu, it.size);
+    }
+
+    return cpuToSize;
+  }
+
   async addCpuSchedulingTracks(): Promise<void> {
     const cpus = await this.engine.getCpus();
+    const cpuToSize = await this.guessCpuSizes();
+
     for (const cpu of cpus) {
+      const size = cpuToSize.get(cpu);
+      const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: CPU_SLICE_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        name: `Cpu ${cpu}`,
+        name,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {
           cpu,
