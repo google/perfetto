@@ -111,6 +111,20 @@ class Graphics(TestSuite):
           missed_gpu_frames: 0
           missed_frame_rate: 0.42857142857142855 # = 3/7
           gpu_invocations: 0
+          metrics_per_display: {
+            display_id: "101"
+            missed_frames: 2
+            missed_hwc_frames: 0
+            missed_gpu_frames: 0
+            missed_frame_rate: 0.5
+          }
+          metrics_per_display: {
+            display_id: "102"
+            missed_frames: 1
+            missed_hwc_frames: 0
+            missed_gpu_frames: 0
+            missed_frame_rate: 0.33333333333333333
+          }
         }
         """))
 

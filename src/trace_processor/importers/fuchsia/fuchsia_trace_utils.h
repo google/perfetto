@@ -52,6 +52,7 @@ class ArgValue {
     kString,
     kPointer,
     kKoid,
+    kBool,
     kUnknown,
   };
 
@@ -118,6 +119,13 @@ class ArgValue {
     return v;
   }
 
+  static ArgValue Bool(bool value) {
+    ArgValue v;
+    v.type_ = ArgType::kBool;
+    v.bool_ = value;
+    return v;
+  }
+
   static ArgValue Unknown() {
     ArgValue v;
     v.type_ = ArgType::kUnknown;
@@ -167,6 +175,11 @@ class ArgValue {
     return koid_;
   }
 
+  uint64_t Bool() const {
+    PERFETTO_DCHECK(type_ == ArgType::kBool);
+    return bool_;
+  }
+
   Variadic ToStorageVariadic(TraceStorage*) const;
 
  private:
@@ -180,6 +193,7 @@ class ArgValue {
     StringId string_;
     uint64_t pointer_;
     uint64_t koid_;
+    bool bool_;
   };
 };
 

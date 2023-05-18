@@ -18,7 +18,10 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {TopLevelScrollSelection} from '../tracks/scroll_jank/scroll_track';
+
 import {Direction} from './event_set';
+import {TPDuration, TPTime} from './time';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -39,9 +42,9 @@ export interface OmniboxState {
 }
 
 export interface VisibleState extends Timestamped {
-  startSec: number;
-  endSec: number;
-  resolution: number;
+  start: TPTime;
+  end: TPTime;
+  resolution: TPDuration;
 }
 
 export interface AreaSelection {
@@ -59,8 +62,8 @@ export interface AreaSelection {
 export type AreaById = Area&{id: string};
 
 export interface Area {
-  startSec: number;
-  endSec: number;
+  start: TPTime;
+  end: TPTime;
   tracks: string[];
 }
 
@@ -100,7 +103,8 @@ export const MAX_TIME = 180;
 // 28. Add a boolean indicating if non matching log entries are hidden.
 // 29. Add ftrace state. <-- Borked, state contains a non-serializable object.
 // 30. Convert ftraceFilter.excludedNames from Set<string> to string[].
-export const STATE_VERSION = 30;
+// 31. Convert all timestamps to bigints.
+export const STATE_VERSION = 31;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -268,8 +272,8 @@ export interface PermalinkConfig {
 }
 
 export interface TraceTime {
-  startSec: number;
-  endSec: number;
+  start: TPTime;
+  end: TPTime;
 }
 
 export interface FrontendLocalState {
@@ -284,7 +288,7 @@ export interface Status {
 export interface Note {
   noteType: 'DEFAULT';
   id: string;
-  timestamp: number;
+  timestamp: TPTime;
   color: string;
   text: string;
 }
@@ -311,14 +315,14 @@ export interface DebugSliceSelection {
   kind: 'DEBUG_SLICE';
   id: number;
   sqlTableName: string;
-  startS: number;
-  durationS: number;
+  start: TPTime;
+  duration: TPDuration;
 }
 
 export interface CounterSelection {
   kind: 'COUNTER';
-  leftTs: number;
-  rightTs: number;
+  leftTs: TPTime;
+  rightTs: TPTime;
   id: number;
 }
 
@@ -326,7 +330,7 @@ export interface HeapProfileSelection {
   kind: 'HEAP_PROFILE';
   id: number;
   upid: number;
-  ts: number;
+  ts: TPTime;
   type: ProfileType;
 }
 
@@ -334,16 +338,16 @@ export interface PerfSamplesSelection {
   kind: 'PERF_SAMPLES';
   id: number;
   upid: number;
-  leftTs: number;
-  rightTs: number;
+  leftTs: TPTime;
+  rightTs: TPTime;
   type: ProfileType;
 }
 
 export interface FlamegraphState {
   kind: 'FLAMEGRAPH_STATE';
   upids: number[];
-  startNs: number;
-  endNs: number;
+  start: TPTime;
+  end: TPTime;
   type: ProfileType;
   viewingOption: FlamegraphStateViewingOption;
   focusRegex: string;
@@ -377,8 +381,8 @@ export interface LogSelection {
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection)&
-    {trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection|
+     TopLevelScrollSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
@@ -570,8 +574,8 @@ export interface State {
   // Hovered and focused events
   hoveredUtid: number;
   hoveredPid: number;
-  hoverCursorTimestamp: number;
-  hoveredNoteTimestamp: number;
+  hoverCursorTimestamp: TPTime;
+  hoveredNoteTimestamp: TPTime;
   highlightedSliceId: number;
   focusedFlowIdLeft: number;
   focusedFlowIdRight: number;
@@ -608,8 +612,8 @@ export interface State {
 }
 
 export const defaultTraceTime = {
-  startSec: 0,
-  endSec: 10,
+  start: 0n,
+  end: BigInt(10e9),
 };
 
 export declare type RecordMode =
@@ -661,9 +665,9 @@ export function hasActiveProbes(config: RecordConfig) {
 
 export function getDefaultRecordingTargets(): RecordingTarget[] {
   return [
-    {os: 'Q', name: 'Android Q+'},
-    {os: 'P', name: 'Android P'},
-    {os: 'O', name: 'Android O-'},
+    {os: 'Q', name: 'Android Q+ / 10+'},
+    {os: 'P', name: 'Android P / 9'},
+    {os: 'O', name: 'Android O- / 8-'},
     {os: 'C', name: 'Chrome'},
     {os: 'CrOS', name: 'Chrome OS (system trace)'},
     {os: 'L', name: 'Linux desktop'},

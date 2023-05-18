@@ -22,6 +22,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
 
 FLOW_TABLE = Table(
+    python_module=__file__,
     class_name='FlowTable',
     sql_name='flow',
     columns=[

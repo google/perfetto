@@ -73,6 +73,10 @@ class StatusOr {
   std::optional<T> value_;
 };
 
+// Deduction guide to make returning StatusOr less verbose.
+template <typename T>
+StatusOr(T) -> StatusOr<T>;
+
 }  // namespace base
 }  // namespace perfetto
 

@@ -14,6 +14,7 @@
 
 import {createEmptyState} from './empty_state';
 import {getContainingTrackId, PrimaryTrackSortKey, State} from './state';
+import {deserializeStateObject, serializeStateObject} from './upload_utils';
 
 test('createEmptyState', () => {
   const state: State = createEmptyState();
@@ -46,20 +47,10 @@ test('getContainingTrackId', () => {
   expect(getContainingTrackId(state, 'b')).toEqual('containsB');
 });
 
-function serializeState(state: State): string {
-  return JSON.stringify(state, (key, value) => {
-    return key === 'nonSerializableState' ? undefined : value;
-  });
-}
-
-function deserializeState(json: string): State {
-  return JSON.parse(json);
-}
-
 test('state is serializable', () => {
   const state: State = createEmptyState();
-  const json = serializeState(state);
-  const restored: State = deserializeState(json);
+  const json = serializeStateObject(state);
+  const restored: State = deserializeStateObject(json);
 
   // Remove nonSerializableState from original
   const serializableState: any = state as any;

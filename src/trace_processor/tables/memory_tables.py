@@ -26,6 +26,7 @@ from python.generators.trace_processor_table.public import CppUint32
 from src.trace_processor.tables.track_tables import TRACK_TABLE
 
 MEMORY_SNAPSHOT_TABLE = Table(
+    python_module=__file__,
     class_name='MemorySnapshotTable',
     sql_name='memory_snapshot',
     columns=[
@@ -43,6 +44,7 @@ MEMORY_SNAPSHOT_TABLE = Table(
         }))
 
 PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
+    python_module=__file__,
     class_name='ProcessMemorySnapshotTable',
     sql_name='process_memory_snapshot',
     columns=[
@@ -58,6 +60,7 @@ PROCESS_MEMORY_SNAPSHOT_TABLE = Table(
         }))
 
 MEMORY_SNAPSHOT_NODE_TABLE = Table(
+    python_module=__file__,
     class_name='MemorySnapshotNodeTable',
     sql_name='memory_snapshot_node',
     columns=[
@@ -81,6 +84,7 @@ MEMORY_SNAPSHOT_NODE_TABLE = Table(
         }))
 
 MEMORY_SNAPSHOT_EDGE_TABLE = Table(
+    python_module=__file__,
     class_name='MemorySnapshotEdgeTable',
     sql_name='memory_snapshot_edge',
     columns=[

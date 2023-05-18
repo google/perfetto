@@ -5,6 +5,7 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.android.systemui"
       uid: 10001
+      pid: 1000
     }
     ts: 2000000
     dur: 15000000
@@ -22,6 +23,7 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.google.android.apps.nexuslauncher"
       uid: 10002
+      pid: 2000
     }
     ts: 2000000
     dur: 15000000
@@ -39,6 +41,7 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.google.android.third.process"
       uid: 10003
+      pid: 3000
     }
     ts: 2000000
     dur: 150000000
@@ -147,6 +150,7 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.android.systemui"
       uid: 10001
+      pid: 1000
     }
     ts: 20000000
     dur: 10000000
@@ -164,11 +168,37 @@ android_blocking_calls_cuj_metric {
     process {
       name: "com.android.systemui"
       uid: 10001
+      pid: 1000
     }
     ts: 22000000
     dur: 10000000
     blocking_calls {
       name: "monitor contention with <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+  }
+  cuj {
+    id: 6
+    name: "WITH_NAMED_BINDER_TRANSACTION"
+    process {
+      name: "com.android.systemui"
+      uid: 10001
+      pid: 1000
+    }
+    ts: 40000000
+    dur: 10000000
+    blocking_calls {
+      name: "AIDL::java::IWindowManager::hasNavigationBar::server"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "binder transaction"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10

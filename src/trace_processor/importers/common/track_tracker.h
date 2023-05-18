@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_COMMON_TRACK_TRACKER_H_
 
+#include <optional>
 #include "src/trace_processor/importers/common/args_tracker.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -27,6 +28,23 @@ namespace trace_processor {
 // Tracks and stores tracks based on track types, ids and scopes.
 class TrackTracker {
  public:
+  // Enum which groups global tracks to avoid an explosion of tracks at the top
+  // level.
+  // Try and keep members of this enum high level as every entry here
+  // corresponds to ~1 extra UI track.
+  enum class Group : uint32_t {
+    kMemory = 0,
+    kIo,
+    kVirtio,
+    kNetwork,
+    kPower,
+    kDeviceState,
+    kThermals,
+    kClockFrequency,
+
+    // Keep this last.
+    kSizeSentinel,
+  };
   using SetArgsCallback = std::function<void(ArgsTracker::BoundInserter&)>;
 
   explicit TrackTracker(TraceProcessorContext*);
@@ -67,7 +85,8 @@ class TrackTracker {
   TrackId GetOrCreateTriggerTrack();
 
   // Interns a global counter track into the storage.
-  TrackId InternGlobalCounterTrack(StringId name,
+  TrackId InternGlobalCounterTrack(Group group,
+                                   StringId name,
                                    SetArgsCallback = {},
                                    StringId unit = kNullStringId,
                                    StringId description = kNullStringId);
@@ -155,6 +174,12 @@ class TrackTracker {
              std::tie(r.source_id, r.upid, r.source_scope);
     }
   };
+  static constexpr size_t kGroupCount =
+      static_cast<uint32_t>(Group::kSizeSentinel);
+
+  TrackId InternTrackForGroup(Group group);
+
+  std::array<std::optional<TrackId>, kGroupCount> group_track_ids_;
 
   std::map<UniqueTid, TrackId> thread_tracks_;
   std::map<UniquePid, TrackId> process_tracks_;

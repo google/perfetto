@@ -42,6 +42,9 @@ message AndroidProcessMetadata {
   // https://developer.android.com/guide/topics/manifest/manifest-element#uid
   repeated Package packages_for_uid = 8;
 
+  // Pid of the process name.
+  optional int64 pid = 9;
+
   reserved 3, 4, 5, 6;
 }
 
@@ -222,6 +225,9 @@ message AndroidBinderMetric {
 
     optional uint32 client_tid = 15;
     optional uint32 server_tid = 16;
+
+    optional uint32 client_pid = 17;
+    optional uint32 server_pid = 18;
   }
 
   message ThreadStateBreakdown {
@@ -880,7 +886,7 @@ message AndroidJankCujMetric {
     optional string layer_name = 11;
   }
 
-  // Next id: 8
+  // Next id: 10
   message Frame {
     // Index of the frame within the single user journey.
     optional int64 frame_number = 1;
@@ -898,9 +904,17 @@ message AndroidJankCujMetric {
 
     // Whether SF missed the frame deadline.
     optional bool sf_missed = 6;
+
+    // Whether the SF callback missed before emitting jank metrics.
+    // SF callback is used to get the jank classification.
+    optional bool sf_callback_missed = 8;
+
+    // Whether the HWUI callback missed before emitting jank metrics.
+    // HWUI callback is used to get the frame duration.
+    optional bool hwui_callback_missed = 9;
   }
 
-  // Next id: 16
+  // Next id: 18
   message Metrics {
     // Overall number of frames within the CUJ.
     optional int64 total_frames = 1;
@@ -956,6 +970,12 @@ message AndroidJankCujMetric {
     // P99 frame duration in milliseconds.
     // Not available in counter_metrics.
     optional double frame_dur_ms_p99 = 15;
+
+    // Number of frames with missed SF callback.
+    optional int64 sf_callback_missed_frames = 16;
+
+    // Number of frames with missed HWUI callback.
+    optional int64 hwui_callback_missed_frames = 17;
   }
 }
 
@@ -1005,7 +1025,7 @@ message JavaHeapStats {
     optional int64 obj_count = 3;
   }
 
-  // Next id: 10
+  // Next id: 11
   message Sample {
     optional int64 ts = 1;
     // Size of the Java heap in bytes
@@ -1024,6 +1044,8 @@ message JavaHeapStats {
 
     // ART root objects
     repeated HeapRoots roots = 7;
+    // OOM adjustment score
+    optional int64 oom_score_adj = 10;
   }
 
   // Heap stats per process. One sample per dump (can be > 1 if continuous
@@ -1171,28 +1193,38 @@ message AndroidMemoryUnaggregatedMetric {
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
+  // Next field id: 24
   message Node {
+    // Global context
     optional int64 node_parent_id = 1;
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
-    optional string blocking_method = 5;
-    optional string blocked_method = 6;
-    optional string short_blocking_method = 7;
-    optional string short_blocked_method = 8;
-    optional string blocking_src = 9;
-    optional string blocked_src = 10;
-    optional uint32 waiter_count = 11;
-    optional string blocked_thread_name = 12;
-    optional string blocking_thread_name = 13;
     optional string process_name = 14;
-    optional bool is_blocked_thread_main = 15;
-    optional bool is_blocking_thread_main = 16;
-    optional int64 binder_reply_ts = 17;
-    optional uint32 binder_reply_tid = 18;
-
+    optional uint32 pid = 23;
+    optional uint32 waiter_count = 11;
     repeated ThreadStateBreakdown thread_states = 19;
     repeated BlockedFunctionBreakdown blocked_functions = 20;
+
+    // Blocking context
+    optional string blocking_method = 5;
+    optional string short_blocking_method = 7;
+    optional string blocking_src = 9;
+    optional string blocking_thread_name = 13;
+    optional bool is_blocking_thread_main = 16;
+    optional uint32 blocking_thread_tid = 22;
+
+    // Blocked context
+    optional string blocked_method = 6;
+    optional string short_blocked_method = 8;
+    optional string blocked_src = 10;
+    optional string blocked_thread_name = 12;
+    optional bool is_blocked_thread_main = 15;
+    optional uint32 blocked_thread_tid = 21;
+
+    // Binder context
+    optional int64 binder_reply_ts = 17;
+    optional uint32 binder_reply_tid = 18;
   }
 
   message ThreadStateBreakdown {
@@ -1577,7 +1609,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 33.
+  // Next id: 35.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -1646,6 +1678,14 @@ message AndroidStartupMetric {
     // process being started up. This will be a subset of the time counted by
     // |time_lock_contention_thread_main|.
     optional Slice time_monitor_contention_thread_main = 32;
+
+    // Time spent in opening dex files on the main thread of the process
+    // being started up.
+    optional Slice time_dex_open_thread_main = 33;
+
+    // Time spent in dlopening .so files on the main thread of the process
+    // being started up.
+    optional Slice time_dlopen_thread_main = 34;
 
     // Removed: was other_process_to_activity_cpu_ratio.
     reserved 12;
@@ -1746,7 +1786,7 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 20
+  // Next id: 21
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1801,6 +1841,9 @@ message AndroidStartupMetric {
 
     // Contains information about the class verification.
     repeated VerifyClass verify_class = 19;
+
+    // Contains the dlopen file names.
+    repeated string dlopen_file = 20;
 
     // Package name of startups running concurrent to the launch.
     repeated string startup_concurrent_to_launch = 18;
@@ -1860,6 +1903,34 @@ message AndroidSurfaceflingerMetric {
   // This also equals to the total duration of
   // "waiting for GPU completion <fence_num>" in SurfaceFlinger.
   optional double total_non_empty_gpu_waiting_dur_ms = 9;
+
+  message MetricsPerDisplay {
+    // Display ID in SF
+    optional string display_id = 1;
+
+    // Counts the number of missed frames in the trace.
+    optional uint32 missed_frames = 2;
+
+    // Counts the number of missed HWC frames in the trace.
+    optional uint32 missed_hwc_frames = 3;
+
+    // Counts the number of missed GPU frames in the trace.
+    optional uint32 missed_gpu_frames = 4;
+
+    // Calculate the number of missed frames divided by
+    // total frames
+    optional double missed_frame_rate = 5;
+
+    // Calculate the number of missed HWC frames divided by
+    // total HWC frames
+    optional double missed_hwc_frame_rate = 6;
+
+    // Calculate the number of missed GPU frames divided by
+    // total GPU frames
+    optional double missed_gpu_frame_rate = 7;
+  }
+
+  repeated MetricsPerDisplay metrics_per_display = 10;
 }
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto

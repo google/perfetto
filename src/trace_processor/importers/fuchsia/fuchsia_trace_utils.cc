@@ -83,6 +83,8 @@ Variadic ArgValue::ToStorageVariadic(TraceStorage* storage) const {
       return Variadic::Pointer(pointer_);
     case ArgType::kKoid:
       return Variadic::Integer(static_cast<int64_t>(koid_));
+    case ArgType::kBool:
+      return Variadic::Boolean(bool_);
     case ArgType::kUnknown:
       return Variadic::String(storage->InternString("unknown"));
   }

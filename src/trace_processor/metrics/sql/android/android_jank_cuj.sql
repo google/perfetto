@@ -102,6 +102,8 @@ SELECT
               'missed_app_frames', missed_app_frames,
               'missed_sf_frames', missed_sf_frames,
               'missed_frames_max_successive', missed_frames_max_successive,
+              'sf_callback_missed_frames', sf_callback_missed_frames,
+              'hwui_callback_missed_frames', hwui_callback_missed_frames,
               'frame_dur_max', frame_dur_max)
             FROM android_jank_cuj_counter_metrics cm
             WHERE cm.cuj_id = cuj.cuj_id),
@@ -111,6 +113,8 @@ SELECT
               'missed_frames', SUM(app_missed OR sf_missed),
               'missed_app_frames', SUM(app_missed),
               'missed_sf_frames', SUM(sf_missed),
+              'sf_callback_missed_frames', SUM(sf_callback_missed),
+              'hwui_callback_missed_frames', SUM(hwui_callback_missed),
               'frame_dur_max', MAX(f.dur),
               'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
               'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
@@ -129,6 +133,8 @@ SELECT
               'missed_frames', SUM(app_missed OR sf_missed),
               'missed_app_frames', SUM(app_missed),
               'missed_sf_frames', SUM(sf_missed),
+              'sf_callback_missed_frames', SUM(sf_callback_missed),
+              'hwui_callback_missed_frames', SUM(hwui_callback_missed),
               'frame_dur_max', MAX(f.dur),
               'frame_dur_avg', CAST(AVG(f.dur) AS INTEGER),
               'frame_dur_p50', CAST(PERCENTILE(f.dur, 50) AS INTEGER),
@@ -150,7 +156,9 @@ SELECT
                 'dur', f.dur,
                 'dur_expected', f.dur_expected,
                 'app_missed', f.app_missed,
-                'sf_missed', f.sf_missed))
+                'sf_missed', f.sf_missed,
+                'sf_callback_missed', f.sf_callback_missed,
+                'hwui_callback_missed', f.hwui_callback_missed))
             FROM android_jank_cuj_frame f
             WHERE f.cuj_id = cuj.cuj_id
             ORDER BY frame_number ASC),

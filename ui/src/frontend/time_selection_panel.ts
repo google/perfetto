@@ -13,9 +13,13 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {BigintMath} from '../base/bigint_math';
 
-import {timeToString} from '../common/time';
-import {TimeSpan} from '../common/time';
+import {Span, tpTimeToString} from '../common/time';
+import {
+  TPTime,
+  TPTimeSpan,
+} from '../common/time';
 
 import {
   BACKGROUND_COLOR,
@@ -24,6 +28,7 @@ import {
 } from './css_constants';
 import {globals} from './globals';
 import {
+  getMaxMajorTicks,
   TickGenerator,
   TickType,
   timeScaleForVisibleWindow,
@@ -48,7 +53,7 @@ function drawHBar(
   ctx.fillStyle = FOREGROUND_COLOR;
 
   const xLeft = Math.floor(target.x);
-  const xRight = Math.ceil(target.x + target.width);
+  const xRight = Math.floor(target.x + target.width);
   const yMid = Math.floor(target.height / 2 + target.y);
   const xWidth = xRight - xLeft;
 
@@ -130,11 +135,21 @@ export class TimeSelectionPanel extends Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
-    const scale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-    if (scale.timeSpan.duration > 0 && scale.widthPx > 0) {
-      for (const {position, type} of new TickGenerator(scale)) {
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
+    ctx.clip();
+
+    const span = globals.frontendLocalState.visibleWindow.timestampSpan;
+    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
+      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+      for (const {type, time} of new TickGenerator(
+               span, maxMajorTicks, globals.state.traceTime.start)) {
+        const px = Math.floor(map.tpTimeToPx(time));
         if (type === TickType.MAJOR) {
-          ctx.fillRect(position, 0, 1, size.height);
+          ctx.fillRect(px, 0, 1, size.height);
         }
       }
     }
@@ -142,17 +157,17 @@ export class TimeSelectionPanel extends Panel {
     const localArea = globals.frontendLocalState.selectedArea;
     const selection = globals.state.currentSelection;
     if (localArea !== undefined) {
-      const start = Math.min(localArea.startSec, localArea.endSec);
-      const end = Math.max(localArea.startSec, localArea.endSec);
-      this.renderSpan(ctx, size, new TimeSpan(start, end));
+      const start = BigintMath.min(localArea.start, localArea.end);
+      const end = BigintMath.max(localArea.start, localArea.end);
+      this.renderSpan(ctx, size, new TPTimeSpan(start, end));
     } else if (selection !== null && selection.kind === 'AREA') {
       const selectedArea = globals.state.areas[selection.areaId];
-      const start = Math.min(selectedArea.startSec, selectedArea.endSec);
-      const end = Math.max(selectedArea.startSec, selectedArea.endSec);
-      this.renderSpan(ctx, size, new TimeSpan(start, end));
+      const start = BigintMath.min(selectedArea.start, selectedArea.end);
+      const end = BigintMath.max(selectedArea.start, selectedArea.end);
+      this.renderSpan(ctx, size, new TPTimeSpan(start, end));
     }
 
-    if (globals.state.hoverCursorTimestamp !== -1) {
+    if (globals.state.hoverCursorTimestamp !== -1n) {
       this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
     }
 
@@ -162,27 +177,29 @@ export class TimeSelectionPanel extends Panel {
       if (note.noteType === 'AREA' && !noteIsSelected) {
         const selectedArea = globals.state.areas[note.areaId];
         this.renderSpan(
-            ctx,
-            size,
-            new TimeSpan(selectedArea.startSec, selectedArea.endSec));
+            ctx, size, new TPTimeSpan(selectedArea.start, selectedArea.end));
       }
     }
+
+    ctx.restore();
   }
 
-  renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: number) {
-    const timeScale = globals.frontendLocalState.timeScale;
-    const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(ts));
-    const offsetTime = timeToString(ts - globals.state.traceTime.startSec);
-    const timeFromStart = timeToString(ts);
+  renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: TPTime) {
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const xPos =
+        TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.tpTimeToPx(ts));
+    const offsetTime = tpTimeToString(ts - globals.state.traceTime.start);
+    const timeFromStart = tpTimeToString(ts);
     const label = `${offsetTime} (${timeFromStart})`;
     drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
-  renderSpan(ctx: CanvasRenderingContext2D, size: PanelSize, span: TimeSpan) {
-    const timeScale = globals.frontendLocalState.timeScale;
-    const xLeft = timeScale.timeToPx(span.start);
-    const xRight = timeScale.timeToPx(span.end);
-    const label = timeToString(span.duration);
+  renderSpan(
+      ctx: CanvasRenderingContext2D, size: PanelSize, span: Span<TPTime>) {
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const xLeft = visibleTimeScale.tpTimeToPx(span.start);
+    const xRight = visibleTimeScale.tpTimeToPx(span.end);
+    const label = tpTimeToString(span.duration);
     drawHBar(
         ctx,
         {
