@@ -22,6 +22,7 @@
 #include <bitset>
 #include <numeric>
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -30,10 +31,7 @@ namespace trace_processor {
 
 SqlStatsTable::SqlStatsTable(sqlite3*, const TraceStorage* storage)
     : storage_(storage) {}
-
-void SqlStatsTable::RegisterTable(sqlite3* db, const TraceStorage* storage) {
-  SqliteTable::Register<SqlStatsTable>(db, storage, "sqlstats");
-}
+SqlStatsTable::~SqlStatsTable() = default;
 
 base::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   *schema = Schema(
@@ -50,8 +48,8 @@ base::Status SqlStatsTable::Init(int, const char* const*, Schema* schema) {
   return util::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::Cursor> SqlStatsTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::BaseCursor> SqlStatsTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
 }
 
 int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
@@ -59,28 +57,29 @@ int SqlStatsTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
 }
 
 SqlStatsTable::Cursor::Cursor(SqlStatsTable* table)
-    : SqliteTable::Cursor(table), storage_(table->storage_), table_(table) {}
-
+    : SqliteTable::BaseCursor(table),
+      storage_(table->storage_),
+      table_(table) {}
 SqlStatsTable::Cursor::~Cursor() = default;
 
-int SqlStatsTable::Cursor::Filter(const QueryConstraints&,
-                                  sqlite3_value**,
-                                  FilterHistory) {
+base::Status SqlStatsTable::Cursor::Filter(const QueryConstraints&,
+                                           sqlite3_value**,
+                                           FilterHistory) {
   *this = Cursor(table_);
   num_rows_ = storage_->sql_stats().size();
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int SqlStatsTable::Cursor::Next() {
+base::Status SqlStatsTable::Cursor::Next() {
   row_++;
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int SqlStatsTable::Cursor::Eof() {
+bool SqlStatsTable::Cursor::Eof() {
   return row_ >= num_rows_;
 }
 
-int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
+base::Status SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
   const TraceStorage::SqlStats& stats = storage_->sql_stats();
   switch (col) {
     case Column::kQuery:
@@ -97,7 +96,7 @@ int SqlStatsTable::Cursor::Column(sqlite3_context* context, int col) {
       sqlite3_result_int64(context, stats.times_ended()[row_]);
       break;
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 }  // namespace trace_processor

@@ -58,14 +58,14 @@ class Android(TestSuite):
         }
         """),
         query="""
-        SELECT t.id, t.type, t.name, c.id, c.ts, c.type, c.value
+        SELECT t.type, t.name, c.id, c.ts, c.type, c.value
         FROM counter_track t JOIN counter c ON t.id = c.track_id
         WHERE name = 'ScreenState';
         """,
         out=Csv("""
-        "id","type","name","id","ts","type","value"
-        0,"counter_track","ScreenState",0,1000,"counter",2.000000
-        0,"counter_track","ScreenState",1,2000,"counter",1.000000
+        "type","name","id","ts","type","value"
+        "counter_track","ScreenState",0,1000,"counter",2.000000
+        "counter_track","ScreenState",1,2000,"counter",1.000000
         """))
 
   def test_android_system_property_slice(self):
@@ -105,11 +105,162 @@ class Android(TestSuite):
         }
         """),
         query="""
-        SELECT t.id, t.type, t.name, s.id, s.ts, s.dur, s.type, s.name
+        SELECT t.type, t.name, s.id, s.ts, s.dur, s.type, s.name
         FROM track t JOIN slice s ON s.track_id = t.id
         WHERE t.name = 'DeviceStateChanged';
         """,
         out=Path('android_system_property_slice.out'))
+
+  def test_android_battery_stats_event_slices(self):
+    # The following has three events
+    # * top (123, mail) from 1000 to 9000 explicit
+    # * job (456, mail_job) starting at 3000 (end is inferred as trace end)
+    # * job (789, video_job) ending at 4000 (start is inferred as trace start)
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|+top=123:\"mail\"\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|+job=456:\"mail_job\"\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|-job=789:\"video_job\"\n"
+              }
+            }
+            event {
+              timestamp: 9000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|-top=123:\"mail\"\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_event_slices
+        ORDER BY str_value;
+        """,
+        out=Path('android_battery_stats_event_slices.out'))
+
+  def test_android_battery_stats_counters(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_state
+        ORDER BY ts, track_name;
+        """,
+        out=Path('android_battery_stats_state.out'))
+
+  def test_android_network_activity(self):
+    # The following should have three activity regions:
+    # * uid=123 from 1000 to 2010 (note: end is max(ts)+idle_ns)
+    # * uid=456 from 1005 to 2015 (note: doesn't group with above due to name)
+    # * uid=123 from 3000 to 5500 (note: gap between 1010 to 3000 > idle_ns)
+    # Note: packet_timestamps are delta encoded from the base timestamp.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 123
+            }
+            packet_timestamps: [
+              1000, 1010,
+              3000, 3050, 4000, 4500
+            ],
+            packet_lengths: [
+              50, 50,
+              50, 50, 50, 50
+            ],
+          }
+        }
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 456
+            }
+            packet_timestamps: [1005, 1015]
+            packet_lengths: [100, 200]
+          }
+        }
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_INGRESS
+              interface: "loopback"
+              uid: 123
+            }
+            packet_timestamps: [6000]
+            packet_lengths: [100]
+          }
+        }
+        """),
+        query="""
+        SELECT RUN_METRIC(
+          'android/network_activity_template.sql',
+          'view_name', 'android_network_activity',
+          'group_by',  'package_name',
+          'filter',    'iface = "wlan"',
+          'idle_ns',   '1000',
+          'quant_ns',  '100'
+        );
+
+        SELECT * FROM android_network_activity
+        ORDER BY package_name, ts;
+        """,
+        out=Path('android_network_activity.out'))
 
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
@@ -236,15 +387,18 @@ class Android(TestSuite):
         query="""
       SELECT IMPORT('android.monitor_contention');
       SELECT
-        *
+        blocking_method,
+        blocked_method,
+        short_blocking_method,
+        short_blocked_method
       FROM android_monitor_contention
       WHERE binder_reply_id IS NOT NULL
       ORDER BY dur DESC
       LIMIT 1;
       """,
         out=Csv("""
-        "blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "boolean com.android.server.am.ActivityManagerService.forceStopPackageLocked(java.lang.String, int, boolean, boolean, boolean, boolean, boolean, int, java.lang.String)","boolean com.android.server.am.ActivityManagerService.isUidActive(int, java.lang.String)","com.android.server.am.ActivityManagerService.forceStopPackageLocked","com.android.server.am.ActivityManagerService.isUidActive","ActivityManagerService.java:4484","ActivityManagerService.java:7325",0,656,"binder:642_12",495,"binder:642_1",657,250,"system_server",291,1737056375519,37555955,1235,0,0,285,1737055785896,2720
+        "blocking_method","blocked_method","short_blocking_method","short_blocked_method"
+        "boolean com.android.server.am.ActivityManagerService.forceStopPackageLocked(java.lang.String, int, boolean, boolean, boolean, boolean, boolean, int, java.lang.String)","boolean com.android.server.am.ActivityManagerService.isUidActive(int, java.lang.String)","com.android.server.am.ActivityManagerService.forceStopPackageLocked","com.android.server.am.ActivityManagerService.isUidActive"
       """))
 
   def test_monitor_contention_chain_blocked_functions(self):
@@ -305,7 +459,6 @@ class Android(TestSuite):
         id,
         ts,
         dur,
-        track_id,
         is_blocked_thread_main,
         is_blocking_thread_main,
         IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id,
@@ -316,8 +469,8 @@ class Android(TestSuite):
       LIMIT 1;
       """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "","void com.android.server.am.ActivityManagerService.forceStopPackage(java.lang.String, int)","boolean com.android.server.am.ActivityManagerService.unbindService(android.app.IServiceConnection)","com.android.server.am.ActivityManagerService.forceStopPackage","com.android.server.am.ActivityManagerService.unbindService","ActivityManagerService.java:3992","ActivityManagerService.java:12719",0,640,"StorageUserConn",495,"binder:642_1",250,"system_server",327,1737063410007,46114664,1238,0,0,"","",""
+        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
+        "","void com.android.server.am.ActivityManagerService.forceStopPackage(java.lang.String, int)","boolean com.android.server.am.ActivityManagerService.unbindService(android.app.IServiceConnection)","com.android.server.am.ActivityManagerService.forceStopPackage","com.android.server.am.ActivityManagerService.unbindService","ActivityManagerService.java:3992","ActivityManagerService.java:12719",0,640,"StorageUserConn",495,"binder:642_1",250,"system_server",327,1737063410007,46114664,0,0,"","",""
       """))
 
   def test_monitor_contention_metric(self):

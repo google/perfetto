@@ -446,9 +446,13 @@ test('perf samples open flamegraph', () => {
   const state = createEmptyState();
 
   const afterSelectingPerf = produce(state, (draft) => {
-    StateActions.selectPerfSamples(
-        draft,
-        {id: 0, upid: 0, leftTs: 0, rightTs: 0, type: ProfileType.PERF_SAMPLE});
+    StateActions.selectPerfSamples(draft, {
+      id: 0,
+      upid: 0,
+      leftTs: 0n,
+      rightTs: 0n,
+      type: ProfileType.PERF_SAMPLE,
+    });
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)
@@ -460,7 +464,7 @@ test('heap profile opens flamegraph', () => {
 
   const afterSelectingPerf = produce(state, (draft) => {
     StateActions.selectHeapProfile(
-        draft, {id: 0, upid: 0, ts: 0, type: ProfileType.JAVA_HEAP_GRAPH});
+        draft, {id: 0, upid: 0, ts: 0n, type: ProfileType.JAVA_HEAP_GRAPH});
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)

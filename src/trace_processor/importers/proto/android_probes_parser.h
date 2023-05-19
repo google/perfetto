@@ -34,7 +34,7 @@ class AndroidProbesParser {
   explicit AndroidProbesParser(TraceProcessorContext*);
 
   void ParseBatteryCounters(int64_t ts, ConstBytes);
-  void ParsePowerRails(int64_t ts, ConstBytes);
+  void ParsePowerRails(int64_t ts, uint64_t trace_packet_ts, ConstBytes);
   void ParseEnergyBreakdown(int64_t ts, ConstBytes);
   void ParseEntityStateResidency(int64_t ts, ConstBytes);
   void ParseAndroidLogPacket(ConstBytes);
@@ -56,6 +56,7 @@ class AndroidProbesParser {
   const StringId device_state_id_;
   const StringId battery_status_id_;
   const StringId plug_type_id_;
+  const StringId rail_packet_timestamp_id_;
 };
 }  // namespace trace_processor
 }  // namespace perfetto

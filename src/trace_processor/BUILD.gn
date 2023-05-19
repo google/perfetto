@@ -172,6 +172,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "prelude/functions",
       "prelude/operators",
       "prelude/table_functions",
+      "prelude/tables_views",
       "sqlite",
       "stdlib:gen_amalgamated_stdlib",
       "storage",

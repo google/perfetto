@@ -130,9 +130,11 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   render(ctx: CanvasRenderingContext2D) {
     globals.frontendLocalState.addVisibleTrack(this.trackState.id);
     if (this.data() === undefined && !this.frontendOnly) {
-      const {visibleWindowTime, timeScale} = globals.frontendLocalState;
-      const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
-      const endPx = Math.ceil(timeScale.timeToPx(visibleWindowTime.end));
+      const {visibleWindowTime, visibleTimeScale} = globals.frontendLocalState;
+      const startPx =
+          Math.floor(visibleTimeScale.hpTimeToPx(visibleWindowTime.start));
+      const endPx =
+          Math.ceil(visibleTimeScale.hpTimeToPx(visibleWindowTime.end));
       checkerboard(ctx, this.getHeight(), startPx, endPx);
     } else {
       this.renderCanvas(ctx);
@@ -175,7 +177,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     y -= 10;
 
     // Ensure the box is on screen:
-    const endPx = globals.frontendLocalState.timeScale.endPx;
+    const endPx = globals.frontendLocalState.visibleTimeScale.pxSpan.end;
     if (x + width > endPx) {
       x -= x + width - endPx;
     }

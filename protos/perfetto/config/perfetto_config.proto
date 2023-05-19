@@ -833,6 +833,7 @@ message ProcessStatsConfig {
 
   // If > 0 samples counters (see process_stats.proto) from
   // /proc/pid/status and oom_score_adj every X ms.
+  // It will also sample /proc/pid/smaps_rollup if scan_smaps_rollup = true.
   // This is required to be > 100ms to avoid excessive CPU usage.
   // TODO(primiano): add CPU cost for change this value.
   optional uint32 proc_stats_poll_ms = 4;
@@ -861,6 +862,10 @@ message ProcessStatsConfig {
   // new fds opened after initially scanning a process will not be
   // recognized.
   optional bool resolve_process_fds = 9;
+
+  // If enabled memory stats from /proc/pid/smaps_rollup will be included
+  // in process stats.
+  optional bool scan_smaps_rollup = 10;
 }
 
 // End of protos/perfetto/config/process_stats/process_stats_config.proto
@@ -2700,7 +2705,7 @@ message DataSourceConfig {
 // It contains the general config for the logging buffer(s) and the configs for
 // all the data source being enabled.
 //
-// Next id: 37.
+// Next id: 38.
 message TraceConfig {
   message BufferConfig {
     optional uint32 size_kb = 1;
@@ -2968,11 +2973,34 @@ message TraceConfig {
       // consumer.
       STOP_TRACING = 2;
 
-      // NOTE: do not add new enum values here because of a subtle backward
-      // compat bug which might cause indefinite tracing on older versions of
-      // the service. See b/274931668 .
+      // When this mode is chosen, this causes a snapshot of the current tracing
+      // session to be created after |stop_delay_ms| while the current tracing
+      // session continues undisturbed (% an extra flush). This mode can be
+      // used only when the tracing session is handled by the "perfetto" cmdline
+      // client (which is true in 90% of cases). Part of the business logic
+      // necessary for this behavior, and ensuing file handling, lives in
+      // perfetto_cmd.cc . On other consumers, this causes only a notification
+      // of the trigger through a CloneTriggerHit ObservableEvent. The custom
+      // consumer is supposed to call CloneSession() itself after the event.
+      // Use use_clone_snapshot_if_available=true when targeting older versions
+      // of perfetto.
+      CLONE_SNAPSHOT = 3;
+
+      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android U+
+      // (14+) / Perfetto v34+. A bug in older versions of the tracing service
+      // might cause indefinitely long tracing sessions (see b/274931668).
     }
     optional TriggerMode trigger_mode = 1;
+
+    // This flag is really a workaround for b/274931668. This is needed only
+    // when deploying configs to different versions of the tracing service.
+    // When this is set to true this has the same effect of setting trigger_mode
+    // to CLONE_SNAPSHOT on newer versions of the service. This boolean has been
+    // introduced to allow to have configs that use CLONE_SNAPSHOT on newer
+    // versions of Android and fall back to STOP_TRACING on older versions where
+    // CLONE_SNAPSHOT did not exist.
+    // When using this flag, trigger_mode must be set to STOP_TRACING.
+    optional bool use_clone_snapshot_if_available = 4;
 
     message Trigger {
       // The producer must specify this name to activate the trigger.
@@ -2985,6 +3013,8 @@ message TraceConfig {
 
       // After a trigger is received either in START_TRACING or STOP_TRACING
       // mode then the trace will end |stop_delay_ms| after triggering.
+      // In CLONE_SNAPSHOT mode, this is the delay between the trigger and the
+      // snapshot.
       // If |prefer_suspend_clock_for_duration| is set, the duration will be
       // based on wall-clock, counting also time in suspend.
       optional uint32 stop_delay_ms = 3;
@@ -3063,6 +3093,11 @@ message TraceConfig {
     COMPRESSION_TYPE_DEFLATE = 1;
   }
   optional CompressionType compression_type = 24;
+
+  // Use the legacy codepath that compresses from perfetto_cmd.cc instead of
+  // using the new codepath that compresses from tracing_service_impl.cc. This
+  // will be removed in the future.
+  optional bool compress_from_cli = 37;
 
   // Android-only. Not for general use. If set, saves the trace into an
   // incident. This field is read by perfetto_cmd, rather than the tracing

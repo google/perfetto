@@ -192,10 +192,13 @@ SELECT
   slice.dur,
   slice.track_id,
   thread.is_main_thread AS is_blocked_thread_main,
+  thread.tid AS blocked_thread_tid,
   blocking_thread.is_main_thread AS is_blocking_thread_main,
+  blocking_thread.tid AS blocking_thread_tid,
   binder_reply.id AS binder_reply_id,
   binder_reply.ts AS binder_reply_ts,
-  binder_reply_thread.tid AS binder_reply_tid
+  binder_reply_thread.tid AS binder_reply_tid,
+  process.pid
 FROM slice
 JOIN thread_track
   ON thread_track.id = slice.track_id

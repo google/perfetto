@@ -119,6 +119,8 @@ class Table:
   Representation of of a C++ table.
 
   Attributes:
+    python_module: Path to the Python module this table is defined in. Always
+    pass __file__.
     class_name: Name of the C++ table class.
     sql_name: Name of the table in SQL.
     columns: The columns in this table.
@@ -129,6 +131,7 @@ class Table:
     specified table.
     wrapping_sql_view: See |WrappingSqlView|.
   """
+  python_module: str
   class_name: str
   sql_name: str
   columns: List[Column]

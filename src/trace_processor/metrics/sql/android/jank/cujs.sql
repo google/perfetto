@@ -90,7 +90,19 @@ SELECT
     FROM cuj_state_markers csm
     WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*layerId#*'
     LIMIT 1
-  ) AS layer_id
+  ) AS layer_id,
+  (
+    SELECT CAST(STR_SPLIT(csm.marker_name, 'beginVsync#', 1) AS INTEGER)
+    FROM cuj_state_markers csm
+    WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*beginVsync#*'
+    LIMIT 1
+  ) AS begin_vsync,
+  (
+    SELECT CAST(STR_SPLIT(csm.marker_name, 'endVsync#', 1) AS INTEGER)
+    FROM cuj_state_markers csm
+    WHERE csm.cuj_id = cujs.cuj_id AND csm.marker_name GLOB '*endVsync#*'
+    LIMIT 1
+  ) AS end_vsync
 FROM cujs
 WHERE
   state != 'canceled'

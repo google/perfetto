@@ -227,6 +227,17 @@ trace.add_track_event_slice_begin(ts=10, track=SHADE_CUJ_TRACK,
                                   name="J<SHADE_ROW_EXPAND>")
 trace.add_track_event_slice_end(ts=901_000_010, track=SHADE_CUJ_TRACK)
 add_instant_for_track(trace, ts=11, track=SHADE_CUJ_TRACK, name="FT#layerId#0")
+add_instant_for_track(
+    trace,
+    ts=950_100_000,
+    track=SHADE_CUJ_TRACK,
+    name="FT#MissedHWUICallback#150")
+add_instant_for_track(
+    trace,
+    ts=950_100_000,
+    track=SHADE_CUJ_TRACK,
+    name="FT#MissedSFCallback#150")
+
 trace.add_track_event_slice_begin(
     ts=100_100_000, track=CANCELED_CUJ_TRACK, name="J<CANCELED>")
 trace.add_track_event_slice_end(ts=999_000_000, track=CANCELED_CUJ_TRACK)

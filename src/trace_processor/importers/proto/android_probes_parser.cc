@@ -62,7 +62,8 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       screen_state_id_(context->storage->InternString("ScreenState")),
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
-      plug_type_id_(context->storage->InternString("PlugType")) {}
+      plug_type_id_(context->storage->InternString("PlugType")),
+      rail_packet_timestamp_id_(context->storage->InternString("packet_ts")) {}
 
 void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   protos::pbzero::BatteryCounters::Decoder evt(blob.data, blob.size);
@@ -82,14 +83,14 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         std::string("batt.").append(batt_name).append(".current.avg_ua")));
   }
   if (evt.has_charge_counter_uah()) {
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_charge_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.charge_counter_uah()), track);
   } else if (evt.has_energy_counter_uwh() && evt.has_voltage_uv()) {
     // Calculate charge counter from energy counter and voltage.
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_charge_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_charge_id);
     auto energy = evt.energy_counter_uwh();
     auto voltage = evt.voltage_uv();
     if (voltage > 0) {
@@ -99,26 +100,28 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   }
 
   if (evt.has_capacity_percent()) {
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_capacity_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_capacity_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.capacity_percent()), track);
   }
   if (evt.has_current_ua()) {
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_current_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_current_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_ua()), track);
   }
   if (evt.has_current_avg_ua()) {
-    TrackId track =
-        context_->track_tracker->InternGlobalCounterTrack(batt_current_avg_id);
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_current_avg_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_avg_ua()), track);
   }
 }
 
-void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
+void AndroidProbesParser::ParsePowerRails(int64_t ts,
+                                          uint64_t trace_packet_ts,
+                                          ConstBytes blob) {
   protos::pbzero::PowerRails::Decoder evt(blob.data, blob.size);
 
   // Descriptors should have been processed at tokenization time.
@@ -134,12 +137,16 @@ void AndroidProbesParser::ParsePowerRails(int64_t ts, ConstBytes blob) {
   auto opt_track = tracker->GetPowerRailTrack(desc.index());
   if (opt_track.has_value()) {
     // The tokenization makes sure that this field is always present and
-    // is equal to the packet's timestamp (as the packet was forged in
-    // the tokenizer).
+    // is equal to the packet's timestamp that was passed to us via the sorter.
     PERFETTO_DCHECK(desc.has_timestamp_ms());
     PERFETTO_DCHECK(ts / 1000000 == static_cast<int64_t>(desc.timestamp_ms()));
-    context_->event_tracker->PushCounter(ts, static_cast<double>(desc.energy()),
-                                         *opt_track);
+    auto maybe_counter_id = context_->event_tracker->PushCounter(
+        ts, static_cast<double>(desc.energy()), *opt_track);
+    if (maybe_counter_id) {
+      context_->args_tracker->AddArgsTo(*maybe_counter_id)
+          .AddArg(rail_packet_timestamp_id_,
+                  Variadic::UnsignedInteger(trace_packet_ts));
+    }
   } else {
     context_->storage->IncrementStats(stats::power_rail_unknown_index);
   }
@@ -219,7 +226,7 @@ void AndroidProbesParser::ParseEntityStateResidency(int64_t ts,
     }
 
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
-        entity_state->overall_name);
+        TrackTracker::Group::kPower, entity_state->overall_name);
     context_->event_tracker->PushCounter(
         ts, double(residency.total_time_in_state_ms()), track);
   }
@@ -396,8 +403,8 @@ void AndroidProbesParser::ParseInitialDisplayState(int64_t ts,
                                                    ConstBytes blob) {
   protos::pbzero::InitialDisplayState::Decoder state(blob.data, blob.size);
 
-  TrackId track =
-      context_->track_tracker->InternGlobalCounterTrack(screen_state_id_);
+  TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+      TrackTracker::Group::kDeviceState, screen_state_id_);
   context_->event_tracker->PushCounter(ts, state.display_state(), track);
 }
 
@@ -427,8 +434,8 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(name_id);
+        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+            TrackTracker::Group::kNetwork, name_id);
         context_->event_tracker->PushCounter(ts, *state, track);
       }
     } else if (name == "debug.tracing.screen_state") {
@@ -442,8 +449,8 @@ void AndroidProbesParser::ParseAndroidSystemProperty(int64_t ts,
       std::optional<int32_t> state =
           base::StringToInt32(kv.value().ToStdString());
       if (state) {
-        TrackId track =
-            context_->track_tracker->InternGlobalCounterTrack(*mapped_name_id);
+        TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+            TrackTracker::Group::kDeviceState, *mapped_name_id);
         context_->event_tracker->PushCounter(ts, *state, track);
       }
     }

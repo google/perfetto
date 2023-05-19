@@ -26,6 +26,7 @@
 namespace perfetto {
 namespace trace_processor {
 
+class SqliteEngine;
 class TraceProcessorContext;
 
 // Registers the stack manipulation related functions:
@@ -49,7 +50,7 @@ class TraceProcessorContext;
 // it generates a fake Frame
 //
 // See protos/perfetto/trace_processor/stack.proto
-base::Status RegisterStackFunctions(sqlite3* db,
+base::Status RegisterStackFunctions(SqliteEngine* engine,
                                     TraceProcessorContext* context);
 
 }  // namespace trace_processor

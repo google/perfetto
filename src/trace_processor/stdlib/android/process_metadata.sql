@@ -50,11 +50,19 @@ FROM process
 LEFT JOIN internal_uid_package_count ON process.android_appid = internal_uid_package_count.uid
 LEFT JOIN package_list plist
   ON (
-    process.android_appid = plist.uid
-    AND internal_uid_package_count.uid = plist.uid
-    AND (
-      -- unique match
-      internal_uid_package_count.cnt = 1
-      -- or process name starts with the package name
-      OR process.name GLOB plist.package_name || '*')
+    (
+      process.android_appid = plist.uid
+      AND internal_uid_package_count.uid = plist.uid
+      AND (
+        -- unique match
+        internal_uid_package_count.cnt = 1
+        -- or process name starts with the package name
+        OR process.name GLOB plist.package_name || '*')
+    )
+    OR
+    (
+      -- isolated processes can only be matched based on the name prefix
+      process.android_appid >= 90000 AND process.android_appid < 100000
+      AND STR_SPLIT(process.name, ':', 0) GLOB plist.package_name || '*'
+    )
   );

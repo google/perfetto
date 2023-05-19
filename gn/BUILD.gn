@@ -275,7 +275,7 @@ config("protobuf_gen_config") {
     "GOOGLE_PROTOBUF_NO_STATIC_INITIALIZER",
   ]
   cflags = []
-  if (!is_clang || !is_win) {
+  if (!is_clang && !is_win) {
     cflags += [ "-Wno-deprecated-declarations" ]
   }
   if (is_clang && is_win) {
@@ -289,6 +289,10 @@ config("protobuf_gen_config") {
       "-Wno-unused-parameter",
       "-Wno-shadow-field-in-constructor",
       "-Wno-zero-as-null-pointer-constant",
+
+      # Fixed in upstream protobuf v3.22.0
+      # d37cbfd4485f("Update inlined_string_field.h"), but we don't have that.
+      "-Wno-undef",
     ]
   }
 

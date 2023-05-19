@@ -20,6 +20,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -31,11 +32,11 @@ namespace {
 
 struct CreatedFunction : public SqlFunction {
   struct Context {
-    sqlite3* db;
+    SqliteEngine* engine;
     Prototype prototype;
     sql_argument::Type return_type;
     std::string sql;
-    sqlite3_stmt* stmt;
+    ScopedStmt stmt;
   };
 
   static base::Status Run(Context* ctx,
@@ -88,20 +89,21 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < argc; ++i) {
-    RETURN_IF_ERROR(MaybeBindArgument(ctx->stmt, ctx->prototype.function_name,
+    RETURN_IF_ERROR(MaybeBindArgument(ctx->stmt.get(),
+                                      ctx->prototype.function_name,
                                       ctx->prototype.arguments[i], argv[i]));
   }
 
-  int ret = sqlite3_step(ctx->stmt);
+  int ret = sqlite3_step(ctx->stmt.get());
   RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
+      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
   if (ret == SQLITE_DONE) {
     // No return value means we just return don't set |out|.
     return base::OkStatus();
   }
 
   PERFETTO_DCHECK(ret == SQLITE_ROW);
-  size_t col_count = static_cast<size_t>(sqlite3_column_count(ctx->stmt));
+  size_t col_count = static_cast<size_t>(sqlite3_column_count(ctx->stmt.get()));
   if (col_count != 1) {
     return base::ErrStatus(
         "%s: SQL definition should only return one column: returned %zu "
@@ -109,7 +111,8 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
         ctx->prototype.function_name.c_str(), col_count);
   }
 
-  out = sqlite_utils::SqliteValueToSqlValue(sqlite3_column_value(ctx->stmt, 0));
+  out = sqlite_utils::SqliteValueToSqlValue(
+      sqlite3_column_value(ctx->stmt.get(), 0));
 
   // If we return a bytes type but have a null pointer, SQLite will convert this
   // to an SQL null. However, for proto build functions, we actively want to
@@ -123,11 +126,11 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 }
 
 base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
-  int ret = sqlite3_step(ctx->stmt);
+  int ret = sqlite3_step(ctx->stmt.get());
   RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->db, ctx->prototype.function_name, ret));
+      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
-    auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(ctx->stmt);
+    auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(ctx->stmt.get());
     return base::ErrStatus(
         "%s: multiple values were returned when executing function body. "
         "Executed SQL was %s",
@@ -138,21 +141,13 @@ base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
 }
 
 void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
-  sqlite3_reset(ctx->stmt);
-  sqlite3_clear_bindings(ctx->stmt);
+  sqlite3_reset(ctx->stmt.get());
+  sqlite3_clear_bindings(ctx->stmt.get());
 }
 
 }  // namespace
 
-size_t CreateFunction::NameAndArgc::Hasher::operator()(
-    const NameAndArgc& s) const noexcept {
-  base::Hasher hash;
-  hash.Update(s.name.data(), s.name.size());
-  hash.Update(s.argc);
-  return static_cast<size_t>(hash.digest());
-}
-
-base::Status CreateFunction::Run(CreateFunction::Context* ctx,
+base::Status CreateFunction::Run(SqliteEngine* engine,
                                  size_t argc,
                                  sqlite3_value** argv,
                                  SqlValue&,
@@ -216,16 +211,14 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   }
 
   int created_argc = static_cast<int>(prototype.arguments.size());
-  NameAndArgc key{prototype.function_name, created_argc};
-  auto it = ctx->state->find(key);
-  if (it != ctx->state->end()) {
+  auto* fn_ctx =
+      engine->GetFunctionContext(prototype.function_name, created_argc);
+  if (fn_ctx) {
     // If the function already exists, just verify that the prototype, return
     // type and SQL matches exactly with what we already had registered. By
     // doing this, we can avoid the problem plaguing C++ macros where macro
     // ordering determines which one gets run.
-    auto* created_ctx = static_cast<CreatedFunction::Context*>(
-        it->second.created_functon_context);
-
+    auto* created_ctx = static_cast<CreatedFunction::Context*>(fn_ctx);
     if (created_ctx->prototype != prototype) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: function prototype changed",
@@ -252,7 +245,7 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
   // Prepare the SQL definition as a statement using SQLite.
   ScopedStmt stmt;
   sqlite3_stmt* stmt_raw = nullptr;
-  int ret = sqlite3_prepare_v2(ctx->db, sql_defn_str.data(),
+  int ret = sqlite3_prepare_v2(engine->db(), sql_defn_str.data(),
                                static_cast<int>(sql_defn_str.size()), &stmt_raw,
                                nullptr);
   if (ret != SQLITE_OK) {
@@ -261,19 +254,18 @@ base::Status CreateFunction::Run(CreateFunction::Context* ctx,
         "statement %s",
         prototype_str.ToStdString().c_str(),
         sqlite_utils::FormatErrorMessage(
-            stmt_raw, base::StringView(sql_defn_str), ctx->db, ret)
+            stmt_raw, base::StringView(sql_defn_str), engine->db(), ret)
             .c_message());
   }
   stmt.reset(stmt_raw);
 
-  std::unique_ptr<CreatedFunction::Context> created(
-      new CreatedFunction::Context{ctx->db, std::move(prototype),
+  std::string function_name = prototype.function_name;
+  std::unique_ptr<CreatedFunction::Context> created_fn_ctx(
+      new CreatedFunction::Context{engine, std::move(prototype),
                                    *opt_return_type, std::move(sql_defn_str),
-                                   stmt.get()});
-  CreatedFunction::Context* created_ptr = created.get();
-  RETURN_IF_ERROR(RegisterSqlFunction<CreatedFunction>(
-      ctx->db, key.name.c_str(), created_argc, std::move(created)));
-  ctx->state->emplace(key, PerFunctionState{std::move(stmt), created_ptr});
+                                   std::move(stmt)});
+  RETURN_IF_ERROR(engine->RegisterSqlFunction<CreatedFunction>(
+      function_name.c_str(), created_argc, std::move(created_fn_ctx)));
 
   // CREATE_FUNCTION doesn't have a return value so just don't sent |out|.
   return base::OkStatus();
