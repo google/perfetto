@@ -201,7 +201,8 @@ TEST(NullOverlayUnittest, FilterIsNull) {
   BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, 10);
@@ -215,7 +216,8 @@ TEST(NullOverlayUnittest, FilterIsNotNull) {
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
   BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, 10);
@@ -237,7 +239,8 @@ TEST(NullOverlayUnittest, Filter) {
   // Prepare NullOverlay
   BitVector bv =
       BitVector::Range(0, bv_size, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, bv_size);
@@ -259,7 +262,8 @@ TEST(NullOverlayUnittest, FilterLarge) {
   // Prepare NullOverlay
   BitVector bv =
       BitVector::Range(800, bv_size, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, bv_size);
@@ -278,7 +282,8 @@ TEST(NullOverlayUnittest, Sort) {
 
   // Prepare NullOverlay
   BitVector bv = BitVector::Range(0, 18, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   overlay.StableSort(out.data(), 18);
