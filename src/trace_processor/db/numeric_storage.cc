@@ -93,12 +93,14 @@ void NumericStorage::StableSort(uint32_t* rows, uint32_t rows_size) const {
       val);
 }
 
+void NumericStorage::Sort(uint32_t*, uint32_t) const {}
+
 // Responsible for invoking templated version of FastPathComparison.
-void NumericStorage::CompareFast(FilterOp op,
-                                 SqlValue sql_val,
-                                 uint32_t offset,
-                                 uint32_t num_elements,
-                                 BitVector::Builder& builder) const {
+void NumericStorage::LinearSearchAligned(FilterOp op,
+                                         SqlValue sql_val,
+                                         uint32_t offset,
+                                         uint32_t num_elements,
+                                         BitVector::Builder& builder) const {
   PERFETTO_DCHECK(num_elements % BitVector::kBitsInWord == 0);
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
 
@@ -119,11 +121,11 @@ void NumericStorage::CompareFast(FilterOp op,
 }
 
 // Responsible for invoking templated version of SlowPathComparison.
-void NumericStorage::CompareSlow(FilterOp op,
-                                 SqlValue sql_val,
-                                 uint32_t offset,
-                                 uint32_t num_elements,
-                                 BitVector::Builder& builder) const {
+void NumericStorage::LinearSearchUnaligned(FilterOp op,
+                                           SqlValue sql_val,
+                                           uint32_t offset,
+                                           uint32_t num_elements,
+                                           BitVector::Builder& builder) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
 
   // If the value is invalid we should just ignore those elements.
@@ -142,13 +144,14 @@ void NumericStorage::CompareSlow(FilterOp op,
       *val);
 }
 
-uint32_t NumericStorage::UpperBoundIndex(NumericValue val) const {
+uint32_t NumericStorage::UpperBoundIndex(NumericValue val,
+                                         Range search_range) const {
   return std::visit(
-      [this](auto val_data) {
+      [this, search_range](auto val_data) {
         using T = decltype(val_data);
         const T* typed_start = static_cast<const T*>(data_);
-        auto upper =
-            std::upper_bound(typed_start, typed_start + size_, val_data);
+        auto upper = std::upper_bound(typed_start + search_range.start,
+                                      typed_start + search_range.end, val_data);
         return static_cast<uint32_t>(std::distance(typed_start, upper));
       },
       val);
@@ -156,76 +159,59 @@ uint32_t NumericStorage::UpperBoundIndex(NumericValue val) const {
 
 // As we don't template those functions, we need to use std::visitor to type
 // `start`, hence this wrapping.
-uint32_t NumericStorage::LowerBoundIndex(NumericValue val) const {
+uint32_t NumericStorage::LowerBoundIndex(NumericValue val,
+                                         Range search_range) const {
   return std::visit(
-      [this](auto val_data) {
+      [this, search_range](auto val_data) {
         using T = decltype(val_data);
         const T* typed_start = static_cast<const T*>(data_);
-        auto lower =
-            std::lower_bound(typed_start, typed_start + size_, val_data);
+        auto lower = std::lower_bound(typed_start + search_range.start,
+                                      typed_start + search_range.end, val_data);
         return static_cast<uint32_t>(std::distance(typed_start, lower));
       },
       val);
 }
 
-void NumericStorage::CompareSorted(FilterOp op,
-                                   SqlValue sql_val,
-                                   RowMap& rm) const {
+std::optional<Range> NumericStorage::BinarySearch(FilterOp op,
+                                                  SqlValue sql_val,
+                                                  Range search_range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-  if (!val.has_value() || op == FilterOp::kIsNotNull ||
-      op == FilterOp::kIsNull || op == FilterOp::kGlob) {
-    rm.Clear();
-    return;
-  }
+  if (op == FilterOp::kIsNotNull)
+    return Range(0, size());
+
+  if (!val)
+    return std::nullopt;
 
   switch (op) {
-    case FilterOp::kEq: {
-      uint32_t beg = LowerBoundIndex(*val);
-      uint32_t end = UpperBoundIndex(*val);
-      RowMap sec(beg, end);
-      rm.Intersect(sec);
-      return;
-    }
-    case FilterOp::kLe: {
-      uint32_t end = UpperBoundIndex(*val);
-      RowMap sec(0, end);
-      rm.Intersect(sec);
-      return;
-    }
-    case FilterOp::kLt: {
-      uint32_t end = LowerBoundIndex(*val);
-      RowMap sec(0, end);
-      rm.Intersect(sec);
-      return;
-    }
-    case FilterOp::kGe: {
-      uint32_t beg = LowerBoundIndex(*val);
-      RowMap sec(beg, size_);
-      rm.Intersect(sec);
-      return;
-    }
-    case FilterOp::kGt: {
-      uint32_t beg = UpperBoundIndex(*val);
-      RowMap sec(beg, size_);
-      rm.Intersect(sec);
-      return;
-    }
+    case FilterOp::kEq:
+      return Range(LowerBoundIndex(*val, search_range),
+                   UpperBoundIndex(*val, search_range));
+    case FilterOp::kLe:
+      return Range(0, UpperBoundIndex(*val, search_range));
+    case FilterOp::kLt:
+      return Range(0, LowerBoundIndex(*val, search_range));
+    case FilterOp::kGe:
+      return Range(LowerBoundIndex(*val, search_range), size_);
+    case FilterOp::kGt:
+      return Range(UpperBoundIndex(*val, search_range), size_);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
-      rm.Clear();
+      return std::nullopt;
   }
-  return;
+  return std::nullopt;
 }
 
 uint32_t NumericStorage::UpperBoundIndex(NumericValue val,
-                                         uint32_t* order) const {
+                                         uint32_t* order,
+                                         Range search_range) const {
   return std::visit(
-      [this, order](auto val_data) {
+      [this, order, search_range](auto val_data) {
         using T = decltype(val_data);
         const T* typed_start = static_cast<const T*>(data_);
-        auto upper = std::upper_bound(order, order + size_, val_data,
+        auto upper = std::upper_bound(order + search_range.start,
+                                      order + search_range.end, val_data,
                                       [typed_start](T val, uint32_t index) {
                                         return val < *(typed_start + index);
                                       });
@@ -237,12 +223,14 @@ uint32_t NumericStorage::UpperBoundIndex(NumericValue val,
 // As we don't template those functions, we need to use std::visitor to type
 // `start`, hence this wrapping.
 uint32_t NumericStorage::LowerBoundIndex(NumericValue val,
-                                         uint32_t* order) const {
+                                         uint32_t* order,
+                                         Range search_range) const {
   return std::visit(
-      [this, order](auto val_data) {
+      [this, order, search_range](auto val_data) {
         using T = decltype(val_data);
         const T* typed_start = static_cast<const T*>(data_);
-        auto lower = std::lower_bound(order, order + size_, val_data,
+        auto lower = std::lower_bound(order + search_range.start,
+                                      order + search_range.end, val_data,
                                       [typed_start](uint32_t index, T val) {
                                         return *(typed_start + index) < val;
                                       });
@@ -251,56 +239,38 @@ uint32_t NumericStorage::LowerBoundIndex(NumericValue val,
       val);
 }
 
-void NumericStorage::CompareSortedIndexes(FilterOp op,
-                                          SqlValue sql_val,
-                                          uint32_t* order,
-                                          RowMap& rm) const {
+std::optional<Range> NumericStorage::BinarySearchWithIndex(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t* order,
+    Range search_range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-  if (!val.has_value() || op == FilterOp::kIsNotNull ||
-      op == FilterOp::kIsNull || op == FilterOp::kGlob) {
-    rm.Clear();
-    return;
-  }
+
+  if (op == FilterOp::kIsNotNull)
+    return Range(0, size());
+
+  if (!val.has_value())
+    return std::nullopt;
 
   switch (op) {
-    case FilterOp::kEq: {
-      uint32_t beg = LowerBoundIndex(*val, order);
-      uint32_t end = UpperBoundIndex(*val, order);
-      std::vector<uint32_t> index(order + beg, order + end);
-      rm.Intersect(RowMap(std::move(index)));
-      return;
-    }
-    case FilterOp::kLe: {
-      uint32_t end = UpperBoundIndex(*val, order);
-      std::vector<uint32_t> index(order, order + end);
-      rm.Intersect(RowMap(std::move(index)));
-      return;
-    }
-    case FilterOp::kLt: {
-      uint32_t end = LowerBoundIndex(*val, order);
-      std::vector<uint32_t> index(order, order + end);
-      rm.Intersect(RowMap(std::move(index)));
-      return;
-    }
-    case FilterOp::kGe: {
-      uint32_t beg = LowerBoundIndex(*val, order);
-      std::vector<uint32_t> index(order + beg, order + size_);
-      rm.Intersect(RowMap(std::move(index)));
-      return;
-    }
-    case FilterOp::kGt: {
-      uint32_t beg = UpperBoundIndex(*val, order);
-      std::vector<uint32_t> index(order + beg, order + size_);
-      rm.Intersect(RowMap(std::move(index)));
-      return;
-    }
+    case FilterOp::kEq:
+      return Range(LowerBoundIndex(*val, order, search_range),
+                   UpperBoundIndex(*val, order, search_range));
+    case FilterOp::kLe:
+      return Range(0, UpperBoundIndex(*val, order, search_range));
+    case FilterOp::kLt:
+      return Range(0, LowerBoundIndex(*val, order, search_range));
+    case FilterOp::kGe:
+      return Range(LowerBoundIndex(*val, order, search_range), size_);
+    case FilterOp::kGt:
+      return Range(UpperBoundIndex(*val, order, search_range), size_);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
-      rm.Clear();
+      return std::nullopt;
   }
-  return;
+  return std::nullopt;
 }
 
 }  // namespace column
