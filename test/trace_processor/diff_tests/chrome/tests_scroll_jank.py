@@ -540,3 +540,18 @@ class ChromeScrollJank(TestSuite):
         5679,60000000,40000000,60000000,90000000
         5680,120000000,70000000,120000000,-1
         """))
+
+  # TODO(283531332): reenable this test after fixing.
+  # def test_chrome_scroll_jank_v2(self):
+  #   return DiffTestBlueprint(
+  #       trace=Path('../../data/event_latency_with_args.perfetto-trace'),
+  #       query="""
+  #       SELECT RUN_METRIC('chrome/chrome_scroll_jank_v2.sql');
+
+  #       SELECT
+  #         scroll_processing_ms,
+  #         scroll_jank_processing_ms,
+  #         scroll_jank_percentage
+  #       FROM chrome_scroll_jank_v2_output;
+  #       """,
+  #       out=Path('chrome_scroll_jank_v2.out'))
