@@ -71,7 +71,7 @@ SELECT CREATE_FUNCTION(
         THEN
           CASE $value
             WHEN 0 THEN "invalid"
-            WHEN 1 THEN "disconn"
+            WHEN 1 THEN "disconnected"
             WHEN 2 THEN "disabled"
             WHEN 3 THEN "inactive"
             WHEN 4 THEN "scanning"
@@ -82,35 +82,35 @@ SELECT CREATE_FUNCTION(
             WHEN 9 THEN "group-handshake"
             WHEN 10 THEN "completed"
             WHEN 11 THEN "dormant"
-            WHEN 12 THEN "uninit"
+            WHEN 12 THEN "uninitialized"
             ELSE "unknown"
           END
       WHEN $track = "battery_stats.data_conn"
         THEN
           CASE $value
-            WHEN 0 THEN "oos"
-            WHEN 1 THEN "gprs"
-            WHEN 2 THEN "edge"
-            WHEN 3 THEN "umts"
-            WHEN 4 THEN "cdma"
-            WHEN 5 THEN "evdo_0"
-            WHEN 6 THEN "evdo_A"
-            WHEN 7 THEN "1xrtt"
-            WHEN 8 THEN "hsdpa"
-            WHEN 9 THEN "hsupa"
-            WHEN 10 THEN "hspa"
-            WHEN 11 THEN "iden"
-            WHEN 12 THEN "evdo_b"
-            WHEN 13 THEN "lte"
-            WHEN 14 THEN "ehrpd"
-            WHEN 15 THEN "hspap"
-            WHEN 16 THEN "gsm"
-            WHEN 17 THEN "td_scdma"
-            WHEN 18 THEN "iwlan"
-            WHEN 19 THEN "lte_ca"
-            WHEN 20 THEN "nr"
-            WHEN 21 THEN "emngcy"
-            WHEN 22 THEN "other"
+            WHEN 0 THEN "Out of service"
+            WHEN 1 THEN "2.5G (GPRS)"
+            WHEN 2 THEN "2.7G (EDGE)"
+            WHEN 3 THEN "3G (UMTS)"
+            WHEN 4 THEN "3G (CDMA)"
+            WHEN 5 THEN "3G (EVDO Rel 0)"
+            WHEN 6 THEN "3G (EVDO Rev A)"
+            WHEN 7 THEN "3G (LXRTT)"
+            WHEN 8 THEN "3.5G (HSDPA)"
+            WHEN 9 THEN "3.5G (HSUPA)"
+            WHEN 10 THEN "3.5G (HSPA)"
+            WHEN 11 THEN "2G (IDEN)"
+            WHEN 12 THEN "3G (EVDO Rev B)"
+            WHEN 13 THEN "4G (LTE)"
+            WHEN 14 THEN "3.5G (eHRPD)"
+            WHEN 15 THEN "3.7G (HSPA+)"
+            WHEN 16 THEN "2G (GSM)"
+            WHEN 17 THEN "3G (TD SCDMA)"
+            WHEN 18 THEN "Wifi calling (IWLAN)"
+            WHEN 19 THEN "4.5G (LTE CA)"
+            WHEN 20 THEN "5G (NR)"
+            WHEN 21 THEN "Emergency calls only"
+            WHEN 22 THEN "Other"
             ELSE "unknown"
           END
       ELSE CAST($value AS text)
@@ -134,7 +134,7 @@ SELECT
   name AS track_name,
   CAST(value AS INT64) AS value,
   BATTERY_STATS_COUNTER_TO_STRING(name, value) AS value_name,
-  IFNULL(LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts, -1) AS dur
+  IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id
