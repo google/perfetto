@@ -25,16 +25,16 @@ import {globals} from './globals';
 
 // Given a timestamp, if |ts| is not currently in view move the view to
 // center |ts|, keeping the same zoom level.
-// TODO(stevegolton): Remove me!
 export function horizontalScrollToTs(ts: TPTime) {
-  console.log('horizontalScrollToTs', ts);
   const time = HighPrecisionTime.fromTPTime(ts);
-  const {start, end, duration} = globals.frontendLocalState.visibleWindowTime;
-  const halfDuration = duration.nanos / 2;
-  if (time.isLessThan(start) || time.isGreaterThan(end)) {
+  const visibleWindow = globals.frontendLocalState.visibleWindowTime;
+  if (!visibleWindow.contains(time)) {
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
-    globals.frontendLocalState.updateVisibleTime(new HighPrecisionTimeSpan(
-        time.subtractNanos(halfDuration), time.addNanos(halfDuration)));
+    const halfDuration = visibleWindow.duration.divide(2);
+    const newStart = time.sub(halfDuration);
+    const newWindow = new HighPrecisionTimeSpan(
+        newStart, newStart.add(visibleWindow.duration));
+    globals.frontendLocalState.updateVisibleTime(newWindow);
   }
 }
 
@@ -73,23 +73,23 @@ export function focusHorizontalRange(
     return;
   }
   // If the range is too large to fit on the current zoom level, resize.
-  if (select.duration.isGreaterThan(visible.duration.multiply(0.5))) {
+  if (select.duration.gt(visible.duration.multiply(0.5))) {
     const paddedRange = select.pad(select.duration.multiply(2));
     globals.frontendLocalState.updateVisibleTime(paddedRange);
     return;
   }
   // Calculate the new visible window preserving the zoom level.
-  let newStart = select.midpoint.subtract(visible.duration.divide(2));
+  let newStart = select.midpoint.sub(visible.duration.divide(2));
   let newEnd = select.midpoint.add(visible.duration.divide(2));
 
   // Adjust the new visible window if it intersects with the trace boundaries.
   // It's needed to make the "update the zoom level if visible window doesn't
   // change" logic reliable.
-  if (newEnd.isGreaterThan(trace.end)) {
-    newStart = trace.end.subtract(visible.duration);
+  if (newEnd.gt(trace.end)) {
+    newStart = trace.end.sub(visible.duration);
     newEnd = trace.end;
   }
-  if (newStart.isLessThan(trace.start)) {
+  if (newStart.lt(trace.start)) {
     newStart = trace.start;
     newEnd = trace.start.add(visible.duration);
   }
@@ -98,7 +98,7 @@ export function focusHorizontalRange(
 
   // If preserving the zoom doesn't change the visible window, update the zoom
   // level.
-  if (view.start.equals(visible.start) && view.end.equals(visible.end)) {
+  if (view.start.eq(visible.start) && view.end.eq(visible.end)) {
     const padded = select.pad(select.duration.multiply(2));
     globals.frontendLocalState.updateVisibleTime(padded);
   } else {

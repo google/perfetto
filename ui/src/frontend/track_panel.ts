@@ -17,6 +17,7 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
+import {TPTime} from '../common/time';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
@@ -453,7 +454,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
   }
 
-  getSliceRect(tStart: number, tDur: number, depth: number): SliceRect
+  getSliceRect(tStart: TPTime, tDur: TPTime, depth: number): SliceRect
       |undefined {
     if (this.track === undefined) {
       return undefined;

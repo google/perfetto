@@ -14,9 +14,8 @@
 
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
-import {NUM, STR_NULL} from '../common/query_result';
+import {LONG, NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
-import {fromNs} from '../common/time';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {
@@ -86,8 +85,8 @@ export class FlowEventsController extends Controller<'main'> {
         beginSliceName: STR_NULL,
         beginSliceChromeCustomName: STR_NULL,
         beginSliceCategory: STR_NULL,
-        beginSliceStartTs: NUM,
-        beginSliceEndTs: NUM,
+        beginSliceStartTs: LONG,
+        beginSliceEndTs: LONG,
         beginDepth: NUM,
         beginThreadName: STR_NULL,
         beginProcessName: STR_NULL,
@@ -96,8 +95,8 @@ export class FlowEventsController extends Controller<'main'> {
         endSliceName: STR_NULL,
         endSliceChromeCustomName: STR_NULL,
         endSliceCategory: STR_NULL,
-        endSliceStartTs: NUM,
-        endSliceEndTs: NUM,
+        endSliceStartTs: LONG,
+        endSliceEndTs: LONG,
         endDepth: NUM,
         endThreadName: STR_NULL,
         endProcessName: STR_NULL,
@@ -116,8 +115,8 @@ export class FlowEventsController extends Controller<'main'> {
             it.beginSliceChromeCustomName;
         const beginSliceCategory =
             it.beginSliceCategory === null ? 'NULL' : it.beginSliceCategory;
-        const beginSliceStartTs = fromNs(it.beginSliceStartTs);
-        const beginSliceEndTs = fromNs(it.beginSliceEndTs);
+        const beginSliceStartTs = it.beginSliceStartTs;
+        const beginSliceEndTs = it.beginSliceEndTs;
         const beginDepth = it.beginDepth;
         const beginThreadName =
             it.beginThreadName === null ? 'NULL' : it.beginThreadName;
@@ -133,8 +132,8 @@ export class FlowEventsController extends Controller<'main'> {
             it.endSliceChromeCustomName;
         const endSliceCategory =
             it.endSliceCategory === null ? 'NULL' : it.endSliceCategory;
-        const endSliceStartTs = fromNs(it.endSliceStartTs);
-        const endSliceEndTs = fromNs(it.endSliceEndTs);
+        const endSliceStartTs = it.endSliceStartTs;
+        const endSliceEndTs = it.endSliceEndTs;
         const endDepth = it.endDepth;
         const endThreadName =
             it.endThreadName === null ? 'NULL' : it.endThreadName;
