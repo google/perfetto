@@ -73,6 +73,7 @@ perfetto_cc_library(
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_db",
+        ":src_trace_processor_db_overlays_overlays",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
@@ -1269,6 +1270,14 @@ perfetto_cc_library(
         ":src_base_base",
     ],
     linkstatic = True,
+)
+
+# GN target: //src/trace_processor/db/overlays:overlays
+perfetto_filegroup(
+    name = "src_trace_processor_db_overlays_overlays",
+    srcs = [
+        "src/trace_processor/db/overlays/column_overlay.h",
+    ],
 )
 
 # GN target: //src/trace_processor/db:db
@@ -4991,6 +5000,7 @@ perfetto_cc_library(
     srcs = [
         ":src_kernel_utils_syscall_table",
         ":src_trace_processor_db_db",
+        ":src_trace_processor_db_overlays_overlays",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
@@ -5147,6 +5157,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_db",
+        ":src_trace_processor_db_overlays_overlays",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",
@@ -5362,6 +5373,7 @@ perfetto_cc_binary(
         ":src_profiling_symbolizer_symbolizer",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_db",
+        ":src_trace_processor_db_overlays_overlays",
         ":src_trace_processor_export_json",
         ":src_trace_processor_importers_android_bugreport_android_bugreport",
         ":src_trace_processor_importers_common_common",

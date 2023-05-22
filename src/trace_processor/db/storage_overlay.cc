@@ -35,18 +35,19 @@ void StorageOverlay::Filter(FilterOp op, SqlValue value, RowMap& rm) const {
   // Slow path: we compare <64 elements and append to get us to a word
   // boundary.
   uint32_t front_elements = builder.BitsUntilWordBoundaryOrFull();
-  storage_->CompareSlow(op, value, 0, front_elements, builder);
+  storage_->LinearSearchUnaligned(op, value, 0, front_elements, builder);
   uint32_t cur_index = front_elements;
 
   // Fast path: we compare as many groups of 64 elements as we can.
   // This should be very easy for the compiler to auto-vectorize.
   uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-  storage_->CompareFast(op, value, cur_index, fast_path_elements, builder);
+  storage_->LinearSearchAligned(op, value, cur_index, fast_path_elements,
+                                builder);
   cur_index += fast_path_elements;
 
   // Slow path: we compare <64 elements and append to fill the Builder.
   uint32_t back_elements = builder.BitsUntilFull();
-  storage_->CompareSlow(op, value, cur_index, back_elements, builder);
+  storage_->LinearSearchUnaligned(op, value, cur_index, back_elements, builder);
 
   BitVector bv = std::move(builder).Build();
   rm.Intersect(RowMap(std::move(bv)));
