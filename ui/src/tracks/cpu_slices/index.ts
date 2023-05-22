@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../../base/bigint_math';
+import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
@@ -23,14 +23,10 @@ import {
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM} from '../../common/query_result';
+import {LONG, NUM} from '../../common/query_result';
 import {
-  fromNs,
-  toNs,
   TPDuration,
   TPTime,
-  tpTimeFromSeconds,
-  tpTimeToNanos,
   tpTimeToString,
 } from '../../common/time';
 import {TrackData} from '../../common/track_data';
@@ -46,8 +42,8 @@ export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   ids: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
+  starts: BigInt64Array;
+  ends: BigInt64Array;
   utids: Uint32Array;
   isIncomplete: Uint8Array;
   lastRowId: number;
@@ -60,8 +56,8 @@ export interface Config {
 class CpuSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_SLICE_TRACK_KIND;
 
-  private cachedBucketNs = Number.MAX_SAFE_INTEGER;
-  private maxDurNs = 0;
+  private cachedBucketSize = BIMath.INT64_MAX;
+  private maxDur: TPDuration = 0n;
   private lastRowId = -1;
 
   async onSetup() {
@@ -87,18 +83,18 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     `);
     this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
 
-    const row = queryRes.firstRow({maxDur: NUM, rowCount: NUM});
-    this.maxDurNs = row.maxDur;
+    const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
+    this.maxDur = row.maxDur;
     const rowCount = row.rowCount;
-    const bucketNs = this.cachedBucketSizeNs(rowCount);
-    if (bucketNs === undefined) {
+    const bucketSize = this.calcCachedBucketSize(rowCount);
+    if (bucketSize === undefined) {
       return;
     }
 
     await this.query(`
       create table ${this.tableName('sched_cached')} as
       select
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cached_tsq,
+        (ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize} as cached_tsq,
         ts,
         max(dur) as dur,
         utid,
@@ -108,32 +104,17 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       group by cached_tsq, isIncomplete
       order by cached_tsq
     `);
-    this.cachedBucketNs = bucketNs;
+    this.cachedBucketSize = bucketSize;
   }
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    assertTrue(
-        BigintMath.popcount(resolution) === 1,
-        `${resolution} is not a power of 2`);
-    const resolutionNs = Number(resolution);
+    assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
-    // The resolution should always be a power of two for the logic of this
-    // function to make sense.
-    assertTrue(Math.log2(resolutionNs) % 1 === 0);
-
-    const boundStartNs = tpTimeToNanos(start);
-    const boundEndNs = tpTimeToNanos(end);
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(resolutionNs * this.pxSize() / 2) * 2, 1);
-
-    const isCached = this.cachedBucketNs <= bucketNs;
+    const isCached = this.cachedBucketSize <= resolution;
     const queryTsq = isCached ?
-        `cached_tsq / ${bucketNs} * ${bucketNs}` :
-        `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+        `cached_tsq / ${resolution} * ${resolution}` :
+        `(ts + ${resolution / 2n}) / ${resolution} * ${resolution}`;
     const queryTable =
         isCached ? this.tableName('sched_cached') : this.tableName('sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
@@ -148,8 +129,8 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
         isIncomplete
       from ${queryTable}
       where
-        ${constraintColumn} >= ${boundStartNs - this.maxDurNs} and
-        ${constraintColumn} <= ${boundEndNs}
+        ${constraintColumn} >= ${start - this.maxDur} and
+        ${constraintColumn} <= ${end}
       group by tsq, isIncomplete
       order by tsq
     `);
@@ -162,29 +143,34 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       length: numRows,
       lastRowId: this.lastRowId,
       ids: new Float64Array(numRows),
-      starts: new Float64Array(numRows),
-      ends: new Float64Array(numRows),
+      starts: new BigInt64Array(numRows),
+      ends: new BigInt64Array(numRows),
       utids: new Uint32Array(numRows),
       isIncomplete: new Uint8Array(numRows),
     };
 
-    const it = queryRes.iter(
-        {tsq: NUM, ts: NUM, dur: NUM, utid: NUM, id: NUM, isIncomplete: NUM});
+    const it = queryRes.iter({
+      tsq: LONG,
+      ts: LONG,
+      dur: LONG,
+      utid: NUM,
+      id: NUM,
+      isIncomplete: NUM,
+    });
     for (let row = 0; it.valid(); it.next(), row++) {
-      const startNsQ = it.tsq;
-      const startNs = it.ts;
-      const durNs = it.dur;
-      const endNs = startNs + durNs;
+      const startQ = it.tsq;
+      const start = it.ts;
+      const dur = it.dur;
+      const end = start + dur;
 
       // If the slice is incomplete, the end calculated later.
       if (!it.isIncomplete) {
-        let endNsQ =
-            Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-        endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-        slices.ends[row] = fromNs(endNsQ);
+        const minEnd = startQ + resolution;
+        const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
+        slices.ends[row] = endQ;
       }
 
-      slices.starts[row] = fromNs(startNsQ);
+      slices.starts[row] = startQ;
       slices.utids[row] = it.utid;
       slices.ids[row] = it.id;
       slices.isIncomplete[row] = it.isIncomplete;
@@ -197,12 +183,10 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
       if (!slices.isIncomplete[row]) {
         continue;
       }
-      const endNs =
-          row === slices.length - 1 ? boundEndNs : toNs(slices.starts[row + 1]);
-
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, toNs(slices.starts[row]) + bucketNs);
-      slices.ends[row] = fromNs(endNsQ);
+      const endTime = row === slices.length - 1 ? end : slices.starts[row + 1];
+      const minEnd = slices.starts[row] + resolution;
+      const endQ = BIMath.max(BIMath.quant(endTime, resolution), minEnd);
+      slices.ends[row] = endQ;
     }
     return slices;
   }
@@ -256,6 +240,7 @@ class CpuSliceTrack extends Track<Config, Data> {
   renderSlices(ctx: CanvasRenderingContext2D, data: Data): void {
     const {
       visibleTimeScale,
+      visibleTimeSpan,
       visibleWindowTime,
     } = globals.frontendLocalState;
     assertTrue(data.starts.length === data.ends.length);
@@ -267,13 +252,13 @@ class CpuSliceTrack extends Track<Config, Data> {
     ctx.font = '12px Roboto Condensed';
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
-    const startSec = visibleWindowTime.start.seconds;
-    const endSec = visibleWindowTime.end.seconds;
+    const startTime = visibleTimeSpan.start;
+    const endTime = visibleTimeSpan.end;
 
-    const rawStartIdx = data.ends.findIndex((end) => end >= startSec);
+    const rawStartIdx = data.ends.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.starts, endSec);
+    const [, rawEndIdx] = searchSegment(data.starts, endTime);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     for (let i = startIdx; i < endIdx; i++) {
@@ -285,10 +270,10 @@ class CpuSliceTrack extends Track<Config, Data> {
       // window, else it might spill over the window and the end would not be
       // visible as a zigzag line.
       if (data.ids[i] === data.lastRowId && data.isIncomplete[i]) {
-        tEnd = visibleWindowTime.end.seconds;
+        tEnd = endTime;
       }
-      const rectStart = visibleTimeScale.secondsToPx(tStart);
-      const rectEnd = visibleTimeScale.secondsToPx(tEnd);
+      const rectStart = visibleTimeScale.tpTimeToPx(tStart);
+      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd);
       const rectWidth = Math.max(1, rectEnd - rectStart);
 
       const threadInfo = globals.threads.get(utid);
@@ -359,8 +344,8 @@ class CpuSliceTrack extends Track<Config, Data> {
         const tEnd = data.ends[startIndex];
         const utid = data.utids[startIndex];
         const color = colorForThread(globals.threads.get(utid));
-        const rectStart = visibleTimeScale.secondsToPx(tStart);
-        const rectEnd = visibleTimeScale.secondsToPx(tEnd);
+        const rectStart = visibleTimeScale.tpTimeToPx(tStart);
+        const rectEnd = visibleTimeScale.tpTimeToPx(tEnd);
         const rectWidth = Math.max(1, rectEnd - rectStart);
 
         // Draw a rectangle around the slice that is currently selected.
@@ -380,7 +365,7 @@ class CpuSliceTrack extends Track<Config, Data> {
               latencyWidth,
               latencyWidth >= 20);
           // Latency time with a white semi-transparent background.
-          const latency = tpTimeFromSeconds(tStart) - details.wakeupTs;
+          const latency = tStart - details.wakeupTs;
           const displayText = tpTimeToString(latency);
           const measured = ctx.measureText(displayText);
           if (latencyWidth >= measured.width + 2) {
@@ -437,14 +422,14 @@ class CpuSliceTrack extends Track<Config, Data> {
       globals.dispatch(Actions.setHoveredUtidAndPid({utid: -1, pid: -1}));
       return;
     }
-    const t = visibleTimeScale.pxToHpTime(pos.x).seconds;
+    const t = visibleTimeScale.pxToHpTime(pos.x);
     let hoveredUtid = -1;
 
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const utid = data.utids[i];
-      if (tStart <= t && t <= tEnd) {
+      if (t.gte(tStart) && t.lt(tEnd)) {
         hoveredUtid = utid;
         break;
       }
@@ -466,8 +451,8 @@ class CpuSliceTrack extends Track<Config, Data> {
     const data = this.data();
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
-    const time = visibleTimeScale.pxToHpTime(x).seconds;
-    const index = search(data.starts, time);
+    const time = visibleTimeScale.pxToHpTime(x);
+    const index = search(data.starts, time.toTPTime());
     const id = index === -1 ? undefined : data.ids[index];
     if (!id || this.utidHoveredInThisTrack === -1) return false;
     globals.makeSelection(

@@ -270,9 +270,6 @@ class TraceViewer implements m.ClassComponent {
           m('.pan-and-zoom-content',
             {
               onclick: () => {
-                // TODO(stevegolton): Make it possible to click buttons and
-                // things on this element without deselecting the selected
-                // element!
                 // We don't want to deselect when panning/drag selecting.
                 if (this.keepCurrentSelection) {
                   this.keepCurrentSelection = false;

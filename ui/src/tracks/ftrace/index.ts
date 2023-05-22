@@ -16,8 +16,8 @@ import {Vnode} from 'mithril';
 
 import {colorForString} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM, STR} from '../../common/query_result';
-import {fromNs, TPDuration} from '../../common/time';
+import {LONG, STR} from '../../common/query_result';
+import {TPDuration} from '../../common/time';
 import {TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
@@ -30,7 +30,7 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 
 
 export interface Data extends TrackData {
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
   names: string[];
 }
 
@@ -72,15 +72,15 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: rowCount,
-      timestamps: new Float64Array(rowCount),
+      timestamps: new BigInt64Array(rowCount),
       names: [],
     };
 
     const it = queryRes.iter(
-        {tsQuant: NUM, type: STR, name: STR},
+        {tsQuant: LONG, type: STR, name: STR},
     );
     for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = fromNs(it.tsQuant);
+      result.timestamps[row] = it.tsQuant;
       result.names[row] = it.name;
     }
     return result;
@@ -135,7 +135,7 @@ export class FtraceRawTrack extends Track<Config, Data> {
         ${Math.min(color.l + 10, 60)}%
       )`;
       ctx.fillStyle = hsl;
-      const xPos = Math.floor(visibleTimeScale.secondsToPx(data.timestamps[i]));
+      const xPos = Math.floor(visibleTimeScale.tpTimeToPx(data.timestamps[i]));
 
       // Draw a diamond over the event
       ctx.save();

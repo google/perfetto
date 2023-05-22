@@ -97,7 +97,7 @@ describe('Time', () => {
   it('should subtract time', () => {
     const time1 = mkTime('3.1');
     const time2 = mkTime('1.3');
-    const result = time1.subtract(time2);
+    const result = time1.sub(time2);
     expect(result.base).toEqual(1n);
     expect(result.offset).toBeCloseTo(0.8);
   });
@@ -116,49 +116,49 @@ describe('Time', () => {
     expect(result.offset).toBeCloseTo(0.3);
   });
 
-  it('should perform gt comparisions', () => {
-    const time = mkTime('1.2');
-    expect(time.isGreaterThanOrEqual(mkTime('0.5'))).toBeTruthy();
-    expect(time.isGreaterThanOrEqual(mkTime('1.1'))).toBeTruthy();
-    expect(time.isGreaterThanOrEqual(mkTime('1.2'))).toBeTruthy();
-    expect(time.isGreaterThanOrEqual(mkTime('1.5'))).toBeFalsy();
-    expect(time.isGreaterThanOrEqual(mkTime('5.5'))).toBeFalsy();
-  });
-
   it('should perform gte comparisions', () => {
     const time = mkTime('1.2');
-    expect(time.isGreaterThan(mkTime('0.5'))).toBeTruthy();
-    expect(time.isGreaterThan(mkTime('1.1'))).toBeTruthy();
-    expect(time.isGreaterThan(mkTime('1.2'))).toBeFalsy();
-    expect(time.isGreaterThan(mkTime('1.5'))).toBeFalsy();
-    expect(time.isGreaterThan(mkTime('5.5'))).toBeFalsy();
+    expect(time.gte(mkTime('0.5'))).toBeTruthy();
+    expect(time.gte(mkTime('1.1'))).toBeTruthy();
+    expect(time.gte(mkTime('1.2'))).toBeTruthy();
+    expect(time.gte(mkTime('1.5'))).toBeFalsy();
+    expect(time.gte(mkTime('5.5'))).toBeFalsy();
+  });
+
+  it('should perform gt comparisions', () => {
+    const time = mkTime('1.2');
+    expect(time.gt(mkTime('0.5'))).toBeTruthy();
+    expect(time.gt(mkTime('1.1'))).toBeTruthy();
+    expect(time.gt(mkTime('1.2'))).toBeFalsy();
+    expect(time.gt(mkTime('1.5'))).toBeFalsy();
+    expect(time.gt(mkTime('5.5'))).toBeFalsy();
   });
 
   it('should perform lt comparisions', () => {
     const time = mkTime('1.2');
-    expect(time.isLessThan(mkTime('0.5'))).toBeFalsy();
-    expect(time.isLessThan(mkTime('1.1'))).toBeFalsy();
-    expect(time.isLessThan(mkTime('1.2'))).toBeFalsy();
-    expect(time.isLessThan(mkTime('1.5'))).toBeTruthy();
-    expect(time.isLessThan(mkTime('5.5'))).toBeTruthy();
+    expect(time.lt(mkTime('0.5'))).toBeFalsy();
+    expect(time.lt(mkTime('1.1'))).toBeFalsy();
+    expect(time.lt(mkTime('1.2'))).toBeFalsy();
+    expect(time.lt(mkTime('1.5'))).toBeTruthy();
+    expect(time.lt(mkTime('5.5'))).toBeTruthy();
   });
 
   it('should perform lte comparisions', () => {
     const time = mkTime('1.2');
-    expect(time.isLessThanOrEqual(mkTime('0.5'))).toBeFalsy();
-    expect(time.isLessThanOrEqual(mkTime('1.1'))).toBeFalsy();
-    expect(time.isLessThanOrEqual(mkTime('1.2'))).toBeTruthy();
-    expect(time.isLessThanOrEqual(mkTime('1.5'))).toBeTruthy();
-    expect(time.isLessThanOrEqual(mkTime('5.5'))).toBeTruthy();
+    expect(time.lte(mkTime('0.5'))).toBeFalsy();
+    expect(time.lte(mkTime('1.1'))).toBeFalsy();
+    expect(time.lte(mkTime('1.2'))).toBeTruthy();
+    expect(time.lte(mkTime('1.5'))).toBeTruthy();
+    expect(time.lte(mkTime('5.5'))).toBeTruthy();
   });
 
   it('should detect equality', () => {
     const time = new HPTime(1n, 0.2);
-    expect(time.equals(new HPTime(1n, 0.2))).toBeTruthy();
-    expect(time.equals(new HPTime(0n, 1.2))).toBeTruthy();
-    expect(time.equals(new HPTime(-100n, 101.2))).toBeTruthy();
-    expect(time.equals(new HPTime(1n, 0.3))).toBeFalsy();
-    expect(time.equals(new HPTime(2n, 0.2))).toBeFalsy();
+    expect(time.eq(new HPTime(1n, 0.2))).toBeTruthy();
+    expect(time.eq(new HPTime(0n, 1.2))).toBeTruthy();
+    expect(time.eq(new HPTime(-100n, 101.2))).toBeTruthy();
+    expect(time.eq(new HPTime(1n, 0.3))).toBeFalsy();
+    expect(time.eq(new HPTime(2n, 0.2))).toBeFalsy();
   });
 
   it('should clamp a time to a range', () => {
@@ -231,6 +231,24 @@ describe('Time', () => {
     expect(mkTime('1.3').toString()).toBe('1.3');
     expect(mkTime('12983423847.332533').toString()).toBe('12983423847.332533');
     expect(new HPTime(234n).toString()).toBe('234');
+  });
+
+  it('should calculate absolute', () => {
+    let result = mkTime('-0.7').abs();
+    expect(result.base).toEqual(0n);
+    expect(result.offset).toBeCloseTo(0.7);
+
+    result = mkTime('-1.3').abs();
+    expect(result.base).toEqual(1n);
+    expect(result.offset).toBeCloseTo(0.3);
+
+    result = mkTime('-100').abs();
+    expect(result.base).toEqual(100n);
+    expect(result.offset).toBeCloseTo(0);
+
+    result = mkTime('34.5345').abs();
+    expect(result.base).toEqual(34n);
+    expect(result.offset).toBeCloseTo(0.5345);
   });
 });
 

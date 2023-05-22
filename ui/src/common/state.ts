@@ -358,7 +358,7 @@ export interface CpuProfileSampleSelection {
   kind: 'CPU_PROFILE_SAMPLE';
   id: number;
   utid: number;
-  ts: number;
+  ts: TPTime;
 }
 
 export interface ChromeSliceSelection {
