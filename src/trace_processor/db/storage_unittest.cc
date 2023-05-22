@@ -57,7 +57,8 @@ TEST(NumericStorageUnittest, CompareSlow) {
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), size, ColumnType::kUint32);
   BitVector::Builder builder(size);
-  storage.CompareSlow(FilterOp::kGe, SqlValue::Long(5), 0, size, builder);
+  storage.LinearSearchUnaligned(FilterOp::kGe, SqlValue::Long(5), 0, size,
+                                builder);
   BitVector bv = std::move(builder).Build();
 
   ASSERT_EQ(bv.CountSetBits(), 5u);
@@ -70,7 +71,8 @@ TEST(NumericStorageUnittest, CompareSlowLarge) {
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), size, ColumnType::kUint32);
   BitVector::Builder builder(size);
-  storage.CompareSlow(FilterOp::kGe, SqlValue::Long(5), 0, size, builder);
+  storage.LinearSearchUnaligned(FilterOp::kGe, SqlValue::Long(5), 0, size,
+                                builder);
   BitVector bv = std::move(builder).Build();
 
   ASSERT_EQ(bv.CountSetBits(), 1020u);
@@ -82,7 +84,8 @@ TEST(NumericStorageUnittest, CompareFast) {
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
   BitVector::Builder builder(128);
-  storage.CompareFast(FilterOp::kGe, SqlValue::Long(100), 0, 128, builder);
+  storage.LinearSearchAligned(FilterOp::kGe, SqlValue::Long(100), 0, 128,
+                              builder);
   BitVector bv = std::move(builder).Build();
 
   ASSERT_EQ(bv.CountSetBits(), 28u);
@@ -93,11 +96,12 @@ TEST(NumericStorageUnittest, CompareSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
-  RowMap rm(0, 128);
-  storage.CompareSorted(FilterOp::kGe, SqlValue::Long(100), rm);
+  std::optional<Range> range =
+      storage.BinarySearch(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
 
-  ASSERT_EQ(rm.size(), 28u);
-  ASSERT_EQ(rm.Get(0), 100u);
+  ASSERT_EQ(range->size(), 28u);
+  ASSERT_EQ(range->start, 100u);
+  ASSERT_EQ(range->end, 128u);
 }
 
 TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
@@ -105,16 +109,13 @@ TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
-  RowMap rm(0, 10);
 
-  storage.CompareSortedIndexes(FilterOp::kGe, SqlValue::Long(60),
-                               sorted_order.data(), rm);
+  std::optional<Range> range = storage.BinarySearchWithIndex(
+      FilterOp::kGe, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
 
-  ASSERT_EQ(rm.size(), 4u);
-  ASSERT_EQ(rm.Get(0), 3u);
-  ASSERT_EQ(rm.Get(1), 6u);
-  ASSERT_EQ(rm.Get(2), 5u);
-  ASSERT_EQ(rm.Get(3), 4u);
+  ASSERT_EQ(range->size(), 4u);
+  ASSERT_EQ(range->start, 6u);
+  ASSERT_EQ(range->end, 10u);
 }
 
 TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
@@ -122,13 +123,13 @@ TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
-  RowMap rm(0, 10);
 
-  storage.CompareSortedIndexes(FilterOp::kLt, SqlValue::Long(60),
-                               sorted_order.data(), rm);
+  std::optional<Range> range = storage.BinarySearchWithIndex(
+      FilterOp::kLt, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
 
-  ASSERT_EQ(rm.size(), 6u);
-  ASSERT_EQ(rm.Get(0), 7u);
+  ASSERT_EQ(range->size(), 6u);
+  ASSERT_EQ(range->start, 0u);
+  ASSERT_EQ(range->end, 6u);
 }
 
 TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
@@ -136,13 +137,13 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
-  RowMap rm(0, 10);
 
-  storage.CompareSortedIndexes(FilterOp::kEq, SqlValue::Long(60),
-                               sorted_order.data(), rm);
+  std::optional<Range> range = storage.BinarySearchWithIndex(
+      FilterOp::kEq, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
 
-  ASSERT_EQ(rm.size(), 1u);
-  ASSERT_EQ(rm.Get(0), 3u);
+  ASSERT_EQ(range->size(), 1u);
+  ASSERT_EQ(range->start, 6u);
+  ASSERT_EQ(range->end, 7u);
 }
 
 TEST(StorageOverlayUnittests, FilterIsNull) {
@@ -201,7 +202,8 @@ TEST(NullOverlayUnittest, FilterIsNull) {
   BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, 10);
@@ -215,7 +217,8 @@ TEST(NullOverlayUnittest, FilterIsNotNull) {
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
   BitVector bv = BitVector::Range(0, 20, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, 10);
@@ -237,7 +240,8 @@ TEST(NullOverlayUnittest, Filter) {
   // Prepare NullOverlay
   BitVector bv =
       BitVector::Range(0, bv_size, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, bv_size);
@@ -259,7 +263,8 @@ TEST(NullOverlayUnittest, FilterLarge) {
   // Prepare NullOverlay
   BitVector bv =
       BitVector::Range(800, bv_size, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   RowMap rm(0, bv_size);
@@ -278,7 +283,8 @@ TEST(NullOverlayUnittest, Sort) {
 
   // Prepare NullOverlay
   BitVector bv = BitVector::Range(0, 18, [](uint32_t t) { return t % 2 == 0; });
-  std::unique_ptr<ColumnOverlay> storage_overlay(new StorageOverlay(&storage));
+  std::unique_ptr<ColumnOverlayOld> storage_overlay(
+      new StorageOverlay(&storage));
   NullOverlay overlay(std::move(storage_overlay), &bv);
 
   overlay.StableSort(out.data(), 18);
