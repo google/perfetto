@@ -28,7 +28,7 @@ namespace trace_processor {
 namespace column {
 
 // Overlay responsible for doing operations on storage.
-class StorageOverlay : public ColumnOverlay {
+class StorageOverlay : public ColumnOverlayOld {
  public:
   explicit StorageOverlay(const Storage* storage) : storage_(storage) {}
   void Filter(FilterOp, SqlValue, RowMap&) const override;
