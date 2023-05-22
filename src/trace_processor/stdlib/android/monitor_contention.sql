@@ -145,7 +145,7 @@ CREATE TABLE internal_broken_android_monitor_contention
 AS
 SELECT ancestor.parent_id AS id FROM slice
     JOIN slice ancestor ON ancestor.id = slice.parent_id
-    WHERE ancestor.name LIKE 'Lock contention on a monitor lock%'
+    WHERE ancestor.name GLOB 'Lock contention on a monitor lock*'
     GROUP BY ancestor.id;
 
 -- Contains parsed monitor contention slices.
@@ -211,7 +211,7 @@ LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder r
 LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
 LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
 JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
-WHERE slice.name LIKE 'monitor contention%'
+WHERE slice.name GLOB 'monitor contention*'
   AND slice.dur != -1
   AND internal_broken_android_monitor_contention.id IS NULL
   AND short_blocking_method IS NOT NULL
@@ -247,13 +247,34 @@ SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
 LEFT JOIN android_monitor_contention parent ON child.blocked_utid = parent.blocking_utid
     AND parent.ts BETWEEN child.ts AND child.ts + child.dur;
 
+-- First blocked node on a lock, i.e nodes with |waiter_count| = 0. The |dur| here is adjusted
+-- to only account for the time between the first thread waiting and the first thread to acquire
+-- the lock. That way, the thread state span joins below only compute the thread states where
+-- the blocking thread is actually holding the lock. This avoids counting the time when another
+-- waiter acquired the lock before the first waiter.
+CREATE VIEW internal_first_blocked_contention
+  AS
+SELECT start.id, start.blocking_utid, start.ts, MIN(end.ts + end.dur) - start.ts AS dur
+FROM android_monitor_contention_chain start
+JOIN android_monitor_contention_chain END
+  ON
+    start.blocking_utid = end.blocking_utid
+    AND start.blocking_method = end.blocking_method
+    AND end.ts BETWEEN start.ts AND start.ts + start.dur
+WHERE start.waiter_count = 0
+GROUP BY start.id;
+
 CREATE VIEW internal_blocking_thread_state
 AS
 SELECT utid AS blocking_utid, ts, dur, state, blocked_function
 FROM thread_state;
 
--- Contains the span join of the |android_monitor_contention_chain| with their
--- blocking thread thread state.
+-- Contains the span join of the first waiters in the |android_monitor_contention_chain| with their
+-- blocking_thread thread state.
+
+-- Note that we only span join the duration where the lock was actually held and contended.
+-- This can be less than the duration the lock was 'waited on' when a different waiter acquired the
+-- lock earlier than the first waiter.
 --
 -- @column parent_id Id of slice blocking the blocking_thread.
 -- @column blocking_method Name of the method holding the lock.
@@ -282,13 +303,15 @@ FROM thread_state;
 -- @column blocked_function Blocked kernel function of the blocking thread.
 CREATE VIRTUAL TABLE android_monitor_contention_chain_thread_state
 USING
-  SPAN_JOIN(android_monitor_contention_chain PARTITIONED blocking_utid,
+  SPAN_JOIN(internal_first_blocked_contention PARTITIONED blocking_utid,
             internal_blocking_thread_state PARTITIONED blocking_utid);
 
--- Aggregated blocked_functions on the 'blocking thread', the thread holding the lock.
+-- Aggregated thread_states on the 'blocking thread', the thread holding the lock.
 -- This builds on the data from |android_monitor_contention_chain| and
 -- for each contention slice, it returns the aggregated sum of all the thread states on the
 -- blocking thread.
+--
+-- Note that this data is only available for the first waiter on a lock.
 --
 -- @column id Slice id of the monitor contention.
 -- @column thread_state A |thread_state| that occurred in the blocking thread during the contention.
@@ -310,6 +333,8 @@ GROUP BY id, thread_state;
 -- This builds on the data from |android_monitor_contention_chain| and
 -- for each contention, it returns the aggregated sum of all the kernel
 -- blocked function durations on the blocking thread.
+--
+-- Note that this data is only available for the first waiter on a lock.
 --
 -- @column id Slice id of the monitor contention.
 -- @column blocked_function Blocked kernel function in a thread state in the blocking thread during
