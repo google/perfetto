@@ -29,6 +29,7 @@ export function timeToString(sec: number) {
 }
 
 export function tpTimeToString(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
   return timeToString(tpTimeToSeconds(time));
 }
 
@@ -56,6 +57,7 @@ export function formatTimestamp(sec: number) {
 }
 
 export function formatTPTime(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
   return formatTimestamp(tpTimeToSeconds(time));
 }
 
@@ -85,6 +87,7 @@ export function timeToCode(sec: number): string {
 }
 
 export function tpTimeToCode(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
   return timeToCode(tpTimeToSeconds(time));
 }
 

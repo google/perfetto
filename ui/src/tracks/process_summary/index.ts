@@ -12,22 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../../base/bigint_math';
+import {assertFalse} from '../../base/logging';
 import {colorForTid} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {NUM} from '../../common/query_result';
-import {
-  fromNs,
-  TPDuration,
-  TPTime,
-  tpTimeFromNanos,
-  tpTimeToNanos,
-  tpTimeToSeconds,
-} from '../../common/time';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
-import {
-  TrackController,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -36,7 +29,7 @@ export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
 // TODO(dproy): Consider deduping with CPU summary data.
 export interface Data extends TrackData {
-  bucketSizeSeconds: number;
+  bucketSize: TPDuration;
   utilizations: Float64Array;
 }
 
@@ -54,8 +47,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = tpTimeToNanos(start);
-    const endNs = tpTimeToNanos(end);
+    assertFalse(resolution === 0n, 'Resolution cannot be 0');
 
     if (this.setup === false) {
       await this.query(
@@ -94,31 +86,28 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
     // |resolution| is in ns/px we want # ns for 10px window:
     // Max value with 1 so we don't end up with resolution 0.
-    const bucketSizeNs = Math.max(1, Math.round(Number(resolution) * 10));
-    const windowStartNs = Math.floor(startNs / bucketSizeNs) * bucketSizeNs;
-    const windowDurNs = Math.max(1, endNs - windowStartNs);
+    const bucketSize = resolution * 10n;
+    const windowStart = BigintMath.quant(start, bucketSize);
+    const windowDur = BigintMath.max(1n, end - windowStart);
 
     await this.query(`update ${this.tableName('window')} set
-      window_start=${windowStartNs},
-      window_dur=${windowDurNs},
-      quantum=${bucketSizeNs}
+      window_start=${windowStart},
+      window_dur=${windowDur},
+      quantum=${bucketSize}
       where rowid = 0;`);
 
-    return this.computeSummary(
-        tpTimeFromNanos(windowStartNs), end, resolution, bucketSizeNs);
+    return this.computeSummary(windowStart, end, resolution, bucketSize);
   }
 
   private async computeSummary(
       start: TPTime, end: TPTime, resolution: TPDuration,
-      bucketSizeNs: number): Promise<Data> {
-    const startNs = Number(start);
-    const endNs = Number(end);
-    const numBuckets =
-        Math.min(Math.ceil((endNs - startNs) / bucketSizeNs), LIMIT);
+      bucketSize: TPDuration): Promise<Data> {
+    const duration = end - start;
+    const numBuckets = Math.min(Number(duration / bucketSize), LIMIT);
 
     const query = `select
       quantum_ts as bucket,
-      sum(dur)/cast(${bucketSizeNs} as float) as utilization
+      sum(dur)/cast(${bucketSize} as float) as utilization
       from ${this.tableName('span')}
       group by quantum_ts
       limit ${LIMIT}`;
@@ -128,7 +117,7 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: numBuckets,
-      bucketSizeSeconds: fromNs(bucketSizeNs),
+      bucketSize,
       utilizations: new Float64Array(numBuckets),
     };
 
@@ -212,10 +201,9 @@ class ProcessSummaryTrack extends Track<Config, Data> {
     for (let i = 0; i < data.utilizations.length; i++) {
       // TODO(dproy): Investigate why utilization is > 1 sometimes.
       const utilization = Math.min(data.utilizations[i], 1);
-      const startTime =
-          i * data.bucketSizeSeconds + tpTimeToSeconds(data.start);
+      const startTime = BigInt(i) * data.bucketSize + data.start;
 
-      lastX = Math.floor(visibleTimeScale.secondsToPx(startTime));
+      lastX = Math.floor(visibleTimeScale.tpTimeToPx(startTime));
 
       ctx.lineTo(lastX, lastY);
       lastY = MARGIN_TOP + Math.round(SUMMARY_HEIGHT * (1 - utilization));

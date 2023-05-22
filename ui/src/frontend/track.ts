@@ -17,6 +17,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Engine} from '../common/engine';
 import {TrackState} from '../common/state';
+import {TPTime} from '../common/time';
 import {TrackData} from '../common/track_data';
 
 import {checkerboard} from './checkerboard';
@@ -207,7 +208,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // only for track types that support slices e.g. chrome_slice, async_slices
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
-  getSliceRect(_tStart: number, _tEnd: number, _depth: number): SliceRect
+  getSliceRect(_tStart: TPTime, _tEnd: TPTime, _depth: number): SliceRect
       |undefined {
     return undefined;
   }

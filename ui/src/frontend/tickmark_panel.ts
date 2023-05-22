@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {fromNs} from '../common/time';
+import {TPTimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -33,7 +33,7 @@ export class TickmarkPanel extends Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {visibleWindowTime, visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.frontendLocalState;
 
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
@@ -43,12 +43,12 @@ export class TickmarkPanel extends Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.frontendLocalState.visibleWindow.timestampSpan;
-    if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
+    const visibleSpan = globals.frontendLocalState.visibleWindow.timestampSpan;
+    if (size.width > TRACK_SHELL_WIDTH && visibleSpan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
       for (const {type, time} of new TickGenerator(
-               span, maxMajorTicks, globals.state.traceTime.start)) {
+               visibleSpan, maxMajorTicks, globals.state.traceTime.start)) {
         const px = Math.floor(map.tpTimeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
@@ -60,13 +60,13 @@ export class TickmarkPanel extends Panel {
     for (let i = 0; i < data.tsStarts.length; i++) {
       const tStart = data.tsStarts[i];
       const tEnd = data.tsEnds[i];
-      if (tEnd <= visibleWindowTime.start.seconds ||
-          tStart >= visibleWindowTime.end.seconds) {
+      const segmentSpan = new TPTimeSpan(tStart, tEnd);
+      if (!visibleSpan.intersects(segmentSpan)) {
         continue;
       }
       const rectStart =
-          Math.max(visibleTimeScale.secondsToPx(tStart), 0) + TRACK_SHELL_WIDTH;
-      const rectEnd = visibleTimeScale.secondsToPx(tEnd) + TRACK_SHELL_WIDTH;
+          Math.max(visibleTimeScale.tpTimeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
+      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd) + TRACK_SHELL_WIDTH;
       ctx.fillStyle = '#ffe263';
       ctx.fillRect(
           Math.floor(rectStart),
@@ -76,10 +76,9 @@ export class TickmarkPanel extends Panel {
     }
     const index = globals.state.searchIndex;
     if (index !== -1) {
-      const startSec = fromNs(globals.currentSearchResults.tsStarts[index]);
+      const start = globals.currentSearchResults.tsStarts[index];
       const triangleStart =
-          Math.max(visibleTimeScale.secondsToPx(startSec), 0) +
-          TRACK_SHELL_WIDTH;
+          Math.max(visibleTimeScale.tpTimeToPx(start), 0) + TRACK_SHELL_WIDTH;
       ctx.fillStyle = '#000';
       ctx.beginPath();
       ctx.moveTo(triangleStart, size.height);

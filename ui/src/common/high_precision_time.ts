@@ -16,6 +16,7 @@ import {assertTrue} from '../base/logging';
 import {Span, TPTime} from './time';
 
 export type RoundMode = 'round'|'floor'|'ceil';
+export type Timeish = HighPrecisionTime|TPTime;
 
 // Stores a time as a bigint and an offset which is capable of:
 // - Storing and reproducing "TPTime"s without losing precision.
@@ -60,11 +61,11 @@ export class HighPrecisionTime {
   }
 
   static max(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
-    return a.isGreaterThan(b) ? a : b;
+    return a.gt(b) ? a : b;
   }
 
   static min(a: HighPrecisionTime, b: HighPrecisionTime): HighPrecisionTime {
-    return a.isLessThan(b) ? a : b;
+    return a.lt(b) ? a : b;
   }
 
   toTPTime(roundMode: RoundMode = 'floor'): TPTime {
@@ -110,16 +111,16 @@ export class HighPrecisionTime {
     return new HighPrecisionTime(this.base + ts, this.offset);
   }
 
-  subtract(other: HighPrecisionTime): HighPrecisionTime {
+  sub(other: HighPrecisionTime): HighPrecisionTime {
     return new HighPrecisionTime(
         this.base - other.base, this.offset - other.offset);
   }
 
-  subtractTPTime(ts: TPTime): HighPrecisionTime {
+  subTPTime(ts: TPTime): HighPrecisionTime {
     return this.addTPTime(-ts);
   }
 
-  subtractNanos(nanos: number|bigint): HighPrecisionTime {
+  subNanos(nanos: number|bigint): HighPrecisionTime {
     return this.add(HighPrecisionTime.fromNanos(-nanos));
   }
 
@@ -136,40 +137,54 @@ export class HighPrecisionTime {
   }
 
   // Return true if other time is within some epsilon, default 1 femtosecond
-  equals(other: HighPrecisionTime, epsilon: number = 1e-6): boolean {
-    return Math.abs(this.subtract(other).nanos) < epsilon;
+  eq(other: Timeish, epsilon: number = 1e-6): boolean {
+    const x = HighPrecisionTime.fromHPTimeOrTPTime(other);
+    return Math.abs(this.sub(x).nanos) < epsilon;
   }
 
-  isLessThan(other: HighPrecisionTime): boolean {
-    if (this.base < other.base) {
+  private static fromHPTimeOrTPTime(x: HighPrecisionTime|
+                                    TPTime): HighPrecisionTime {
+    if (x instanceof HighPrecisionTime) {
+      return x;
+    } else if (typeof x === 'bigint') {
+      return HighPrecisionTime.fromTPTime(x);
+    } else {
+      const y: never = x;
+      throw new Error(`Invalid type ${y}`);
+    }
+  }
+
+  lt(other: Timeish): boolean {
+    const x = HighPrecisionTime.fromHPTimeOrTPTime(other);
+    if (this.base < x.base) {
       return true;
-    } else if (this.base === other.base) {
-      return this.offset < other.offset;
+    } else if (this.base === x.base) {
+      return this.offset < x.offset;
     } else {
       return false;
     }
   }
 
-  isLessThanOrEqual(other: HighPrecisionTime): boolean {
-    if (this.equals(other)) {
+  lte(other: Timeish): boolean {
+    if (this.eq(other)) {
       return true;
     } else {
-      return this.isLessThan(other);
+      return this.lt(other);
     }
   }
 
-  isGreaterThan(other: HighPrecisionTime): boolean {
-    return !this.isLessThanOrEqual(other);
+  gt(other: Timeish): boolean {
+    return !this.lte(other);
   }
 
-  isGreaterThanOrEqual(other: HighPrecisionTime): boolean {
-    return !this.isLessThan(other);
+  gte(other: Timeish): boolean {
+    return !this.lt(other);
   }
 
   clamp(lower: HighPrecisionTime, upper: HighPrecisionTime): HighPrecisionTime {
-    if (this.isLessThan(lower)) {
+    if (this.lt(lower)) {
       return lower;
-    } else if (this.isGreaterThan(upper)) {
+    } else if (this.gt(upper)) {
       return upper;
     } else {
       return this;
@@ -183,6 +198,15 @@ export class HighPrecisionTime {
     } else {
       return `${this.base}${offsetAsString.substring(1)}`;
     }
+  }
+
+  abs(): HighPrecisionTime {
+    if (this.base >= 0n) {
+      return this;
+    }
+    const newBase = -this.base;
+    const newOffset = -this.offset;
+    return new HighPrecisionTime(newBase, newOffset);
   }
 }
 
@@ -198,7 +222,7 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
         end :
         HighPrecisionTime.fromTPTime(end);
     assertTrue(
-        this.start.isLessThanOrEqual(this.end),
+        this.start.lte(this.end),
         `TimeSpan start [${this.start}] cannot be greater than end [${
             this.end}]`);
   }
@@ -218,7 +242,7 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   }
 
   get duration(): HighPrecisionTime {
-    return this.end.subtract(this.start);
+    return this.end.sub(this.start);
   }
 
   get midpoint(): HighPrecisionTime {
@@ -226,22 +250,19 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   }
 
   equals(other: Span<HighPrecisionTime>): boolean {
-    return this.start.equals(other.start) && this.end.equals(other.end);
+    return this.start.eq(other.start) && this.end.eq(other.end);
   }
 
   contains(x: HighPrecisionTime|Span<HighPrecisionTime>): boolean {
     if (x instanceof HighPrecisionTime) {
-      return this.start.isLessThanOrEqual(x) && x.isLessThan(this.end);
+      return this.start.lte(x) && x.lt(this.end);
     } else {
-      return this.start.isLessThanOrEqual(x.start) &&
-          x.end.isLessThanOrEqual(this.end);
+      return this.start.lte(x.start) && x.end.lte(this.end);
     }
   }
 
   intersects(x: Span<HighPrecisionTime>): boolean {
-    return !(
-        x.end.isLessThanOrEqual(this.start) ||
-        x.start.isGreaterThanOrEqual(this.end));
+    return !(x.end.lte(this.start) || x.start.gte(this.end));
   }
 
   add(time: HighPrecisionTime): Span<HighPrecisionTime> {
@@ -251,7 +272,7 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   // Move the start and end away from each other a certain amount
   pad(time: HighPrecisionTime): Span<HighPrecisionTime> {
     return new HighPrecisionTimeSpan(
-        this.start.subtract(time),
+        this.start.sub(time),
         this.end.add(time),
     );
   }

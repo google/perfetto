@@ -19,22 +19,16 @@ import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {
   EngineProxy,
+  LONG,
   LONG_NULL,
   NUM,
   PluginContext,
   STR,
   TrackInfo,
 } from '../../common/plugin_api';
-import {
-  fromNs,
-  TPDuration,
-  TPTime,
-  tpTimeFromSeconds,
-} from '../../common/time';
+import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -54,7 +48,7 @@ export interface Data extends TrackData {
   minimumDelta: number;
   maximumRate: number;
   minimumRate: number;
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
   lastIds: Float64Array;
   minValues: Float64Array;
   maxValues: Float64Array;
@@ -85,13 +79,6 @@ class CounterTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const pxSize = this.pxSize();
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(Number(resolution) * pxSize / 2) * 2, 1);
-
     if (!this.setup) {
       if (this.config.namespace === undefined) {
         await this.query(`
@@ -147,7 +134,7 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     const queryRes = await this.query(`
       select
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         min(value) as minValue,
         max(value) as maxValue,
         sum(delta) as totalDelta,
@@ -172,7 +159,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       maximumRate: 0,
       minimumRate: 0,
       resolution,
-      timestamps: new Float64Array(numRows),
+      timestamps: new BigInt64Array(numRows),
       lastIds: new Float64Array(numRows),
       minValues: new Float64Array(numRows),
       maxValues: new Float64Array(numRows),
@@ -182,7 +169,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     };
 
     const it = queryRes.iter({
-      'tsq': NUM,
+      'tsq': LONG,
       'lastId': NUM,
       'minValue': NUM,
       'maxValue': NUM,
@@ -190,11 +177,11 @@ class CounterTrackController extends TrackController<Config, Data> {
       'totalDelta': NUM,
     });
     let lastValue = 0;
-    let lastTs = 0;
+    let lastTs = 0n;
     for (let row = 0; it.valid(); it.next(), row++) {
-      const ts = fromNs(it.tsq);
+      const ts = it.tsq;
       const value = it.lastValue;
-      const rate = (value - lastValue) / (ts - lastTs);
+      const rate = (value - lastValue) / (tpTimeToSeconds(ts - lastTs));
       lastTs = ts;
       lastValue = value;
 
@@ -244,8 +231,8 @@ class CounterTrack extends Track<Config, Data> {
 
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
-  private hoveredTs: number|undefined = undefined;
-  private hoveredTsEnd: number|undefined = undefined;
+  private hoveredTs: bigint|undefined = undefined;
+  private hoveredTsEnd: bigint|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -371,8 +358,8 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-    const calculateX = (ts: number) => {
-      return Math.floor(timeScale.secondsToPx(ts));
+    const calculateX = (ts: TPTime) => {
+      return Math.floor(timeScale.tpTimeToPx(ts));
     };
     const calculateY = (value: number) => {
       return MARGIN_TOP + RECT_HEIGHT -
@@ -433,10 +420,10 @@ class CounterTrack extends Track<Config, Data> {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.secondsToPx(this.hoveredTs));
+      const xStart = Math.floor(timeScale.tpTimeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
-          Math.floor(timeScale.secondsToPx(this.hoveredTsEnd));
+          Math.floor(timeScale.tpTimeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + RECT_HEIGHT -
           Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
@@ -497,12 +484,12 @@ class CounterTrack extends Track<Config, Data> {
     if (data === undefined) return;
     this.mousePos = pos;
     const {visibleTimeScale} = globals.frontendLocalState;
-    const time = visibleTimeScale.pxToHpTime(pos.x).seconds;
+    const time = visibleTimeScale.pxToHpTime(pos.x);
 
     const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
         data.totalDeltas :
         data.lastValues;
-    const [left, right] = searchSegment(data.timestamps, time);
+    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
     this.hoveredValue = left === -1 ? undefined : values[left];
@@ -513,20 +500,20 @@ class CounterTrack extends Track<Config, Data> {
     this.hoveredTs = undefined;
   }
 
-  onMouseClick({x}: {x: number}) {
+  onMouseClick({x}: {x: number}): boolean {
     const data = this.data();
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
-    const time = visibleTimeScale.pxToHpTime(x).seconds;
-    const [left, right] = searchSegment(data.timestamps, time);
+    const time = visibleTimeScale.pxToHpTime(x);
+    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
     if (left === -1) {
       return false;
     } else {
       const counterId = data.lastIds[left];
       if (counterId === -1) return true;
       globals.makeSelection(Actions.selectCounter({
-        leftTs: tpTimeFromSeconds(data.timestamps[left]),
-        rightTs: tpTimeFromSeconds(right !== -1 ? data.timestamps[right] : -1),
+        leftTs: data.timestamps[left],
+        rightTs: right !== -1 ? data.timestamps[right] : -1n,
         id: counterId,
         trackId: this.trackState.id,
       }));

@@ -35,32 +35,55 @@ export class BigintMath {
     return result;
   };
 
-  // Returns the largest integral multiple of step which is not larger than n.
-  // If step is less than or equal to 0, returns n.
-  static quantizeFloor(n: bigint, step: bigint): bigint {
-    step = BigintMath.max(1n, step);
-    return step * (n / step);
+  // Returns the largest integral value x where 2^x is not greater than n.
+  static log2(n: bigint): number {
+    let result = 1n;
+    let log2 = 0;
+    while ((result << 1n) <= n) {
+      result <<= 1n;
+      ++log2;
+    }
+    return log2;
   }
 
-  // Return the integral multiple of step which is closest to n.
+  // Returns the integral multiple of step which is closest to n.
   // If step is less than or equal to 0, returns n.
-  static quantize(n: bigint, step: bigint): bigint {
+  static quant(n: bigint, step: bigint): bigint {
     step = BigintMath.max(1n, step);
     const halfStep = step / 2n;
     return step * ((n + halfStep) / step);
   }
 
-  // Return the greater of a and b
+  // Returns the largest integral multiple of step which is not larger than n.
+  // If step is less than or equal to 0, returns n.
+  static quantFloor(n: bigint, step: bigint): bigint {
+    step = BigintMath.max(1n, step);
+    return step * (n / step);
+  }
+
+  // Returns the smallest integral multiple of step which is not smaller than n.
+  // If step is less than or equal to 0, returns n.
+  static quantCeil(n: bigint, step: bigint): bigint {
+    step = BigintMath.max(1n, step);
+    const remainder = n % step;
+    if (remainder === 0n) {
+      return n;
+    }
+    const quotient = n / step;
+    return (quotient + 1n) * step;
+  }
+
+  // Returns the greater of a and b.
   static max(a: bigint, b: bigint): bigint {
     return a > b ? a : b;
   }
 
-  // Return the smaller of a and b
+  // Returns the smaller of a and b.
   static min(a: bigint, b: bigint): bigint {
     return a < b ? a : b;
   }
 
-  // Returns the number of 1 bits in n
+  // Returns the number of 1 bits in n.
   static popcount(n: bigint): number {
     if (n < 0n) {
       throw Error(`Can\'t get popcount of negative number ${n}`);
@@ -73,5 +96,10 @@ export class BigintMath {
       n >>= 1n;
     }
     return count;
+  }
+
+  // Return the ratio between two bigints as a number.
+  static ratio(dividend: bigint, divisor: bigint): number {
+    return Number(dividend) / Number(divisor);
   }
 }
