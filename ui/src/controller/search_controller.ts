@@ -15,7 +15,7 @@
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
-import {NUM, STR} from '../common/query_result';
+import {LONG, NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {Span} from '../common/time';
@@ -94,13 +94,13 @@ export class SearchController extends Controller<'main'> {
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
       publishSearch({
-        tsStarts: new Float64Array(0),
-        tsEnds: new Float64Array(0),
+        tsStarts: new BigInt64Array(0),
+        tsEnds: new BigInt64Array(0),
         count: new Uint8Array(0),
       });
       publishSearchResult({
         sliceIds: new Float64Array(0),
-        tsStarts: new Float64Array(0),
+        tsStarts: new BigInt64Array(0),
         utids: new Float64Array(0),
         sources: [],
         trackIds: [],
@@ -136,7 +136,7 @@ export class SearchController extends Controller<'main'> {
     const searchLiteral = escapeSearchQuery(search);
 
     const quantumNs = resolution * 10n;
-    startNs = BigintMath.quantizeFloor(startNs, quantumNs);
+    startNs = BigintMath.quantFloor(startNs, quantumNs);
 
     const windowDur = BigintMath.max(endNs - startNs, 1n);
     await this.query(`update search_summary_window set
@@ -159,8 +159,8 @@ export class SearchController extends Controller<'main'> {
 
     const res = await this.query(`
         select
-          (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
-          ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
+          (quantum_ts * ${quantumNs} + ${startNs}) as tsStart,
+          ((quantum_ts+1) * ${quantumNs} + ${startNs}) as tsEnd,
           min(count(*), 255) as count
           from (
               select
@@ -177,13 +177,13 @@ export class SearchController extends Controller<'main'> {
           order by quantum_ts;`);
 
     const numRows = res.numRows();
-    const summary = {
-      tsStarts: new Float64Array(numRows),
-      tsEnds: new Float64Array(numRows),
+    const summary: SearchSummary = {
+      tsStarts: new BigInt64Array(numRows),
+      tsEnds: new BigInt64Array(numRows),
       count: new Uint8Array(numRows),
     };
 
-    const it = res.iter({tsStart: NUM, tsEnd: NUM, count: NUM});
+    const it = res.iter({tsStart: LONG, tsEnd: LONG, count: NUM});
     for (let row = 0; it.valid(); it.next(), ++row) {
       summary.tsStarts[row] = it.tsStart;
       summary.tsEnds[row] = it.tsEnd;
@@ -259,7 +259,7 @@ export class SearchController extends Controller<'main'> {
     const rows = queryRes.numRows();
     const searchResults: CurrentSearchResults = {
       sliceIds: new Float64Array(rows),
-      tsStarts: new Float64Array(rows),
+      tsStarts: new BigInt64Array(rows),
       utids: new Float64Array(rows),
       trackIds: [],
       sources: [],
@@ -267,7 +267,7 @@ export class SearchController extends Controller<'main'> {
     };
 
     const it = queryRes.iter(
-        {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM});
+        {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
     for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {

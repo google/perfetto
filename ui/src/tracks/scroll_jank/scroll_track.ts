@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TPTime} from 'src/common/time';
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
@@ -25,6 +24,7 @@ import {
   SCROLLING_TRACK_GROUP,
   Selection,
 } from '../../common/state';
+import {TPTime} from '../../common/time';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
 import {
