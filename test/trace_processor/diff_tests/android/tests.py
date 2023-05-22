@@ -436,41 +436,19 @@ class Android(TestSuite):
         13934,"D",11950576,1
       """))
 
-  def test_monitor_contention_chain_extraction(self):
+  def test_monitor_contention_chain_extraction_parent(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       SELECT IMPORT('android.monitor_contention');
-      SELECT
-        IIF(parent_id IS NULL, "", parent_id) AS parent_id,
-        blocking_method,
-        blocked_method,
-        short_blocking_method,
-        short_blocked_method,
-        blocking_src,
-        blocked_src,
-        waiter_count,
-        blocked_utid,
-        blocked_thread_name,
-        blocking_utid,
-        blocking_thread_name,
-        upid,
-        process_name,
-        id,
-        ts,
-        dur,
-        is_blocked_thread_main,
-        is_blocking_thread_main,
-        IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id,
-        IIF(binder_reply_ts IS NULL, "", binder_reply_ts) AS binder_reply_ts,
-        IIF(binder_reply_tid IS NULL, "", binder_reply_tid) AS binder_reply_tid
-      FROM android_monitor_contention_chain
+      SELECT * FROM android_monitor_contention_chain
+        WHERE parent_id IS NOT NULL
       ORDER BY dur DESC
       LIMIT 1;
       """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "","void com.android.server.am.ActivityManagerService.forceStopPackage(java.lang.String, int)","boolean com.android.server.am.ActivityManagerService.unbindService(android.app.IServiceConnection)","com.android.server.am.ActivityManagerService.forceStopPackage","com.android.server.am.ActivityManagerService.unbindService","ActivityManagerService.java:3992","ActivityManagerService.java:12719",0,640,"StorageUserConn",495,"binder:642_1",250,"system_server",327,1737063410007,46114664,0,0,"","",""
+        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_id","binder_reply_ts","binder_reply_tid","pid"
+        956,"void com.android.server.am.AppProfiler.collectPssInBackground()","void com.android.server.am.ProcessRecord.setPid(int)","com.android.server.am.AppProfiler.collectPssInBackground","com.android.server.am.ProcessRecord.setPid","AppProfiler.java:514","ProcessRecord.java:596",0,656,"binder:642_12",506,"android.bg",670,250,"system_server",949,1737122781871,7301144,1236,0,2720,0,670,"[NULL]","[NULL]","[NULL]",642
       """))
 
   def test_monitor_contention_metric(self):

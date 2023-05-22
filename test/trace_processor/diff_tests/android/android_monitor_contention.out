@@ -1215,11 +1215,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 122815
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 914
@@ -1373,8 +1368,8 @@ android_monitor_contention {
     is_blocking_thread_main: false
     thread_states {
       thread_state: "R+"
-      thread_state_dur: 7143444
-      thread_state_count: 4
+      thread_state_dur: 7127675
+      thread_state_count: 3
     }
     thread_states {
       thread_state: "Running"
@@ -1404,8 +1399,8 @@ android_monitor_contention {
     is_blocking_thread_main: false
     thread_states {
       thread_state: "R+"
-      thread_state_dur: 7143444
-      thread_state_count: 4
+      thread_state_dur: 7127675
+      thread_state_count: 3
     }
     thread_states {
       thread_state: "Running"
@@ -1432,21 +1427,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 7100855
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 40711
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 2814860
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 983
@@ -1467,11 +1447,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 3054413
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 994
@@ -4504,11 +4479,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 3567249
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 1778
@@ -4529,11 +4499,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 8523903
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 1786
@@ -4554,11 +4519,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 9607080
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 1819
@@ -4614,11 +4574,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 10733654
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 1825
@@ -5221,26 +5176,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 59191
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 223496
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 36279
-      thread_state_count: 2
-    }
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 583889
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 2289
@@ -5261,11 +5196,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 1514707
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 2352
@@ -6873,26 +6803,6 @@ android_monitor_contention {
     is_blocking_thread_main: false
     binder_reply_ts: 1739927686578
     binder_reply_tid: 657
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 819671
-      thread_state_count: 3
-    }
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 600233
-      thread_state_count: 2
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 890957
-      thread_state_count: 5
-    }
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 623113
-      thread_state_count: 2
-    }
   }
   node {
     node_id: 13948
@@ -6935,16 +6845,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 480064
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 1685676
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 13979
@@ -7222,16 +7122,6 @@ android_monitor_contention {
     is_blocking_thread_main: false
     binder_reply_ts: 1739956996641
     binder_reply_tid: 2721
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 70662
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 92726
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 14154
@@ -7629,26 +7519,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 105075
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 69326
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 722485
-      thread_state_count: 3
-    }
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 267110
-      thread_state_count: 2
-    }
   }
   node {
     node_id: 14623
@@ -7669,11 +7539,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: true
-    thread_states {
-      thread_state: "S"
-      thread_state_dur: 1129545
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 14626
@@ -7716,11 +7581,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: true
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 388360
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 14730
@@ -8045,11 +7905,6 @@ android_monitor_contention {
     pid: 642
     is_blocked_thread_main: false
     is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 473837
-      thread_state_count: 1
-    }
   }
   node {
     node_id: 15361
