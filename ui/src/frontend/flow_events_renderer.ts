@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TPTime} from '../common/time';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, FlowPoint, globals} from './globals';
@@ -139,8 +140,8 @@ export class FlowEventsRenderer {
     };
   }
 
-  private getXCoordinate(ts: number): number {
-    return globals.frontendLocalState.visibleTimeScale.secondsToPx(ts);
+  private getXCoordinate(ts: TPTime): number {
+    return globals.frontendLocalState.visibleTimeScale.tpTimeToPx(ts);
   }
 
   private getSliceRect(args: FlowEventsRendererArgs, point: FlowPoint):

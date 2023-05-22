@@ -25,7 +25,7 @@ import {
   Timestamped,
   VisibleState,
 } from '../common/state';
-import {Span} from '../common/time';
+import {Span, TPDuration} from '../common/time';
 import {
   TPTime,
   TPTimeSpan,
@@ -89,8 +89,6 @@ export class TimeWindow {
   // Offset represents the center of the zoom as a normalized value between 0
   // and 1 where 0 is the start of the time window and 1 is the end
   zoom(ratio: number, offset: number) {
-    // TODO(stevegolton): Handle case where trace time < MIN_DURATION_NS
-
     const traceDuration = globals.stateTraceTime().duration;
     const minDuration = Math.min(this.MIN_DURATION_NS, traceDuration.nanos);
     const newDurationNanos = Math.max(this._durationNanos * ratio, minDuration);
@@ -116,7 +114,7 @@ export class TimeWindow {
     return new HighPrecisionTimeSpan(this._start, this._end);
   }
 
-  get timestampSpan(): Span<TPTime> {
+  get timestampSpan(): Span<TPTime, TPDuration> {
     return new TPTimeSpan(this.earliest, this.latest);
   }
 
@@ -138,13 +136,13 @@ export class TimeWindow {
       this._durationNanos = traceDurationNanos;
     }
 
-    if (this._start.isLessThan(traceTimeSpan.start)) {
+    if (this._start.lt(traceTimeSpan.start)) {
       this._start = traceTimeSpan.start;
     }
 
     const end = this._start.addNanos(this._durationNanos);
-    if (end.isGreaterThan(traceTimeSpan.end)) {
-      this._start = traceTimeSpan.end.subtractNanos(this._durationNanos);
+    if (end.gt(traceTimeSpan.end)) {
+      this._start = traceTimeSpan.end.subNanos(this._durationNanos);
     }
   }
 }
@@ -327,5 +325,10 @@ export class FrontendLocalState {
   // Get the bounds of the visible time window as a time span
   get visibleWindowTime(): Span<HighPrecisionTime> {
     return this.visibleWindow.timeSpan;
+  }
+
+  // Get the visible time span as
+  get visibleTimeSpan(): Span<TPTime, TPDuration> {
+    return this.visibleWindow.timestampSpan;
   }
 }

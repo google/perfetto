@@ -20,10 +20,10 @@ import {
   colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
-import {NUM} from '../common/query_result';
+import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
 import {
-  fromNs,
+  TPDuration,
   tpDurationFromNanos,
   TPTime,
   tpTimeFromNanos,
@@ -187,7 +187,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       new TrackCache(5);
 
   protected readonly tableName: string;
-  private maxDurNs = 0;
+  private maxDurNs: TPDuration = 0n;
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
@@ -284,9 +284,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     {
       const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
-      // TODO(stevegolton): Keep these guys as bigints
-      const rawStartNs = vizTime.start.nanos;
-      const rawEndNs = vizTime.end.nanos;
+      const rawStartNs = vizTime.start.toTPTime();
+      const rawEndNs = vizTime.end.toTPTime();
       const rawSlicesKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
 
       // If the visible time range is outside the cached area, requests
@@ -440,8 +439,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         this.getHeight(),
         timeScale.hpTimeToPx(vizTime.start),
         timeScale.hpTimeToPx(vizTime.end),
-        timeScale.secondsToPx(fromNs(this.slicesKey.startNs)),
-        timeScale.secondsToPx(fromNs(this.slicesKey.endNs)));
+        timeScale.tpTimeToPx(this.slicesKey.start),
+        timeScale.tpTimeToPx(this.slicesKey.end));
 
     // TODO(hjd): Remove this.
     // The only thing this does is drawing the sched latency arrow. We should
@@ -487,7 +486,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from ${this.tableName}`);
-      const row = queryRes.firstRow({maxDur: NUM, rowCount: NUM});
+      const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
       this.sqlState = 'QUERY_DONE';
     } else if (
@@ -515,18 +514,18 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }
 
     this.sqlState = 'QUERY_PENDING';
-    const bucketNs = slicesKey.bucketNs;
+    const bucketNs = slicesKey.bucketSize;
     let queryTsq;
     let queryTsqEnd;
     // When we're zoomed into the level of single ns there is no point
     // doing quantization (indeed it causes bad artifacts) so instead
     // we use ts / ts+dur directly.
-    if (bucketNs === 1) {
+    if (bucketNs === 1n) {
       queryTsq = 'ts';
       queryTsqEnd = 'ts + dur';
     } else {
-      queryTsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
-      queryTsqEnd = `(ts + dur + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+      queryTsq = `(ts + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs}`;
+      queryTsqEnd = `(ts + dur + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs}`;
     }
 
     const extraCols = this.extraSqlColumns.join(',');
@@ -566,8 +565,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         ${extraCols ? ',' + extraCols : ''}
       from ${this.tableName}
       where
-        ts >= ${slicesKey.startNs - this.maxDurNs /* - durNs */} and
-        ts <= ${slicesKey.endNs /* + durNs */}
+        ts >= ${slicesKey.start - this.maxDurNs /* - durNs */} and
+        ts <= ${slicesKey.end /* + durNs */}
       group by ${maybeGroupByDepth} tsq
       order by tsq),
     q2 as (
@@ -794,7 +793,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     return this.computedTrackHeight;
   }
 
-  getSliceRect(_tStart: number, _tEnd: number, _depth: number): SliceRect
+  getSliceRect(_tStart: TPTime, _tEnd: TPTime, _depth: number): SliceRect
       |undefined {
     // TODO(hjd): Implement this as part of updating flow events.
     return undefined;

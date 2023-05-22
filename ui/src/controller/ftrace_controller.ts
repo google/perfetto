@@ -89,11 +89,7 @@ export class FtraceController extends Controller<'main'> {
 
   async lookupFtraceEvents(offset: number, count: number): Promise<RetVal> {
     const appState = globals.state;
-    const frontendState = globals.frontendLocalState;
-    const {start, end} = frontendState.visibleWindowTime;
-
-    const startNs = start.nanos;
-    const endNs = end.nanos;
+    const {start, end} = globals.stateVisibleTime();
 
     const excludeList = appState.ftraceFilter.excludedNames;
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
@@ -108,7 +104,7 @@ export class FtraceController extends Controller<'main'> {
       from ftrace_event
       where
         ftrace_event.name not in (${excludeListSql}) and
-        ts >= ${startNs} and ts <= ${endNs}
+        ts >= ${start} and ts <= ${end}
       `);
     const {numEvents} = queryRes.firstRow({numEvents: NUM});
 
@@ -128,7 +124,7 @@ export class FtraceController extends Controller<'main'> {
       on thread.upid = process.upid
       where
         ftrace_event.name not in (${excludeListSql}) and
-        ts >= ${startNs} and ts <= ${endNs}
+        ts >= ${start} and ts <= ${end}
       order by id
       limit ${count} offset ${offset};`);
     const events: FtraceEvent[] = [];
