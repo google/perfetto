@@ -12,23 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
-import {
-  HighPrecisionTime,
-} from '../../common/high_precision_time';
+import {HighPrecisionTime} from '../../common/high_precision_time';
 import {PluginContext} from '../../common/plugin_api';
-import {LONG_NULL, NUM, NUM_NULL, STR} from '../../common/query_result';
-import {
-  fromNs,
-  TPDuration,
-  TPTime,
-} from '../../common/time';
+import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
@@ -42,8 +35,6 @@ const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
 const INNER_CHEVRON_OFFSET = -3;
 const INNER_CHEVRON_SCALE =
     (SLICE_HEIGHT - 2 * INNER_CHEVRON_OFFSET) / SLICE_HEIGHT;
-// the lowest bucketNs gets is 2, but add some room in case of fp error
-const MIN_QUANT_NS = 3;
 
 export interface Config {
   maxDepth: number;
@@ -55,8 +46,8 @@ export interface Data extends TrackData {
   // Slices are stored in a columnar fashion.
   strings: string[];
   sliceIds: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
+  starts: BigInt64Array;
+  ends: BigInt64Array;
   depths: Uint16Array;
   titles: Uint16Array;   // Index into strings.
   colors?: Uint16Array;  // Index into strings.
@@ -71,13 +62,6 @@ export class ChromeSliceTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const pxSize = this.pxSize();
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(Number(resolution) * pxSize / 2) * 2, 1);
-
     const tableName = this.namespaceTable('slice');
 
     if (this.maxDurNs === 0n) {
@@ -88,16 +72,9 @@ export class ChromeSliceTrackController extends TrackController<Config, Data> {
       this.maxDurNs = queryRes.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
     }
 
-    // Buckets are always even and positive, don't quantize once we zoom to
-    // nanosecond-scale, so that we can see exact sizes.
-    let tsq = `ts`;
-    if (bucketNs > MIN_QUANT_NS) {
-      tsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
-    }
-
     const query = `
       SELECT
-        ${tsq} as tsq,
+        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         ts,
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         depth,
@@ -121,8 +98,8 @@ export class ChromeSliceTrackController extends TrackController<Config, Data> {
       length: numRows,
       strings: [],
       sliceIds: new Float64Array(numRows),
-      starts: new Float64Array(numRows),
-      ends: new Float64Array(numRows),
+      starts: new BigInt64Array(numRows),
+      ends: new BigInt64Array(numRows),
       depths: new Uint16Array(numRows),
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
@@ -141,52 +118,39 @@ export class ChromeSliceTrackController extends TrackController<Config, Data> {
     }
 
     const it = queryRes.iter({
-      tsq: NUM,
-      ts: NUM,
-      dur: NUM,
+      tsq: LONG,
+      ts: LONG,
+      dur: LONG,
       depth: NUM,
       sliceId: NUM,
       name: STR,
       isInstant: NUM,
       isIncomplete: NUM,
-      threadDur: NUM_NULL,
+      threadDur: LONG_NULL,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
-      const startNsQ = it.tsq;
-      const startNs = it.ts;
-      const durNs = it.dur;
-      const endNs = startNs + durNs;
+      const startQ = it.tsq;
+      const start = it.ts;
+      const dur = it.dur;
+      const end = start + dur;
+      const minEnd = startQ + resolution;
+      const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
 
-      let endNsQ = endNs;
-      if (bucketNs > MIN_QUANT_NS) {
-        endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-        endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-      }
-
-      let isInstant = it.isInstant;
-      // Floating point rounding with large numbers of nanoseconds can mean
-      // there isn't enough precision to distinguish the start and end of a very
-      // short event so we just display the event as an instant when zoomed in
-      // rather than fail completely if the start and end time are the same.
-      if (startNsQ === endNsQ) {
-        isInstant = 1;
-      }
-
-      slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
+      slices.starts[row] = startQ;
+      slices.ends[row] = endQ;
       slices.depths[row] = it.depth;
       slices.sliceIds[row] = it.sliceId;
       slices.titles[row] = internString(it.name);
-      slices.isInstant[row] = isInstant;
+      slices.isInstant[row] = it.isInstant;
       slices.isIncomplete[row] = it.isIncomplete;
 
       let cpuTimeRatio = 1;
-      if (!isInstant && !it.isIncomplete && it.threadDur !== null) {
+      if (!it.isInstant && !it.isIncomplete && it.threadDur !== null) {
         // Rounding the CPU time ratio to two decimal places and ensuring
         // it is less than or equal to one, incase the thread duration exceeds
         // the total duration.
-        cpuTimeRatio =
-            Math.min(Math.round((it.threadDur / it.dur) * 100) / 100, 1);
+        cpuTimeRatio = Math.min(
+            Math.round(BIMath.ratio(it.threadDur, it.dur) * 100) / 100, 1);
       }
       slices.cpuTimeRatio![row] = cpuTimeRatio;
     }
@@ -250,7 +214,9 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const title = data.strings[titleId];
       const colorOverride = data.colors && data.strings[data.colors[i]];
       if (isIncomplete) {  // incomplete slice
-        tEnd = visibleWindowTime.end.seconds;
+        // TODO(stevegolton): This isn't exactly equivalent, ideally we should
+        // choose tEnd once we've conerted to screen space coords.
+        tEnd = visibleWindowTime.end.toTPTime('ceil');
       }
 
       const rect = this.getSliceRect(tStart, tEnd, depth);
@@ -380,24 +346,24 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     } = globals.frontendLocalState;
     if (y < TRACK_PADDING) return;
     const instantWidthTime = timeScale.pxDeltaToDuration(HALF_CHEVRON_WIDTH_PX);
-    const instantWidthTimeSec = instantWidthTime.seconds;
-    const t = timeScale.pxToHpTime(x).seconds;
+    const t = timeScale.pxToHpTime(x);
     const depth = Math.floor((y - TRACK_PADDING) / SLICE_HEIGHT);
+
     for (let i = 0; i < data.starts.length; i++) {
       if (depth !== data.depths[i]) {
         continue;
       }
-      const tStart = data.starts[i];
+      const tStart = HighPrecisionTime.fromTPTime(data.starts[i]);
       if (data.isInstant[i]) {
-        if (Math.abs(tStart - t) < instantWidthTimeSec) {
+        if (tStart.sub(t).abs().lt(instantWidthTime)) {
           return i;
         }
       } else {
-        let tEnd = data.ends[i];
+        let tEnd = HighPrecisionTime.fromTPTime(data.ends[i]);
         if (data.isIncomplete[i]) {
-          tEnd = visibleWindowTime.end.seconds;
+          tEnd = visibleWindowTime.end;
         }
-        if (tStart <= t && t <= tEnd) {
+        if (tStart.lte(t) && t.lte(tEnd)) {
           return i;
         }
       }
@@ -442,7 +408,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     return SLICE_HEIGHT * (this.config.maxDepth + 1) + 2 * TRACK_PADDING;
   }
 
-  getSliceRect(tStart: number, tEnd: number, depth: number): SliceRect
+  getSliceRect(tStart: TPTime, tEnd: TPTime, depth: number): SliceRect
       |undefined {
     const {
       visibleTimeScale: timeScale,
@@ -451,14 +417,11 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     } = globals.frontendLocalState;
 
     const pxEnd = windowSpan.end;
-    const left = Math.max(timeScale.secondsToPx(tStart), 0);
-    const right = Math.min(timeScale.secondsToPx(tEnd), pxEnd);
+    const left = Math.max(timeScale.tpTimeToPx(tStart), 0);
+    const right = Math.min(timeScale.tpTimeToPx(tEnd), pxEnd);
 
     const visible =
-        !(visibleWindowTime.start.isGreaterThan(
-              HighPrecisionTime.fromSeconds(tEnd)) ||
-          visibleWindowTime.end.isLessThan(
-              HighPrecisionTime.fromSeconds(tStart)));
+        !(visibleWindowTime.start.gt(tEnd) || visibleWindowTime.end.lt(tStart));
 
     return {
       left,

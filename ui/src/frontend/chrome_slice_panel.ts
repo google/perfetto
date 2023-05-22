@@ -19,7 +19,7 @@ import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
-import {timeToCode, tpDurationToSeconds, tpTimeToCode} from '../common/time';
+import {TPDuration, tpDurationToSeconds, tpTimeToCode} from '../common/time';
 
 import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
@@ -351,7 +351,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
   }
 
   private fillFlowPanel(
-      name: string, flows: {flow: FlowPoint, dur: number}[],
+      name: string, flows: {flow: FlowPoint, dur: TPDuration}[],
       includeProcessName: boolean, result: Map<string, TableBuilder>) {
     if (flows.length === 0) return;
 
@@ -365,7 +365,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
             flow.sliceName :
             flow.sliceChromeCustomName,
       });
-      builder.add('Delay', timeToCode(dur));
+      builder.add('Delay', tpTimeToCode(dur));
       builder.add(
           'Thread',
           includeProcessName ? `${flow.threadName} (${flow.processName})` :

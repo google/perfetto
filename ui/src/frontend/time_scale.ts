@@ -30,10 +30,11 @@ export class TimeScale {
   private _nanosPerPx = 0;
   private _startSec: number;
 
+  static fromHPTimeSpan(span: Span<HighPrecisionTime>, pxSpan: PxSpan) {
+    return new TimeScale(span.start, span.duration.nanos, pxSpan);
+  }
+
   constructor(start: HighPrecisionTime, durationNanos: number, pxSpan: PxSpan) {
-    // TODO(stevegolton): Ensure duration & pxSpan > 0.
-    // assertTrue(pxSpan.start < pxSpan.end, 'Px start >= end');
-    // assertTrue(durationNanos < 0, 'Duration <= 0');
     this.pxSpan = pxSpan;
     this._start = start;
     this._durationNanos = durationNanos;
@@ -62,7 +63,7 @@ export class TimeScale {
   }
 
   hpTimeToPx(time: HighPrecisionTime): number {
-    const timeOffsetNanos = time.subtract(this._start).nanos;
+    const timeOffsetNanos = time.sub(this._start).nanos;
     return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
   }
 
