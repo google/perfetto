@@ -18,10 +18,10 @@ SELECT IMPORT('common.timestamps');
 -- Converts a battery_stats counter value to human readable string.
 --
 -- @arg track STRING  The counter track name (e.g. 'battery_stats.audio').
--- @arg value LONG    The counter value.
+-- @arg value FLOAT   The counter value.
 -- @ret STRING        The human-readable name for the counter value.
 SELECT CREATE_FUNCTION(
-  'BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)',
+  'ANDROID_BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)',
   'STRING',
   '
   SELECT
@@ -133,7 +133,7 @@ SELECT
   ts,
   name AS track_name,
   CAST(value AS INT64) AS value,
-  BATTERY_STATS_COUNTER_TO_STRING(name, value) AS value_name,
+  ANDROID_BATTERY_STATS_COUNTER_TO_STRING(name, value) AS value_name,
   IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur
 FROM counter
 JOIN counter_track
