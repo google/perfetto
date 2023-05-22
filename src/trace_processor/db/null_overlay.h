@@ -28,9 +28,9 @@ namespace trace_processor {
 namespace column {
 
 // Overlay responsible for operations related to column nullability.
-class NullOverlay : public ColumnOverlay {
+class NullOverlay : public ColumnOverlayOld {
  public:
-  explicit NullOverlay(std::unique_ptr<ColumnOverlay> inner,
+  explicit NullOverlay(std::unique_ptr<ColumnOverlayOld> inner,
                        const BitVector* null_bv)
       : inner_(std::move(inner)), null_bv_(null_bv) {}
 
@@ -38,7 +38,7 @@ class NullOverlay : public ColumnOverlay {
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
  private:
-  std::unique_ptr<ColumnOverlay> inner_;
+  std::unique_ptr<ColumnOverlayOld> inner_;
 
   // Vector of data nullability.
   const BitVector* null_bv_;
