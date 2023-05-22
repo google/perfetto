@@ -32,9 +32,9 @@ function setToNext(current: number) {
 
 export function executeSearch(reverse = false) {
   const index = globals.state.searchIndex;
-  const vizWindow = globals.frontendLocalState.visibleWindowTime;
-  const startNs = vizWindow.start.nanos;
-  const endNs = vizWindow.end.nanos;
+  const vizWindow = globals.stateTraceTimeTP();
+  const startNs = vizWindow.start;
+  const endNs = vizWindow.end;
   const currentTs = globals.currentSearchResults.tsStarts[index];
 
   // If the value of |globals.currentSearchResults.totalResults| is 0,

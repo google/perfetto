@@ -736,7 +736,7 @@ export const StateActions = {
   },
 
   selectCpuProfileSample(
-      state: StateDraft, args: {id: number, utid: number, ts: number}): void {
+      state: StateDraft, args: {id: number, utid: number, ts: TPTime}): void {
     state.currentSelection = {
       kind: 'CPU_PROFILE_SAMPLE',
       id: args.id,

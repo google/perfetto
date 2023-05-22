@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search} from '../../base/binary_search';
 import {assertFalse} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
-import {
-  HighPrecisionTime,
-  HighPrecisionTimeSpan,
-} from '../../common/high_precision_time';
+import {HighPrecisionTimeSpan} from '../../common/high_precision_time';
 import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
-import {
-  fromNs,
-  TPDuration,
-  TPTime,
-} from '../../common/time';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -41,8 +35,8 @@ export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 export interface Data extends TrackData {
   strings: string[];
   ids: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
+  starts: BigInt64Array;
+  ends: BigInt64Array;
   cpu: Int8Array;
   state: Uint16Array;  // Index into |strings|.
 }
@@ -79,14 +73,9 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(Number(resolution) * this.pxSize() / 2) * 2, 1);
-
     const query = `
       select
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         ts,
         state = 'S' as is_sleep,
         max(dur) as dur,
@@ -111,8 +100,8 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       ids: new Float64Array(numRows),
-      starts: new Float64Array(numRows),
-      ends: new Float64Array(numRows),
+      starts: new BigInt64Array(numRows),
+      ends: new BigInt64Array(numRows),
       strings: [],
       state: new Uint16Array(numRows),
       cpu: new Int8Array(numRows),
@@ -131,22 +120,21 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
       return idx;
     }
     const it = queryRes.iter({
-      'tsq': NUM,
-      'ts': NUM,
-      'dur': NUM,
+      'tsq': LONG,
+      'ts': LONG,
+      'dur': LONG,
       'cpu': NUM,
       'state': STR_NULL,
       'ioWait': NUM_NULL,
       'id': NUM,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
-      const startNsQ = it.tsq;
-      const startNs = it.ts;
-      const durNs = it.dur;
-      const endNs = startNs + durNs;
-
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
+      const startQ = it.tsq;
+      const start = it.ts;
+      const dur = it.dur;
+      const end = start + dur;
+      const minEnd = startQ + resolution;
+      const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
 
       const cpu = it.cpu;
       const state = it.state || undefined;
@@ -155,10 +143,10 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
 
       // We should never have the end timestamp being the same as the bucket
       // start.
-      assertFalse(startNsQ === endNsQ);
+      assertFalse(startQ === endQ);
 
-      data.starts[row] = fromNs(startNsQ);
-      data.ends[row] = fromNs(endNsQ);
+      data.starts[row] = startQ;
+      data.ends[row] = endQ;
       data.state[row] = internState(state, ioWait);
       data.ids[row] = id;
       data.cpu[row] = cpu;
@@ -228,19 +216,15 @@ class ThreadStateTrack extends Track<Config, Data> {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const state = data.strings[data.state[i]];
-      const timeSpan = new HighPrecisionTimeSpan(
-          HighPrecisionTime.fromSeconds(tStart),
-          HighPrecisionTime.fromSeconds(tEnd),
-      );
-
+      const timeSpan = HighPrecisionTimeSpan.fromTpTime(tStart, tEnd);
       if (!visibleWindowTime.intersects(timeSpan)) {
         continue;
       }
 
       // Don't display a slice for Task Dead.
       if (state === 'x') continue;
-      const rectStart = timeScale.secondsToPx(tStart);
-      const rectEnd = timeScale.secondsToPx(tEnd);
+      const rectStart = timeScale.tpTimeToPx(tStart);
+      const rectEnd = timeScale.tpTimeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
 
       const currentSelection = globals.state.currentSelection;
@@ -268,9 +252,9 @@ class ThreadStateTrack extends Track<Config, Data> {
       if (isSelected) {
         drawRectOnSelected = () => {
           const rectStart =
-              Math.max(0 - EXCESS_WIDTH, timeScale.secondsToPx(tStart));
+              Math.max(0 - EXCESS_WIDTH, timeScale.tpTimeToPx(tStart));
           const rectEnd = Math.min(
-              windowSpan.end + EXCESS_WIDTH, timeScale.secondsToPx(tEnd));
+              windowSpan.end + EXCESS_WIDTH, timeScale.tpTimeToPx(tEnd));
           const color = colorForState(state);
           ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
           ctx.beginPath();
@@ -292,9 +276,8 @@ class ThreadStateTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const index = search(data.starts, time.seconds);
+    const index = search(data.starts, time.toTPTime());
     if (index === -1) return false;
-
     const id = data.ids[index];
     globals.makeSelection(
         Actions.selectThreadState({id, trackId: this.trackState.id}));
