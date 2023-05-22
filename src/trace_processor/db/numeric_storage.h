@@ -33,43 +33,51 @@ class NumericStorage : public Storage {
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
-  void CompareFast(FilterOp op,
-                   SqlValue val,
-                   uint32_t offset,
-                   uint32_t num_elements,
-                   BitVector::Builder& builder) const override;
+  void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  void CompareSlow(FilterOp op,
-                   SqlValue val,
-                   uint32_t offset,
-                   uint32_t num_elements,
-                   BitVector::Builder& builder) const override;
+  void LinearSearchAligned(FilterOp op,
+                           SqlValue val,
+                           uint32_t offset,
+                           uint32_t num_elements,
+                           BitVector::Builder& builder) const override;
 
-  void CompareSorted(FilterOp op, SqlValue val, RowMap&) const override;
+  void LinearSearchUnaligned(FilterOp op,
+                             SqlValue val,
+                             uint32_t offset,
+                             uint32_t num_elements,
+                             BitVector::Builder& builder) const override;
 
-  void CompareSortedIndexes(FilterOp op,
-                            SqlValue val,
-                            uint32_t* order,
-                            RowMap&) const override;
+  std::optional<Range> BinarySearch(FilterOp op,
+                                    SqlValue val,
+                                    Range search_range) const override;
+
+  std::optional<Range> BinarySearchWithIndex(FilterOp op,
+                                             SqlValue val,
+                                             uint32_t* order,
+                                             Range search_range) const override;
 
   uint32_t size() const override { return size_; }
 
  private:
   // As we don't template those functions, we need to use std::visitor to type
   // `start`, hence this wrapping.
-  uint32_t UpperBoundIndex(NumericValue val) const;
+  uint32_t UpperBoundIndex(NumericValue val, Range search_range) const;
 
   // As we don't template those functions, we need to use std::visitor to type
   // `start`, hence this wrapping.
-  uint32_t LowerBoundIndex(NumericValue val) const;
+  uint32_t LowerBoundIndex(NumericValue val, Range search_range) const;
 
   // As we don't template those functions, we need to use std::visitor to type
   // `start`, hence this wrapping.
-  uint32_t UpperBoundIndex(NumericValue val, uint32_t* order) const;
+  uint32_t UpperBoundIndex(NumericValue val,
+                           uint32_t* order,
+                           Range search_range) const;
 
   // As we don't template those functions, we need to use std::visitor to type
   // `start`, hence this wrapping.
-  uint32_t LowerBoundIndex(NumericValue val, uint32_t* order) const;
+  uint32_t LowerBoundIndex(NumericValue val,
+                           uint32_t* order,
+                           Range search_range) const;
 
   const ColumnType type_;
   const void* data_;
