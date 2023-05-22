@@ -31,9 +31,9 @@ namespace column {
 // done on the storage. This is a composable design - one ColumnOverlay
 // subclass might hold another subclass, and each of them implements all of the
 // functions in it's own specific way.
-class ColumnOverlay {
+class ColumnOverlayOld {
  public:
-  virtual ~ColumnOverlay();
+  virtual ~ColumnOverlayOld();
 
   // Clears the rows of RowMap, on which data don't match the FilterOp operation
   // with SqlValue. Efficient.

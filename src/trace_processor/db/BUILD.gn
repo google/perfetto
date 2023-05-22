@@ -50,6 +50,7 @@ source_set("db") {
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../util:glob",
+    "overlays",
   ]
 }
 
