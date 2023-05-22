@@ -20,7 +20,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace column {
 
-ColumnOverlay::~ColumnOverlay() = default;
+ColumnOverlayOld::~ColumnOverlayOld() = default;
 
 }  // namespace column
 }  // namespace trace_processor
