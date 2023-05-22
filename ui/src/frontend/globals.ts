@@ -86,8 +86,8 @@ export interface FlowPoint {
   sliceName: string;
   sliceCategory: string;
   sliceId: number;
-  sliceStartTs: number;
-  sliceEndTs: number;
+  sliceStartTs: TPTime;
+  sliceEndTs: TPTime;
   // Thread and process info. Only set in sliceSelected not in areaSelected as
   // the latter doesn't display per-flow info and it'd be a waste to join
   // additional tables for undisplayed info in that case. Nothing precludes
@@ -108,7 +108,7 @@ export interface Flow {
 
   begin: FlowPoint;
   end: FlowPoint;
-  dur: number;
+  dur: TPDuration;
 
   category?: string;
   name?: string;
@@ -148,7 +148,7 @@ export interface FlamegraphDetails {
 
 export interface CpuProfileDetails {
   id?: number;
-  ts?: number;
+  ts?: TPTime;
   utid?: number;
   stack?: CallsiteInfo[];
 }
@@ -255,15 +255,15 @@ class Globals {
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
-    tsStarts: new Float64Array(0),
+    tsStarts: new BigInt64Array(0),
     utids: new Float64Array(0),
     trackIds: [],
     sources: [],
     totalResults: 0,
   };
   searchSummary: SearchSummary = {
-    tsStarts: new Float64Array(0),
-    tsEnds: new Float64Array(0),
+    tsStarts: new BigInt64Array(0),
+    tsEnds: new BigInt64Array(0),
     count: new Uint8Array(0),
   };
 
@@ -559,11 +559,9 @@ class Globals {
       return BigintMath.bitFloor(tpTimeFromSeconds(1000));
     }
 
-    const timePerPx = HighPrecisionTime.max(
-        timeScale.pxDeltaToDuration(1), new HighPrecisionTime(1n));
+    const timePerPx = timeScale.pxDeltaToDuration(this.quantPx);
 
-    const resolutionBig = BigintMath.bitFloor(timePerPx.toTPTime());
-    return resolutionBig;
+    return BigintMath.bitFloor(timePerPx.toTPTime('floor'));
   }
 
   getCurrentEngine(): EngineConfig|undefined {
@@ -605,7 +603,7 @@ class Globals {
     this._metricResult = undefined;
     this._currentSearchResults = {
       sliceIds: new Float64Array(0),
-      tsStarts: new Float64Array(0),
+      tsStarts: new BigInt64Array(0),
       utids: new Float64Array(0),
       trackIds: [],
       sources: [],
@@ -647,7 +645,7 @@ class Globals {
   getTraceTimeScale(pxSpan: PxSpan): TimeScale {
     const {start, end} = this.state.traceTime;
     const traceTime = HighPrecisionTimeSpan.fromTpTime(start, end);
-    return new TimeScale(traceTime.start, traceTime.duration.nanos, pxSpan);
+    return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
   }
 
   // Get the trace time bounds
@@ -665,6 +663,17 @@ class Globals {
   stateVisibleTime(): Span<TPTime> {
     const {start, end} = this.state.frontendLocalState.visibleState;
     return new TPTimeSpan(start, end);
+  }
+
+  // How many pixels to use for one quanta of horizontal resolution
+  get quantPx(): number {
+    const quantPx = (self as {} as {quantPx: number | undefined}).quantPx;
+    if (quantPx) {
+      return quantPx;
+    } else {
+      // Default to 1px per quanta if not defined
+      return 1;
+    }
   }
 }
 

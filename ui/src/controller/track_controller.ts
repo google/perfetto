@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-import {assertExists, assertTrue} from '../base/logging';
+import {assertExists} from '../base/logging';
 import {Engine} from '../common/engine';
 import {Registry} from '../common/registry';
 import {TraceTime, TrackState} from '../common/state';
@@ -33,10 +33,6 @@ import {ControllerFactory} from './controller';
 interface TrackConfig {}
 
 type TrackConfigWithNamespace = TrackConfig&{namespace: string};
-
-// Allow to override via devtools for testing (note, needs to be done in the
-// controller-thread).
-(self as {} as {quantPx: number}).quantPx = 1;
 
 // TrackController is a base class overridden by track implementations (e.g.,
 // sched slices, nestable slices, counters).
@@ -59,10 +55,6 @@ export abstract class TrackController<
     super('main');
     this.trackId = args.trackId;
     this.engine = args.engine;
-  }
-
-  protected pxSize(): number {
-    return (self as {} as {quantPx: number}).quantPx;
   }
 
   // Can be overriden by the track implementation to allow one time setup work
@@ -162,13 +154,13 @@ export abstract class TrackController<
   // data. Returns the bucket size (in ns) if caching should happen and
   // undefined otherwise.
   // Subclasses should call this in their setup function
-  cachedBucketSizeNs(numRows: number): number|undefined {
+  calcCachedBucketSize(numRows: number): TPDuration|undefined {
     // Ensure that we're not caching when the table size isn't even that big.
     if (numRows < TrackController.MIN_TABLE_SIZE_TO_CACHE) {
       return undefined;
     }
 
-    const traceDuration = globals.stateTraceTime().duration;
+    const traceDuration = globals.stateTraceTimeTP().duration;
 
     // For large traces, going through the raw table in the most zoomed-out
     // states can be very expensive as this can involve going through O(millions
@@ -198,41 +190,37 @@ export abstract class TrackController<
 
     // 4k monitors have 3840 horizontal pixels so use that for a worst case
     // approximation of the window width.
-    const approxWidthPx = 3840;
+    const approxWidthPx = 3840n;
 
     // Compute the outermost bucket size. This acts as a starting point for
     // computing the cached size.
-    const outermostResolutionLevel =
-        Math.ceil(Math.log2(traceDuration.nanos / approxWidthPx));
-    const outermostBucketNs = Math.pow(2, outermostResolutionLevel);
+    const outermostBucketSize =
+        BigintMath.bitCeil(traceDuration / approxWidthPx);
+    const outermostResolutionLevel = BigintMath.log2(outermostBucketSize);
 
     // This constant decides how many resolution levels down from our outermost
     // bucket computation we want to be able to use the cached table.
     // We've chosen 7 as it seems to be empircally seems to be a good fit for
     // trace data.
-    const resolutionLevelsCovered = 7;
+    const resolutionLevelsCovered = 7n;
 
     // If we've got less resolution levels in the trace than the number of
     // resolution levels we want to go down, bail out because this cached
     // table is really not going to be used enough.
     if (outermostResolutionLevel < resolutionLevelsCovered) {
-      return Number.MAX_SAFE_INTEGER;
+      return BigintMath.INT64_MAX;
     }
 
     // Another way to look at moving down resolution levels is to consider how
     // many sub-intervals we are splitting the bucket into.
-    const bucketSubIntervals = Math.pow(2, resolutionLevelsCovered);
+    const bucketSubIntervals = 1n << resolutionLevelsCovered;
 
     // Calculate the smallest bucket we want our table to be able to handle by
     // dividing the outermsot bucket by the number of subintervals we should
     // divide by.
-    const cachedBucketSizeNs = outermostBucketNs / bucketSubIntervals;
+    const cachedBucketSize = outermostBucketSize / bucketSubIntervals;
 
-    // Our logic above should make sure this is an integer but double check that
-    // here as an assertion before returning.
-    assertTrue(Number.isInteger(cachedBucketSizeNs));
-
-    return cachedBucketSizeNs;
+    return cachedBucketSize;
   }
 
   run() {

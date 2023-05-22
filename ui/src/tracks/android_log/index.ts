@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {PluginContext} from '../../common/plugin_api';
-import {NUM} from '../../common/query_result';
-import {fromNs, TPDuration, TPTime} from '../../common/time';
+import {LONG, NUM} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -31,8 +31,7 @@ export interface Data extends TrackData {
   numEvents: number;
 
   // Below: data quantized by resolution and aggregated by event priority.
-
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
 
   // Each Uint8 value has the i-th bit is set if there is at least one log
   // event at the i-th priority level at the corresponding time in |timestamps|.
@@ -80,14 +79,13 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       resolution,
       length: rowCount,
       numEvents: 0,
-      timestamps: new Float64Array(rowCount),
+      timestamps: new BigInt64Array(rowCount),
       priorities: new Uint8Array(rowCount),
     };
 
-
-    const it = queryRes.iter({tsQuant: NUM, prio: NUM, numEvents: NUM});
+    const it = queryRes.iter({tsQuant: LONG, prio: NUM, numEvents: NUM});
     for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = fromNs(it.tsQuant);
+      result.timestamps[row] = it.tsQuant;
       const prio = Math.min(it.prio, 7);
       result.priorities[row] |= (1 << prio);
       result.numEvents += it.numEvents;
@@ -137,7 +135,7 @@ class AndroidLogTrack extends Track<Config, Data> {
         }
         if (!hasEventsForCurColor) continue;
         ctx.fillStyle = LEVELS[lev].color;
-        const px = Math.floor(visibleTimeScale.secondsToPx(data.timestamps[i]));
+        const px = Math.floor(visibleTimeScale.tpTimeToPx(data.timestamps[i]));
         ctx.fillRect(px, MARGIN_TOP + blockH * lev, quantWidth, blockH);
       }  // for(lev)
     }    // for (timestamps)

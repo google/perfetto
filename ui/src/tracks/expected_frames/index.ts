@@ -19,12 +19,13 @@ export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {ChromeSliceTrack} from '../chrome_slices';
 
-import {LONG_NULL, NUM, STR} from '../../common/query_result';
-import {TPDuration, TPTime, fromNs} from '../../common/time';
+import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {
   TrackController,
 } from '../../controller/track_controller';
 import {PluginContext} from '../../common/plugin_api';
+import {BigintMath as BIMath} from '../../base/bigint_math';
 
 export interface Config {
   maxDepth: number;
@@ -35,8 +36,8 @@ export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   strings: string[];
   sliceIds: Float64Array;
-  starts: Float64Array;
-  ends: Float64Array;
+  starts: BigInt64Array;
+  ends: BigInt64Array;
   depths: Uint16Array;
   titles: Uint16Array;   // Index in |strings|.
   colors?: Uint16Array;  // Index in |strings|.
@@ -50,13 +51,6 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
 
   async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const pxSize = this.pxSize();
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(Number(resolution) * pxSize / 2) * 2, 1);
-
     if (this.maxDurNs === 0n) {
       const maxDurResult = await this.query(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
@@ -69,7 +63,7 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
 
     const queryRes = await this.query(`
       SELECT
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         ts,
         max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
         layout_depth as layoutDepth,
@@ -94,8 +88,8 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
       length: numRows,
       strings: [],
       sliceIds: new Float64Array(numRows),
-      starts: new Float64Array(numRows),
-      ends: new Float64Array(numRows),
+      starts: new BigInt64Array(numRows),
+      ends: new BigInt64Array(numRows),
       depths: new Uint16Array(numRows),
       titles: new Uint16Array(numRows),
       colors: new Uint16Array(numRows),
@@ -115,9 +109,9 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
     const greenIndex = internString('#4CAF50');
 
     const it = queryRes.iter({
-      tsq: NUM,
-      ts: NUM,
-      dur: NUM,
+      tsq: LONG,
+      ts: LONG,
+      dur: LONG,
       layoutDepth: NUM,
       id: NUM,
       name: STR,
@@ -125,16 +119,15 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
       isIncomplete: NUM,
     });
     for (let row = 0; it.valid(); it.next(), ++row) {
-      const startNsQ = it.tsq;
-      const startNs = it.ts;
-      const durNs = it.dur;
-      const endNs = startNs + durNs;
+      const startQ = it.tsq;
+      const start = it.ts;
+      const dur = it.dur;
+      const end = start + dur;
+      const minEnd = startQ + resolution;
+      const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
 
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-
-      slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
+      slices.starts[row] = startQ;
+      slices.ends[row] = endQ;
       slices.depths[row] = it.layoutDepth;
       slices.titles[row] = internString(it.name);
       slices.sliceIds[row] = it.id;

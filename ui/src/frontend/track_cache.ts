@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
+
 import {assertTrue} from '../base/logging';
+import {TPDuration, TPTime} from '../common/time';
 
 export const BUCKETS_PER_PIXEL = 2;
 
@@ -52,34 +55,35 @@ export const BUCKETS_PER_PIXEL = 2;
 // In other words the normal window is a superset of the data of the
 // non-normal window at a higher resolution. Normalization is used to
 // avoid re-fetching data on tiny zooms/moves/resizes.
-// TODO(stevegolton): Convert to bigint timestamps.
 export class CacheKey {
-  readonly startNs: number;
-  readonly endNs: number;
-  readonly bucketNs: number;
+  readonly start: TPTime;
+  readonly end: TPTime;
+  readonly bucketSize: TPDuration;
   readonly windowSizePx: number;
 
-  static create(startNs: number, endNs: number, windowSizePx: number):
+  static create(startNs: TPTime, endNs: TPTime, windowSizePx: number):
       CacheKey {
-    const bucketNs = (endNs - startNs) / (windowSizePx * BUCKETS_PER_PIXEL);
+    const bucketNs =
+        (endNs - startNs) / BigInt(windowSizePx * BUCKETS_PER_PIXEL);
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 
   private constructor(
-      startNs: number, endNs: number, bucketNs: number, windowSizePx: number) {
-    this.startNs = startNs;
-    this.endNs = endNs;
-    this.bucketNs = bucketNs;
+      startNs: TPTime, endNs: TPTime, bucketNs: TPDuration,
+      windowSizePx: number) {
+    this.start = startNs;
+    this.end = endNs;
+    this.bucketSize = bucketNs;
     this.windowSizePx = windowSizePx;
   }
 
   static zero(): CacheKey {
-    return new CacheKey(0, 0, 0, 100);
+    return new CacheKey(0n, 0n, 0n, 100);
   }
 
-  get normalizedBucketNs(): number {
+  get normalizedBucketNs(): bigint {
     // Round bucketNs down to the nearest smaller power of 2 (minimum 1):
-    return Math.max(1, Math.pow(2, Math.floor(Math.log2(this.bucketNs))));
+    return BigintMath.max(1n, BigintMath.bitFloor(this.bucketSize));
   }
 
   get normalizedWindowSizePx(): number {
@@ -89,9 +93,9 @@ export class CacheKey {
   normalize(): CacheKey {
     const windowSizePx = this.normalizedWindowSizePx;
     const bucketNs = this.normalizedBucketNs;
-    const windowNs = windowSizePx * BUCKETS_PER_PIXEL * bucketNs;
-    const startNs = Math.floor(this.startNs / windowNs) * windowNs;
-    const endNs = Math.ceil(this.endNs / windowNs) * windowNs;
+    const windowNs = BigInt(windowSizePx * BUCKETS_PER_PIXEL) * bucketNs;
+    const startNs = BigintMath.quantFloor(this.start, windowNs);
+    const endNs = BigintMath.quantCeil(this.end, windowNs);
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 
@@ -101,8 +105,8 @@ export class CacheKey {
 
   isCoveredBy(other: CacheKey): boolean {
     let r = true;
-    r = r && other.startNs <= this.startNs;
-    r = r && other.endNs >= this.endNs;
+    r = r && other.start <= this.start;
+    r = r && other.end >= this.end;
     r = r && other.normalizedBucketNs === this.normalizedBucketNs;
     r = r && other.normalizedWindowSizePx === this.normalizedWindowSizePx;
     return r;
@@ -111,9 +115,9 @@ export class CacheKey {
   // toString is 'load bearing' in that it's used to key e.g. caches
   // with CacheKey's.
   toString() {
-    const start = this.startNs;
-    const end = this.endNs;
-    const bucket = this.bucketNs;
+    const start = this.start;
+    const end = this.end;
+    const bucket = this.bucketSize;
     const size = this.windowSizePx;
     return `CacheKey<${start}, ${end}, ${bucket}, ${size}>`;
   }
