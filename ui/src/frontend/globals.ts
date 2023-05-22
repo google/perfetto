@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { HttpRcpEngineCustomizer } from '../common/http_rpc_engine';
 import { assertExists } from '../base/logging';
 import { Actions, DeferredAction } from '../common/actions';
 import { AggregateData } from '../common/aggregation_data';
@@ -253,6 +254,8 @@ class Globals {
   private _cachePrefix: string = '';
 
   private _viewOpener?: ViewOpener = undefined;
+  private _allowFileDrop = true;
+  private _httpRpcEngineCustomizer?: HttpRcpEngineCustomizer;
 
   // Init from session storage since correct value may be required very early on
   private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
@@ -630,6 +633,22 @@ class Globals {
 
   set viewOpener(viewOpener: ViewOpener | undefined) {
     this._viewOpener = viewOpener;
+  }
+
+  get allowFileDrop(): boolean {
+    return this._allowFileDrop;
+  }
+
+  set allowFileDrop(allowFileDrop: boolean) {
+    this._allowFileDrop = allowFileDrop;
+  }
+
+  get httpRpcEngineCustomizer(): HttpRcpEngineCustomizer | undefined {
+    return this._httpRpcEngineCustomizer;
+  }
+
+  set httpRpcEngineCustomizer(httpRpcEngineCustomizer: HttpRcpEngineCustomizer | undefined) {
+    this._httpRpcEngineCustomizer = httpRpcEngineCustomizer;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

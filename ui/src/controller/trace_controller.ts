@@ -342,6 +342,7 @@ export class TraceController extends Controller<States> {
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));
         throw err;
       };
+      globals.httpRpcEngineCustomizer?.(engine);
     } else {
       console.log('Opening trace using built-in WASM engine');
       engineMode = 'WASM';

@@ -29,9 +29,13 @@ export interface HttpRpcState {
   failure?: string;
 }
 
+/** A call-back to customize a newly created HTTP+RPC engine. */
+export type HttpRcpEngineCustomizer = (engine: HttpRpcEngine) => unknown;
+
 export class HttpRpcEngine extends Engine {
   readonly id: string;
   errorHandler: (err: string) => void = () => {};
+  closeHandler: (code: number, reason: string) => void = (code, reason) => this.errorHandler(`Websocket closed (${code}: ${reason})`);
   private requestQueue = new Array<Uint8Array>();
   private websocket?: WebSocket;
   private connected = false;
@@ -47,7 +51,7 @@ export class HttpRpcEngine extends Engine {
       this.websocket.onopen = () => this.onWebsocketConnected();
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
       this.websocket.onclose = (e) =>
-          this.errorHandler(`Websocket closed (${e.code}: ${e.reason})`);
+          this.closeHandler(e.code, e.reason);
       this.websocket.onerror = (e) =>
           this.errorHandler(`WebSocket error: ${e}`);
     }

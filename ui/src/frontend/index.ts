@@ -355,7 +355,7 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   CheckHttpRpcConnection().then(() => {
-    if (!globals.embeddedMode) {
+    if (!globals.embeddedMode && globals.allowFileDrop) {
       installFileDropHandler();
     }
 
