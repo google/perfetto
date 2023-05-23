@@ -17,14 +17,11 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_NULL_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_NULL_OVERLAY_H_
 
-#include <variant>
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/storage.h"
+#include "src/trace_processor/db/storage/storage.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace overlays {
 
 // Overlay responsible for operations related to column nullability.
 class NullOverlay {
@@ -39,7 +36,7 @@ class NullOverlay {
   const BitVector* null_bv_;
 };
 
-}  // namespace column
+}  // namespace overlays
 }  // namespace trace_processor
 }  // namespace perfetto
 
