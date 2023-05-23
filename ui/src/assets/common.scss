@@ -187,10 +187,6 @@ button.close {
   }
 }
 
-.query-table-container {
-  width: 100%;
-}
-
 @mixin table-font-size {
   font-size: 14px;
   line-height: 18px;
@@ -270,8 +266,9 @@ $bottom-tab-padding: 10px;
   font-size: 14px;
   border: 0;
   thead td {
-    position: sticky;
-    top: 0;
+    // TODO(stevegolton): Get sticky working again.
+    // position: sticky;
+    // top: 0;
     background-color: hsl(214, 22%, 90%);
     color: #262f3c;
     text-align: center;
@@ -471,17 +468,7 @@ $bottom-tab-padding: 10px;
 
 .details-panel-container {
   box-shadow: #0000003b 0px 0px 3px 1px;
-  position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  flex: 1 1 auto;
-  // TODO(hjd): This causes the sticky header to flicker when scrolling.
-  // Is will-change necessary in the details panel?
-  // will-change: transform;
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-  grid-template-areas: "space";
+  overflow: auto;
 }
 
 .pinned-panel-container {
@@ -520,9 +507,10 @@ canvas.main-canvas {
   position: relative; // Otherwise canvas covers panel dom.
 
   &.sticky {
-    position: sticky;
+    // TODO(stevegolton): Get sticky working again.
+    // position: sticky;
     z-index: 3;
-    top: 0;
+    // top: 0;
     background-color: hsl(215, 22%, 19%);
   }
 }
@@ -555,6 +543,9 @@ canvas.main-canvas {
 }
 
 header.overview {
+  position: sticky;
+  top: 0;
+  left: 0;
   display: flex;
   align-content: baseline;
   background-color: hsl(213, 22%, 82%);
