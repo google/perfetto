@@ -12,15 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import unittest
 import os
 import sys
+import unittest
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from generators.stdlib_docs.stdlib import FunctionDocs, ViewFunctionDocs, TableViewDocs
+from python.generators.stdlib_docs.parse import parse_file_to_dict
 
 DESC = """--
 -- First line.
@@ -34,14 +34,12 @@ COLS_SQL_STR = "slice_id INT, slice_name STRING"
 
 ARGS_STR = """--
 -- @arg utid INT              Utid of thread.
--- @arg name STRING           String name.
-"""
+-- @arg name STRING           String name."""
 
 ARGS_SQL_STR = "utid INT, name STRING"
 
 RET_STR = """--
--- @ret BOOL                  Exists.
-"""
+-- @ret BOOL                  Exists."""
 
 RET_SQL_STR = "BOOL"
 
@@ -50,162 +48,236 @@ SQL_STR = "SELECT * FROM slice"
 
 class TestStdlib(unittest.TestCase):
 
-  # Valid schemas
-
   def test_valid_table(self):
-    valid_table_comment = f"{DESC}\n{COLS_STR}".split('\n')
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+{COLS_STR}
+CREATE TABLE foo_table AS
+{SQL_STR};
+    '''.strip())
+    assert isinstance(res, dict)
 
-    docs, create_errors = TableViewDocs.create_from_comment(
-        "", valid_table_comment, 'common', ('table', 'tab_name', 'to_ignore'))
-    self.assertFalse(create_errors)
-
-    validation_errors = docs.check_comment()
-    self.assertFalse(validation_errors)
+    table = res['imports'][0]
+    self.assertEqual(table['name'], 'foo_table')
+    self.assertEqual(table['desc'], 'First line. Second line.')
+    self.assertEqual(table['type'], 'TABLE')
+    self.assertEqual(table['cols'], {
+        'slice_id': 'Id of slice.',
+        'slice_name': 'Name of slice.'
+    })
 
   def test_valid_function(self):
-    valid_function = f"{DESC}\n{ARGS_STR}\n{RET_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, RET_SQL_STR, SQL_STR)
-    docs, create_errors = FunctionDocs.create_from_comment(
-        "", valid_function, 'common', valid_regex_matches)
-    self.assertFalse(create_errors)
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+{ARGS_STR}
+{RET_STR}
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, dict)
 
-    validation_errors = docs.check_comment()
-    self.assertFalse(validation_errors)
+    fn = res['functions'][0]
+    self.assertEqual(fn['name'], 'FOO_FN')
+    self.assertEqual(fn['desc'], 'First line. Second line.')
+    self.assertEqual(
+        fn['args'], {
+            'utid': {
+                'type': 'INT',
+                'desc': 'Utid of thread.',
+            },
+            'name': {
+                'type': 'STRING',
+                'desc': 'String name.',
+            },
+        })
+    self.assertEqual(fn['return_type'], 'BOOL')
+    self.assertEqual(fn['return_desc'], 'Exists.')
 
   def test_valid_view_function(self):
-    valid_view_function = f"{DESC}\n{ARGS_STR}\n{COLS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, COLS_SQL_STR, SQL_STR)
-    docs, create_errors = ViewFunctionDocs.create_from_comment(
-        "", valid_view_function, 'common', valid_regex_matches)
-    self.assertFalse(create_errors)
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+{ARGS_STR}
+{COLS_STR}
+SELECT CREATE_VIEW_FUNCTION(
+  'FOO_VIEW_FN({ARGS_SQL_STR})',
+  '{COLS_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, dict)
 
-    validation_errors = docs.check_comment()
-    self.assertFalse(validation_errors)
+    fn = res['view_functions'][0]
+    self.assertEqual(fn['name'], 'FOO_VIEW_FN')
+    self.assertEqual(fn['desc'], 'First line. Second line.')
+    self.assertEqual(
+        fn['args'], {
+            'utid': {
+                'type': 'INT',
+                'desc': 'Utid of thread.',
+            },
+            'name': {
+                'type': 'STRING',
+                'desc': 'String name.',
+            },
+        })
+    self.assertEqual(fn['cols'], {
+        'slice_id': 'Id of slice.',
+        'slice_name': 'Name of slice.'
+    })
 
-  # Missing modules in names
+  def test_missing_module_name(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+{COLS_STR}
+CREATE TABLE bar_table AS
+{SQL_STR};
+    '''.strip())
+    assert isinstance(res, list)
 
-  def test_missing_module_in_table_name(self):
-    valid_table_comment = f"{DESC}\n{COLS_STR}".split('\n')
+  def test_common_does_not_include_module_name(self):
+    res = parse_file_to_dict(
+        'common/bar.sql', f'''
+{DESC}
+{COLS_STR}
+CREATE TABLE common_table AS
+{SQL_STR};
+    '''.strip())
+    assert isinstance(res, list)
 
-    _, create_errors = TableViewDocs.create_from_comment(
-        "", valid_table_comment, 'android', ('table', 'tab_name', 'to_ignore'))
-    self.assertTrue(create_errors)
+  def test_cols_typo(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+--
+-- @column slice_id2          Foo.
+-- @column slice_name         Bar.
+CREATE TABLE bar_table AS
+{SQL_STR};
+    '''.strip())
+    assert isinstance(res, list)
 
-  def test_missing_module_in_function_name(self):
-    valid_function = f"{DESC}\n{ARGS_STR}\n{RET_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, RET_SQL_STR, SQL_STR)
-    _, create_errors = FunctionDocs.create_from_comment("", valid_function,
-                                                        'android',
-                                                        valid_regex_matches)
-    self.assertTrue(create_errors)
+  def test_cols_no_desc(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+--
+-- @column slice_id
+-- @column slice_name         Bar.
+CREATE TABLE bar_table AS
+{SQL_STR};
+    '''.strip())
+    assert isinstance(res, list)
 
-  def test_missing_module_in_view_function_name(self):
-    valid_view_function = f"{DESC}\n{ARGS_STR}\n{COLS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, COLS_SQL_STR, SQL_STR)
-    _, create_errors = ViewFunctionDocs.create_from_comment(
-        "", valid_view_function, 'android', valid_regex_matches)
-    self.assertTrue(create_errors)
+  def test_args_typo(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+--
+-- @arg utid2 INT              Uint.
+-- @arg name STRING           String name.
+{RET_STR}
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, list)
 
-  # Missing part of schemas
+  def test_args_no_desc(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+--
+-- @arg utid INT
+-- @arg name STRING           String name.
+{RET_STR}
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, list)
 
-  def test_missing_desc_in_table_name(self):
-    comment = f"{COLS_STR}".split('\n')
+  def test_ret_no_desc(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+{ARGS_STR}
+--
+-- @ret BOOL
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, list)
 
-    _, create_errors = TableViewDocs.create_from_comment(
-        "", comment, 'common', ('table', 'tab_name', 'to_ignore'))
-    self.assertTrue(create_errors)
+  def test_multiline_desc(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+-- This
+-- is
+--
+-- a
+--      very
+--
+-- long
+--
+-- description.
+{ARGS_STR}
+{RET_STR}
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, dict)
 
-  def test_missing_cols_in_table(self):
-    comment = f"{DESC}".split('\n')
+    fn = res['functions'][0]
+    self.assertEqual(fn['desc'], 'This is a very long description.')
 
-    _, create_errors = TableViewDocs.create_from_comment(
-        "", comment, 'common', ('table', 'tab_name', 'to_ignore'))
-    self.assertTrue(create_errors)
+  def test_multiline_arg_desc(self):
+    res = parse_file_to_dict(
+        'foo/bar.sql', f'''
+{DESC}
+--
+-- @arg utid INT              Uint
+-- spread
+--
+-- across lines.
+-- @arg name STRING            String name
+--                             which spans across multiple lines
+-- inconsistently.
+{RET_STR}
+SELECT CREATE_FUNCTION(
+  'FOO_FN({ARGS_SQL_STR})',
+  '{RET_SQL_STR}',
+  '{SQL_STR}'
+);
+    '''.strip())
+    assert isinstance(res, dict)
 
-  def test_missing_desc_in_function(self):
-    comment = f"{ARGS_STR}\n{RET_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, RET_SQL_STR, SQL_STR)
-    _, create_errors = FunctionDocs.create_from_comment("", comment, 'common',
-                                                        valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  def test_missing_args_in_function(self):
-    comment = f"{DESC}\n{RET_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, RET_SQL_STR, SQL_STR)
-    _, create_errors = FunctionDocs.create_from_comment("", comment, 'common',
-                                                        valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  def test_missing_ret_in_function(self):
-    comment = f"{DESC}\n{ARGS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, RET_SQL_STR, SQL_STR)
-    _, create_errors = FunctionDocs.create_from_comment("", comment, 'common',
-                                                        valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  def test_missing_desc_in_view_function(self):
-    comment = f"{ARGS_STR}\n{COLS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, COLS_SQL_STR, SQL_STR)
-    _, create_errors = ViewFunctionDocs.create_from_comment(
-        "", comment, 'common', valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  def test_missing_args_in_view_function(self):
-    comment = f"{DESC}\n{COLS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, COLS_SQL_STR, SQL_STR)
-    _, create_errors = ViewFunctionDocs.create_from_comment(
-        "", comment, 'common', valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  def test_missing_cols_in_view_function(self):
-    comment = f"{DESC}\n{ARGS_STR}".split('\n')
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, COLS_SQL_STR, SQL_STR)
-    _, create_errors = ViewFunctionDocs.create_from_comment(
-        "", comment, 'common', valid_regex_matches)
-    self.assertTrue(create_errors)
-
-  # Validate elements
-
-  def test_invalid_table_columns(self):
-    invalid_cols = "-- @column slice_id"
-    comment = f"{DESC}\n{invalid_cols}".split('\n')
-
-    docs, create_errors = TableViewDocs.create_from_comment(
-        "", comment, 'common', ('table', 'tab_name', 'to_ignore'))
-    self.assertFalse(create_errors)
-
-    validation_errors = docs.check_comment()
-    self.assertTrue(validation_errors)
-
-  def test_invalid_view_function_columns(self):
-    comment = f"{DESC}\n{ARGS_STR}\n{COLS_STR}".split('\n')
-    cols_sql_str = "slice_id INT"
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, cols_sql_str, SQL_STR)
-    docs, create_errors = ViewFunctionDocs.create_from_comment(
-        "", comment, 'common', valid_regex_matches)
-    self.assertFalse(create_errors)
-
-    validation_errors = docs.check_comment()
-    self.assertTrue(validation_errors)
-
-  def test_invalid_arguments(self):
-    valid_function = f"{DESC}\n{ARGS_STR}\n{RET_STR}".split('\n')
-    args_sql_str = "utid BOOL"
-    valid_regex_matches = ('fun_name', args_sql_str, RET_SQL_STR, SQL_STR)
-    docs, create_errors = FunctionDocs.create_from_comment(
-        "", valid_function, 'common', valid_regex_matches)
-    self.assertFalse(create_errors)
-
-    validation_errors = docs.check_comment()
-    self.assertTrue(validation_errors)
-
-  def test_invalid_ret(self):
-    valid_function = f"{DESC}\n{ARGS_STR}\n{RET_STR}".split('\n')
-    ret_sql_str = "utid BOOL"
-    valid_regex_matches = ('fun_name', ARGS_SQL_STR, ret_sql_str, SQL_STR)
-    docs, create_errors = FunctionDocs.create_from_comment(
-        "", valid_function, 'common', valid_regex_matches)
-    self.assertFalse(create_errors)
-
-    validation_errors = docs.check_comment()
-    self.assertTrue(validation_errors)
+    fn = res['functions'][0]
+    self.assertEqual(
+        fn['args'], {
+            'utid': {
+                'type': 'INT',
+                'desc': 'Uint spread across lines.',
+            },
+            'name': {
+                'type': 'STRING',
+                'desc': 'String name which spans across multiple lines '
+                        'inconsistently.',
+            },
+        })
