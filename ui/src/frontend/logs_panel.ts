@@ -58,8 +58,7 @@ export class LogPanel extends Panel<{}> {
   }
 
   oncreate({dom}: m.CVnodeDOM) {
-    this.scrollContainer = assertExists(
-        dom.parentElement!.parentElement!.parentElement as HTMLElement);
+    this.scrollContainer = assertExists(dom.parentElement as HTMLElement);
     this.scrollContainer.addEventListener(
         'scroll', this.onScroll.bind(this), {passive: true});
     // TODO(stevegolton): Type assersions are a source of bugs.
