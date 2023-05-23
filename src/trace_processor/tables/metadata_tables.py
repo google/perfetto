@@ -177,7 +177,7 @@ RAW_TABLE = Table(
           table only exists for debugging purposes and should not be relied on
           in production usecases (i.e. metrics, standard library etc).
         ''',
-        group='Misc',
+        group='Events',
         columns={
             'arg_set_id':
                 ColumnDoc(
@@ -204,12 +204,12 @@ FTRACE_EVENT_TABLE = Table(
     columns=[],
     tabledoc=TableDoc(
         doc='''
-      Contains all the ftrace events in the trace. This table exists only for
-      debugging purposes and should not be relied on in production usecases
-      (i.e. metrics, standard library etc). Note also that this table might
-      be empty if raw ftrace parsing has been disabled.
-    ''',
-        group='Misc',
+          Contains all the ftrace events in the trace. This table exists only
+          for debugging purposes and should not be relied on in production
+          usecases (i.e. metrics, standard library etc). Note also that this
+          table might be empty if raw ftrace parsing has been disabled.
+        ''',
+        group='Events',
         columns={}))
 
 ARG_TABLE = Table(
