@@ -17,13 +17,15 @@
 #include <numeric>
 
 #include "src/trace_processor/db/storage/numeric_storage.h"
+
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace storage {
-
 namespace {
+
+using Range = RowMap::Range;
 
 TEST(NumericStorageUnittest, StableSortTrivial) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
@@ -49,42 +51,12 @@ TEST(NumericStorageUnittest, StableSort) {
   ASSERT_EQ(out, stable_out);
 }
 
-TEST(NumericStorageUnittest, CompareSlow) {
-  uint32_t size = 10;
-  std::vector<uint32_t> data_vec(size);
-  std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), size, ColumnType::kUint32);
-  BitVector::Builder builder(size);
-  storage.LinearSearchUnaligned(FilterOp::kGe, SqlValue::Long(5), 0, size,
-                                builder);
-  BitVector bv = std::move(builder).Build();
-
-  ASSERT_EQ(bv.CountSetBits(), 5u);
-  ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
-}
-
-TEST(NumericStorageUnittest, CompareSlowLarge) {
-  uint32_t size = 1025;
-  std::vector<uint32_t> data_vec(size);
-  std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), size, ColumnType::kUint32);
-  BitVector::Builder builder(size);
-  storage.LinearSearchUnaligned(FilterOp::kGe, SqlValue::Long(5), 0, size,
-                                builder);
-  BitVector bv = std::move(builder).Build();
-
-  ASSERT_EQ(bv.CountSetBits(), 1020u);
-  ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
-}
-
 TEST(NumericStorageUnittest, CompareFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
-  BitVector::Builder builder(128);
-  storage.LinearSearchAligned(FilterOp::kGe, SqlValue::Long(100), 0, 128,
-                              builder);
-  BitVector bv = std::move(builder).Build();
+  BitVector bv =
+      storage.LinearSearch(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
 
   ASSERT_EQ(bv.CountSetBits(), 28u);
   ASSERT_EQ(bv.IndexOfNthSet(0), 100u);
@@ -94,12 +66,12 @@ TEST(NumericStorageUnittest, CompareSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
-  std::optional<Range> range =
-      storage.BinarySearch(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
+  Range range = storage.BinarySearchIntrinsic(
+      FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
 
-  ASSERT_EQ(range->size(), 28u);
-  ASSERT_EQ(range->start, 100u);
-  ASSERT_EQ(range->end, 128u);
+  ASSERT_EQ(range.size(), 28u);
+  ASSERT_EQ(range.start, 100u);
+  ASSERT_EQ(range.end, 128u);
 }
 
 TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
@@ -108,8 +80,8 @@ TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  std::optional<Range> range = storage.BinarySearchWithIndex(
-      FilterOp::kGe, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
+  std::optional<Range> range = storage.BinarySearchExtrinsic(
+      FilterOp::kGe, SqlValue::Long(60), sorted_order.data(), 10);
 
   ASSERT_EQ(range->size(), 4u);
   ASSERT_EQ(range->start, 6u);
@@ -122,8 +94,8 @@ TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  std::optional<Range> range = storage.BinarySearchWithIndex(
-      FilterOp::kLt, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
+  std::optional<Range> range = storage.BinarySearchExtrinsic(
+      FilterOp::kLt, SqlValue::Long(60), sorted_order.data(), 10);
 
   ASSERT_EQ(range->size(), 6u);
   ASSERT_EQ(range->start, 0u);
@@ -136,8 +108,8 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  std::optional<Range> range = storage.BinarySearchWithIndex(
-      FilterOp::kEq, SqlValue::Long(60), sorted_order.data(), Range(0, 10));
+  std::optional<Range> range = storage.BinarySearchExtrinsic(
+      FilterOp::kEq, SqlValue::Long(60), sorted_order.data(), 10);
 
   ASSERT_EQ(range->size(), 1u);
   ASSERT_EQ(range->start, 6u);
