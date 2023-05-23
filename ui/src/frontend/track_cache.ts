@@ -63,8 +63,8 @@ export class CacheKey {
 
   static create(startNs: TPTime, endNs: TPTime, windowSizePx: number):
       CacheKey {
-    const bucketNs =
-        (endNs - startNs) / BigInt(windowSizePx * BUCKETS_PER_PIXEL);
+    const bucketNs = (endNs - startNs) /
+        BigInt(Math.round(windowSizePx * BUCKETS_PER_PIXEL));
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 
