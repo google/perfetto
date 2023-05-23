@@ -13,6 +13,9 @@
 # limitations under the License.
 
 source_set("overlays") {
-  sources = [ "column_overlay.h" ]
-  deps = [ "../../containers" ]
+  sources = [ "storage_overlay.h" ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../containers",
+  ]
 }
