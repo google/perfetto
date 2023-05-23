@@ -13,18 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef SRC_TRACE_PROCESSOR_DB_NUMERIC_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_DB_NUMERIC_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_NUMERIC_STORAGE_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_NUMERIC_STORAGE_H_
 
 #include <variant>
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/storage.h"
-#include "src/trace_processor/db/storage_variants.h"
+
+#include "src/trace_processor/db/storage/storage.h"
+#include "src/trace_processor/db/storage/storage_variants.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace storage {
 
 class NumericStorage : public Storage {
  public:
@@ -84,7 +83,7 @@ class NumericStorage : public Storage {
   const uint32_t size_;
 };
 
-}  // namespace column
+}  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
-#endif  // SRC_TRACE_PROCESSOR_DB_NUMERIC_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_NUMERIC_STORAGE_H_
