@@ -20,7 +20,6 @@ source_set("storage") {
     "numeric_storage.h",
     "storage.cc",
     "storage.h",
-    "storage_variants.h",
     "types.h",
   ]
   deps = [
