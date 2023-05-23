@@ -68,7 +68,7 @@ export class FtracePanel extends Panel<{}> {
   }
 
   private scrollContainer(dom: Element): HTMLElement {
-    const el = dom.parentElement!.parentElement!.parentElement;
+    const el = dom.parentElement;
     return assertExists(el);
   }
 
