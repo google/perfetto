@@ -19,12 +19,13 @@
 #include <variant>
 
 #include "src/trace_processor/db/storage/storage.h"
-#include "src/trace_processor/db/storage/storage_variants.h"
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
+// Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
 class NumericStorage : public Storage {
  public:
   NumericStorage(void* data, uint32_t size, ColumnType type)
@@ -34,53 +35,31 @@ class NumericStorage : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  void LinearSearchAligned(FilterOp op,
-                           SqlValue val,
-                           uint32_t offset,
-                           uint32_t num_elements,
-                           BitVector::Builder& builder) const override;
+  BitVector LinearSearch(FilterOp op,
+                         SqlValue val,
+                         RowMap::Range) const override;
 
-  void LinearSearchUnaligned(FilterOp op,
-                             SqlValue val,
-                             uint32_t offset,
-                             uint32_t num_elements,
-                             BitVector::Builder& builder) const override;
+  BitVector IndexSearch(FilterOp op,
+                        SqlValue value,
+                        uint32_t* indices,
+                        uint32_t indices_count) const override;
 
-  std::optional<Range> BinarySearch(FilterOp op,
-                                    SqlValue val,
-                                    Range search_range) const override;
+  RowMap::Range BinarySearchIntrinsic(
+      FilterOp op,
+      SqlValue val,
+      RowMap::Range search_range) const override;
 
-  std::optional<Range> BinarySearchWithIndex(FilterOp op,
-                                             SqlValue val,
-                                             uint32_t* order,
-                                             Range search_range) const override;
+  RowMap::Range BinarySearchExtrinsic(FilterOp op,
+                                      SqlValue val,
+                                      uint32_t* indices,
+                                      uint32_t indices_count) const override;
 
   uint32_t size() const override { return size_; }
 
  private:
-  // As we don't template those functions, we need to use std::visitor to type
-  // `start`, hence this wrapping.
-  uint32_t UpperBoundIndex(NumericValue val, Range search_range) const;
-
-  // As we don't template those functions, we need to use std::visitor to type
-  // `start`, hence this wrapping.
-  uint32_t LowerBoundIndex(NumericValue val, Range search_range) const;
-
-  // As we don't template those functions, we need to use std::visitor to type
-  // `start`, hence this wrapping.
-  uint32_t UpperBoundIndex(NumericValue val,
-                           uint32_t* order,
-                           Range search_range) const;
-
-  // As we don't template those functions, we need to use std::visitor to type
-  // `start`, hence this wrapping.
-  uint32_t LowerBoundIndex(NumericValue val,
-                           uint32_t* order,
-                           Range search_range) const;
-
-  const ColumnType type_;
-  const void* data_;
-  const uint32_t size_;
+  const ColumnType type_ = ColumnType::kDummy;
+  const void* data_ = nullptr;
+  const uint32_t size_ = 0;
 };
 
 }  // namespace storage
