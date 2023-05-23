@@ -16,8 +16,6 @@
 
 #include "src/trace_processor/db/null_overlay.h"
 
-#include "src/trace_processor/db/storage/storage_variants.h"
-
 namespace perfetto {
 namespace trace_processor {
 namespace overlays {
