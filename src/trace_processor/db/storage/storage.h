@@ -17,6 +17,7 @@
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_H_
 
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
 
@@ -24,55 +25,64 @@ namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-using Range = RowMap::Range;
-
-// Most base column interpreting layer - responsible for implementing searches
-// and sorting.
+// Backing storage for columnar tables.
 class Storage {
  public:
   virtual ~Storage();
 
-  // Changes the vector of indices to represent the sorted (stable sort) state
-  // of the column.
-  virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
+  // Searches for elements which match |op| and |value| between |range.start|
+  // and |range.end|.
+  //
+  // Returns a BitVector of size |range.end| with the position of the 1s
+  // representing the positions which matched and 0s otherwise. The first
+  // |range.start| number of elements will be zero.
+  virtual BitVector LinearSearch(FilterOp op,
+                                 SqlValue value,
+                                 RowMap::Range range) const = 0;
 
-  // Changes the vector of indices to represent the sorted (not stable) state of
-  // the column.
+  // Searches for elements which match |op| and |value| at the positions given
+  // by |indices| array.
+  //
+  // Returns a BitVector of size |indices_count| with the position of the 1s
+  // representing the positions which matched and 0s otherwise.
+  virtual BitVector IndexSearch(FilterOp op,
+                                SqlValue value,
+                                uint32_t* indices,
+                                uint32_t indices_count) const = 0;
+
+  // Binary searches for elements which match |op| and |value| between
+  // |range.start_index| and |range.end_index|.
+  //
+  // Returns a range, indexing the storage, where all elements in that range
+  // match the constraint.
+  //
+  // Note: the caller *must* know that the elements in this storage are sorted;
+  // it is an error to call this method otherwise.
+  virtual RowMap::Range BinarySearchIntrinsic(FilterOp op,
+                                              SqlValue value,
+                                              RowMap::Range range) const = 0;
+
+  // Binary searches for elements which match |op| and |value| only considering
+  // the elements in |indices|.
+  //
+  // Returns a sub-Range of Range[0, indices_count) which indicates the
+  // positions of elements in |indices| which match.
+  //
+  // Note: the caller *must* known that the elements in storage will be sorted
+  // by the elements in |indices|; it is undefined behaviour to call this method
+  // otherwise.
+  virtual RowMap::Range BinarySearchExtrinsic(FilterOp op,
+                                              SqlValue value,
+                                              uint32_t* indices,
+                                              uint32_t indices_count) const = 0;
+
+  // Sorts |rows| in ascending order with the comparator:
+  // data[rows[a]] < data[rows[b]].
   virtual void Sort(uint32_t* rows, uint32_t rows_size) const = 0;
 
-  // Efficiently compares series of |num_elements| of data from |data_start| to
-  // comparator value and appends results to BitVector::Builder. Should be used
-  // where possible
-  virtual void LinearSearchAligned(FilterOp op,
-                                   SqlValue value,
-                                   uint32_t offset,
-                                   uint32_t compare_elements_count,
-                                   BitVector::Builder&) const = 0;
-
-  // Inefficiently compares series of |num_elements| of data from |data_start|
-  // to comparator value and appends results to BitVector::Builder. Should be
-  // avoided if possible, with `LinearSearchAligned` used instead.
-  virtual void LinearSearchUnaligned(FilterOp op,
-                                     SqlValue value,
-                                     uint32_t offset,
-                                     uint32_t compare_elements_count,
-                                     BitVector::Builder&) const = 0;
-
-  // Compares sorted (asc) series data in |range| with comparator value. Should
-  // be used where possible. Returns the Range of indices which match the
-  // constraint.
-  virtual std::optional<Range> BinarySearch(FilterOp op,
-                                            SqlValue value,
-                                            Range search_range) const = 0;
-
-  // Compares sorted (asc) with |order| vector series in |range| with comparator
-  // value. Should be used where possible. Returns the Range of indices
-  // inside |order| vector which match the constraint.
-  virtual std::optional<Range> BinarySearchWithIndex(
-      FilterOp op,
-      SqlValue value,
-      uint32_t* order,
-      Range search_range) const = 0;
+  // Stable sorts |rows| in ascending order with the comparator:
+  // data[rows[a]] < data[rows[b]].
+  virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
 
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;
