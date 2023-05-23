@@ -209,11 +209,14 @@ class TrackDecider {
 
     const it = result.iter({
       cpu: NUM,
-      size: STR,
+      size: STR_NULL,
     });
 
     for (; it.valid(); it.next()) {
-      cpuToSize.set(it.cpu, it.size);
+      const size = it.size;
+      if (size !== null) {
+        cpuToSize.set(it.cpu, size);
+      }
     }
 
     return cpuToSize;
