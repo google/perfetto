@@ -137,6 +137,9 @@ SCHED_SLICE_TABLE = Table(
           This table holds slices with kernel thread scheduling information.
           These slices are collected when the Linux "ftrace" data source is
           used with the "sched/switch" and "sched/wakeup*" events enabled.
+
+          The rows in this table will always have a matching row in the
+          |thread_state| table with |thread_state.state| = 'Running'
         ''',
         group='Events',
         columns={
@@ -180,9 +183,10 @@ THREAD_STATE_TABLE = Table(
     tabledoc=TableDoc(
         doc='''
           This table contains the scheduling state of every thread on the
-          system during the trace. It is a subset of the |sched_slice| (sched)
-          table which only contains the times where threads were actually
-          scheduled.
+          system during the trace.
+
+          The rows in this table which have |state| = 'Running', will have a
+          corresponding row in the |sched_slice| table.
         ''',
         group='Events',
         columns={
@@ -342,7 +346,7 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
           An experimental table which "flattens" stacks of slices to contain
           only the "deepest" slice at any point in time on each track.
         ''',
-        group='Misc',
+        group='Events',
         columns={
             'ts':
                 '''The timestamp at the start of the slice (in nanoseconds).''',
