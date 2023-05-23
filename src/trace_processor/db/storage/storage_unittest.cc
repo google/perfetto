@@ -16,13 +16,12 @@
 
 #include <numeric>
 
-#include "src/trace_processor/db/null_overlay.h"
-#include "src/trace_processor/db/numeric_storage.h"
+#include "src/trace_processor/db/storage/numeric_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace storage {
 
 namespace {
 
@@ -146,6 +145,6 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
 }
 
 }  // namespace
-}  // namespace column
+}  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto

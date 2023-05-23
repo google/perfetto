@@ -13,17 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_VARIANTS_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_VARIANTS_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_VARIANTS_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_VARIANTS_H_
 
 #include <variant>
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/storage.h"
+
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace storage {
 
 // All viable numeric values for ColumnTypes.
 using NumericValue = std::variant<uint32_t, int32_t, int64_t, double_t>;
@@ -102,7 +101,7 @@ inline FilterOpVariant<T> GetFilterOpVariant(FilterOp op) {
   PERFETTO_FATAL("For GCC");
 }
 
-}  // namespace column
+}  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_VARIANTS_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_STORAGE_VARIANTS_H_

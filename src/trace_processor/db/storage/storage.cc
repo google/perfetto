@@ -14,14 +14,14 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage.h"
+#include "src/trace_processor/db/storage/storage.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace storage {
 
 Storage::~Storage() = default;
 
-}  // namespace column
+}  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
