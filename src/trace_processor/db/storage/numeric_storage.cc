@@ -15,15 +15,13 @@
  * limitations under the License.
  */
 
-#include <variant>
+#include "src/trace_processor/db/storage/numeric_storage.h"
 
-#include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/numeric_storage.h"
+#include <variant>
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace storage {
 
 namespace {
 
@@ -273,6 +271,6 @@ std::optional<Range> NumericStorage::BinarySearchWithIndex(
   return std::nullopt;
 }
 
-}  // namespace column
+}  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
