@@ -16,11 +16,11 @@
 
 #include "src/trace_processor/db/null_overlay.h"
 
-#include "src/trace_processor/db/storage_variants.h"
+#include "src/trace_processor/db/storage/storage_variants.h"
 
 namespace perfetto {
 namespace trace_processor {
-namespace column {
+namespace overlays {
 
 void NullOverlay::Filter(FilterOp op, SqlValue, RowMap& rm) const {
   if (op == FilterOp::kIsNull) {
@@ -82,6 +82,6 @@ void NullOverlay::StableSort(uint32_t* rows, uint32_t rows_size) const {
   }
 }
 
-}  // namespace column
+}  // namespace overlays
 }  // namespace trace_processor
 }  // namespace perfetto
