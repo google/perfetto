@@ -13304,9 +13304,9 @@ cc_binary {
         "src/traced/probes/main.cc",
     ],
     shared_libs: [
-        "liblog",
         "libperfetto",
     ],
+    host_supported: true,
     defaults: [
         "perfetto_defaults",
     ],
@@ -13316,6 +13316,13 @@ cc_binary {
         "traced_perf",
         "trigger_perfetto",
     ],
+    target: {
+        android: {
+            shared_libs: [
+                "liblog",
+            ],
+        },
+    },
 }
 
 // GN: //src/perfetto_cmd:trigger_perfetto
