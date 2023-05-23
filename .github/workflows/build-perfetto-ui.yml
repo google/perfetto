@@ -1,0 +1,31 @@
+name: Build Perfetto UI
+
+permissions:
+  contents: write
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set Git Short SHA
+        id: sha
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      - name: Install Dependencies
+        run: tools/install-build-deps --ui
+      - name: Run build
+        run: ui/build
+      - name: Upload Perfetto UI
+        uses: actions/upload-artifact@v3
+        with:
+          name: perfetto-ui-${{ steps.sha.outputs.sha_short }}
+          retention-days: 7
+          path: |
+            README.md
+            ui/wasm/
+            ui/css/
+            ui/out/tsc/
+            !ui/out/tsc/node_modules/**
