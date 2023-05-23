@@ -17,10 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_OVERLAYS_STORAGE_OVERLAY_H_
 #define SRC_TRACE_PROCESSOR_DB_OVERLAYS_STORAGE_OVERLAY_H_
 
-#include <vector>
-
-#include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -44,50 +41,8 @@ class StorageOverlay {
   // be in terms of storage indices and output might be in terms of table
   // indices).
   //
-  // For this reason, we define a bunch of wrapper structs which "tag" the data
+  // For this reason, we use the defined wrapper structs which "tag" the data
   // structure with the semantics.
-
-  // A range of indices in the table space.
-  struct TableRange {
-    RowMap::Range range;
-  };
-  // A range of indices in the storage space.
-  struct StorageRange {
-    RowMap::Range range;
-  };
-  // A BitVector with set bits corresponding to indices in the table space.
-  struct TableBitVector {
-    BitVector bv;
-  };
-  // A BitVector with set bits corresponding to indices in the table space.
-  struct StorageBitVector {
-    BitVector bv;
-  };
-  // Represents a vector of indices in the table space.
-  struct TableIndexVector {
-    std::vector<uint32_t> indices;
-  };
-  // Represents a vector of indices in the storage space.
-  struct StorageIndexVector {
-    std::vector<uint32_t> indices;
-  };
-
-  // A subset of FilterOp containing operations which can be handled by
-  // overlays.
-  enum class OverlayOp {
-    kIsNull,
-    kIsNotNull,
-    kOther,
-  };
-
-  // Contains estimates of the cost for each of method in this class per row.
-  struct CostEstimatePerRow {
-    uint32_t to_storage_range;
-    uint32_t to_table_bit_vector;
-    uint32_t is_storage_search_required;
-    uint32_t map_to_storage_index_vector;
-    uint32_t index_search;
-  };
 
   virtual ~StorageOverlay();
 
