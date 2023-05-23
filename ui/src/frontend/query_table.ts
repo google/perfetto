@@ -183,9 +183,7 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
     if (resp.error) {
       return m('.query-error', `SQL error: ${resp.error}`);
     } else {
-      return m(
-          '.query-table-container.x-scrollable',
-          m('table.query-table', m('thead', tableHeader), m('tbody', rows)));
+      return m('table.query-table', m('thead', tableHeader), m('tbody', rows));
     }
   }
 }
@@ -236,7 +234,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
     const headers = [m('header.overview', ...header)];
 
     if (resp === undefined) {
-      return m('div', ...headers);
+      return headers;
     }
 
     if (resp.statementWithOutputCount > 1) {
@@ -247,7 +245,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
                 `statement are displayed in the table below.`));
     }
 
-    return m('div', ...headers, m(QueryTableContent, {resp}));
+    return [...headers, m(QueryTableContent, {resp})];
   }
 
   renderCanvas() {}
