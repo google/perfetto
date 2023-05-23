@@ -168,7 +168,7 @@ THREAD_STATE_TABLE = Table(
     class_name='ThreadStateTable',
     sql_name='thread_state',
     columns=[
-        C('ts', CppInt64()),
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
         C('dur', CppInt64()),
         C('cpu', CppOptional(CppUint32())),
         C('utid', CppUint32()),
