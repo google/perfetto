@@ -39,7 +39,7 @@ import {FtracePanel} from './ftrace_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
-import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {AnyAttrsVnode} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
@@ -152,7 +152,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onclick: () => {
                 this.isClosed = false;
                 this.isFullscreen = true;
-                this.resize(this.fullscreenHeight);
+                this.resize(this.fullscreenHeight - DRAG_HANDLE_HEIGHT_PX);
                 globals.rafScheduler.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
@@ -172,7 +172,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                   this.isFullscreen = false;
                   this.isClosed = true;
                   this.previousHeight = this.height;
-                  this.resize(DRAG_HANDLE_HEIGHT_PX);
+                  this.resize(0);
                 }
                 globals.rafScheduler.scheduleFullRedraw();
               },
@@ -390,27 +390,27 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const panel = currentTabDetails?.vnode;
-    const panels = panel ? [panel] : [];
 
-    return m(
-        '.details-content',
-        {
-          style: {
-            height: `${this.detailsHeight}px`,
-            display: detailsPanels.length > 0 ? null : 'none',
-          },
+    if (!panel) {
+      return null;
+    }
+
+    return [
+      m(DragHandle, {
+        resize: (height: number) => {
+          this.detailsHeight = Math.max(height, 0);
         },
-        m(DragHandle, {
-          resize: (height: number) => {
-            this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
-          },
-          height: this.detailsHeight,
-          tabs: detailsPanels.map((tab) => {
-            return {key: tab.key, name: tab.name};
-          }),
-          currentTabKey: currentTabDetails?.key,
+        height: this.detailsHeight,
+        tabs: detailsPanels.map((tab) => {
+          return {key: tab.key, name: tab.name};
         }),
-        m('.details-panel-container.x-scrollable',
-          m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));
+        currentTabKey: currentTabDetails?.key,
+      }),
+      m('.details-panel-container',
+        {
+          style: {height: `${this.detailsHeight}px`},
+        },
+        panel),
+    ];
   }
 }

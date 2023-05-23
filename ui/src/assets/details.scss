@@ -12,91 +12,86 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.details-content {
+.handle {
+  background-color: hsl(215, 1%, 95%);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: none;
+  cursor: row-resize;
+  // Disable user selection since this handle is draggable to resize the
+  // bottom panels.
+  user-select: none;
+  height: 28px;
+  min-height: 28px;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-auto-columns: 1fr 60px;
+  grid-template-areas: "tabs buttons";
 
-  .handle {
-    background-color: hsl(215, 1%, 95%);
-    border: 1px solid rgba(0, 0, 0, 0.1);
-    border-bottom: none;
-    cursor: row-resize;
-    // Disable user selection since this handle is draggable to resize the
-    // bottom panels.
-    user-select: none;
-    height: 28px;
-    min-height: 28px;
-    display: grid;
-    grid-auto-columns: 1fr 60px;
-    grid-template-areas: "tabs buttons";
+  .tabs {
+    display: flex;
+    grid-area: tabs;
+    overflow: hidden;
 
-    .tabs {
-      display: flex;
-      grid-area: tabs;
+    .tab {
+      font-family: "Roboto Condensed", sans-serif;
+      color: #3c4b5d;
+      padding: 3px 10px 0 10px;
+      margin-top: 3px;
+      font-size: 13px;
+      border-radius: 3px 3px 0 0;
+      background-color: #0000000f;
+      border-right: solid 1px hsla(0, 0%, 75%, 1);
       overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      z-index: 5;
+      box-shadow: #0000003b 0px 0px 3px 1px;
 
-      .tab {
-        font-family: "Roboto Condensed", sans-serif;
-        color: #3c4b5d;
-        padding: 3px 10px 0 10px;
-        margin-top: 3px;
-        font-size: 13px;
-        border-radius: 3px 3px 0 0;
-        background-color: #0000000f;
-        border-right: solid 1px hsla(0, 0%, 75%, 1);
-        overflow: hidden;
-        white-space: nowrap;
-        text-overflow: ellipsis;
-        z-index: 5;
-        box-shadow: #0000003b 0px 0px 3px 1px;
-
-        &[active] {
-          background-color: white;
-          &:hover {
-            cursor: default;
-            background-color: white;
-          }
-        }
-
-        &:hover {
-          cursor: pointer;
-          background-color: hsla(0, 0%, 85%, 1);
-        }
-
-        &:nth-child(1) {
-          margin-left: 3px;
-        }
-      }
-    }
-
-    i.material-icons {
-      font-size: 24px;
-      margin-right: 5px;
-      margin-top: 1px;
-      &:hover {
-        cursor: pointer;
-      }
-      &[disabled] {
-        color: rgb(219, 219, 219);
+      &[active] {
+        background-color: white;
         &:hover {
           cursor: default;
+          background-color: white;
         }
       }
-    }
 
-    .buttons {
-      grid-area: buttons;
-      text-align: right;
-    }
+      &:hover {
+        cursor: pointer;
+        background-color: hsla(0, 0%, 85%, 1);
+      }
 
-    .handle-title {
-      font-family: "Roboto Condensed", sans-serif;
-      font-weight: 300;
-      color: #3c4b5d;
-      margin-left: 5px;
-      padding: 5px;
-      font-size: 13px;
+      &:nth-child(1) {
+        margin-left: 3px;
+      }
     }
+  }
+
+  i.material-icons {
+    font-size: 24px;
+    margin-right: 5px;
+    margin-top: 1px;
+    &:hover {
+      cursor: pointer;
+    }
+    &[disabled] {
+      color: rgb(219, 219, 219);
+      &:hover {
+        cursor: default;
+      }
+    }
+  }
+
+  .buttons {
+    grid-area: buttons;
+    text-align: right;
+  }
+
+  .handle-title {
+    font-family: "Roboto Condensed", sans-serif;
+    font-weight: 300;
+    color: #3c4b5d;
+    margin-left: 5px;
+    padding: 5px;
+    font-size: 13px;
   }
 }
 
@@ -402,16 +397,12 @@
 }
 
 .log-panel {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  grid-template-rows: auto 1fr;
-  font-family: "Roboto Condensed", sans-serif;
-  user-select: text;
+  display: contents;
 
   header {
     position: sticky;
     top: 0;
+    left: 0;
     z-index: 1;
     background-color: white;
     color: #3c4b5d;
@@ -620,14 +611,12 @@
 }
 
 .ftrace-panel {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  font-family: "Roboto Condensed", sans-serif;
-  user-select: text;
+  display: contents;
 
   .sticky {
     position: sticky;
     top: 0;
+    left: 0;
     z-index: 1;
     background-color: white;
     color: #3c4b5d;
