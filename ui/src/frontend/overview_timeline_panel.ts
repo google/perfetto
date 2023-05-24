@@ -49,7 +49,10 @@ export class OverviewTimelinePanel extends Panel {
   // Must explicitly type now; arguments types are no longer auto-inferred.
   // https://github.com/Microsoft/TypeScript/issues/1373
   onupdate({dom}: m.CVnodeDOM) {
-    this.width = dom.getBoundingClientRect().width;
+    const newWidth = dom.getBoundingClientRect().width;
+    if (newWidth > 0) { // It may be zero when temporarily not visible
+      this.width = newWidth;
+    }
     this.traceTime = globals.stateTraceTimeTP();
     const traceTime = globals.stateTraceTime();
     const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
