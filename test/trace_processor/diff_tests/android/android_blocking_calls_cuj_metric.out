@@ -44,7 +44,7 @@ android_blocking_calls_cuj_metric {
       pid: 3000
     }
     ts: 2000000
-    dur: 150000000
+    dur: 180000000
     blocking_calls {
       name: "Contending for pthread mutex"
       cnt: 1
@@ -54,6 +54,20 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "CoroutineContinuation"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "ExpNotRow#onMeasure(BigTextStyle)"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "ExpNotRow#onMeasure(MessagingStyle)"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
@@ -82,6 +96,13 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "Lock contention on <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+    }
+    blocking_calls {
+      name: "NotificationStackScrollLayout#onMeasure"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
