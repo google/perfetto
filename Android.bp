@@ -8425,6 +8425,7 @@ filegroup {
         "src/base/scoped_file_unittest.cc",
         "src/base/small_vector_unittest.cc",
         "src/base/status_or_unittest.cc",
+        "src/base/status_unittest.cc",
         "src/base/string_splitter_unittest.cc",
         "src/base/string_utils_unittest.cc",
         "src/base/string_view_unittest.cc",
