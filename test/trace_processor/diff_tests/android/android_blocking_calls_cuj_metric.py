@@ -31,6 +31,8 @@ blocking_call_names = [
     'CancellableContinuationImpl#123', 'relayoutWindow*', 'measure', 'layout',
     'configChanged', 'Contending for pthread mutex',
     'ImageDecoder#decodeBitmap', 'ImageDecoder#decodeDrawable',
+    'NotificationStackScrollLayout#onMeasure', 'ExpNotRow#onMeasure(MessagingStyle)',
+    'ExpNotRow#onMeasure(BigTextStyle)',
     'Should not be in the metric'
 ]
 

@@ -126,6 +126,8 @@ WITH all_main_thread_relevant_slices AS (
             OR s.name GLOB '*CancellableContinuationImpl*'
             OR s.name GLOB 'relayoutWindow*'
             OR s.name GLOB 'ImageDecoder#decode*'
+            OR s.name GLOB 'NotificationStackScrollLayout#onMeasure'
+            OR s.name GLOB 'ExpNotRow#*'
         )
     UNION ALL
     SELECT
