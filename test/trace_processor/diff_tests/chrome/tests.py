@@ -446,6 +446,45 @@ class Chrome(TestSuite):
         "FrameHost::DidCommitProvisionalLoad (SUBFRAME)","navigation_task",1
         """))
 
+  # Chrome custom navigation event names
+  def test_chrome_histograms(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_5672_histograms.pftrace.gz'),
+        query="""
+        SELECT IMPORT('chrome.histograms');
+
+        SELECT 
+          name,
+          count() as count 
+        FROM chrome_histograms
+        GROUP BY name
+        ORDER BY count DESC, name
+        LIMIT 20;
+        """,
+        out=Csv("""
+        "name","count"
+        "Net.QuicSession.AsyncRead",19207
+        "Net.QuicSession.NumQueuedPacketsBeforeWrite",19193
+        "RendererScheduler.QueueingDuration.NormalPriority",9110
+        "Net.OnTransferSizeUpdated.Experimental.OverridenBy",8525
+        "Compositing.Renderer.AnimationUpdateOnMissingPropertyNode",3489
+        "Net.QuicConnection.WritePacketStatus",3099
+        "Net.QuicSession.PacketWriteTime.Synchronous",3082
+        "Net.QuicSession.SendPacketSize.ForwardSecure",3012
+        "Net.URLLoaderThrottleExecutionTime.WillStartRequest",1789
+        "Net.URLLoaderThrottleExecutionTime.BeforeWillProcessResponse",1773
+        "Net.URLLoaderThrottleExecutionTime.WillProcessResponse",1773
+        "UMA.StackProfiler.SampleInOrder",1534
+        "GPU.SharedImage.ContentConsumed",1037
+        "Gpu.Rasterization.Raster.MSAASampleCountLog2",825
+        "Scheduling.Renderer.DeadlineMode",637
+        "Blink.CullRect.UpdateTime",622
+        "Scheduling.Renderer.BeginImplFrameLatency2",591
+        "Net.QuicSession.CoalesceStreamFrameStatus",551
+        "API.StorageAccess.AllowedRequests2",541
+        "Net.HttpResponseCode",541
+        """))
+
   # Trace proto content
   def test_proto_content(self):
     return DiffTestBlueprint(
