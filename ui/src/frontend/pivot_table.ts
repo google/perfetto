@@ -27,7 +27,7 @@ import {
   PivotTableResult,
   SortDirection,
 } from '../common/state';
-import {fromNs, timeToCode} from '../common/time';
+import {tpTimeToCode} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -198,8 +198,8 @@ export class PivotTable extends Panel<PivotTableAttrs> {
   renderCell(column: TableColumn, value: ColumnType): string {
     if (column.kind === 'regular' &&
         (column.column === 'dur' || column.column === 'thread_dur')) {
-      if (typeof value === 'number') {
-        return timeToCode(fromNs(value));
+      if (typeof value === 'bigint') {
+        return tpTimeToCode(value);
       }
     }
     return `${value}`;

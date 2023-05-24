@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/prelude/operators/window_operator.h"
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
 namespace perfetto {
@@ -26,15 +27,7 @@ using namespace sqlite_utils;
 }  // namespace
 
 WindowOperatorTable::WindowOperatorTable(sqlite3*, const TraceStorage*) {}
-
-void WindowOperatorTable::RegisterTable(sqlite3* db,
-                                        const TraceStorage* storage) {
-  RegistrationFlags flags;
-  flags.writable = true;
-  flags.type = RegistrationFlags::kEponymous;
-
-  SqliteTable::Register<WindowOperatorTable>(db, storage, "window", flags);
-}
+WindowOperatorTable::~WindowOperatorTable() = default;
 
 base::Status WindowOperatorTable::Init(int,
                                        const char* const*,
@@ -61,54 +54,55 @@ base::Status WindowOperatorTable::Init(int,
   return base::OkStatus();
 }
 
-std::unique_ptr<SqliteTable::Cursor> WindowOperatorTable::CreateCursor() {
-  return std::unique_ptr<SqliteTable::Cursor>(new Cursor(this));
+std::unique_ptr<SqliteTable::BaseCursor> WindowOperatorTable::CreateCursor() {
+  return std::unique_ptr<SqliteTable::BaseCursor>(new Cursor(this));
 }
 
 int WindowOperatorTable::BestIndex(const QueryConstraints&, BestIndexInfo*) {
   return SQLITE_OK;
 }
 
-int WindowOperatorTable::ModifyConstraints(QueryConstraints* qc) {
+base::Status WindowOperatorTable::ModifyConstraints(QueryConstraints* qc) {
   // Remove ordering on timestamp if it is the only ordering as we are already
   // sorted on TS. This makes span joining significantly faster.
   const auto& ob = qc->order_by();
   if (ob.size() == 1 && ob[0].iColumn == Column::kTs && !ob[0].desc) {
     qc->mutable_order_by()->clear();
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int WindowOperatorTable::Update(int argc,
-                                sqlite3_value** argv,
-                                sqlite3_int64*) {
+base::Status WindowOperatorTable::Update(int argc,
+                                         sqlite3_value** argv,
+                                         sqlite3_int64*) {
   // We only support updates to ts and dur. Disallow deletes (argc == 1) and
   // inserts (argv[0] == null).
-  if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL)
-    return SQLITE_READONLY;
+  if (argc < 2 || sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::ErrStatus(
+        "Invalid number/value of arguments when updating window table");
+  }
 
   int64_t new_quantum = sqlite3_value_int64(argv[3]);
   int64_t new_start = sqlite3_value_int64(argv[4]);
   int64_t new_dur = sqlite3_value_int64(argv[5]);
   if (new_dur == 0) {
-    auto* err = sqlite3_mprintf("Cannot set duration of window table to zero.");
-    SetErrorMessage(err);
-    return SQLITE_ERROR;
+    return base::ErrStatus("Cannot set duration of window table to zero.");
   }
 
   quantum_ = new_quantum;
   window_start_ = new_start;
   window_dur_ = new_dur;
 
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
 WindowOperatorTable::Cursor::Cursor(WindowOperatorTable* table)
-    : SqliteTable::Cursor(table), table_(table) {}
+    : SqliteTable::BaseCursor(table), table_(table) {}
+WindowOperatorTable::Cursor::~Cursor() = default;
 
-int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
-                                        sqlite3_value** argv,
-                                        FilterHistory) {
+base::Status WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
+                                                 sqlite3_value** argv,
+                                                 FilterHistory) {
   *this = Cursor(table_);
   window_start_ = table_->window_start_;
   window_end_ = table_->window_start_ + table_->window_dur_;
@@ -127,10 +121,11 @@ int WindowOperatorTable::Cursor::Filter(const QueryConstraints& qc,
   } else {
     filter_type_ = FilterType::kReturnAll;
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int WindowOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
+base::Status WindowOperatorTable::Cursor::Column(sqlite3_context* context,
+                                                 int N) {
   switch (N) {
     case Column::kQuantum: {
       sqlite3_result_int64(context,
@@ -167,10 +162,10 @@ int WindowOperatorTable::Cursor::Column(sqlite3_context* context, int N) {
       break;
     }
   }
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int WindowOperatorTable::Cursor::Next() {
+base::Status WindowOperatorTable::Cursor::Next() {
   switch (filter_type_) {
     case FilterType::kReturnFirst:
       current_ts_ = window_end_;
@@ -181,10 +176,10 @@ int WindowOperatorTable::Cursor::Next() {
       break;
   }
   row_id_++;
-  return SQLITE_OK;
+  return base::OkStatus();
 }
 
-int WindowOperatorTable::Cursor::Eof() {
+bool WindowOperatorTable::Cursor::Eof() {
   return current_ts_ >= window_end_;
 }
 

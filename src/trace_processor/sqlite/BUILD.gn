@@ -21,48 +21,48 @@ source_set("sqlite") {
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
     "query_cache.h",
+    "scoped_db.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
     "sqlite_engine.cc",
     "sqlite_engine.h",
+    "sqlite_table.cc",
+    "sqlite_table.h",
     "sqlite_utils.cc",
+    "sqlite_utils.h",
     "sqlite_utils.h",
     "stats_table.cc",
     "stats_table.h",
   ]
   deps = [
+    ":query_constraints",
     "..:metatrace",
     "../../../gn:default_deps",
     "../../../gn:sqlite",
+    "../../../include/perfetto/trace_processor",
     "../../../protos/perfetto/trace/ftrace:zero",
     "../../base",
     "../containers",
     "../db",
     "../importers/common",
     "../importers/ftrace:ftrace_descriptors",
-    "../prelude/table_functions",
+    "../prelude/functions:interface",
+    "../prelude/table_functions:interface",
     "../storage",
     "../types",
     "../util",
     "../util:profile_builder",
   ]
-  public_deps = [ ":sqlite_minimal" ]
 }
 
-source_set("sqlite_minimal") {
+source_set("query_constraints") {
   sources = [
     "query_constraints.cc",
     "query_constraints.h",
-    "scoped_db.h",
-    "sqlite_table.cc",
-    "sqlite_table.h",
-    "sqlite_utils.h",
   ]
   deps = [
-    "..:metatrace",
     "../../../gn:default_deps",
     "../../../gn:sqlite",
-    "../../../include/perfetto/trace_processor",
     "../../base",
   ]
 }
@@ -75,8 +75,8 @@ perfetto_unittest_source_set("unittests") {
     "sqlite_utils_unittest.cc",
   ]
   deps = [
+    ":query_constraints",
     ":sqlite",
-    ":sqlite_minimal",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
     "../../../gn:sqlite",

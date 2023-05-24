@@ -19,21 +19,21 @@ import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {
   EngineProxy,
+  LONG,
+  LONG_NULL,
   NUM,
-  NUM_NULL,
   PluginContext,
   STR,
   TrackInfo,
 } from '../../common/plugin_api';
-import {fromNs, toNs} from '../../common/time';
+import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {PopupMenuButton, PopupMenuItem} from '../../frontend/popup_menu';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {Button} from '../../frontend/widgets/button';
+import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -48,7 +48,7 @@ export interface Data extends TrackData {
   minimumDelta: number;
   maximumRate: number;
   minimumRate: number;
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
   lastIds: Float64Array;
   minValues: Float64Array;
   maxValues: Float64Array;
@@ -61,8 +61,8 @@ export interface Config {
   name: string;
   maximumValue?: number;
   minimumValue?: number;
-  startTs?: number;
-  endTs?: number;
+  startTs?: TPTime;
+  endTs?: TPTime;
   namespace: string;
   trackId: number;
   scale?: CounterScaleOptions;
@@ -75,19 +75,10 @@ class CounterTrackController extends TrackController<Config, Data> {
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
   private minimumDeltaSeen = 0;
-  private maxDurNs = 0;
+  private maxDurNs: TPDuration = 0n;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNs(start);
-    const endNs = toNs(end);
-
-    const pxSize = this.pxSize();
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs = Math.max(Math.round(resolution * 1e9 * pxSize / 2) * 2, 1);
-
     if (!this.setup) {
       if (this.config.namespace === undefined) {
         await this.query(`
@@ -122,7 +113,7 @@ class CounterTrackController extends TrackController<Config, Data> {
             ) as maxDur
           from ${this.tableName('counter_view')}
       `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: NUM_NULL}).maxDur || 0;
+      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
 
       const queryRes = await this.query(`
         select
@@ -143,14 +134,14 @@ class CounterTrackController extends TrackController<Config, Data> {
 
     const queryRes = await this.query(`
       select
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as tsq,
+        (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         min(value) as minValue,
         max(value) as maxValue,
         sum(delta) as totalDelta,
         value_at_max_ts(ts, id) as lastId,
         value_at_max_ts(ts, value) as lastValue
       from ${this.tableName('counter_view')}
-      where ts >= ${startNs - this.maxDurNs} and ts <= ${endNs}
+      where ts >= ${start - this.maxDurNs} and ts <= ${end}
       group by tsq
       order by tsq
     `);
@@ -168,7 +159,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       maximumRate: 0,
       minimumRate: 0,
       resolution,
-      timestamps: new Float64Array(numRows),
+      timestamps: new BigInt64Array(numRows),
       lastIds: new Float64Array(numRows),
       minValues: new Float64Array(numRows),
       maxValues: new Float64Array(numRows),
@@ -178,7 +169,7 @@ class CounterTrackController extends TrackController<Config, Data> {
     };
 
     const it = queryRes.iter({
-      'tsq': NUM,
+      'tsq': LONG,
       'lastId': NUM,
       'minValue': NUM,
       'maxValue': NUM,
@@ -186,11 +177,11 @@ class CounterTrackController extends TrackController<Config, Data> {
       'totalDelta': NUM,
     });
     let lastValue = 0;
-    let lastTs = 0;
+    let lastTs = 0n;
     for (let row = 0; it.valid(); it.next(), row++) {
-      const ts = fromNs(it.tsq);
+      const ts = it.tsq;
       const value = it.lastValue;
-      const rate = (value - lastValue) / (ts - lastTs);
+      const rate = (value - lastValue) / (tpTimeToSeconds(ts - lastTs));
       lastTs = ts;
       lastValue = value;
 
@@ -240,8 +231,8 @@ class CounterTrack extends Track<Config, Data> {
 
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
-  private hoveredTs: number|undefined = undefined;
-  private hoveredTsEnd: number|undefined = undefined;
+  private hoveredTs: bigint|undefined = undefined;
+  private hoveredTsEnd: bigint|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -259,18 +250,11 @@ class CounterTrack extends Track<Config, Data> {
       {name: 'DELTA_FROM_PREVIOUS', humanName: 'Delta'},
       {name: 'RATE', humanName: 'Rate'},
     ];
-    const items: PopupMenuItem[] = [];
-    for (const scale of scales) {
-      let text;
-      if (currentScale === scale.name) {
-        text = `*${scale.humanName}*`;
-      } else {
-        text = scale.humanName;
-      }
-      items.push({
-        itemType: 'regular',
-        text,
-        callback: () => {
+    const menuItems = scales.map((scale) => {
+      return m(MenuItem, {
+        label: scale.humanName,
+        active: currentScale === scale.name,
+        onclick: () => {
           this.config.scale = scale.name;
           Actions.updateTrackConfig({
             id: this.trackState.id,
@@ -278,16 +262,23 @@ class CounterTrack extends Track<Config, Data> {
           });
         },
       });
-    }
-    return m(PopupMenuButton, {
-      icon: 'show_chart',
-      items,
     });
+
+    return m(
+        PopupMenu2,
+        {
+          trigger: m(Button, {icon: 'show_chart', minimal: true}),
+        },
+        menuItems,
+    );
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale: timeScale,
+      windowSpan,
+    } = globals.frontendLocalState;
     const data = this.data();
 
     // Can't possibly draw anything.
@@ -323,7 +314,7 @@ class CounterTrack extends Track<Config, Data> {
       minimumValue = data.minimumRate;
     }
 
-    const endPx = Math.floor(timeScale.timeToPx(visibleWindowTime.end));
+    const endPx = windowSpan.end;
     const zeroY = MARGIN_TOP + RECT_HEIGHT / (minimumValue < 0 ? 2 : 1);
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -367,8 +358,8 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-    const calculateX = (ts: number) => {
-      return Math.floor(timeScale.timeToPx(ts));
+    const calculateX = (ts: TPTime) => {
+      return Math.floor(timeScale.tpTimeToPx(ts));
     };
     const calculateY = (value: number) => {
       return MARGIN_TOP + RECT_HEIGHT -
@@ -429,10 +420,10 @@ class CounterTrack extends Track<Config, Data> {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
+      const xStart = Math.floor(timeScale.tpTimeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
-          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
+          Math.floor(timeScale.tpTimeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + RECT_HEIGHT -
           Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
@@ -465,9 +456,10 @@ class CounterTrack extends Track<Config, Data> {
 
     // TODO(hjd): Refactor this into checkerboardExcept
     {
-      const endPx = timeScale.timeToPx(visibleWindowTime.end);
-      const counterEndPx =
-          Math.min(timeScale.timeToPx(this.config.endTs || Infinity), endPx);
+      let counterEndPx = Infinity;
+      if (this.config.endTs) {
+        counterEndPx = Math.min(timeScale.tpTimeToPx(this.config.endTs), endPx);
+      }
 
       // Grey out RHS.
       if (counterEndPx < endPx) {
@@ -481,23 +473,23 @@ class CounterTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        windowSpan.start,
+        windowSpan.end,
+        timeScale.tpTimeToPx(data.start),
+        timeScale.tpTimeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
     this.mousePos = pos;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(pos.x);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(pos.x);
 
     const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
         data.totalDeltas :
         data.lastValues;
-    const [left, right] = searchSegment(data.timestamps, time);
+    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
     this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
     this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
     this.hoveredValue = left === -1 ? undefined : values[left];
@@ -508,20 +500,20 @@ class CounterTrack extends Track<Config, Data> {
     this.hoveredTs = undefined;
   }
 
-  onMouseClick({x}: {x: number}) {
+  onMouseClick({x}: {x: number}): boolean {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
-    const time = timeScale.pxToTime(x);
-    const [left, right] = searchSegment(data.timestamps, time);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const time = visibleTimeScale.pxToHpTime(x);
+    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
     if (left === -1) {
       return false;
     } else {
       const counterId = data.lastIds[left];
       if (counterId === -1) return true;
       globals.makeSelection(Actions.selectCounter({
-        leftTs: toNs(data.timestamps[left]),
-        rightTs: right !== -1 ? toNs(data.timestamps[right]) : -1,
+        leftTs: data.timestamps[left],
+        rightTs: right !== -1 ? data.timestamps[right] : -1n,
         id: counterId,
         trackId: this.trackState.id,
       }));

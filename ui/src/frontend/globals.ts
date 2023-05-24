@@ -12,28 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { HttpRcpEngineCustomizer } from '../common/http_rpc_engine';
-import { assertExists } from '../base/logging';
-import { Actions, DeferredAction } from '../common/actions';
-import { AggregateData } from '../common/aggregation_data';
-import { Args, ArgsTree } from '../common/arg_types';
+import {BigintMath} from '../base/bigint_math';
+import {HttpRcpEngineCustomizer} from '../common/http_rpc_engine';
+import {assertExists} from '../base/logging';
+import {Actions, DeferredAction} from '../common/actions';
+import {AggregateData} from '../common/aggregation_data';
+import {Args, ArgsTree} from '../common/arg_types';
 import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 import { createEmptyState } from '../common/empty_state';
 import { Engine } from '../common/engine';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../common/high_precision_time';
 import { MetricResult } from '../common/metric_data';
 import { CurrentSearchResults, SearchSummary } from '../common/search_data';
 import { CallsiteInfo, EngineConfig, ProfileType, State } from '../common/state';
-import { fromNs, toNs } from '../common/time';
+import {Span, tpTimeFromSeconds} from '../common/time';
+import {
+  TPDuration,
+  TPTime,
+  TPTimeSpan,
+} from '../common/time';
 
 import { Analytics, initAnalytics } from './analytics';
 import { BottomTabList } from './bottom_tab';
 import { FrontendLocalState } from './frontend_local_state';
 import { RafScheduler } from './raf_scheduler';
 import { Router } from './router';
-import { ServiceWorkerController } from './service_worker_controller';
+import {ServiceWorkerController} from './service_worker_controller';
+import {PxSpan, TimeScale} from './time_scale';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
@@ -43,18 +54,18 @@ type Description = Map<string, string>;
 type ViewOpener = (url: string) => void;
 
 export interface SliceDetails {
-  ts?: number;
+  ts?: TPTime;
   absTime?: string;
-  dur?: number;
-  threadTs?: number;
-  threadDur?: number;
+  dur?: TPDuration;
+  threadTs?: TPTime;
+  threadDur?: TPDuration;
   priority?: number;
   endState?: string|null;
   cpu?: number;
   id?: number;
   threadStateId?: number;
   utid?: number;
-  wakeupTs?: number;
+  wakeupTs?: TPTime;
   wakerUtid?: number;
   wakerCpu?: number;
   category?: string;
@@ -77,8 +88,8 @@ export interface FlowPoint {
   sliceName: string;
   sliceCategory: string;
   sliceId: number;
-  sliceStartTs: number;
-  sliceEndTs: number;
+  sliceStartTs: TPTime;
+  sliceEndTs: TPTime;
   // Thread and process info. Only set in sliceSelected not in areaSelected as
   // the latter doesn't display per-flow info and it'd be a waste to join
   // additional tables for undisplayed info in that case. Nothing precludes
@@ -99,30 +110,30 @@ export interface Flow {
 
   begin: FlowPoint;
   end: FlowPoint;
-  dur: number;
+  dur: TPDuration;
 
   category?: string;
   name?: string;
 }
 
 export interface CounterDetails {
-  startTime?: number;
+  startTime?: TPTime;
   value?: number;
   delta?: number;
-  duration?: number;
+  duration?: TPDuration;
   name?: string;
 }
 
 export interface ThreadStateDetails {
-  ts?: number;
-  dur?: number;
+  ts?: TPTime;
+  dur?: TPDuration;
 }
 
 export interface FlamegraphDetails {
   type?: ProfileType;
   id?: number;
-  startNs?: number;
-  durNs?: number;
+  start?: TPTime;
+  dur?: TPDuration;
   pids?: number[];
   upids?: number[];
   flamegraph?: CallsiteInfo[];
@@ -139,14 +150,14 @@ export interface FlamegraphDetails {
 
 export interface CpuProfileDetails {
   id?: number;
-  ts?: number;
+  ts?: TPTime;
   utid?: number;
   stack?: CallsiteInfo[];
 }
 
 export interface QuantizedLoad {
-  startSec: number;
-  endSec: number;
+  start: TPTime;
+  end: TPTime;
   load: number;
 }
 type OverviewStore = Map<string, QuantizedLoad[]>;
@@ -163,7 +174,7 @@ type ThreadMap = Map<number, ThreadDesc>;
 
 export interface FtraceEvent {
   id: number;
-  ts: number;
+  ts: TPTime;
   name: string;
   cpu: number;
   thread: string|null;
@@ -262,15 +273,15 @@ class Globals {
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
-    tsStarts: new Float64Array(0),
+    tsStarts: new BigInt64Array(0),
     utids: new Float64Array(0),
     trackIds: [],
     sources: [],
     totalResults: 0,
   };
   searchSummary: SearchSummary = {
-    tsStarts: new Float64Array(0),
-    tsEnds: new Float64Array(0),
+    tsStarts: new BigInt64Array(0),
+    tsEnds: new BigInt64Array(0),
     count: new Uint8Array(0),
   };
 
@@ -584,7 +595,7 @@ class Globals {
     this.aggregateDataStore.set(kind, data);
   }
 
-  getCurResolution() {
+  getCurResolution(): TPDuration {
     // Truncate the resolution to the closest power of 2 (in nanosecond space).
     // We choose to work in ns space because resolution is consumed be track
     // controllers for quantization and they rely on resolution to be a power
@@ -595,24 +606,16 @@ class Globals {
     // levels. Logic: each zoom level represents a delta of 0.1 * (visible
     // window span). Therefore, zooming out by six levels is 1.1^6 ~= 2.
     // Similarily, zooming in six levels is 0.9^6 ~= 0.5.
-    const pxToSec = this.frontendLocalState.timeScale.deltaPxToDuration(1);
+    const timeScale = this.frontendLocalState.visibleTimeScale;
     // TODO(b/186265930): Remove once fixed:
-    if (!isFinite(pxToSec)) {
-      // Resolution is in pixels per second so 1000 means 1px = 1ms.
-      console.error(`b/186265930: Bad pxToSec suppressed ${pxToSec}`);
-      return fromNs(Math.pow(2, Math.floor(Math.log2(toNs(1000)))));
+    if (timeScale.pxSpan.delta === 0) {
+      console.error(`b/186265930: Bad pxToSec suppressed`);
+      return BigintMath.bitFloor(tpTimeFromSeconds(1000));
     }
-    const pxToNs = Math.max(toNs(pxToSec), 1);
-    const resolution = fromNs(Math.pow(2, Math.floor(Math.log2(pxToNs))));
-    const log2 = Math.log2(toNs(resolution));
-    if (log2 % 1 !== 0) {
-      throw new Error(`Resolution should be a power of two.
-        pxToSec: ${pxToSec},
-        pxToNs: ${pxToNs},
-        resolution: ${resolution},
-        log2: ${Math.log2(toNs(resolution))}`);
-    }
-    return resolution;
+
+    const timePerPx = timeScale.pxDeltaToDuration(this.quantPx);
+
+    return BigintMath.bitFloor(timePerPx.toTPTime('floor'));
   }
 
   getCurrentEngine(): EngineConfig|undefined {
@@ -678,7 +681,7 @@ class Globals {
     this._metricResult = undefined;
     this._currentSearchResults = {
       sliceIds: new Float64Array(0),
-      tsStarts: new Float64Array(0),
+      tsStarts: new BigInt64Array(0),
       utids: new Float64Array(0),
       trackIds: [],
       sources: [],
@@ -717,6 +720,41 @@ class Globals {
   // be cleaned up explicitly.
   shutdown() {
     this._rafScheduler!.shutdown();
+  }
+
+  // Get a timescale that covers the entire trace
+  getTraceTimeScale(pxSpan: PxSpan): TimeScale {
+    const {start, end} = this.state.traceTime;
+    const traceTime = HighPrecisionTimeSpan.fromTpTime(start, end);
+    return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
+  }
+
+  // Get the trace time bounds
+  stateTraceTime(): Span<HighPrecisionTime> {
+    const {start, end} = this.state.traceTime;
+    return HighPrecisionTimeSpan.fromTpTime(start, end);
+  }
+
+  stateTraceTimeTP(): Span<TPTime> {
+    const {start, end} = this.state.traceTime;
+    return new TPTimeSpan(start, end);
+  }
+
+  // Get the state version of the visible time bounds
+  stateVisibleTime(): Span<TPTime> {
+    const {start, end} = this.state.frontendLocalState.visibleState;
+    return new TPTimeSpan(start, end);
+  }
+
+  // How many pixels to use for one quanta of horizontal resolution
+  get quantPx(): number {
+    const quantPx = (self as {} as {quantPx: number | undefined}).quantPx;
+    if (quantPx) {
+      return quantPx;
+    } else {
+      // Default to 1px per quanta if not defined
+      return 1;
+    }
   }
 }
 

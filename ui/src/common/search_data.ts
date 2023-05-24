@@ -13,14 +13,14 @@
 // limitations under the License.
 
 export interface SearchSummary {
-  tsStarts: Float64Array;
-  tsEnds: Float64Array;
+  tsStarts: BigInt64Array;
+  tsEnds: BigInt64Array;
   count: Uint8Array;
 }
 
 export interface CurrentSearchResults {
   sliceIds: Float64Array;
-  tsStarts: Float64Array;
+  tsStarts: BigInt64Array;
   utids: Float64Array;
   trackIds: string[];
   sources: string[];

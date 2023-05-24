@@ -31,8 +31,6 @@ source_set("functions") {
     "layout_functions.h",
     "pprof_functions.cc",
     "pprof_functions.h",
-    "register_function.cc",
-    "register_function.h",
     "sqlite3_str_split.cc",
     "sqlite3_str_split.h",
     "stack_functions.cc",
@@ -59,13 +57,27 @@ source_set("functions") {
     "../../importers/common",
     "../../importers/ftrace:ftrace_descriptors",
     "../../prelude/table_functions",
-    "../../sqlite:sqlite_minimal",
+    "../../sqlite",
     "../../storage",
     "../../types",
     "../../util",
     "../../util:profile_builder",
     "../../util:sql_argument",
     "../../util:stdlib",
+  ]
+  public_deps = [ ":interface" ]
+}
+
+source_set("interface") {
+  sources = [
+    "sql_function.cc",
+    "sql_function.h",
+  ]
+  deps = [
+    "../../../../gn:default_deps",
+    "../../../../gn:sqlite",
+    "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../base",
   ]
 }
 
@@ -78,6 +90,6 @@ perfetto_unittest_source_set("unittests") {
     "../../../../gn:gtest_and_gmock",
     "../../../../gn:sqlite",
     "../../../base",
-    "../../sqlite:sqlite_minimal",
+    "../../sqlite",
   ]
 }

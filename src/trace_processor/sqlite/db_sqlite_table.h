@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/prelude/table_functions/table_function.h"
@@ -26,32 +27,48 @@
 namespace perfetto {
 namespace trace_processor {
 
+enum class DbSqliteTableComputation {
+  // Mode when the table is static (i.e. passed in at construction
+  // time).
+  kStatic,
+
+  // Mode when table is dynamically computed at filter time.
+  kDynamic,
+};
+
+struct DbSqliteTableContext {
+  QueryCache* cache;
+  DbSqliteTableComputation computation;
+
+  // Only valid when computation == TableComputation::kStatic.
+  const Table* static_table;
+
+  // Only valid when computation == TableComputation::kDynamic.
+  std::unique_ptr<TableFunction> generator;
+};
+
 // Implements the SQLite table interface for db tables.
-class DbSqliteTable : public SqliteTable {
+class DbSqliteTable final
+    : public TypedSqliteTable<DbSqliteTable, DbSqliteTableContext> {
  public:
-  enum class TableComputation {
-    // Mode when the table is static (i.e. passed in at construction
-    // time).
-    kStatic,
+  using TableComputation = DbSqliteTableComputation;
+  using Context = DbSqliteTableContext;
 
-    // Mode when table is dynamically computed at filter time.
-    kDynamic,
-  };
-
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
     Cursor(DbSqliteTable*, QueryCache*);
+    ~Cursor() final;
 
     Cursor(Cursor&&) noexcept = default;
     Cursor& operator=(Cursor&&) = default;
 
     // Implementation of SqliteTable::Cursor.
-    int Filter(const QueryConstraints& qc,
-               sqlite3_value** argv,
-               FilterHistory) override;
-    int Next() override;
-    int Eof() override;
-    int Column(sqlite3_context*, int N) override;
+    base::Status Filter(const QueryConstraints& qc,
+                        sqlite3_value** argv,
+                        FilterHistory);
+    base::Status Next();
+    bool Eof();
+    base::Status Column(sqlite3_context*, int N);
 
    private:
     enum class Mode {
@@ -108,36 +125,15 @@ class DbSqliteTable : public SqliteTable {
     double cost;
     uint32_t rows;
   };
-  struct Context {
-    QueryCache* cache;
-    TableComputation computation;
-
-    // Only valid when computation == TableComputation::kStatic.
-    const Table* static_table;
-
-    // Only valid when computation == TableComputation::kDynamic.
-    std::unique_ptr<TableFunction> generator;
-  };
-
-  static void RegisterTable(sqlite3* db,
-                            QueryCache* cache,
-                            const Table* table,
-                            const std::string& name);
-
-  static void RegisterTable(sqlite3* db,
-                            QueryCache* cache,
-                            std::unique_ptr<TableFunction> generator);
 
   DbSqliteTable(sqlite3*, Context context);
-  virtual ~DbSqliteTable() override;
+  virtual ~DbSqliteTable() final;
 
   // Table implementation.
-  base::Status Init(int,
-                    const char* const*,
-                    SqliteTable::Schema*) override final;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int ModifyConstraints(QueryConstraints*) override final;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override final;
+  base::Status Init(int, const char* const*, SqliteTable::Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  base::Status ModifyConstraints(QueryConstraints*) final;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
   // These static functions are useful to allow other callers to make use
   // of them.

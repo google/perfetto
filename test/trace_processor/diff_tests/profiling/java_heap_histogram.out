@@ -3,7 +3,8 @@ java_heap_histogram {
     upid: 2
     process {
       name: "system_server"
-      uid: 1000
+      uid: 1000,
+      pid: 2
     }
     samples {
       ts: 10

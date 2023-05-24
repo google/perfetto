@@ -14,22 +14,19 @@
 
 
 import m from 'mithril';
+import {BigintMath} from '../base/bigint_math';
 
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
-import {ColumnType, Row} from '../common/query_result';
-import {fromNs} from '../common/time';
-import {Anchor} from './anchor';
+import {Row} from '../common/query_result';
 
+import {Anchor} from './anchor';
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
-import {
-  focusHorizontalRange,
-  verticalScrollToTrack,
-} from './scroll_helper';
+import {reveal} from './scroll_helper';
 import {Button} from './widgets/button';
 
 interface QueryTableRowAttrs {
@@ -37,98 +34,126 @@ interface QueryTableRowAttrs {
   columns: string[];
 }
 
-// Convert column value to number if it's a bigint or a number, otherwise throw
-function colToNumber(colValue: ColumnType): number {
-  if (typeof colValue === 'bigint') {
-    return Number(colValue);
-  } else if (typeof colValue === 'number') {
-    return colValue;
+type Numeric = bigint|number;
+
+function isIntegral(x: Row[string]): x is Numeric {
+  return typeof x === 'bigint' ||
+      (typeof x === 'number' && Number.isInteger(x));
+}
+
+function hasTs(row: Row): row is Row&{ts: Numeric} {
+  return ('ts' in row && isIntegral(row.ts));
+}
+
+function hasDur(row: Row): row is Row&{dur: Numeric} {
+  return ('dur' in row && isIntegral(row.dur));
+}
+
+function hasTrackId(row: Row): row is Row&{track_id: Numeric} {
+  return ('track_id' in row && isIntegral(row.track_id));
+}
+
+function hasType(row: Row): row is Row&{type: string} {
+  return ('type' in row && typeof row.type === 'string');
+}
+
+function hasId(row: Row): row is Row&{id: Numeric} {
+  return ('id' in row && isIntegral(row.id));
+}
+
+function hasSliceId(row: Row): row is Row&{slice_id: Numeric} {
+  return ('slice_id' in row && isIntegral(row.slice_id));
+}
+
+// These are properties that a row should have in order to be "slice-like",
+// insofar as it represents a time range and a track id which can be revealed
+// or zoomed-into on the timeline.
+type Sliceish = {
+  ts: Numeric,
+  dur: Numeric,
+  track_id: Numeric
+};
+
+export function isSliceish(row: Row): row is Row&Sliceish {
+  return hasTs(row) && hasDur(row) && hasTrackId(row);
+}
+
+// Attempts to extract a slice ID from a row, or undefined if none can be found
+export function getSliceId(row: Row): number|undefined {
+  if (hasType(row) && row.type.includes('slice')) {
+    if (hasId(row)) {
+      return Number(row.id);
+    }
   } else {
-    throw Error('Value is not a number or a bigint');
+    if (hasSliceId(row)) {
+      return Number(row.slice_id);
+    }
   }
+  return undefined;
 }
 
 class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
-  static columnsContainsSliceLocation(columns: string[]) {
-    const requiredColumns = ['ts', 'dur', 'track_id'];
-    for (const col of requiredColumns) {
-      if (!columns.includes(col)) return false;
-    }
-    return true;
-  }
-
-  static rowOnClickHandler(
-      event: Event, row: Row, nextTab: 'CurrentSelection'|'QueryResults') {
-    // TODO(dproy): Make click handler work from analyze page.
-    if (Router.parseUrl(window.location.href).page !== '/viewer') return;
-    // If the click bubbles up to the pan and zoom handler that will deselect
-    // the slice.
-    event.stopPropagation();
-
-    const sliceStart = fromNs(colToNumber(row.ts));
-    // row.dur can be negative. Clamp to 1ns.
-    const sliceDur = fromNs(Math.max(colToNumber(row.dur), 1));
-    const sliceEnd = sliceStart + sliceDur;
-    const trackId: number = colToNumber(row.track_id);
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-    if (uiTrackId === undefined) return;
-    verticalScrollToTrack(uiTrackId, true);
-    // TODO(stevegolton) Soon this function will only accept Bigints
-    focusHorizontalRange(sliceStart, sliceEnd);
-
-    let sliceId: number|undefined;
-    if (row.type?.toString().includes('slice')) {
-      sliceId = colToNumber(row.id);
-    } else {
-      sliceId = colToNumber(row.slice_id);
-    }
-    if (sliceId !== undefined) {
-      globals.makeSelection(
-          Actions.selectChromeSlice(
-              {id: sliceId, trackId: uiTrackId, table: 'slice'}),
-          nextTab === 'QueryResults' ? globals.state.currentTab :
-                                       'current_selection');
-    }
-  }
-
   view(vnode: m.Vnode<QueryTableRowAttrs>) {
-    const cells = [];
     const {row, columns} = vnode.attrs;
-    for (const col of columns) {
-      const value = row[col];
-      if (value instanceof Uint8Array) {
-        cells.push(
-            m('td',
-              m(Anchor,
-                {
-                  onclick: () => downloadData(`${col}.blob`, value),
-                },
-                `Blob (${value.length} bytes)`)));
-      } else if (typeof value === 'bigint') {
-        cells.push(m('td', value.toString()));
-      } else {
-        cells.push(m('td', value));
+    const cells = columns.map((col) => this.renderCell(col, row[col]));
+
+    // TODO(dproy): Make click handler work from analyze page.
+    if (Router.parseUrl(window.location.href).page === '/viewer' &&
+        isSliceish(row)) {
+      return m(
+          'tr',
+          {
+            onclick: () => this.highlightSlice(row, globals.state.currentTab),
+            // TODO(altimin): Consider improving the logic here (e.g. delay?) to
+            // account for cases when dblclick fires late.
+            ondblclick: () => this.highlightSlice(row),
+            clickable: true,
+          },
+          cells);
+    } else {
+      return m('tr', cells);
+    }
+  }
+
+  private renderCell(name: string, value: Row[string]) {
+    if (value instanceof Uint8Array) {
+      return m('td', this.renderBlob(name, value));
+    } else {
+      return m('td', `${value}`);
+    }
+  }
+
+  private renderBlob(name: string, value: Uint8Array) {
+    return m(
+        Anchor,
+        {
+          onclick: () => downloadData(`${name}.blob`, value),
+        },
+        `Blob (${value.length} bytes)`);
+  }
+
+  private highlightSlice(row: Row&Sliceish, nextTab?: string) {
+    const trackId = Number(row.track_id);
+    const sliceStart = BigInt(row.ts);
+    // row.dur can be negative. Clamp to 1ns.
+    const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
+    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
+    if (uiTrackId !== undefined) {
+      reveal(uiTrackId, sliceStart, sliceStart + sliceDur, true);
+      const sliceId = getSliceId(row);
+      if (sliceId !== undefined) {
+        this.selectSlice(sliceId, uiTrackId, nextTab);
       }
     }
-    const containsSliceLocation =
-        QueryTableRow.columnsContainsSliceLocation(columns);
-    const maybeOnClick = containsSliceLocation ?
-        (e: Event) => QueryTableRow.rowOnClickHandler(e, row, 'QueryResults') :
-        null;
-    const maybeOnDblClick = containsSliceLocation ?
-        (e: Event) =>
-            QueryTableRow.rowOnClickHandler(e, row, 'CurrentSelection') :
-        null;
-    return m(
-        'tr',
-        {
-          'onclick': maybeOnClick,
-          // TODO(altimin): Consider improving the logic here (e.g. delay?) to
-          // account for cases when dblclick fires late.
-          'ondblclick': maybeOnDblClick,
-          'clickable': containsSliceLocation,
-        },
-        cells);
+  }
+
+  private selectSlice(sliceId: number, uiTrackId: string, nextTab?: string) {
+    const action = Actions.selectChromeSlice({
+      id: sliceId,
+      trackId: uiTrackId,
+      table: 'slice',
+    });
+    globals.makeSelection(action, nextTab);
   }
 }
 

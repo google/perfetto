@@ -21,3 +21,5 @@ CREATE TABLE debug_slices(
   dur BIGINT,
   depth BIGINT
 );
+
+CREATE VIRTUAL TABLE window USING window();
