@@ -10415,6 +10415,7 @@ genrule {
         "src/trace_processor/stdlib/android/statsd.sql",
         "src/trace_processor/stdlib/chrome/chrome_scrolls.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
+        "src/trace_processor/stdlib/chrome/histograms.sql",
         "src/trace_processor/stdlib/common/counters.sql",
         "src/trace_processor/stdlib/common/cpus.sql",
         "src/trace_processor/stdlib/common/metadata.sql",
