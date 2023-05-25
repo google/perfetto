@@ -22,15 +22,18 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
+#include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/version.h"
 #include "perfetto/ext/ipc/client.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/producer.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/shared_memory_arbiter.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/core/data_source_descriptor.h"
 #include "perfetto/tracing/core/trace_config.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include "src/tracing/ipc/shared_memory_windows.h"
@@ -156,7 +159,8 @@ void ProducerIPCClientImpl::OnConnect() {
         OnConnectionInitialized(
             resp.success(),
             resp.success() ? resp->using_shmem_provided_by_producer() : false,
-            resp.success() ? resp->direct_smb_patching_supported() : false);
+            resp.success() ? resp->direct_smb_patching_supported() : false,
+            resp.success() ? resp->use_shmem_emulation() : false);
       });
   protos::gen::InitializeConnectionRequest req;
   req.set_producer_name(name_);
@@ -239,7 +243,8 @@ void ProducerIPCClientImpl::ScheduleDisconnect() {
 void ProducerIPCClientImpl::OnConnectionInitialized(
     bool connection_succeeded,
     bool using_shmem_provided_by_producer,
-    bool direct_smb_patching_supported) {
+    bool direct_smb_patching_supported,
+    bool use_shmem_emulation) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   // If connection_succeeded == false, the OnDisconnect() call will follow next
   // and there we'll notify the |producer_|. TODO: add a test for this.
@@ -247,6 +252,11 @@ void ProducerIPCClientImpl::OnConnectionInitialized(
     return;
   is_shmem_provided_by_producer_ = using_shmem_provided_by_producer;
   direct_smb_patching_supported_ = direct_smb_patching_supported;
+  // The tracing service may reject using shared memory and tell the client to
+  // commit data over the socket. This can happen when the client connects to
+  // the service via a relay service:
+  // client <-Unix socket-> relay service <- vsock -> tracing service.
+  use_shmem_emulation_ = use_shmem_emulation;
   producer_->OnConnect();
 
   // Bail out if the service failed to adopt our producer-allocated SMB.
@@ -324,7 +334,19 @@ void ProducerIPCClientImpl::OnServiceRequest(
                                         /*require_seals_if_supported=*/false);
     }
 #endif
+    if (use_shmem_emulation_) {
+      PERFETTO_CHECK(!ipc_shared_memory);
+      // Need to create an emulated shmem buffer when the transport deosn't
+      // support it.
+      // TODO(chinglinyu): Let the tracing service decide on the shmem size and
+      // propagate the size in InitializeConnectionResponse.
+      ipc_shared_memory = InProcessSharedMemory::Create(
+          /*size=*/InProcessSharedMemory::kDefaultSize);
+    }
     if (ipc_shared_memory) {
+      auto shmem_mode = use_shmem_emulation_
+                            ? SharedMemoryABI::ShmemMode::kShmemEmulation
+                            : SharedMemoryABI::ShmemMode::kDefault;
       // This is the nominal case used in most configurations, where the service
       // provides the SMB.
       PERFETTO_CHECK(!is_shmem_provided_by_producer_ && !shared_memory_);
@@ -332,8 +354,8 @@ void ProducerIPCClientImpl::OnServiceRequest(
       shared_buffer_page_size_kb_ =
           cmd.setup_tracing().shared_buffer_page_size_kb();
       shared_memory_arbiter_ = SharedMemoryArbiter::CreateInstance(
-          shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, this,
-          task_runner_);
+          shared_memory_.get(), shared_buffer_page_size_kb_ * 1024, shmem_mode,
+          this, task_runner_);
       if (direct_smb_patching_supported_)
         shared_memory_arbiter_->SetDirectSMBPatchingSupportedByService();
     } else {

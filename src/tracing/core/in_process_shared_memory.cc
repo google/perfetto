@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,27 +14,18 @@
  * limitations under the License.
  */
 
-#include "src/tracing/test/test_shared_memory.h"
-
-#include <stdlib.h>
-#include <string.h>
-
-#include "perfetto/base/logging.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 
 namespace perfetto {
 
-TestSharedMemory::TestSharedMemory(size_t size) {
-  mem_ = base::PagedMemory::Allocate(size);
-  size_ = size;
+InProcessSharedMemory::~InProcessSharedMemory() = default;
+InProcessSharedMemory::Factory::~Factory() = default;
+
+void* InProcessSharedMemory::start() const {
+  return mem_.Get();
 }
-
-TestSharedMemory::~TestSharedMemory() {}
-
-TestSharedMemory::Factory::~Factory() {}
-
-std::unique_ptr<SharedMemory> TestSharedMemory::Factory::CreateSharedMemory(
-    size_t size) {
-  return std::unique_ptr<SharedMemory>(new TestSharedMemory(size));
+size_t InProcessSharedMemory::size() const {
+  return mem_.size();
 }
 
 }  // namespace perfetto

@@ -22,6 +22,8 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
+#include "src/tracing/core/in_process_shared_memory.h"
+
 // TODO(primiano): When the in-process backend is used, we should never end up
 // in a situation where the thread where the TracingService and Producer live
 // writes a packet and hence can get into the GetNewChunk() stall.
@@ -33,46 +35,6 @@
 
 namespace perfetto {
 namespace internal {
-
-namespace {
-
-class InProcessShm : public SharedMemory {
- public:
-  explicit InProcessShm(size_t size);
-  ~InProcessShm() override;
-  void* start() const override;
-  size_t size() const override;
-
- private:
-  base::PagedMemory mem_;
-};
-
-class InProcessShmFactory : public SharedMemory::Factory {
- public:
-  ~InProcessShmFactory() override;
-  std::unique_ptr<SharedMemory> CreateSharedMemory(size_t) override;
-};
-
-InProcessShm::~InProcessShm() = default;
-
-InProcessShm::InProcessShm(size_t size)
-    : mem_(base::PagedMemory::Allocate(size)) {}
-
-void* InProcessShm::start() const {
-  return mem_.Get();
-}
-
-size_t InProcessShm::size() const {
-  return mem_.size();
-}
-
-InProcessShmFactory::~InProcessShmFactory() = default;
-std::unique_ptr<SharedMemory> InProcessShmFactory::CreateSharedMemory(
-    size_t size) {
-  return std::unique_ptr<SharedMemory>(new InProcessShm(size));
-}
-
-}  // namespace
 
 // static
 TracingBackend* InProcessTracingBackend::GetInstance() {
@@ -102,7 +64,8 @@ std::unique_ptr<ConsumerEndpoint> InProcessTracingBackend::ConnectConsumer(
 TracingService* InProcessTracingBackend::GetOrCreateService(
     base::TaskRunner* task_runner) {
   if (!service_) {
-    std::unique_ptr<InProcessShmFactory> shm(new InProcessShmFactory());
+    std::unique_ptr<InProcessSharedMemory::Factory> shm(
+        new InProcessSharedMemory::Factory());
     service_ = TracingService::CreateInstance(std::move(shm), task_runner);
     service_->SetSMBScrapingEnabled(true);
   }
