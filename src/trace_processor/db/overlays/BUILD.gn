@@ -12,13 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../../../gn/perfetto_tp_tables.gni")
+import("../../../../gn/test.gni")
+
 source_set("overlays") {
   sources = [
+    "null_overlay.cc",
+    "null_overlay.h",
+    "storage_overlay.cc",
     "storage_overlay.h",
     "types.h",
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../base",
     "../../containers",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "null_overlay_unittest.cc" ]
+  deps = [
+    ":overlays",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
   ]
 }
