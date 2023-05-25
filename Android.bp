@@ -8425,6 +8425,7 @@ filegroup {
         "src/base/scoped_file_unittest.cc",
         "src/base/small_vector_unittest.cc",
         "src/base/status_or_unittest.cc",
+        "src/base/status_unittest.cc",
         "src/base/string_splitter_unittest.cc",
         "src/base/string_utils_unittest.cc",
         "src/base/string_view_unittest.cc",
@@ -10379,6 +10380,7 @@ filegroup {
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sqlite_engine.cc",
         "src/trace_processor/sqlite/sqlite_table.cc",
+        "src/trace_processor/sqlite/sqlite_tokenizer.cc",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/stats_table.cc",
     ],
@@ -10390,6 +10392,7 @@ filegroup {
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
         "src/trace_processor/sqlite/query_constraints_unittest.cc",
+        "src/trace_processor/sqlite/sqlite_tokenizer_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
     ],
 }
