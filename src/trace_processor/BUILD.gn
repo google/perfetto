@@ -268,6 +268,7 @@ perfetto_unittest_source_set("unittests") {
     ":top_level_unittests",
     "containers:unittests",
     "db:unittests",
+    "db/overlays:unittests",
     "db/storage:unittests",
     "importers/android_bugreport:unittests",
     "importers/common:unittests",
