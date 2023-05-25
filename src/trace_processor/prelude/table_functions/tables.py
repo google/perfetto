@@ -28,7 +28,7 @@ from src.trace_processor.tables.flow_tables import FLOW_TABLE
 from src.trace_processor.tables.metadata_tables import PROCESS_TABLE
 from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TABLE
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
-from src.trace_processor.tables.slice_tables import SCHED_SLICE_TABLE
+from src.trace_processor.tables.sched_tables import SCHED_SLICE_TABLE
 
 ANCESTOR_SLICE_TABLE = Table(
     python_module=__file__,
