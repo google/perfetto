@@ -520,3 +520,21 @@ class Functions(TestSuite):
         4,3
         5,3
         """))
+
+  def test_math_functions(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          CAST(EXP(1) * 1000 AS INTEGER) AS a,
+          CAST(LN(1) * 1000 AS INTEGER) AS b,
+          CAST(LN(EXP(1)) * 1000 AS INTEGER) AS c,
+          EXP("asd") AS d,
+          EXP(NULL) AS e,
+          LN("as") AS f,
+          LN(NULL) AS g
+        """,
+        out=Csv("""
+        "a","b","c","d","e","f","g"
+        2718,0,1000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        """))
