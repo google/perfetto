@@ -492,6 +492,12 @@ class Chrome(TestSuite):
         query=Path('proto_content_test.sql'),
         out=Path('proto_content.out'))
 
+  def test_speedometer(self):
+    return DiffTestBlueprint(
+        trace=DataPath('speedometer.perfetto_trace.gz'),
+        query=Path('chrome_speedometer_test.sql'),
+        out=Path('chrome_speedometer.out'))
+
   # TODO(mayzner): Uncomment when it works
   # def test_proto_content_path(self):
   #   return DiffTestBlueprint(
