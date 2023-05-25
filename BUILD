@@ -2174,6 +2174,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/sqlite_engine.h",
         "src/trace_processor/sqlite/sqlite_table.cc",
         "src/trace_processor/sqlite/sqlite_table.h",
+        "src/trace_processor/sqlite/sqlite_tokenizer.cc",
+        "src/trace_processor/sqlite/sqlite_tokenizer.h",
         "src/trace_processor/sqlite/sqlite_utils.cc",
         "src/trace_processor/sqlite/sqlite_utils.h",
         "src/trace_processor/sqlite/stats_table.cc",

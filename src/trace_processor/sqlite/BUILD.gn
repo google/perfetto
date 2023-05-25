@@ -28,6 +28,8 @@ source_set("sqlite") {
     "sqlite_engine.h",
     "sqlite_table.cc",
     "sqlite_table.h",
+    "sqlite_tokenizer.cc",
+    "sqlite_tokenizer.h",
     "sqlite_utils.cc",
     "sqlite_utils.h",
     "sqlite_utils.h",
@@ -72,6 +74,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "db_sqlite_table_unittest.cc",
     "query_constraints_unittest.cc",
+    "sqlite_tokenizer_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]
   deps = [
