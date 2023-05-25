@@ -49,7 +49,10 @@ class ThreadStateTracker : public Destructible {
                             UniqueTid next_utid);
 
   // Will add a runnable state for utid and close the previously blocked one.
-  void PushWakingEvent(int64_t event_ts, UniqueTid utid, UniqueTid waker_utid);
+  void PushWakingEvent(int64_t event_ts,
+                       UniqueTid utid,
+                       UniqueTid waker_utid,
+                       std::optional<uint16_t> common_flags = std::nullopt);
 
   // Will add a runnable state for utid. For a new task there are no previous
   // states to close.
@@ -64,9 +67,12 @@ class ThreadStateTracker : public Destructible {
   void AddOpenState(int64_t ts,
                     UniqueTid utid,
                     StringId state,
-                    std::optional<uint32_t> cpu = std::nullopt,
-                    std::optional<UniqueTid> waker_utid = std::nullopt);
+                    std::optional<uint16_t> cpu = std::nullopt,
+                    std::optional<UniqueTid> waker_utid = std::nullopt,
+                    std::optional<uint16_t> common_flags = std::nullopt);
   void ClosePendingState(int64_t end_ts, UniqueTid utid, bool data_loss);
+
+  uint32_t CommonFlagsToIrqContext(uint32_t common_flags);
 
   bool IsRunning(StringId state);
   bool IsBlocked(StringId state);

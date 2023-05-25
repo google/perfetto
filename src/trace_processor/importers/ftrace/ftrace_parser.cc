@@ -1069,9 +1069,9 @@ util::Status FtraceParser::ParseInlineSchedWaking(
   }
   using protos::pbzero::FtraceEvent;
   SchedEventTracker* sched_tracker = SchedEventTracker::GetOrCreate(context_);
-  sched_tracker->PushSchedWakingCompact(cpu, ts,
-                                        static_cast<uint32_t>(data.pid),
-                                        data.target_cpu, data.prio, data.comm);
+  sched_tracker->PushSchedWakingCompact(
+      cpu, ts, static_cast<uint32_t>(data.pid), data.target_cpu, data.prio,
+      data.comm, data.common_flags);
   return util::OkStatus();
 }
 
