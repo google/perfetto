@@ -874,8 +874,9 @@ static inline const char* $local_name$_Name($local_name$ value) {
 
       for (int j = 0; j < nested_enum->value_count(); ++j) {
         const EnumValueDescriptor* value = nested_enum->value(j);
-        stub_h_->Print("static const $class$ $name$ = $class$::$name$;\n",
-                       "class", nested_enum->name(), "name", value->name());
+        stub_h_->Print(
+            "static inline const $class$ $name$ = $class$::$name$;\n", "class",
+            nested_enum->name(), "name", value->name());
       }
     }
 
