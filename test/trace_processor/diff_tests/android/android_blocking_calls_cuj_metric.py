@@ -26,13 +26,13 @@ THIRD_PROCESS_PID = 3000
 # List of blocking calls
 blocking_call_names = [
     'monitor contention with something else', 'SuspendThreadByThreadId 123',
-    'LoadApkAssetsFd 123', 'binder transaction',
-    'inflate', 'Lock contention on thread list lock (owner tid: 1665)',
+    'LoadApkAssetsFd 123', 'binder transaction', 'inflate',
+    'Lock contention on thread list lock (owner tid: 1665)',
     'CancellableContinuationImpl#123', 'relayoutWindow*', 'measure', 'layout',
     'configChanged', 'Contending for pthread mutex',
     'ImageDecoder#decodeBitmap', 'ImageDecoder#decodeDrawable',
-    'NotificationStackScrollLayout#onMeasure', 'ExpNotRow#onMeasure(MessagingStyle)',
-    'ExpNotRow#onMeasure(BigTextStyle)',
+    'NotificationStackScrollLayout#onMeasure',
+    'ExpNotRow#onMeasure(MessagingStyle)', 'ExpNotRow#onMeasure(BigTextStyle)',
     'Should not be in the metric'
 ]
 
