@@ -253,11 +253,11 @@ class Chrome(TestSuite):
         query="""
         SELECT RUN_METRIC('chrome/chrome_tasks.sql');
 
-        SELECT full_name, task_type, count() AS count
+        SELECT full_name as name, task_type, count() AS count
         FROM chrome_tasks
         GROUP BY full_name, task_type
-        ORDER BY count DESC
-        LIMIT 50;
+        HAVING count >= 5
+        ORDER BY count DESC, name;
         """,
         out=Path('chrome_tasks.out'))
 
