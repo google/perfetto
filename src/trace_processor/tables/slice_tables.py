@@ -179,6 +179,7 @@ THREAD_STATE_TABLE = Table(
         C('io_wait', CppOptional(CppUint32())),
         C('blocked_function', CppOptional(CppString())),
         C('waker_utid', CppOptional(CppUint32())),
+        C('irq_context', CppOptional(CppUint32())),
     ],
     tabledoc=TableDoc(
         doc='''
@@ -196,6 +197,8 @@ THREAD_STATE_TABLE = Table(
                 'The duration of the slice (in nanoseconds).',
             'cpu':
                 '''The CPU that the slice executed on.''',
+            'irq_context':
+                '''Whether the wakeup was from interrupt context or process context.''',
             'utid':
                 '''The thread's unique id in the trace..''',
             'state':
@@ -207,6 +210,40 @@ THREAD_STATE_TABLE = Table(
                 'Indicates whether this thread was blocked on IO.',
             'blocked_function':
                 'The function in the kernel this thread was blocked on.',
+            'waker_utid':
+                '''
+                  The unique thread id of the thread which caused a wakeup of
+                  this thread.
+                '''
+        }))
+
+SPURIOUS_SCHED_WAKEUP_TABLE = Table(
+    python_module=__file__,
+    class_name='SpuriousSchedWakeupTable',
+    sql_name='spurious_sched_wakeup',
+    columns=[
+        C('ts', CppInt64(), flags=ColumnFlag.SORTED),
+        C('thread_state_id', CppInt64()),
+        C('irq_context', CppOptional(CppUint32())),
+        C('utid', CppUint32()),
+        C('waker_utid', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='''
+          This table contains the scheduling wakeups that occurred while a thread was
+          not blocked, i.e. running or runnable. Such wakeups are not tracked in the
+          |thread_state_table|.
+        ''',
+        group='Events',
+        columns={
+            'ts':
+                'The timestamp at the start of the slice (in nanoseconds).',
+            'thread_state_id':
+                'The id of the row in the thread_state table that this row is associated with.',
+            'irq_context':
+                '''Whether the wakeup was from interrupt context or process context.''',
+            'utid':
+                '''The thread's unique id in the trace..''',
             'waker_utid':
                 '''
                   The unique thread id of the thread which caused a wakeup of
@@ -383,4 +420,5 @@ ALL_TABLES = [
     SCHED_SLICE_TABLE,
     SLICE_TABLE,
     THREAD_STATE_TABLE,
+    SPURIOUS_SCHED_WAKEUP_TABLE,
 ]

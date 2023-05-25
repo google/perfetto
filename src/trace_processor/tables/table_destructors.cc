@@ -75,6 +75,7 @@ GpuCounterGroupTable::~GpuCounterGroupTable() = default;
 SliceTable::~SliceTable() = default;
 FlowTable::~FlowTable() = default;
 SchedSliceTable::~SchedSliceTable() = default;
+SpuriousSchedWakeupTable::~SpuriousSchedWakeupTable() = default;
 GpuSliceTable::~GpuSliceTable() = default;
 GraphicsFrameSliceTable::~GraphicsFrameSliceTable() = default;
 ThreadStateTable::~ThreadStateTable() = default;
