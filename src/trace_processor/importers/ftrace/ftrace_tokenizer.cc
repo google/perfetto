@@ -247,6 +247,7 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
   auto tcpu_it = compact.waking_target_cpu(&parse_error);
   auto prio_it = compact.waking_prio(&parse_error);
   auto comm_it = compact.waking_comm_index(&parse_error);
+  auto common_flags_it = compact.waking_common_flags(&parse_error);
 
   for (; timestamp_it && pid_it && tcpu_it && prio_it && comm_it;
        ++timestamp_it, ++pid_it, ++tcpu_it, ++prio_it, ++comm_it) {
@@ -261,8 +262,13 @@ void FtraceTokenizer::TokenizeFtraceCompactSchedWaking(
     event.comm = string_table[*comm_it];
 
     event.pid = *pid_it;
-    event.target_cpu = *tcpu_it;
-    event.prio = *prio_it;
+    event.target_cpu = static_cast<uint16_t>(*tcpu_it);
+    event.prio = static_cast<uint16_t>(*prio_it);
+
+    if (common_flags_it) {
+      event.common_flags = static_cast<uint16_t>(*common_flags_it);
+      common_flags_it++;
+    }
 
     base::StatusOr<int64_t> timestamp =
         ResolveTraceTime(context_, clock_id, event_timestamp);
