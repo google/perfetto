@@ -1279,6 +1279,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/overlays/null_overlay.cc",
         "src/trace_processor/db/overlays/null_overlay.h",
+        "src/trace_processor/db/overlays/selector_overlay.cc",
+        "src/trace_processor/db/overlays/selector_overlay.h",
         "src/trace_processor/db/overlays/storage_overlay.cc",
         "src/trace_processor/db/overlays/storage_overlay.h",
         "src/trace_processor/db/overlays/types.h",
