@@ -9410,6 +9410,18 @@ filegroup {
 // GN: //src/trace_processor/db/overlays:overlays
 filegroup {
     name: "perfetto_src_trace_processor_db_overlays_overlays",
+    srcs: [
+        "src/trace_processor/db/overlays/null_overlay.cc",
+        "src/trace_processor/db/overlays/storage_overlay.cc",
+    ],
+}
+
+// GN: //src/trace_processor/db/overlays:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_db_overlays_unittests",
+    srcs: [
+        "src/trace_processor/db/overlays/null_overlay_unittest.cc",
+    ],
 }
 
 // GN: //src/trace_processor/db/storage:storage
@@ -12061,6 +12073,7 @@ cc_test {
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_overlays_overlays",
+        ":perfetto_src_trace_processor_db_overlays_unittests",
         ":perfetto_src_trace_processor_db_storage_storage",
         ":perfetto_src_trace_processor_db_storage_unittests",
         ":perfetto_src_trace_processor_db_unittests",
