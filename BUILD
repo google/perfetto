@@ -2014,6 +2014,8 @@ perfetto_filegroup(
         "src/trace_processor/prelude/functions/import.h",
         "src/trace_processor/prelude/functions/layout_functions.cc",
         "src/trace_processor/prelude/functions/layout_functions.h",
+        "src/trace_processor/prelude/functions/math.cc",
+        "src/trace_processor/prelude/functions/math.h",
         "src/trace_processor/prelude/functions/pprof_functions.cc",
         "src/trace_processor/prelude/functions/pprof_functions.h",
         "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
@@ -2216,6 +2218,7 @@ perfetto_filegroup(
         "src/trace_processor/stdlib/chrome/chrome_scrolls.sql",
         "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
         "src/trace_processor/stdlib/chrome/histograms.sql",
+        "src/trace_processor/stdlib/chrome/speedometer.sql",
     ],
 )
 

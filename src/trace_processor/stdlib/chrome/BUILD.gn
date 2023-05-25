@@ -19,5 +19,6 @@ perfetto_sql_source_set("chrome_sql") {
     "chrome_scrolls.sql",
     "cpu_powerups.sql",
     "histograms.sql",
+    "speedometer.sql",
   ]
 }

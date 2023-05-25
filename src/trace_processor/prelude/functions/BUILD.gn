@@ -29,6 +29,8 @@ source_set("functions") {
     "import.h",
     "layout_functions.cc",
     "layout_functions.h",
+    "math.cc",
+    "math.h",
     "pprof_functions.cc",
     "pprof_functions.h",
     "sqlite3_str_split.cc",
