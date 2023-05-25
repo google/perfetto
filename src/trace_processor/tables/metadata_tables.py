@@ -170,6 +170,7 @@ RAW_TABLE = Table(
         C('cpu', CppUint32()),
         C('utid', CppTableId(THREAD_TABLE)),
         C('arg_set_id', CppUint32()),
+        C('common_flags', CppUint32())
     ],
     tabledoc=TableDoc(
         doc='''
@@ -193,7 +194,9 @@ RAW_TABLE = Table(
             'cpu':
                 'The CPU this event was emitted on.',
             'utid':
-                'The thread this event was emitted on.'
+                'The thread this event was emitted on.',
+            'common_flags':
+                'Ftrace event flags for this event. Currently only emitted for sched_waking events.'
         }))
 
 FTRACE_EVENT_TABLE = Table(
