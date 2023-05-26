@@ -29,4 +29,14 @@ message ChromeScrollJankV2 {
   optional double scroll_jank_processing_ms = 2 [(unit) = "ms_smallerIsBetter"];
   // Computed as: `100 * scroll_jank_processing_ms / scroll_processing_ms`.
   optional double scroll_jank_percentage = 3 [(unit) = "n%_smallerIsBetter"];
+  // The number of scroll janks. Similar to above, this excludes jank caused
+  // due to `RendererCompositorQueueingDelay`, which can add nontrivial noise.
+  optional int64 num_scroll_janks = 4 [(unit) = "count_smallerIsBetter"];
+  // The primary cause and duration for scroll jank, one for each jank.
+  // There are exactly `num_scroll_janks` items in this field.
+  message ScrollJankCauseAndDuration {
+    optional string cause = 1;
+    optional double duration_ms = 2 [(unit) = "ms_smallerIsBetter"];
+  }
+  repeated ScrollJankCauseAndDuration scroll_jank_causes_and_durations = 5;
 }
