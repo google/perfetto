@@ -20,6 +20,8 @@ source_set("sqlite") {
   sources = [
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
+    "perfetto_sql_engine.cc",
+    "perfetto_sql_engine.h",
     "query_cache.h",
     "scoped_db.h",
     "sql_stats_table.cc",

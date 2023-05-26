@@ -2171,6 +2171,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/db_sqlite_table.h",
+        "src/trace_processor/sqlite/perfetto_sql_engine.cc",
+        "src/trace_processor/sqlite/perfetto_sql_engine.h",
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/scoped_db.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",

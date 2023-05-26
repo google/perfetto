@@ -19,6 +19,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -32,7 +33,7 @@ namespace {
 
 struct CreatedFunction : public SqlFunction {
   struct Context {
-    SqliteEngine* engine;
+    PerfettoSqlEngine* engine;
     Prototype prototype;
     sql_argument::Type return_type;
     std::string sql;
@@ -95,8 +96,8 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   }
 
   int ret = sqlite3_step(ctx->stmt.get());
-  RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
+  RETURN_IF_ERROR(SqliteRetToStatus(ctx->engine->sqlite_engine()->db(),
+                                    ctx->prototype.function_name, ret));
   if (ret == SQLITE_DONE) {
     // No return value means we just return don't set |out|.
     return base::OkStatus();
@@ -127,8 +128,8 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 
 base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
   int ret = sqlite3_step(ctx->stmt.get());
-  RETURN_IF_ERROR(
-      SqliteRetToStatus(ctx->engine->db(), ctx->prototype.function_name, ret));
+  RETURN_IF_ERROR(SqliteRetToStatus(ctx->engine->sqlite_engine()->db(),
+                                    ctx->prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
     auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(ctx->stmt.get());
     return base::ErrStatus(
@@ -147,7 +148,7 @@ void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
 
 }  // namespace
 
-base::Status CreateFunction::Run(SqliteEngine* engine,
+base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
                                  size_t argc,
                                  sqlite3_value** argv,
                                  SqlValue&,
@@ -211,8 +212,8 @@ base::Status CreateFunction::Run(SqliteEngine* engine,
   }
 
   int created_argc = static_cast<int>(prototype.arguments.size());
-  auto* fn_ctx =
-      engine->GetFunctionContext(prototype.function_name, created_argc);
+  auto* fn_ctx = engine->sqlite_engine()->GetFunctionContext(
+      prototype.function_name, created_argc);
   if (fn_ctx) {
     // If the function already exists, just verify that the prototype, return
     // type and SQL matches exactly with what we already had registered. By
@@ -245,16 +246,17 @@ base::Status CreateFunction::Run(SqliteEngine* engine,
   // Prepare the SQL definition as a statement using SQLite.
   ScopedStmt stmt;
   sqlite3_stmt* stmt_raw = nullptr;
-  int ret = sqlite3_prepare_v2(engine->db(), sql_defn_str.data(),
-                               static_cast<int>(sql_defn_str.size()), &stmt_raw,
-                               nullptr);
+  int ret = sqlite3_prepare_v2(
+      engine->sqlite_engine()->db(), sql_defn_str.data(),
+      static_cast<int>(sql_defn_str.size()), &stmt_raw, nullptr);
   if (ret != SQLITE_OK) {
     return base::ErrStatus(
         "CREATE_FUNCTION[prototype=%s]: SQLite error when preparing "
         "statement %s",
         prototype_str.ToStdString().c_str(),
-        sqlite_utils::FormatErrorMessage(
-            stmt_raw, base::StringView(sql_defn_str), engine->db(), ret)
+        sqlite_utils::FormatErrorMessage(stmt_raw,
+                                         base::StringView(sql_defn_str),
+                                         engine->sqlite_engine()->db(), ret)
             .c_message());
   }
   stmt.reset(stmt_raw);

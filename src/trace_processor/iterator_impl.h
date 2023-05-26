@@ -28,6 +28,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/iterator.h"
 #include "perfetto/trace_processor/status.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -38,17 +39,8 @@ class TraceProcessorImpl;
 
 class IteratorImpl {
  public:
-  struct StmtMetadata {
-    uint32_t column_count = 0;
-    uint32_t statement_count = 0;
-    uint32_t statement_count_with_output = 0;
-  };
-
   IteratorImpl(TraceProcessorImpl* impl,
-               sqlite3* db,
-               base::Status,
-               ScopedStmt,
-               StmtMetadata,
+               base::StatusOr<PerfettoSqlEngine::ExecutionResult>,
                uint32_t sql_stats_row);
   ~IteratorImpl();
 
@@ -60,8 +52,6 @@ class IteratorImpl {
 
   // Methods called by the base Iterator class.
   bool Next() {
-    PERFETTO_DCHECK(stmt_ || !status_.ok());
-
     if (!called_next_) {
       // Delegate to the cc file to prevent trace_storage.h include in this
       // file.
@@ -78,46 +68,49 @@ class IteratorImpl {
       // (i.e. implement operator bool, make Next return nothing similar to C++
       // iterators); however, too many clients depend on the current behavior so
       // we have to keep the API as is.
-      return status_.ok() && !sqlite_utils::IsStmtDone(*stmt_);
+      return result_.ok() && !sqlite_utils::IsStmtDone(*result_->stmt);
     }
 
-    if (!status_.ok())
+    if (!result_.ok())
       return false;
 
-    int ret = sqlite3_step(*stmt_);
+    int ret = sqlite3_step(*result_->stmt);
     if (PERFETTO_UNLIKELY(ret != SQLITE_ROW && ret != SQLITE_DONE)) {
-      status_ = base::ErrStatus("%s", sqlite_utils::FormatErrorMessage(
-                                          stmt_.get(), std::nullopt, db_, ret)
-                                          .c_message());
-      stmt_.reset();
+      result_ =
+          base::ErrStatus("%s", sqlite_utils::FormatErrorMessage(
+                                    result_->stmt.get(), std::nullopt,
+                                    sqlite3_db_handle(result_->stmt.get()), ret)
+                                    .c_message());
       return false;
     }
     return ret == SQLITE_ROW;
   }
 
-  SqlValue Get(uint32_t col) {
+  SqlValue Get(uint32_t col) const {
+    PERFETTO_DCHECK(result_.ok());
+
     auto column = static_cast<int>(col);
-    auto col_type = sqlite3_column_type(*stmt_, column);
+    auto col_type = sqlite3_column_type(*result_->stmt, column);
     SqlValue value;
     switch (col_type) {
       case SQLITE_INTEGER:
         value.type = SqlValue::kLong;
-        value.long_value = sqlite3_column_int64(*stmt_, column);
+        value.long_value = sqlite3_column_int64(*result_->stmt, column);
         break;
       case SQLITE_TEXT:
         value.type = SqlValue::kString;
-        value.string_value =
-            reinterpret_cast<const char*>(sqlite3_column_text(*stmt_, column));
+        value.string_value = reinterpret_cast<const char*>(
+            sqlite3_column_text(*result_->stmt, column));
         break;
       case SQLITE_FLOAT:
         value.type = SqlValue::kDouble;
-        value.double_value = sqlite3_column_double(*stmt_, column);
+        value.double_value = sqlite3_column_double(*result_->stmt, column);
         break;
       case SQLITE_BLOB:
         value.type = SqlValue::kBytes;
-        value.bytes_value = sqlite3_column_blob(*stmt_, column);
+        value.bytes_value = sqlite3_column_blob(*result_->stmt, column);
         value.bytes_count =
-            static_cast<size_t>(sqlite3_column_bytes(*stmt_, column));
+            static_cast<size_t>(sqlite3_column_bytes(*result_->stmt, column));
         break;
       case SQLITE_NULL:
         value.type = SqlValue::kNull;
@@ -126,18 +119,24 @@ class IteratorImpl {
     return value;
   }
 
-  std::string GetColumnName(uint32_t col) {
-    return stmt_ ? sqlite3_column_name(*stmt_, static_cast<int>(col)) : "";
+  std::string GetColumnName(uint32_t col) const {
+    return result_.ok() && result_->stmt
+               ? sqlite3_column_name(*result_->stmt, static_cast<int>(col))
+               : "";
   }
 
-  base::Status Status() { return status_; }
+  base::Status Status() const { return result_.status(); }
 
-  uint32_t ColumnCount() { return stmt_metadata_.column_count; }
+  uint32_t ColumnCount() const {
+    return result_.ok() ? result_->column_count : 0;
+  }
 
-  uint32_t StatementCount() { return stmt_metadata_.statement_count; }
+  uint32_t StatementCount() const {
+    return result_.ok() ? result_->statement_count : 0;
+  }
 
-  uint32_t StatementCountWithOutput() {
-    return stmt_metadata_.statement_count_with_output;
+  uint32_t StatementCountWithOutput() const {
+    return result_.ok() ? result_->statement_count_with_output : 0;
   }
 
  private:
@@ -156,11 +155,7 @@ class IteratorImpl {
   void RecordFirstNextInSqlStats();
 
   ScopedTraceProcessor trace_processor_;
-  sqlite3* db_ = nullptr;
-  base::Status status_;
-
-  ScopedStmt stmt_;
-  StmtMetadata stmt_metadata_;
+  base::StatusOr<PerfettoSqlEngine::ExecutionResult> result_;
 
   uint32_t sql_stats_row_ = 0;
   bool called_next_ = false;
