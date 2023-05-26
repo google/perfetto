@@ -47,53 +47,21 @@ namespace trace_processor {
 //    what functionality we rely on.
 class SqliteEngine {
  public:
+  using Fn = void(sqlite3_context* ctx, int argc, sqlite3_value** argv);
+  using FnCtxDestructor = void(void*);
+
   SqliteEngine();
   ~SqliteEngine();
 
-  // Registers a trace processor C++ table with SQLite with an SQL name of
-  // |name|.
-  void RegisterTable(const Table& table, const std::string& name);
-
-  // Registers a trace processor C++ function to be runnable from SQL.
-  //
-  // The format of the function is given by the |SqlFunction|.
-  //
-  // |db|:          sqlite3 database object
-  // |name|:        name of the function in SQL
-  // |argc|:        number of arguments for this function. This can be -1 if
-  //                the number of arguments is variable.
-  // |ctx|:         context object for the function (see SqlFunction::Run
-  // above);
-  //                this object *must* outlive the function so should likely be
-  //                either static or scoped to the lifetime of TraceProcessor.
-  // |determistic|: whether this function has deterministic output given the
-  //                same set of arguments.
-  template <typename Function = SqlFunction>
-  base::Status RegisterSqlFunction(const char* name,
-                                   int argc,
-                                   typename Function::Context* ctx,
-                                   bool deterministic = true);
-
-  // Registers a trace processor C++ function to be runnable from SQL.
-  //
-  // This function is the same as the above except allows a unique_ptr to be
-  // passed for the context; this allows for SQLite to manage the lifetime of
-  // this pointer instead of the essentially static requirement of the context
-  // pointer above.
-  template <typename Function>
-  base::Status RegisterSqlFunction(
-      const char* name,
-      int argc,
-      std::unique_ptr<typename Function::Context> ctx,
-      bool deterministic = true);
-
-  // Registers a trace processor C++ table function with SQLite.
-  void RegisterTableFunction(std::unique_ptr<TableFunction> fn);
+  // Registers a C++ function to be runnable from SQL.
+  base::Status RegisterFunction(const char* name,
+                                int argc,
+                                Fn* fn,
+                                void* ctx,
+                                FnCtxDestructor* ctx_destructor,
+                                bool deterministic);
 
   // Registers a SQLite virtual table module with the given name.
-  //
-  // This API only exists for internal/legacy use: most callers should use
-  // one of the RegisterTable* APIs above.
   template <typename Vtab, typename Context>
   void RegisterVirtualTableModule(const std::string& module_name,
                                   Context ctx,
@@ -101,29 +69,17 @@ class SqliteEngine {
                                   bool updatable);
 
   // Declares a virtual table with SQLite.
-  //
-  // This API only exists for internal use. Most callers should never call this
-  // directly: instead use one of the RegisterTable* APIs above.
   base::Status DeclareVirtualTable(const std::string& create_stmt);
 
   // Saves a SQLite table across a pair of xDisconnect/xConnect callbacks.
-  //
-  // This API only exists for internal use. Most callers should never call this
-  // directly.
   base::Status SaveSqliteTable(const std::string& table_name,
                                std::unique_ptr<SqliteTable>);
 
   // Restores a SQLite table across a pair of xDisconnect/xConnect callbacks.
-  //
-  // This API only exists for internal use. Most callers should never call this
-  // directly.
   base::StatusOr<std::unique_ptr<SqliteTable>> RestoreSqliteTable(
       const std::string& table_name);
 
   // Gets the context for a registered SQL function.
-  //
-  // This API only exists for internal use. Most callers should never call this
-  // directly.
   void* GetFunctionContext(const std::string& name, int argc);
 
   sqlite3* db() const { return db_.get(); }
@@ -138,7 +94,6 @@ class SqliteEngine {
     }
   };
 
-  std::unique_ptr<QueryCache> query_cache_;
   base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 
@@ -154,91 +109,6 @@ class SqliteEngine {
 
 namespace perfetto {
 namespace trace_processor {
-namespace sqlite_internal {
-
-// RAII type to call Function::Cleanup when destroyed.
-template <typename Function>
-struct ScopedCleanup {
-  typename Function::Context* ctx;
-  ~ScopedCleanup() { Function::Cleanup(ctx); }
-};
-
-template <typename Function>
-void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
-  using Context = typename Function::Context;
-  Context* ud = static_cast<Context*>(sqlite3_user_data(ctx));
-
-  ScopedCleanup<Function> scoped_cleanup{ud};
-  SqlValue value{};
-  SqlFunction::Destructors destructors{};
-  base::Status status =
-      Function::Run(ud, static_cast<size_t>(argc), argv, value, destructors);
-  if (!status.ok()) {
-    sqlite3_result_error(ctx, status.c_message(), -1);
-    return;
-  }
-
-  if (Function::kVoidReturn) {
-    if (!value.is_null()) {
-      sqlite3_result_error(ctx, "void SQL function returned value", -1);
-      return;
-    }
-
-    // If the function doesn't want to return anything, set the "VOID"
-    // pointer type to a non-null value. Note that because of the weird
-    // way |sqlite3_value_pointer| works, we need to set some value even
-    // if we don't actually read it - just set it to a pointer to an empty
-    // string for this reason.
-    static char kVoidValue[] = "";
-    sqlite3_result_pointer(ctx, kVoidValue, "VOID", nullptr);
-  } else {
-    sqlite_utils::ReportSqlValue(ctx, value, destructors.string_destructor,
-                                 destructors.bytes_destructor);
-  }
-
-  status = Function::VerifyPostConditions(ud);
-  if (!status.ok()) {
-    sqlite3_result_error(ctx, status.c_message(), -1);
-    return;
-  }
-}
-
-}  // namespace sqlite_internal
-
-template <typename Function>
-base::Status SqliteEngine::RegisterSqlFunction(const char* name,
-                                               int argc,
-                                               typename Function::Context* ctx,
-                                               bool deterministic) {
-  int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  int ret = sqlite3_create_function_v2(
-      db_.get(), name, static_cast<int>(argc), flags, ctx,
-      sqlite_internal::WrapSqlFunction<Function>, nullptr, nullptr, nullptr);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s", name);
-  }
-  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
-  return base::OkStatus();
-}
-
-template <typename Function>
-base::Status SqliteEngine::RegisterSqlFunction(
-    const char* name,
-    int argc,
-    std::unique_ptr<typename Function::Context> user_data,
-    bool deterministic) {
-  int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
-  void* fn_ctx = user_data.get();
-  int ret = sqlite3_create_function_v2(
-      db_.get(), name, static_cast<int>(argc), flags, user_data.release(),
-      sqlite_internal::WrapSqlFunction<Function>, nullptr, nullptr,
-      [](void* ptr) { delete static_cast<typename Function::Context*>(ptr); });
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus("Unable to register function with name %s", name);
-  }
-  *fn_ctx_.Insert(std::make_pair(name, argc), fn_ctx).first = fn_ctx;
-  return base::OkStatus();
-}
 
 template <typename Vtab, typename Context>
 void SqliteEngine::RegisterVirtualTableModule(const std::string& module_name,

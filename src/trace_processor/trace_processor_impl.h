@@ -34,6 +34,7 @@
 #include "src/trace_processor/prelude/functions/create_view_function.h"
 #include "src/trace_processor/prelude/functions/import.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -120,7 +121,7 @@ class TraceProcessorImpl : public TraceProcessor,
 
   bool IsRootMetricField(const std::string& metric_name);
 
-  SqliteEngine engine_;
+  PerfettoSqlEngine engine_;
 
   DescriptorPool pool_;
 
