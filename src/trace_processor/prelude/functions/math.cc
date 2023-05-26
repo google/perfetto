@@ -20,7 +20,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/sql_function.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -78,7 +78,7 @@ struct Exp : public SqlFunction {
 
 }  // namespace
 
-base::Status RegisterMathFunctions(SqliteEngine& engine) {
+base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
   RETURN_IF_ERROR(engine.RegisterSqlFunction<Ln>("ln", 1, nullptr, true));
   return engine.RegisterSqlFunction<Exp>("exp", 1, nullptr, true);
 }

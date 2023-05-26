@@ -172,7 +172,7 @@ class ScopedEvent {
     record_->duration_ns = now - record_->timestamp_ns;
   }
 
-  ScopedEvent(ScopedEvent&& value) {
+  ScopedEvent(ScopedEvent&& value) noexcept {
     record_ = value.record_;
     record_idx_ = value.record_idx_;
     value.record_ = nullptr;
