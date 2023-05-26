@@ -19,12 +19,12 @@
 
 namespace perfetto::trace_processor {
 
-class SqliteEngine;
+class PerfettoSqlEngine;
 
 // Registers LN and EXP.
 // We do not compile the SQLite library with -DSQLITE_ENABLE_MATH_FUNCTIONS so
 // these functions are not provided by default.
-base::Status RegisterMathFunctions(SqliteEngine& engine);
+base::Status RegisterMathFunctions(PerfettoSqlEngine& engine);
 
 }  // namespace perfetto::trace_processor
 

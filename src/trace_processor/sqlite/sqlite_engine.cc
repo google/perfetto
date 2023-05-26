@@ -63,7 +63,7 @@ void InitializeSqlite(sqlite3* db) {
 
 }  // namespace
 
-SqliteEngine::SqliteEngine() : query_cache_(new QueryCache()) {
+SqliteEngine::SqliteEngine() {
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
@@ -84,35 +84,21 @@ SqliteEngine::~SqliteEngine() {
   fn_ctx_.Clear();
 }
 
-void SqliteEngine::RegisterTable(const Table& table,
-                                 const std::string& table_name) {
-  DbSqliteTable::Context context{query_cache_.get(),
-                                 DbSqliteTable::TableComputation::kStatic,
-                                 &table, nullptr};
-  RegisterVirtualTableModule<DbSqliteTable>(table_name, std::move(context),
-                                            SqliteTable::kEponymousOnly, false);
-
-  // Register virtual tables into an internal 'perfetto_tables' table.
-  // This is used for iterating through all the tables during a database
-  // export.
-  char* insert_sql = sqlite3_mprintf(
-      "INSERT INTO perfetto_tables(name) VALUES('%q')", table_name.c_str());
-  char* error = nullptr;
-  sqlite3_exec(db_.get(), insert_sql, nullptr, nullptr, &error);
-  sqlite3_free(insert_sql);
-  if (error) {
-    PERFETTO_ELOG("Error adding table to perfetto_tables: %s", error);
-    sqlite3_free(error);
+base::Status SqliteEngine::RegisterFunction(const char* name,
+                                            int argc,
+                                            Fn* fn,
+                                            void* ctx,
+                                            FnCtxDestructor* destructor,
+                                            bool deterministic) {
+  int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
+  int ret =
+      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
+                                 ctx, fn, nullptr, nullptr, destructor);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to register function with name %s", name);
   }
-}
-
-void SqliteEngine::RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
-  std::string table_name = fn->TableName();
-  DbSqliteTable::Context context{query_cache_.get(),
-                                 DbSqliteTable::TableComputation::kDynamic,
-                                 nullptr, std::move(fn)};
-  RegisterVirtualTableModule<DbSqliteTable>(table_name, std::move(context),
-                                            SqliteTable::kEponymousOnly, false);
+  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
+  return base::OkStatus();
 }
 
 base::Status SqliteEngine::DeclareVirtualTable(const std::string& create_stmt) {
