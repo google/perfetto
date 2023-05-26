@@ -27,16 +27,13 @@
 namespace perfetto {
 namespace trace_processor {
 
+class PerfettoSqlEngine;
+
 // Implementation of CREATE_FUNCTION SQL function.
 // See https://perfetto.dev/docs/analysis/metrics#metric-helper-functions for
 // usage of this function.
 struct CreateFunction : public SqlFunction {
-  struct PerFunctionState {
-    ScopedStmt stmt;
-    // void* to avoid leaking state.
-    void* created_functon_context;
-  };
-  using Context = SqliteEngine;
+  using Context = PerfettoSqlEngine;
 
   static constexpr bool kVoidReturn = true;
 
