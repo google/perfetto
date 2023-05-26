@@ -53,6 +53,7 @@ enum PerfettoTeHlExtraType {
   PERFETTO_TE_HL_EXTRA_TYPE_FLOW = 13,
   PERFETTO_TE_HL_EXTRA_TYPE_TERMINATING_FLOW = 14,
   PERFETTO_TE_HL_EXTRA_TYPE_FLUSH = 15,
+  PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN = 16,
 };
 
 // List of extra event parameters. Each type of parameter should embed this as

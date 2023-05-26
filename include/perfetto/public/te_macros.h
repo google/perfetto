@@ -269,10 +269,15 @@ static inline void PerfettoTeHlCall(struct PerfettoTeCategoryImpl* cat,
   PERFETTO_I_TE_EXTRA(PerfettoTeHlExtra, \
                       {PERFETTO_TE_HL_EXTRA_TYPE_FLUSH, PERFETTO_NULL})
 
+// Turns off interning for event names.
+#define PERFETTO_TE_NO_INTERN()          \
+  PERFETTO_I_TE_EXTRA(PerfettoTeHlExtra, \
+                      {PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN, PERFETTO_NULL})
+
 // ----------------------------------
 // The main PERFETTO_TE tracing macro
 // ----------------------------------
-
+//
 // If tracing is active and the passed tracing category is enabled, adds an
 // entry in the tracing stream of the perfetto track event data source.
 // Parameters:

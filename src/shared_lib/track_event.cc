@@ -640,7 +640,8 @@ void WriteTrackEvent(perfetto::shlib::TrackEventIncrementalState* incr,
                      const char* name,
                      const PerfettoTeHlExtra* extra_data,
                      std::optional<uint64_t> track_uuid,
-                     const PerfettoTeCategoryDescriptor* dynamic_cat) {
+                     const PerfettoTeCategoryDescriptor* dynamic_cat,
+                     bool use_interning) {
   if (type != perfetto::protos::pbzero::TrackEvent::TYPE_UNSPECIFIED) {
     event->set_type(type);
   }
@@ -662,7 +663,21 @@ void WriteTrackEvent(perfetto::shlib::TrackEventIncrementalState* incr,
 
   if (type != perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END) {
     if (name) {
-      event->set_name(name);
+      if (use_interning) {
+        const void* str = name;
+        size_t len = strlen(name);
+        auto res = incr->iids.FindOrAssign(
+            perfetto::protos::pbzero::InternedData::kEventNamesFieldNumber, str,
+            len);
+        if (res.newly_assigned) {
+          auto* ser = incr->serialized_interned_data->add_event_names();
+          ser->set_iid(res.iid);
+          ser->set_name(name);
+        }
+        event->set_name_iid(res.iid);
+      } else {
+        event->set_name(name);
+      }
     }
   }
 
@@ -878,6 +893,7 @@ static void InstanceOp(
   const struct PerfettoTeCategoryDescriptor* dynamic_cat = nullptr;
   std::optional<int64_t> int_counter;
   std::optional<double> double_counter;
+  bool use_interning = true;
 
   for (const auto* it = extra_data; it; it = it->next) {
     if (it->type == PERFETTO_TE_HL_EXTRA_TYPE_REGISTERED_TRACK) {
@@ -904,6 +920,8 @@ static void InstanceOp(
       double_counter =
           reinterpret_cast<const struct PerfettoTeHlExtraCounterInt64*>(it)
               ->value;
+    } else if (it->type == PERFETTO_TE_HL_EXTRA_TYPE_NO_INTERN) {
+      use_interning = false;
     }
   }
 
@@ -962,7 +980,7 @@ static void InstanceOp(
         perfetto::protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
     WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
-                    track_uuid, dynamic_cat);
+                    track_uuid, dynamic_cat, use_interning);
     track_event->Finalize();
 
     if (!incr_state->serialized_interned_data.empty()) {

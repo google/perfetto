@@ -436,11 +436,41 @@ static inline void PerfettoTeLlWriteDynamicCat(
   }
 }
 
+static inline uint64_t PerfettoTeLlInternEventName(
+    struct PerfettoTeLlInternContext* ctx,
+    const char* name) {
+  uint64_t iid = 0;
+  if (name) {
+    bool seen;
+    iid = PerfettoTeLlIntern(
+        ctx->incr, perfetto_protos_InternedData_event_names_field_number, name,
+        strlen(name), &seen);
+    if (!seen) {
+      struct perfetto_protos_EventName event_name;
+      PerfettoTeLlInternContextStartIfNeeded(ctx);
+      perfetto_protos_InternedData_begin_event_names(&ctx->interned,
+                                                     &event_name);
+      perfetto_protos_EventName_set_iid(&event_name, iid);
+      perfetto_protos_EventName_set_cstr_name(&event_name, name);
+      perfetto_protos_InternedData_end_event_names(&ctx->interned, &event_name);
+    }
+  }
+  return iid;
+}
+
 static inline void PerfettoTeLlWriteEventName(
     struct perfetto_protos_TrackEvent* te,
     const char* name) {
   if (name) {
     perfetto_protos_TrackEvent_set_cstr_name(te, name);
+  }
+}
+
+static inline void PerfettoTeLlWriteInternedEventName(
+    struct perfetto_protos_TrackEvent* te,
+    uint64_t iid) {
+  if (iid != 0) {
+    perfetto_protos_TrackEvent_set_name_iid(te, iid);
   }
 }
 
