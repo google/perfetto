@@ -544,13 +544,28 @@ class ChromeScrollJank(TestSuite):
   def test_chrome_scroll_jank_v2(self):
     return DiffTestBlueprint(
         trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT RUN_METRIC('chrome/chrome_scroll_jank_v2.sql');
-
-        SELECT
-          scroll_processing_ms,
-          scroll_jank_processing_ms,
-          scroll_jank_percentage
-        FROM chrome_scroll_jank_v2;
-        """,
-        out=Path('chrome_scroll_jank_v2.out'))
+        query=Metric('chrome_scroll_jank_v2'),
+        out=TextProto(r"""
+        [perfetto.protos.chrome_scroll_jank_v2] {
+          scroll_processing_ms: 12374.56
+          scroll_jank_processing_ms: 154.217
+          scroll_jank_percentage: 1.2462422906349802
+          num_scroll_janks: 4
+          scroll_jank_causes_and_durations {
+            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            duration_ms: 39.44
+          }
+          scroll_jank_causes_and_durations {
+            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            duration_ms: 35.485
+          }
+          scroll_jank_causes_and_durations {
+            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            duration_ms: 43.838
+          }
+          scroll_jank_causes_and_durations {
+            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            duration_ms: 35.454
+          }
+        }
+        """))
