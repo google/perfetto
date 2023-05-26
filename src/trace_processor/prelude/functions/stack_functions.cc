@@ -32,7 +32,7 @@
 #include "perfetto/trace_processor/status.h"
 #include "protos/perfetto/trace_processor/stack.pbzero.h"
 #include "src/trace_processor/prelude/functions/sql_function.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/trace_processor_context.h"
@@ -244,7 +244,7 @@ struct StackFromStackProfileFrameFunction : public SqlFunction {
 
 }  // namespace
 
-base::Status RegisterStackFunctions(SqliteEngine* engine,
+base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
                                     TraceProcessorContext* context) {
   RETURN_IF_ERROR(engine->RegisterSqlFunction<CatStacksFunction>(
       CatStacksFunction::kFunctionName, -1, context->storage.get()));
