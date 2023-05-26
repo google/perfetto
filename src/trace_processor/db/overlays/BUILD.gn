@@ -19,6 +19,8 @@ source_set("overlays") {
   sources = [
     "null_overlay.cc",
     "null_overlay.h",
+    "selector_overlay.cc",
+    "selector_overlay.h",
     "storage_overlay.cc",
     "storage_overlay.h",
     "types.h",
@@ -32,7 +34,10 @@ source_set("overlays") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "null_overlay_unittest.cc" ]
+  sources = [
+    "null_overlay_unittest.cc",
+    "selector_overlay_unittest.cc",
+  ]
   deps = [
     ":overlays",
     "../../../../gn:default_deps",
