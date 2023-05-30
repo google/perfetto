@@ -22,6 +22,8 @@ source_set("sqlite") {
     "db_sqlite_table.h",
     "perfetto_sql_engine.cc",
     "perfetto_sql_engine.h",
+    "perfetto_sql_parser.cc",
+    "perfetto_sql_parser.h",
     "query_cache.h",
     "scoped_db.h",
     "sql_stats_table.cc",
@@ -75,6 +77,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "db_sqlite_table_unittest.cc",
+    "perfetto_sql_parser_unittest.cc",
     "query_constraints_unittest.cc",
     "sqlite_tokenizer_unittest.cc",
     "sqlite_utils_unittest.cc",
