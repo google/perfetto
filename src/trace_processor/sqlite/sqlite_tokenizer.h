@@ -67,8 +67,7 @@ enum class SqliteTokenType : uint32_t {
 // https://www2.sqlite.org/hlr40000.html
 //
 // Usage of this class:
-// SqliteTokenizer tzr;
-// tzr.Reset(my_sql_string.c_str());
+// SqliteTokenizer tzr(my_sql_string.c_str());
 // for (auto t = tzr.Next(); t.token_type != TK_SEMI; t = tzr.Next()) {
 //   // Handle t here
 // }
