@@ -92,7 +92,9 @@ export class OverviewTimelinePanel extends Panel {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
       const tickGen = new TickGenerator(
           this.traceTime, maxMajorTicks, globals.state.traceTime.start);
-
+      // Set a background of color --perfetto-overview-background
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--perfetto-overview-background').trim() || 'white';
+      ctx.fillRect(TRACK_SHELL_WIDTH, headerHeight, this.width, size.height - headerHeight);
       // Draw time labels on the top header.
       ctx.font = '10px Roboto Condensed';
       ctx.fillStyle = '#999';
