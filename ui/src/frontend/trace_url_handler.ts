@@ -23,7 +23,6 @@ import {showModal} from './modal';
 import {Route, Router} from './router';
 import {taskTracker} from './task_tracker';
 
-
 export function maybeOpenTraceFromRoute(route: Route) {
   if (route.args.s) {
     // /?s=xxxx for permalinks.
