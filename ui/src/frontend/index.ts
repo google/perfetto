@@ -337,6 +337,14 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   CheckHttpRpcConnection().then(() => {
+    const route = Router.parseUrl(window.location.href);
+
+    globals.dispatch(Actions.maybeSetPendingDeeplink({
+      ts: route.args.ts,
+      tid: route.args.tid,
+      dur: route.args.dur,
+    }));
+
     if (!globals.embeddedMode) {
       installFileDropHandler();
     }
@@ -353,7 +361,7 @@ function onCssLoaded() {
 
     // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
     // cases.
-    maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
+    maybeOpenTraceFromRoute(route);
   });
 }
 

@@ -72,6 +72,11 @@ const routeArgs = record({
 
   // Should we hide the sidebar?
   hideSidebar: optBool,
+
+  // Deep link support
+  ts: optStr,
+  dur: optStr,
+  tid: optStr,
 });
 type RouteArgs = ValidatedType<typeof routeArgs>;
 
@@ -145,15 +150,6 @@ export class Router {
       newRoute.args.local_cache_key = oldRoute.args.local_cache_key;
     }
 
-    // Javascript sadly distinguishes between foo[bar] === undefined
-    // and foo[bar] is not set at all. Here we need the second case to
-    // avoid making the URL ugly.
-    for (const key of Object.keys(newRoute)) {
-      if ((newRoute as any)[key] === undefined) {
-        delete (newRoute as any)[key];
-      }
-    }
-
     const args = m.buildQueryString(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
     normalizedFragment += args.length > 0 ? '?' + args : '';
@@ -187,9 +183,7 @@ export class Router {
   // '#!/record/gpu?local_cache_key=abcd-1234'
   // Sample output:
   // {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
-  static parseFragment(hash: string, optDefaultArgs?: RouteArgs): Route {
-    const defaultArgs = optDefaultArgs ?? {};
-
+  static parseFragment(hash: string): Route {
     const prefixLength = ROUTE_PREFIX.length;
     let route = '';
     if (hash.startsWith(ROUTE_PREFIX)) {
@@ -206,10 +200,19 @@ export class Router {
 
     const argsStart = hash.indexOf('?');
     const argsStr = argsStart < 0 ? '' : hash.substring(argsStart + 1);
-    const fragmentArgs =
+    const rawArgs =
         argsStr ? m.parseQueryString(hash.substring(argsStart)) : {};
-    const rawArgs = Object.assign({}, defaultArgs, fragmentArgs);
+
     const args = runValidator(routeArgs, rawArgs).result;
+
+    // Javascript sadly distinguishes between foo[bar] === undefined
+    // and foo[bar] is not set at all. Here we need the second case to
+    // avoid making the URL ugly.
+    for (const key of Object.keys(args)) {
+      if ((args as any)[key] === undefined) {
+        delete (args as any)[key];
+      }
+    }
 
     return {page, subpage, args};
   }
@@ -218,6 +221,16 @@ export class Router {
     const query = (new URL(url)).search;
     const rawArgs = m.parseQueryString(query);
     const args = runValidator(routeArgs, rawArgs).result;
+
+    // Javascript sadly distinguishes between foo[bar] === undefined
+    // and foo[bar] is not set at all. Here we need the second case to
+    // avoid making the URL ugly.
+    for (const key of Object.keys(args)) {
+      if ((args as any)[key] === undefined) {
+        delete (args as any)[key];
+      }
+    }
+
     return args;
   }
 
@@ -227,7 +240,9 @@ export class Router {
 
     const hashPos = url.indexOf('#');
     const fragment = hashPos < 0 ? '' : url.substring(hashPos);
-    const route = Router.parseFragment(fragment, searchArgs);
+    const route = Router.parseFragment(fragment);
+    route.args = Object.assign({}, searchArgs, route.args);
+
     return route;
   }
 
