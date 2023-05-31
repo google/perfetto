@@ -142,12 +142,6 @@ function setExtensionAvailability(available: boolean) {
   }));
 }
 
-function initGlobalsFromQueryString() {
-  const queryString = window.location.search;
-  globals.embeddedMode = queryString.includes('mode=embedded');
-  globals.hideSidebar = queryString.includes('hideSidebar=true');
-}
-
 function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
@@ -252,9 +246,10 @@ function main() {
     maybeOpenTraceFromRoute(route);
   };
 
-  // This must be called before calling `globals.initialize` so that the
-  // `embeddedMode` global is set.
-  initGlobalsFromQueryString();
+  // These need to be set before globals.initialize.
+  const route = Router.parseUrl(window.location.href);
+  globals.embeddedMode = route.args.mode === 'embedded';
+  globals.hideSidebar = route.args.hideSidebar === true;
 
   globals.initialize(dispatch, router);
   globals.serviceWorkerController.install();
@@ -310,7 +305,6 @@ function main() {
     pluginManager.activatePlugin(plugin.pluginId);
   }
 }
-
 
 function onCssLoaded() {
   initCssConstants();

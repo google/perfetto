@@ -13,20 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
+
 import {assertExists, assertTrue} from '../base/logging';
+import {
+  oneOf,
+  optBool,
+  optStr,
+  record,
+  runValidator,
+  ValidatedType,
+} from '../controller/validators';
+
 import {PageAttrs} from './pages';
 
 export const ROUTE_PREFIX = '#!';
 const DEFAULT_ROUTE = '/';
 
-// A broken down representation of a route.
-// For instance: #!/record/gpu?local_cache_key=a0b1
-// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
-export interface Route {
-  page: string;
-  subpage: string;
-  args: RouteArgs;
-}
+const modes = ['embedded', undefined] as const;
+type Mode = typeof modes[number];
 
 // The set of args that can be set on the route via #!/page?a=1&b2.
 // Route args are orthogonal to pages (i.e. should NOT make sense only in a
@@ -44,18 +48,41 @@ export interface Route {
 //   This is client-only. All the routing logic in the Perfetto UI uses only
 //   this.
 
-// This must be a type literial to avoid having to duplicate the
-// index type logic of Params.
-export type RouteArgs = {
+const routeArgs = record({
   // The local_cache_key is special and is persisted across navigations.
-  local_cache_key?: string;
+  local_cache_key: optStr,
 
   // These are transient and are really set only on startup.
-  openFromAndroidBugTool?: string;
-  s?: string;    // For permalinks.
-  p?: string;    // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
-  url?: string;  // For fetching traces from Cloud Storage.
-};
+
+  // Are we loading a trace via ABT.
+  openFromAndroidBugTool: optBool,
+
+  // For permalink hash.
+  s: optStr,
+
+  // DEPRECATED: for #!/record?p=cpu subpages (b/191255021).
+  p: optStr,
+
+  // For fetching traces from Cloud Storage.
+  url: optStr,
+
+  // For the 'mode' of the UI. For example when the mode is 'embedded'
+  // some features are disabled.
+  mode: oneOf<Mode>(modes, undefined),
+
+  // Should we hide the sidebar?
+  hideSidebar: optBool,
+});
+type RouteArgs = ValidatedType<typeof routeArgs>;
+
+// A broken down representation of a route.
+// For instance: #!/record/gpu?local_cache_key=a0b1
+// becomes: {page: '/record', subpage: '/gpu', args: {local_cache_key: 'a0b1'}}
+export interface Route {
+  page: string;
+  subpage: string;
+  args: RouteArgs;
+}
 
 export interface RoutesMap {
   [key: string]: m.Component<PageAttrs>;
@@ -118,6 +145,15 @@ export class Router {
       newRoute.args.local_cache_key = oldRoute.args.local_cache_key;
     }
 
+    // Javascript sadly distinguishes between foo[bar] === undefined
+    // and foo[bar] is not set at all. Here we need the second case to
+    // avoid making the URL ugly.
+    for (const key of Object.keys(newRoute)) {
+      if ((newRoute as any)[key] === undefined) {
+        delete (newRoute as any)[key];
+      }
+    }
+
     const args = m.buildQueryString(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
     normalizedFragment += args.length > 0 ? '?' + args : '';
@@ -151,7 +187,9 @@ export class Router {
   // '#!/record/gpu?local_cache_key=abcd-1234'
   // Sample output:
   // {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
-  static parseFragment(hash: string): Route {
+  static parseFragment(hash: string, optDefaultArgs?: RouteArgs): Route {
+    const defaultArgs = optDefaultArgs ?? {};
+
     const prefixLength = ROUTE_PREFIX.length;
     let route = '';
     if (hash.startsWith(ROUTE_PREFIX)) {
@@ -168,16 +206,29 @@ export class Router {
 
     const argsStart = hash.indexOf('?');
     const argsStr = argsStart < 0 ? '' : hash.substring(argsStart + 1);
-    const args = argsStr ? m.parseQueryString(hash.substring(argsStart)) : {};
+    const fragmentArgs =
+        argsStr ? m.parseQueryString(hash.substring(argsStart)) : {};
+    const rawArgs = Object.assign({}, defaultArgs, fragmentArgs);
+    const args = runValidator(routeArgs, rawArgs).result;
 
     return {page, subpage, args};
   }
 
+  private static parseSearchParams(url: string): RouteArgs {
+    const query = (new URL(url)).search;
+    const rawArgs = m.parseQueryString(query);
+    const args = runValidator(routeArgs, rawArgs).result;
+    return args;
+  }
+
   // Like parseFragment() but takes a full URL.
   static parseUrl(url: string): Route {
+    const searchArgs = Router.parseSearchParams(url);
+
     const hashPos = url.indexOf('#');
     const fragment = hashPos < 0 ? '' : url.substring(hashPos);
-    return Router.parseFragment(fragment);
+    const route = Router.parseFragment(fragment, searchArgs);
+    return route;
   }
 
   // Throws if EVENT_LIMIT onhashchange events occur within WINDOW_MS.
