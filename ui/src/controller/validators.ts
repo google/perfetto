@@ -85,6 +85,28 @@ abstract class PrimitiveValidator<T> implements Validator<T> {
   }
 }
 
+class OptionalValidator<T> implements Validator<T|undefined> {
+  private inner: Validator<T>;
+
+  constructor(inner: Validator<T>) {
+    this.inner = inner;
+  }
+
+  validate(input: unknown, context: ValidatorContext): T|undefined {
+    if (input === undefined) {
+      return undefined;
+    }
+    try {
+      return this.inner.validate(input, context);
+    } catch (e) {
+      if (e instanceof ValidationError) {
+        context.invalidKeys.push(renderPath(context.path));
+        return undefined;
+      }
+      throw e;
+    }
+  }
+}
 
 class StringValidator extends PrimitiveValidator<string> {
   predicate(input: unknown): input is string {
@@ -244,13 +266,24 @@ export function str(defaultValue = ''): StringValidator {
 
 export const requiredStr = new StringValidator('', true);
 
+export const optStr = new OptionalValidator<string>(requiredStr);
+
 export function num(defaultValue = 0): NumberValidator {
   return new NumberValidator(defaultValue, false);
 }
 
+export const requiredNum = new NumberValidator(0, true);
+
+export const optNum = new OptionalValidator<number>(requiredNum);
+
 export function bool(defaultValue = false): BooleanValidator {
   return new BooleanValidator(defaultValue, false);
 }
+
+export const requiredBool = new BooleanValidator(false, true);
+
+export const optBool = new OptionalValidator<boolean>(requiredBool);
+
 
 export function record<T extends Record<string, Validator<unknown>>>(
     validators: T): RecordValidator<T> {
