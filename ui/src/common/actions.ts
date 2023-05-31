@@ -458,6 +458,15 @@ export const StateActions = {
     }
   },
 
+  maybeSetPendingDeeplink(
+      state: StateDraft, args: {ts?: string, dur?: string, tid?: string}) {
+    state.pendingDeeplink = args;
+  },
+
+  clearPendingDeeplink(state: StateDraft, _: {}) {
+    state.pendingDeeplink = undefined;
+  },
+
   // TODO(hjd): engine.ready should be a published thing. If it's part
   // of the state it interacts badly with permalinks.
   setEngineReady(
