@@ -82,6 +82,19 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+-- Given a launch id and GLOB for a slice name, returns the N longest slice name and duration.
+SELECT CREATE_VIEW_FUNCTION(
+  'GET_LONG_SLICES_FOR_LAUNCH(startup_id INT, slice_name STRING, top_n INT)',
+  'slice_name STRING, slice_dur INT',
+  '
+    SELECT slice_name, slice_dur
+    FROM android_thread_slices_for_all_startups s
+    WHERE s.startup_id = $startup_id AND s.slice_name GLOB $slice_name
+    ORDER BY slice_dur DESC
+    LIMIT $top_n
+  '
+);
+
 -- Define the view
 DROP VIEW IF EXISTS startup_view;
 CREATE VIEW startup_view AS
@@ -291,10 +304,7 @@ SELECT
       SELECT RepeatedField(AndroidStartupMetric_VerifyClass(
         'name', STR_SPLIT(slice_name, "VerifyClass ", 1),
         'dur_ns', slice_dur))
-      FROM android_thread_slices_for_all_startups
-      WHERE startup_id = launches.startup_id AND slice_name GLOB "VerifyClass *"
-      ORDER BY slice_dur DESC
-      LIMIT 5
+      FROM GET_LONG_SLICES_FOR_LAUNCH(launches.startup_id, "VerifyClass *", 5)
     ),
     'startup_concurrent_to_launch', (
       SELECT RepeatedField(package)
