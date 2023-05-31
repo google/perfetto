@@ -16,6 +16,7 @@ import {
   arrayOf,
   num,
   oneOf,
+  optStr,
   record,
   requiredStr,
   runValidator,
@@ -106,4 +107,28 @@ test('validator correctly keeps track of path when reporting keys', () => {
   expect(result.extraKeys).toContain('deeply.extra2');
   expect(result.extraKeys).toContain('deeply.nested.array[1].extra3');
   expect(result.invalidKeys).toContain('deeply.nested.array[0].x');
+});
+
+
+describe('optStr', () => {
+  test('it validates undefined', () => {
+    const validation = runValidator(optStr, undefined);
+    expect(validation.result).toEqual(undefined);
+    expect(validation.invalidKeys).toEqual([]);
+    expect(validation.extraKeys).toEqual([]);
+  });
+
+  test('it validates string', () => {
+    const validation = runValidator(optStr, 'foo');
+    expect(validation.result).toEqual('foo');
+    expect(validation.invalidKeys).toEqual([]);
+    expect(validation.extraKeys).toEqual([]);
+  });
+
+  test('it reports numbers', () => {
+    const validation = runValidator(optStr, 42);
+    expect(validation.result).toEqual(undefined);
+    expect(validation.invalidKeys).toEqual(['']);
+    expect(validation.extraKeys).toEqual([]);
+  });
 });

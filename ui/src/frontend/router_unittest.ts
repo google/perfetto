@@ -18,89 +18,138 @@ const mockComponent = {
   view() {},
 };
 
-beforeEach(() => {
-  window.location.hash = '';
-});
-
-test('Default route must be defined', () => {
-  expect(() => new Router({'/a': mockComponent})).toThrow();
-});
-
-test('Resolves empty route to default component', () => {
-  const router = new Router({'/': mockComponent});
-  window.location.hash = '';
-  expect(router.resolve().tag).toBe(mockComponent);
-});
-
-test('Resolves subpage route to component of main page', () => {
-  const nonDefaultComponent = {view() {}};
-  const router = new Router({
-    '/': mockComponent,
-    '/a': nonDefaultComponent,
+describe('Router#resolve', () => {
+  beforeEach(() => {
+    window.location.hash = '';
   });
-  window.location.hash = '#!/a/subpage';
-  expect(router.resolve().tag).toBe(nonDefaultComponent);
-  expect(router.resolve().attrs.subpage).toBe('/subpage');
-});
 
-test('Pass empty subpage if not found in URL', () => {
-  const nonDefaultComponent = {view() {}};
-  const router = new Router({
-    '/': mockComponent,
-    '/a': nonDefaultComponent,
+  test('Default route must be defined', () => {
+    expect(() => new Router({'/a': mockComponent})).toThrow();
   });
-  window.location.hash = '#!/a';
-  expect(router.resolve().tag).toBe(nonDefaultComponent);
-  expect(router.resolve().attrs.subpage).toBe('');
+
+  test('Resolves empty route to default component', () => {
+    const router = new Router({'/': mockComponent});
+    window.location.hash = '';
+    expect(router.resolve().tag).toBe(mockComponent);
+  });
+
+  test('Resolves subpage route to component of main page', () => {
+    const nonDefaultComponent = {view() {}};
+    const router = new Router({
+      '/': mockComponent,
+      '/a': nonDefaultComponent,
+    });
+    window.location.hash = '#!/a/subpage';
+    expect(router.resolve().tag).toBe(nonDefaultComponent);
+    expect(router.resolve().attrs.subpage).toBe('/subpage');
+  });
+
+  test('Pass empty subpage if not found in URL', () => {
+    const nonDefaultComponent = {view() {}};
+    const router = new Router({
+      '/': mockComponent,
+      '/a': nonDefaultComponent,
+    });
+    window.location.hash = '#!/a';
+    expect(router.resolve().tag).toBe(nonDefaultComponent);
+    expect(router.resolve().attrs.subpage).toBe('');
+  });
 });
 
-test('Args parsing', () => {
-  const url = 'http://localhost/#!/foo?p=123&s=42&url=a?b?c';
-  const args = Router.parseUrl(url).args;
-  expect(args.p).toBe('123');
-  expect(args.s).toBe('42');
-  expect(args.url).toBe('a?b?c');
+describe('Router.parseUrl', () => {
+  // Can parse arguments from the search string.
+  test('Search parsing', () => {
+    const url = 'http://localhost?p=123&s=42&url=a?b?c';
+    const args = Router.parseUrl(url).args;
+    expect(args.p).toBe('123');
+    expect(args.s).toBe('42');
+    expect(args.url).toBe('a?b?c');
+  });
+
+  // Or from the fragment string.
+  test('Fragment parsing', () => {
+    const url = 'http://localhost/#!/foo?p=123&s=42&url=a?b?c';
+    const args = Router.parseUrl(url).args;
+    expect(args.p).toBe('123');
+    expect(args.s).toBe('42');
+    expect(args.url).toBe('a?b?c');
+  });
+
+  // Or both in which case fragment overrides the search.
+  test('Fragment parsing', () => {
+    const url =
+        'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false';
+    const args = Router.parseUrl(url).args;
+    expect(args.p).toBe('1');
+    expect(args.s).toBe('3');
+    expect(args.url).toBe('4');
+    expect(args.hideSidebar).toBe(false);
+  });
 });
 
-test('empty route broken into empty components', () => {
-  const {page, subpage, args} = Router.parseFragment('');
-  expect(page).toBe('');
-  expect(subpage).toBe('');
-  expect(args).toEqual({});
-});
+describe('Router.parseFragment', () => {
+  test('empty route broken into empty components', () => {
+    const {page, subpage, args} = Router.parseFragment('');
+    expect(page).toBe('');
+    expect(subpage).toBe('');
+    expect(args.mode).toBe(undefined);
+  });
 
-test('invalid route broken into empty components', () => {
-  const {page, subpage, args} = Router.parseFragment('/bla');
-  expect(page).toBe('');
-  expect(subpage).toBe('');
-  expect(args).toEqual({});
-});
+  test('by default args are undefined', () => {
+    // This prevents the url from becoming messy.
+    const {args} = Router.parseFragment('');
+    expect(args).toEqual({});
+  });
 
-test('simple route has page defined', () => {
-  const {page, subpage, args} = Router.parseFragment('#!/record');
-  expect(page).toBe('/record');
-  expect(subpage).toBe('');
-  expect(args).toEqual({});
-});
+  test('invalid route broken into empty components', () => {
+    const {page, subpage} = Router.parseFragment('/bla');
+    expect(page).toBe('');
+    expect(subpage).toBe('');
+  });
 
-test('simple route has both components defined', () => {
-  const {page, subpage, args} = Router.parseFragment('#!/record/memory');
-  expect(page).toBe('/record');
-  expect(subpage).toBe('/memory');
-  expect(args).toEqual({});
-});
+  test('simple route has page defined', () => {
+    const {page, subpage} = Router.parseFragment('#!/record');
+    expect(page).toBe('/record');
+    expect(subpage).toBe('');
+  });
 
-test('route broken at first slash', () => {
-  const {page, subpage, args} = Router.parseFragment('#!/record/memory/stuff');
-  expect(page).toBe('/record');
-  expect(subpage).toBe('/memory/stuff');
-  expect(args).toEqual({});
-});
+  test('simple route has both components defined', () => {
+    const {page, subpage} = Router.parseFragment('#!/record/memory');
+    expect(page).toBe('/record');
+    expect(subpage).toBe('/memory');
+  });
 
-test('parameters separated from route', () => {
-  const {page, subpage, args} =
-      Router.parseFragment('#!/record/memory?url=http://localhost:1234/aaaa');
-  expect(page).toBe('/record');
-  expect(subpage).toBe('/memory');
-  expect(args).toEqual({url: 'http://localhost:1234/aaaa'});
+  test('route broken at first slash', () => {
+    const {page, subpage} = Router.parseFragment('#!/record/memory/stuff');
+    expect(page).toBe('/record');
+    expect(subpage).toBe('/memory/stuff');
+  });
+
+  test('parameters separated from route', () => {
+    const {page, subpage, args} =
+        Router.parseFragment('#!/record/memory?url=http://localhost:1234/aaaa');
+    expect(page).toBe('/record');
+    expect(subpage).toBe('/memory');
+    expect(args.url).toEqual('http://localhost:1234/aaaa');
+  });
+
+  test('openFromAndroidBugTool can be false', () => {
+    const {args} = Router.parseFragment('#!/?openFromAndroidBugTool=false');
+    expect(args.openFromAndroidBugTool).toEqual(false);
+  });
+
+  test('openFromAndroidBugTool can be true', () => {
+    const {args} = Router.parseFragment('#!/?openFromAndroidBugTool=true');
+    expect(args.openFromAndroidBugTool).toEqual(true);
+  });
+
+  test('bad modes are coerced to default', () => {
+    const {args} = Router.parseFragment('#!/?mode=1234');
+    expect(args.mode).toEqual(undefined);
+  });
+
+  test('bad hideSidebar is coerced to default', () => {
+    const {args} = Router.parseFragment('#!/?hideSidebar=helloworld!');
+    expect(args.hideSidebar).toEqual(undefined);
+  });
 });

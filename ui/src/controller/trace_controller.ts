@@ -39,7 +39,12 @@ import {
   STR_NULL,
 } from '../common/query_result';
 import {onSelectionChanged} from '../common/selection_observer';
-import {defaultTraceTime, EngineMode, ProfileType} from '../common/state';
+import {
+  defaultTraceTime,
+  EngineMode,
+  PendingDeeplinkState,
+  ProfileType,
+} from '../common/state';
 import {Span} from '../common/time';
 import {
   TPTime,
@@ -523,12 +528,20 @@ export class TraceController extends Controller<States> {
       await this.selectPerfSample();
     }
 
+    const pendingDeeplink = globals.state.pendingDeeplink;
+    if (pendingDeeplink !== undefined) {
+      globals.dispatch(Actions.clearPendingDeeplink({}));
+      await this.selectPendingDeeplink(pendingDeeplink);
+    }
+
     // If the trace was shared via a permalink, it might already have a
     // selection. Emit onSelectionChanged to ensure that the components (like
     // current selection details) react to it.
     if (globals.state.currentSelection !== null) {
       onSelectionChanged(globals.state.currentSelection, undefined);
     }
+
+    globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
 
     // Trace Processor doesn't support the reliable range feature for JSON
     // traces.
@@ -581,6 +594,52 @@ export class TraceController extends Controller<States> {
     const type = profileType(row.type);
     const upid = row.upid;
     globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
+  }
+
+  private async selectPendingDeeplink(link: PendingDeeplinkState) {
+    const conditions = [];
+    const {ts, dur} = link;
+
+    if (ts !== undefined) {
+      conditions.push(`ts = ${ts}`);
+    }
+    if (dur !== undefined) {
+      conditions.push(`dur = ${dur}`);
+    }
+
+    if (conditions.length === 0) {
+      return;
+    }
+
+    const query = `
+      select
+        id,
+        track_id as traceProcessorTrackId,
+        type
+      from slice
+      where ${conditions.join(' and ')}
+    ;`;
+
+    const result = await assertExists(this.engine).query(query);
+    if (result.numRows() > 0) {
+      const row = result.firstRow({
+        id: NUM,
+        traceProcessorTrackId: NUM,
+        type: STR,
+      });
+
+      const id = row.traceProcessorTrackId;
+      const trackId = globals.state.uiTrackIdByTraceTrackId[id];
+      if (trackId === undefined) {
+        return;
+      }
+      globals.makeSelection(Actions.selectChromeSlice({
+        id: row.id,
+        trackId,
+        table: '',
+        scroll: true,
+      }));
+    }
   }
 
   private async listTracks() {
