@@ -76,6 +76,7 @@ export interface AddTrackArgs {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
+  isUserDefined?: boolean;
   config: {};
 }
 
@@ -251,6 +252,7 @@ export const StateActions = {
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
     trackGroup?: string; config: {}; trackSortKey: TrackSortKey;
+    isUserDefined?: boolean;
   }): void {
     const id = args.id !== undefined ? args.id : generateNextId(state);
     state.tracks[id] = {
@@ -262,6 +264,9 @@ export const StateActions = {
       trackGroup: args.trackGroup,
       config: args.config,
     };
+    if (args.isUserDefined !== undefined) {
+      state.tracks[id].isUserDefined = args.isUserDefined;
+    }
     this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
     if (args.trackGroup === SCROLLING_TRACK_GROUP) {
       state.scrollingTracks.push(id);
@@ -308,6 +313,12 @@ export const StateActions = {
   removeDebugTrack(state: StateDraft, args: {trackId: string}): void {
     const track = state.tracks[args.trackId];
     assertTrue(track.kind === DEBUG_SLICE_TRACK_KIND);
+    removeTrack(state, args.trackId);
+  },
+
+  removeUserDefinedTrack(state: StateDraft, args: {trackId: string}): void {
+    const track = state.tracks[args.trackId];
+    assertTrue(track.isUserDefined ?? false);
     removeTrack(state, args.trackId);
   },
 

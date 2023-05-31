@@ -242,6 +242,7 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
+  isUserDefined?: boolean;
   config: {
     trackId?: number;
     trackIds?: number[];
