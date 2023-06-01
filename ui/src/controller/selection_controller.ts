@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {Arg, Args} from '../common/arg_types';
+import {Args, ArgValue} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {
   LONG,
@@ -41,7 +41,6 @@ import {
 } from '../frontend/publish';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
-import {parseArgs} from './args_parser';
 import {Controller} from './controller';
 
 export interface SelectionControllerArgs {
@@ -214,7 +213,6 @@ export class SelectionController extends Controller<'main'> {
       }
     }
 
-    const argsTree = parseArgs(args);
     const selected: SliceDetails = {
       id: selectedId,
       ts,
@@ -225,7 +223,6 @@ export class SelectionController extends Controller<'main'> {
       name,
       category,
       args,
-      argsTree,
     };
 
     if (trackId !== undefined) {
@@ -273,7 +270,7 @@ export class SelectionController extends Controller<'main'> {
   }
 
   async getArgs(argId: number): Promise<Args> {
-    const args = new Map<string, Arg>();
+    const args = new Map<string, ArgValue>();
     const query = `
       select
         key AS name,
@@ -291,9 +288,12 @@ export class SelectionController extends Controller<'main'> {
       const value = it.value || 'NULL';
       if (name === 'destination slice id' && !isNaN(Number(value))) {
         const destTrackId = await this.getDestTrackId(value);
-        args.set(
-            'Destination Slice',
-            {kind: 'SLICE', trackId: destTrackId, sliceId: Number(value)});
+        args.set('Destination Slice', {
+          kind: 'SLICE',
+          trackId: destTrackId,
+          sliceId: Number(value),
+          rawValue: value,
+        });
       } else {
         args.set(name, value);
       }

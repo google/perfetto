@@ -16,7 +16,7 @@ import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
-import {Args, ArgsTree} from '../common/arg_types';
+import {Args} from '../common/arg_types';
 import {
   ConversionJobName,
   ConversionJobStatus,
@@ -76,7 +76,6 @@ export interface SliceDetails {
   packageName?: string;
   versionCode?: number;
   args?: Args;
-  argsTree?: ArgsTree;
   description?: Description;
 }
 

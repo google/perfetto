@@ -253,42 +253,42 @@
   .auto-layout {
     table-layout: auto;
   }
+}
 
-  .slice-details-latency-panel {
-    // This panel is set to relative to make this panel a positioned element
-    // This is to allow the absolute text panels below to be positioned relative
-    // to this panel and not our parent.
-    position: relative;
-    font-size: 13px;
-    user-select: text;
+.slice-details-latency-panel {
+  // This panel is set to relative to make this panel a positioned element
+  // This is to allow the absolute text panels below to be positioned relative
+  // to this panel and not our parent.
+  position: relative;
+  font-size: 13px;
+  user-select: text;
 
-    .text-detail {
-      font-size: 10px;
-    }
+  .text-detail {
+    font-size: 10px;
+  }
 
-    .slice-details-wakeup-text {
-      position: absolute;
-      left: 40px;
-      top: 20px;
-    }
+  .slice-details-wakeup-text {
+    position: absolute;
+    left: 40px;
+    top: 20px;
+  }
 
-    .slice-details-latency-text {
-      position: absolute;
-      left: 106px;
-      top: 90px;
-    }
+  .slice-details-latency-text {
+    position: absolute;
+    left: 106px;
+    top: 90px;
+  }
 
-    .slice-details-image {
-      user-select: none;
-      width: 360px;
-      height: 300px;
-    }
+  .slice-details-image {
+    user-select: none;
+    width: 180px;
+    height: 150px;
   }
 }
 
 .details-table-multicolumn {
   display: flex;
-  user-select: 'text';
+  user-select: "text";
 }
 
 .flow-link:hover {
