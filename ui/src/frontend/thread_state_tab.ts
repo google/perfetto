@@ -14,11 +14,23 @@
 
 import m from 'mithril';
 
+import {TPTime, tpTimeToCode} from '../common/time';
+
+import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {globals} from './globals';
-import {ThreadStateSqlId} from './sql_types';
-import {getThreadState, ThreadState, threadStateToDict} from './thread_state';
-import {renderDict} from './value';
+import {SchedSqlId, ThreadStateSqlId} from './sql_types';
+import {
+  getProcessName,
+  getThreadName,
+  ThreadInfo,
+} from './thread_and_process_info';
+import {getThreadState, goToSchedSlice, ThreadState} from './thread_state';
+import {DetailsShell} from './widgets/details_shell';
+import {GridLayout} from './widgets/grid_layout';
+import {Section} from './widgets/section';
+import {SqlRef} from './widgets/sql_ref';
+import {Tree, TreeNode} from './widgets/tree';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.
@@ -50,23 +62,94 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     return 'Current Selection';
   }
 
-  renderTabContents(): m.Child {
-    if (!this.loaded) {
-      return m('h2', 'Loading');
-    }
-    if (!this.state) {
-      return m('h2', `Thread state ${this.config.id} does not exist`);
-    }
-    return renderDict(threadStateToDict(this.state));
+  viewTab() {
+    // TODO(altimin/stevegolton): Differentiate between "Current Selection" and
+    // "Pinned" views in DetailsShell.
+    return m(
+        DetailsShell,
+        {title: 'Thread State', description: this.renderLoadingText()},
+        m(GridLayout,
+          m(
+              Section,
+              {title: 'Properties'},
+              this.state && this.renderTree(this.state),
+              )),
+    );
   }
 
-  viewTab() {
-    // TODO(altimin): Create a reusable component for showing the header and
-    // differentiate between "Current Selection" and "Pinned" views.
+  private renderLoadingText() {
+    if (!this.loaded) {
+      return 'Loading';
+    }
+    if (!this.state) {
+      return `Thread state ${this.config.id} does not exist`;
+    }
+    // TODO(stevegolton): Return something intelligent here.
+    return this.config.id;
+  }
+
+  private renderTree(state: ThreadState) {
+    const thread = state.thread;
+    const process = state.thread?.process;
     return m(
-        'div.details-panel',
-        m('header.overview', m('span', 'Thread State')),
-        this.renderTabContents());
+        Tree,
+        m(TreeNode, {
+          left: 'Start time',
+          right: tpTimeToCode(state.ts - globals.state.traceTime.start),
+        }),
+        m(TreeNode, {
+          left: 'Duration',
+          right: tpTimeToCode(state.dur),
+        }),
+        m(TreeNode, {
+          left: 'State',
+          right: this.renderState(
+              state.state, state.cpu, state.schedSqlId, state.ts),
+        }),
+        state.blockedFunction && m(TreeNode, {
+          left: 'Blocked function',
+          right: state.blockedFunction,
+        }),
+        process && m(TreeNode, {
+          left: 'Process',
+          right: getProcessName(process),
+        }),
+        thread && m(TreeNode, {left: 'Thread', right: getThreadName(thread)}),
+        state.wakerThread && this.renderWakerThread(state.wakerThread),
+        m(TreeNode, {
+          left: 'SQL ID',
+          right: m(SqlRef, {table: 'thread_state', id: state.threadStateSqlId}),
+        }),
+    );
+  }
+
+  private renderState(
+      state: string, cpu: number|undefined, id: SchedSqlId|undefined,
+      ts: TPTime): m.Children {
+    if (!state) {
+      return null;
+    }
+    if (id === undefined || cpu === undefined) {
+      return state;
+    }
+    return m(
+        Anchor,
+        {
+          title: 'Go to CPU slice',
+          icon: 'call_made',
+          onclick: () => goToSchedSlice(cpu, id, ts),
+        },
+        `${state} on CPU ${cpu}`);
+  }
+
+  private renderWakerThread(wakerThread: ThreadInfo) {
+    return m(
+        TreeNode,
+        {left: 'Waker'},
+        m(TreeNode,
+          {left: 'Process', right: getProcessName(wakerThread.process)}),
+        m(TreeNode, {left: 'Thread', right: getThreadName(wakerThread)}),
+    );
   }
 
   isLoading() {

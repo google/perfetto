@@ -13,26 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
 
-export interface IconAttrs {
-  // The material icon name.
-  icon: string;
-  // Whether to show the filled version of the icon.
-  // Defaults to false.
-  filled?: boolean;
-  // List of space separated class names forwarded to the icon.
-  className?: string;
+export interface SectionAttrs {
+  // The name of the section, displayed in the title bar
+  title: string;
+  // Remaining attributes forwarded to the underlying HTML <section>.
   [htmlAttrs: string]: any;
 }
 
-export class Icon implements m.ClassComponent<IconAttrs> {
-  view({attrs}: m.Vnode<IconAttrs>): m.Child {
-    const {icon, filled, className, ...htmlAttrs} = attrs;
-    const classes = classNames(className);
+export class Section implements m.ClassComponent<SectionAttrs> {
+  view({attrs, children}: m.CVnode<SectionAttrs>) {
+    const {title} = attrs;
     return m(
-        filled ? 'i.material-icons-filled' : 'i.material-icons',
-        {class: classes, ...htmlAttrs},
-        icon);
+        'section.pf-section',
+        m(
+            'header',
+            m('h1', title),
+            ),
+        m('article', children),
+    );
   }
 }
