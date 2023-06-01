@@ -16,16 +16,18 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {tpTimeToCode} from '../common/time';
+import {formatTime, tpTimeToCode} from '../common/time';
 
 import {Anchor} from './anchor';
 import {globals, SliceDetails, ThreadDesc} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
+import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
+import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
 
 export class SliceDetailsPanel extends SlicePanel {
@@ -82,8 +84,7 @@ export class SliceDetailsPanel extends SlicePanel {
     if (!threadInfo) {
       return null;
     }
-    const timestamp =
-        tpTimeToCode(sliceInfo.wakeupTs! - globals.state.traceTime.start);
+    const timestamp = formatTime(sliceInfo.wakeupTs!);
     return m(
         '.slice-details-wakeup-text',
         m('', `Wakeup @ ${timestamp} on CPU ${sliceInfo.wakerCpu} by`),
@@ -161,7 +162,7 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         m(TreeNode, {
           left: 'Start time',
-          right: tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start),
+          right: m(Timestamp, {ts: asTPTimestamp(sliceInfo.ts)}),
         }),
         m(TreeNode, {
           left: 'Duration',
