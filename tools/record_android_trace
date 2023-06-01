@@ -446,6 +446,9 @@ def main():
   help = 'Can be generated with https://ui.perfetto.dev/#!/record'
   grp.add_argument('-c', '--config', default=None, help=help)
 
+  help = 'Parse input from --config as binary proto (default: parse as text)'
+  grp.add_argument('--bin', action='store_true', help=help)
+
   args = parser.parse_args()
   args.sideload = args.sideload or args.sideload_path is not None
 
@@ -518,7 +521,9 @@ def main():
   fname = '%s-%s.pftrace' % (tstamp, os.urandom(3).hex())
   device_file = device_dir + fname
 
-  cmd = [perfetto_cmd, '--background', '--txt', '-o', device_file]
+  cmd = [perfetto_cmd, '--background', '-o', device_file]
+  if not args.bin:
+    cmd.append('--txt')
   on_device_config = None
   on_host_config = None
   if args.config is not None:
