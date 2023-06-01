@@ -17,9 +17,16 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
 import {tpTimeToCode} from '../common/time';
+
+import {Anchor} from './anchor';
 import {globals, SliceDetails, ThreadDesc} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
+import {DetailsShell} from './widgets/details_shell';
+import {GridLayout} from './widgets/grid_layout';
+import {Section} from './widgets/section';
+import {SqlRef} from './widgets/sql_ref';
+import {Tree, TreeNode} from './widgets/tree';
 
 export class SliceDetailsPanel extends SlicePanel {
   view() {
@@ -28,14 +35,25 @@ export class SliceDetailsPanel extends SlicePanel {
     const threadInfo = globals.threads.get(sliceInfo.utid);
 
     return m(
-        '.details-panel',
+        DetailsShell,
+        {
+          title: 'CPU Sched Slice',
+          description: this.renderDescription(sliceInfo),
+        },
         m(
-            '.details-panel-heading',
-            m('h2.split', `Slice Details`),
-            this.hasSchedLatencyInfo(sliceInfo) &&
-                m('h2.split', 'Scheduling Latency'),
+            GridLayout,
+            this.renderDetails(sliceInfo, threadInfo),
+            this.renderSchedLatencyInfo(sliceInfo),
             ),
-        this.renderDetails(sliceInfo, threadInfo));
+    );
+  }
+
+  private renderDescription(sliceInfo: SliceDetails) {
+    const threadInfo = globals.threads.get(sliceInfo.wakerUtid!);
+    if (!threadInfo) {
+      return null;
+    }
+    return `${threadInfo.procName} [${threadInfo.pid}]`;
   }
 
   private renderSchedLatencyInfo(sliceInfo: SliceDetails): m.Children {
@@ -43,12 +61,16 @@ export class SliceDetailsPanel extends SlicePanel {
       return null;
     }
     return m(
-        '.half-width-panel.slice-details-latency-panel',
-        m('img.slice-details-image', {
-          src: `${globals.root}assets/scheduling_latency.png`,
-        }),
-        this.renderWakeupText(sliceInfo),
-        this.renderDisplayLatencyText(sliceInfo),
+        Section,
+        {title: 'Scheduling Latency'},
+        m(
+            '.slice-details-latency-panel',
+            m('img.slice-details-image', {
+              src: `${globals.root}assets/scheduling_latency.png`,
+            }),
+            this.renderWakeupText(sliceInfo),
+            this.renderDisplayLatencyText(sliceInfo),
+            ),
     );
   }
 
@@ -90,59 +112,81 @@ export class SliceDetailsPanel extends SlicePanel {
     return wakeupTs !== undefined && wakerUtid !== undefined;
   }
 
+  private renderThreadDuration(sliceInfo: SliceDetails) {
+    if (sliceInfo.threadDur !== undefined && sliceInfo.threadTs !== undefined) {
+      return m(TreeNode, {
+        icon: 'timer',
+        left: 'Thread Duration',
+        right: this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
+      });
+    } else {
+      return null;
+    }
+  }
+
   private renderDetails(sliceInfo: SliceDetails, threadInfo?: ThreadDesc):
       m.Children {
     if (!threadInfo || sliceInfo.ts === undefined ||
         sliceInfo.dur === undefined) {
       return null;
     } else {
-      const tableRows = [
-        m('tr',
-          m('th', `Process`),
-          m('td', `${threadInfo.procName} [${threadInfo.pid}]`)),
-        m('tr',
-          m('th', `Thread`),
-          m('td',
-            `${threadInfo.threadName} [${threadInfo.tid}]`,
-            m('i.material-icons.grey',
-              {onclick: () => this.goToThread(), title: 'Go to thread'},
-              'call_made'))),
-        m('tr', m('th', `Cmdline`), m('td', threadInfo.cmdline)),
-        m('tr',
-          m('th', `Start time`),
-          m('td',
-            `${tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start)}`)),
-        m('tr',
-          m('th', `Duration`),
-          m('td', this.computeDuration(sliceInfo.ts, sliceInfo.dur))),
-        (sliceInfo.threadDur === undefined ||
-         sliceInfo.threadTs === undefined) ?
-            '' :
-            m('tr',
-              m('th', 'Thread duration'),
-              m('td',
-                this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur))),
-        m('tr', m('th', `Prio`), m('td', `${sliceInfo.priority}`)),
-        m('tr',
-          m('th', `End State`),
-          m('td', translateState(sliceInfo.endState))),
-        m('tr',
-          m('th', `Slice ID`),
-          m('td',
-            (sliceInfo.id !== undefined) ? sliceInfo.id.toString() :
-                                           'Unknown')),
-      ];
+      const extras: m.Children = [];
 
       for (const [key, value] of this.getProcessThreadDetails(sliceInfo)) {
         if (value !== undefined) {
-          tableRows.push(m('tr', m('th', key), m('td', value)));
+          extras.push(m(TreeNode, {left: key, right: value}));
         }
       }
 
+      const treeNodes = [
+        m(TreeNode, {
+          left: 'Process',
+          right: `${threadInfo.procName} [${threadInfo.pid}]`,
+        }),
+        m(TreeNode, {
+          left: 'Thread',
+          right:
+              m(Anchor,
+                {
+                  icon: 'call_made',
+                  onclick: () => {
+                    this.goToThread();
+                  },
+                },
+                `${threadInfo.threadName} [${threadInfo.tid}]`),
+        }),
+        m(TreeNode, {
+          left: 'Cmdline',
+          right: threadInfo.cmdline,
+        }),
+        m(TreeNode, {
+          left: 'Start time',
+          right: tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start),
+        }),
+        m(TreeNode, {
+          left: 'Duration',
+          right: this.computeDuration(sliceInfo.ts, sliceInfo.dur),
+        }),
+        this.renderThreadDuration(sliceInfo),
+        m(TreeNode, {
+          left: 'Prio',
+          right: sliceInfo.priority,
+        }),
+        m(TreeNode, {
+          left: 'End State',
+          right: translateState(sliceInfo.endState),
+        }),
+        m(TreeNode, {
+          left: 'SQL ID',
+          right: m(SqlRef, {table: 'sched', id: sliceInfo.id}),
+        }),
+        ...extras,
+      ];
+
       return m(
-          '.details-table-multicolumn',
-          m('table.half-width-panel', tableRows),
-          this.renderSchedLatencyInfo(sliceInfo),
+          Section,
+          {title: 'Details'},
+          m(Tree, treeNodes),
       );
     }
   }
