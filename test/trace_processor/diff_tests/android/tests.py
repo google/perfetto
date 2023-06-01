@@ -199,7 +199,8 @@ class Android(TestSuite):
   def test_android_network_activity(self):
     # The following should have three activity regions:
     # * uid=123 from 1000 to 2010 (note: end is max(ts)+idle_ns)
-    # * uid=456 from 1005 to 2015 (note: doesn't group with above due to name)
+    # * uid=456 from 1005 to 3115 (note: doesn't group with above due to name)
+    #   * Also tests that groups form based on (ts+dur), not just start ts.
     # * uid=123 from 3000 to 5500 (note: gap between 1010 to 3000 > idle_ns)
     # Note: packet_timestamps are delta encoded from the base timestamp.
     return DiffTestBlueprint(
@@ -223,15 +224,29 @@ class Android(TestSuite):
           }
         }
         packet {
-          timestamp: 0
+          timestamp: 1005
           network_packet_bundle {
             ctx {
               direction: DIR_EGRESS
               interface: "wlan"
               uid: 456
             }
-            packet_timestamps: [1005, 1015]
-            packet_lengths: [100, 200]
+            total_duration: 100
+            total_packets: 2
+            total_length: 300
+          }
+        }
+        packet {
+          timestamp: 2015
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 456
+            }
+            total_duration: 100
+            total_packets: 1
+            total_length: 50
           }
         }
         packet {
