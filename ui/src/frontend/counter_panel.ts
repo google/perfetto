@@ -17,9 +17,11 @@ import m from 'mithril';
 import {tpTimeToCode} from '../common/time';
 
 import {globals} from './globals';
+import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
+import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
 
 export class CounterDetailsPanel implements m.ClassComponent {
@@ -40,10 +42,9 @@ export class CounterDetailsPanel implements m.ClassComponent {
                     m(TreeNode, {left: 'Name', right: `${counterInfo.name}`}),
                     m(TreeNode, {
                       left: 'Start time',
-                      right: `${
-                          tpTimeToCode(
-                              counterInfo.startTime -
-                              globals.state.traceTime.start)}`,
+                      right:
+                          m(Timestamp,
+                            {ts: asTPTimestamp(counterInfo.startTime)}),
                     }),
                     m(TreeNode, {
                       left: 'Value',

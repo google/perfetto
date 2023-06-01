@@ -13,6 +13,8 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {asTPTimestamp, toTraceTime} from '../frontend/sql_types';
+
 import {ColumnType} from './query_result';
 
 // TODO(hjd): Combine with timeToCode.
@@ -89,6 +91,24 @@ export function timeToCode(sec: number): string {
 export function tpTimeToCode(time: TPTime) {
   // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
   return timeToCode(tpTimeToSeconds(time));
+}
+
+// Given an absolute time in TP units, print the time from the start of the
+// trace as a string.
+// Going forward this shall be the universal timestamp printing function
+// superseding all others, with options to customise formatting and the domain.
+// If minimal is true, the time will be printed without any units and in a
+// minimal but still readable format, otherwise the time will be printed with
+// units on each group of digits. Use minimal in places like tables and
+// timelines where there are likely to be multiple timestamps in one place, and
+// use the normal formatting in places that have one-off timestamps.
+export function formatTime(time: TPTime, minimal: boolean = false): string {
+  const relTime = toTraceTime(asTPTimestamp(time));
+  if (minimal) {
+    return formatTPTime(relTime);
+  } else {
+    return tpTimeToCode(relTime);
+  }
 }
 
 export function currentDateHourAndMinute(): string {

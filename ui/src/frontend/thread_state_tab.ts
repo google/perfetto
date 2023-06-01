@@ -19,7 +19,7 @@ import {TPTime, tpTimeToCode} from '../common/time';
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {globals} from './globals';
-import {SchedSqlId, ThreadStateSqlId} from './sql_types';
+import {asTPTimestamp, SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
   getProcessName,
   getThreadName,
@@ -30,6 +30,7 @@ import {DetailsShell} from './widgets/details_shell';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
+import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
 
 interface ThreadStateTabConfig {
@@ -95,7 +96,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         Tree,
         m(TreeNode, {
           left: 'Start time',
-          right: tpTimeToCode(state.ts - globals.state.traceTime.start),
+          right: m(Timestamp, {ts: asTPTimestamp(state.ts)}),
         }),
         m(TreeNode, {
           left: 'Duration',

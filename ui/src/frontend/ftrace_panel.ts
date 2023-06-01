@@ -18,10 +18,11 @@ import {StringListPatch} from 'src/common/state';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
-import {formatTPTime, TPTime} from '../common/time';
+import {TPTime} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
+import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {
   MultiSelect,
@@ -29,6 +30,7 @@ import {
   Option as MultiSelectOption,
 } from './widgets/multiselect';
 import {PopupPosition} from './widgets/popup';
+import {Timestamp} from './widgets/timestamp';
 
 const ROW_H = 20;
 const PAGE_SIZE = 250;
@@ -187,7 +189,7 @@ export class FtracePanel extends Panel<{}> {
       for (let i = 0; i < events.length; i++) {
         const {ts, name, cpu, process, args} = events[i];
 
-        const timestamp = formatTPTime(ts - globals.state.traceTime.start);
+        const timestamp = m(Timestamp, {ts: asTPTimestamp(ts), minimal: true});
 
         const rank = i + offset;
 
