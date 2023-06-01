@@ -51,7 +51,7 @@ export interface ThreadState {
   threadStateSqlId: ThreadStateSqlId;
   // Id of the corresponding entry in the |sched| table.
   schedSqlId?: SchedSqlId;
-  // Timestamp of the the beginning of this thread state in nanoseconds.
+  // Timestamp of the beginning of this thread state in nanoseconds.
   ts: TPTime;
   // Duration of this thread state in nanoseconds.
   dur: TPDuration;
