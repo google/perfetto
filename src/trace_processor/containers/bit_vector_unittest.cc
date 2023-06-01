@@ -645,6 +645,30 @@ TEST(BitVectorUnittest, Not) {
   EXPECT_EQ(not_bv.CountSetBits(), 9u);
 }
 
+TEST(BitVectorUnittest, Or) {
+  BitVector bv{1, 1, 0, 0};
+  BitVector bv_second{1, 0, 1, 0};
+  bv.Or(bv_second);
+
+  ASSERT_EQ(bv.CountSetBits(), 3u);
+  ASSERT_TRUE(bv.Set(0));
+  ASSERT_TRUE(bv.Set(1));
+  ASSERT_TRUE(bv.Set(2));
+}
+
+TEST(BitVectorUnittest, OrBig) {
+  BitVector bv =
+      BitVector::Range(0, 1025, [](uint32_t i) { return i % 5 == 0; });
+  BitVector bv_sec =
+      BitVector::Range(0, 1025, [](uint32_t i) { return i % 3 == 0; });
+  bv.Or(bv_sec);
+
+  BitVector bv_or = BitVector::Range(
+      0, 1025, [](uint32_t i) { return i % 5 == 0 || i % 3 == 0; });
+
+  ASSERT_EQ(bv.CountSetBits(), bv_or.CountSetBits());
+}
+
 TEST(BitVectorUnittest, QueryStressTest) {
   BitVector bv;
   std::vector<bool> bool_vec;

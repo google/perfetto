@@ -189,6 +189,18 @@ BitVector BitVector::Not() const {
   return std::move(builder).Build();
 }
 
+void BitVector::Or(BitVector& sec) {
+  PERFETTO_CHECK(size_ == sec.size());
+  for (uint32_t i = 0; i < words_.size(); ++i) {
+    BitWord(&words_[i]).Or(sec.words_[i]);
+  }
+
+  for (uint32_t i = 1; i < counts_.size(); ++i) {
+    counts_[i] = counts_[i - 1] +
+                 ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
+  }
+}
+
 void BitVector::UpdateSetBits(const BitVector& update) {
   if (update.CountSetBits() == 0 || CountSetBits() == 0) {
     *this = BitVector();
