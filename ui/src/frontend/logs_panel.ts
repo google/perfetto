@@ -23,12 +23,14 @@ import {
   LogEntries,
   LogEntriesKey,
 } from '../common/logs';
-import {formatTPTime, TPTime} from '../common/time';
+import {TPTime} from '../common/time';
 
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
+import {asTPTimestamp} from './sql_types';
+import {Timestamp} from './widgets/timestamp';
 
 const ROW_H = 20;
 
@@ -154,7 +156,7 @@ export class LogPanel extends Panel<{}> {
                 'onmouseover': this.onRowOver.bind(this, ts),
                 'onmouseout': this.onRowOut.bind(this),
               },
-              m('.cell', formatTPTime(ts - globals.state.traceTime.start)),
+              m('.cell', m(Timestamp, {ts: asTPTimestamp(ts), minimal: true})),
               m('.cell', priorityLetter || '?'),
               m('.cell', tags[i]),
               hasProcessNames ? m('.cell.with-process', processNames[i]) :
