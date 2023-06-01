@@ -50,7 +50,7 @@ WITH quantized AS (
 with_last AS (
   SELECT
     *,
-    LAG(ts) OVER (
+    LAG(ts+dur) OVER (
       PARTITION BY {{group_by}}
       ORDER BY ts
     ) AS last_ts
