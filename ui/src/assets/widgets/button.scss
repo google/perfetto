@@ -87,6 +87,13 @@
   // Reduce padding when compact
   &.pf-compact {
     padding: 2px 4px;
+    & > .pf-left-icon {
+      margin-right: 2px;
+    }
+
+    & > .pf-right-icon {
+      margin-left: 2px;
+    }
   }
 
   // Reduce padding when we are icon-only
@@ -95,7 +102,7 @@
       margin: 0;
     }
 
-    padding: 4px 4px;
+    padding: 4px;
 
     &.pf-compact {
       padding: 0;
