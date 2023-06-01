@@ -19,12 +19,9 @@ import {translateState} from '../common/thread_state';
 import {
   TPDuration,
   TPTime,
-  tpTimeToCode,
 } from '../common/time';
 
-import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
-import {menuItem} from './popup_menu';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {
   asUtid,
@@ -37,12 +34,9 @@ import {
   SQLConstraints,
 } from './sql_utils';
 import {
-  getProcessName,
   getThreadInfo,
-  getThreadName,
   ThreadInfo,
 } from './thread_and_process_info';
-import {dict, Dict, maybeValue, Value, value} from './value';
 
 // Representation of a single thread state object, corresponding to
 // a row for the |thread_slice| table.
@@ -151,57 +145,4 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTime) {
   }
   globals.makeSelection(Actions.selectSlice({id, trackId}));
   scrollToTrackAndTs(trackId, ts);
-}
-
-function stateToValue(
-    state: string, cpu: number|undefined, id: SchedSqlId|undefined, ts: TPTime):
-    Value|null {
-  if (!state) {
-    return null;
-  }
-  if (id === undefined || cpu === undefined) {
-    return value(state);
-  }
-  return value(`${state} on CPU ${cpu}`, {
-    rightButton: {
-      action: () => {
-        goToSchedSlice(cpu, id, ts);
-      },
-      hoverText: 'Go to CPU slice',
-    },
-  });
-}
-
-export function threadStateToDict(state: ThreadState): Dict {
-  const result: {[name: string]: Value|null} = {};
-
-  result['Start time'] =
-      value(tpTimeToCode(state.ts - globals.state.traceTime.start));
-  result['Duration'] = value(tpTimeToCode(state.dur));
-  result['State'] =
-      stateToValue(state.state, state.cpu, state.schedSqlId, state.ts);
-  result['Blocked function'] = maybeValue(state.blockedFunction);
-  const process = state?.thread?.process;
-  result['Process'] = maybeValue(process ? getProcessName(process) : undefined);
-  const thread = state?.thread;
-  result['Thread'] = maybeValue(thread ? getThreadName(thread) : undefined);
-  if (state.wakerThread) {
-    const process = state.wakerThread.process;
-    result['Waker'] = dict({
-      'Process': maybeValue(process ? getProcessName(process) : undefined),
-      'Thread': maybeValue(getThreadName(state.wakerThread)),
-    });
-  }
-  result['SQL id'] = value(`thread_state[${state.threadStateSqlId}]`, {
-    contextMenu: [
-      menuItem(
-          'Copy SQL query',
-          () => {
-            copyToClipboard(`select * from thread_state where id=${
-                state.threadStateSqlId}`);
-          }),
-    ],
-  });
-
-  return dict(result);
 }
