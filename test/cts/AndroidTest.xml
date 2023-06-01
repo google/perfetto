@@ -36,6 +36,17 @@
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="setprop persist.traced_perf.enable 1" />
     </target_preparer>
+    <target_preparer class="com.android.compatibility.common.tradefed.targetprep.FilePusher">
+        <option name="cleanup" value="true" />
+        <option name="push"
+            value="perfetto_device_preparer.sh->/data/local/tests/perfetto_device_preparer.sh" />
+    </target_preparer>
+    <target_preparer class="com.android.tradefed.targetprep.RunHostCommandTargetPreparer">
+        <option name="host-setup-command"
+            value="adb -s $SERIAL shell sh /data/local/tests/perfetto_device_preparer.sh setup" />
+        <option name="host-teardown-command"
+            value="adb -s $SERIAL shell sh /data/local/tests/perfetto_device_preparer.sh teardown" />
+    </target_preparer>
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="CtsPerfettoTestCases" />

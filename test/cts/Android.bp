@@ -52,4 +52,7 @@ cc_test {
   defaults: [
     "perfetto_defaults",
   ],
+  data: [
+    "perfetto_device_preparer.sh",
+  ],
 }
