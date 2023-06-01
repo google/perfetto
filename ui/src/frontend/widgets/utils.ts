@@ -38,7 +38,16 @@ export function toHTMLElement(el: Element): HTMLElement {
   return el as HTMLElement;
 }
 
+// Return true if value is not nullish - i.e. not null or undefined
+// Allows doing the following
+//   exists(val) && m('div', val)
+// Even if val is a non-nullish falsey value like 0 or ''
+export function exists<T>(value: T): value is Exclude<T, null|undefined> {
+  return value !== undefined && value !== null;
+}
+
 // Check if a mithril component vnode has children
 export function hasChildren({children}: m.Vnode<any>): boolean {
-  return Array.isArray(children) && children.length > 0;
+  return Array.isArray(children) && children.length > 0 &&
+      children.some(exists);
 }

@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use size file except in compliance with the License.
@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type ArgValue =
-    string|{kind: 'SLICE', trackId: string, sliceId: number, rawValue: string};
-export type Args = Map<string, ArgValue>;
+export class Icons {
+  static readonly ExternalLink = 'open_in_new';    // Could be undefined
+  static readonly UpdateSelection = 'call_made';   // Could be 'open_in_new'
+  static readonly ChangeViewport = 'query_stats';  // Could be 'search'
+  static readonly ContextMenu = 'arrow_drop_down';
+}
