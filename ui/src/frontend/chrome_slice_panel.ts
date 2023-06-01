@@ -32,12 +32,14 @@ import {FlowPoint, globals, SliceDetails} from './globals';
 import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {Icons} from './semantic_icons';
+import {asTPTimestamp} from './sql_types';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
 import {Column, GridLayout} from './widgets/grid_layout';
 import {MenuItem, PopupMenu2} from './widgets/menu';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
+import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
 import {exists} from './widgets/utils';
 
@@ -360,7 +362,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
           }),
           m(TreeNode, {
             left: 'Start time',
-            right: tpTimeToCode(slice.ts - globals.state.traceTime.start),
+            right: m(Timestamp, {ts: asTPTimestamp(slice.ts)}),
           }),
           exists(slice.absTime) &&
               m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
