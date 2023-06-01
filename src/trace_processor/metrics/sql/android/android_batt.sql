@@ -14,6 +14,7 @@
 -- limitations under the License.
 --
 SELECT IMPORT('android.battery');
+SELECT IMPORT('android.battery_stats');
 
 DROP VIEW IF EXISTS battery_view;
 CREATE VIEW battery_view AS
@@ -49,8 +50,16 @@ FROM (
 )
 GROUP BY group_id;
 
+DROP VIEW IF EXISTS suspend_slice_from_minimal;
+CREATE VIEW suspend_slice_from_minimal AS
+SELECT ts, dur
+FROM track t JOIN slice s ON s.track_id = t.id
+WHERE t.name = 'Suspend/Resume Minimal';
+
 DROP TABLE IF EXISTS suspend_slice_;
 CREATE TABLE suspend_slice_ AS
+SELECT ts, dur FROM suspend_slice_from_minimal
+UNION ALL
 SELECT
   ts,
   dur
@@ -62,7 +71,10 @@ JOIN
 WHERE
   track.name = 'Suspend/Resume Latency'
   AND (slice.name = 'syscore_resume(0)' OR slice.name = 'timekeeping_freeze(0)')
-  AND dur != -1;
+  AND dur != -1
+  AND NOT EXISTS(SELECT * FROM suspend_slice_from_minimal);
+
+DROP VIEW suspend_slice_from_minimal;
 
 SELECT RUN_METRIC('android/counter_span_view_merged.sql',
   'table_name', 'screen_state',
@@ -171,7 +183,26 @@ SELECT ts,
        END AS slice_name,
        'Plug type' AS track_name,
        'slice' AS track_type
-FROM plug_type_span;
+FROM plug_type_span
+UNION ALL
+SELECT *
+FROM (
+  SELECT ts,
+         dur,
+         value_name AS slice_name,
+         CASE track_name
+         WHEN 'battery_stats.mobile_radio' THEN 'Cellular radio'
+         WHEN 'battery_stats.data_conn' THEN 'Cellular connection'
+         WHEN 'battery_stats.phone_signal_strength' THEN 'Cellular strength'
+         WHEN 'battery_stats.wifi_radio' THEN 'WiFi radio'
+         WHEN 'battery_stats.wifi_suppl' THEN 'Wifi supplicant state'
+         WHEN 'battery_stats.wifi_signal_strength' THEN 'WiFi strength'
+         ELSE NULL
+         END AS track_name,
+         'slice' AS track_type
+  FROM android_battery_stats_state
+)
+WHERE track_name IS NOT NULL;
 
 DROP VIEW IF EXISTS android_batt_output;
 CREATE VIEW android_batt_output AS

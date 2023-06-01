@@ -111,6 +111,172 @@ class Android(TestSuite):
         """,
         out=Path('android_system_property_slice.out'))
 
+  def test_android_battery_stats_event_slices(self):
+    # The following has three events
+    # * top (123, mail) from 1000 to 9000 explicit
+    # * job (456, mail_job) starting at 3000 (end is inferred as trace end)
+    # * job (789, video_job) ending at 4000 (start is inferred as trace start)
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|+top=123:\"mail\"\n"
+              }
+            }
+            event {
+              timestamp: 3000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|+job=456:\"mail_job\"\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.job|-job=789:\"video_job\"\n"
+              }
+            }
+            event {
+              timestamp: 9000
+              pid: 1
+              print {
+                buf: "N|1000|battery_stats.top|-top=123:\"mail\"\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_event_slices
+        ORDER BY str_value;
+        """,
+        out=Path('android_battery_stats_event_slices.out'))
+
+  def test_android_battery_stats_counters(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 1
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|13\n"
+              }
+            }
+            event {
+              timestamp: 4000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.data_conn|20\n"
+              }
+            }
+            event {
+              timestamp: 1000
+              pid: 1
+              print {
+                buf: "C|1000|battery_stats.audio|1\n"
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT IMPORT('android.battery_stats');
+        SELECT * FROM android_battery_stats_state
+        ORDER BY ts, track_name;
+        """,
+        out=Path('android_battery_stats_state.out'))
+
+  def test_android_network_activity(self):
+    # The following should have three activity regions:
+    # * uid=123 from 1000 to 2010 (note: end is max(ts)+idle_ns)
+    # * uid=456 from 1005 to 3115 (note: doesn't group with above due to name)
+    #   * Also tests that groups form based on (ts+dur), not just start ts.
+    # * uid=123 from 3000 to 5500 (note: gap between 1010 to 3000 > idle_ns)
+    # Note: packet_timestamps are delta encoded from the base timestamp.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 123
+            }
+            packet_timestamps: [
+              1000, 1010,
+              3000, 3050, 4000, 4500
+            ],
+            packet_lengths: [
+              50, 50,
+              50, 50, 50, 50
+            ],
+          }
+        }
+        packet {
+          timestamp: 1005
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 456
+            }
+            total_duration: 100
+            total_packets: 2
+            total_length: 300
+          }
+        }
+        packet {
+          timestamp: 2015
+          network_packet_bundle {
+            ctx {
+              direction: DIR_EGRESS
+              interface: "wlan"
+              uid: 456
+            }
+            total_duration: 100
+            total_packets: 1
+            total_length: 50
+          }
+        }
+        packet {
+          timestamp: 0
+          network_packet_bundle {
+            ctx {
+              direction: DIR_INGRESS
+              interface: "loopback"
+              uid: 123
+            }
+            packet_timestamps: [6000]
+            packet_lengths: [100]
+          }
+        }
+        """),
+        query="""
+        SELECT RUN_METRIC(
+          'android/network_activity_template.sql',
+          'view_name', 'android_network_activity',
+          'group_by',  'package_name',
+          'filter',    'iface = "wlan"',
+          'idle_ns',   '1000',
+          'quant_ns',  '100'
+        );
+
+        SELECT * FROM android_network_activity
+        ORDER BY package_name, ts;
+        """,
+        out=Path('android_network_activity.out'))
+
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
@@ -285,41 +451,19 @@ class Android(TestSuite):
         13934,"D",11950576,1
       """))
 
-  def test_monitor_contention_chain_extraction(self):
+  def test_monitor_contention_chain_extraction_parent(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       SELECT IMPORT('android.monitor_contention');
-      SELECT
-        IIF(parent_id IS NULL, "", parent_id) AS parent_id,
-        blocking_method,
-        blocked_method,
-        short_blocking_method,
-        short_blocked_method,
-        blocking_src,
-        blocked_src,
-        waiter_count,
-        blocked_utid,
-        blocked_thread_name,
-        blocking_utid,
-        blocking_thread_name,
-        upid,
-        process_name,
-        id,
-        ts,
-        dur,
-        is_blocked_thread_main,
-        is_blocking_thread_main,
-        IIF(binder_reply_id IS NULL, "", binder_reply_id) AS binder_reply_id,
-        IIF(binder_reply_ts IS NULL, "", binder_reply_ts) AS binder_reply_ts,
-        IIF(binder_reply_tid IS NULL, "", binder_reply_tid) AS binder_reply_tid
-      FROM android_monitor_contention_chain
+      SELECT * FROM android_monitor_contention_chain
+        WHERE parent_id IS NOT NULL
       ORDER BY dur DESC
       LIMIT 1;
       """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","upid","process_name","id","ts","dur","is_blocked_thread_main","is_blocking_thread_main","binder_reply_id","binder_reply_ts","binder_reply_tid"
-        "","void com.android.server.am.ActivityManagerService.forceStopPackage(java.lang.String, int)","boolean com.android.server.am.ActivityManagerService.unbindService(android.app.IServiceConnection)","com.android.server.am.ActivityManagerService.forceStopPackage","com.android.server.am.ActivityManagerService.unbindService","ActivityManagerService.java:3992","ActivityManagerService.java:12719",0,640,"StorageUserConn",495,"binder:642_1",250,"system_server",327,1737063410007,46114664,0,0,"","",""
+        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_id","binder_reply_ts","binder_reply_tid","pid"
+        956,"void com.android.server.am.AppProfiler.collectPssInBackground()","void com.android.server.am.ProcessRecord.setPid(int)","com.android.server.am.AppProfiler.collectPssInBackground","com.android.server.am.ProcessRecord.setPid","AppProfiler.java:514","ProcessRecord.java:596",0,656,"binder:642_12",506,"android.bg",670,250,"system_server",949,1737122781871,7301144,1236,0,2720,0,670,"[NULL]","[NULL]","[NULL]",642
       """))
 
   def test_monitor_contention_metric(self):

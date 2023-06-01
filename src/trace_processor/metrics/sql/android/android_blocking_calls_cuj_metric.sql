@@ -20,6 +20,7 @@
 SELECT RUN_METRIC('android/android_jank_cuj.sql');
 
 SELECT IMPORT('android.slices');
+SELECT IMPORT('android.binder');
 
 -- Jank "J<*>" and latency "L<*>" cujs are put together in android_cujs table.
 -- They are computed separately as latency ones are slightly different, don't
@@ -75,6 +76,24 @@ SELECT ROW_NUMBER() OVER (ORDER BY ts) AS cuj_id, *
 FROM all_cujs;
 
 
+DROP TABLE IF EXISTS relevant_binder_calls_with_names;
+CREATE TABLE relevant_binder_calls_with_names AS
+SELECT DISTINCT
+    tx.aidl_name AS name,
+    tx.client_ts AS ts,
+    s.track_id,
+    tx.client_dur AS dur,
+    s.id,
+    tx.client_process as process_name,
+    tx.client_utid as utid,
+    tx.client_upid as upid
+FROM android_sync_binder_metrics_by_txn AS tx
+         JOIN slice AS s ON s.id = tx.binder_txn_id
+        -- Keeps only slices in cuj processes.
+         JOIN android_cujs ON tx.client_upid = android_cujs.upid
+WHERE is_main_thread AND aidl_name IS NOT NULL;
+
+
 DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
 CREATE TABLE android_blocking_calls_cuj_calls AS
 WITH all_main_thread_relevant_slices AS (
@@ -107,7 +126,20 @@ WITH all_main_thread_relevant_slices AS (
             OR s.name GLOB '*CancellableContinuationImpl*'
             OR s.name GLOB 'relayoutWindow*'
             OR s.name GLOB 'ImageDecoder#decode*'
+            OR s.name GLOB 'NotificationStackScrollLayout#onMeasure'
+            OR s.name GLOB 'ExpNotRow#*'
         )
+    UNION ALL
+    SELECT
+        name,
+        ts,
+        track_id,
+        dur,
+        id,
+        process_name,
+        utid,
+        upid
+    FROM relevant_binder_calls_with_names
 ),
 -- Now we have:
 --  (1) a list of slices from the main thread of each process

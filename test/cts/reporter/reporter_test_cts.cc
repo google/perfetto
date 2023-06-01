@@ -42,6 +42,14 @@ TEST(PerfettoReporterTest, TestEndToEndReport) {
   trace_config.add_buffers()->set_size_kb(1024);
   trace_config.set_duration_ms(200);
   trace_config.set_allow_user_build_tracing(true);
+  trace_config.set_unique_session_name("TestEndToEndReport");
+
+  // Make the trace as small as possible (see b/282508742).
+  auto* builtin = trace_config.mutable_builtin_data_sources();
+  builtin->set_disable_clock_snapshotting(true);
+  builtin->set_disable_system_info(true);
+  builtin->set_disable_service_events(true);
+  builtin->set_disable_chunk_usage_histograms(true);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("android.perfetto.FakeProducer");
@@ -72,6 +80,7 @@ TEST(PerfettoReporterTest, TestEndToEndReport) {
   auto perfetto_proc = Exec("perfetto",
                             {
                                 "--upload",
+                                "--no-guardrails",
                                 "-c",
                                 "-",
                             },

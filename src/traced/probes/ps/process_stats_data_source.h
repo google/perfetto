@@ -87,6 +87,11 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t vm_locked_kb = std::numeric_limits<uint32_t>::max();
     uint32_t vm_hvm_kb = std::numeric_limits<uint32_t>::max();
     int oom_score_adj = std::numeric_limits<int>::max();
+    uint32_t smr_rss_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t smr_pss_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t smr_pss_anon_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t smr_pss_file_kb = std::numeric_limits<uint32_t>::max();
+    uint32_t smr_pss_shmem_kb = std::numeric_limits<uint32_t>::max();
 
     // ctime + stime from /proc/pid/stat
     uint64_t cpu_time = std::numeric_limits<uint64_t>::max();
@@ -160,6 +165,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   bool enable_on_demand_dumps_ = true;
   bool dump_all_procs_on_start_ = false;
   bool resolve_process_fds_ = false;
+  bool scan_smaps_rollup_ = false;
 
   // This set contains PIDs as per the Linux kernel notion of a PID (which is
   // really a TID). In practice this set will contain all TIDs for all processes

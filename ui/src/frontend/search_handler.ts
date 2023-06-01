@@ -14,8 +14,6 @@
 
 import {searchSegment} from '../base/binary_search';
 import {Actions} from '../common/actions';
-import {toNs} from '../common/time';
-
 import {globals} from './globals';
 
 function setToPrevious(current: number) {
@@ -34,8 +32,9 @@ function setToNext(current: number) {
 
 export function executeSearch(reverse = false) {
   const index = globals.state.searchIndex;
-  const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
-  const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
+  const vizWindow = globals.stateTraceTimeTP();
+  const startNs = vizWindow.start;
+  const endNs = vizWindow.end;
   const currentTs = globals.currentSearchResults.tsStarts[index];
 
   // If the value of |globals.currentSearchResults.totalResults| is 0,

@@ -71,7 +71,9 @@ class InternedMessageView {
     if (PERFETTO_TYPE_IDENTIFIER &&
         strcmp(decoder_type_,
                // GCC complains if this arg can be null.
-               PERFETTO_TYPE_IDENTIFIER ? PERFETTO_TYPE_IDENTIFIER : "") != 0) {
+               static_cast<bool>(PERFETTO_TYPE_IDENTIFIER)
+                   ? PERFETTO_TYPE_IDENTIFIER
+                   : "") != 0) {
       PERFETTO_FATAL(
           "Interning entry accessed under different types! previous type: "
           "%s. new type: %s.",

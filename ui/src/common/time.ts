@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-
-const EPSILON = 0.0000000001;
+import {ColumnType} from './query_result';
 
 // TODO(hjd): Combine with timeToCode.
 export function timeToString(sec: number) {
@@ -27,6 +26,11 @@ export function timeToString(sec: number) {
     u++;
   }
   return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10} ${units[u]}`;
+}
+
+export function tpTimeToString(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
+  return timeToString(tpTimeToSeconds(time));
 }
 
 export function fromNs(ns: number) {
@@ -50,6 +54,11 @@ export function formatTimestamp(sec: number) {
   const parts = sec.toFixed(9).split('.');
   parts[1] = parts[1].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
   return parts.join('.');
+}
+
+export function formatTPTime(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
+  return formatTimestamp(tpTimeToSeconds(time));
 }
 
 // TODO(hjd): Rename to formatTimestampWithUnits
@@ -77,44 +86,129 @@ export function timeToCode(sec: number): string {
   return result.slice(0, -1);
 }
 
+export function tpTimeToCode(time: TPTime) {
+  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
+  return timeToCode(tpTimeToSeconds(time));
+}
+
 export function currentDateHourAndMinute(): string {
   const date = new Date();
   return `${date.toISOString().substr(0, 10)}-${date.getHours()}-${
       date.getMinutes()}`;
 }
 
-export class TimeSpan {
-  readonly start: number;
-  readonly end: number;
+// Aliased "Trace Processor" time and duration types.
+// Note(stevegolton): While it might be nice to type brand these in the future,
+// for now we're going to keep things simple. We do a lot of maths with these
+// timestamps and type branding requires a lot of jumping through hoops to
+// coerse the type back to the correct format.
+export type TPTime = bigint;
+export type TPDuration = bigint;
 
-  constructor(start: number, end: number) {
-    assertTrue(start <= end);
+export function tpTimeFromNanos(nanos: number): TPTime {
+  return BigInt(Math.floor(nanos));
+}
+
+export function tpTimeFromSeconds(seconds: number): TPTime {
+  return BigInt(Math.floor(seconds * 1e9));
+}
+
+export function tpTimeToNanos(time: TPTime): number {
+  return Number(time);
+}
+
+export function tpTimeToMillis(time: TPTime): number {
+  return Number(time) / 1e6;
+}
+
+export function tpTimeToSeconds(time: TPTime): number {
+  return Number(time) / 1e9;
+}
+
+// Create a TPTime from an arbitrary SQL value.
+// Throws if the value cannot be reasonably converted to a bigint.
+// Assumes value is in nanoseconds.
+export function tpTimeFromSql(value: ColumnType): TPTime {
+  if (typeof value === 'bigint') {
+    return value;
+  } else if (typeof value === 'number') {
+    return tpTimeFromNanos(value);
+  } else if (value === null) {
+    return 0n;
+  } else {
+    throw Error(`Refusing to create Timestamp from unrelated type ${value}`);
+  }
+}
+
+export function tpDurationToSeconds(dur: TPDuration): number {
+  return tpTimeToSeconds(dur);
+}
+
+export function tpDurationToNanos(dur: TPDuration): number {
+  return tpTimeToSeconds(dur);
+}
+
+export function tpDurationFromNanos(nanos: number): TPDuration {
+  return tpTimeFromNanos(nanos);
+}
+
+export function tpDurationFromSql(nanos: ColumnType): TPDuration {
+  return tpTimeFromSql(nanos);
+}
+
+export interface Span<Unit, Duration = Unit> {
+  get start(): Unit;
+  get end(): Unit;
+  get duration(): Duration;
+  get midpoint(): Unit;
+  contains(span: Unit|Span<Unit, Duration>): boolean;
+  intersects(x: Span<Unit>): boolean;
+  equals(span: Span<Unit, Duration>): boolean;
+  add(offset: Duration): Span<Unit, Duration>;
+  pad(padding: Duration): Span<Unit, Duration>;
+}
+
+export class TPTimeSpan implements Span<TPTime, TPDuration> {
+  readonly start: TPTime;
+  readonly end: TPTime;
+
+  constructor(start: TPTime, end: TPTime) {
+    assertTrue(
+        start <= end,
+        `Span start [${start}] cannot be greater than end [${end}]`);
     this.start = start;
     this.end = end;
   }
 
-  clone() {
-    return new TimeSpan(this.start, this.end);
-  }
-
-  equals(other: TimeSpan): boolean {
-    return Math.abs(this.start - other.start) < EPSILON &&
-        Math.abs(this.end - other.end) < EPSILON;
-  }
-
-  get duration() {
+  get duration(): TPDuration {
     return this.end - this.start;
   }
 
-  isInBounds(sec: number) {
-    return this.start <= sec && sec <= this.end;
+  get midpoint(): TPTime {
+    return (this.start + this.end) / 2n;
   }
 
-  add(sec: number): TimeSpan {
-    return new TimeSpan(this.start + sec, this.end + sec);
+  contains(x: TPTime|Span<TPTime, TPDuration>): boolean {
+    if (typeof x === 'bigint') {
+      return this.start <= x && x < this.end;
+    } else {
+      return this.start <= x.start && x.end <= this.end;
+    }
   }
 
-  contains(other: TimeSpan) {
-    return this.start <= other.start && other.end <= this.end;
+  intersects(x: Span<TPTime, TPDuration>): boolean {
+    return !(x.end <= this.start || x.start >= this.end);
+  }
+
+  equals(span: Span<TPTime, TPDuration>): boolean {
+    return this.start === span.start && this.end === span.end;
+  }
+
+  add(x: TPTime): Span<TPTime, TPDuration> {
+    return new TPTimeSpan(this.start + x, this.end + x);
+  }
+
+  pad(padding: TPDuration): Span<TPTime, TPDuration> {
+    return new TPTimeSpan(this.start - padding, this.end + padding);
   }
 }

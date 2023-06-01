@@ -142,12 +142,6 @@ function setExtensionAvailability(available: boolean) {
   }));
 }
 
-function initGlobalsFromQueryString() {
-  const queryString = window.location.search;
-  globals.embeddedMode = queryString.includes('mode=embedded');
-  globals.hideSidebar = queryString.includes('hideSidebar=true');
-}
-
 function setupContentSecurityPolicy() {
   // Note: self and sha-xxx must be quoted, urls data: and blob: must not.
   const policy = {
@@ -252,9 +246,10 @@ function main() {
     maybeOpenTraceFromRoute(route);
   };
 
-  // This must be called before calling `globals.initialize` so that the
-  // `embeddedMode` global is set.
-  initGlobalsFromQueryString();
+  // These need to be set before globals.initialize.
+  const route = Router.parseUrl(window.location.href);
+  globals.embeddedMode = route.args.mode === 'embedded';
+  globals.hideSidebar = route.args.hideSidebar === true;
 
   globals.initialize(dispatch, router);
   globals.serviceWorkerController.install();
@@ -311,7 +306,6 @@ function main() {
   }
 }
 
-
 function onCssLoaded() {
   initCssConstants();
   // Clear all the contents of the initial page (e.g. the <pre> error message)
@@ -343,6 +337,14 @@ function onCssLoaded() {
   // accidentially clober the state of an open trace processor instance
   // otherwise.
   CheckHttpRpcConnection().then(() => {
+    const route = Router.parseUrl(window.location.href);
+
+    globals.dispatch(Actions.maybeSetPendingDeeplink({
+      ts: route.args.ts,
+      tid: route.args.tid,
+      dur: route.args.dur,
+    }));
+
     if (!globals.embeddedMode) {
       installFileDropHandler();
     }
@@ -359,7 +361,7 @@ function onCssLoaded() {
 
     // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
     // cases.
-    maybeOpenTraceFromRoute(Router.parseUrl(window.location.href));
+    maybeOpenTraceFromRoute(route);
   });
 }
 

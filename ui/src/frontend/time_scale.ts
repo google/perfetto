@@ -12,95 +12,93 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {assertFalse, assertTrue} from '../base/logging';
-import {TimeSpan} from '../common/time';
+import {assertTrue} from '../base/logging';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../common/high_precision_time';
+import {Span} from '../common/time';
+import {
+  TPDuration,
+  TPTime,
+} from '../common/time';
 
-const MAX_ZOOM_SPAN_SEC = 1e-8;  // 10 ns.
-
-/**
- * Defines a mapping between number and seconds for the entire application.
- * Linearly scales time values from boundsMs to pixel values in boundsPx and
- * back.
- */
 export class TimeScale {
-  private timeBounds: TimeSpan;
-  private _startPx: number;
-  private _endPx: number;
-  private secPerPx = 0;
+  private _start: HighPrecisionTime;
+  private _durationNanos: number;
+  readonly pxSpan: PxSpan;
+  private _nanosPerPx = 0;
+  private _startSec: number;
 
-  constructor(timeBounds: TimeSpan, boundsPx: [number, number]) {
-    this.timeBounds = timeBounds;
-    this._startPx = boundsPx[0];
-    this._endPx = boundsPx[1];
-    this.updateSlope();
+  static fromHPTimeSpan(span: Span<HighPrecisionTime>, pxSpan: PxSpan) {
+    return new TimeScale(span.start, span.duration.nanos, pxSpan);
   }
 
-  private updateSlope() {
-    this.secPerPx = this.timeBounds.duration / (this._endPx - this._startPx);
+  constructor(start: HighPrecisionTime, durationNanos: number, pxSpan: PxSpan) {
+    this.pxSpan = pxSpan;
+    this._start = start;
+    this._durationNanos = durationNanos;
+    if (durationNanos <= 0 || pxSpan.delta <= 0) {
+      this._nanosPerPx = 1;
+    } else {
+      this._nanosPerPx = durationNanos / (pxSpan.delta);
+    }
+    this._startSec = this._start.seconds;
   }
 
-  deltaTimeToPx(time: number): number {
-    return Math.round(time / this.secPerPx);
+  get timeSpan(): Span<HighPrecisionTime> {
+    const end = this._start.addNanos(this._durationNanos);
+    return new HighPrecisionTimeSpan(this._start, end);
   }
 
-  timeToPx(time: number): number {
-    return this._startPx + (time - this.timeBounds.start) / this.secPerPx;
+  tpTimeToPx(ts: TPTime): number {
+    // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
+    const timeOffsetNanos = Number(ts - this._start.base) - this._start.offset;
+    return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
   }
 
-  pxToTime(px: number): number {
-    return this.timeBounds.start + (px - this._startPx) * this.secPerPx;
+  secondsToPx(seconds: number): number {
+    const timeOffset = (seconds - this._startSec) * 1e9;
+    return this.pxSpan.start + timeOffset / this._nanosPerPx;
   }
 
-  deltaPxToDuration(px: number): number {
-    return px * this.secPerPx;
+  hpTimeToPx(time: HighPrecisionTime): number {
+    const timeOffsetNanos = time.sub(this._start).nanos;
+    return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
   }
 
-  setTimeBounds(timeBounds: TimeSpan) {
-    this.timeBounds = timeBounds;
-    this.updateSlope();
+  // Convert pixels to a high precision time object, which can be futher
+  // converted to other time formats.
+  pxToHpTime(px: number): HighPrecisionTime {
+    const offsetNanos = (px - this.pxSpan.start) * this._nanosPerPx;
+    return this._start.addNanos(offsetNanos);
   }
 
-  setLimitsPx(pxStart: number, pxEnd: number) {
-    assertFalse(pxStart === pxEnd);
-    assertTrue(pxStart >= 0 && pxEnd >= 0);
-    this._startPx = pxStart;
-    this._endPx = pxEnd;
-    this.updateSlope();
+  durationToPx(dur: TPDuration): number {
+    // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
+    return Number(dur) / this._nanosPerPx;
   }
 
-  timeInBounds(time: number): boolean {
-    return this.timeBounds.isInBounds(time);
-  }
-
-  get startPx(): number {
-    return this._startPx;
-  }
-
-  get endPx(): number {
-    return this._endPx;
-  }
-
-  get widthPx(): number {
-    return this._endPx - this._startPx;
-  }
-
-  get timeSpan(): TimeSpan {
-    return this.timeBounds;
+  pxDeltaToDuration(pxDelta: number): HighPrecisionTime {
+    const time = pxDelta * this._nanosPerPx;
+    return HighPrecisionTime.fromNanos(time);
   }
 }
 
-export function computeZoom(
-    scale: TimeScale, span: TimeSpan, zoomFactor: number, zoomPx: number):
-    TimeSpan {
-  const startPx = scale.startPx;
-  const endPx = scale.endPx;
-  const deltaPx = endPx - startPx;
-  const deltaTime = span.end - span.start;
-  const newDeltaTime = Math.max(deltaTime * zoomFactor, MAX_ZOOM_SPAN_SEC);
-  const clampedZoomPx = Math.max(startPx, Math.min(endPx, zoomPx));
-  const zoomTime = scale.pxToTime(clampedZoomPx);
-  const r = (clampedZoomPx - startPx) / deltaPx;
-  const newStartTime = zoomTime - newDeltaTime * r;
-  const newEndTime = newStartTime + newDeltaTime;
-  return new TimeSpan(newStartTime, newEndTime);
+export class PxSpan {
+  constructor(private _start: number, private _end: number) {
+    assertTrue(_start <= _end, 'PxSpan start > end');
+  }
+
+  get start(): number {
+    return this._start;
+  }
+
+  get end(): number {
+    return this._end;
+  }
+
+  get delta(): number {
+    return this._end - this._start;
+  }
 }

@@ -34,6 +34,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/ftrace/dpu.gen.h"
+#include "protos/perfetto/trace/ftrace/f2fs.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.gen.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
@@ -62,6 +63,7 @@ using testing::Not;
 using testing::Pair;
 using testing::Property;
 using testing::Return;
+using testing::SizeIs;
 using testing::StartsWith;
 
 namespace perfetto {
@@ -3301,6 +3303,114 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroPaddedPageWorkaround) {
   EXPECT_EQ(0xff0u, evt_bytes);
 
   EXPECT_THAT(AllTracePackets(), IsEmpty());
+}
+
+// Kernel code:
+// trace_f2fs_truncate_partial_nodes(... nid = {1,2,3}, depth = 4, err = 0)
+//
+// After kernel commit 0b04d4c0542e("f2fs: Fix
+// f2fs_truncate_partial_nodes ftrace event")
+static ExamplePage g_f2fs_truncate_partial_nodes_new{
+    "b281660544_new",
+    R"(
+00000000: 1555 c3e4 cb07 0000 3c00 0000 0000 0000  .U......<.......
+00000010: 3e33 0b87 2700 0000 0c00 0000 7d02 0000  >3..'.......}...
+00000020: c638 0000 3900 e00f 0000 0000 b165 0000  .8..9........e..
+00000030: 0000 0000 0100 0000 0200 0000 0300 0000  ................
+00000040: 0400 0000 0000 0000 0000 0000 0000 0000  ................
+    )",
+};
+
+TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesNew) {
+  const ExamplePage* test_case = &g_f2fs_truncate_partial_nodes_new;
+
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  ds_config.event_filter.AddEnabledEvent(table->EventToFtraceId(
+      GroupAndName("f2fs", "f2fs_truncate_partial_nodes")));
+
+  const uint8_t* parse_pos = page.get();
+  std::optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_LE(parse_pos + page_header->size, page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config,
+      CreateBundler(ds_config), &metadata_);
+
+  EXPECT_LT(0u, evt_bytes);
+
+  auto bundle = GetBundle();
+  ASSERT_THAT(bundle.event(), SizeIs(1));
+  auto& event = bundle.event()[0];
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().dev(), 65081u);
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().ino(), 26033u);
+  // This field is disabled in ftrace_proto_gen.cc
+  EXPECT_FALSE(event.f2fs_truncate_partial_nodes().has_nid());
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().depth(), 4);
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().err(), 0);
+}
+
+// Kernel code:
+// trace_f2fs_truncate_partial_nodes(... nid = {1,2,3}, depth = 4, err = 0)
+//
+// Before kernel commit 0b04d4c0542e("f2fs: Fix
+// f2fs_truncate_partial_nodes ftrace event")
+static ExamplePage g_f2fs_truncate_partial_nodes_old{
+    "b281660544_old",
+    R"(
+00000000: 8f90 aa0d 9e00 0000 3c00 0000 0000 0000  ........<.......
+00000010: 3e97 0295 0e01 0000 0c00 0000 7d02 0000  >...........}...
+00000020: 8021 0000 3900 e00f 0000 0000 0d66 0000  .!..9........f..
+00000030: 0000 0000 0100 0000 0200 0000 0300 0000  ................
+00000040: 0400 0000 0000 0000 0000 0000 0000 0000  ................
+    )",
+};
+
+TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesOld) {
+  const ExamplePage* test_case = &g_f2fs_truncate_partial_nodes_old;
+
+  ProtoTranslationTable* table = GetTable(test_case->name);
+  auto page = PageFromXxd(test_case->data);
+
+  FtraceDataSourceConfig ds_config = EmptyConfig();
+  auto id = table->EventToFtraceId(
+      GroupAndName("f2fs", "f2fs_truncate_partial_nodes"));
+  PERFETTO_LOG("Enabling: %zu", id);
+  ds_config.event_filter.AddEnabledEvent(id);
+
+  const uint8_t* parse_pos = page.get();
+  std::optional<CpuReader::PageHeader> page_header =
+      CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
+
+  const uint8_t* page_end = page.get() + base::kPageSize;
+  ASSERT_TRUE(page_header.has_value());
+  EXPECT_FALSE(page_header->lost_events);
+  EXPECT_LE(parse_pos + page_header->size, page_end);
+
+  size_t evt_bytes = CpuReader::ParsePagePayload(
+      parse_pos, &page_header.value(), table, &ds_config,
+      CreateBundler(ds_config), &metadata_);
+
+  EXPECT_LT(0u, evt_bytes);
+
+  auto bundle = GetBundle();
+  ASSERT_THAT(bundle.event(), SizeIs(1));
+  auto& event = bundle.event()[0];
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().dev(), 65081u);
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().ino(), 26125u);
+  // This field is disabled in ftrace_proto_gen.cc
+  EXPECT_FALSE(event.f2fs_truncate_partial_nodes().has_nid());
+  // Due to a kernel bug, nid[1] is parsed as depth.
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().depth(), 2);
+  // Due to a kernel bug, nid[2] is parsed as err.
+  EXPECT_EQ(event.f2fs_truncate_partial_nodes().err(), 3);
 }
 
 }  // namespace

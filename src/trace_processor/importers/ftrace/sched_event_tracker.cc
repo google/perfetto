@@ -212,9 +212,10 @@ void SchedEventTracker::PushSchedSwitchCompact(uint32_t cpu,
 void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
                                                int64_t ts,
                                                uint32_t wakee_pid,
-                                               int32_t target_cpu,
-                                               int32_t prio,
-                                               StringId comm_id) {
+                                               uint16_t target_cpu,
+                                               uint16_t prio,
+                                               StringId comm_id,
+                                               uint16_t common_flags) {
   // At this stage all events should be globally timestamp ordered.
   if (ts < context_->event_tracker->max_timestamp()) {
     PERFETTO_ELOG(
@@ -239,10 +240,15 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
   auto curr_utid = pending_sched->last_utid;
 
   if (PERFETTO_LIKELY(context_->config.ingest_ftrace_in_raw_table)) {
+    tables::FtraceEventTable::Row row;
+    row.ts = ts;
+    row.name = sched_waking_id_;
+    row.cpu = cpu;
+    row.utid = curr_utid;
+    row.common_flags = common_flags;
+
     // Add an entry to the raw table.
-    RawId id = context_->storage->mutable_ftrace_event_table()
-                   ->Insert({ts, sched_waking_id_, cpu, curr_utid})
-                   .id;
+    RawId id = context_->storage->mutable_ftrace_event_table()->Insert(row).id;
 
     using SW = protos::pbzero::SchedWakingFtraceEvent;
     auto inserter = context_->args_tracker->AddArgsTo(id);
@@ -258,8 +264,8 @@ void SchedEventTracker::PushSchedWakingCompact(uint32_t cpu,
 
   // Add a waking entry to the ThreadState table.
   auto wakee_utid = context_->process_tracker->GetOrCreateThread(wakee_pid);
-  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(ts, wakee_utid,
-                                                             curr_utid);
+  ThreadStateTracker::GetOrCreate(context_)->PushWakingEvent(
+      ts, wakee_utid, curr_utid, common_flags);
 }
 
 PERFETTO_ALWAYS_INLINE

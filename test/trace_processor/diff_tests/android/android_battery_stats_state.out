@@ -1,0 +1,4 @@
+"ts","track_name","value","value_name","dur"
+1000,"battery_stats.audio",1,"active",-1
+1000,"battery_stats.data_conn",13,"4G (LTE)",3000
+4000,"battery_stats.data_conn",20,"5G (NR)",-1

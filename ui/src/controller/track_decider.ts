@@ -25,6 +25,7 @@ import {Engine, EngineProxy} from '../common/engine';
 import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {pluginManager} from '../common/plugins';
 import {
+  LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
@@ -61,6 +62,12 @@ import {
   PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
+import {
+  ENABLE_SCROLL_JANK_PLUGIN_V2,
+  INPUT_LATENCY_TRACK,
+} from '../tracks/scroll_jank';
+import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
+import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const TRACKS_V2_FLAG = featureFlags.register({
@@ -191,19 +198,66 @@ class TrackDecider {
     return 'Unknown';
   }
 
+  async guessCpuSizes(): Promise<Map<number, string>> {
+    const cpuToSize = new Map<number, string>();
+    await this.engine.query(`
+      SELECT IMPORT('common.cpus');
+    `);
+    const result = await this.engine.query(`
+      SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
+    `);
+
+    const it = result.iter({
+      cpu: NUM,
+      size: STR_NULL,
+    });
+
+    for (; it.valid(); it.next()) {
+      const size = it.size;
+      if (size !== null) {
+        cpuToSize.set(it.cpu, size);
+      }
+    }
+
+    return cpuToSize;
+  }
+
   async addCpuSchedulingTracks(): Promise<void> {
     const cpus = await this.engine.getCpus();
+    const cpuToSize = await this.guessCpuSizes();
+
     for (const cpu of cpus) {
+      const size = cpuToSize.get(cpu);
+      const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: CPU_SLICE_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-        name: `Cpu ${cpu}`,
+        name,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {
           cpu,
         },
       });
+    }
+  }
+
+  async addScrollJankTracks(engine: Engine): Promise<void> {
+    const topLevelScrolls = addTopLevelScrollTrack(engine);
+    const topLevelScrollsResult = await topLevelScrolls;
+    let originalLength = this.tracksToAdd.length;
+    this.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
+    for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] =
+          topLevelScrollsResult.tracksToAdd[i];
+    }
+
+    originalLength = this.tracksToAdd.length;
+    const eventLatencies = addLatenciesTrack(engine);
+    const eventLatencyResult = await eventLatencies;
+    this.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
+    for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
     }
   }
 
@@ -309,6 +363,7 @@ class TrackDecider {
     });
 
     const parentIdToGroupId = new Map<number, string>();
+    let scrollJankRendered = false;
 
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
@@ -353,6 +408,13 @@ class TrackDecider {
         }
       }
 
+      if (ENABLE_SCROLL_JANK_PLUGIN_V2.get() && !scrollJankRendered &&
+          name.includes(INPUT_LATENCY_TRACK)) {
+        // This ensures that the scroll jank tracks render above the tracks
+        // for GestureScrollUpdate.
+        await this.addScrollJankTracks(this.engine);
+        scrollJankRendered = true;
+      }
       const track = {
         engineId: this.engineId,
         kind,
@@ -959,9 +1021,9 @@ class TrackDecider {
       upid: NUM_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
-      startTs: NUM_NULL,
+      startTs: LONG_NULL,
       trackId: NUM,
-      endTs: NUM_NULL,
+      endTs: LONG_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1276,8 +1338,8 @@ class TrackDecider {
       upid: NUM,
       pid: NUM_NULL,
       processName: STR_NULL,
-      startTs: NUM_NULL,
-      endTs: NUM_NULL,
+      startTs: LONG_NULL,
+      endTs: LONG_NULL,
     });
     for (let i = 0; it.valid(); ++i, it.next()) {
       const pid = it.pid;

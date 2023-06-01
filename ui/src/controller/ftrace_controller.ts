@@ -13,9 +13,13 @@
 // limitations under the License.
 
 import {Engine} from '../common/engine';
-import {NUM, STR, STR_NULL} from '../common/query_result';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../common/high_precision_time';
+import {LONG, NUM, STR, STR_NULL} from '../common/query_result';
 import {FtraceFilterState, Pagination} from '../common/state';
-import {TimeSpan, toNsCeil, toNsFloor} from '../common/time';
+import {Span} from '../common/time';
 import {FtraceEvent, globals} from '../frontend/globals';
 import {publishFtracePanelData} from '../frontend/publish';
 import {ratelimit} from '../frontend/rate_limiters';
@@ -34,7 +38,7 @@ interface RetVal {
 
 export class FtraceController extends Controller<'main'> {
   private engine: Engine;
-  private oldSpan: TimeSpan = new TimeSpan(0, 0);
+  private oldSpan: Span<HighPrecisionTime> = HighPrecisionTimeSpan.ZERO;
   private oldFtraceFilter?: FtraceFilterState;
   private oldPagination?: Pagination;
 
@@ -45,7 +49,7 @@ export class FtraceController extends Controller<'main'> {
 
   run() {
     if (this.shouldUpdate()) {
-      this.oldSpan = globals.frontendLocalState.visibleWindowTime.clone();
+      this.oldSpan = globals.frontendLocalState.visibleWindowTime;
       this.oldFtraceFilter = globals.state.ftraceFilter;
       this.oldPagination = globals.state.ftracePagination;
       if (globals.state.ftracePagination.count > 0) {
@@ -66,8 +70,7 @@ export class FtraceController extends Controller<'main'> {
   private shouldUpdate(): boolean {
     // Has the visible window moved?
     const visibleWindow = globals.frontendLocalState.visibleWindowTime;
-    if (this.oldSpan.start !== visibleWindow.start ||
-        this.oldSpan.end !== visibleWindow.end) {
+    if (!this.oldSpan.equals(visibleWindow)) {
       return true;
     }
 
@@ -86,11 +89,7 @@ export class FtraceController extends Controller<'main'> {
 
   async lookupFtraceEvents(offset: number, count: number): Promise<RetVal> {
     const appState = globals.state;
-    const frontendState = globals.frontendLocalState;
-    const {start, end} = frontendState.visibleWindowTime;
-
-    const startNs = toNsFloor(start);
-    const endNs = toNsCeil(end);
+    const {start, end} = globals.stateVisibleTime();
 
     const excludeList = appState.ftraceFilter.excludedNames;
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
@@ -105,7 +104,7 @@ export class FtraceController extends Controller<'main'> {
       from ftrace_event
       where
         ftrace_event.name not in (${excludeListSql}) and
-        ts >= ${startNs} and ts <= ${endNs}
+        ts >= ${start} and ts <= ${end}
       `);
     const {numEvents} = queryRes.firstRow({numEvents: NUM});
 
@@ -125,14 +124,14 @@ export class FtraceController extends Controller<'main'> {
       on thread.upid = process.upid
       where
         ftrace_event.name not in (${excludeListSql}) and
-        ts >= ${startNs} and ts <= ${endNs}
+        ts >= ${start} and ts <= ${end}
       order by id
       limit ${count} offset ${offset};`);
     const events: FtraceEvent[] = [];
     const it = queryRes.iter(
         {
           id: NUM,
-          ts: NUM,
+          ts: LONG,
           name: STR,
           cpu: NUM,
           thread: STR_NULL,

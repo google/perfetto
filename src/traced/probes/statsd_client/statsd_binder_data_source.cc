@@ -202,7 +202,7 @@ void SubscriptionTracker::Unregister(int32_t subscription_id) {
 
 // static
 const ProbesDataSource::Descriptor StatsdBinderDataSource::descriptor = {
-    /*name*/ "android.statsd_binder",
+    /*name*/ "android.statsd",
     /*flags*/ Descriptor::kFlagsNone,
     /*fill_descriptor_func*/ nullptr,
 };
@@ -242,30 +242,20 @@ void StatsdBinderDataSource::OnData(uint32_t reason,
                                     const uint8_t* data,
                                     size_t sz) {
   ShellDataDecoder message(data, sz);
+  if (message.has_atom()) {
+    TraceWriter::TracePacketHandle packet = writer_->NewTracePacket();
 
-  bool parse_error = false;
-  auto timestamps_it = message.timestamp_nanos(&parse_error);
-  std::vector<int64_t> timestamps;
-  if (!parse_error) {
-    for (; timestamps_it; ++timestamps_it) {
-      timestamps.push_back(*timestamps_it);
-    }
+    // The root packet gets the timestamp of *now* to aid in
+    // a) Packet sorting in trace_processor
+    // b) So we have some useful record of timestamp in case the statsd
+    //    one gets broken in some exciting way.
+    packet->set_timestamp(static_cast<uint64_t>(base::GetBootTimeNs().count()));
 
-    TraceWriter::TracePacketHandle packet;
-    size_t i = 0;
-    for (auto it = message.atom(); it; ++it) {
-      packet = writer_->NewTracePacket();
-      if (i < timestamps.size()) {
-        packet->set_timestamp(static_cast<uint64_t>(timestamps[i++]));
-      } else {
-        packet->set_timestamp(
-            static_cast<uint64_t>(base::GetBootTimeNs().count()));
-      }
-      auto* statsd_atom = packet->set_statsd_atom();
-      auto* atom = statsd_atom->add_atom();
-      atom->AppendRawProtoBytes(it->data(), it->size());
-      packet->Finalize();
-    }
+    // Now put all the data. We rely on ShellData and StatsdAtom
+    // matching format exactly.
+    packet->AppendBytes(protos::pbzero::TracePacket::kStatsdAtomFieldNumber,
+                        message.begin(),
+                        static_cast<size_t>(message.end() - message.begin()));
   }
 
   // If we have the pending flush in progress resolve that:

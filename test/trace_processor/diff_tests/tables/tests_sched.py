@@ -79,3 +79,44 @@ class TablesSched(TestSuite):
         81473010341386
         81473010352792
         """))
+
+  def test_sched_wakeup(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT * FROM spurious_sched_wakeup
+        ORDER BY ts LIMIT 10
+        """,
+        out=Csv("""
+        "id","type","ts","thread_state_id","irq_context","utid","waker_utid"
+        0,"spurious_sched_wakeup",1735850782904,395,0,230,1465
+        1,"spurious_sched_wakeup",1736413914899,852,0,230,1467
+        2,"spurious_sched_wakeup",1736977755745,1261,0,230,1469
+        3,"spurious_sched_wakeup",1737046900004,1434,0,1472,1473
+        4,"spurious_sched_wakeup",1737047159060,1463,0,1474,1472
+        5,"spurious_sched_wakeup",1737081636170,2721,0,1214,1319
+        6,"spurious_sched_wakeup",1737108696536,4684,0,501,557
+        7,"spurious_sched_wakeup",1737153309978,6080,0,11,506
+        8,"spurious_sched_wakeup",1737165240546,6562,0,565,499
+        9,"spurious_sched_wakeup",1737211563344,8645,0,178,1195
+        """))
+
+  def test_raw_common_flags(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT * FROM raw WHERE common_flags != 0 ORDER BY ts LIMIT 10
+        """,
+        out=Csv("""
+        "id","type","ts","name","cpu","utid","arg_set_id","common_flags"
+        3,"ftrace_event",1735489788930,"sched_waking",0,300,4,1
+        4,"ftrace_event",1735489812571,"sched_waking",0,300,5,1
+        5,"ftrace_event",1735489833977,"sched_waking",1,305,6,1
+        8,"ftrace_event",1735489876788,"sched_waking",1,297,9,1
+        9,"ftrace_event",1735489879097,"sched_waking",0,304,10,1
+        12,"ftrace_event",1735489933912,"sched_waking",0,428,13,1
+        14,"ftrace_event",1735489972385,"sched_waking",1,232,15,1
+        17,"ftrace_event",1735489999987,"sched_waking",1,232,15,1
+        19,"ftrace_event",1735490039439,"sched_waking",1,298,18,1
+        20,"ftrace_event",1735490042084,"sched_waking",1,298,19,1
+        """))

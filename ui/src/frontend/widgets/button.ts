@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {classNames} from '../classnames';
 import {Icon} from './icon';
+import {Popup} from './popup';
 
 interface CommonAttrs {
   // Always show the button as if the "active" pseudo class were applied, which
@@ -37,6 +38,9 @@ interface CommonAttrs {
   rightIcon?: string;
   // List of space separated class names forwarded to the icon.
   className?: string;
+  // Allow clicking this button to close parent popups.
+  // Defaults to false.
+  dismissPopup?: boolean;
   // Remaining attributes forwarded to the underlying HTML <button>.
   [htmlAttrs: string]: any;
 }
@@ -66,6 +70,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
       disabled = false,
       rightIcon,
       className,
+      dismissPopup = false,
       ...htmlAttrs
     } = attrs;
 
@@ -75,6 +80,7 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
         compact && 'pf-compact',
         minimal && 'pf-minimal',
         (icon && !label) && 'pf-icon-only',
+        dismissPopup && Popup.DISMISS_POPUP_GROUP_CLASS,
         className,
     );
 

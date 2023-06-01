@@ -12,17 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
+
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM, QueryResult} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {LONG, NUM, QueryResult} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
-import {
-  TrackController,
-} from '../../controller/track_controller';
+import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -34,8 +34,8 @@ export interface Data extends TrackData {
   maxCpu: number;
 
   // Slices are stored in a columnar fashion. All fields have the same length.
-  starts: Float64Array;
-  ends: Float64Array;
+  starts: BigInt64Array;
+  ends: BigInt64Array;
   utids: Uint32Array;
   cpus: Uint32Array;
 }
@@ -52,8 +52,8 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
 
   private maxCpu = 0;
-  private maxDurNs = 0;
-  private cachedBucketNs = Number.MAX_SAFE_INTEGER;
+  private maxDur = 0n;
+  private cachedBucketSize = BIMath.INT64_MAX;
 
   async onSetup() {
     await this.createSchedView();
@@ -67,19 +67,19 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     const result = (await this.query(`
       select ifnull(max(dur), 0) as maxDur, count(1) as count
       from ${this.tableName('process_sched')}
-    `)).iter({maxDur: NUM, count: NUM});
+    `)).iter({maxDur: LONG, count: NUM});
     assertTrue(result.valid());
-    this.maxDurNs = result.maxDur;
+    this.maxDur = result.maxDur;
 
     const rowCount = result.count;
-    const bucketNs = this.cachedBucketSizeNs(rowCount);
-    if (bucketNs === undefined) {
+    const bucketSize = this.calcCachedBucketSize(rowCount);
+    if (bucketSize === undefined) {
       return;
     }
     await this.query(`
       create table ${this.tableName('process_sched_cached')} as
       select
-        (ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs} as cached_tsq,
+        (ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize} as cached_tsq,
         ts,
         max(dur) as dur,
         cpu,
@@ -88,27 +88,17 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       group by cached_tsq, cpu
       order by cached_tsq, cpu
     `);
-    this.cachedBucketNs = bucketNs;
+    this.cachedBucketSize = bucketSize;
   }
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     assertTrue(this.config.upid !== null);
 
-    // The resolution should always be a power of two for the logic of this
-    // function to make sense.
-    const resolutionNs = toNs(resolution);
-    assertTrue(Math.log2(resolutionNs) % 1 === 0);
+    // Resolution must always be a power of 2 for this logic to work
+    assertTrue(BIMath.popcount(resolution) === 1, `${resolution} not pow of 2`);
 
-    const startNs = toNs(start);
-    const endNs = toNs(end);
-
-    // ns per quantization bucket (i.e. ns per pixel). /2 * 2 is to force it to
-    // be an even number, so we can snap in the middle.
-    const bucketNs =
-        Math.max(Math.round(resolutionNs * this.pxSize() / 2) * 2, 1);
-
-    const queryRes = await this.queryData(startNs, endNs, bucketNs);
+    const queryRes = await this.queryData(start, end, resolution);
     const numRows = queryRes.numRows();
     const slices: Data = {
       kind: 'slice',
@@ -117,46 +107,48 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       maxCpu: this.maxCpu,
-      starts: new Float64Array(numRows),
-      ends: new Float64Array(numRows),
+      starts: new BigInt64Array(numRows),
+      ends: new BigInt64Array(numRows),
       cpus: new Uint32Array(numRows),
       utids: new Uint32Array(numRows),
     };
 
     const it = queryRes.iter({
-      tsq: NUM,
-      ts: NUM,
-      dur: NUM,
+      tsq: LONG,
+      ts: LONG,
+      dur: LONG,
       cpu: NUM,
       utid: NUM,
     });
 
     for (let row = 0; it.valid(); it.next(), row++) {
-      const startNsQ = it.tsq;
-      const startNs = it.ts;
-      const durNs = it.dur;
-      const endNs = startNs + durNs;
+      const startQ = it.tsq;
+      const start = it.ts;
+      const dur = it.dur;
+      const end = start + dur;
+      const minEnd = startQ + resolution;
+      const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
 
-      let endNsQ = Math.floor((endNs + bucketNs / 2 - 1) / bucketNs) * bucketNs;
-      endNsQ = Math.max(endNsQ, startNsQ + bucketNs);
-
-      slices.starts[row] = fromNs(startNsQ);
-      slices.ends[row] = fromNs(endNsQ);
+      slices.starts[row] = startQ;
+      slices.ends[row] = endQ;
       slices.cpus[row] = it.cpu;
       slices.utids[row] = it.utid;
-      slices.end = Math.max(slices.ends[row], slices.end);
+      slices.end = BIMath.max(slices.ends[row], slices.end);
     }
     return slices;
   }
 
-  private queryData(startNs: number, endNs: number, bucketNs: number):
+  private queryData(start: TPTime, end: TPTime, bucketSize: TPDuration):
       Promise<QueryResult> {
-    const isCached = this.cachedBucketNs <= bucketNs;
-    const tsq = isCached ? `cached_tsq / ${bucketNs} * ${bucketNs}` :
-                           `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+    const isCached = this.cachedBucketSize <= bucketSize;
+    const tsq = isCached ?
+        `cached_tsq / ${bucketSize} * ${bucketSize}` :
+        `(ts + ${bucketSize / 2n}) / ${bucketSize} * ${bucketSize}`;
     const queryTable = isCached ? this.tableName('process_sched_cached') :
                                   this.tableName('process_sched');
     const constraintColumn = isCached ? 'cached_tsq' : 'ts';
+
+    // The mouse move handler depends on slices being sorted by cpu then tsq
     return this.query(`
       select
         ${tsq} as tsq,
@@ -166,10 +158,10 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
         utid
       from ${queryTable}
       where
-        ${constraintColumn} >= ${startNs - this.maxDurNs} and
-        ${constraintColumn} <= ${endNs}
+        ${constraintColumn} >= ${start - this.maxDur} and
+        ${constraintColumn} <= ${end}
       group by tsq, cpu
-      order by tsq, cpu
+      order by cpu, tsq
     `);
   }
 
@@ -208,7 +200,10 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      visibleWindowTime,
+    } = globals.frontendLocalState;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -218,19 +213,21 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(visibleWindowTime.start),
-        timeScale.timeToPx(visibleWindowTime.end),
-        timeScale.timeToPx(data.start),
-        timeScale.timeToPx(data.end));
+        visibleTimeScale.hpTimeToPx(visibleWindowTime.start),
+        visibleTimeScale.hpTimeToPx(visibleWindowTime.end),
+        visibleTimeScale.tpTimeToPx(data.start),
+        visibleTimeScale.tpTimeToPx(data.end));
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const rawStartIdx =
-        data.ends.findIndex((end) => end >= visibleWindowTime.start);
+    const startTime = visibleWindowTime.start.toTPTime('floor');
+    const rawStartIdx = data.ends.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.starts, visibleWindowTime.end);
+
+    const endTime = visibleWindowTime.end.toTPTime('ceil');
+    const [, rawEndIdx] = searchSegment(data.starts, endTime);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
@@ -241,8 +238,8 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
-      const rectStart = timeScale.timeToPx(tStart);
-      const rectEnd = timeScale.timeToPx(tEnd);
+      const rectStart = visibleTimeScale.tpTimeToPx(tStart);
+      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
       if (rectWidth < 0.3) continue;
 
@@ -294,8 +291,8 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
     const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
-    const {timeScale} = globals.frontendLocalState;
-    const t = timeScale.pxToTime(pos.x);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const t = visibleTimeScale.pxToHpTime(pos.x).toTPTime('floor');
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
