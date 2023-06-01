@@ -20,6 +20,7 @@ import {globals} from './globals';
 import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
+import {Icons} from './semantic_icons';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Checkbox} from './widgets/checkbox';
@@ -34,7 +35,7 @@ import {Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
 import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
-import {LazyTreeNode, Tree, TreeLayout, TreeNode} from './widgets/tree';
+import {LazyTreeNode, Tree, TreeNode} from './widgets/tree';
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -241,19 +242,6 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
         },
         optionElements);
   }
-}
-
-function recursiveLazyTreeNode(
-    left: string, summary: string, hoardData: boolean): m.Children {
-  return m(LazyTreeNode, {
-    left,
-    summary,
-    hoardData,
-    fetchData: async () => {
-      await new Promise((r) => setTimeout(r, 200));
-      return () => recursiveLazyTreeNode(left, summary, hoardData);
-    },
-  });
 }
 
 export const WidgetsPage = createPage({
@@ -490,7 +478,10 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(
               PopupMenu2,
               {
-                trigger: m(Button, {label: 'Menu', icon: 'arrow_drop_down'}),
+                trigger: m(Button, {
+                  label: 'Menu',
+                  rightIcon: Icons.ContextMenu,
+                }),
                 ...opts,
               },
               m(MenuItem, {label: 'New', icon: 'add'}),
@@ -543,63 +534,79 @@ export const WidgetsPage = createPage({
         m('h2', 'Tree'),
         m(WidgetShowcase, {
           renderWidget: (opts) => m(
-              Tree,
-              opts,
-              m(TreeNode, {left: 'Name', right: 'my_event'}),
-              m(TreeNode, {left: 'CPU', right: '2'}),
-              m(TreeNode, {
-                left: 'SQL',
-                right: m(
-                    PopupMenu2,
-                    {
-                      trigger: m(Anchor, {
-                        text: 'SELECT * FROM ftrace_event WHERE id = 123',
-                        icon: 'unfold_more',
-                      }),
-                    },
-                    m(MenuItem, {
-                      label: 'Copy SQL Query',
-                      icon: 'content_copy',
-                    }),
-                    m(MenuItem, {
-                      label: 'Execute Query in new tab',
-                      icon: 'open_in_new',
-                    }),
-                    ),
-              }),
-              m(TreeNode, {
-                left: 'Thread',
-                right: m(Anchor, {text: 'my_thread[456]', icon: 'open_in_new'}),
-              }),
-              m(TreeNode, {
-                left: 'Process',
-                right: m(Anchor, {text: '/bin/foo[789]', icon: 'open_in_new'}),
-              }),
-              recursiveLazyTreeNode('Lazy', '(hoarding)', true),
-              recursiveLazyTreeNode('Lazy', '(non-hoarding)', false),
-              m(
-                  TreeNode,
-                  {
-                    left: 'Args',
-                    summary: 'foo: string, baz: string, quux: string[4]',
-                  },
-                  m(TreeNode, {left: 'foo', right: 'bar'}),
-                  m(TreeNode, {left: 'baz', right: 'qux'}),
-                  m(
-                      TreeNode,
-                      {left: 'quux'},
-                      m(TreeNode, {left: '[0]', right: 'corge'}),
-                      m(TreeNode, {left: '[1]', right: 'grault'}),
-                      m(TreeNode, {left: '[2]', right: 'garply'}),
-                      m(TreeNode, {left: '[3]', right: 'waldo'}),
-                      ),
-                  ),
-              ),
-          initialOpts: {
-            layout: new EnumOption(
-                TreeLayout.Grid,
-                Object.values(TreeLayout),
+            Tree,
+            opts,
+            m(TreeNode, {left: 'Name', right: 'my_event', icon: 'badge'}),
+            m(TreeNode, {left: 'CPU', right: '2', icon: 'memory'}),
+            m(TreeNode,
+              {left: 'Start time', right: '1s 435ms', icon: 'schedule'}),
+            m(TreeNode, {left: 'Duration', right: '86ms', icon: 'timer'}),
+            m(TreeNode, {
+              left: 'SQL',
+              right: m(
+                PopupMenu2,
+                {
+                  popupPosition: PopupPosition.RightStart,
+                  trigger: m(Anchor, {
+                    icon: Icons.ContextMenu,
+                  }, 'SELECT * FROM raw WHERE id = 123'),
+                },
+                m(MenuItem, {
+                  label: 'Copy SQL Query',
+                  icon: 'content_copy',
+                }),
+                m(MenuItem, {
+                  label: 'Execute Query in new tab',
+                  icon: 'open_in_new',
+                }),
                 ),
+            }),
+            m(TreeNode, {
+              icon: 'account_tree',
+              left: 'Process',
+              right: m(Anchor, {icon: 'open_in_new'}, '/bin/foo[789]'),
+            }),
+            m(TreeNode, {
+              left: 'Thread',
+              right: m(Anchor, {icon: 'open_in_new'}, 'my_thread[456]'),
+            }),
+            m(
+              TreeNode,
+              {
+                left: 'Args',
+                summary: 'foo: string, baz: string, quux: string[4]',
+              },
+              m(TreeNode, {left: 'foo', right: 'bar'}),
+              m(TreeNode, {left: 'baz', right: 'qux'}),
+              m(
+                TreeNode,
+                {left: 'quux', summary: 'string[4]'},
+                m(TreeNode, {left: '[0]', right: 'corge'}),
+                m(TreeNode, {left: '[1]', right: 'grault'}),
+                m(TreeNode, {left: '[2]', right: 'garply'}),
+                m(TreeNode, {left: '[3]', right: 'waldo'}),
+                ),
+              ),
+            m(LazyTreeNode, {
+              left: 'Lazy',
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
+            m(LazyTreeNode, {
+              left: 'Dynamic',
+              unloadOnCollapse: true,
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
+            ),
+          initialOpts: {
+            hideControls: false,
           },
           wide: true,
         }),

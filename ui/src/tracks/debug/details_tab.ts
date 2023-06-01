@@ -14,6 +14,8 @@
 
 import m from 'mithril';
 
+import {GridLayout} from '../..//frontend/widgets/grid_layout';
+import {Section} from '../..//frontend/widgets/section';
 import {ColumnType} from '../../common/query_result';
 import {tpDurationFromSql, tpTimeFromSql} from '../../common/time';
 import {
@@ -23,6 +25,7 @@ import {
 } from '../../frontend/bottom_tab';
 import {globals} from '../../frontend/globals';
 import {asTPTimestamp} from '../../frontend/sql_types';
+import {DetailsShell} from '../../frontend/widgets/details_shell';
 import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {dictToTree} from '../../frontend/widgets/tree';
@@ -84,16 +87,16 @@ export class DebugSliceDetailsTab extends
       }
     }
     return m(
-        '.details-panel',
-        m('header.overview', m('span', 'Debug Slice')),
-        m('.details-table-multicolumn',
-          {
-            style: {
-              'user-select': 'text',
-            },
-          },
-          m('.half-width-panel', left),
-          m('.half-width-panel', dictToTree(args))));
+        DetailsShell,
+        {
+          title: 'Debug Slice',
+        },
+        m(
+            GridLayout,
+            m(Section, {title: 'Details'}, left),
+            m(Section, {title: 'Arguments'}, dictToTree(args)),
+            ),
+    );
   }
 
   getTitle(): string {

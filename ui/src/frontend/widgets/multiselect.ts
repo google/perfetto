@@ -37,6 +37,8 @@ export interface MultiSelectDiff {
 
 export interface MultiSelectAttrs {
   icon?: string;
+  minimal?: boolean;
+  compact?: boolean;
   label: string;
   options: Option[];
   onChange?: (diffs: MultiSelectDiff[]) => void;
@@ -58,12 +60,15 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
     const {
       icon,
       popupPosition = PopupPosition.Auto,
+      minimal,
+      compact,
     } = attrs;
 
     return m(
         Popup,
         {
-          trigger: m(Button, {label: this.labelText(attrs), icon}),
+          trigger:
+              m(Button, {label: this.labelText(attrs), icon, minimal, compact}),
           position: popupPosition,
         },
         this.renderPopup(attrs),
