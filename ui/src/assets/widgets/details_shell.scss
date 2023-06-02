@@ -25,8 +25,7 @@
   }
 
   .pf-header-bar {
-    // There must be a less hacky way to fix this!
-    z-index: 1;
+    z-index: 1; // HACK: Make the header bar appear above the content
     position: sticky;
     top: 0;
     left: 0;
@@ -36,7 +35,7 @@
     gap: 6px;
     background-color: white;
     color: black;
-    padding: 6px 8px 2px 8px;
+    padding: 8px 8px 5px 8px;
     box-shadow: 0px 1px 4px rgba(0, 0, 0, 0.2);
     border-bottom: 1px solid rgba(0, 0, 0, 0.2);
 
@@ -63,9 +62,9 @@
   }
 
   .pf-content {
-    // font-size: 14px;
+    font-size: smaller;
     flex-grow: 1;
-    background-color: #f8f8f8;
+    font-weight: 300;
 
     table {
       @include transition(0.1s);

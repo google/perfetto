@@ -335,16 +335,27 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
           m(
               GridLayout,
               this.renderDetails(slice),
-              m(
-                  Column,
-                  this.renderPrecedingFlows(slice),
-                  this.renderFollowingFlows(slice),
-                  this.renderArguments(slice),
-                  ),
+              this.renderRhs(slice),
               ),
       );
     } else {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
+    }
+  }
+
+  private renderRhs(slice: Sliceish): m.Children {
+    const precFlows = this.renderPrecedingFlows(slice);
+    const followingFlows = this.renderFollowingFlows(slice);
+    const args = this.renderArguments(slice);
+    if (precFlows ?? followingFlows ?? args) {
+      return m(
+          Column,
+          precFlows,
+          followingFlows,
+          args,
+      );
+    } else {
+      return undefined;
     }
   }
 
@@ -481,7 +492,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
   }
 
   private renderArguments(slice: Sliceish): m.Children {
-    if (slice.args) {
+    if (slice.args && slice.args.size > 0) {
       const tree = convertArgsToTree(slice.args);
       return m(
           Section, {title: 'Arguments'}, m(Tree, renderArgTreeNodes(tree)));
