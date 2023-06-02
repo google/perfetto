@@ -34,7 +34,7 @@ export interface ProcessInfo {
   versionCode?: number;
 }
 
-async function getProcessInfo(
+export async function getProcessInfo(
     engine: EngineProxy, upid: Upid): Promise<ProcessInfo> {
   const it = (await engine.query(`
               SELECT pid, name, uid FROM process WHERE upid = ${upid};
