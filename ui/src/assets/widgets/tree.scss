@@ -22,13 +22,14 @@ $chevron-svg: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' 
         background: inherit;
         min-width: max-content;
         border-radius: $pf-border-radius 0 0 $pf-border-radius;
+        font-weight: bolder;
       }
       .pf-tree-right {
         background: inherit;
-        font-weight: 300;
         padding: 0 0 0 15px;
         border-radius: 0 $pf-border-radius $pf-border-radius 0;
         word-break: break-all;
+        white-space: pre-wrap;
       }
     }
     .pf-tree-gutter {
