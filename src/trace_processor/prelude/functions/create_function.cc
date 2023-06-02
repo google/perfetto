@@ -59,6 +59,83 @@ struct CreatedFunction : public SqlFunction {
   static void Cleanup(Context*);
 };
 
+class Memoizer {
+ public:
+  // Enables memoization.
+  // Only functions with a single int argument returning ints are supported.
+  base::Status EnableMemoization(const Prototype& prototype,
+                                 sql_argument::Type return_type) {
+    if (prototype.arguments.size() != 1 ||
+        TypeToSqlValueType(prototype.arguments[0].type()) !=
+            SqlValue::Type::kLong) {
+      return base::ErrStatus(
+          "EXPERIMENTAL_MEMOIZE: Function %s should take one int argument",
+          prototype.function_name.c_str());
+    }
+    if (TypeToSqlValueType(return_type) != SqlValue::Type::kLong) {
+      return base::ErrStatus(
+          "EXPERIMENTAL_MEMOIZE: Function %s should return an int",
+          prototype.function_name.c_str());
+    }
+    enabled_ = true;
+    return base::OkStatus();
+  }
+
+  // Returns the memoized value for the current invocation if it exists.
+  std::optional<SqlValue> GetMemoizedValue(size_t argc, sqlite3_value** argv) {
+    std::optional<int64_t> arg = ExtractArgForMemoization(argc, argv);
+    if (!arg) {
+      return std::nullopt;
+    }
+    int64_t* value = memoized_values_.Find(*arg);
+    if (!value) {
+      return std::nullopt;
+    }
+    is_returning_memoized_value_ = true;
+    return SqlValue::Long(*value);
+  }
+
+  // Saves the return value of the current invocation for memoization.
+  void Memoize(size_t argc, sqlite3_value** argv, SqlValue value) {
+    if (!enabled_ || value.type != SqlValue::Type::kLong) {
+      return;
+    }
+    std::optional<int64_t> arg = ExtractArgForMemoization(argc, argv);
+    if (!arg) {
+      return;
+    }
+    memoized_values_.Insert(*arg, value.AsLong());
+  }
+
+  // Returns true if memoization is enabled and the current invocation should
+  // bypass post-conditions (as we do not have a statement to check).
+  bool ShouldBypassPostConditions() {
+    bool is_returning_memoized_value = is_returning_memoized_value_;
+    is_returning_memoized_value_ = false;
+    return enabled_ && is_returning_memoized_value;
+  }
+
+ private:
+  std::optional<int64_t> ExtractArgForMemoization(size_t argc,
+                                                  sqlite3_value** argv) {
+    if (!enabled_ || argc != 1) {
+      return std::nullopt;
+    }
+    SqlValue arg = sqlite_utils::SqliteValueToSqlValue(argv[0]);
+    if (arg.type != SqlValue::Type::kLong) {
+      return std::nullopt;
+    }
+    return arg.AsLong();
+  }
+
+  bool enabled_ = false;
+  base::FlatHashMap<int64_t, int64_t> memoized_values_;
+  // This is used to skip post-conditions when we are returning a memoized
+  // value. True between a successful call to GetMemoizedValue and the call to
+  // ValidatePostConditions, false otherwise.
+  bool is_returning_memoized_value_ = false;
+};
+
 // This class is used to store the state of a CREATE_FUNCTION call.
 // It is used to store the state of the function across multiple invocations
 // of the function (e.g. when the function is called recursively).
@@ -123,6 +200,10 @@ class CreatedFunction::Context {
     --current_recursion_level_;
   }
 
+  base::Status EnableMemoization() {
+    return memoizer_.EnableMemoization(prototype_, return_type_);
+  }
+
   PerfettoSqlEngine* engine() const { return engine_; }
 
   const Prototype& prototype() const { return prototype_; }
@@ -132,6 +213,8 @@ class CreatedFunction::Context {
   const std::string& sql() const { return sql_; }
 
   bool is_valid() const { return is_valid_; }
+
+  Memoizer& memoizer() { return memoizer_; }
 
  private:
   PerfettoSqlEngine* engine_;
@@ -150,6 +233,7 @@ class CreatedFunction::Context {
   // by tracking whether the current function definition is valid (in which case
   // re-registration is not allowed).
   bool is_valid_ = false;
+  Memoizer memoizer_;
 };
 
 base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
@@ -179,6 +263,13 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                              ctx->prototype().function_name.c_str(),
                              sqlite3_value_text(arg), i, status.c_message());
     }
+  }
+
+  std::optional<SqlValue> memoized_value =
+      ctx->memoizer().GetMemoizedValue(argc, argv);
+  if (memoized_value) {
+    out = *memoized_value;
+    return base::OkStatus();
   }
 
   PERFETTO_TP_TRACE(
@@ -220,6 +311,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   }
   out = sqlite_utils::SqliteValueToSqlValue(
       sqlite3_column_value(ctx->CurrentStatement(), 0));
+  ctx->memoizer().Memoize(argc, argv, out);
 
   // If we return a bytes type but have a null pointer, SQLite will convert this
   // to an SQL null. However, for proto build functions, we actively want to
@@ -233,6 +325,11 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
 }
 
 base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
+  // If we returned a memoized value, we don't need to verify post-conditions as
+  // we didn't run a statement.
+  if (ctx->memoizer().ShouldBypassPostConditions()) {
+    return base::OkStatus();
+  }
   int ret = sqlite3_step(ctx->CurrentStatement());
   RETURN_IF_ERROR(SqliteRetToStatus(ctx->engine()->sqlite_engine()->db(),
                                     ctx->prototype().function_name, ret));
@@ -260,11 +357,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
                                  sqlite3_value** argv,
                                  SqlValue&,
                                  Destructors&) {
-  if (argc != 3) {
-    return base::ErrStatus(
-        "CREATE_FUNCTION: invalid number of args; expected %u, received %zu",
-        3u, argc);
-  }
+  RETURN_IF_ERROR(sqlite_utils::CheckArgCount("CREATE_FUNCTION", argc, 3u));
 
   sqlite3_value* prototype_value = argv[0];
   sqlite3_value* return_type_value = argv[1];
@@ -370,6 +463,28 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
   // statements. So instead we'll just try to prepare the statement when calling
   // this function, which will return an error.
   return ctx->PrepareStatement();
+}
+
+base::Status ExperimentalMemoize::Run(PerfettoSqlEngine* engine,
+                                      size_t argc,
+                                      sqlite3_value** argv,
+                                      SqlValue&,
+                                      Destructors&) {
+  RETURN_IF_ERROR(sqlite_utils::CheckArgCount("EXPERIMENTAL_MEMOIZE", argc, 1));
+  base::StatusOr<std::string> function_name =
+      sqlite_utils::ExtractStringArg("MEMOIZE", "function_name", argv[0]);
+  RETURN_IF_ERROR(function_name.status());
+
+  constexpr size_t kSupportedArgCount = 1;
+  CreatedFunction::Context* ctx = static_cast<CreatedFunction::Context*>(
+      engine->sqlite_engine()->GetFunctionContext(function_name->c_str(),
+                                                  kSupportedArgCount));
+  if (!ctx) {
+    return base::ErrStatus(
+        "EXPERIMENTAL_MEMOIZE: Function %s(INT) does not exist",
+        function_name->c_str());
+  }
+  return ctx->EnableMemoization();
 }
 
 }  // namespace trace_processor

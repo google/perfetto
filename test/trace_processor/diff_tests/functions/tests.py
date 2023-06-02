@@ -72,7 +72,7 @@ class Functions(TestSuite):
         trace=TextProto(""),
         query="""
         -- Compute factorial.
-        SELECT create_function('f(x INT)', 'INT', 
+        SELECT create_function('f(x INT)', 'INT',
         '
           SELECT IIF($x = 0, 1, $x * f($x - 1))
         ');
@@ -82,6 +82,27 @@ class Functions(TestSuite):
         out=Csv("""
         "result"
         120
+      """))
+
+  def test_create_function_memoize(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute 2^n inefficiently to test memoization.
+        -- If it times out, memoization is not working.
+        SELECT create_function('f(x INT)', 'INT',
+        '
+          SELECT IIF($x = 0, 1, f($x - 1) + f($x - 1))
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('f');
+
+        -- 2^50 is too expensive to compute, but memoization makes it fast.
+        SELECT f(50) as result;
+      """,
+        out=Csv("""
+        "result"
+        1125899906842624
       """))
 
   def test_first_non_null_frame(self):
