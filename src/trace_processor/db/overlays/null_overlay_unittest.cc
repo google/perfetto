@@ -46,11 +46,27 @@ TEST(NullOverlay, MapToTableBitVector) {
 
   BitVector storage_bv{0, 1, 0, 1};
   TableBitVector table_bv =
-      overlay.MapToTableBitVector({std::move(storage_bv)});
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kOther);
 
   ASSERT_EQ(table_bv.bv.CountSetBits(), 2u);
   ASSERT_TRUE(table_bv.bv.IsSet(2));
   ASSERT_TRUE(table_bv.bv.IsSet(6));
+}
+
+TEST(NullOverlay, MapToTableBitVectorIsNull) {
+  BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
+  NullOverlay overlay(&bv);
+
+  BitVector storage_bv{0, 1, 0, 1};
+  TableBitVector table_bv =
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kIsNull);
+
+  // Result is all of the zeroes from |bv| and set bits from |storage_bv|
+  // 1, 0, 1, 1, 1, 0, 1, 1
+
+  ASSERT_EQ(table_bv.bv.CountSetBits(), 6u);
+  ASSERT_FALSE(table_bv.bv.IsSet(1));
+  ASSERT_FALSE(table_bv.bv.IsSet(5));
 }
 
 TEST(NullOverlay, IsStorageLookupRequiredNullOp) {

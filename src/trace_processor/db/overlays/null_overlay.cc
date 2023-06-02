@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,9 +31,16 @@ StorageRange NullOverlay::MapToStorageRange(TableRange t_range) const {
   return StorageRange({Range(start, end)});
 }
 
-TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv) const {
+TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv,
+                                                OverlayOp op) const {
   BitVector res = non_null_->Copy();
   res.UpdateSetBits(s_bv.bv);
+
+  if (op != OverlayOp::kIsNull)
+    return {std::move(res)};
+
+  BitVector not_non_null = non_null_->Not();
+  res.Or(not_non_null);
   return {std::move(res)};
 }
 
