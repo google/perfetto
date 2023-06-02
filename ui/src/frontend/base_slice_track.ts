@@ -33,6 +33,7 @@ import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
+import {constraintsToQueryFragment} from './sql_utils';
 import {NewTrackArgs, SliceRect, Track} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
@@ -68,8 +69,8 @@ function filterVisibleSlices<S extends Slice>(
 
   // We do not need to handle non-ending slices (where dur = -1
   // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path.
-  // TODO(hjd): Implement special code path.
+  // by a special code path. See 'incomplete' in the INITIALIZING
+  // code of maybeRequestData.
 
   // While the slices are guaranteed to be ordered by timestamp we must
   // consider async slices (which are not perfectly nested). This is to
@@ -186,8 +187,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private cache: TrackCache<Array<CastInternal<T['slice']>>> =
       new TrackCache(5);
 
+  // Incomplete slices (dur = -1). Rather than adding a lot of logic to
+  // the SQL queries to handle this case we materialise them one off
+  // then unconditionally render them. This should be efficient since
+  // there are at most |depth| slices.
+  private incomplete = new Array<CastInternal<T['slice']>>();
+
   protected readonly tableName: string;
   private maxDurNs: TPDuration = 0n;
+
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
@@ -262,6 +270,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   onFullRedraw(): void {
     // Give a chance to the embedder to change colors and other stuff.
     this.onUpdatedSlices(this.slices);
+    this.onUpdatedSlices(this.incomplete);
   }
 
   protected isSelectionHandled(selection: Selection): boolean {
@@ -343,6 +352,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         // bounding box that will contain the chevron.
         slice.x -= CHEVRON_WIDTH_PX / 2;
         slice.w = CHEVRON_WIDTH_PX;
+      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        slice.x = Math.max(slice.x, 0);
+        slice.w = pxEnd - slice.x;
       } else {
         // If the slice is an actual slice, intersect the slice geometry with
         // the visible viewport (this affects only the first and last slice).
@@ -364,7 +376,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }
 
     // Second pass: fill slices by color.
-    // The .slice() turned out to be an unintended pun.
     const vizSlicesByColor = vizSlices.slice();
     vizSlicesByColor.sort((a, b) => colorCompare(a.color, b.color));
     let lastColor = undefined;
@@ -488,6 +499,49 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
           from ${this.tableName}`);
       const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
+
+      // One off materialise the incomplete slices. The number of
+      // incomplete slices is smaller than the depth of the track and
+      // both are expected to be small.
+      if (this.isDestroyed) {
+        return;
+      }
+      {
+        // TODO(hjd): Consider case below:
+        // raw:
+        // 0123456789
+        //   [A     did not end)
+        //     [B ]
+        //
+        //
+        // quantised:
+        // 0123456789
+        //   [A     did not end)
+        // [     B  ]
+        // Does it lead to odd results?
+        const extraCols = this.extraSqlColumns.join(',');
+        const queryRes = await this.engine.query(`
+          select
+            ts as tsq,
+            ts as tsqEnd,
+            ts,
+            -1 as dur,
+            id,
+            ${this.depthColumn()}
+            ${extraCols ? ',' + extraCols : ''}
+          from ${this.tableName}
+          where dur = -1;
+        `);
+        const incomplete =
+            new Array<CastInternal<T['slice']>>(queryRes.numRows());
+        const it = queryRes.iter(this.getRowSpec());
+        for (let i = 0; it.valid(); it.next(), ++i) {
+          incomplete[i] = this.rowToSliceInternal(it);
+        }
+        this.onUpdatedSlices(incomplete);
+        this.incomplete = incomplete;
+      }
+
       this.sqlState = 'QUERY_DONE';
     } else if (
         this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
@@ -529,24 +583,24 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }
 
     const extraCols = this.extraSqlColumns.join(',');
-    let depthCol = 'depth';
-    let maybeGroupByDepth = 'depth, ';
-    const layout = this.sliceLayout;
-    const isFlat = (layout.maxDepth - layout.minDepth) <= 1;
-    // maxDepth === minDepth only makes sense if track is empty which on the
-    // one hand isn't very useful (and so maybe should be an error) on the
-    // other hand I can see it happening if someone does:
-    // minDepth = min(slices.depth); maxDepth = max(slices.depth);
-    // and slices is empty, so we treat that as flat.
-    if (isFlat) {
-      depthCol = `${this.sliceLayout.minDepth} as depth`;
-      maybeGroupByDepth = '';
-    }
+    const maybeDepth = this.isFlat() ? undefined : 'depth';
 
-    // TODO(hjd): Re-reason and improve this query:
-    // - Materialize the unfinished slices one off.
-    // - Avoid the union if we know we don't have any -1 slices.
-    // - Maybe we don't need the union at all and can deal in TS?
+    const constraint = constraintsToQueryFragment({
+      filters: [
+        `ts >= ${slicesKey.start - this.maxDurNs}`,
+        `ts <= ${slicesKey.end}`,
+        `dur != -1`,
+      ],
+      groupBy: [
+        maybeDepth,
+        'tsq',
+      ],
+      orderBy: [
+        maybeDepth,
+        'tsq',
+      ],
+    });
+
     if (this.isDestroyed) {
       this.sqlState = 'QUERY_DONE';
       return;
@@ -554,38 +608,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // TODO(hjd): Count and expose the number of slices summarized in
     // each bucket?
     const queryRes = await this.engine.query(`
-    with q1 as (
-      select
-        ${queryTsq} as tsq,
-        ${queryTsqEnd} as tsqEnd,
+      SELECT
+        ${queryTsq} AS tsq,
+        ${queryTsqEnd} AS tsqEnd,
         ts,
-        max(dur) as dur,
+        MAX(dur) AS dur,
         id,
-        ${depthCol}
+        ${this.depthColumn()}
         ${extraCols ? ',' + extraCols : ''}
-      from ${this.tableName}
-      where
-        ts >= ${slicesKey.start - this.maxDurNs /* - durNs */} and
-        ts <= ${slicesKey.end /* + durNs */}
-      group by ${maybeGroupByDepth} tsq
-      order by tsq),
-    q2 as (
-      select
-        ${queryTsq} as tsq,
-        ${queryTsqEnd} as tsqEnd,
-        ts,
-        -1 as dur,
-        id,
-        ${depthCol}
-        ${extraCols ? ',' + extraCols : ''}
-      from ${this.tableName}
-      where dur = -1
-      group by ${maybeGroupByDepth} tsq
-      )
-      select min(dur) as _unused, * from
-      (select * from q1 union all select * from q2)
-      group by ${maybeGroupByDepth} tsq
-      order by tsq
+      FROM ${this.tableName} ${constraint}
     `);
 
     // Here convert each row to a Slice. We do what we can do
@@ -657,8 +688,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       return undefined;
     }
 
+    const depth = Math.floor((y - padding) / (sliceHeight + rowSpacing));
+
     if (y >= padding && y <= trackHeight - padding) {
-      const depth = Math.floor((y - padding) / (sliceHeight + rowSpacing));
       for (const slice of this.slices) {
         if (slice.depth === depth && slice.x <= x && x <= slice.x + slice.w) {
           return slice;
@@ -666,7 +698,26 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       }
     }
 
+    for (const slice of this.incomplete) {
+      if (slice.depth === depth && slice.x <= x) {
+        return slice;
+      }
+    }
+
     return undefined;
+  }
+
+  private isFlat(): boolean {
+    // maxDepth and minDepth are a half open range so in the normal flat
+    // case maxDepth = 1 and minDepth = 0. In the non flat case:
+    // maxDepth = 42 and minDepth = 0. maxDepth === minDepth should not
+    // occur but is could happen if there are zero slices I guess so
+    // treat this as flat also.
+    return (this.sliceLayout.maxDepth - this.sliceLayout.minDepth) <= 1;
+  }
+
+  private depthColumn(): string {
+    return this.isFlat() ? `${this.sliceLayout.minDepth} as depth` : 'depth';
   }
 
   onMouseMove(position: {x: number, y: number}): void {
@@ -711,8 +762,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   private getVisibleSlicesInternal(start: TPTime, end: TPTime):
       Array<CastInternal<T['slice']>> {
-    return filterVisibleSlices<CastInternal<T['slice']>>(
-        this.slices, start, end);
+    const slices =
+        filterVisibleSlices<CastInternal<T['slice']>>(this.slices, start, end);
+    return slices.concat(this.incomplete);
   }
 
   private updateSliceAndTrackHeight() {
