@@ -52,7 +52,8 @@ class StorageOverlay {
 
   // Maps a BitVector of indices in storage space to an equivalent range of
   // indices in the table space.
-  virtual TableBitVector MapToTableBitVector(StorageBitVector) const = 0;
+  virtual TableBitVector MapToTableBitVector(StorageBitVector,
+                                             OverlayOp) const = 0;
 
   // Returns a BitVector where each boolean indicates if the corresponding index
   // in |indices| needs to be mapped and searched in the storage or if the
