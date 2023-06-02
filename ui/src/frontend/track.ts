@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
-import {Engine} from '../common/engine';
+import {EngineProxy} from '../common/engine';
 import {TrackState} from '../common/state';
 import {TPTime} from '../common/time';
 import {TrackData} from '../common/track_data';
@@ -27,7 +27,7 @@ import {TrackButtonAttrs} from './track_panel';
 // Args passed to the track constructors when creating a new track.
 export interface NewTrackArgs {
   trackId: string;
-  engine: Engine;
+  engine: EngineProxy;
 }
 
 // This interface forces track implementations to have some static properties.
@@ -55,7 +55,7 @@ export interface SliceRect {
 export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // The UI-generated track ID (not to be confused with the SQL track.id).
   protected readonly trackId: string;
-  protected readonly engine: Engine;
+  protected readonly engine: EngineProxy;
 
   // When true this is a new controller-less track type.
   // TODO(hjd): eventually all tracks will be controller-less and this
