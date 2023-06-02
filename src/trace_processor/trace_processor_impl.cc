@@ -405,6 +405,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<ToMonotonic>(&engine_, "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
   RegisterFunction<CreateFunction>(&engine_, "CREATE_FUNCTION", 3, &engine_);
+  RegisterFunction<ExperimentalMemoize>(&engine_, "EXPERIMENTAL_MEMOIZE", 1,
+                                        &engine_);
   RegisterFunction<CreateViewFunction>(
       &engine_, "CREATE_VIEW_FUNCTION", 3,
       std::unique_ptr<CreateViewFunction::Context>(
