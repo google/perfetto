@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DB_OVERLAYS_SELECTOR_OVERLAY_H_
 
 #include "src/trace_processor/db/overlays/storage_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,7 +31,8 @@ class SelectorOverlay : public StorageOverlay {
 
   StorageRange MapToStorageRange(TableRange) const override;
 
-  TableBitVector MapToTableBitVector(StorageBitVector) const override;
+  TableBitVector MapToTableBitVector(StorageBitVector,
+                                     OverlayOp) const override;
 
   BitVector IsStorageLookupRequired(OverlayOp,
                                     const TableIndexVector&) const override;

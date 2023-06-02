@@ -29,8 +29,8 @@ StorageRange SelectorOverlay::MapToStorageRange(TableRange t_range) const {
             selected_->IndexOfNthSet(t_range.range.end - 1) + 1)};
 }
 
-TableBitVector SelectorOverlay::MapToTableBitVector(
-    StorageBitVector s_bv) const {
+TableBitVector SelectorOverlay::MapToTableBitVector(StorageBitVector s_bv,
+                                                    OverlayOp) const {
   PERFETTO_DCHECK(s_bv.bv.size() == selected_->size());
   BitVector res(selected_->CountSetBits());
   // TODO(b/283763282): Implement this variation of |UpdateSetBits| in
