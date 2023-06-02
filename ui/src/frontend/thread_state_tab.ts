@@ -72,7 +72,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         m(GridLayout,
           m(
               Section,
-              {title: 'Properties'},
+              {title: 'Details'},
               this.state && this.renderTree(this.state),
               )),
     );
