@@ -27,18 +27,38 @@ test('constraintsToQueryFragment: where', () => {
 
 test('constraintsToQueryFragment: order by', () => {
   expect(normalize(constraintsToQueryFragment({
-    orderBy: [{fieldName: 'name'}, {fieldName: 'count', direction: 'DESC'}],
-  }))).toEqual('ORDER BY name, count DESC');
+    orderBy: [
+      {fieldName: 'name'},
+      {fieldName: 'count', direction: 'DESC'},
+      undefined,
+      'value',
+    ],
+  }))).toEqual('ORDER BY name, count DESC, value');
 });
 
 test('constraintsToQueryFragment: limit', () => {
   expect(normalize(constraintsToQueryFragment({limit: 3}))).toEqual('LIMIT 3');
 });
 
+test('constraintsToQueryFragment: group by', () => {
+  expect(normalize(constraintsToQueryFragment({
+    groupBy: ['foo', undefined, 'bar'],
+  }))).toEqual('GROUP BY foo, bar');
+});
+
 test('constraintsToQueryFragment: all', () => {
   expect(normalize(constraintsToQueryFragment({
     filters: ['id != 1'],
+    groupBy: ['track_id'],
     orderBy: [{fieldName: 'ts'}],
     limit: 1,
-  }))).toEqual('WHERE id != 1 ORDER BY ts LIMIT 1');
+  }))).toEqual('WHERE id != 1 GROUP BY track_id ORDER BY ts LIMIT 1');
+});
+
+test('constraintsToQueryFragment: all undefined', () => {
+  expect(normalize(constraintsToQueryFragment({
+    filters: [undefined],
+    orderBy: [undefined, undefined],
+    groupBy: [undefined, undefined],
+  }))).toEqual('');
 });
