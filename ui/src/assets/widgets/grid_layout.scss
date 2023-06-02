@@ -14,18 +14,13 @@
 
 @import "theme";
 
-$pf-responsive-gutter: 4px;
+$pf-responsive-gutter: 8px;
 
 .pf-grid-layout {
   display: grid;
   gap: $pf-responsive-gutter;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   margin: $pf-responsive-gutter;
-
-  // Reduce to 1 column when screen is small
-  @media (max-width: 1000px) {
-    grid-template-columns: 1fr;
-  }
 
   align-items: start;
 
