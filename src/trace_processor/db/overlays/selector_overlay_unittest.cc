@@ -46,7 +46,7 @@ TEST(SelectorOverlay, MapToTableBitVector) {
 
   BitVector storage_bv{1, 0, 1, 0, 1, 0, 1, 0};
   TableBitVector table_bv =
-      overlay.MapToTableBitVector({std::move(storage_bv)});
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kOther);
 
   ASSERT_EQ(table_bv.bv.size(), 4u);
   ASSERT_EQ(table_bv.bv.CountSetBits(), 2u);
