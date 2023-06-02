@@ -361,11 +361,13 @@ class Chrome(TestSuite):
         }
         """),
         query="""
-        SELECT utid, tag, msg FROM android_logs;
+        SELECT utid, tag, msg, prio FROM android_logs;
         """,
+        # If the log_message_body doesn't have any priority, a default 4 (i.e.
+        # INFO) is assumed (otherwise the UI will not show the message).
         out=Csv("""
-        "utid","tag","msg"
-        1,"foo.cc:123","log message"
+        "utid","tag","msg","prio"
+        1,"foo.cc:123","log message",4
         """))
 
   def test_chrome_log_message_args(self):
