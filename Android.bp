@@ -9402,6 +9402,7 @@ filegroup {
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/null_overlay.cc",
+        "src/trace_processor/db/query_executor.cc",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/view.cc",
     ],
@@ -9449,6 +9450,7 @@ filegroup {
     srcs: [
         "src/trace_processor/db/column_storage_overlay_unittest.cc",
         "src/trace_processor/db/compare_unittest.cc",
+        "src/trace_processor/db/query_executor_unittest.cc",
         "src/trace_processor/db/view_unittest.cc",
     ],
 }
