@@ -31,7 +31,8 @@ class NullOverlay : public StorageOverlay {
 
   StorageRange MapToStorageRange(TableRange) const override;
 
-  TableBitVector MapToTableBitVector(StorageBitVector) const override;
+  TableBitVector MapToTableBitVector(StorageBitVector,
+                                     OverlayOp) const override;
 
   BitVector IsStorageLookupRequired(OverlayOp,
                                     const TableIndexVector&) const override;
