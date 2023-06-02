@@ -256,6 +256,24 @@ std::wstring SqliteValueToWString(sqlite3_value* value);
 // This should really only be used for debugging messages.
 const char* SqliteTypeToFriendlyString(SqlValue::Type type);
 
+// Verifies if |argc| matches |expected_argc| and returns an appropriate error
+// message if they don't match.
+base::Status CheckArgCount(const char* function_name,
+                           size_t argc,
+                           size_t expected_argc);
+
+// Type-safe helpers to extract an arg value from a sqlite3_value*, returning an
+// appropriate message if it fails.
+base::StatusOr<int64_t> ExtractIntArg(const char* function_name,
+                                      const char* arg_name,
+                                      sqlite3_value* value);
+base::StatusOr<double> ExtractDoubleArg(const char* function_name,
+                                        const char* arg_name,
+                                        sqlite3_value* value);
+base::StatusOr<std::string> ExtractStringArg(const char* function_name,
+                                             const char* arg_name,
+                                             sqlite3_value* value);
+
 // Verifies if |value| has the type represented by |expected_type|.
 // Returns base::OkStatus if it does or an base::ErrStatus with an
 // appropriate error mesage (incorporating |expected_type_str| if specified).
