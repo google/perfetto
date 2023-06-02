@@ -83,8 +83,7 @@ std::string FromHex(const std::string& str) {
 }
 
 std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
-    trace_processor::TraceProcessor* tp,
-    bool convert_build_id_to_bytes) {
+    trace_processor::TraceProcessor* tp) {
   std::map<UnsymbolizedMapping, std::vector<uint64_t>> res;
   Iterator it = tp->ExecuteQuery(kQueryUnsymbolized);
   while (it.Next()) {
@@ -94,8 +93,7 @@ std::map<UnsymbolizedMapping, std::vector<uint64_t>> GetUnsymbolizedFrames(
     // TODO(b/148109467): Remove workaround once all active Chrome versions
     // write raw bytes instead of a string as build_id.
     std::string raw_build_id = it.Get(1).AsString();
-    if (convert_build_id_to_bytes &&
-        !trace_processor::util::IsHexModuleId(base::StringView(raw_build_id))) {
+    if (!trace_processor::util::IsHexModuleId(base::StringView(raw_build_id))) {
       build_id = FromHex(raw_build_id);
     } else {
       build_id = raw_build_id;
@@ -118,8 +116,7 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
                        Symbolizer* symbolizer,
                        std::function<void(const std::string&)> callback) {
   PERFETTO_CHECK(symbolizer);
-  auto unsymbolized =
-      GetUnsymbolizedFrames(tp, symbolizer->BuildIdNeedsHexConversion());
+  auto unsymbolized = GetUnsymbolizedFrames(tp);
   for (auto it = unsymbolized.cbegin(); it != unsymbolized.cend(); ++it) {
     const auto& unsymbolized_mapping = it->first;
     const std::vector<uint64_t>& rel_pcs = it->second;
