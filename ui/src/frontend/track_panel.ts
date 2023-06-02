@@ -332,7 +332,11 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
       return;
     }
     const trackCreator = trackRegistry.get(trackState.kind);
-    this.track = trackCreator.create({trackId, engine});
+    this.track = trackCreator.create({
+      trackId,
+      engine:
+          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
+    });
     this.trackState = trackState;
   }
 
