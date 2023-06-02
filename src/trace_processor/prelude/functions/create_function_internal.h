@@ -53,6 +53,11 @@ base::Status MaybeBindArgument(sqlite3_stmt*,
                                const sql_argument::ArgumentDefinition&,
                                sqlite3_value*);
 
+base::Status MaybeBindIntArgument(sqlite3_stmt*,
+                                  const std::string& function_name,
+                                  const sql_argument::ArgumentDefinition&,
+                                  int64_t);
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
