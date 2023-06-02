@@ -12,21 +12,71 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {timeToCode, TPTime, TPTimeSpan} from './time';
+import {
+  formatTPTime,
+  TPTime,
+  TPTimeSpan,
+  tpTimeToCode,
+  tpTimeToString,
+} from './time';
 
-test('seconds to code', () => {
-  expect(timeToCode(3)).toEqual('3s');
-  expect(timeToCode(60)).toEqual('1m');
-  expect(timeToCode(63)).toEqual('1m 3s');
-  expect(timeToCode(63.2)).toEqual('1m 3s 200ms');
-  expect(timeToCode(63.2221)).toEqual('1m 3s 222ms 100us');
-  expect(timeToCode(63.2221111)).toEqual('1m 3s 222ms 111us 100ns');
-  expect(timeToCode(0.2221111)).toEqual('222ms 111us 100ns');
-  expect(timeToCode(0.000001)).toEqual('1us');
-  expect(timeToCode(0.000003)).toEqual('3us');
-  expect(timeToCode(1.000001)).toEqual('1s 1us');
-  expect(timeToCode(200.00000003)).toEqual('3m 20s 30ns');
-  expect(timeToCode(0)).toEqual('0s');
+test('tpTimeToCode', () => {
+  expect(tpTimeToCode(0n)).toEqual('0s');
+  expect(tpTimeToCode(3_000_000_000n)).toEqual('3s');
+  expect(tpTimeToCode(60_000_000_000n)).toEqual('1m');
+  expect(tpTimeToCode(63_000_000_000n)).toEqual('1m 3s');
+  expect(tpTimeToCode(63_200_000_000n)).toEqual('1m 3s 200ms');
+  expect(tpTimeToCode(63_222_100_000n)).toEqual('1m 3s 222ms 100us');
+  expect(tpTimeToCode(63_222_111_100n)).toEqual('1m 3s 222ms 111us 100ns');
+  expect(tpTimeToCode(222_111_100n)).toEqual('222ms 111us 100ns');
+  expect(tpTimeToCode(1_000n)).toEqual('1us');
+  expect(tpTimeToCode(3_000n)).toEqual('3us');
+  expect(tpTimeToCode(1_000_001_000n)).toEqual('1s 1us');
+  expect(tpTimeToCode(200_000_000_030n)).toEqual('3m 20s 30ns');
+  expect(tpTimeToCode(3_600_000_000_000n)).toEqual('60m');
+  expect(tpTimeToCode(3_600_000_000_001n)).toEqual('60m 1ns');
+  expect(tpTimeToCode(86_400_000_000_000n)).toEqual('1,440m');
+  expect(tpTimeToCode(86_400_000_000_001n)).toEqual('1,440m 1ns');
+  expect(tpTimeToCode(31_536_000_000_000_000n)).toEqual('525,600m');
+  expect(tpTimeToCode(31_536_000_000_000_001n)).toEqual('525,600m 1ns');
+});
+
+test('formatTPTime', () => {
+  expect(formatTPTime(0n)).toEqual('0.000 000 000');
+  expect(formatTPTime(3_000_000_000n)).toEqual('3.000 000 000');
+  expect(formatTPTime(60_000_000_000n)).toEqual('60.000 000 000');
+  expect(formatTPTime(63_000_000_000n)).toEqual('63.000 000 000');
+  expect(formatTPTime(63_200_000_000n)).toEqual('63.200 000 000');
+  expect(formatTPTime(63_222_100_000n)).toEqual('63.222 100 000');
+  expect(formatTPTime(63_222_111_100n)).toEqual('63.222 111 100');
+  expect(formatTPTime(222_111_100n)).toEqual('0.222 111 100');
+  expect(formatTPTime(1_000n)).toEqual('0.000 001 000');
+  expect(formatTPTime(3_000n)).toEqual('0.000 003 000');
+  expect(formatTPTime(1_000_001_000n)).toEqual('1.000 001 000');
+  expect(formatTPTime(200_000_000_030n)).toEqual('200.000 000 030');
+  expect(formatTPTime(3_600_000_000_000n)).toEqual('3600.000 000 000');
+  expect(formatTPTime(86_400_000_000_000n)).toEqual('86400.000 000 000');
+  expect(formatTPTime(86_400_000_000_001n)).toEqual('86400.000 000 001');
+  expect(formatTPTime(31_536_000_000_000_000n)).toEqual('31536000.000 000 000');
+  expect(formatTPTime(31_536_000_000_000_001n)).toEqual('31536000.000 000 001');
+});
+
+test('tpTimeToString', () => {
+  expect(tpTimeToString(0n)).toEqual('0 s');
+  expect(tpTimeToString(3_000_000_000n)).toEqual('3 s');
+  expect(tpTimeToString(60_000_000_000n)).toEqual('60 s');
+  expect(tpTimeToString(63_000_000_000n)).toEqual('63 s');
+  expect(tpTimeToString(63_200_000_000n)).toEqual('63.2 s');
+  expect(tpTimeToString(63_222_100_000n)).toEqual('63.2 s');
+  expect(tpTimeToString(63_222_111_100n)).toEqual('63.2 s');
+  expect(tpTimeToString(222_111_100n)).toEqual('222.1 ms');
+  expect(tpTimeToString(1_000n)).toEqual('1 us');
+  expect(tpTimeToString(3_000n)).toEqual('3 us');
+  expect(tpTimeToString(1_000_001_000n)).toEqual('1 s');
+  expect(tpTimeToString(200_000_000_030n)).toEqual('200 s');
+  expect(tpTimeToString(3_600_000_000_000n)).toEqual('3600 s');
+  expect(tpTimeToString(86_400_000_000_000n)).toEqual('86400 s');
+  expect(tpTimeToString(31_536_000_000_000_000n)).toEqual('31536000 s');
 });
 
 function mkSpan(start: TPTime, end: TPTime) {
