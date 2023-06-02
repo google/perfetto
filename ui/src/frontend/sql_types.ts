@@ -63,12 +63,35 @@ export function asUtid(v?: number): Utid|undefined {
   return v as (Utid | undefined);
 }
 
+// Id into |slice| SQL table.
+export type SliceSqlId = number&{
+  __type: 'SliceSqlId'
+}
+
+export function asSliceSqlId(v: number): SliceSqlId;
+export function asSliceSqlId(v?: number): SliceSqlId|undefined;
+export function asSliceSqlId(v?: number): SliceSqlId|undefined {
+  return v as (SliceSqlId | undefined);
+}
+
 // Id into |sched| SQL table.
 export type SchedSqlId = number&{
   __type: 'SchedSqlId'
 }
 
+export function asSchedSqlId(v: number): SchedSqlId;
+export function asSchedSqlId(v?: number): SchedSqlId|undefined;
+export function asSchedSqlId(v?: number): SchedSqlId|undefined {
+  return v as (SchedSqlId | undefined);
+}
+
 // Id into |thread_state| SQL table.
 export type ThreadStateSqlId = number&{
   __type: 'ThreadStateSqlId'
+}
+
+export function asThreadStateSqlId(v: number): ThreadStateSqlId;
+export function asThreadStateSqlId(v?: number): ThreadStateSqlId|undefined;
+export function asThreadStateSqlId(v?: number): ThreadStateSqlId|undefined {
+  return v as (ThreadStateSqlId | undefined);
 }
