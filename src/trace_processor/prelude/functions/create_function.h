@@ -44,6 +44,23 @@ struct CreateFunction : public SqlFunction {
                           Destructors&);
 };
 
+// Implementation of MEMOIZE SQL function.
+// SELECT EXPERIMENTAL_MEMOIZE('my_func') enables memoization for the results of
+// the calls to `my_func`. `my_func` must be a Perfetto SQL function created
+// through CREATE_FUNCTION that takes a single integer argument and returns a
+// int.
+struct ExperimentalMemoize : public SqlFunction {
+  using Context = PerfettoSqlEngine;
+
+  static constexpr bool kVoidReturn = true;
+
+  static base::Status Run(Context* ctx,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&);
+};
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
