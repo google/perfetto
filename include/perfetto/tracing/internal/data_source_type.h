@@ -182,9 +182,10 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   // `TracePointTraits` and `trace_point_data` are customization point for
   // getting the active instances bitmap.
   template <typename TracePointTraits>
-  void NextIteration(InstancesIterator* iterator,
-                     DataSourceThreadLocalState* tls_state,
-                     typename TracePointTraits::TracePointData trace_point_data) {
+  void NextIteration(
+      InstancesIterator* iterator,
+      DataSourceThreadLocalState* tls_state,
+      typename TracePointTraits::TracePointData trace_point_data) {
     iterator->i++;
     FirstActiveInstance<TracePointTraits>(iterator, tls_state,
                                           trace_point_data);
