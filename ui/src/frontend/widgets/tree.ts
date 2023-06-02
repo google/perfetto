@@ -121,8 +121,7 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
   }
 }
 
-// Create a flat tree from a POJO
-export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
+export function dictToTreeNodes(dict: {[key: string]: m.Child}): m.Child[] {
   const children: m.Child[] = [];
   for (const key of Object.keys(dict)) {
     children.push(m(TreeNode, {
@@ -130,7 +129,12 @@ export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
       right: dict[key],
     }));
   }
-  return m(Tree, children);
+  return children;
+}
+
+// Create a flat tree from a POJO
+export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
+  return m(Tree, dictToTreeNodes(dict));
 }
 
 interface LazyTreeNodeAttrs {
