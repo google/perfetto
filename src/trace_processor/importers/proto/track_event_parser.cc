@@ -38,6 +38,7 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
@@ -1327,9 +1328,14 @@ class TrackEventParser::EventImporter {
           Variadic::Integer(source_location_decoder->line_number()));
     }
 
+    // The track event log message doesn't specify any priority. UI never
+    // displays priorities < 2 (VERBOSE in android). Let's make all the track
+    // event logs show up as INFO.
+    constexpr uint32_t kPriority =
+        protos::pbzero::AndroidLogPriority::PRIO_INFO;
     storage_->mutable_android_log_table()->Insert(
         {ts_, *utid_,
-         /*priority*/ 0,
+         /*priority*/ kPriority,
          /*tag_id*/ source_location_id, log_message_id});
 
     return util::OkStatus();
