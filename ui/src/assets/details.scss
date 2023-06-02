@@ -260,11 +260,10 @@
   // This is to allow the absolute text panels below to be positioned relative
   // to this panel and not our parent.
   position: relative;
-  font-size: 13px;
   user-select: text;
 
   .text-detail {
-    font-size: 10px;
+    font-size: smaller;
   }
 
   .slice-details-wakeup-text {
