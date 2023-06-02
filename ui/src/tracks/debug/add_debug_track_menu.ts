@@ -36,10 +36,18 @@ interface AddDebugTrackMenuAttrs {
 
 export class AddDebugTrackMenu implements
     m.ClassComponent<AddDebugTrackMenuAttrs> {
+  readonly columns: string[];
+
   name: string = '';
   sliceColumns: SliceColumns;
+  arrangeBy?: {
+    type: 'thread'|'process',
+    column: string,
+  };
 
   constructor(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
+    this.columns = [...vnode.attrs.columns];
+
     const chooseDefaultOption = (name: string) => {
       for (const column of vnode.attrs.columns) {
         if (column === name) return column;

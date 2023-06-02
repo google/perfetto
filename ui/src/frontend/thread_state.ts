@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
@@ -20,6 +22,7 @@ import {
   TPDuration,
   TPTime,
 } from '../common/time';
+import {Anchor} from './anchor';
 
 import {globals} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
@@ -27,6 +30,7 @@ import {
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
+  Utid,
 } from './sql_types';
 import {
   constraintsToQueryFragment,
@@ -145,4 +149,54 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTime) {
   }
   globals.makeSelection(Actions.selectSlice({id, trackId}));
   scrollToTrackAndTs(trackId, ts);
+}
+
+interface ThreadStateRefAttrs {
+  id: ThreadStateSqlId;
+  ts: TPTime;
+  dur: TPDuration;
+  utid: Utid;
+  // If not present, a placeholder name will be used.
+  name?: string;
+}
+
+export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
+  view(vnode: m.Vnode<ThreadStateRefAttrs>) {
+    return m(
+        Anchor,
+        {
+          icon: 'open_in_new',
+          onclick: () => {
+            let trackId: string|number|undefined;
+            for (const track of Object.values(globals.state.tracks)) {
+              if (track.kind === 'ThreadStateTrack' &&
+                  (track.config as {utid: number}).utid === vnode.attrs.utid) {
+                trackId = track.id;
+              }
+            }
+
+            if (trackId) {
+              globals.makeSelection(Actions.selectThreadState({
+                id: vnode.attrs.id,
+                trackId: trackId.toString(),
+              }));
+
+              scrollToTrackAndTs(trackId, vnode.attrs.ts, true);
+            }
+          },
+        },
+        vnode.attrs.name ?? `Thread State ${vnode.attrs.id}`,
+    );
+  }
+}
+
+export function threadStateRef(state: ThreadState): m.Child {
+  if (state.thread === undefined) return null;
+
+  return m(ThreadStateRef, {
+    id: state.threadStateSqlId,
+    ts: state.ts,
+    dur: state.dur,
+    utid: state.thread?.utid,
+  });
 }
