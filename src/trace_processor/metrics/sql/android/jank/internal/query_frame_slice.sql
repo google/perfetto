@@ -61,7 +61,7 @@
 -- `relevant_slice_table_name` is not correct (e.g. missing cuj_id).
 DROP TABLE IF EXISTS {{table_name_prefix}}_query_slice;
 CREATE TABLE {{table_name_prefix}}_query_slice AS
-SELECT
+SELECT DISTINCT
   slice.cuj_id,
   slice.utid,
   slice.id,
