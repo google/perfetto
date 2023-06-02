@@ -39,6 +39,51 @@ def PrintProfileProto(profile):
 
 
 class Functions(TestSuite):
+
+  def test_create_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_function('f(x INT)', 'INT', 'SELECT $x + 1');
+
+        SELECT f(5) as result;
+      """,
+        out=Csv("""
+        "result"
+        6
+      """))
+
+  def test_create_function_duplicated(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_function('f()', 'INT', 'SELECT 1');
+        SELECT create_function('f()', 'INT', 'SELECT 1');
+
+        SELECT f() as result;
+      """,
+        out=Csv("""
+        "result"
+        1
+      """))
+
+  def test_create_function_recursive(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute factorial.
+        SELECT create_function('f(x INT)', 'INT', 
+        '
+          SELECT IIF($x = 0, 1, $x * f($x - 1))
+        ');
+
+        SELECT f(5) as result;
+      """,
+        out=Csv("""
+        "result"
+        120
+      """))
+
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
