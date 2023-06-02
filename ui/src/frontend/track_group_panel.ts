@@ -58,8 +58,11 @@ export class TrackGroupPanel extends Panel<Attrs> {
     const engineId = this.summaryTrackState.engineId;
     const engine = globals.engines.get(engineId);
     if (engine !== undefined) {
-      this.summaryTrack =
-          trackCreator.create({trackId: this.summaryTrackState.id, engine});
+      this.summaryTrack = trackCreator.create({
+        trackId: this.summaryTrackState.id,
+        engine: engine.getProxy(`Track; kind: ${
+            this.summaryTrackState.kind}; id: ${this.summaryTrackState.id}`),
+      });
     }
   }
 
