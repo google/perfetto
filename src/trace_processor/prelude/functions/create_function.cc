@@ -16,6 +16,9 @@
 
 #include "src/trace_processor/prelude/functions/create_function.h"
 
+#include <queue>
+#include <stack>
+
 #include "perfetto/base/status.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
@@ -47,6 +50,71 @@ base::StatusOr<ScopedStmt> CreateStatement(PerfettoSqlEngine* engine,
   return std::move(stmt);
 }
 
+base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
+                             sqlite3* db,
+                             const Prototype& prototype) {
+  int ret = sqlite3_step(stmt);
+  RETURN_IF_ERROR(SqliteRetToStatus(db, prototype.function_name, ret));
+  if (ret == SQLITE_ROW) {
+    auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(stmt);
+    return base::ErrStatus(
+        "%s: multiple values were returned when executing function body. "
+        "Executed SQL was %s",
+        prototype.function_name.c_str(), expanded_sql.get());
+  }
+  PERFETTO_DCHECK(ret == SQLITE_DONE);
+  return base::OkStatus();
+}
+
+// Note: if the returned type is string / bytes, it will be invalidated by the
+// next call to SQLite, so the caller must take care to either copy or use the
+// value before calling SQLite again.
+base::StatusOr<SqlValue> EvaluateScalarStatement(sqlite3_stmt* stmt,
+                                                 sqlite3* db,
+                                                 const Prototype& prototype) {
+  int ret = sqlite3_step(stmt);
+  RETURN_IF_ERROR(SqliteRetToStatus(db, prototype.function_name, ret));
+  if (ret == SQLITE_DONE) {
+    // No return value means we just return don't set |out|.
+    return SqlValue();
+  }
+
+  PERFETTO_DCHECK(ret == SQLITE_ROW);
+  size_t col_count = static_cast<size_t>(sqlite3_column_count(stmt));
+  if (col_count != 1) {
+    return base::ErrStatus(
+        "%s: SQL definition should only return one column: returned %zu "
+        "columns",
+        prototype.function_name.c_str(), col_count);
+  }
+
+  SqlValue result =
+      sqlite_utils::SqliteValueToSqlValue(sqlite3_column_value(stmt, 0));
+
+  // If we return a bytes type but have a null pointer, SQLite will convert this
+  // to an SQL null. However, for proto build functions, we actively want to
+  // distinguish between nulls and 0 byte strings. Therefore, change the value
+  // to an empty string.
+  if (result.type == SqlValue::kBytes && result.bytes_value == nullptr) {
+    PERFETTO_DCHECK(result.bytes_count == 0);
+    result.bytes_value = "";
+  }
+
+  return result;
+}
+
+base::Status BindArguments(sqlite3_stmt* stmt,
+                           const Prototype& prototype,
+                           size_t argc,
+                           sqlite3_value** argv) {
+  // Bind all the arguments to the appropriate places in the function.
+  for (size_t i = 0; i < argc; ++i) {
+    RETURN_IF_ERROR(MaybeBindArgument(stmt, prototype.function_name,
+                                      prototype.arguments[i], argv[i]));
+  }
+  return base::OkStatus();
+}
+
 struct CreatedFunction : public SqlFunction {
   class Context;
 
@@ -61,6 +129,10 @@ struct CreatedFunction : public SqlFunction {
 
 class Memoizer {
  public:
+  // Supported arguments. For now, only functions with a single int argument are
+  // supported.
+  using MemoizedArgs = int64_t;
+
   // Enables memoization.
   // Only functions with a single int argument returning ints are supported.
   base::Status EnableMemoization(const Prototype& prototype,
@@ -82,43 +154,37 @@ class Memoizer {
   }
 
   // Returns the memoized value for the current invocation if it exists.
-  std::optional<SqlValue> GetMemoizedValue(size_t argc, sqlite3_value** argv) {
-    std::optional<int64_t> arg = ExtractArgForMemoization(argc, argv);
-    if (!arg) {
+  std::optional<SqlValue> GetMemoizedValue(MemoizedArgs args) {
+    if (!enabled_) {
       return std::nullopt;
     }
-    int64_t* value = memoized_values_.Find(*arg);
+    int64_t* value = memoized_values_.Find(args);
     if (!value) {
       return std::nullopt;
     }
-    is_returning_memoized_value_ = true;
     return SqlValue::Long(*value);
   }
 
+  bool HasMemoizedValue(MemoizedArgs args) {
+    return GetMemoizedValue(args).has_value();
+  }
+
   // Saves the return value of the current invocation for memoization.
-  void Memoize(size_t argc, sqlite3_value** argv, SqlValue value) {
-    if (!enabled_ || value.type != SqlValue::Type::kLong) {
+  void Memoize(MemoizedArgs args, SqlValue value) {
+    if (!enabled_ || !IsSupportedReturnType(value)) {
       return;
     }
-    std::optional<int64_t> arg = ExtractArgForMemoization(argc, argv);
-    if (!arg) {
-      return;
-    }
-    memoized_values_.Insert(*arg, value.AsLong());
+    memoized_values_.Insert(args, value.AsLong());
   }
 
-  // Returns true if memoization is enabled and the current invocation should
-  // bypass post-conditions (as we do not have a statement to check).
-  bool ShouldBypassPostConditions() {
-    bool is_returning_memoized_value = is_returning_memoized_value_;
-    is_returning_memoized_value_ = false;
-    return enabled_ && is_returning_memoized_value;
+  static bool IsSupportedReturnType(const SqlValue& value) {
+    return value.type == SqlValue::Type::kLong;
   }
 
- private:
-  std::optional<int64_t> ExtractArgForMemoization(size_t argc,
-                                                  sqlite3_value** argv) {
-    if (!enabled_ || argc != 1) {
+  // Checks that the function has a single int argument and returns it.
+  static std::optional<MemoizedArgs> AsMemoizedArgs(size_t argc,
+                                                    sqlite3_value** argv) {
+    if (argc != 1) {
       return std::nullopt;
     }
     SqlValue arg = sqlite_utils::SqliteValueToSqlValue(argv[0]);
@@ -128,12 +194,210 @@ class Memoizer {
     return arg.AsLong();
   }
 
+  bool enabled() const { return enabled_; }
+
+ private:
   bool enabled_ = false;
-  base::FlatHashMap<int64_t, int64_t> memoized_values_;
-  // This is used to skip post-conditions when we are returning a memoized
-  // value. True between a successful call to GetMemoizedValue and the call to
-  // ValidatePostConditions, false otherwise.
-  bool is_returning_memoized_value_ = false;
+  base::FlatHashMap<MemoizedArgs, int64_t> memoized_values_;
+};
+
+// A helper to unroll recursive calls: to minimise the amount of stack space
+// used, memoized recursive calls are evaluated using an on-heap queue.
+//
+// We compute the function in two passes:
+// - In the first pass, we evaluate the statement to discover which recursive
+//   calls it makes, returning null from recursive calls and ignoring the
+//   result.
+// - In the second pass, we evaluate the statement again, but this time we
+//   memoize the result of each recursive call.
+//
+// We maintain a queue for scheduled "first pass" calls and a stack for the
+// scheduled "second pass" calls, evaluating available first pass calls, then
+// second pass calls. When we evaluate a first pass call, the further calls to
+// CreatedFunction::Run will just add it to the "first pass" queue. The second
+// pass, however, will evaluate the function normally, typically just using the
+// memoized result for the dependent calls. However, if the recursive calls
+// depend on the return value of the function, we will proceed with normal
+// recursion.
+//
+// To make it more concrete, consider an following example.
+// We have a function computing factorial (f) and we want to compute f(3).
+//
+// SELECT create_function('f(x INT)', 'INT',
+// 'SELECT IIF($x = 0, 1, $x * f($x - 1))');
+// SELECT experimental_memoize('f');
+// SELECT f(3);
+//
+// - We start with a call to f(3). It executes the statement as normal, which
+//   recursively calls f(2).
+// - When f(2) is called, we detect that it is a recursive call and we start
+//   unrolling it, entering RecursiveCallUnroller::Run.
+// - We schedule first pass for 2 and the state of the unroller
+//   is first_pass: [2], second_pass: [].
+// - Then we compute the first pass for f(2). It calls f(1), which is ignored
+//   due to OnFunctionCall returning kIgnoreDueToFirstPass and 1 is added to the
+//   first pass queue. 2 is taked out of the first pass queue and moved to the
+//   second pass stack. State: first_pass: [1], second_pass: [2].
+// - Then we compute the first pass for 1. The similar thing happens: f(0) is
+//   called and ignored, 0 is added to first_pass, 1 is added to second_pass.
+//   State: first_pass: [0], second_pass: [2, 1].
+// - Then we compute the first pass for 0. It doesn't make further calls, so
+//   0 is moved to the second pass stack.
+//   State: first_pass: [], second_pass: [2, 1, 0].
+// - Then we compute the second pass for 0. It just returns 1.
+//   State: first_pass: [], second_pass: [2, 1], results: {0: 1}.
+// - Then we compute the second pass for 1. It calls f(0), which is memoized.
+//   State: first_pass: [], second_pass: [2], results: {0: 1, 1: 1}.
+// - Then we compute the second pass for 1. It calls f(1), which is memoized.
+//   State: first_pass: [], second_pass: [], results: {0: 1, 1: 1, 2: 2}.
+// - As both first_pass and second_pass are empty, we return from
+//   RecursiveCallUnroller::Run.
+// - Control is returned to CreatedFunction::Run for f(2), which returns
+//   memoized value.
+// - Then control is returned to CreatedFunction::Run for f(3), which completes
+//   the computation.
+class RecursiveCallUnroller {
+ public:
+  RecursiveCallUnroller(PerfettoSqlEngine* engine,
+                        sqlite3_stmt* stmt,
+                        const Prototype& prototype,
+                        Memoizer& memoizer)
+      : engine_(engine),
+        stmt_(stmt),
+        prototype_(prototype),
+        memoizer_(memoizer) {}
+
+  // Whether we should just return null due to us being in the "first pass".
+  enum class FunctionCallState {
+    kIgnoreDueToFirstPass,
+    kEvaluate,
+  };
+
+  base::StatusOr<FunctionCallState> OnFunctionCall(
+      Memoizer::MemoizedArgs args) {
+    // If we are in the second pass, we just continue the function execution,
+    // including checking if a memoized value is available and returning it.
+    //
+    // We generally expect a memoized value to be available, but there are
+    // cases when it might not be the case, e.g. when which recursive calls are
+    // made depends on the return value of the function, e.g. for the following
+    // function, the first pass will not detect f(y) calls, so they will
+    // be computed recursively.
+    // f(x): SELECT max(f(y)) FROM y WHERE y < f($x - 1);
+    if (state_ == State::kComputingSecondPass) {
+      return FunctionCallState::kEvaluate;
+    }
+    if (!memoizer_.HasMemoizedValue(args)) {
+      ArgState* state = visited_.Find(args);
+      if (state) {
+        // Detect recursive loops, e.g. f(1) calling f(2) calling f(1).
+        if (*state == ArgState::kEvaluating) {
+          return base::ErrStatus("Infinite recursion detected");
+        }
+      } else {
+        visited_.Insert(args, ArgState::kScheduled);
+        first_pass_.push(args);
+      }
+    }
+    return FunctionCallState::kIgnoreDueToFirstPass;
+  }
+
+  base::Status Run(Memoizer::MemoizedArgs initial_args) {
+    PERFETTO_TP_TRACE(metatrace::Category::FUNCTION,
+                      "UNROLL_RECURSIVE_FUNCTION_CALL",
+                      [&](metatrace::Record* r) {
+                        r->AddArg("Function", prototype_.function_name);
+                        r->AddArg("Arg 0", std::to_string(initial_args));
+                      });
+
+    first_pass_.push(initial_args);
+    visited_.Insert(initial_args, ArgState::kScheduled);
+
+    while (!first_pass_.empty() || !second_pass_.empty()) {
+      // If we have scheduled first pass calls, we evaluate them first.
+      if (!first_pass_.empty()) {
+        state_ = State::kComputingFirstPass;
+        Memoizer::MemoizedArgs args = first_pass_.front();
+
+        PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
+                          [&](metatrace::Record* r) {
+                            r->AddArg("Function", prototype_.function_name);
+                            r->AddArg("Type", "UnrollRecursiveCall_FirstPass");
+                            r->AddArg("Arg 0", std::to_string(args));
+                          });
+
+        first_pass_.pop();
+        second_pass_.push(args);
+        Evaluate(args).status();
+        continue;
+      }
+
+      state_ = State::kComputingSecondPass;
+      Memoizer::MemoizedArgs args = second_pass_.top();
+
+      PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
+                        [&](metatrace::Record* r) {
+                          r->AddArg("Function", prototype_.function_name);
+                          r->AddArg("Type", "UnrollRecursiveCall_SecondPass");
+                          r->AddArg("Arg 0", std::to_string(args));
+                        });
+
+      visited_.Insert(args, ArgState::kEvaluating);
+      second_pass_.pop();
+      base::StatusOr<std::optional<int64_t>> result = Evaluate(args);
+      RETURN_IF_ERROR(result.status());
+      std::optional<int64_t> maybe_int_result = result.value();
+      if (!maybe_int_result.has_value()) {
+        continue;
+      }
+      visited_.Insert(args, ArgState::kEvaluated);
+      memoizer_.Memoize(args, SqlValue::Long(*maybe_int_result));
+    }
+    return base::OkStatus();
+  }
+
+ private:
+  // This function returns:
+  // - base::ErrStatus if the evaluation of the function failed.
+  // - std::nullopt if the function returned a non-integer value.
+  // - the result of the function otherwise.
+  base::StatusOr<std::optional<int64_t>> Evaluate(Memoizer::MemoizedArgs args) {
+    RETURN_IF_ERROR(MaybeBindIntArgument(stmt_, prototype_.function_name,
+                                         prototype_.arguments[0], args));
+    base::StatusOr<SqlValue> result = EvaluateScalarStatement(
+        stmt_, engine_->sqlite_engine()->db(), prototype_);
+    sqlite3_reset(stmt_);
+    sqlite3_clear_bindings(stmt_);
+    RETURN_IF_ERROR(result.status());
+    if (result->type != SqlValue::Type::kLong) {
+      return std::optional<int64_t>(std::nullopt);
+    }
+    return std::optional<int64_t>(result->long_value);
+  }
+
+  PerfettoSqlEngine* engine_;
+  sqlite3_stmt* stmt_;
+  const Prototype& prototype_;
+  Memoizer& memoizer_;
+
+  // Current state of the evaluation.
+  enum class State {
+    kComputingFirstPass,
+    kComputingSecondPass,
+  };
+  State state_ = State::kComputingFirstPass;
+
+  // A state of evaluation of a given argument.
+  enum class ArgState {
+    kScheduled,
+    kEvaluating,
+    kEvaluated,
+  };
+
+  // See the class-level comment for the explanation of the two passes.
+  std::queue<Memoizer::MemoizedArgs> first_pass_;
+  base::FlatHashMap<Memoizer::MemoizedArgs, ArgState> visited_;
+  std::stack<Memoizer::MemoizedArgs> second_pass_;
 };
 
 // This class is used to store the state of a CREATE_FUNCTION call.
@@ -200,6 +464,57 @@ class CreatedFunction::Context {
     --current_recursion_level_;
   }
 
+  base::StatusOr<RecursiveCallUnroller::FunctionCallState> OnFunctionCall(
+      Memoizer::MemoizedArgs args) {
+    if (!recursive_call_unroller_) {
+      return RecursiveCallUnroller::FunctionCallState::kEvaluate;
+    }
+    return recursive_call_unroller_->OnFunctionCall(args);
+  }
+
+  // Called before checking the function for memoization.
+  base::Status UnrollRecursiveCallIfNeeded(Memoizer::MemoizedArgs args) {
+    if (!memoizer_.enabled() || !is_in_recursive_call() ||
+        recursive_call_unroller_) {
+      return base::OkStatus();
+    }
+    // If we are in a recursive call, we need to check if we have already
+    // computed the result for the current arguments.
+    if (memoizer_.HasMemoizedValue(args)) {
+      return base::OkStatus();
+    }
+
+    // If we are in a beginning of a function call:
+    // - is a recursive,
+    // - can be memoized,
+    // - hasn't been memoized already, and
+    // - hasn't start unrolling yet;
+    // start the unrolling and run the unrolling loop.
+    recursive_call_unroller_ = std::make_unique<RecursiveCallUnroller>(
+        engine_, CurrentStatement(), prototype_, memoizer_);
+    auto status = recursive_call_unroller_->Run(args);
+    recursive_call_unroller_.reset();
+    return status;
+  }
+
+  // Schedule a statement to be validated that it is indeed doesn't have any
+  // more rows.
+  void ScheduleEmptyStatementValidation(sqlite3_stmt* stmt) {
+    empty_stmts_to_validate_.push_back(stmt);
+  }
+
+  base::Status ValidateEmptyStatements() {
+    while (!empty_stmts_to_validate_.empty()) {
+      sqlite3_stmt* stmt = empty_stmts_to_validate_.back();
+      empty_stmts_to_validate_.pop_back();
+      RETURN_IF_ERROR(
+          CheckNoMoreRows(stmt, engine_->sqlite_engine()->db(), prototype_));
+    }
+    return base::OkStatus();
+  }
+
+  bool is_in_recursive_call() const { return current_recursion_level_ > 1; }
+
   base::Status EnableMemoization() {
     return memoizer_.EnableMemoization(prototype_, return_type_);
   }
@@ -227,6 +542,9 @@ class CreatedFunction::Context {
   // statements and use the top one for each new call (allocating a new one if
   // needed).
   std::vector<ScopedStmt> stmts_;
+  // A list of statements to verify to ensure that they don't have more rows
+  // in VerifyPostConditions.
+  std::vector<sqlite3_stmt*> empty_stmts_to_validate_;
   size_t current_recursion_level_ = 0;
   // Function re-registration is not allowed, but the user is allowed to define
   // the function again if the first call failed. |is_valid_| flag helps that
@@ -234,6 +552,8 @@ class CreatedFunction::Context {
   // re-registration is not allowed).
   bool is_valid_ = false;
   Memoizer memoizer_;
+  // Set if we are in a middle of unrolling a recursive call.
+  std::unique_ptr<RecursiveCallUnroller> recursive_call_unroller_;
 };
 
 base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
@@ -241,9 +561,6 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                                   sqlite3_value** argv,
                                   SqlValue& out,
                                   Destructors&) {
-  // Enter the function and ensure that we have a statement allocated.
-  RETURN_IF_ERROR(ctx->PushStackEntry());
-
   if (argc != ctx->prototype().arguments.size()) {
     return base::ErrStatus(
         "%s: invalid number of args; expected %zu, received %zu",
@@ -265,15 +582,37 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
     }
   }
 
-  std::optional<SqlValue> memoized_value =
-      ctx->memoizer().GetMemoizedValue(argc, argv);
-  if (memoized_value) {
-    out = *memoized_value;
-    return base::OkStatus();
+  // Enter the function and ensure that we have a statement allocated.
+  RETURN_IF_ERROR(ctx->PushStackEntry());
+
+  std::optional<Memoizer::MemoizedArgs> memoized_args =
+      Memoizer::AsMemoizedArgs(argc, argv);
+
+  if (memoized_args) {
+    // If we are in the middle of an recursive calls unrolling, we might want to
+    // ignore the function invocation. See the comment in RecursiveCallUnroller
+    // for more details.
+    base::StatusOr<RecursiveCallUnroller::FunctionCallState> unroll_state =
+        ctx->OnFunctionCall(*memoized_args);
+    RETURN_IF_ERROR(unroll_state.status());
+    if (*unroll_state ==
+        RecursiveCallUnroller::FunctionCallState::kIgnoreDueToFirstPass) {
+      // Return NULL.
+      return base::OkStatus();
+    }
+
+    RETURN_IF_ERROR(ctx->UnrollRecursiveCallIfNeeded(*memoized_args));
+
+    std::optional<SqlValue> memoized_value =
+        ctx->memoizer().GetMemoizedValue(*memoized_args);
+    if (memoized_value) {
+      out = *memoized_value;
+      return base::OkStatus();
+    }
   }
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::FUNCTION, "CREATE_FUNCTION",
+      metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
       [ctx, argv](metatrace::Record* r) {
         r->AddArg("Function", ctx->prototype().function_name.c_str());
         for (uint32_t i = 0; i < ctx->prototype().arguments.size(); ++i) {
@@ -285,69 +624,30 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
         }
       });
 
-  // Bind all the arguments to the appropriate places in the function.
-  for (size_t i = 0; i < argc; ++i) {
-    RETURN_IF_ERROR(MaybeBindArgument(ctx->CurrentStatement(),
-                                      ctx->prototype().function_name,
-                                      ctx->prototype().arguments[i], argv[i]));
+  RETURN_IF_ERROR(
+      BindArguments(ctx->CurrentStatement(), ctx->prototype(), argc, argv));
+  auto result = EvaluateScalarStatement(ctx->CurrentStatement(),
+                                        ctx->engine()->sqlite_engine()->db(),
+                                        ctx->prototype());
+  RETURN_IF_ERROR(result.status());
+  out = result.value();
+  ctx->ScheduleEmptyStatementValidation(ctx->CurrentStatement());
+
+  if (memoized_args) {
+    ctx->memoizer().Memoize(*memoized_args, out);
   }
 
-  int ret = sqlite3_step(ctx->CurrentStatement());
-  RETURN_IF_ERROR(SqliteRetToStatus(ctx->engine()->sqlite_engine()->db(),
-                                    ctx->prototype().function_name, ret));
-  if (ret == SQLITE_DONE) {
-    // No return value means we just return don't set |out|.
-    return base::OkStatus();
-  }
-
-  PERFETTO_DCHECK(ret == SQLITE_ROW);
-  size_t col_count =
-      static_cast<size_t>(sqlite3_column_count(ctx->CurrentStatement()));
-  if (col_count != 1) {
-    return base::ErrStatus(
-        "%s: SQL definition should only return one column: returned %zu "
-        "columns",
-        ctx->prototype().function_name.c_str(), col_count);
-  }
-  out = sqlite_utils::SqliteValueToSqlValue(
-      sqlite3_column_value(ctx->CurrentStatement(), 0));
-  ctx->memoizer().Memoize(argc, argv, out);
-
-  // If we return a bytes type but have a null pointer, SQLite will convert this
-  // to an SQL null. However, for proto build functions, we actively want to
-  // distinguish between nulls and 0 byte strings. Therefore, change the value
-  // to an empty string.
-  if (out.type == SqlValue::kBytes && out.bytes_value == nullptr) {
-    PERFETTO_DCHECK(out.bytes_count == 0);
-    out.bytes_value = "";
-  }
-  return base::OkStatus();
-}
-
-base::Status CreatedFunction::VerifyPostConditions(Context* ctx) {
-  // If we returned a memoized value, we don't need to verify post-conditions as
-  // we didn't run a statement.
-  if (ctx->memoizer().ShouldBypassPostConditions()) {
-    return base::OkStatus();
-  }
-  int ret = sqlite3_step(ctx->CurrentStatement());
-  RETURN_IF_ERROR(SqliteRetToStatus(ctx->engine()->sqlite_engine()->db(),
-                                    ctx->prototype().function_name, ret));
-  if (ret == SQLITE_ROW) {
-    auto expanded_sql =
-        sqlite_utils::ExpandedSqlForStmt(ctx->CurrentStatement());
-    return base::ErrStatus(
-        "%s: multiple values were returned when executing function body. "
-        "Executed SQL was %s",
-        ctx->prototype().function_name.c_str(), expanded_sql.get());
-  }
-  PERFETTO_DCHECK(ret == SQLITE_DONE);
   return base::OkStatus();
 }
 
 void CreatedFunction::Cleanup(CreatedFunction::Context* ctx) {
   // Clear the statement.
   ctx->PopStackEntry();
+}
+
+base::Status CreatedFunction::VerifyPostConditions(
+    CreatedFunction::Context* ctx) {
+  return ctx->ValidateEmptyStatements();
 }
 
 }  // namespace
