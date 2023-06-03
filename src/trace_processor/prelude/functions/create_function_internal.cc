@@ -92,5 +92,26 @@ base::Status MaybeBindArgument(sqlite3_stmt* stmt,
   return base::OkStatus();
 }
 
+base::Status MaybeBindIntArgument(sqlite3_stmt* stmt,
+                                  const std::string& function_name,
+                                  const sql_argument::ArgumentDefinition& arg,
+                                  int64_t value) {
+  int index = sqlite3_bind_parameter_index(stmt, arg.dollar_name().c_str());
+
+  // If the argument is not in the query, this just means its an unused
+  // argument which we can just ignore.
+  if (index == 0)
+    return base::Status();
+
+  int ret = sqlite3_bind_int64(stmt, index, value);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus(
+        "%s: SQLite error while binding value to argument %s: %s",
+        function_name.c_str(), arg.name().c_str(),
+        sqlite3_errmsg(sqlite3_db_handle(stmt)));
+  }
+  return base::OkStatus();
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
