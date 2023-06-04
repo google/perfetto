@@ -15,10 +15,17 @@
  */
 
 #include <array>
+#include <cstddef>
+#include <memory>
 #include <numeric>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+#include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/db/overlays/null_overlay.h"
+#include "src/trace_processor/db/overlays/storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
+#include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/table.h"
 
 namespace perfetto {
@@ -36,6 +43,8 @@ using TableIndexVector = overlays::TableIndexVector;
 using StorageIndexVector = overlays::StorageIndexVector;
 using TableBitVector = overlays::TableBitVector;
 using StorageBitVector = overlays::StorageBitVector;
+using OverlaysVec = base::SmallVector<const overlays::StorageOverlay*,
+                                      QueryExecutor::kMaxOverlayCount>;
 
 // Helper struct to simplify operations on |global| and |current| sets of
 // indices. Having this coupling enables efficient implementation of
@@ -112,6 +121,9 @@ struct IndexFilterHelper {
 void QueryExecutor::FilterColumn(const Constraint& c,
                                  const SimpleColumn& col,
                                  RowMap* rm) {
+  if (rm->empty())
+    return;
+
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm->size() - 1);
   uint32_t range_size = rm_last - rm_first;
@@ -211,6 +223,59 @@ RowMap QueryExecutor::IndexedColumnFilter(const Constraint& c,
 
   std::sort(valid.begin(), valid.end());
   return RowMap(std::move(valid));
+}
+
+RowMap QueryExecutor::FilterLegacy(const Table* table,
+                                   const std::vector<Constraint>& c_vec) {
+  std::vector<std::unique_ptr<storage::Storage>> storages;
+  std::vector<std::unique_ptr<overlays::StorageOverlay>> null_overlays;
+
+  for (const auto& col : table->columns()) {
+    bool invalid_col_type = col.col_type() == ColumnType::kString ||
+                            col.col_type() == ColumnType::kDummy ||
+                            col.col_type() == ColumnType::kId;
+    if (invalid_col_type || col.IsSorted() || col.IsDense()) {
+      storages.emplace_back();
+      null_overlays.emplace_back();
+      continue;
+    }
+
+    const void* s_data = col.storage_base().data();
+    uint32_t s_size = col.storage_base().size();
+    auto storage = std::make_unique<storage::NumericStorage>(s_data, s_size,
+                                                             col.col_type());
+    storages.emplace_back(std::move(storage));
+
+    if (col.IsNullable()) {
+      auto null_overlay =
+          std::make_unique<overlays::NullOverlay>(col.storage_base().bv());
+      null_overlays.emplace_back(std::move(null_overlay));
+    } else {
+      null_overlays.emplace_back();
+    }
+  }
+
+  RowMap rm(0, table->row_count());
+  for (auto c : c_vec) {
+    const Column& col = table->columns()[c.col_idx];
+    bool mismatched_col_type = col.type() != c.value.type;
+    bool has_selector =
+        !storages[c.col_idx] ||
+        col.overlay().row_map().size() != col.storage_base().size();
+    PERFETTO_DCHECK(!col.overlay().row_map().IsIndexVector());
+    if (!storages[c.col_idx] || mismatched_col_type || has_selector) {
+      col.FilterInto(c.op, c.value, &rm);
+      continue;
+    }
+
+    SimpleColumn s_col{OverlaysVec(), storages[c.col_idx].get()};
+
+    if (null_overlays[c.col_idx])
+      s_col.overlays.emplace_back(null_overlays[c.col_idx].get());
+
+    FilterColumn(c, s_col, &rm);
+  }
+  return rm;
 }
 
 }  // namespace trace_processor
