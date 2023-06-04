@@ -77,7 +77,7 @@ TEST(NullOverlay, IsStorageLookupRequiredNullOp) {
   BitVector lookup_bv =
       overlay.IsStorageLookupRequired(OverlayOp::kIsNull, {table_idx});
 
-  ASSERT_EQ(lookup_bv.size(), 0u);
+  ASSERT_EQ(lookup_bv.CountSetBits(), 0u);
 }
 
 TEST(NullOverlay, IsStorageLookupRequiredOtherOp) {
@@ -112,7 +112,7 @@ TEST(NullOverlay, IndexSearchOtherOp) {
   std::vector<uint32_t> table_idx{0, 3, 4};
   BitVector idx_search_bv = overlay.IndexSearch(OverlayOp::kOther, {table_idx});
 
-  ASSERT_EQ(idx_search_bv.size(), 0u);
+  ASSERT_EQ(idx_search_bv.CountSetBits(), 0u);
 }
 
 TEST(NullOverlay, IndexSearchIsNullOp) {
