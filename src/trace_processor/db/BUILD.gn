@@ -24,8 +24,6 @@ source_set("db") {
     "column_storage.h",
     "column_storage_overlay.h",
     "compare.h",
-    "null_overlay.cc",
-    "null_overlay.h",
     "query_executor.cc",
     "query_executor.h",
     "table.cc",
