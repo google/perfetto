@@ -414,6 +414,8 @@ class Column {
     return *static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
 
+  const ColumnStorageBase& storage_base() const { return *storage_; }
+
  protected:
   // Returns the backing sparse vector cast to contain data of type T.
   // Should only be called when |type_| == ToColumnType<T>().
