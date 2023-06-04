@@ -29,6 +29,7 @@ source_set("overlays") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../storage",
   ]
 }
 
