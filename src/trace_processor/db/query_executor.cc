@@ -41,8 +41,10 @@ using StorageBitVector = overlays::StorageBitVector;
 // indices. Having this coupling enables efficient implementation of
 // IndexedColumnFilter.
 struct IndexFilterHelper {
-  explicit IndexFilterHelper(std::vector<uint32_t> indices)
-      : IndexFilterHelper(indices, std::move(indices)) {}
+  explicit IndexFilterHelper(std::vector<uint32_t> indices) {
+    current_ = indices;
+    global_ = std::move(indices);
+  }
 
   // Removes pairs of elements that are not set in the |bv| and returns
   // Indices made of them.
@@ -96,10 +98,6 @@ struct IndexFilterHelper {
 
  private:
   IndexFilterHelper() = default;
-  IndexFilterHelper(std::vector<uint32_t> current, std::vector<uint32_t> global)
-      : current_(std::move(current)), global_(std::move(global)) {
-    PERFETTO_CHECK(current_.size() == global_.size());
-  }
 
   void PushBack(std::pair<uint32_t, uint32_t> cur_and_global_idx) {
     current_.push_back(cur_and_global_idx.first);
