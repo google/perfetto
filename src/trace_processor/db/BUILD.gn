@@ -26,6 +26,8 @@ source_set("db") {
     "compare.h",
     "null_overlay.cc",
     "null_overlay.h",
+    "query_executor.cc",
+    "query_executor.h",
     "table.cc",
     "table.h",
     "typed_column.h",
@@ -54,6 +56,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
+    "query_executor_unittest.cc",
     "view_unittest.cc",
   ]
   deps = [
@@ -64,6 +67,8 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../tables",
     "../views",
+    "overlays",
+    "storage",
   ]
 }
 

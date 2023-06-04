@@ -39,6 +39,9 @@ TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv,
   if (op != OverlayOp::kIsNull)
     return {std::move(res)};
 
+  if (res.CountSetBits() == 0)
+    return {non_null_->Not()};
+
   BitVector not_non_null = non_null_->Not();
   res.Or(not_non_null);
   return {std::move(res)};
@@ -50,7 +53,7 @@ BitVector NullOverlay::IsStorageLookupRequired(
   PERFETTO_DCHECK(t_iv.indices.size() <= non_null_->size());
 
   if (op != OverlayOp::kOther)
-    return BitVector();
+    return BitVector(t_iv.size(), false);
 
   BitVector in_storage(static_cast<uint32_t>(t_iv.indices.size()), false);
 
@@ -81,7 +84,7 @@ BitVector NullOverlay::IndexSearch(
     OverlayOp op,
     const TableIndexVector& t_iv_overlay_idx) const {
   if (op == OverlayOp::kOther)
-    return BitVector();
+    return BitVector(t_iv_overlay_idx.size(), false);
 
   BitVector res(static_cast<uint32_t>(t_iv_overlay_idx.indices.size()), false);
   if (op == OverlayOp::kIsNull) {

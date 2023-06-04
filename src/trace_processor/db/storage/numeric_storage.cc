@@ -240,7 +240,7 @@ BitVector NumericStorage::LinearSearch(FilterOp op,
     return BitVector(size(), true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector();
+    return BitVector(size(), false);
 
   BitVector::Builder builder(range.end);
   builder.Skip(range.start);
@@ -267,7 +267,7 @@ BitVector NumericStorage::IndexSearch(FilterOp op,
     return BitVector(size(), true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector();
+    return BitVector(size(), false);
 
   BitVector::Builder builder(indices_count);
   std::visit(

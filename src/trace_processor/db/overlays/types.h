@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -46,11 +47,15 @@ struct StorageBitVector {
 // Represents a vector of indices in the table space.
 struct TableIndexVector {
   std::vector<uint32_t> indices;
+
+  uint32_t size() const { return static_cast<uint32_t>(indices.size()); }
 };
 
 // Represents a vector of indices in the storage space.
 struct StorageIndexVector {
   std::vector<uint32_t> indices;
+
+  uint32_t size() const { return static_cast<uint32_t>(indices.size()); }
 };
 
 // A subset of FilterOp containing operations which can be handled by
@@ -60,6 +65,16 @@ enum class OverlayOp {
   kIsNotNull,
   kOther,
 };
+
+inline OverlayOp FilterOpToOverlayOp(FilterOp op) {
+  if (op == FilterOp::kIsNull) {
+    return OverlayOp::kIsNull;
+  }
+  if (op == FilterOp::kIsNotNull) {
+    return OverlayOp::kIsNotNull;
+  }
+  return OverlayOp::kOther;
+}
 
 // Contains estimates of the cost for each of method in this class per row.
 struct CostEstimatePerRow {
