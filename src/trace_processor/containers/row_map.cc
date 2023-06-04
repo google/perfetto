@@ -150,10 +150,7 @@ RowMap Select(const std::vector<uint32_t>& iv,
 }
 
 Variant IntersectInternal(BitVector& first, const BitVector& second) {
-  for (auto set_bit = first.IterateSetBits(); set_bit; set_bit.Next()) {
-    if (!second.IsSet(set_bit.index()))
-      set_bit.Clear();
-  }
+  first.And(second);
   return std::move(first);
 }
 
