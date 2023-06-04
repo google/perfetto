@@ -1310,8 +1310,6 @@ perfetto_filegroup(
         "src/trace_processor/db/column_storage.h",
         "src/trace_processor/db/column_storage_overlay.h",
         "src/trace_processor/db/compare.h",
-        "src/trace_processor/db/null_overlay.cc",
-        "src/trace_processor/db/null_overlay.h",
         "src/trace_processor/db/query_executor.cc",
         "src/trace_processor/db/query_executor.h",
         "src/trace_processor/db/table.cc",
