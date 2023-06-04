@@ -63,9 +63,7 @@ class QueryExecutor {
 
   // Enables QueryExecutor::Filter on Table columns.
   // TODO(b/283763282): Implement.
-  static RowMap FilterLegacy(const Table*, const std::vector<Constraint>&) {
-    PERFETTO_FATAL("Not implemented.");
-  }
+  static RowMap FilterLegacy(const Table*, const std::vector<Constraint>&);
 
   // Enables QueryExecutor::Sort on Table columns.
   // TODO(b/283763282): Implement.

@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_COLUMN_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_STORAGE_H_
 
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/nullable_vector.h"
 
 namespace perfetto {
@@ -34,11 +35,15 @@ class ColumnStorageBase {
 
   ColumnStorageBase(ColumnStorageBase&&) = default;
   ColumnStorageBase& operator=(ColumnStorageBase&&) noexcept = default;
+
+  virtual const void* data() const = 0;
+  virtual const BitVector* bv() const = 0;
+  virtual uint32_t size() const = 0;
 };
 
 // Class used for implementing storage for non-null columns.
 template <typename T>
-class ColumnStorage : public ColumnStorageBase {
+class ColumnStorage final : public ColumnStorageBase {
  public:
   ColumnStorage() = default;
 
@@ -51,9 +56,12 @@ class ColumnStorage : public ColumnStorageBase {
   T Get(uint32_t idx) const { return vector_[idx]; }
   void Append(T val) { vector_.emplace_back(val); }
   void Set(uint32_t idx, T val) { vector_[idx] = val; }
-  uint32_t size() const { return static_cast<uint32_t>(vector_.size()); }
   void ShrinkToFit() { vector_.shrink_to_fit(); }
   const std::vector<T>& vector() const { return vector_; }
+
+  const void* data() const final { return vector_.data(); }
+  const BitVector* bv() const final { return nullptr; }
+  uint32_t size() const final { return static_cast<uint32_t>(vector_.size()); }
 
   template <bool IsDense>
   static ColumnStorage<T> Create() {
@@ -67,7 +75,7 @@ class ColumnStorage : public ColumnStorageBase {
 
 // Class used for implementing storage for nullable columns.
 template <typename T>
-class ColumnStorage<std::optional<T>> : public ColumnStorageBase {
+class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
  public:
   ColumnStorage() = default;
 
@@ -81,7 +89,6 @@ class ColumnStorage<std::optional<T>> : public ColumnStorageBase {
   void Append(T val) { nv_.Append(val); }
   void Append(std::optional<T> val) { nv_.Append(std::move(val)); }
   void Set(uint32_t idx, T val) { nv_.Set(idx, val); }
-  uint32_t size() const { return nv_.size(); }
   bool IsDense() const { return nv_.IsDense(); }
   void ShrinkToFit() { nv_.ShrinkToFit(); }
   // For dense columns the size of the vector is equal to size of the bit
@@ -92,6 +99,9 @@ class ColumnStorage<std::optional<T>> : public ColumnStorageBase {
   const BitVector& non_null_bit_vector() const {
     return nv_.non_null_bit_vector();
   }
+  const void* data() const final { return nv_.non_null_vector().data(); }
+  const BitVector* bv() const final { return &nv_.non_null_bit_vector(); }
+  uint32_t size() const final { return nv_.size(); }
 
   template <bool IsDense>
   static ColumnStorage<std::optional<T>> Create() {
