@@ -84,6 +84,9 @@ class BitVector {
 
     // Creates a BitVector from this Builder.
     BitVector Build() && {
+      if (size_ == 0)
+        return BitVector();
+
       Address addr = IndexToAddress(size_ - 1);
       uint32_t no_blocks = addr.block_idx + 1;
       std::vector<uint32_t> counts(no_blocks);
@@ -149,7 +152,10 @@ class BitVector {
   BitVector Not() const;
 
   // Bitwise Or of the bitvector.
-  void Or(BitVector&);
+  void Or(const BitVector&);
+
+  // Bitwise Or of the bitvector.
+  void And(const BitVector&);
 
   // Returns the size of the bitvector.
   uint32_t size() const { return static_cast<uint32_t>(size_); }
@@ -420,6 +426,9 @@ class BitVector {
 
     // Bitwise ors the given |mask| to the current value.
     void Or(uint64_t mask) { *word_ |= mask; }
+
+    // Bitwise ands the given |mask| to the current value.
+    void And(uint64_t mask) { *word_ &= mask; }
 
     // Sets the bit at the given index to true.
     void Set(uint32_t idx) {
