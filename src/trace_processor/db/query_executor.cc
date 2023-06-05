@@ -124,15 +124,14 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   if (rm->empty())
     return;
 
+  uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
-  uint32_t rm_last = rm->Get(rm->size() - 1);
+  uint32_t rm_last = rm->Get(rm_size - 1);
   uint32_t range_size = rm_last - rm_first;
-  // If the range is less than 50% full and size() < 1024, choose the index
-  // algorithm.
-  // TODO(b/283763282):Use Overlay estimations.
-  if (rm->IsIndexVector() ||
-      (rm->size() < 1024 &&
-       (static_cast<double>(rm->size()) / range_size < 0.5))) {
+  // If the number of elements in the rowmap is small or the number of elements
+  // is less than 1/10th of the range, use indexed filtering.
+  // TODO(b/283763282): use Overlay estimations.
+  if (rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size) {
     *rm = IndexSearch(c, col, rm);
     return;
   }
