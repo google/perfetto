@@ -39,6 +39,7 @@ class ColumnStorageBase {
   virtual const void* data() const = 0;
   virtual const BitVector* bv() const = 0;
   virtual uint32_t size() const = 0;
+  virtual uint32_t non_null_size() const = 0;
 };
 
 // Class used for implementing storage for non-null columns.
@@ -62,6 +63,7 @@ class ColumnStorage final : public ColumnStorageBase {
   const void* data() const final { return vector_.data(); }
   const BitVector* bv() const final { return nullptr; }
   uint32_t size() const final { return static_cast<uint32_t>(vector_.size()); }
+  uint32_t non_null_size() const final { return size(); }
 
   template <bool IsDense>
   static ColumnStorage<T> Create() {
@@ -99,9 +101,13 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
   const BitVector& non_null_bit_vector() const {
     return nv_.non_null_bit_vector();
   }
+
   const void* data() const final { return nv_.non_null_vector().data(); }
   const BitVector* bv() const final { return &nv_.non_null_bit_vector(); }
   uint32_t size() const final { return nv_.size(); }
+  uint32_t non_null_size() const final {
+    return static_cast<uint32_t>(nv_.non_null_vector().size());
+  }
 
   template <bool IsDense>
   static ColumnStorage<std::optional<T>> Create() {
