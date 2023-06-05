@@ -709,12 +709,13 @@ struct CommandLineOptions {
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  std::vector<std::string> dev_flags;
 };
 
 void PrintUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
-Usage: %s [OPTIONS] trace_file.pb
+Usage: %s [FLAGS] trace_file.pb
 
 Options:
  -h, --help                           Prints this guide.
@@ -739,12 +740,8 @@ Options:
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
- -m, --metatrace FILE                 Enables metatracing of trace processor
-                                      writing the resulting trace into FILE.
- --metatrace-buffer-capacity N        Sets metatrace event buffer to capture
-                                      last N events.
- --metatrace-categories CATEGORIES    A comma-separated list of metatrace
-                                      categories to enable.
+
+Feature flags:
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.
@@ -762,6 +759,9 @@ Options:
                                       *should not* be enabled on production
                                       builds. The features behind this flag can
                                       break at any time without any warning.
+ --dev-flag KEY=VALUE                 Set a development flag to the given value.
+                                      Does not have any affect unless --dev is
+                                      specified.
 
 Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
@@ -794,7 +794,15 @@ Metrics:
                                       Loads metric proto and sql files from
                                       DISK_PATH/protos and DISK_PATH/sql
                                       respectively, and mounts them onto
-                                      VIRTUAL_PATH.)",
+                                      VIRTUAL_PATH.
+
+Metatracing:
+ -m, --metatrace FILE                 Enables metatracing of trace processor
+                                      writing the resulting trace into FILE.
+ --metatrace-buffer-capacity N        Sets metatrace event buffer to capture
+                                      last N events.
+ --metatrace-categories CATEGORIES    A comma-separated list of metatrace
+                                      categories to enable.)",
                 argv[0]);
 }
 
@@ -816,6 +824,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METATRACE_CATEGORIES,
     OPT_ANALYZE_TRACE_PROTO_CONTENT,
     OPT_CROP_TRACK_EVENTS,
+    OPT_DEV_FLAG,
   };
 
   static const option long_options[] = {
@@ -848,6 +857,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+      {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -983,6 +993,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
 
     if (option == OPT_METRIC_EXTENSION) {
       command_line_options.raw_metric_extensions.push_back(optarg);
+      continue;
+    }
+
+    if (option == OPT_DEV_FLAG) {
+      command_line_options.dev_flags.push_back(optarg);
       continue;
     }
 
@@ -1573,6 +1588,14 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   if (options.dev) {
     config.enable_dev_features = true;
+    for (const auto& flag_pair : options.dev_flags) {
+      auto kv = base::SplitString(flag_pair, "=");
+      if (kv.size() != 2) {
+        PERFETTO_ELOG("Ignoring unknown dev flag format %s", flag_pair.c_str());
+        continue;
+      }
+      config.dev_flags.emplace(kv[0], kv[1]);
+    }
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
@@ -1633,7 +1656,6 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   if (!options.pre_metrics_path.empty()) {
     RETURN_IF_ERROR(RunQueries(options.pre_metrics_path, false));
   }
-
 
   std::vector<MetricNameAndPath> metrics;
   if (!options.metric_names.empty()) {
