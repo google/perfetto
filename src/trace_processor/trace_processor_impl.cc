@@ -384,6 +384,18 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.content_analyzer.reset(new ProtoContentAnalyzer(&context_));
   }
 
+  auto v2 = context_.config.dev_flags.find("enable_db2_filtering");
+  if (v2 != context_.config.dev_flags.end()) {
+    if (v2->second == "true") {
+      Table::kUseFilterV2 = true;
+    } else if (v2->second == "false") {
+      Table::kUseFilterV2 = false;
+    } else {
+      PERFETTO_ELOG("Unknown value for enable_db2_filtering %s",
+                    v2->second.c_str());
+    }
+  }
+
   sqlite3_str_split_init(engine_.sqlite_engine()->db());
   RegisterAdditionalModules(&context_);
 
