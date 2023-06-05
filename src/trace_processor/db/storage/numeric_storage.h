@@ -26,7 +26,7 @@ namespace trace_processor {
 namespace storage {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
-class NumericStorage : public Storage {
+class NumericStorage final : public Storage {
  public:
   NumericStorage(const void* data, uint32_t size, ColumnType type)
       : type_(type), data_(data), size_(size) {}
