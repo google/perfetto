@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -425,6 +426,27 @@ class RowMap {
                                 [p](uint32_t i) { return !p(i); });
       vec->erase(ret, vec->end());
       return;
+    }
+    NoVariantMatched();
+  }
+
+  // Converts this RowMap to an index vector in the most efficient way
+  // possible.
+  std::vector<uint32_t> TakeAsIndexVector() const&& {
+    if (auto* range = std::get_if<Range>(&data_)) {
+      std::vector<uint32_t> rm(range->size());
+      std::iota(rm.begin(), rm.end(), range->start);
+      return rm;
+    }
+    if (auto* bv = std::get_if<BitVector>(&data_)) {
+      std::vector<uint32_t> rm(bv->CountSetBits());
+      for (auto it = bv->IterateSetBits(); it; it.Next()) {
+        rm[it.ordinal()] = it.index();
+      }
+      return rm;
+    }
+    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+      return std::move(*vec);
     }
     NoVariantMatched();
   }
