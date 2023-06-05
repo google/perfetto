@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 #include "src/trace_processor/importers/ftrace/thread_state_tracker.h"
+#include <optional>
 
 namespace perfetto {
 namespace trace_processor {
@@ -67,9 +68,13 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
     // in the |thread_state| table but we track in the |sched_wakeup| table.
     // The |thread_state_id| in |sched_wakeup| is the current running/runnable
     // event.
+    std::optional<uint32_t> irq_context =
+        common_flags
+            ? std::make_optional(CommonFlagsToIrqContext(*common_flags))
+            : std::nullopt;
     storage_->mutable_spurious_sched_wakeup_table()->Insert(
         {event_ts, prev_row_numbers_for_thread_[utid]->last_row.row_number(),
-         CommonFlagsToIrqContext(*common_flags), utid, waker_utid});
+         irq_context, utid, waker_utid});
     return;
   }
 
@@ -80,8 +85,8 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
 }
 
 void ThreadStateTracker::PushNewTaskEvent(int64_t event_ts,
-                                         UniqueTid utid,
-                                         UniqueTid waker_utid) {
+                                          UniqueTid utid,
+                                          UniqueTid waker_utid) {
   AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid);
 }
 
