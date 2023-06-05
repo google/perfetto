@@ -17,20 +17,16 @@
 // loaded, the CSS might not be ready yet.
 export let TRACK_SHELL_WIDTH = 100;
 export let SIDEBAR_WIDTH = 100;
-export let TRACK_BORDER_COLOR = '#ffc0cb';
 export let TOPBAR_HEIGHT = 48;
 export let SELECTION_STROKE_COLOR = '#00344596';
 export let SELECTION_FILL_COLOR = '#8398e64d';
 export let OVERVIEW_TIMELINE_NON_VISIBLE_COLOR = '#c8c8c8cc';
 export let DEFAULT_DETAILS_CONTENT_HEIGHT = 280;
 export const SELECTED_LOG_ROWS_COLOR = '#D2EFE0';
-export let BACKGROUND_COLOR = '#ffffff';
-export let FOREGROUND_COLOR = '#222';
 
 export function initCssConstants() {
   TRACK_SHELL_WIDTH = getCssNum('--track-shell-width') || TRACK_SHELL_WIDTH;
   SIDEBAR_WIDTH = getCssNum('--sidebar-width') || SIDEBAR_WIDTH;
-  TRACK_BORDER_COLOR = getCssStr('--track-border-color') || TRACK_BORDER_COLOR;
   TOPBAR_HEIGHT = getCssNum('--topbar-height') || TOPBAR_HEIGHT;
   SELECTION_STROKE_COLOR =
       getCssStr('--selection-stroke-color') || SELECTION_STROKE_COLOR;
@@ -41,14 +37,12 @@ export function initCssConstants() {
       OVERVIEW_TIMELINE_NON_VISIBLE_COLOR;
   DEFAULT_DETAILS_CONTENT_HEIGHT =
       getCssNum('--details-content-height') || DEFAULT_DETAILS_CONTENT_HEIGHT;
-  BACKGROUND_COLOR = getCssStr('--main-background-color') || BACKGROUND_COLOR;
-  FOREGROUND_COLOR = getCssStr('--main-foreground-color') || FOREGROUND_COLOR;
 }
 
-function getCssStr(prop: string): string|undefined {
-  if (typeof window === 'undefined') return undefined;
-  const body = window.document.body;
-  return window.getComputedStyle(body).getPropertyValue(prop);
+export function getCssStr(prop: string): string {
+  if (typeof window === 'undefined') return '';
+  const doc = window.document.documentElement;
+  return window.getComputedStyle(doc).getPropertyValue(prop).trim();
 }
 
 function getCssNum(prop: string): number|undefined {

@@ -21,12 +21,15 @@
   --topbar-height: 44px;
   --monospace-font: "Roboto Mono", monospace;
   --track-shell-width: 250px;
-  --track-border-color: #00000025;
   --anim-easing: cubic-bezier(0.4, 0, 0.2, 1);
   --selection-stroke-color: #00344596;
   --selection-fill-color: #8398e64d;
   --overview-timeline-non-visible-color: #c8c8c8cc;
   --details-content-height: 280px;
+  --main-background-color: #ffffff;
+  --main-foreground-color: #222;
+  --alt-background-color: #d3d3d3;
+  --overview-background-color: #ffffff;
 }
 
 @mixin transition($time: 0.1s) {
@@ -154,6 +157,8 @@ button.close {
 }
 
 .page {
+  color: var(--main-foreground-color);
+  background-color: var(--main-background-color);
   grid-area: page;
   position: relative;
   display: flex;
@@ -196,10 +201,6 @@ button.close {
   line-height: 18px;
 }
 
-$table-hover-color: hsl(214, 22%, 90%);
-
-$table-border-color: rgba(60, 76, 92, 0.4);
-
 $bottom-tab-padding: 10px;
 
 @mixin table-component {
@@ -214,11 +215,12 @@ $bottom-tab-padding: 10px;
   }
 
   tr:hover td {
-    background-color: $table-hover-color;
+    background-color: var(--main-foreground-color);
+    color: var(--main-background-color);
   }
 
   tr.header {
-    border-bottom: 1px solid $table-border-color;
+    border-bottom: 1px solid var(--main-foreground-color);
     text-align: center;
   }
 
@@ -245,7 +247,7 @@ $bottom-tab-padding: 10px;
     cursor: pointer;
   }
   td.first {
-    border-left: 1px solid $table-border-color;
+    border-left: 1px solid var(--main-foreground-color);
     padding-left: 6px;
   }
   thead td.reorderable-cell {
@@ -369,7 +371,7 @@ $bottom-tab-padding: 10px;
     display: block;
     content: "";
     grid-column: 1 / span 2;
-    border-top: 1px solid var(--track-border-color);
+    border-top: 1px solid var(--main-foreground-color);
     margin-top: -1px;
     z-index: 2;
   }
@@ -383,8 +385,8 @@ $bottom-tab-padding: 10px;
     grid-template-columns: 1fr auto;
     align-items: center;
     width: var(--track-shell-width);
-    background: #fff;
-    border-right: 1px solid #c7d0db;
+    background: var(--main-background-color);
+    border-right: 1px solid var(--main-foreground-color);
     overflow: hidden;
 
     &.drag {
@@ -408,6 +410,7 @@ $bottom-tab-padding: 10px;
 
     .chip {
       background-color: #bed6ff;
+      color: black;
       border-radius: $pf-border-radius;
       font-size: smaller;
       padding: 0 0.1rem;
@@ -416,7 +419,7 @@ $bottom-tab-padding: 10px;
 
     h1 {
       grid-area: title;
-      color: hsl(213, 22%, 30%);
+      color: var(--main-foreground-color);
       @include track_shell_title();
     }
     .track-buttons {
@@ -523,7 +526,6 @@ canvas.main-canvas {
     position: sticky;
     z-index: 3;
     top: 0;
-    background-color: hsl(215, 22%, 19%);
   }
 }
 
@@ -657,10 +659,9 @@ button.query-ctrl {
 }
 
 .track-group-panel {
-  --collapsed-background: hsla(190, 49%, 97%, 1);
-  --collapsed-transparent: hsla(190, 49%, 97%, 0);
-  --expanded-background: hsl(215, 22%, 19%);
-  --expanded-transparent: hsl(215, 22%, 19%, 0);
+  --collapsed-background: var(--main-background-color);
+  --collapsed-transparent: fade-out(var(--main-background-color),1);
+  color: var(--main-foreground-color);
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr;
@@ -670,13 +671,12 @@ button.query-ctrl {
     display: block;
     content: "";
     grid-column: 1 / span 2;
-    border-top: 1px solid var(--track-border-color);
+    border-top: 1px solid var(--main-foreground-color);
     margin-top: -1px;
   }
   &[collapsed="true"] {
-    background-color: var(--collapsed-transparent);
     .shell {
-      border-right: 1px solid #c7d0db;
+      border-right: 1px solid var(--main-foreground-color);
       background-color: var(--collapsed-background);
     }
     .track-button {
@@ -684,8 +684,8 @@ button.query-ctrl {
     }
   }
   &[collapsed="false"] {
-    background-color: var(--expanded-transparent);
-    color: white;
+    background-color: var(--collapsed-background);
+    color: var(--main-foreground-color);
     font-weight: bold;
     .shell.flash {
       color: #121212;
@@ -724,6 +724,7 @@ button.query-ctrl {
 
     .chip {
       background-color: #bed6ff;
+      color: black;
       border-radius: 3px;
       font-size: smaller;
       padding: 0 0.1rem;
@@ -864,11 +865,11 @@ button.query-ctrl {
   }
 
   &.highlight-left {
-    background: linear-gradient(90deg, $table-border-color, transparent 20%);
+    background: linear-gradient(90deg, var(--main-foreground-color), transparent 20%);
   }
 
   &.highlight-right {
-    background: linear-gradient(270deg, $table-border-color, transparent 20%);
+    background: linear-gradient(270deg, var(--main-foreground-color), transparent 20%);
   }
 }
 

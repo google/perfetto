@@ -26,7 +26,7 @@ import {
   bottomTabRegistry,
   NewBottomTabArgs,
 } from './bottom_tab';
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {getCssStr, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {
@@ -115,7 +115,7 @@ export class NotesPanel extends Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     let aNoteIsHovered = false;
 
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = getCssStr('--main-foreground-color');
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
     ctx.save();

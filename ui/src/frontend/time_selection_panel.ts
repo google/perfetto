@@ -22,8 +22,7 @@ import {
 } from '../common/time';
 
 import {
-  BACKGROUND_COLOR,
-  FOREGROUND_COLOR,
+  getCssStr,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {globals} from './globals';
@@ -50,7 +49,7 @@ export interface BBox {
 // the positioning of the label to ensure it is on screen.
 function drawHBar(
     ctx: CanvasRenderingContext2D, target: BBox, bounds: BBox, label: string) {
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-foreground-color');
 
   const xLeft = Math.floor(target.x);
   const xRight = Math.floor(target.x + target.width);
@@ -89,11 +88,11 @@ function drawHBar(
     }
   }
 
-  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-background-color');
   ctx.fillRect(labelXLeft - 1, 0, labelWidth + 1, target.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-foreground-color');
   ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, labelXLeft, yMid);
 }
@@ -102,7 +101,7 @@ function drawIBar(
     ctx: CanvasRenderingContext2D, xPos: number, bounds: BBox, label: string) {
   if (xPos < bounds.x) return;
 
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-foreground-color');
   ctx.fillRect(xPos, 0, 1, bounds.width);
 
   const yMid = Math.floor(bounds.height / 2 + bounds.y);
@@ -118,11 +117,11 @@ function drawIBar(
     ctx.textAlign = 'left';
   }
 
-  ctx.fillStyle = BACKGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-background-color');
   ctx.fillRect(xPosLabel - 1, 0, labelWidth + 2, bounds.height);
 
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = FOREGROUND_COLOR;
+  ctx.fillStyle = getCssStr('--main-foreground-color');
   ctx.font = '10px Roboto Condensed';
   ctx.fillText(label, xPosLabel, yMid);
 }
@@ -133,7 +132,7 @@ export class TimeSelectionPanel extends Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = getCssStr('--main-foreground-color');
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
     ctx.save();
@@ -153,7 +152,7 @@ export class TimeSelectionPanel extends Panel {
         }
       }
     }
-
+    
     const localArea = globals.frontendLocalState.selectedArea;
     const selection = globals.state.currentSelection;
     if (localArea !== undefined) {
@@ -166,11 +165,11 @@ export class TimeSelectionPanel extends Panel {
       const end = BigintMath.max(selectedArea.start, selectedArea.end);
       this.renderSpan(ctx, size, new TPTimeSpan(start, end));
     }
-
+    
     if (globals.state.hoverCursorTimestamp !== -1n) {
       this.renderHover(ctx, size, globals.state.hoverCursorTimestamp);
     }
-
+    
     for (const note of Object.values(globals.state.notes)) {
       const noteIsSelected = selection !== null && selection.kind === 'AREA' &&
           selection.noteId === note.id;

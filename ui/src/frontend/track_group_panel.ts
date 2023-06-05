@@ -167,13 +167,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     const shell = assertExists(dom.querySelector('.shell'));
     this.shellWidth = shell.getBoundingClientRect().width;
     // TODO(andrewbb): move this to css_constants
-    if (this.trackGroupState.collapsed) {
-      this.backgroundColor =
+    this.backgroundColor =
           getComputedStyle(dom).getPropertyValue('--collapsed-background');
-    } else {
-      this.backgroundColor =
-          getComputedStyle(dom).getPropertyValue('--expanded-background');
-    }
     if (this.summaryTrack !== undefined) {
       this.summaryTrack.onFullRedraw();
     }

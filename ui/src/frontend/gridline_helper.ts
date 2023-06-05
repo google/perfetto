@@ -16,7 +16,7 @@ import {assertTrue} from '../base/logging';
 import {Span, tpDurationToSeconds} from '../common/time';
 import {TPDuration, TPTime, TPTimeSpan} from '../common/time';
 
-import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {TRACK_SHELL_WIDTH, getCssStr} from './css_constants';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
@@ -211,7 +211,7 @@ export function drawGridLines(
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number): void {
-  ctx.strokeStyle = TRACK_BORDER_COLOR;
+  ctx.strokeStyle = getCssStr('--main-foreground-color');
   ctx.lineWidth = 1;
 
   const {earliest, latest} = globals.frontendLocalState.visibleWindow;

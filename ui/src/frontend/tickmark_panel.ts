@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {TPTimeSpan} from '../common/time';
 
-import {TRACK_SHELL_WIDTH} from './css_constants';
+import {getCssStr, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
@@ -35,7 +35,7 @@ export class TickmarkPanel extends Panel {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.frontendLocalState;
 
-    ctx.fillStyle = '#999';
+    ctx.fillStyle = getCssStr('--main-foreground-color');
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
 
     ctx.save();
