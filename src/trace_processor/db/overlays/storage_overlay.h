@@ -34,16 +34,16 @@ namespace overlays {
 // indices and storage indices. i.e. even if "table indices" we are working with
 // come from another overlay, we still consider them as having come from the
 // table and vice versa for "storage indices".
+//
+// The core functions in this class work with input and output arguments which
+// use the same data structure but have different semantics (i.e. input might
+// be in terms of storage indices and output might be in terms of table
+// indices).
+//
+// For this reason, we use the defined wrapper structs which "tag" the data
+// structure with the semantics.
 class StorageOverlay {
  public:
-  // The core functions in this class work with input and output arguments which
-  // use the same data structure but have different semantics (i.e. input might
-  // be in terms of storage indices and output might be in terms of table
-  // indices).
-  //
-  // For this reason, we use the defined wrapper structs which "tag" the data
-  // structure with the semantics.
-
   virtual ~StorageOverlay();
 
   // Maps a range of indices in table space to an equivalent range of
