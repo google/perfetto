@@ -75,14 +75,14 @@ class QueryExecutor {
   static RowMap BoundedColumnFilterForTesting(const Constraint& c,
                                               const SimpleColumn& col,
                                               RowMap* rm) {
-    return BoundedColumnFilter(c, col, rm);
+    return RowMap(LinearSearch(c, col, rm));
   }
 
   // Used only in unittests. Exposes private function.
   static RowMap IndexedColumnFilterForTesting(const Constraint& c,
                                               const SimpleColumn& col,
                                               RowMap* rm) {
-    return IndexedColumnFilter(c, col, rm);
+    return IndexSearch(c, col, rm);
   }
 
  private:
@@ -91,15 +91,13 @@ class QueryExecutor {
 
   // Filters the column using Range algorithm - tries to find the smallest Range
   // to filter the storage with.
-  static RowMap BoundedColumnFilter(const Constraint&,
-                                    const SimpleColumn&,
-                                    RowMap*);
+  static BitVector LinearSearch(const Constraint&,
+                                const SimpleColumn&,
+                                RowMap*);
 
   // Filters the column using Index algorithm - finds the indices to filter the
   // storage with.
-  static RowMap IndexedColumnFilter(const Constraint&,
-                                    const SimpleColumn&,
-                                    RowMap*);
+  static RowMap IndexSearch(const Constraint&, const SimpleColumn&, RowMap*);
 
   std::vector<SimpleColumn> columns_;
 
