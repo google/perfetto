@@ -130,17 +130,33 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   // If the range is less than 50% full and size() < 1024, choose the index
   // algorithm.
   // TODO(b/283763282):Use Overlay estimations.
-  if (rm->size() < 1024 &&
-      (static_cast<double>(rm->size()) / range_size < 0.5)) {
-    *rm = IndexedColumnFilter(c, col, rm);
+  if (rm->IsIndexVector() ||
+      (rm->size() < 1024 &&
+       (static_cast<double>(rm->size()) / range_size < 0.5))) {
+    *rm = IndexSearch(c, col, rm);
     return;
   }
-  rm->Intersect(BoundedColumnFilter(c, col, rm));
+
+  BitVector bv = LinearSearch(c, col, rm);
+  if (rm->IsRange()) {
+    // If |rm| is a range, the BitVector returned by LinearSearch perfectly
+    // captures the previously filtered results already so does not need to
+    // be intersected.
+    *rm = RowMap(std::move(bv));
+  } else if (rm->IsBitVector()) {
+    // We need to reconcile our BitVector with |rm| to ensure that we don't
+    // discard results from previous searches.
+    rm->Intersect(RowMap(std::move(bv)));
+  } else {
+    // As we use |IsIndexVector()| above, to always use IndexSearch, we should
+    // never hit this case.
+    PERFETTO_FATAL("Should not happen");
+  }
 }
 
-RowMap QueryExecutor::BoundedColumnFilter(const Constraint& c,
-                                          const SimpleColumn& col,
-                                          RowMap* rm) {
+BitVector QueryExecutor::LinearSearch(const Constraint& c,
+                                      const SimpleColumn& col,
+                                      RowMap* rm) {
   // TODO(b/283763282): We should align these to word boundaries.
   TableRange table_range{Range(rm->Get(0), rm->Get(rm->size() - 1) + 1)};
   base::SmallVector<Range, kMaxOverlayCount> overlay_bounds;
@@ -161,12 +177,12 @@ RowMap QueryExecutor::BoundedColumnFilter(const Constraint& c,
         std::move(filtered_storage), overlays::FilterOpToOverlayOp(c.op));
     filtered_storage = StorageBitVector({std::move(mapped_to_table.bv)});
   }
-  return RowMap(std::move(filtered_storage.bv));
+  return std::move(filtered_storage.bv);
 }
 
-RowMap QueryExecutor::IndexedColumnFilter(const Constraint& c,
-                                          const SimpleColumn& col,
-                                          RowMap* rm) {
+RowMap QueryExecutor::IndexSearch(const Constraint& c,
+                                  const SimpleColumn& col,
+                                  RowMap* rm) {
   // Create outmost TableIndexVector.
   std::vector<uint32_t> table_indices;
   table_indices.reserve(rm->size());
@@ -182,7 +198,7 @@ RowMap QueryExecutor::IndexedColumnFilter(const Constraint& c,
   // Fetch the list of indices that require storage lookup and deal with all
   // of the indices that can be compared before it.
   OverlayOp op = overlays::FilterOpToOverlayOp(c.op);
-  for (auto overlay : col.overlays) {
+  for (const auto& overlay : col.overlays) {
     BitVector partition =
         overlay->IsStorageLookupRequired(op, {to_filter.current()});
 
@@ -227,53 +243,37 @@ RowMap QueryExecutor::IndexedColumnFilter(const Constraint& c,
 
 RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
-  std::vector<std::unique_ptr<storage::Storage>> storages;
-  std::vector<std::unique_ptr<overlays::StorageOverlay>> null_overlays;
-
-  for (const auto& col : table->columns()) {
-    bool invalid_col_type = col.col_type() == ColumnType::kString ||
-                            col.col_type() == ColumnType::kDummy ||
-                            col.col_type() == ColumnType::kId;
-    if (invalid_col_type || col.IsSorted() || col.IsDense()) {
-      storages.emplace_back();
-      null_overlays.emplace_back();
-      continue;
-    }
-
-    const void* s_data = col.storage_base().data();
-    uint32_t s_size = col.storage_base().size();
-    auto storage = std::make_unique<storage::NumericStorage>(s_data, s_size,
-                                                             col.col_type());
-    storages.emplace_back(std::move(storage));
-
-    if (col.IsNullable()) {
-      auto null_overlay =
-          std::make_unique<overlays::NullOverlay>(col.storage_base().bv());
-      null_overlays.emplace_back(std::move(null_overlay));
-    } else {
-      null_overlays.emplace_back();
-    }
-  }
-
   RowMap rm(0, table->row_count());
-  for (auto c : c_vec) {
+  for (const auto& c : c_vec) {
     const Column& col = table->columns()[c.col_idx];
-    bool mismatched_col_type = col.type() != c.value.type;
-    bool has_selector =
-        !storages[c.col_idx] ||
-        col.overlay().row_map().size() != col.storage_base().size();
-    PERFETTO_DCHECK(!col.overlay().row_map().IsIndexVector());
-    if (!storages[c.col_idx] || mismatched_col_type || has_selector) {
+    bool use_legacy = rm.size() == 1;
+    use_legacy = use_legacy || col.col_type() == ColumnType::kString ||
+                 col.col_type() == ColumnType::kDummy ||
+                 col.col_type() == ColumnType::kId;
+    use_legacy = use_legacy || col.type() != c.value.type;
+    use_legacy = use_legacy ||
+                 col.overlay().row_map().size() != col.storage_base().size();
+    use_legacy = use_legacy || col.IsSorted() || col.IsDense() || col.IsSetId();
+    use_legacy = use_legacy || col.overlay().row_map().IsIndexVector();
+    if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
       continue;
     }
 
-    SimpleColumn s_col{OverlaysVec(), storages[c.col_idx].get()};
+    const void* s_data = col.storage_base().data();
+    uint32_t s_size = col.storage_base().non_null_size();
 
-    if (null_overlays[c.col_idx])
-      s_col.overlays.emplace_back(null_overlays[c.col_idx].get());
+    storage::NumericStorage storage(s_data, s_size, col.col_type());
+    overlays::NullOverlay null_overlay(col.storage_base().bv());
 
+    SimpleColumn s_col{OverlaysVec(), &storage};
+    if (col.IsNullable()) {
+      s_col.overlays.emplace_back(&null_overlay);
+    }
+
+    uint32_t pre_count = rm.size();
     FilterColumn(c, s_col, &rm);
+    PERFETTO_DCHECK(rm.size() <= pre_count);
   }
   return rm;
 }
