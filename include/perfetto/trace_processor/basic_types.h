@@ -23,6 +23,7 @@
 #include <stdint.h>
 #include <functional>
 #include <string>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -149,7 +150,14 @@ struct PERFETTO_EXPORT_COMPONENT Config {
 
   // When set to true, trace processor will be augmented with a bunch of helpful
   // features for local development such as extra SQL fuctions.
+  //
+  // Note that the features behind this flag are subject to breakage without
+  // backward compability guarantees at any time.
   bool enable_dev_features = false;
+
+  // Sets developer-only flags to the provided values. Does not have any affect
+  // unless |enable_dev_features| = true.
+  std::unordered_map<std::string, std::string> dev_flags;
 };
 
 // Represents a dynamically typed value returned by SQL.
