@@ -44,8 +44,7 @@ export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
     if (this.createdModels) {
       return;
     }
-    const sql =
-        `CREATE VIEW ${tableName} AS ` +
+    const sql = `CREATE VIEW ${tableName} AS ` +
         `SELECT * FROM _perfetto_ui_impl_chrome_event_latency_scroll_janks`;
     await this.engine.query(sql);
     this.createdModels = true;
@@ -68,12 +67,12 @@ export async function addLatenciesTrack(engine: Engine):
   const sql =
       `CREATE TABLE _perfetto_ui_impl_chrome_event_latency_scroll_janks AS ` +
       generateSqlWithInternalLayout({
-                  columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-                  layoutParams: {ts: 'ts', dur: 'dur'},
-                  sourceTable: 'slice',
-                  whereClause: 'slice.id IN ' +
-                      '(SELECT slice_id FROM event_latency_scroll_jank_cause)',
-                });
+        columns: ['id', 'ts', 'dur', 'track_id', 'name'],
+        layoutParams: {ts: 'ts', dur: 'dur'},
+        sourceTable: 'slice',
+        whereClause: 'slice.id IN ' +
+            '(SELECT slice_id FROM event_latency_scroll_jank_cause)',
+      });
 
   await engine.query(sql);
 
