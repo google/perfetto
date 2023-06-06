@@ -46,3 +46,12 @@ void PerfettoProducerSystemInit() {
   args.backends = perfetto::kSystemBackend;
   perfetto::Tracing::Initialize(args);
 }
+
+void PerfettoProducerActivateTriggers(const char* trigger_names[],
+                                      uint32_t ttl_ms) {
+  std::vector<std::string> triggers;
+  for (size_t i = 0; trigger_names[i] != nullptr; i++) {
+    triggers.push_back(trigger_names[i]);
+  }
+  perfetto::Tracing::ActivateTriggers(triggers, ttl_ms);
+}
