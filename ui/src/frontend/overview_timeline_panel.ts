@@ -52,14 +52,18 @@ export class OverviewTimelinePanel extends Panel {
     this.width = dom.getBoundingClientRect().width;
     this.traceTime = globals.stateTraceTimeTP();
     const traceTime = globals.stateTraceTime();
-    const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
-    this.timeScale = TimeScale.fromHPTimeSpan(traceTime, pxSpan);
-    if (this.gesture === undefined) {
-      this.gesture = new DragGestureHandler(
-          dom as HTMLElement,
-          this.onDrag.bind(this),
-          this.onDragStart.bind(this),
-          this.onDragEnd.bind(this));
+    if (this.width > TRACK_SHELL_WIDTH) {
+      const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
+      this.timeScale = TimeScale.fromHPTimeSpan(traceTime, pxSpan);
+      if (this.gesture === undefined) {
+        this.gesture = new DragGestureHandler(
+            dom as HTMLElement,
+            this.onDrag.bind(this),
+            this.onDragStart.bind(this),
+            this.onDragEnd.bind(this));
+      }
+    } else {
+      this.timeScale = undefined;
     }
   }
 
