@@ -22,8 +22,7 @@
     "matches": [
       "*://localhost/*",
       "*://127.0.0.1/*",
-      "https://*.perfetto.dev/*",
-      "https://storage.googleapis.com/*"
+      "https://*.perfetto.dev/*"
     ]
   }
 }
