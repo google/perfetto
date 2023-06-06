@@ -39,10 +39,12 @@ TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv,
   if (op != OverlayOp::kIsNull)
     return {std::move(res)};
 
-  if (res.CountSetBits() == 0)
-    return {non_null_->Not()};
+  BitVector not_non_null = non_null_->Copy();
+  not_non_null.Not();
 
-  BitVector not_non_null = non_null_->Not();
+  if (res.CountSetBits() == 0)
+    return {std::move(not_non_null)};
+
   res.Or(not_non_null);
   return {std::move(res)};
 }
