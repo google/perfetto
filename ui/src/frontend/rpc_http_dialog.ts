@@ -89,7 +89,7 @@ export async function CheckHttpRpcConnection(): Promise<void> {
     if (!forceUseOldVersion) return;
   }
 
-  if (tpStatus.loadedTraceName) {
+  if (tpStatus.loadedTraceName && globals.promptToLoadFromTraceProcessorShell) {
     // If a trace is already loaded in the trace processor (e.g., the user
     // launched trace_processor_shell -D trace_file.pftrace), prompt the user to
     // initialize the UI with the already-loaded trace.

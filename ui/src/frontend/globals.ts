@@ -267,6 +267,7 @@ class Globals {
   private _viewOpener?: ViewOpener = undefined;
   private _allowFileDrop = true;
   private _httpRpcEngineCustomizer?: HttpRcpEngineCustomizer;
+  private _promptToLoadFromTraceProcessorShell = true;
 
   // Init from session storage since correct value may be required very early on
   private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
@@ -652,6 +653,14 @@ class Globals {
 
   set httpRpcEngineCustomizer(httpRpcEngineCustomizer: HttpRcpEngineCustomizer | undefined) {
     this._httpRpcEngineCustomizer = httpRpcEngineCustomizer;
+  }
+
+  get promptToLoadFromTraceProcessorShell(): boolean {
+    return this._promptToLoadFromTraceProcessorShell;
+  }
+
+  set promptToLoadFromTraceProcessorShell(promptToLoadFromTraceProcessorShell: boolean) {
+    this._promptToLoadFromTraceProcessorShell = promptToLoadFromTraceProcessorShell;
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
