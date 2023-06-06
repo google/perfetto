@@ -91,12 +91,14 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
     ranges.emplace_back(kAllowed | msg_id);
   };
 
+  bool is_eom = true;
   for (size_t i = 0; i < words.size(); ++i) {
     const uint32_t word = words[i];
     const bool has_next_word = i < words.size() - 1;
     const uint32_t opcode = word & 0x7u;
     const uint32_t field_id = word >> 3;
 
+    is_eom = opcode == kFilterOpcode_EndOfMessage;
     if (field_id == 0 && opcode != kFilterOpcode_EndOfMessage) {
       PERFETTO_DLOG("bytecode error @ word %zu, invalid field id (0)", i);
       return false;
@@ -170,6 +172,12 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
       return false;
     }
   }  // (for word in bytecode).
+
+  if (!is_eom) {
+    PERFETTO_DLOG(
+        "bytecode error: end of message not the last word in the bytecode");
+    return false;
+  }
 
   if (max_msg_index > 0 && max_msg_index >= message_offset_.size()) {
     PERFETTO_DLOG(
