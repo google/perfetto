@@ -119,6 +119,7 @@ MemorySnapshotEdgeTable::~MemorySnapshotEdgeTable() = default;
 SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
+SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
 
 }  // namespace tables
 

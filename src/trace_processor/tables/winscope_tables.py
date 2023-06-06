@@ -51,8 +51,25 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
             'arg_set_id': 'Extra args parsed from the proto message',
         }))
 
+SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
+    python_module=__file__,
+    class_name='SurfaceFlingerTransactionsTable',
+    sql_name='surfaceflinger_transactions',
+    columns=[
+        C('ts', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='SurfaceFlinger transactions. Each row contains a set of transactions that SurfaceFlinger committed together.',
+        group='SurfaceFlinger transactions trace entry',
+        columns={
+            'ts': 'Timestamp of the transactions commit',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
+    SURFACE_FLINGER_TRANSACTIONS_TABLE,
 ]

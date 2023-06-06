@@ -1568,6 +1568,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
         "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h",
         "src/trace_processor/importers/proto/winscope/winscope_args_parser.cc",
         "src/trace_processor/importers/proto/winscope/winscope_args_parser.h",
         "src/trace_processor/importers/proto/winscope/winscope_module.cc",

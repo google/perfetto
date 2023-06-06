@@ -257,6 +257,11 @@ namespace stats {
   F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
       "some arguments missing. You may need a newer version of trace "         \
+      "processor to parse them."),                                             \
+  F(winscope_sf_transactions_parse_errors,                                     \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "SurfaceFlinger transactions packet has unknown fields, which results "  \
+      "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them.")
 // clang-format on
 

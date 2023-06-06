@@ -22,8 +22,11 @@ namespace trace_processor {
 using perfetto::protos::pbzero::TracePacket;
 
 WinscopeModule::WinscopeModule(TraceProcessorContext* context)
-    : surfaceflinger_layers_parser_(context) {
+    : surfaceflinger_layers_parser_(context),
+      surfaceflinger_transactions_parser_(context) {
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
+                   context);
+  RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
                    context);
 }
 
@@ -35,6 +38,10 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
     case TracePacket::kSurfaceflingerLayersSnapshotFieldNumber:
       surfaceflinger_layers_parser_.Parse(
           timestamp, decoder.surfaceflinger_layers_snapshot());
+      return;
+    case TracePacket::kSurfaceflingerTransactionsFieldNumber:
+      surfaceflinger_transactions_parser_.Parse(
+          timestamp, decoder.surfaceflinger_transactions());
       return;
   }
 }

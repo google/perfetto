@@ -729,6 +729,15 @@ class TraceStorage {
     return &surfaceflinger_layer_table_;
   }
 
+  const tables::SurfaceFlingerTransactionsTable&
+  surfaceflinger_transactions_table() const {
+    return surfaceflinger_transactions_table_;
+  }
+  tables::SurfaceFlingerTransactionsTable*
+  mutable_surfaceflinger_transactions_table() {
+    return &surfaceflinger_transactions_table_;
+  }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -984,6 +993,8 @@ class TraceStorage {
   tables::SurfaceFlingerLayersSnapshotTable
       surfaceflinger_layers_snapshot_table_{&string_pool_};
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
+  tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
+      &string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};

@@ -596,6 +596,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->surfaceflinger_layers_snapshot_table());
   RegisterDbTable(storage->surfaceflinger_layer_table());
+  RegisterDbTable(storage->surfaceflinger_transactions_table());
 
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());

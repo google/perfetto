@@ -18,6 +18,8 @@ source_set("full") {
   sources = [
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
+    "surfaceflinger_transactions_parser.cc",
+    "surfaceflinger_transactions_parser.h",
     "winscope_args_parser.h",
     "winscope_args_parser.cc",
     "winscope_module.cc",

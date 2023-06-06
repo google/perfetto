@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
+#include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 
@@ -39,6 +40,7 @@ class WinscopeModule : public ProtoImporterModule {
 
  private:
   SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
+  SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
 };
 
 }  // namespace trace_processor
