@@ -533,17 +533,23 @@ TEST(ProtoDecoderTest, MalformedPackedVarIntBuffer) {
   ASSERT_TRUE(parse_error);
 }
 
-// Tests that big field ids (> 0xffff) are just skipped but don't fail parsing.
-// This is a regression test for b/145339282 (DataSourceConfig.for_testing
-// having a very large ID == 268435455 until Android R).
-TEST(ProtoDecoderTest, SkipBigFieldIds) {
+// Tests that:
+// 1. Very big field ids (>= 2**24) are just skipped but don't fail parsing.
+//    This is a regression test for b/145339282 (DataSourceConfig.for_testing
+//    having a very large ID == 268435455 until Android R).
+// 2. Moderately big" field ids can be parsed correctly. See also
+//    https://github.com/google/perfetto/issues/510 .
+TEST(ProtoDecoderTest, BigFieldIds) {
   HeapBuffered<Message> message;
   message->AppendVarInt(/*field_id=*/1, 11);
-  message->AppendVarInt(/*field_id=*/1000000, 0);  // Will be skipped
+  message->AppendVarInt(/*field_id=*/1 << 24, 0);  // Will be skipped
   message->AppendVarInt(/*field_id=*/65535, 99);
-  message->AppendVarInt(/*field_id=*/268435455, 0);  // Will be skipped
+  message->AppendVarInt(/*field_id=*/(1 << 24) + 1023,
+                        0);  // Will be skipped
   message->AppendVarInt(/*field_id=*/2, 12);
-  message->AppendVarInt(/*field_id=*/2000000, 0);  // Will be skipped
+  message->AppendVarInt(/*field_id=*/1 << 28, 0);  // Will be skipped
+
+  message->AppendVarInt(/*field_id=*/(1 << 24) - 1, 13);
   auto data = message.SerializeAsArray();
 
   // Check the iterator-based ProtoDecoder.
@@ -563,6 +569,11 @@ TEST(ProtoDecoderTest, SkipBigFieldIds) {
     ASSERT_TRUE(field.valid());
     ASSERT_EQ(field.id(), 2u);
     ASSERT_EQ(field.as_int32(), 12);
+
+    field = decoder.ReadField();
+    ASSERT_TRUE(field.valid());
+    ASSERT_EQ(field.id(), (1u << 24) - 1u);
+    ASSERT_EQ(field.as_int32(), 13);
 
     field = decoder.ReadField();
     ASSERT_FALSE(field.valid());

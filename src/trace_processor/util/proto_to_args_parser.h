@@ -143,7 +143,7 @@ class ProtoToArgsParser {
   // TODO(b/145578432): Add support for byte fields.
   base::Status ParseMessage(const protozero::ConstBytes& cb,
                             const std::string& type,
-                            const std::vector<uint16_t>* allowed_fields,
+                            const std::vector<uint32_t>* allowed_fields,
                             Delegate& delegate,
                             int* unknown_extensions = nullptr);
 
@@ -271,7 +271,7 @@ class ProtoToArgsParser {
   base::Status ParseMessageInternal(ScopedNestedKeyContext& key,
                                     const protozero::ConstBytes& cb,
                                     const std::string& type,
-                                    const std::vector<uint16_t>* fields,
+                                    const std::vector<uint32_t>* fields,
                                     Delegate& delegate,
                                     int* unknown_extensions);
 
