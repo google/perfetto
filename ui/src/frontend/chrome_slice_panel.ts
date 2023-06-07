@@ -91,7 +91,7 @@ const ITEMS: ContextMenuItem[] = [
          JOIN thread_track ON thread_track.id = slice.track_id
          JOIN thread USING(utid)
          JOIN process USING(upid)
-         WHERE slice.id = ${slice.id!}
+         WHERE slice.id = ${slice.id}
          )
          SELECT *,
          IIF(blocked_thread_name LIKE 'binder:%', 'binder', blocked_thread_name)
