@@ -35,7 +35,7 @@ PkvmHypervisorCpuTracker::PkvmHypervisorCpuTracker(
       hyp_enter_reason_(context->storage->InternString("hyp_enter_reason")) {}
 
 // static
-bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
+bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint32_t event_id) {
   using protos::pbzero::FtraceEvent;
   switch (event_id) {
     case FtraceEvent::kHypEnterFieldNumber:
@@ -51,7 +51,7 @@ bool PkvmHypervisorCpuTracker::IsPkvmHypervisorEvent(uint16_t event_id) {
 
 void PkvmHypervisorCpuTracker::ParseHypEvent(uint32_t cpu,
                                              int64_t timestamp,
-                                             uint16_t event_id,
+                                             uint32_t event_id,
                                              protozero::ConstBytes blob) {
   using protos::pbzero::FtraceEvent;
   switch (event_id) {
