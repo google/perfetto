@@ -54,7 +54,8 @@ PERFETTO_SDK_EXPORT struct PerfettoDsImpl* PerfettoDsImplCreate(void);
 // points to a serialized perfetto.protos.DataSourceConfig message,
 // `ds_config_size` bytes long. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
-typedef void* (*PerfettoDsOnSetupCb)(PerfettoDsInstanceIndex inst_id,
+typedef void* (*PerfettoDsOnSetupCb)(struct PerfettoDsImpl*,
+                                     PerfettoDsInstanceIndex inst_id,
                                      void* ds_config,
                                      size_t ds_config_size,
                                      void* user_arg);
@@ -62,7 +63,8 @@ typedef void* (*PerfettoDsOnSetupCb)(PerfettoDsInstanceIndex inst_id,
 // Called when tracing starts for a data source instance. `user_arg` is the
 // value passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return
 // value of PerfettoDsOnSetupCb.
-typedef void (*PerfettoDsOnStartCb)(PerfettoDsInstanceIndex inst_id,
+typedef void (*PerfettoDsOnStartCb)(struct PerfettoDsImpl*,
+                                    PerfettoDsInstanceIndex inst_id,
                                     void* user_arg,
                                     void* inst_ctx);
 
@@ -87,15 +89,45 @@ PERFETTO_SDK_EXPORT void PerfettoDsStopDone(struct PerfettoDsAsyncStopper*);
 // passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
 // PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
 // instance.
-typedef void (*PerfettoDsOnStopCb)(PerfettoDsInstanceIndex inst_id,
+typedef void (*PerfettoDsOnStopCb)(struct PerfettoDsImpl*,
+                                   PerfettoDsInstanceIndex inst_id,
                                    void* user_arg,
                                    void* inst_ctx,
                                    struct PerfettoDsOnStopArgs* args);
+
+// Internal handle used to perform operations from the OnFlush callback.
+struct PerfettoDsOnFlushArgs;
+
+// Internal handle used to signal when the data source flush operation is
+// complete.
+struct PerfettoDsAsyncFlusher;
+
+// Tells the tracing service to postpone acknowledging the flushing of a data
+// source instance. The returned handle can be used to signal the tracing
+// service when the data source instance flushing has completed.
+PERFETTO_SDK_EXPORT struct PerfettoDsAsyncFlusher*
+PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
+
+// Tells the tracing service that the flush operation is complete for a data
+// source instance (whose stop operation was previously postponed with
+// PerfettoDsOnFlushArgsPostpone).
+PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
+
+// Called when tracing stops for a data source instance. `user_arg` is the value
+// passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
+// PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
+// instance.
+typedef void (*PerfettoDsOnFlushCb)(struct PerfettoDsImpl*,
+                                    PerfettoDsInstanceIndex inst_id,
+                                    void* user_arg,
+                                    void* inst_ctx,
+                                    struct PerfettoDsOnFlushArgs* args);
 
 // Creates custom state (either thread local state or incremental state) for
 // instance `inst_id`. `user_arg` is the value passed to
 // PerfettoDsSetCbUserArg().
 typedef void* (*PerfettoDsOnCreateCustomState)(
+    struct PerfettoDsImpl*,
     PerfettoDsInstanceIndex inst_id,
     struct PerfettoDsTracerImpl* tracer,
     void* user_arg);
@@ -113,6 +145,9 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnStartCallback(struct PerfettoDsImpl*,
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnStopCallback(struct PerfettoDsImpl*,
                                                      PerfettoDsOnStopCb);
+
+PERFETTO_SDK_EXPORT void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl*,
+                                                      PerfettoDsOnFlushCb);
 
 // Callbacks for custom per instance thread local state.
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnCreateTls(
