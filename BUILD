@@ -5628,3 +5628,8 @@ perfetto_py_binary(
     main = "tools/write_version_header.py",
     python_version = "PY3",
 )
+
+exports_files(
+    ["ui/src/assets/favicon.png"],
+    visibility = PERFETTO_CONFIG.public_visibility,
+)
