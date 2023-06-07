@@ -17,12 +17,9 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
-import {pluginManager} from '../common/plugins';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
 import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
-import {SCROLL_JANK_PLUGIN_ID} from '../tracks/scroll_jank';
-import {TOP_LEVEL_SCROLL_KIND} from '../tracks/scroll_jank/scroll_track';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -43,12 +40,15 @@ import {AnyAttrsVnode} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
+import {GenericSliceDetailsTabConfig} from './generic_slice_details_tab';
 
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
 
 export const CURRENT_SELECTION_TAG = 'current_selection';
+
+export type SqlObjectDetailsTabConfig = (GenericSliceDetailsTabConfig);
 
 function getDetailsHeight() {
   // This needs to be a function instead of a const to ensure the CSS constants
@@ -230,9 +230,12 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         },
       });
       break;
-    case TOP_LEVEL_SCROLL_KIND:
-      pluginManager.onDetailsPanelSelectionChange(
-          SCROLL_JANK_PLUGIN_ID, newSelection);
+    case 'BASIC_SQL_OBJECT':
+      bottomTabList.addTab({
+        kind: newSelection.detailsPanelConfig.kind,
+        tag: currentSelectionTag,
+        config: newSelection.detailsPanelConfig.config,
+      });
       break;
     default:
       bottomTabList.closeTabByTag(currentSelectionTag);

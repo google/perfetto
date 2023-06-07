@@ -54,20 +54,11 @@ import {
   TreeNode,
 } from '../../frontend/widgets/tree';
 import {ARG_PREFIX} from './add_debug_track_menu';
+import {sqlValueToString} from '../../frontend/sql_utils';
 
 interface DebugSliceDetailsTabConfig {
   sqlTableName: string;
   id: number;
-}
-
-function sqlValueToString(val: ColumnType): string {
-  if (val instanceof Uint8Array) {
-    return `<blob length=${val.length}>`;
-  }
-  if (val === null) {
-    return 'NULL';
-  }
-  return val.toString();
 }
 
 function sqlValueToNumber(value?: ColumnType): number|undefined {

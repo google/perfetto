@@ -12,35 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
-import {Actions} from '../../common/actions';
-import {Engine} from '../../common/engine';
-import {
-  generateSqlWithInternalLayout,
-} from '../../common/internal_layout_utils';
-import {
-  PrimaryTrackSortKey,
-  SCROLLING_TRACK_GROUP,
-  Selection,
-} from '../../common/state';
+import {NamedSliceTrack, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NewTrackArgs, Track} from '../../frontend/track';
+import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP, Selection} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
-import {
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {Actions} from '../../common/actions';
+import {Engine} from '../../common/engine';
 import {DecideTracksResult} from '../chrome_scroll_jank';
+import {v4 as uuidv4} from 'uuid';
 import {GenericSliceDetailsTab, Columns} from '../../frontend/generic_slice_details_tab';
 
-export {Data} from '../chrome_slices';
-
-export class TopLevelScrollTrack extends NamedSliceTrack {
-  static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
+export class TopLevelJankTrack extends NamedSliceTrack {
+  static readonly kind = 'org.chromium.ScrollJank.top_level_jank';
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelScrollTrack(args);
+    return new TopLevelJankTrack(args);
   }
 
   constructor(args: NewTrackArgs) {
@@ -48,13 +35,27 @@ export class TopLevelScrollTrack extends NamedSliceTrack {
   }
 
   async initSqlTable(tableName: string) {
-    const sql =
-        `CREATE VIEW ${tableName} AS ` + generateSqlWithInternalLayout({
-          columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
-          layoutParams: {ts: 'ts', dur: 'dur'},
-          sourceTable: 'chrome_scrolls',
-          orderByClause: 'ts',
-        });
+    const sql = `CREATE VIEW ${tableName} AS
+    WITH unioned_data AS (
+      SELECT
+        "Scrolling" AS name,
+        ts,
+        dur,
+        0 AS depth
+      FROM chrome_scrolling_intervals
+      UNION ALL
+      SELECT
+        "Janky Scrolling Time" AS name,
+        ts,
+        dur,
+        1 AS depth
+      FROM chrome_scroll_jank_intervals_v2
+     )
+     SELECT
+       ROW_NUMBER() OVER(ORDER BY ts) AS id,
+       *
+     FROM unioned_data
+    `;
     await this.engine.query(sql);
   }
 
@@ -67,11 +68,12 @@ export class TopLevelScrollTrack extends NamedSliceTrack {
 
   onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
     const columns : Columns = {};
-    columns['id'] = {displayName: 'Scroll Id (gesture_scroll_id)'};
-    columns['ts'] = {displayName: 'Start Time'};
+    columns['name'] = {};
+    columns['id'] = {displayName: 'Interval ID'};
+    columns['ts'] = {displayName: 'Start time'};
     columns['dur'] = {displayName: 'Duration'};
 
-    const title = 'Current Chrome Scroll';
+    const title = 'Scroll Jank Summary';
 
     globals.dispatch(Actions.selectBasicSqlSlice({
       id: args.slice.id,
@@ -92,23 +94,24 @@ export class TopLevelScrollTrack extends NamedSliceTrack {
   }
 }
 
-export async function addTopLevelScrollTrack(engine: Engine):
+export async function addTopLevelJankTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls');`);
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelScrollTrack.kind,
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Top Level Scrolls',
+    kind: TopLevelJankTrack.kind,
+    trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+    name: 'Scroll Jank Summary',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
 
   return result;
 }
+
