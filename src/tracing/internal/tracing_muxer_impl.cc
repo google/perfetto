@@ -47,7 +47,6 @@
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/internal/tracing_muxer_fake.h"
 
-#include "protos/perfetto/config/chrome/chrome_config.gen.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
@@ -137,44 +136,8 @@ class FlushArgsImpl : public DataSourceBase::FlushArgs {
   mutable std::function<void()> async_flush_closure;
 };
 
-uint64_t ComputeConfigHash(const DataSourceConfig& config) {
-  base::Hasher hasher;
-  std::string config_bytes = config.SerializeAsString();
-  hasher.Update(config_bytes.data(), config_bytes.size());
-  return hasher.digest();
-}
-
 // Holds an earlier TracingMuxerImpl instance after ResetForTesting() is called.
 static TracingMuxerImpl* g_prev_instance{};
-
-uint64_t ComputeStartupConfigHash(DataSourceConfig config) {
-  // Clear target buffer and tracing-service provided fields for comparison of
-  // configs for startup tracing, since these fields are not available when
-  // setting up data sources for startup tracing.
-  config.set_target_buffer(0);
-  config.set_tracing_session_id(0);
-  config.set_session_initiator(DataSourceConfig::SESSION_INITIATOR_UNSPECIFIED);
-  config.set_trace_duration_ms(0);
-  config.set_stop_timeout_ms(0);
-  config.set_enable_extra_guardrails(false);
-  // Clear some fields inside Chrome config:
-  // * client_priority, because Chrome always sets the priority to
-  // USER_INITIATED when setting up startup tracing.
-  // * convert_to_legacy_json, because Telemetry initiates tracing with proto
-  // format, but in some cases adopts the tracing session later via devtools
-  // which expect json format.
-  // TODO(khokhlov): Don't clear client_priority when Chrome correctly sets it
-  // for startup tracing (and propagates it to all child processes).
-  if (config.has_chrome_config()) {
-    config.mutable_chrome_config()->set_client_priority(
-        perfetto::protos::gen::ChromeConfig::UNKNOWN);
-    config.mutable_chrome_config()->set_convert_to_legacy_json(false);
-  }
-  base::Hasher hasher;
-  std::string config_bytes = config.SerializeAsString();
-  hasher.Update(config_bytes.data(), config_bytes.size());
-  return hasher.digest();
-}
 
 template <typename RegisteredBackend>
 struct CompareBackendByType {
@@ -1210,22 +1173,20 @@ static bool MaybeAdoptStartupTracingInDataSource(
     DataSourceInstanceID instance_id,
     const DataSourceConfig& cfg,
     const std::vector<RegisteredDataSource>& data_sources) {
-  uint64_t startup_config_hash = ComputeStartupConfigHash(cfg);
-
   for (const auto& rds : data_sources) {
     DataSourceStaticState* static_state = rds.static_state;
     for (uint32_t i = 0; i < kMaxDataSourceInstances; i++) {
       auto* internal_state = static_state->TryGet(i);
 
-      // TODO(eseckler): Instead of comparing config_hashes here, should we ask
-      // the data source instance for a compat check of the config?
       if (internal_state &&
           internal_state->startup_target_buffer_reservation.load(
               std::memory_order_relaxed) &&
           internal_state->data_source_instance_id == 0 &&
           internal_state->backend_id == backend_id &&
           internal_state->backend_connection_id == backend_connection_id &&
-          internal_state->startup_config_hash == startup_config_hash) {
+          internal_state->config &&
+          internal_state->data_source->CanAdoptStartupSession(
+              *internal_state->config, cfg)) {
         PERFETTO_DLOG("Setting up data source %" PRIu64
                       " %s by adopting it from a startup tracing session",
                       instance_id, cfg.name().c_str());
@@ -1236,7 +1197,7 @@ static bool MaybeAdoptStartupTracingInDataSource(
         internal_state->data_source_instance_id = instance_id;
         internal_state->buffer_id =
             static_cast<internal::BufferId>(cfg.target_buffer());
-        internal_state->config_hash = ComputeConfigHash(cfg);
+        internal_state->config.reset(new DataSourceConfig(cfg));
 
         // TODO(eseckler): Should the data souce config provided by the service
         // be allowed to specify additional interceptors / additional data
@@ -1263,7 +1224,6 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
                                            instance_id, cfg, data_sources_)) {
     return;
   }
-  uint64_t config_hash = ComputeConfigHash(cfg);
 
   for (const auto& rds : data_sources_) {
     if (rds.descriptor.name() != cfg.name())
@@ -1283,8 +1243,8 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
         continue;
       auto* internal_state =
           reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-      if (internal_state->backend_id == backend_id &&
-          internal_state->config_hash == config_hash) {
+      if (internal_state->backend_id == backend_id && internal_state->config &&
+          *internal_state->config == cfg) {
         active_for_config = true;
         break;
       }
@@ -1297,8 +1257,7 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
     }
 
     SetupDataSourceImpl(rds, backend_id, backend_connection_id, instance_id,
-                        cfg, config_hash, /*startup_config_hash=*/0,
-                        /*startup_session_id=*/0);
+                        cfg, /*startup_session_id=*/0);
     return;
   }
 }
@@ -1309,8 +1268,6 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     uint32_t backend_connection_id,
     DataSourceInstanceID instance_id,
     const DataSourceConfig& cfg,
-    uint64_t config_hash,
-    uint64_t startup_config_hash,
     TracingSessionGlobalID startup_session_id) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   DataSourceStaticState& static_state = *rds.static_state;
@@ -1360,9 +1317,8 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
     internal_state->data_source_instance_id = instance_id;
     internal_state->buffer_id =
         static_cast<internal::BufferId>(cfg.target_buffer());
-    internal_state->config_hash = config_hash;
+    internal_state->config.reset(new DataSourceConfig(cfg));
     internal_state->startup_session_id = startup_session_id;
-    internal_state->startup_config_hash = startup_config_hash;
     internal_state->data_source = rds.factory();
     internal_state->interceptor = nullptr;
     internal_state->interceptor_id = 0;
@@ -1582,6 +1538,7 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
                                                   std::memory_order_relaxed);
     ds.internal_state->data_source.reset();
     ds.internal_state->interceptor.reset();
+    ds.internal_state->config.reset();
     startup_buffer_reservation =
         ds.internal_state->startup_target_buffer_reservation.load(
             std::memory_order_relaxed);
@@ -2458,8 +2415,6 @@ TracingMuxerImpl::CreateStartupTracingSession(
               rds, backend_id,
               backend.producer->connection_id_.load(std::memory_order_relaxed),
               /*instance_id=*/0, ds_cfg.config(),
-              ComputeConfigHash(ds_cfg.config()),
-              ComputeStartupConfigHash(ds_cfg.config()),
               /*startup_session_id=*/session_id);
           if (ds) {
             StartDataSourceImpl(ds);
