@@ -14,7 +14,7 @@
 
 import {Protocol} from 'devtools-protocol';
 import {ProtocolProxyApi} from 'devtools-protocol/types/protocol-proxy-api';
-import rpc from 'noice-json-rpc';
+import {Client} from 'noice-json-rpc';
 
 import {base64Encode} from '../base/string_utils';
 import {
@@ -58,7 +58,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     this.uiPort = port;
     this.devtoolsSocket = new DevToolsSocket();
     this.devtoolsSocket.on('close', () => this.resetState());
-    const rpcClient = new rpc.Client(this.devtoolsSocket);
+    const rpcClient = new Client(this.devtoolsSocket);
     this.api = rpcClient.api();
     this.api.Tracing.on('tracingComplete', this.onTracingComplete.bind(this));
     this.api.Tracing.on('bufferUsage', this.onBufferUsage.bind(this));

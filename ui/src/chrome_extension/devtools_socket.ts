@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import rpc from 'noice-json-rpc';
+import {JsonRpc2, LikeSocket} from 'noice-json-rpc';
 
 // To really understand how this works it is useful to see the implementation
 // of noice-json-rpc.
-export class DevToolsSocket implements rpc.LikeSocket {
+export class DevToolsSocket implements LikeSocket {
   private messageCallback: Function = (_: string) => {};
   private openCallback: Function = () => {};
   private closeCallback: Function = () => {};
@@ -26,7 +26,7 @@ export class DevToolsSocket implements rpc.LikeSocket {
     chrome.debugger.onDetach.addListener(this.onDetach.bind(this));
     chrome.debugger.onEvent.addListener((_source, method, params) => {
       if (this.messageCallback) {
-        const msg: rpc.JsonRpc2.Notification = {method, params};
+        const msg: JsonRpc2.Notification = {method, params};
         this.messageCallback(JSON.stringify(msg));
       }
     });
@@ -35,11 +35,11 @@ export class DevToolsSocket implements rpc.LikeSocket {
   send(message: string): void {
     if (this.target === undefined) return;
 
-    const msg: rpc.JsonRpc2.Request = JSON.parse(message);
+    const msg: JsonRpc2.Request = JSON.parse(message);
     chrome.debugger.sendCommand(
         this.target, msg.method, msg.params, (result) => {
           if (result === undefined) result = {};
-          const response: rpc.JsonRpc2.Response = {id: msg.id, result};
+          const response: JsonRpc2.Response = {id: msg.id, result};
           this.messageCallback(JSON.stringify(response));
         });
   }
