@@ -249,7 +249,9 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || col.col_type() == ColumnType::kString ||
                  col.col_type() == ColumnType::kDummy ||
                  col.col_type() == ColumnType::kId;
-    use_legacy = use_legacy || col.type() != c.value.type;
+    use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
+                                    overlays::OverlayOp::kOther &&
+                                col.type() != c.value.type);
     use_legacy = use_legacy ||
                  col.overlay().row_map().size() != col.storage_base().size();
     use_legacy = use_legacy || col.IsSorted() || col.IsDense() || col.IsSetId();
