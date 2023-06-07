@@ -143,6 +143,15 @@ inline void ValidateEventNameType() {
       "track-events#dynamic-event-names");
 }
 
+inline bool UnorderedEqual(std::vector<std::string> vec1,
+                           std::vector<std::string> vec2) {
+  std::sort(vec1.begin(), vec1.end());
+  vec1.erase(std::unique(vec1.begin(), vec1.end()), vec1.end());
+  std::sort(vec2.begin(), vec2.end());
+  vec2.erase(std::unique(vec2.begin(), vec2.end()), vec2.end());
+  return vec1 == vec2;
+}
+
 }  // namespace
 
 inline ::perfetto::DynamicString DecayEventNameType(
@@ -266,6 +275,56 @@ class TrackEventDataSource
   void WillClearIncrementalState(
       const DataSourceBase::ClearIncrementalStateArgs& args) override {
     TrackEventInternal::WillClearIncrementalState(*Registry, args);
+  }
+
+  // In Chrome, startup sessions are propagated from the browser process to
+  // child processes using command-line flags. Command-line flags can only
+  // convey the category filter and privacy settings, so we use only those
+  // to determine which startup sessions to adopt.
+  // TODO(khokhlov): After Chrome is able to propagate the entire config to the
+  // child process, we can make this comparison more strict by only clearing
+  // selected fields and comparing everything else. One specific thing to keep
+  // in mind is to clear the |convert_to_legacy_json| field, because Telemetry
+  // initiates tracing with proto format, but in some cases adopts the tracing
+  // session later via devtools which expect json format.
+  bool CanAdoptStartupSession(const DataSourceConfig& startup_config,
+                              const DataSourceConfig& service_config) override {
+    if (startup_config.track_event_config_raw().empty() ||
+        service_config.track_event_config_raw().empty()) {
+      return false;
+    }
+
+    protos::gen::TrackEventConfig startup_te_cfg;
+    startup_te_cfg.ParseFromString(startup_config.track_event_config_raw());
+    protos::gen::TrackEventConfig service_te_cfg;
+    service_te_cfg.ParseFromString(service_config.track_event_config_raw());
+
+    if (!UnorderedEqual(startup_te_cfg.enabled_categories(),
+                        service_te_cfg.enabled_categories())) {
+      return false;
+    }
+    if (!UnorderedEqual(startup_te_cfg.disabled_categories(),
+                        service_te_cfg.disabled_categories())) {
+      return false;
+    }
+    if (!UnorderedEqual(startup_te_cfg.enabled_tags(),
+                        service_te_cfg.enabled_tags())) {
+      return false;
+    }
+    if (!UnorderedEqual(startup_te_cfg.disabled_tags(),
+                        service_te_cfg.disabled_tags())) {
+      return false;
+    }
+    if (startup_te_cfg.filter_debug_annotations() !=
+        service_te_cfg.filter_debug_annotations()) {
+      return false;
+    }
+    if (startup_te_cfg.filter_dynamic_event_names() !=
+        service_te_cfg.filter_dynamic_event_names()) {
+      return false;
+    }
+
+    return true;
   }
 
   static void Flush() {
