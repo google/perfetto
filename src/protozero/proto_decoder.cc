@@ -135,9 +135,9 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
 
   res.next = new_pos;
 
-  if (PERFETTO_UNLIKELY(field_id > std::numeric_limits<uint16_t>::max())) {
-    PERFETTO_DLOG("Skipping field %" PRIu32 " because its id > 0xFFFF",
-                  field_id);
+  if (PERFETTO_UNLIKELY(field_id > Field::kMaxId)) {
+    PERFETTO_DLOG("Skipping field %" PRIu32 " because its id > %" PRIu32,
+                  field_id, Field::kMaxId);
     res.parse_res = ParseFieldResult::kSkip;
     return res;
   }
@@ -151,7 +151,7 @@ ParseFieldResult ParseOneField(const uint8_t* const buffer,
   }
 
   res.parse_res = ParseFieldResult::kOk;
-  res.field.initialize(static_cast<uint16_t>(field_id), field_type, int_value,
+  res.field.initialize(field_id, field_type, int_value,
                        static_cast<uint32_t>(size));
   return res;
 }
