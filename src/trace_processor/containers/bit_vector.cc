@@ -170,23 +170,14 @@ BitVector::SetBitsIterator BitVector::IterateSetBits() const {
   return SetBitsIterator(this);
 }
 
-BitVector BitVector::Not() const {
-  Builder builder(size());
-
-  // Append all words from all blocks except the last one.
-  uint32_t full_words = builder.BitsInCompleteWordsUntilFull();
-  for (uint32_t i = 0; i < full_words; ++i) {
-    builder.AppendWord(ConstBitWord(&words_[i]).Not());
+void BitVector::Not() {
+  for (uint32_t i = 0; i < words_.size(); ++i) {
+    BitWord(&words_[i]).Not();
   }
 
-  // Append bits from the last word.
-  uint32_t bits_from_last_word = builder.BitsUntilFull();
-  ConstBitWord last_word(&words_[full_words]);
-  for (uint32_t i = 0; i < bits_from_last_word; ++i) {
-    builder.Append(!last_word.IsSet(i));
+  for (uint32_t i = 1; i < counts_.size(); ++i) {
+    counts_[i] = kBitsInBlock * i - counts_[i];
   }
-
-  return std::move(builder).Build();
 }
 
 void BitVector::Or(const BitVector& sec) {
