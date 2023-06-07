@@ -53,7 +53,7 @@ DrmTracker::DrmTracker(TraceProcessorContext* context)
       fence_arg_seqno_id_(context->storage->InternString("fence seqno")) {}
 
 void DrmTracker::ParseDrm(int64_t timestamp,
-                          int32_t field_id,
+                          uint32_t field_id,
                           uint32_t pid,
                           protozero::ConstBytes blob) {
   using protos::pbzero::FtraceEvent;
