@@ -18,8 +18,11 @@
 #define SRC_SHARED_LIB_TEST_UTILS_H_
 
 #include <cassert>
+#include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <iterator>
+#include <mutex>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -36,6 +39,30 @@ void PrintTo(const PerfettoPbDecoderField& field, std::ostream*);
 namespace perfetto {
 namespace shlib {
 namespace test_utils {
+
+class WaitableEvent {
+ public:
+  WaitableEvent() = default;
+  void Notify() {
+    std::unique_lock<std::mutex> lock(m_);
+    notified_ = true;
+    cv_.notify_one();
+  }
+  bool WaitForNotification() {
+    std::unique_lock<std::mutex> lock(m_);
+    cv_.wait(lock, [this] { return notified_; });
+    return notified_;
+  }
+  bool IsNotified() {
+    std::unique_lock<std::mutex> lock(m_);
+    return notified_;
+  }
+
+ private:
+  std::mutex m_;
+  std::condition_variable cv_;
+  bool notified_ = false;
+};
 
 class TracingSession {
  public:
@@ -57,6 +84,7 @@ class TracingSession {
 
   struct PerfettoTracingSessionImpl* session() const { return session_; }
 
+  bool FlushBlocking(uint32_t timeout_ms);
   void StopBlocking();
   std::vector<uint8_t> ReadBlocking();
 

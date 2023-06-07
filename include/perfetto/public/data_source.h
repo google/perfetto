@@ -45,6 +45,7 @@ struct PerfettoDsCallbacks {
   PerfettoDsOnSetupCb on_setup_cb;
   PerfettoDsOnStartCb on_start_cb;
   PerfettoDsOnStopCb on_stop_cb;
+  PerfettoDsOnFlushCb on_flush_cb;
 
   // These are called to create/delete custom thread-local instance state, which
   // can be accessed with PerfettoDsTracerImplGetCustomTls().
@@ -62,9 +63,9 @@ struct PerfettoDsCallbacks {
 };
 
 static inline struct PerfettoDsCallbacks PerfettoDsNoCallbacks(void) {
-  struct PerfettoDsCallbacks ret = {PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-                                    PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-                                    PERFETTO_NULL, PERFETTO_NULL};
+  struct PerfettoDsCallbacks ret = {
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL};
   return ret;
 }
 
@@ -104,6 +105,9 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
   }
   if (callbacks.on_stop_cb) {
     PerfettoDsSetOnStopCallback(ds_impl, callbacks.on_stop_cb);
+  }
+  if (callbacks.on_flush_cb) {
+    PerfettoDsSetOnFlushCallback(ds_impl, callbacks.on_flush_cb);
   }
   if (callbacks.on_create_tls_cb) {
     PerfettoDsSetOnCreateTls(ds_impl, callbacks.on_create_tls_cb);
