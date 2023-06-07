@@ -295,10 +295,10 @@ BitVector NumericStorage::IndexSearch(FilterOp op,
                                       uint32_t indices_count) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
-    return BitVector(size(), true);
+    return BitVector(indices_count, true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector(size(), false);
+    return BitVector(indices_count, false);
 
   BitVector::Builder builder(indices_count);
   std::visit(
