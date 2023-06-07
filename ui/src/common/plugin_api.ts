@@ -15,7 +15,6 @@
 import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
-import {Selection} from './state';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -69,16 +68,6 @@ export interface PluginContext {
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
   registerTrack(track: TrackCreator): void;
-
-  // Register custom functionality to specify how the plugin should handle
-  // selection changes for tracks in this plugin.
-  //
-  // Params:
-  // @onDetailsPanelSelectionChange a function that takes a Selection as its
-  // parameter and performs whatever must happen on the details panel when the
-  // selection is invoked.
-  registerOnDetailsPanelSelectionChange(
-      onDetailsPanelSelectionChange: (newSelection?: Selection) => void): void;
 }
 
 export interface PluginInfo {
