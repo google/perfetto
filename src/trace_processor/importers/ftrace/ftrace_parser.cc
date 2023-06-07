@@ -1161,10 +1161,10 @@ void FtraceParser::ParseTypedFtraceToRaw(
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
-    uint16_t field_id = fld.id();
+    uint32_t field_id = fld.id();
     if (PERFETTO_UNLIKELY(field_id >= kMaxFtraceEventFields)) {
       PERFETTO_DLOG(
-          "Skipping ftrace arg - proto field id is too large (%" PRIu16 ")",
+          "Skipping ftrace arg - proto field id is too large (%" PRIu32 ")",
           field_id);
       continue;
     }
