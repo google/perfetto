@@ -11,10 +11,11 @@ cc_test {
   name: "CtsPerfettoTestCases",
   srcs: [
     "device_feature_test_cts.cc",
-    "end_to_end_integrationtest_cts.cc",
     "heapprofd_java_test_cts.cc",
     "heapprofd_test_cts.cc",
+    "producer_to_consumer_integrationtest_cts.cc",
     "traced_perf_test_cts.cc",
+    ":perfetto_end_to_end_integrationtests",
     ":perfetto_protos_perfetto_config_cpp_gen",
     ":perfetto_protos_perfetto_common_cpp_gen"
   ],

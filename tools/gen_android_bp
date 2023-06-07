@@ -73,6 +73,7 @@ default_targets = [
     '//test/cts:perfetto_cts_deps',
     '//test/cts:perfetto_cts_jni_deps',
     '//test:perfetto_gtest_logcat_printer',
+    '//test:perfetto_end_to_end_integrationtests',
     '//test/vts:perfetto_vts_deps',
 ]
 
