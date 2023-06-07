@@ -14,18 +14,20 @@
 
 import {featureFlags} from '../../common/feature_flags';
 import {PluginContext} from '../../common/plugin_api';
-import {Selection} from '../../common/state';
-import {CURRENT_SELECTION_TAG} from '../../frontend/details_panel';
-import {globals} from '../../frontend/globals';
 
-import {EventLatencyTrack} from './event_latency_track';
-import {TopLevelScrollDetailsTab} from './scroll_details_tab';
+import {addLatenciesTrack, EventLatencyTrack} from './event_latency_track';
 import {
-  TOP_LEVEL_SCROLL_KIND,
+  addTopLevelScrollTrack,
   TopLevelScrollTrack,
 } from './scroll_track';
+import {Engine} from '../../common/engine';
+import {addTopLevelJankTrack, TopLevelJankTrack} from './top_level_jank_track';
+import {AddTrackArgs} from '../../common/actions';
 
+// Constants for rendering plugin tracks.
 export const INPUT_LATENCY_TRACK = 'InputLatency::';
+
+// Constants for the plugin.
 export const SCROLL_JANK_PLUGIN_ID = 'perfetto.ScrollJank';
 export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
@@ -34,27 +36,52 @@ export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   defaultValue: false,
 });
 
-function onDetailsPanelSelectionChange(newSelection?: Selection) {
-  if (newSelection === undefined ||
-      newSelection.kind !== TOP_LEVEL_SCROLL_KIND) {
-    return;
+export type ScrollJankTracks = {
+  tracksToAdd: AddTrackArgs[],
+};
+
+export async function getScrollJankTracks(
+    engine: Engine): Promise<ScrollJankTracks> {
+  const result: ScrollJankTracks = {
+    tracksToAdd: [],
+  };
+
+  const topLevelJanks = addTopLevelJankTrack(engine);
+  const topLevelJanksResult = await topLevelJanks;
+  let originalLength = result.tracksToAdd.length;
+  result.tracksToAdd.length += topLevelJanksResult.tracksToAdd.length;
+  for (let i = 0; i < topLevelJanksResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] =
+        topLevelJanksResult.tracksToAdd[i];
   }
-  const bottomTabList = globals.bottomTabList;
-  if (!bottomTabList) return;
-  bottomTabList.addTab({
-    kind: TopLevelScrollDetailsTab.kind,
-    tag: CURRENT_SELECTION_TAG,
-    config: {
-      sqlTableName: newSelection.sqlTableName,
-      id: newSelection.id,
-    },
-  });
+
+  const topLevelScrolls = addTopLevelScrollTrack(engine);
+  const topLevelScrollsResult = await topLevelScrolls;
+  originalLength = result.tracksToAdd.length;
+  result.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
+  for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] =
+        topLevelScrollsResult.tracksToAdd[i];
+  }
+
+  // TODO(b/278844325): Top Level event latency summary is already rendered in
+  // the TopLevelJankTrack; this track should be rendered at a more
+  // intuitive location when the descendant slices are rendered.
+  originalLength = result.tracksToAdd.length;
+  const eventLatencies = addLatenciesTrack(engine);
+  const eventLatencyResult = await eventLatencies;
+  result.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
+  for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+  }
+
+  return result;
 }
 
 function activate(ctx: PluginContext) {
+  ctx.registerTrack(TopLevelJankTrack);
   ctx.registerTrack(TopLevelScrollTrack);
   ctx.registerTrack(EventLatencyTrack);
-  ctx.registerOnDetailsPanelSelectionChange(onDetailsPanelSelectionChange);
 }
 
 export const plugin = {

@@ -45,6 +45,5 @@ export function generateSqlWithInternalLayout(sqlArgs: GenerateSqlArgs):
   if (sqlArgs.orderByClause !== undefined) {
     sql += ' ORDER BY ' + sqlArgs.orderByClause;
   }
-  sql += ';';
   return sql;
 }
