@@ -31,7 +31,7 @@ if (enable_perfetto_traced_probes) {
   # enable_perfetto_traced_probes implies enable_perfetto_platform_services.
   perfetto_integrationtests_targets += [
     "src/traced/probes/ftrace:integrationtests",
-    "test:integrationtests",
+    "test:perfetto_end_to_end_integrationtests",
   ]
 }
 
