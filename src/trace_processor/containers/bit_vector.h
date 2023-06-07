@@ -148,8 +148,8 @@ class BitVector {
   // Create a copy of the bitvector.
   BitVector Copy() const;
 
-  // Create a bitwise Not copy of the bitvector.
-  BitVector Not() const;
+  // Bitwise Not of the bitvector.
+  void Not();
 
   // Bitwise Or of the bitvector.
   void Or(const BitVector&);
@@ -430,6 +430,9 @@ class BitVector {
     // Bitwise ands the given |mask| to the current value.
     void And(uint64_t mask) { *word_ &= mask; }
 
+    // Bitwise not.
+    void Not() { *word_ = ~(*word_); }
+
     // Sets the bit at the given index to true.
     void Set(uint32_t idx) {
       PERFETTO_DCHECK(idx < kBits);
@@ -515,9 +518,6 @@ class BitVector {
       PERFETTO_DCHECK(idx < kBits);
       return (*word_ >> idx) & 1ull;
     }
-
-    // Bitwise not.
-    uint64_t Not() const { return ~(*word_); }
 
     // Returns the index of the nth set bit.
     // Undefined if |n| >= |CountSetBits()|.
