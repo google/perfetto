@@ -77,7 +77,14 @@ if (enable_perfetto_benchmarks) {
       ":db",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../include/perfetto/base",
+      "../../../include/perfetto/ext/base",
+      "../../base:test_support",
+      "../tables:tables_python",
     ]
-    sources = [ "column_storage_overlay_benchmark.cc" ]
+    sources = [
+      "column_storage_overlay_benchmark.cc",
+      "query_executor_benchmark.cc",
+    ]
   }
 }
