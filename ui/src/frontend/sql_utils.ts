@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {SortDirection} from '../common/state';
+import {ColumnType} from '../common/query_result';
 
 interface OrderClause {
   fieldName: string;
@@ -78,4 +79,14 @@ export function fromNumNull(n: number|null): number|undefined {
     return undefined;
   }
   return n;
+}
+
+export function sqlValueToString(val: ColumnType): string {
+  if (val instanceof Uint8Array) {
+    return `<blob length=${val.length}>`;
+  }
+  if (val === null) {
+    return 'NULL';
+  }
+  return val.toString();
 }
