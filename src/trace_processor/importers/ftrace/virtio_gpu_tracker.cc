@@ -126,7 +126,7 @@ VirtioGpuTracker::VirtioGpuTracker(TraceProcessorContext* context)
       virtgpu_cursor_queue_(context, "Cursor") {}
 
 void VirtioGpuTracker::ParseVirtioGpu(int64_t timestamp,
-                                      int32_t field_id,
+                                      uint32_t field_id,
                                       uint32_t pid,
                                       protozero::ConstBytes blob) {
   using protos::pbzero::FtraceEvent;

@@ -43,7 +43,7 @@ MaliGpuEventTracker::MaliGpuEventTracker(TraceProcessorContext* context)
           context->storage->InternString("info_val")) {}
 
 void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
-                                            int32_t field_id,
+                                            uint32_t field_id,
                                             uint32_t pid) {
   using protos::pbzero::FtraceEvent;
 
@@ -82,7 +82,7 @@ void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
 }
 
 void MaliGpuEventTracker::ParseMaliGpuIrqEvent(int64_t ts,
-                                               int32_t field_id,
+                                               uint32_t field_id,
                                                uint32_t cpu,
                                                protozero::ConstBytes blob) {
   using protos::pbzero::FtraceEvent;
