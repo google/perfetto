@@ -118,6 +118,29 @@ class Functions(TestSuite):
           "abacabadabacaba"
       """))
 
+  def test_create_function_recursive_string_memoized(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute factorial.
+        SELECT create_function('f(x INT)', 'STRING',
+        '
+          SELECT IIF(
+            $x = 0,
+            "",
+            -- 97 is the ASCII code for "a".
+            f($x - 1) || char(96 + $x) || f($x - 1))
+        ');
+
+        SELECT experimental_memoize('f');
+
+        SELECT f(4) as result;
+      """,
+        out=Csv("""
+          "result"
+          "abacabadabacaba"
+      """))
+
   def test_create_function_memoize(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
@@ -137,6 +160,32 @@ class Functions(TestSuite):
         out=Csv("""
         "result"
         1125899906842624
+      """))
+
+  def test_create_function_memoize_float(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute 2^n inefficiently to test memoization.
+        -- If it times out, memoization is not working.
+        SELECT create_function('f(x INT)', 'FLOAT',
+        '
+          SELECT $x + 0.5
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('f');
+
+        SELECT printf("%.1f", f(1)) as result
+        UNION ALL
+        SELECT printf("%.1f", f(1)) as result
+        UNION ALL
+        SELECT printf("%.1f", f(1)) as result
+      """,
+        out=Csv("""
+        "result"
+        "1.5"
+        "1.5"
+        "1.5"
       """))
 
   def test_create_function_memoize_intermittent_memoization(self):
