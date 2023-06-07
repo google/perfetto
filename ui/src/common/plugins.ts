@@ -27,14 +27,12 @@ import {
   TrackProvider,
 } from './plugin_api';
 import {Registry} from './registry';
-import {Selection} from './state';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
 export class PluginContextImpl implements PluginContext {
   readonly pluginId: string;
-  onDetailsPanelSelectionChange?: (newSelection?: Selection) => void;
   private trackProviders: TrackProvider[];
 
   constructor(pluginId: string) {
@@ -54,11 +52,6 @@ export class PluginContextImpl implements PluginContext {
 
   registerTrackProvider(provider: TrackProvider) {
     this.trackProviders.push(provider);
-  }
-
-  registerOnDetailsPanelSelectionChange(
-      onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
-    this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
   }
   // ==================================================================
 
@@ -129,14 +122,6 @@ export class PluginManager {
       }
     }
     return promises;
-  }
-
-  onDetailsPanelSelectionChange(pluginId: string, newSelection?: Selection) {
-    const pluginContext = this.getPluginContext(pluginId);
-    if (pluginContext === undefined) return;
-    if (pluginContext.onDetailsPanelSelectionChange) {
-      pluginContext.onDetailsPanelSelectionChange(newSelection);
-    }
   }
 }
 
