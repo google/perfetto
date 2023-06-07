@@ -86,7 +86,7 @@ ProtoToArgsParser::ProtoToArgsParser(const DescriptorPool& pool) : pool_(pool) {
 base::Status ProtoToArgsParser::ParseMessage(
     const protozero::ConstBytes& cb,
     const std::string& type,
-    const std::vector<uint16_t>* allowed_fields,
+    const std::vector<uint32_t>* allowed_fields,
     Delegate& delegate,
     int* unknown_extensions) {
   ScopedNestedKeyContext key_context(key_prefix_);
@@ -98,7 +98,7 @@ base::Status ProtoToArgsParser::ParseMessageInternal(
     ScopedNestedKeyContext& key_context,
     const protozero::ConstBytes& cb,
     const std::string& type,
-    const std::vector<uint16_t>* allowed_fields,
+    const std::vector<uint32_t>* allowed_fields,
     Delegate& delegate,
     int* unknown_extensions) {
   if (auto override_result =
