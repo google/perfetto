@@ -19,18 +19,12 @@ import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
 import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
-import {
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
+import {NamedSliceTrack} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {DecideTracksResult} from '../chrome_scroll_jank';
 
-interface EventLatencyTrackTypes extends NamedSliceTrackTypes {}
-
-export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
+export class EventLatencyTrack extends NamedSliceTrack {
   static readonly kind = 'org.chromium.ScrollJank.event_latencies';
-  createdModels = false;
 
   static create(args: NewTrackArgs): Track {
     return new EventLatencyTrack(args);
@@ -41,13 +35,15 @@ export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
   }
 
   async initSqlTable(tableName: string) {
-    if (this.createdModels) {
-      return;
-    }
-    const sql = `CREATE VIEW ${tableName} AS ` +
-        `SELECT * FROM _perfetto_ui_impl_chrome_event_latency_scroll_janks`;
+    const sql =
+      `CREATE VIEW ${tableName} AS ` +
+      generateSqlWithInternalLayout({
+        columns: ['id', 'ts', 'dur', 'track_id', 'cause_of_jank AS name'],
+        layoutParams: {ts: 'ts', dur: 'dur'},
+        sourceTable: 'chrome_janky_event_latencies_v2',
+      }) + `;`;
+
     await this.engine.query(sql);
-    this.createdModels = true;
   }
 
   // At the moment we will just display the slice details. However, on select,
@@ -60,21 +56,7 @@ export async function addLatenciesTrack(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`
-      SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
-    `);
-
-  const sql =
-      `CREATE TABLE _perfetto_ui_impl_chrome_event_latency_scroll_janks AS ` +
-      generateSqlWithInternalLayout({
-        columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-        layoutParams: {ts: 'ts', dur: 'dur'},
-        sourceTable: 'slice',
-        whereClause: 'slice.id IN ' +
-            '(SELECT slice_id FROM event_latency_scroll_jank_cause)',
-      });
-
-  await engine.query(sql);
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
 
   result.tracksToAdd.push({
     id: uuidv4(),

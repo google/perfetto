@@ -250,7 +250,7 @@ function findTimeRangeOfSelection(): {startTs: TPTime, endTs: TPTime} {
     // TODO(hjd): Make focus selection work for logs.
   } else if (
       selection.kind === 'DEBUG_SLICE' ||
-      selection.kind === 'TOP_LEVEL_SCROLL') {
+      selection.kind === 'BASIC_SQL_OBJECT') {
     startTs = selection.start;
     if (selection.duration > 0) {
       endTs = startTs + selection.duration;

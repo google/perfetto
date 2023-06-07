@@ -18,10 +18,9 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
-import {TopLevelScrollSelection} from '../tracks/scroll_jank/scroll_track';
-
 import {Direction} from './event_set';
 import {TPDuration, TPTime} from './time';
+import {SqlObjectDetailsTabConfig} from '../frontend/details_panel';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -379,11 +378,24 @@ export interface LogSelection {
   trackId: string;
 }
 
+export interface BasicSqlObjectSelection {
+  kind: 'BASIC_SQL_OBJECT';
+  id: number;
+  sqlTableName: string;
+  start: TPTime;
+  duration: TPDuration;
+  // NOTE: this config can be expanded for multiple details panel types.
+  detailsPanelConfig: {
+    kind: string;
+    config: SqlObjectDetailsTabConfig;
+  };
+}
+
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection|
-     TopLevelScrollSelection)&{trackId?: string};
+     BasicSqlObjectSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
