@@ -63,11 +63,9 @@ import {
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
 import {
-  ENABLE_SCROLL_JANK_PLUGIN_V2,
+  ENABLE_SCROLL_JANK_PLUGIN_V2, getScrollJankTracks,
   INPUT_LATENCY_TRACK,
 } from '../tracks/scroll_jank';
-import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
-import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 const TRACKS_V2_FLAG = featureFlags.register({
@@ -243,21 +241,14 @@ class TrackDecider {
   }
 
   async addScrollJankTracks(engine: Engine): Promise<void> {
-    const topLevelScrolls = addTopLevelScrollTrack(engine);
-    const topLevelScrollsResult = await topLevelScrolls;
-    let originalLength = this.tracksToAdd.length;
-    this.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
-    for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
-      this.tracksToAdd[i + originalLength] =
-          topLevelScrollsResult.tracksToAdd[i];
-    }
+    const scrollJankTracks = getScrollJankTracks(engine);
+    const scrollJankTracksResult = await scrollJankTracks;
+    const originalLength = this.tracksToAdd.length;
+    this.tracksToAdd.length += scrollJankTracksResult.tracksToAdd.length;
 
-    originalLength = this.tracksToAdd.length;
-    const eventLatencies = addLatenciesTrack(engine);
-    const eventLatencyResult = await eventLatencies;
-    this.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
-    for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
-      this.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+    for (let i = 0; i < scrollJankTracksResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] =
+          scrollJankTracksResult.tracksToAdd[i];
     }
   }
 

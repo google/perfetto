@@ -136,7 +136,6 @@ export function dictToTreeNodes(dict: {[key: string]: m.Child}): m.Child[] {
 export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
   return m(Tree, dictToTreeNodes(dict));
 }
-
 interface LazyTreeNodeAttrs {
   // Same as TreeNode (see above).
   left?: m.Children;

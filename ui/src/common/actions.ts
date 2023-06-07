@@ -62,6 +62,7 @@ import {
   VisibleState,
 } from './state';
 import {TPDuration, TPTime} from './time';
+import {SqlObjectDetailsTabConfig} from '../frontend/details_panel';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -814,20 +815,25 @@ export const StateActions = {
     };
   },
 
-  selectTopLevelScrollSlice(state: StateDraft, args: {
+  selectBasicSqlSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
     start: TPTime,
-    duration: TPTime,
+    duration: TPDuration,
     trackId: string,
+    detailsPanelConfig: {
+      kind: string,
+      config: SqlObjectDetailsTabConfig
+    },
   }): void {
     state.currentSelection = {
-      kind: 'TOP_LEVEL_SCROLL',
+      kind: 'BASIC_SQL_OBJECT',
       id: args.id,
       sqlTableName: args.sqlTableName,
       start: args.start,
       duration: args.duration,
       trackId: args.trackId,
+      detailsPanelConfig: args.detailsPanelConfig,
     };
   },
 
