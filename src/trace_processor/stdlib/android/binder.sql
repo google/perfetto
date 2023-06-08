@@ -124,7 +124,7 @@ WITH
     JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
     JOIN process reply_process ON reply_process.upid = reply_thread.upid
     LEFT JOIN slice aidl
-      ON aidl.parent_id = binder_reply.id AND aidl.name LIKE 'AIDL::%'
+      ON aidl.parent_id = binder_reply.id AND (aidl.name GLOB 'AIDL::*' OR aidl.name GLOB 'HIDL::*')
   )
 SELECT
   MIN(aidl_name) AS aidl_name,
