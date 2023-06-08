@@ -41,7 +41,6 @@ const SHOW_INDIRECT_PRECEDING_FLOWS_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
-
 export class FlowEventsController extends Controller<'main'> {
   private lastSelectedSliceId?: number;
   private lastSelectedArea?: Area;
@@ -76,109 +75,234 @@ export class FlowEventsController extends Controller<'main'> {
     );`);
   }
 
-  queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
-    this.args.engine.query(query).then((result) => {
-      const flows: Flow[] = [];
-      const it = result.iter({
-        beginSliceId: NUM,
-        beginTrackId: NUM,
-        beginSliceName: STR_NULL,
-        beginSliceChromeCustomName: STR_NULL,
-        beginSliceCategory: STR_NULL,
-        beginSliceStartTs: LONG,
-        beginSliceEndTs: LONG,
-        beginDepth: NUM,
-        beginThreadName: STR_NULL,
-        beginProcessName: STR_NULL,
-        endSliceId: NUM,
-        endTrackId: NUM,
-        endSliceName: STR_NULL,
-        endSliceChromeCustomName: STR_NULL,
-        endSliceCategory: STR_NULL,
-        endSliceStartTs: LONG,
-        endSliceEndTs: LONG,
-        endDepth: NUM,
-        endThreadName: STR_NULL,
-        endProcessName: STR_NULL,
-        name: STR_NULL,
-        category: STR_NULL,
-        id: NUM,
-      });
-      for (; it.valid(); it.next()) {
-        const beginSliceId = it.beginSliceId;
-        const beginTrackId = it.beginTrackId;
-        const beginSliceName =
-            it.beginSliceName === null ? 'NULL' : it.beginSliceName;
-        const beginSliceChromeCustomName =
-            it.beginSliceChromeCustomName === null ?
-            undefined :
-            it.beginSliceChromeCustomName;
-        const beginSliceCategory =
-            it.beginSliceCategory === null ? 'NULL' : it.beginSliceCategory;
-        const beginSliceStartTs = it.beginSliceStartTs;
-        const beginSliceEndTs = it.beginSliceEndTs;
-        const beginDepth = it.beginDepth;
-        const beginThreadName =
-            it.beginThreadName === null ? 'NULL' : it.beginThreadName;
-        const beginProcessName =
-            it.beginProcessName === null ? 'NULL' : it.beginProcessName;
+  async queryFlowEvents(query: string, callback: (flows: Flow[]) => void) {
+    const result = await this.args.engine.query(query);
+    const flows: Flow[] = [];
 
-        const endSliceId = it.endSliceId;
-        const endTrackId = it.endTrackId;
-        const endSliceName =
-            it.endSliceName === null ? 'NULL' : it.endSliceName;
-        const endSliceChromeCustomName = it.endSliceChromeCustomName === null ?
-            undefined :
-            it.endSliceChromeCustomName;
-        const endSliceCategory =
-            it.endSliceCategory === null ? 'NULL' : it.endSliceCategory;
-        const endSliceStartTs = it.endSliceStartTs;
-        const endSliceEndTs = it.endSliceEndTs;
-        const endDepth = it.endDepth;
-        const endThreadName =
-            it.endThreadName === null ? 'NULL' : it.endThreadName;
-        const endProcessName =
-            it.endProcessName === null ? 'NULL' : it.endProcessName;
-
-        // Category and name present only in version 1 flow events
-        // It is most likelly NULL for all other versions
-        const category = it.category === null ? undefined : it.category;
-        const name = it.name === null ? undefined : it.name;
-        const id = it.id;
-
-        flows.push({
-          id,
-          begin: {
-            trackId: beginTrackId,
-            sliceId: beginSliceId,
-            sliceName: beginSliceName,
-            sliceChromeCustomName: beginSliceChromeCustomName,
-            sliceCategory: beginSliceCategory,
-            sliceStartTs: beginSliceStartTs,
-            sliceEndTs: beginSliceEndTs,
-            depth: beginDepth,
-            threadName: beginThreadName,
-            processName: beginProcessName,
-          },
-          end: {
-            trackId: endTrackId,
-            sliceId: endSliceId,
-            sliceName: endSliceName,
-            sliceChromeCustomName: endSliceChromeCustomName,
-            sliceCategory: endSliceCategory,
-            sliceStartTs: endSliceStartTs,
-            sliceEndTs: endSliceEndTs,
-            depth: endDepth,
-            threadName: endThreadName,
-            processName: endProcessName,
-          },
-          dur: endSliceStartTs - beginSliceEndTs,
-          category,
-          name,
-        });
-      }
-      callback(flows);
+    const it = result.iter({
+      beginSliceId: NUM,
+      beginTrackId: NUM,
+      beginSliceName: STR_NULL,
+      beginSliceChromeCustomName: STR_NULL,
+      beginSliceCategory: STR_NULL,
+      beginSliceStartTs: LONG,
+      beginSliceEndTs: LONG,
+      beginDepth: NUM,
+      beginThreadName: STR_NULL,
+      beginProcessName: STR_NULL,
+      endSliceId: NUM,
+      endTrackId: NUM,
+      endSliceName: STR_NULL,
+      endSliceChromeCustomName: STR_NULL,
+      endSliceCategory: STR_NULL,
+      endSliceStartTs: LONG,
+      endSliceEndTs: LONG,
+      endDepth: NUM,
+      endThreadName: STR_NULL,
+      endProcessName: STR_NULL,
+      name: STR_NULL,
+      category: STR_NULL,
+      id: NUM,
     });
+
+    const nullToStr = (s: null|string): string => {
+      return s === null ? 'NULL' : s;
+    };
+
+    const nullToUndefined = (s: null|string): undefined|string => {
+      return s === null ? undefined : s;
+    };
+
+    const nodes = [];
+
+    for (; it.valid(); it.next()) {
+      // Category and name present only in version 1 flow events
+      // It is most likelly NULL for all other versions
+      const category = nullToUndefined(it.category);
+      const name = nullToUndefined(it.name);
+      const id = it.id;
+
+      const begin = {
+        trackId: it.beginTrackId,
+        sliceId: it.beginSliceId,
+        sliceName: nullToStr(it.beginSliceName),
+        sliceChromeCustomName: nullToUndefined(it.beginSliceChromeCustomName),
+        sliceCategory: nullToStr(it.beginSliceCategory),
+        sliceStartTs: it.beginSliceStartTs,
+        sliceEndTs: it.beginSliceEndTs,
+        depth: it.beginDepth,
+        threadName: nullToStr(it.beginThreadName),
+        processName: nullToStr(it.beginProcessName),
+      };
+
+      const end = {
+        trackId: it.endTrackId,
+        sliceId: it.endSliceId,
+        sliceName: nullToStr(it.endSliceName),
+        sliceChromeCustomName: nullToUndefined(it.endSliceChromeCustomName),
+        sliceCategory: nullToStr(it.endSliceCategory),
+        sliceStartTs: it.endSliceStartTs,
+        sliceEndTs: it.endSliceEndTs,
+        depth: it.endDepth,
+        threadName: nullToStr(it.endThreadName),
+        processName: nullToStr(it.endProcessName),
+      };
+
+      nodes.push(begin);
+      nodes.push(end);
+
+      flows.push({
+        id,
+        begin,
+        end,
+        dur: it.endSliceStartTs - it.beginSliceEndTs,
+        category,
+        name,
+      });
+    }
+
+
+    // Everything below here is a horrible hack to support flows for
+    // async slice tracks.
+    // In short the issue is this:
+    // - For most slice tracks there is a one-to-one mapping between
+    //   the track in the UI and the track in the TP. n.b. Even in this
+    //   case the UI 'trackId' and the TP 'track.id' may not be the
+    //   same. In this case 'depth' in the TP is the exact depth in the
+    //   UI.
+    // - In the case of aysnc tracks however the mapping is
+    //   one-to-many. Each async slice track in the UI is 'backed' but
+    //   multiple TP tracks. In order to render this track we need
+    //   to adjust depth to avoid overlapping slices. In the render
+    //   path we use experimental_slice_layout for this purpose. This
+    //   is a virtual table in the TP which, for an arbitrary collection
+    //   of TP trackIds, computes for each slice a 'layout_depth'.
+    // - Everything above in this function and its callers doesn't
+    //   know anything about layout_depth.
+    //
+    // So if we stopped here we would have incorrect rendering for
+    // async slice tracks. Instead we want to 'fix' depth for these
+    // cases. We do this in two passes.
+    // - First we collect all the information we need in 'Info' POJOs
+    // - Secondly we loop over those Infos querying
+    //   the database to find the layout_depth for each sliceId
+    // TODO(hjd): This should not be needed after TracksV2 lands.
+
+    // We end up with one Info POJOs for each UI async slice track
+    // which has at least  one flow {begin,end}ing in one of its slices.
+    interface Info {
+      uiTrackId: string;
+      siblingTrackIds: number[];
+      sliceIds: number[];
+      nodes: Array<{
+        sliceId: number,
+        depth: number,
+      }>;
+    }
+
+    const uiTrackIdToInfo = new Map<string, null|Info>();
+    const trackIdToInfo = new Map<number, null|Info>();
+
+    const trackIdToUiTrackId = globals.state.uiTrackIdByTraceTrackId;
+    const tracks = globals.state.tracks;
+
+    const getInfo = (trackId: number): null|Info => {
+      let info = trackIdToInfo.get(trackId);
+      if (info !== undefined) {
+        return info;
+      }
+
+      const uiTrackId = trackIdToUiTrackId[trackId];
+      if (uiTrackId === undefined) {
+        trackIdToInfo.set(trackId, null);
+        return null;
+      }
+
+      const track = tracks[uiTrackId];
+      if (track === undefined) {
+        trackIdToInfo.set(trackId, null);
+        return null;
+      }
+
+      info = uiTrackIdToInfo.get(uiTrackId);
+      if (info !== undefined) {
+        return info;
+      }
+
+      // If 'trackIds' is undefined this is not an async slice track so
+      // we don't need to do anything. We also don't need to do
+      // anything if there is only one TP track in this async track. In
+      // that case experimental_slice_layout is just an expensive way
+      // to find out depth === layout_depth.
+      const trackIds = track.config.trackIds;
+      if (trackIds === undefined || trackIds.length <= 1) {
+        uiTrackIdToInfo.set(uiTrackId, null);
+        trackIdToInfo.set(trackId, null);
+        return null;
+      }
+
+      const newInfo = {
+        uiTrackId,
+        siblingTrackIds: trackIds,
+        sliceIds: [],
+        nodes: [],
+      };
+
+      uiTrackIdToInfo.set(uiTrackId, newInfo);
+      trackIdToInfo.set(trackId, newInfo);
+
+      return newInfo;
+    };
+
+    // First pass, collect:
+    // - all slices that belong to async slice track
+    // - grouped by the async slice track in question
+    for (const node of nodes) {
+      const info = getInfo(node.trackId);
+      if (info !== null) {
+        info.sliceIds.push(node.sliceId);
+        info.nodes.push(node);
+      }
+    }
+
+    // Second pass, for each async track:
+    // - Query to find the layout_depth for each relevant sliceId
+    // - Iterate through the nodes updating the depth in place
+    for (const info of uiTrackIdToInfo.values()) {
+      if (info === null) {
+        continue;
+      }
+      const r = await this.args.engine.query(`
+        SELECT
+          id,
+          layout_depth as depth
+        FROM
+          experimental_slice_layout
+        WHERE
+          filter_track_ids = '${info.siblingTrackIds.join(',')}'
+          AND id in (${info.sliceIds.join(', ')})
+      `);
+
+      // Create the sliceId -> new depth map:
+      const it = r.iter({
+        id: NUM,
+        depth: NUM,
+      });
+      const sliceIdToDepth = new Map<number, number>();
+      for (; it.valid(); it.next()) {
+        sliceIdToDepth.set(it.id, it.depth);
+      }
+
+      // For each begin/end from an async track update the depth:
+      for (const node of info.nodes) {
+        const newDepth = sliceIdToDepth.get(node.sliceId);
+        if (newDepth !== undefined) {
+          node.depth = newDepth;
+        }
+      }
+    }
+
+    callback(flows);
   }
 
   sliceSelected(sliceId: number) {
@@ -260,6 +384,10 @@ export class FlowEventsController extends Controller<'main'> {
       } else if (track.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
         const actualConfig = track.config as ActualConfig;
         for (const trackId of actualConfig.trackIds) {
+          trackIds.push(trackId);
+        }
+      } else if (track.config.trackIds !== undefined) {
+        for (const trackId of track.config.trackIds) {
           trackIds.push(trackId);
         }
       }
