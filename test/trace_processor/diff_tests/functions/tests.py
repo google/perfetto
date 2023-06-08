@@ -567,6 +567,47 @@ class Functions(TestSuite):
                   A (0x0)
             """))
 
+  def test_profile_aggregates_samples(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        WITH samples(stack, value) AS (
+        VALUES
+          (CAT_STACKS("A", "B"), 4),
+          (CAT_STACKS("A", "B"), 8),
+          (CAT_STACKS("A", "B"), 15),
+          (CAT_STACKS("A", "C"), 16),
+          (CAT_STACKS("C", "B"), 23),
+          (CAT_STACKS("C", "B"), 42)
+        )
+        SELECT HEX(
+          EXPERIMENTAL_PROFILE(
+            stack, "type", "units", value))
+        FROM samples
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+            Sample:
+              Values: 16
+              Stack:
+                C (0x0)
+                A (0x0)
+
+            Sample:
+              Values: 27
+              Stack:
+                B (0x0)
+                A (0x0)
+
+            Sample:
+              Values: 65
+              Stack:
+                B (0x0)
+                C (0x0)
+            """))
+
   def test_annotated_callstack(self):
     return DiffTestBlueprint(
         trace=DataPath("perf_sample_annotations.pftrace"),
