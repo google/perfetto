@@ -27,6 +27,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/ext/trace_processor/demangle.h"
+#include "protos/third_party/pprof/profile.pbzero.h"
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -38,6 +39,8 @@ namespace trace_processor {
 namespace {
 
 using protos::pbzero::Stack;
+using third_party::perftools::profiles::pbzero::Profile;
+using third_party::perftools::profiles::pbzero::Sample;
 
 base::StringView ToString(CallsiteAnnotation annotation) {
   switch (annotation) {
@@ -195,13 +198,47 @@ int64_t GProfileBuilder::Mapping::ComputeMainBinaryScore() const {
   return score;
 }
 
+bool GProfileBuilder::SampleAggregator::AddSample(
+    const protozero::PackedVarInt& location_ids,
+    const std::vector<int64_t>& values) {
+  SerializedLocationId key(location_ids.data(),
+                           location_ids.data() + location_ids.size());
+  std::vector<int64_t>* agg_values = samples_.Find(key);
+  if (!agg_values) {
+    samples_.Insert(std::move(key), values);
+    return true;
+  }
+  // All samples must have the same number of values.
+  if (values.size() != agg_values->size()) {
+    return false;
+  }
+  std::transform(values.begin(), values.end(), agg_values->begin(),
+                 agg_values->begin(), std::plus<int64_t>());
+  return true;
+}
+
+void GProfileBuilder::SampleAggregator::WriteTo(Profile& profile) {
+  protozero::PackedVarInt values;
+  for (auto it = samples_.GetIterator(); it; ++it) {
+    values.Reset();
+    for (int64_t value : it.value()) {
+      values.Append(value);
+    }
+    Sample* sample = profile.add_sample();
+    sample->set_value(values);
+    // Map key is the serialized varint. Just append the bytes.
+    sample->AppendBytes(Sample::kLocationIdFieldNumber, it.key().data(),
+                        it.key().size());
+  }
+}
+
 GProfileBuilder::GProfileBuilder(const TraceProcessorContext* context,
                                  const std::vector<ValueType>& sample_types)
     : context_(*context),
       string_table_(&result_, &context->storage->string_pool()),
       annotations_(context) {
-  // Make sure the empty function always gets id 0 which will be ignored when
-  // writing the proto file.
+  // Make sure the empty function always gets id 0 which will be ignored
+  // when writing the proto file.
   functions_.insert(
       {Function{kEmptyStringIndex, kEmptyStringIndex, kEmptyStringIndex},
        kNullFunctionId});
@@ -218,28 +255,16 @@ void GProfileBuilder::WriteSampleTypes(
         string_table_.InternString(base::StringView(value_type.type));
     int64_t unit =
         string_table_.InternString(base::StringView(value_type.unit));
-    // Add message later, remember protozero does not allow you to interleave
-    // these write calls.
+    // Add message later, remember protozero does not allow you to
+    // interleave these write calls.
     auto* sample_type = result_->add_sample_type();
     sample_type->set_type(type);
     sample_type->set_unit(unit);
   }
 }
 
-bool GProfileBuilder::AddSample(const protozero::PackedVarInt& location_ids,
-                                const protozero::PackedVarInt& values) {
-  PERFETTO_CHECK(!finalized_);
-  if (location_ids.size() == 0) {
-    return false;
-  }
-  auto* sample = result_->add_sample();
-  sample->set_value(values);
-  sample->set_location_id(location_ids);
-  return true;
-}
-
 bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
-                                const protozero::PackedVarInt& values) {
+                                const std::vector<int64_t>& values) {
   PERFETTO_CHECK(!finalized_);
 
   auto it = stack.entries();
@@ -256,7 +281,7 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
       uint32_t callsite_id = entry.has_callsite_id()
                                  ? entry.callsite_id()
                                  : entry.annotated_callsite_id();
-      return AddSample(
+      return samples_.AddSample(
           GetLocationIdsForCallsite(CallsiteId(callsite_id), annotated),
           values);
     }
@@ -288,7 +313,7 @@ bool GProfileBuilder::AddSample(const Stack::Decoder& stack,
                                                 CallsiteAnnotation::kNone));
     }
   }
-  return AddSample(location_ids, values);
+  return samples_.AddSample(location_ids, values);
 }
 
 void GProfileBuilder::Finalize() {
@@ -298,6 +323,7 @@ void GProfileBuilder::Finalize() {
   WriteMappings();
   WriteFunctions();
   WriteLocations();
+  samples_.WriteTo(*result_.get());
   finalized_ = true;
 }
 
@@ -599,8 +625,8 @@ void GProfileBuilder::WriteMapping(uint64_t mapping_id) {
 }
 
 void GProfileBuilder::WriteMappings() {
-  // The convention in pprof files is to write the mapping for the main binary
-  // first. So lets do just that.
+  // The convention in pprof files is to write the mapping for the main
+  // binary first. So lets do just that.
   std::optional<uint64_t> main_mapping_id = GuessMainBinary();
   if (main_mapping_id) {
     WriteMapping(*main_mapping_id);
