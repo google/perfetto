@@ -19,7 +19,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-bool Table::kUseFilterV2 = false;
+bool Table::kUseFilterV2 = true;
 
 Table::Table() = default;
 Table::~Table() = default;
