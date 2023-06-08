@@ -180,7 +180,7 @@ export class OverviewTimelinePanel extends Panel {
     if (this.timeScale === undefined) return 'default';
     const [vizStartPx, vizEndPx] =
         OverviewTimelinePanel.extractBounds(this.timeScale);
-    const offset = globals.hideSidebar? 0 : SIDEBAR_WIDTH;
+    const offset = globals.hideSidebar ? 0 : SIDEBAR_WIDTH;
     const startBound = vizStartPx - 1 + offset;
     const endBound = vizEndPx + offset;
     if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
