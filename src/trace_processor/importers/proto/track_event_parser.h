@@ -92,6 +92,7 @@ class TrackEventParser {
   const StringId log_message_source_location_function_name_key_id_;
   const StringId log_message_source_location_file_name_key_id_;
   const StringId log_message_source_location_line_number_key_id_;
+  const StringId log_message_priority_id_;
   const StringId source_location_function_name_key_id_;
   const StringId source_location_file_name_key_id_;
   const StringId source_location_line_number_key_id_;

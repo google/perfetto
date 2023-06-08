@@ -361,11 +361,69 @@ class Chrome(TestSuite):
         }
         """),
         query="""
-        SELECT utid, tag, msg FROM android_logs;
+        SELECT utid, tag, msg, prio FROM android_logs;
+        """,
+        # If the log_message_body doesn't have any priority, a default 4 (i.e.
+        # INFO) is assumed (otherwise the UI will not show the message).
+        out=Csv("""
+        "utid","tag","msg","prio"
+        1,"foo.cc:123","log message",4
+        """))
+
+  def test_chrome_log_message_priority(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 0
+          incremental_state_cleared: true
+          trusted_packet_sequence_id: 1
+          track_descriptor {
+            uuid: 12345
+            thread {
+              pid: 123
+              tid: 345
+            }
+            parent_uuid: 0
+            chrome_thread {
+              thread_type: THREAD_POOL_FG_WORKER
+            }
+          }
+        }
+
+        packet {
+          trusted_packet_sequence_id: 1
+          timestamp: 10
+          track_event {
+            track_uuid: 12345
+            categories: "cat1"
+            type: TYPE_INSTANT
+            name: "slice1"
+            log_message {
+                body_iid: 1
+                source_location_iid: 3
+                prio: PRIO_WARN
+            }
+          }
+          interned_data {
+            log_message_body {
+                iid: 1
+                body: "log message"
+            }
+            source_locations {
+                iid: 3
+                function_name: "func"
+                file_name: "foo.cc"
+                line_number: 123
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT utid, tag, msg, prio FROM android_logs;
         """,
         out=Csv("""
-        "utid","tag","msg"
-        1,"foo.cc:123","log message"
+        "utid","tag","msg","prio"
+        1,"foo.cc:123","log message",5
         """))
 
   def test_chrome_log_message_args(self):
