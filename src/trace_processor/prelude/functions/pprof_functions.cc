@@ -81,7 +81,7 @@ class AggregateContext {
       return sqlite_utils::ToInvalidArgumentError(
           "stack", 0, base::ErrStatus("failed to deserialize Stack proto"));
     }
-    if (!builder_.AddSample(stack, sample_value_)) {
+    if (!builder_.AddSample(stack, sample_values_)) {
       return base::ErrStatus("Failed to add callstack");
     }
     return util::OkStatus();
@@ -129,29 +129,30 @@ class AggregateContext {
   AggregateContext(TraceProcessorContext* tp_context,
                    const std::vector<GProfileBuilder::ValueType>& sample_types)
       : builder_(tp_context, sample_types) {
-    sample_value_.Append(1);
+    sample_values_.resize(sample_types.size(), 1);
   }
 
   base::Status UpdateSampleValue(size_t argc, sqlite3_value** argv) {
     if (argc == 1) {
+      PERFETTO_CHECK(sample_values_.size() == 1);
       return base::OkStatus();
     }
 
-    sample_value_.Reset();
-    for (size_t i = 3; i < argc; i += 3) {
+    PERFETTO_CHECK(argc == 1 + (sample_values_.size() * 3));
+    for (size_t i = 0; i < sample_values_.size(); ++i) {
       base::StatusOr<SqlValue> value = sqlite_utils::ExtractArgument(
-          argc, argv, "sample_value", i, SqlValue::kLong);
+          argc, argv, "sample_value", 3 + i * 3, SqlValue::kLong);
       if (!value.ok()) {
         return value.status();
       }
-      sample_value_.Append(value->AsLong());
+      sample_values_[i] = value->AsLong();
     }
 
     return base::OkStatus();
   }
 
   GProfileBuilder builder_;
-  protozero::PackedVarInt sample_value_;
+  std::vector<int64_t> sample_values_;
 };
 
 static base::Status Step(sqlite3_context* ctx,
