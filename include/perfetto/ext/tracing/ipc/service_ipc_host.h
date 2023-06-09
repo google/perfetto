@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
+#include "perfetto/ext/tracing/ipc/default_socket.h"
 
 namespace perfetto {
 namespace base {
@@ -46,9 +47,16 @@ class PERFETTO_EXPORT_COMPONENT ServiceIPCHost {
       TracingService::InitOpts = {});
   virtual ~ServiceIPCHost();
 
+  // The overload to wrap the multi-value producer socket name in the
+  // single-value variant for compatibility in tests.
+  bool Start(const char* producer_socket_name,
+             const char* consumer_socket_name) {
+    return Start(TokenizeProducerSockets(producer_socket_name),
+                 consumer_socket_name);
+  }
   // Start listening on the Producer & Consumer ports. Returns false in case of
   // failure (e.g., something else is listening on |socket_name|).
-  virtual bool Start(const char* producer_socket_name,
+  virtual bool Start(const std::vector<std::string>& producer_socket_names,
                      const char* consumer_socket_name) = 0;
 
   // Like the above, but takes two file descriptors to already bound sockets.
