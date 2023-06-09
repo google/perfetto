@@ -65,6 +65,33 @@ class ChromeScrollJank(TestSuite):
         """,
         out=Path('event_latency_to_breakdowns.out'))
 
+  def test_chrome_frames_with_missed_vsyncs(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+
+        SELECT
+          cause_of_jank,
+          sub_cause_of_jank,
+          delay_since_last_frame,
+          vsync_interval
+        FROM chrome_janky_frames;
+        """,
+        out=Path('scroll_jank_v3.out'))
+
+  def test_chrome_frames_with_missed_vsyncs_percentage(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+
+        SELECT
+          delayed_frame_percentage
+        FROM chrome_janky_frames_percentage;
+        """,
+        out=Path('scroll_jank_v3_percentage.out'))
+
   def test_event_latency_scroll_jank(self):
     return DiffTestBlueprint(
         trace=DataPath('event_latency_with_args.perfetto-trace'),
