@@ -38,7 +38,7 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   ~ServiceIPCHostImpl() override;
 
   // ServiceIPCHost implementation.
-  bool Start(const char* producer_socket_name,
+  bool Start(const std::vector<std::string>& producer_socket_names,
              const char* consumer_socket_name) override;
   bool Start(base::ScopedSocketHandle producer_socket_fd,
              base::ScopedSocketHandle consumer_socket_fd) override;
@@ -55,9 +55,12 @@ class ServiceIPCHostImpl : public ServiceIPCHost {
   const TracingService::InitOpts init_opts_;
   std::unique_ptr<TracingService> svc_;  // The service business logic.
 
-  // The IPC host that listens on the Producer socket. It owns the
-  // PosixServiceProducerPort instance which deals with all producers' IPC(s).
-  std::unique_ptr<ipc::Host> producer_ipc_port_;
+  // The IPC hosts that listen on the Producer sockets. They own the
+  // PosixServiceProducerPort instances which deal with all producers' IPC(s).
+  // Note that there can be multiple producer sockets if it's specified in the
+  // producer socket name (e.g. for listening both on vsock for VMs and AF_UNIX
+  // for processes on the same machine).
+  std::vector<std::unique_ptr<ipc::Host>> producer_ipc_ports_;
 
   // As above, but for the Consumer port.
   std::unique_ptr<ipc::Host> consumer_ipc_port_;

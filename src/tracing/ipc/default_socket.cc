@@ -18,6 +18,7 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/basic_types.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
@@ -85,6 +86,11 @@ const char* GetProducerSocket() {
   }
   base::ignore_result(UseRunPerfettoBaseDir);  // Silence unused func warnings.
   return name;
+}
+
+std::vector<std::string> TokenizeProducerSockets(
+    const char* producer_socket_names) {
+  return base::SplitString(producer_socket_names, ",");
 }
 
 const char* GetConsumerSocket() {

@@ -17,11 +17,18 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 #define INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 
+#include <string>
+#include <vector>
+
 #include "perfetto/base/export.h"
 
 namespace perfetto {
 
 PERFETTO_EXPORT_COMPONENT const char* GetConsumerSocket();
+// This function is used for tokenize the |producer_socket_names| string into
+// multiple producer socket names.
+PERFETTO_EXPORT_COMPONENT std::vector<std::string> TokenizeProducerSockets(
+    const char* producer_socket_names);
 PERFETTO_EXPORT_COMPONENT const char* GetProducerSocket();
 
 }  // namespace perfetto
