@@ -180,12 +180,13 @@ export class OverviewTimelinePanel extends Panel {
     if (this.timeScale === undefined) return 'default';
     const [vizStartPx, vizEndPx] =
         OverviewTimelinePanel.extractBounds(this.timeScale);
-    const startBound = vizStartPx - 1 + SIDEBAR_WIDTH;
-    const endBound = vizEndPx + SIDEBAR_WIDTH;
+    const offset = globals.hideSidebar ? 0 : SIDEBAR_WIDTH;
+    const startBound = vizStartPx - 1 + offset;
+    const endBound = vizEndPx + offset;
     if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
         OverviewTimelinePanel.inBorderRange(x, endBound)) {
       return 'ew-resize';
-    } else if (x < SIDEBAR_WIDTH + TRACK_SHELL_WIDTH) {
+    } else if (x < offset + TRACK_SHELL_WIDTH) {
       return 'default';
     } else if (x < startBound || endBound < x) {
       return 'crosshair';
