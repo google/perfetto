@@ -68,6 +68,7 @@ perfetto_sql_source_set("chrome_sql") {
     "scroll_jank_cause_blocking_touch_move.sql",
     "scroll_jank_cause_get_bitmap.sql",
     "scroll_jank_cause_queuing_delay.sql",
+    "scroll_jank_v3.sql",
     "sufficient_chrome_processes.sql",
     "test_chrome_metric.sql",
     "touch_flow_event.sql",
