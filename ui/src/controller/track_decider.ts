@@ -735,9 +735,7 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select distinct cpu
-          from ftrace_event
-          where cpu + 1 > 1 or utid + 1 > 1`;
+    const query = 'select distinct cpu from ftrace_event';
 
     const result = await engine.query(query);
     const it = result.iter({cpu: NUM});
