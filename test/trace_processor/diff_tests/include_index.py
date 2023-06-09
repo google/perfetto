@@ -69,6 +69,7 @@ from diff_tests.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.profiling.tests_metrics import ProfilingMetrics
 from diff_tests.scheduler.tests import Scheduler
+from diff_tests.slices.tests import Slices
 from diff_tests.smoke.tests import Smoke
 from diff_tests.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.smoke.tests_json import SmokeJson
@@ -149,12 +150,13 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ProfilingLlvmSymbolizer(index_path, 'profiling',
                                'ProfilingLlvmSymbolizer').fetch(),
       *Scheduler(index_path, 'scheduler', 'Scheduler').fetch(),
+      *Slices(index_path, 'slices', 'Slices').fetch(),
       *Smoke(index_path, 'smoke', 'Smoke').fetch(),
+      *SmokeComputeMetrics(index_path, 'smoke', 'SmokeComputeMetrics').fetch(),
       *SmokeJson(index_path, 'smoke', 'SmokeJson').fetch(),
       *SmokeSchedEvents(index_path, 'smoke', 'SmokeSchedEvents').fetch(),
-      *SmokeComputeMetrics(index_path, 'smoke', 'SmokeComputeMetrics').fetch(),
-      *SpanJoinOuterJoin(index_path, 'span_join', 'SpanJoinOuterJoin').fetch(),
       *SpanJoinLeftJoin(index_path, 'span_join', 'SpanJoinLeftJoin').fetch(),
+      *SpanJoinOuterJoin(index_path, 'span_join', 'SpanJoinOuterJoin').fetch(),
       *SpanJoinSmoke(index_path, 'span_join', 'SpanJoinSmoke').fetch(),
       *SpanJoinRegression(index_path, 'span_join',
                           'SpanJoinRegression').fetch(),
