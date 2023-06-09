@@ -127,6 +127,60 @@ struct CreatedFunction : public SqlFunction {
   static void Cleanup(Context*);
 };
 
+struct StoredSqlValue {
+  // unique_ptr to ensure that the pointers to these values are long-lived.
+  using OwnedString = std::unique_ptr<std::string>;
+  using OwnedBytes = std::unique_ptr<std::vector<uint8_t>>;
+  // variant is a pain to use, but it's the simplest way to ensure that
+  // the destructors run correctly for non-trivial members of the
+  // union.
+  using Data =
+      std::variant<int64_t, double, OwnedString, OwnedBytes, nullptr_t>;
+
+  StoredSqlValue(SqlValue value) {
+    switch (value.type) {
+      case SqlValue::Type::kNull:
+        data = nullptr;
+        break;
+      case SqlValue::Type::kLong:
+        data = value.long_value;
+        break;
+      case SqlValue::Type::kDouble:
+        data = value.double_value;
+        break;
+      case SqlValue::Type::kString:
+        data = std::make_unique<std::string>(value.string_value);
+        break;
+      case SqlValue::Type::kBytes:
+        const uint8_t* ptr = static_cast<const uint8_t*>(value.bytes_value);
+        data = std::make_unique<std::vector<uint8_t>>(ptr,
+                                                      ptr + value.bytes_count);
+        break;
+    }
+  }
+
+  SqlValue AsSqlValue() {
+    if (std::holds_alternative<nullptr_t>(data)) {
+      return SqlValue();
+    } else if (std::holds_alternative<int64_t>(data)) {
+      return SqlValue::Long(std::get<int64_t>(data));
+    } else if (std::holds_alternative<double>(data)) {
+      return SqlValue::Double(std::get<double>(data));
+    } else if (std::holds_alternative<OwnedString>(data)) {
+      const auto& str_ptr = std::get<OwnedString>(data);
+      return SqlValue::String(str_ptr->c_str());
+    } else if (std::holds_alternative<OwnedBytes>(data)) {
+      const auto& bytes_ptr = std::get<OwnedBytes>(data);
+      return SqlValue::Bytes(bytes_ptr->data(), bytes_ptr->size());
+    }
+    // GCC doesn't realize that the switch is exhaustive.
+    PERFETTO_CHECK(false);
+    return SqlValue();
+  }
+
+  Data data = nullptr;
+};
+
 class Memoizer {
  public:
   // Supported arguments. For now, only functions with a single int argument are
@@ -135,18 +189,12 @@ class Memoizer {
 
   // Enables memoization.
   // Only functions with a single int argument returning ints are supported.
-  base::Status EnableMemoization(const Prototype& prototype,
-                                 sql_argument::Type return_type) {
+  base::Status EnableMemoization(const Prototype& prototype) {
     if (prototype.arguments.size() != 1 ||
         TypeToSqlValueType(prototype.arguments[0].type()) !=
             SqlValue::Type::kLong) {
       return base::ErrStatus(
           "EXPERIMENTAL_MEMOIZE: Function %s should take one int argument",
-          prototype.function_name.c_str());
-    }
-    if (TypeToSqlValueType(return_type) != SqlValue::Type::kLong) {
-      return base::ErrStatus(
-          "EXPERIMENTAL_MEMOIZE: Function %s should return an int",
           prototype.function_name.c_str());
     }
     enabled_ = true;
@@ -158,11 +206,11 @@ class Memoizer {
     if (!enabled_) {
       return std::nullopt;
     }
-    int64_t* value = memoized_values_.Find(args);
+    StoredSqlValue* value = memoized_values_.Find(args);
     if (!value) {
       return std::nullopt;
     }
-    return SqlValue::Long(*value);
+    return value->AsSqlValue();
   }
 
   bool HasMemoizedValue(MemoizedArgs args) {
@@ -171,14 +219,10 @@ class Memoizer {
 
   // Saves the return value of the current invocation for memoization.
   void Memoize(MemoizedArgs args, SqlValue value) {
-    if (!enabled_ || !IsSupportedReturnType(value)) {
+    if (!enabled_) {
       return;
     }
-    memoized_values_.Insert(args, value.AsLong());
-  }
-
-  static bool IsSupportedReturnType(const SqlValue& value) {
-    return value.type == SqlValue::Type::kLong;
+    memoized_values_.Insert(args, StoredSqlValue(value));
   }
 
   // Checks that the function has a single int argument and returns it.
@@ -198,7 +242,7 @@ class Memoizer {
 
  private:
   bool enabled_ = false;
-  base::FlatHashMap<MemoizedArgs, int64_t> memoized_values_;
+  base::FlatHashMap<MemoizedArgs, StoredSqlValue> memoized_values_;
 };
 
 // A helper to unroll recursive calls: to minimise the amount of stack space
@@ -516,7 +560,7 @@ class CreatedFunction::Context {
   bool is_in_recursive_call() const { return current_recursion_level_ > 1; }
 
   base::Status EnableMemoization() {
-    return memoizer_.EnableMemoization(prototype_, return_type_);
+    return memoizer_.EnableMemoization(prototype_);
   }
 
   PerfettoSqlEngine* engine() const { return engine_; }
