@@ -490,9 +490,15 @@ class Trace(object):
       track_descriptor.parent_uuid = parent
     return packet
 
-  def add_process_track_descriptor(self, process_track, pid=None):
+  def add_process_track_descriptor(self,
+                                   process_track,
+                                   pid=None,
+                                   process_name=None):
     packet = self.add_track_descriptor(process_track)
-    packet.track_descriptor.process.pid = pid
+    if pid is not None:
+      packet.track_descriptor.process.pid = pid
+    if process_name is not None:
+      packet.track_descriptor.process.process_name = process_name
     return packet
 
   def add_chrome_process_track_descriptor(
@@ -517,11 +523,17 @@ class Trace(object):
                                   thread_track,
                                   trusted_packet_sequence_id=None,
                                   pid=None,
-                                  tid=None):
+                                  tid=None,
+                                  thread_name=None):
     packet = self.add_track_descriptor(thread_track, parent=process_track)
-    packet.trusted_packet_sequence_id = trusted_packet_sequence_id
-    packet.track_descriptor.thread.pid = pid
-    packet.track_descriptor.thread.tid = tid
+    if trusted_packet_sequence_id is not None:
+      packet.trusted_packet_sequence_id = trusted_packet_sequence_id
+    if pid is not None:
+      packet.track_descriptor.thread.pid = pid
+    if tid is not None:
+      packet.track_descriptor.thread.tid = tid
+    if thread_name is not None:
+      packet.track_descriptor.thread.thread_name = thread_name
     return packet
 
   def add_chrome_thread_track_descriptor(self,
