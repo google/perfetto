@@ -184,14 +184,19 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     started = svc->Start(std::move(producer_fd), std::move(consumer_fd));
 #endif
   } else {
-    remove(GetProducerSocket());
+    auto producer_sockets = TokenizeProducerSockets(GetProducerSocket());
+    for (const auto& producer_socket : producer_sockets) {
+      remove(producer_socket.c_str());
+    }
     remove(GetConsumerSocket());
-    started = svc->Start(GetProducerSocket(), GetConsumerSocket());
+    started = svc->Start(producer_sockets, GetConsumerSocket());
 
     if (!producer_socket_group.empty()) {
 #if defined(PERFETTO_SET_SOCKET_PERMISSIONS)
-      SetSocketPermissions(GetProducerSocket(), producer_socket_group,
-                           producer_socket_mode);
+      for (const auto& producer_socket : producer_sockets) {
+        SetSocketPermissions(producer_socket, producer_socket_group,
+                             producer_socket_mode);
+      }
       SetSocketPermissions(GetConsumerSocket(), consumer_socket_group,
                            consumer_socket_mode);
 #else

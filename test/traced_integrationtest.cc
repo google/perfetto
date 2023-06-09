@@ -452,4 +452,66 @@ TEST(PerfettoTracedIntegrationTest, TraceFilterLargePackets) {
                     Property(&protos::gen::TestEvent::str, SizeIs(kMsgSize)))));
 }
 
+#if (PERFETTO_BUILDFLAG(PERFETTO_START_DAEMONS) && \
+     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)) ||   \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX)
+TEST(PerfettoTracedIntegrationTest, TestMultipleProducerSockets) {
+  base::TestTaskRunner task_runner;
+  auto temp_dir = base::TempDir::Create();
+
+  std::vector<std::string> producer_socket_names{
+      temp_dir.path() + "/producer1.sock",
+      temp_dir.path() + "/producer2.sock",
+  };
+  auto producer_sock_name = base::Join(producer_socket_names, ",");
+  // We need to start the service thread for multiple producer sockets.
+  TestHelper helper(&task_runner, TestHelper::Mode::kStartDaemons,
+                    producer_sock_name.c_str());
+  ASSERT_EQ(helper.num_producers(), 2u);
+  helper.StartServiceIfRequired();
+  // Setup the 1st producer (default).
+  helper.ConnectFakeProducer();
+  // Setup the 2ns producer.
+  helper.ConnectFakeProducer(1);
+  helper.ConnectConsumer();
+  helper.WaitForConsumerConnect();
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);
+  trace_config.set_duration_ms(200);
+
+  static constexpr uint32_t kMsgSize = 1024;
+  // Enable the 1st producer.
+  auto* ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_message_count(12);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+  // Enable the 2nd producer.
+  ds_config = trace_config.add_data_sources()->mutable_config();
+  ds_config->set_name("android.perfetto.FakeProducer.1");
+  ds_config->set_target_buffer(0);
+  ds_config->mutable_for_testing()->set_message_count(24);
+  ds_config->mutable_for_testing()->set_message_size(kMsgSize);
+  ds_config->mutable_for_testing()->set_send_batch_on_register(true);
+
+  helper.StartTracing(trace_config);
+  helper.WaitForTracingDisabled();
+
+  helper.ReadData();
+  helper.WaitForReadData();
+
+  const auto& packets = helper.trace();
+  ASSERT_EQ(packets.size(), 36u);
+
+  for (const auto& packet : packets) {
+    ASSERT_TRUE(packet.has_for_testing());
+  }
+
+  for (const auto& sock_name : producer_socket_names)
+    remove(sock_name.c_str());
+}
+#endif
+
 }  // namespace perfetto
