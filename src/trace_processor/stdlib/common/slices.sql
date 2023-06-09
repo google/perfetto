@@ -120,6 +120,24 @@ SELECT
   '
 );
 
+-- Checks if slice has a descendant with provided name.
+-- @arg id INT                  Id of the slice to check descendants of.
+-- @arg descendant_name STRING  Name of potential descendant slice.
+-- @ret BOOL                    Whether `descendant_name` is a name of an descendant slice.
+SELECT
+  CREATE_FUNCTION(
+    'HAS_DESCENDANT_SLICE_WITH_NAME(id INT, descendant_name STRING)',
+    'BOOL',
+    '
+    SELECT EXISTS(
+      SELECT 1
+      FROM descendant_slice($id)
+      WHERE name = $descendant_name
+      LIMIT 1
+    );
+  '
+);
+
 -- Count slices with specified name.
 --
 -- @arg slice_glob STRING Name of the slices to counted.
@@ -128,4 +146,26 @@ SELECT CREATE_FUNCTION(
   'SLICE_COUNT(slice_glob STRING)',
   'INT',
   'SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;'
+);
+
+
+-- Finds the end timestamp for a given slice's descendant with a given name.
+-- If there are multiple descendants with a given name, the function will return the
+-- first one, so it's most useful when working with a timeline broken down into phases,
+-- where each subphase can happen only once.
+-- @arg parent_id INT Id of the parent slice.
+-- @arg child_name STRING name of the child with the desired end TS.
+-- @ret INT end timestamp of the child or NULL if it doesn't exist.
+SELECT CREATE_FUNCTION(
+  'DESCENDANT_SLICE_END(parent_id INT, child_name STRING)',
+  'INT',
+  'SELECT
+    CASE WHEN s.dur
+      IS NOT -1 THEN s.ts + s.dur
+      ELSE NULL
+    END
+   FROM descendant_slice($parent_id) s
+   WHERE s.name = $child_name
+   LIMIT 1
+  '
 );
