@@ -16,6 +16,10 @@ source_set("tracing") {
   public_deps = [
     "../../../protos/perfetto/common:cpp",
     "../../../protos/perfetto/common:zero",
+
+    # TODO(286798147): We should not need to depend on the whole cpp config
+    # here it transativly pulls in the whole config so is very large.
+    "../../../protos/perfetto/config:cpp",
     "../../../protos/perfetto/config/track_event:cpp",
     "../../../protos/perfetto/trace:zero",
     "../../../protos/perfetto/trace/interned_data:zero",
