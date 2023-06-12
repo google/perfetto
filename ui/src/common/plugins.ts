@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { TrackFilter, TrackGroupFilter, trackFilterRegistry } from '../controller/track_filter';
 import {Engine} from '../common/engine';
 import {
   TrackControllerFactory,
@@ -56,6 +57,10 @@ export class PluginContextImpl implements PluginContext {
     this.trackProviders.push(provider);
   }
 
+  registerTrackFilter(filter: TrackFilter | TrackGroupFilter): void {
+    trackFilterRegistry.register(filter);  
+  }
+
   registerOnDetailsPanelSelectionChange(
       onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
     this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
@@ -73,7 +78,7 @@ export class PluginContextImpl implements PluginContext {
   // PluginContext should unregister everything.
   revoke() {
     // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
-    // etc.
+    // track filters, etc.
   }
   // ==================================================================
 }

@@ -148,7 +148,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
                   },
                 },
                 checkBox) :
-              ''),
+              '',
+          ...this.getTrackGroupActionButtons()),
 
         this.summaryTrack ?
             m(TrackContent,
@@ -179,6 +180,27 @@ export class TrackGroupPanel extends Panel<Attrs> {
       this.summaryTrack.onDestroy();
       this.summaryTrack = undefined;
     }
+  }
+
+  getTrackGroupActionButtons(): m.Vnode<any>[] {
+    const result: m.Vnode<any>[] = [];
+    if (this.trackGroupState.isRemovable ?? false) {
+      result.push(m('i.material-icons.track-button.action',
+        {
+          onclick: (e: MouseEvent) => {
+            globals.dispatchMultiple([
+              ...this.trackGroupState.tracks.map(trackId => Actions.removeTrack({ trackId })),
+              Actions.removeTrackGroup({
+                  id: this.trackGroupState.id,
+                  summaryTrackId: this.trackGroupState.tracks[0]
+                })
+              ]);
+            e.stopPropagation();
+          }
+        },
+        'delete'));
+    }
+    return result;
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {

@@ -674,6 +674,19 @@ button.query-ctrl {
     border-top: 1px solid var(--main-foreground-color);
     margin-top: -1px;
   }
+  .track-button {
+    color: rgb(60, 86, 136);
+    &.action {
+      @include transition();
+      cursor: pointer;
+      width: 22px;
+      font-size: 18px;
+      opacity: 0;
+    }
+  }
+  &:hover .track-button.action {
+    opacity: 1;
+  }
   &[collapsed="true"] {
     .shell {
       border-right: 1px solid var(--main-foreground-color);
@@ -689,9 +702,6 @@ button.query-ctrl {
     font-weight: bold;
     .shell.flash {
       color: #121212;
-    }
-    .track-button {
-      color: white;
     }
     span.chip {
       color: #121212;

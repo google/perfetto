@@ -15,7 +15,7 @@
 import {BigintMath} from '../base/bigint_math';
 import {HttpRcpEngineCustomizer} from '../common/http_rpc_engine';
 import {assertExists} from '../base/logging';
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions, AddTrackLikeArgs, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
 import {
@@ -268,6 +268,8 @@ class Globals {
   private _allowFileDrop = true;
   private _httpRpcEngineCustomizer?: HttpRcpEngineCustomizer;
   private _promptToLoadFromTraceProcessorShell = true;
+  private _trackFilteringEnabled = false;
+  private _filteredTracks: AddTrackLikeArgs[] = [];
 
   // Init from session storage since correct value may be required very early on
   private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
@@ -661,6 +663,22 @@ class Globals {
 
   set promptToLoadFromTraceProcessorShell(promptToLoadFromTraceProcessorShell: boolean) {
     this._promptToLoadFromTraceProcessorShell = promptToLoadFromTraceProcessorShell;
+  }
+
+  get trackFilteringEnabled(): boolean {
+    return this._trackFilteringEnabled;
+  }
+
+  set trackFilteringEnabled(trackFilteringEnabled: boolean) {
+    this._trackFilteringEnabled = trackFilteringEnabled;
+  }
+
+  get filteredTracks(): AddTrackLikeArgs[] {
+    return this._filteredTracks;
+  }
+
+  set filteredTracks(filteredTracks: AddTrackLikeArgs[]) {
+    this._filteredTracks = [...filteredTracks];
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {

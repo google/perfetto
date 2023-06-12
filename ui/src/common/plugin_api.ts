@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import { TrackFilter, TrackGroupFilter } from 'src/controller/track_filter';
 import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
@@ -69,6 +70,14 @@ export interface PluginContext {
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
   registerTrack(track: TrackCreator): void;
+
+  // Register a track or track group filter. When track filtering is
+  // enabled, the core UI determines via the registered filters which
+  // tracks and track groups to show and which to suppress.
+  // Filtered tracks and track groups may later be created and
+  // shown, in which case they present a trash-can button to hide them
+  // once again.
+  registerTrackFilter(filter: TrackFilter | TrackGroupFilter): void;
 
   // Register custom functionality to specify how the plugin should handle
   // selection changes for tracks in this plugin.

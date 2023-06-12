@@ -19,6 +19,8 @@ import {sqliteString} from '../base/string_utils';
 import {
   Actions,
   AddTrackArgs,
+  AddTrackGroupArgs,
+  AddTrackLikeArgs,
   DeferredAction,
 } from '../common/actions';
 import {Engine, EngineProxy} from '../common/engine';
@@ -69,6 +71,7 @@ import {
 import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
 import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import { shouldCreateTrack, shouldCreateTrackGroup } from './track_filter';
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
@@ -111,6 +114,15 @@ const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
   [ENTITY_RESIDENCY_REGEX, 'RATE'],
 ];
 
+/**
+ * Tuple of the actions to create tracks and track groups
+ * and those that were rejected by filters.
+ */
+export type TrackDecision = {
+  actions: DeferredAction[];
+  rejected: AddTrackLikeArgs[];
+}
+
 function getCounterScale(name: string): CounterScaleOptions|undefined {
   for (const [re, scale] of COUNTER_REGEX) {
     if (name.match(re)) {
@@ -120,9 +132,21 @@ function getCounterScale(name: string): CounterScaleOptions|undefined {
   return undefined;
 }
 
+/** Decide tracks without filtering. */
 export async function decideTracks(
-    engineId: string, engine: Engine): Promise<DeferredAction[]> {
-  return (new TrackDecider(engineId, engine)).decideTracks();
+  engineId: string, engine: Engine): Promise<DeferredAction[]>;
+/** Decide tracks without filtering. */
+export async function decideTracks(
+  engineId: string, engine: Engine, filter: false): Promise<DeferredAction[]>;
+/** Decide tracks with filtering. */
+export async function decideTracks(
+    engineId: string, engine: Engine, filter: true): Promise<TrackDecision>;
+
+export async function decideTracks(
+    engineId: string, engine: Engine, filter: boolean = false): Promise<DeferredAction[]|TrackDecision> {
+  
+  const result = await (new TrackDecider(engineId, engine)).decideTracks(filter);
+  return filter ? result : result.actions;
 }
 
 class TrackDecider {
@@ -131,7 +155,7 @@ class TrackDecider {
   private upidToUuid = new Map<number, string>();
   private utidToUuid = new Map<number, string>();
   private tracksToAdd: AddTrackArgs[] = [];
-  private addTrackGroupActions: DeferredAction[] = [];
+  private trackGroupsToAdd: AddTrackGroupArgs[] = [];
 
   constructor(engineId: string, engine: Engine) {
     this.engineId = engineId;
@@ -396,13 +420,13 @@ class TrackDecider {
             config: {},
           });
 
-          this.addTrackGroupActions.push(Actions.addTrackGroup({
+          this.trackGroupsToAdd.push({
             engineId: this.engineId,
             summaryTrackId,
             name: parentName,
             id: trackGroup,
             collapsed: true,
-          }));
+          });
         } else {
           trackGroup = groupId;
         }
@@ -538,14 +562,13 @@ class TrackDecider {
       }
     }
 
-    const addGroup = Actions.addTrackGroup({
+    this.trackGroupsToAdd.push({
       engineId: this.engineId,
       summaryTrackId,
       name: MEM_DMA_COUNTER_NAME,
       id,
       collapsed: true,
     });
-    this.addTrackGroupActions.push(addGroup);
   }
 
   async groupGlobalIostatTracks(tag: string, group: string): Promise<void> {
@@ -586,14 +609,13 @@ class TrackDecider {
         config: {},
       });
 
-      const addGroup = Actions.addTrackGroup({
+      this.trackGroupsToAdd.push({
         engineId: this.engineId,
         summaryTrackId,
         name: groupName,
         id: value,
         collapsed: true,
       });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -617,14 +639,13 @@ class TrackDecider {
       track.trackGroup = id;
     }
 
-    const addGroup = Actions.addTrackGroup({
+    this.trackGroupsToAdd.push({
       engineId: this.engineId,
       summaryTrackId,
       name: group,
       id,
       collapsed: true,
     });
-    this.addTrackGroupActions.push(addGroup);
   }
 
   async groupGlobalBuddyInfoTracks(): Promise<void> {
@@ -669,14 +690,13 @@ class TrackDecider {
         config: {},
       });
 
-      const addGroup = Actions.addTrackGroup({
+      this.trackGroupsToAdd.push({
         engineId: this.engineId,
         summaryTrackId,
         name: groupName,
         id: value,
         collapsed: true,
       });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -704,14 +724,13 @@ class TrackDecider {
         config: {},
       });
 
-      const addGroup = Actions.addTrackGroup({
+      this.trackGroupsToAdd.push({
         engineId: this.engineId,
         summaryTrackId,
         name: groupName,
         id: groupUuid,
         collapsed: true,
       });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -780,14 +799,13 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined && summaryTrackId !== undefined) {
-      const addGroup = Actions.addTrackGroup({
+      this.trackGroupsToAdd.push({
         engineId: this.engineId,
         name: 'Ftrace Events',
         id: groupUuid,
         collapsed: true,
         summaryTrackId,
       });
-      this.addTrackGroupActions.push(addGroup);
     }
   }
 
@@ -855,14 +873,13 @@ class TrackDecider {
     }
 
     for (const [groupName, groupIds] of groupNameToIds) {
-      const addGroup = Actions.addTrackGroup({
+      this.trackGroupsToAdd.push({
         engineId: this.engineId,
         summaryTrackId: groupIds.summaryTrackId,
         name: groupName,
         id: groupIds.id,
         collapsed: true,
       });
-      this.addTrackGroupActions.push(addGroup);
     }
 
     const counterResult = await engine.query(`
@@ -1488,14 +1505,13 @@ class TrackDecider {
       name: `Kernel thread summary`,
       config: {pidForColor: 2, upid: it.upid, utid: it.utid},
     });
-    const addTrackGroup = Actions.addTrackGroup({
+    this.trackGroupsToAdd.push({
       engineId: this.engineId,
       summaryTrackId,
       name: `Kernel threads`,
       id: kthreadGroupUuid,
       collapsed: true,
     });
-    this.addTrackGroupActions.push(addTrackGroup);
 
     // Set the group for all kernel threads (including kthreadd itself).
     for (; it.valid(); it.next()) {
@@ -1670,7 +1686,7 @@ class TrackDecider {
 
         const name = TrackDecider.getTrackName(
             {utid, processName, pid, threadName, tid, upid});
-        const addTrackGroup = Actions.addTrackGroup({
+        this.trackGroupsToAdd.push({
           engineId: this.engineId,
           summaryTrackId,
           name,
@@ -1680,8 +1696,6 @@ class TrackDecider {
           // jankyness.
           collapsed: !hasHeapProfiles,
         });
-
-        this.addTrackGroupActions.push(addTrackGroup);
       }
     }
   }
@@ -1755,7 +1769,7 @@ class TrackDecider {
     }
   }
 
-  async decideTracks(): Promise<DeferredAction[]> {
+  async decideTracks(filterTracks = false): Promise<TrackDecision> {
     await this.defineMaxLayoutDepthSqlFunction();
 
     // Add first the global tracks that don't require per-process track groups.
@@ -1797,7 +1811,7 @@ class TrackDecider {
     // Create the per-process track groups. Note that this won't necessarily
     // create a track per process. If a process has been completely idle and has
     // no sched events, no track group will be emitted.
-    // Will populate this.addTrackGroupActions
+    // Will populate this.trackGroupsToAdd
     await this.addProcessTrackGroups(
         this.engine.getProxy('TrackDecider::addProcessTrackGroups'));
 
@@ -1836,16 +1850,68 @@ class TrackDecider {
       }
     }
 
-    this.addTrackGroupActions.push(
-        Actions.addTracks({tracks: this.tracksToAdd}));
+    const actions: DeferredAction[] = [];
+    const rejected = filterTracks ? this.filterTracks() : [];
+
+    actions.push(
+        ...this.trackGroupsToAdd.map(Actions.addTrackGroup));
+    actions.push(Actions.addTracks({tracks: this.tracksToAdd}));
 
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
-    this.addTrackGroupActions.push(
-        Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+    actions.push(Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
 
     this.applyDefaultCounterScale();
 
-    return this.addTrackGroupActions;
+    return { actions, rejected };
+  }
+
+  /**
+   * Filter tracks and track groups. Any tracks belonging to an excluded
+   * group are themselves excluded regardless of track-specific filters.
+   * Any tracks not otherwise excluded that belong to an included group
+   * are implicitly included.
+   * 
+   * @returns the tracks and track groups rejected by the filter
+   */
+  private filterTracks(): AddTrackLikeArgs[] {
+    const rejected: AddTrackLikeArgs[] = [];
+
+    const includedTrackGroupIds = new Set<string>();
+    const excludedTrackGroupIds = new Set<string>();
+    const includedTrackGroupSummaryTrackIds = new Set<string>();
+    const excludedTrackGroupSummaryTrackIds = new Set<string>();
+
+    this.trackGroupsToAdd = this.trackGroupsToAdd.filter(group => {
+      const included = shouldCreateTrackGroup(group);
+      if (included) {
+        includedTrackGroupIds.add(group.id);
+        includedTrackGroupSummaryTrackIds.add(group.summaryTrackId);
+      } else {
+        rejected.push(group);
+        excludedTrackGroupIds.add(group.id);
+        excludedTrackGroupSummaryTrackIds.add(group.summaryTrackId);
+      }
+      return included;
+    });
+
+    const hasTrackGroup = (track: AddTrackArgs): track is AddTrackArgs & {trackGroup: string} =>
+        track.trackGroup !== undefined && track.trackGroup !== SCROLLING_TRACK_GROUP;
+    const hasId = (track: AddTrackArgs): track is AddTrackArgs & {id: string} =>
+        track.id !== undefined;
+    const includedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && includedTrackGroupIds.has(track.trackGroup))
+        || (hasId(track) && includedTrackGroupSummaryTrackIds.has(track.id));
+    const excludedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && excludedTrackGroupIds.has(track.trackGroup))
+        || (hasId(track) && excludedTrackGroupSummaryTrackIds.has(track.id));
+    const trackFilter = (track: AddTrackArgs) => {
+      const included = shouldCreateTrack(track, includedByGroup) && !excludedByGroup(track);
+      if (!included) {
+        rejected.push(track);
+      }
+      return included;
+    };
+    this.tracksToAdd = this.tracksToAdd.filter(trackFilter);
+
+    return rejected;
   }
 
   // Some process counter tracks are tied to specific threads based on their
