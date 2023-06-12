@@ -368,23 +368,118 @@ class TrackEventDataSource
   }
 
   // The following methods forward all arguments to TraceForCategoryBody
-  // while casting string constants to const char*.
-  template <typename... Arguments>
-  static void TraceForCategory(Arguments&&... args) PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryBody(DecayStrType(args)...);
+  // while casting string constants to const char* and integer arguments to
+  // int64_t, uint64_t or bool.
+  template <typename CategoryType,
+            typename EventNameType,
+            typename... Arguments>
+  static void TraceForCategory(uint32_t instances,
+                               const CategoryType& category,
+                               const EventNameType& name,
+                               perfetto::protos::pbzero::TrackEvent::Type type,
+                               Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryBody(instances, DecayStrType(category), DecayStrType(name),
+                         type, DecayArgType(args)...);
   }
 
-  template <typename... Arguments>
-  static void TraceForCategoryLegacy(Arguments&&... args)
-      PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryLegacyBody(DecayStrType(args)...);
+#if PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryLegacyBody(instances, DecayStrType(category),
+                               DecayStrType(event_name), type, track, phase,
+                               flags, DecayArgType(args)...);
   }
 
-  template <typename... Arguments>
-  static void TraceForCategoryLegacyWithId(Arguments&&... args)
-      PERFETTO_ALWAYS_INLINE {
-    TraceForCategoryLegacyWithIdBody(DecayStrType(args)...);
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacy(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryLegacyBody(instances, DecayStrType(category),
+                               DecayStrType(event_name), type, track, phase,
+                               flags, timestamp, DecayArgType(args)...);
   }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryLegacyWithIdBody(
+        instances, DecayStrType(category), DecayStrType(event_name), type,
+        track, phase, flags, thread_id, legacy_id, DecayArgType(args)...);
+  }
+
+  template <typename TrackType,
+            typename CategoryType,
+            typename EventNameType,
+            typename ThreadIdType,
+            typename LegacyIdType,
+            typename TimestampType = uint64_t,
+            typename... Arguments,
+            typename TrackTypeCheck = typename std::enable_if<
+                std::is_convertible<TrackType, Track>::value>::type,
+            typename TimestampTypeCheck = typename std::enable_if<
+                IsValidTimestamp<TimestampType>()>::type>
+  static void TraceForCategoryLegacyWithId(
+      uint32_t instances,
+      const CategoryType& category,
+      const EventNameType& event_name,
+      perfetto::protos::pbzero::TrackEvent::Type type,
+      TrackType&& track,
+      char phase,
+      uint32_t flags,
+      ThreadIdType thread_id,
+      LegacyIdType legacy_id,
+      TimestampType&& timestamp,
+      Arguments&&... args) PERFETTO_ALWAYS_INLINE {
+    TraceForCategoryLegacyWithIdBody(instances, DecayStrType(category),
+                                     DecayStrType(event_name), type, track,
+                                     phase, flags, thread_id, legacy_id,
+                                     timestamp, DecayArgType(args)...);
+  }
+#endif
 
   // Initialize the track event library. Should be called before tracing is
   // enabled.
@@ -458,6 +553,30 @@ class TrackEventDataSource
   }
 
   static const char* DecayStrType(const char* t) { return t; }
+
+  // The DecayArgType method is used to avoid unnecessary instantiations of
+  // templates on:
+  // * string constants of different sizes.
+  // * integers of different sizes or constness.
+  // * floats of different sizes.
+  // This allows to avoid extra instantiations of TraceForCategory templates.
+  template <typename T>
+  static T&& DecayArgType(T&& t) {
+    return std::forward<T>(t);
+  }
+
+  static const char* DecayArgType(const char* s) { return s; }
+  static uint64_t DecayArgType(uint64_t u) { return u; }
+  static uint64_t DecayArgType(uint32_t u) { return u; }
+  static uint64_t DecayArgType(uint16_t u) { return u; }
+  static uint64_t DecayArgType(uint8_t u) { return u; }
+  static int64_t DecayArgType(int64_t i) { return i; }
+  static int64_t DecayArgType(int32_t i) { return i; }
+  static int64_t DecayArgType(int16_t i) { return i; }
+  static int64_t DecayArgType(int8_t i) { return i; }
+  static bool DecayArgType(bool b) { return b; }
+  static double DecayArgType(float f) { return static_cast<double>(f); }
+  static double DecayArgType(double f) { return f; }
 
   // Once we've determined tracing to be enabled for this category, actually
   // write a trace event onto this thread's default track. Outlined to avoid
