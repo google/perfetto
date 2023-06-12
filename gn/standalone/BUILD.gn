@@ -286,6 +286,14 @@ config("default") {
     }
   }
 
+  if (is_wasm) {
+    # As of writing (2023-06-12) WASM 128bit SIMD is supported on
+    # stable Chrome, Safari, and Firefox. See:
+    # - https://webassembly.org/roadmap/
+    # - https://emscripten.org/docs/porting/simd.html
+    cflags += [ "-msimd128" ]
+  }
+
   if (is_linux) {
     # Enable LFS (large file support) for stat() and other syscalls.
     cflags += [
