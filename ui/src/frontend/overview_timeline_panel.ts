@@ -23,7 +23,6 @@ import {
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
-  SIDEBAR_WIDTH,
   TRACK_SHELL_WIDTH,
 } from './css_constants';
 import {BorderDragStrategy} from './drag/border_drag_strategy';
@@ -172,19 +171,17 @@ export class OverviewTimelinePanel extends Panel {
     if (this.gesture === undefined || this.gesture.isDragging) {
       return;
     }
-    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.x);
+    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.offsetX);
   }
 
   private chooseCursor(x: number) {
     if (this.timeScale === undefined) return 'default';
-    const [vizStartPx, vizEndPx] =
+    const [startBound, endBound] =
         OverviewTimelinePanel.extractBounds(this.timeScale);
-    const startBound = vizStartPx - 1 + SIDEBAR_WIDTH;
-    const endBound = vizEndPx + SIDEBAR_WIDTH;
     if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
         OverviewTimelinePanel.inBorderRange(x, endBound)) {
       return 'ew-resize';
-    } else if (x < SIDEBAR_WIDTH + TRACK_SHELL_WIDTH) {
+    } else if (x < TRACK_SHELL_WIDTH) {
       return 'default';
     } else if (x < startBound || endBound < x) {
       return 'crosshair';
