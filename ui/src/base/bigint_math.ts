@@ -102,4 +102,9 @@ export class BigintMath {
   static ratio(dividend: bigint, divisor: bigint): number {
     return Number(dividend) / Number(divisor);
   }
+
+  // Calculates the absolute value of a n.
+  static abs(n: bigint) {
+    return n < 0n ? -1n * n : n;
+  }
 }
