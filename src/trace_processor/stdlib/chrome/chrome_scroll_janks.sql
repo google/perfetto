@@ -14,6 +14,7 @@
 
 -- TODO(b/286187288): Move this dependency to stdlib.
 SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
+SELECT IMPORT('common.slices');
 
 -- Selects EventLatency slices that correspond with janks in a scroll. This is
 -- based on the V2 version of scroll jank metrics.
@@ -38,7 +39,11 @@ CREATE TABLE chrome_janky_event_latencies_v2 AS
     e.sub_cause_of_jank
 FROM slice s
 JOIN event_latency_scroll_jank_cause e
-  ON s.id = e.slice_id;
+  ON s.id = e.slice_id
+WHERE
+  HAS_DESCENDANT_SLICE_WITH_NAME(
+    s.id,
+    'SubmitCompositorFrameToPresentationCompositorFrame');
 
 -- Defines slices for all of janky scrolling intervals in a trace.
 --
