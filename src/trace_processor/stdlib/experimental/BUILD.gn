@@ -19,5 +19,6 @@ perfetto_sql_source_set("experimental") {
     "android_broadcast.sql",
     "proto_path.sql",
     "slices.sql",
+    "thread_executing_span.sql",
   ]
 }

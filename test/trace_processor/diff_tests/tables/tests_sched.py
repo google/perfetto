@@ -120,3 +120,233 @@ class TablesSched(TestSuite):
         19,"ftrace_event",1735490039439,"sched_waking",1,298,18,1
         20,"ftrace_event",1735490042084,"sched_waking",1,298,19,1
         """))
+
+  def test_thread_executing_span_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function
+        FROM experimental_thread_executing_span_graph
+          WHERE blocked_function IS NOT NULL
+        ORDER BY ts, tid
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function"
+        1736413946850,576475,527,527,"adbd","/apex/com.android.adbd/bin/adbd","shell svc 3476","/apex/com.android.adbd/bin/adbd",507,"D","__down_read_common"
+        1737047193524,1070032,3482,3482,"cmd","cmd","binder:3482_2","cmd",3892,"D","rwsem_down_write_slowpath"
+        1737107227334,13924,15,15,"rcub/0","rcub/0","ActivityManager","system_server",10790,"D","rcu_boost_kthread"
+        1737107244629,14884,17,17,"rcu_exp_gp_kthr","rcu_exp_gp_kthr","system_server","system_server",41867,"D","rcu_exp_sel_wait_wake"
+        1737107251086,7335,15,15,"rcub/0","rcub/0","system_server","system_server",9828,"D","rcu_boost_kthread"
+        1737107254718,3140060,1821,1800,"binder:1800_1","com.android.music","rcu_exp_gp_kthr","rcu_exp_gp_kthr",75180,"D","synchronize_rcu_expedited"
+        1737114706120,6053987,1801,1789,"binder:1789_1","com.android.provision","Jit thread pool","com.android.providers.media.module",5495734,"D","rwsem_down_write_slowpath"
+        1737116846911,95462739,2125,2110,"Profile Saver","com.android.externalstorage","binder:1789_1","com.android.provision",2664091,"D","rwsem_down_write_slowpath"
+        1737120785844,15257,15,15,"rcub/0","rcub/0","ActivityManager","system_server",9143,"D","rcu_boost_kthread"
+        1737120805447,16572,17,17,"rcu_exp_gp_kthr","rcu_exp_gp_kthr","android.bg","system_server",47725,"D","rcu_exp_sel_wait_wake"
+        """))
+
+  def test_thread_executing_span_graph_contains_forked_states(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function
+        FROM experimental_thread_executing_span_graph
+          WHERE id = 348
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function"
+        1735842081507,293868,3475,527,"shell svc 3474","/apex/com.android.adbd/bin/adbd","adbd","/apex/com.android.adbd/bin/adbd","[NULL]","[NULL]","[NULL]"
+        """))
+
+  def test_thread_executing_span_graph_has_no_null_dur(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT ts,dur FROM experimental_thread_executing_span_graph
+          WHERE dur IS NULL OR ts IS NULL
+        """,
+        out=Csv("""
+        "ts","dur"
+        """))
+
+  def test_thread_executing_span_graph_accepts_null_irq_context(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_switch_original.pb'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT COUNT(*) AS count FROM experimental_thread_executing_span_graph
+        """,
+        out=Csv("""
+        "count"
+        9
+        """))
+
+  def test_thread_executing_span_descendants_null(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function,
+          depth,
+          is_root
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(NULL)
+        ORDER BY depth DESC, ts, tid
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","depth","is_root"
+        1740321632480,20897,404,398,"binder:398_2","/apex/com.android.os.statsd/bin/statsd","statsd.writer","/apex/com.android.os.statsd/bin/statsd",64173354,"S","[NULL]",324,0
+        1740470009095,113509,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",1204928,"S","[NULL]",324,0
+        1740470126280,60885652,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",3676,"S","[NULL]",324,0
+        1740321596028,46679,633,398,"statsd.writer","/apex/com.android.os.statsd/bin/statsd","mediametrics","media.metrics",64143546,"S","[NULL]",323,0
+        1740468702535,1449612,3548,3487,"AsyncTask #1","com.android.providers.media.module","HeapTaskDaemon","com.android.providers.media.module",1003391,"S","[NULL]",323,0
+        1740321315576,62532,2161,553,"binder:553_7","/system/bin/mediaserver","binder:551_4","media.extractor",63953635,"S","[NULL]",322,0
+        1740321344727,346525,552,552,"mediametrics","media.metrics","binder:551_4","media.extractor",63860347,"S","[NULL]",322,0
+        1740419776108,13020460,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",597159,"S","[NULL]",322,0
+        1740428968606,362233,3515,3487,"ackgroundThread","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",9601023,"S","[NULL]",322,0
+        1740432834772,3770512,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",38204,"S","[NULL]",322,0
+        """))
+
+  def test_thread_executing_span_ancestors_null(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function,
+          height,
+          is_leaf
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(NULL)
+        ORDER BY height DESC, ts, tid
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf"
+        1740252621947,35807217,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_7","/system/bin/mediaserver",16688,"S","[NULL]",153,0
+        1740287823247,9522163,282,282,"f2fs_ckpt-254:5","f2fs_ckpt-254:5","AsyncTask #1","com.android.providers.media.module",332115250,"S","[NULL]",152,0
+        1740252621947,35807217,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_7","/system/bin/mediaserver",16688,"S","[NULL]",151,0
+        1740297282282,13298848,3548,3487,"AsyncTask #1","com.android.providers.media.module","f2fs_ckpt-254:5","f2fs_ckpt-254:5",8853118,"D","f2fs_issue_checkpoint",151,0
+        1740287823247,9522163,282,282,"f2fs_ckpt-254:5","f2fs_ckpt-254:5","AsyncTask #1","com.android.providers.media.module",332115250,"S","[NULL]",150,0
+        1740310563850,141705,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",53196161,"S","[NULL]",150,0
+        1740297282282,13298848,3548,3487,"AsyncTask #1","com.android.providers.media.module","f2fs_ckpt-254:5","f2fs_ckpt-254:5",8853118,"D","f2fs_issue_checkpoint",149,0
+        1740310673843,167265,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_3","/system/bin/mediaserver",92713,"S","[NULL]",149,0
+        1740310563850,141705,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",53196161,"S","[NULL]",148,0
+        1740310830675,146216,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",125120,"S","[NULL]",148,0
+        """))
+
+  def test_thread_executing_span_descendants_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          thread_name,
+          waker_thread_name,
+          depth,
+          is_root,
+          COUNT(thread_name) AS count
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(10834)
+        GROUP BY 1,2,3,4
+        ORDER BY depth
+        """,
+        out=Csv("""
+        "thread_name","waker_thread_name","depth","is_root","count"
+        "android.hardwar","android.bg",0,0,1
+        "android.bg","android.hardwar",1,0,1
+        "android.hardwar","android.bg",2,0,1
+        "android.bg","android.hardwar",3,0,1
+        "logd.writer","android.bg",4,0,1
+        "statsd.writer","android.bg",4,0,4
+        "system_server","android.bg",4,0,32
+        "binder:398_2","statsd.writer",5,0,3
+        "logd.reader.per","logd.writer",5,0,1
+        "logcat","logd.reader.per",6,0,1
+        """))
+
+  def test_thread_executing_span_ancestors_id(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          thread_name,
+          waker_thread_name,
+          height,
+          is_leaf
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(10840) ORDER BY height
+        """,
+        out=Csv("""
+        "thread_name","waker_thread_name","height","is_leaf"
+        "android.hardwar","android.bg",0,0
+        "android.bg","android.hardwar",1,0
+        """))
+
+  def test_thread_executing_span_from_non_sleep_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(11933) AS thread_executing_span_id
+        """,
+        out=Csv("""
+        "thread_executing_span_id"
+        11888
+        """))
+
+  def test_thread_executing_span_from_sleep_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(11845) AS thread_executing_span_id
+        """,
+        out=Csv("""
+        "thread_executing_span_id"
+        "[NULL]"
+        """))
