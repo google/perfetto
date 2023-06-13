@@ -2266,6 +2266,7 @@ perfetto_filegroup(
         "src/trace_processor/stdlib/experimental/android_broadcast.sql",
         "src/trace_processor/stdlib/experimental/proto_path.sql",
         "src/trace_processor/stdlib/experimental/slices.sql",
+        "src/trace_processor/stdlib/experimental/thread_executing_span.sql",
     ],
 )
 
