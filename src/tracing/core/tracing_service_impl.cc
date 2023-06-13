@@ -3614,8 +3614,14 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
                std::forward_as_tuple(tsid, consumer, src->config, task_runner_))
            .first->second;
 
+  // Generate a new UUID for the cloned session, but preserve the LSB. In some
+  // contexts the LSB is used to tie the trace back to the statsd subscription
+  // that triggered it. See the corresponding code in perfetto_cmd.cc which
+  // reads at triggering_subscription_id().
+  const int64_t orig_uuid_lsb = src->trace_uuid.lsb();
   cloned_session->state = TracingSession::CLONED_READ_ONLY;
-  cloned_session->trace_uuid = base::Uuidv4();  // Generate a new UUID.
+  cloned_session->trace_uuid = base::Uuidv4();
+  cloned_session->trace_uuid.set_lsb(orig_uuid_lsb);
   *new_uuid = cloned_session->trace_uuid;
 
   for (auto& kv : buf_snaps) {
