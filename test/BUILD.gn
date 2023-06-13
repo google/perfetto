@@ -17,7 +17,7 @@ import("../gn/fuzzer.gni")
 import("../gn/perfetto.gni")
 
 if (!build_with_chromium && enable_perfetto_integration_tests) {
-  source_set("integrationtests") {
+  source_set("perfetto_end_to_end_integrationtests") {
     testonly = true
     deps = [
       ":test_helper",
