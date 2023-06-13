@@ -77,6 +77,7 @@ GROUP BY sa.scroll_id;
 CREATE VIEW chrome_scrolling_intervals AS
 WITH all_scrolls AS (
   SELECT
+    id AS scroll_id,
     s.ts AS start_ts,
     s.ts + s.dur AS end_ts
   FROM chrome_scrolls s),
@@ -100,6 +101,7 @@ range_groups AS (
   FROM range_starts)
 SELECT
   range_group AS id,
+  GROUP_CONCAT(scroll_id) AS scroll_ids,
   MIN(start_ts) AS ts,
   MAX(end_ts) - MIN(start_ts) AS dur
 FROM range_groups
