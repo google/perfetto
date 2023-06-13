@@ -2935,13 +2935,18 @@ message TraceConfig {
   // trace ends to notify it about the trace readiness.
   optional bool notify_traceur = 16;
 
+  // This field was introduced in Android S.
   // Android-only. If set to a value > 0, marks the trace session as a candidate
   // for being attached to a bugreport. This field effectively acts as a z-index
   // for bugreports. When Android's dumpstate runs perfetto
   // --save-for-bugreport, traced will pick the tracing session with the highest
-  // score (score <= 0 is ignored), will steal its contents, save the trace into
-  // a known path and stop prematurely.
-  // This field was introduced in Android S.
+  // score (score <= 0 is ignored) and:
+  // On Android S, T:  will steal its contents, save the trace into
+  //     a known path and stop prematurely.
+  // On Android U+: will create a read-only snapshot and save that into a known
+  //     path, without stoppin the original tracing session.
+  // When this field is set the tracing session becomes eligible to be cloned
+  // by other UIDs.
   optional int32 bugreport_score = 30;
 
   // Triggers allow producers to start or stop the tracing session when an event
