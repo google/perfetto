@@ -60,9 +60,9 @@ class TaskRunner;
 
 // Use arbitrarily high values to avoid that some code accidentally ends up
 // assuming that these enum values match the sysroot's SOCK_xxx defines rather
-// than using GetSockType() / GetSockFamily().
+// than using MkSockType() / MkSockFamily().
 enum class SockType { kStream = 100, kDgram, kSeqPacket };
-enum class SockFamily { kUnix = 200, kInet, kInet6 };
+enum class SockFamily { kUnspec = 0, kUnix = 200, kInet, kInet6 };
 
 // Controls the getsockopt(SO_PEERCRED) behavior, which allows to obtain the
 // peer credentials.
@@ -81,6 +81,14 @@ enum class SockPeerCredMode {
   kDefault = kReadOnConnect,
 #endif
 };
+
+// Returns the socket family from the full addres that perfetto uses.
+// Addr can be:
+// - /path/to/socket : for linked AF_UNIX sockets.
+// - @abstract_name  : for abstract AF_UNIX sockets.
+// - 1.2.3.4:8080    : for Inet sockets.
+// - [::1]:8080      : for Inet6 sockets.
+SockFamily GetSockFamily(const char* addr);
 
 // UnixSocketRaw is a basic wrapper around sockets. It exposes wrapper
 // methods that take care of most common pitfalls (e.g., marking fd as
@@ -362,6 +370,7 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
   bool is_connected() const { return state_ == State::kConnected; }
   bool is_listening() const { return state_ == State::kListening; }
   SocketHandle fd() const { return sock_raw_.fd(); }
+  SockFamily family() const { return sock_raw_.family(); }
 
   // User ID of the peer, as returned by the kernel. If the client disconnects
   // and the socket goes into the kDisconnected state, it retains the uid of

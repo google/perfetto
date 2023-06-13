@@ -95,7 +95,7 @@ struct SockaddrAny {
   socklen_t size;
 };
 
-inline int GetSockFamily(SockFamily family) {
+inline int MkSockFamily(SockFamily family) {
   switch (family) {
     case SockFamily::kUnix:
       return AF_UNIX;
@@ -103,11 +103,13 @@ inline int GetSockFamily(SockFamily family) {
       return AF_INET;
     case SockFamily::kInet6:
       return AF_INET6;
+    case SockFamily::kUnspec:
+      return AF_UNSPEC;
   }
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-inline int GetSockType(SockType type) {
+inline int MkSockType(SockType type) {
 #if defined(SOCK_CLOEXEC)
   constexpr int kSockCloExec = SOCK_CLOEXEC;
 #else
@@ -189,6 +191,9 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       freeaddrinfo(addr_info);
       return res;
     }
+    case SockFamily::kUnspec:
+      errno = ENOTSOCK;
+      return SockaddrAny();
   }
   PERFETTO_CHECK(false);  // For GCC.
 }
@@ -201,8 +206,7 @@ ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
   }();
   PERFETTO_CHECK(init_winsock_once);
 #endif
-  return ScopedSocketHandle(
-      socket(GetSockFamily(family), GetSockType(type), 0));
+  return ScopedSocketHandle(socket(MkSockFamily(family), MkSockType(type), 0));
 }
 
 }  // namespace
@@ -212,6 +216,22 @@ int CloseSocket(SocketHandle s) {
   return ::closesocket(s);
 }
 #endif
+
+SockFamily GetSockFamily(const char* addr) {
+  if (strlen(addr) == 0)
+    return SockFamily::kUnspec;
+
+  if (addr[0] == '@')
+    return SockFamily::kUnix;  // Abstract AF_UNIX sockets.
+
+  // If `addr` ends in :NNNN it's either a kInet or kInet6 socket.
+  const char* col = strrchr(addr, ':');
+  if (col && CStringToInt32(col + 1).has_value()) {
+    return addr[0] == '[' ? SockFamily::kInet6 : SockFamily::kInet;
+  }
+
+  return SockFamily::kUnix;  // For anything else assume it's a linked AF_UNIX.
+}
 
 // +-----------------------+
 // | UnixSocketRaw methods |
@@ -245,7 +265,7 @@ std::pair<UnixSocketRaw, UnixSocketRaw> UnixSocketRaw::CreatePairPosix(
     SockFamily family,
     SockType type) {
   int fds[2];
-  if (socketpair(GetSockFamily(family), GetSockType(type), 0, fds) != 0) {
+  if (socketpair(MkSockFamily(family), MkSockType(type), 0, fds) != 0) {
     return std::make_pair(UnixSocketRaw(), UnixSocketRaw());
   }
   return std::make_pair(UnixSocketRaw(ScopedFile(fds[0]), family, type),

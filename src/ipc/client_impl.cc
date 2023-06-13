@@ -75,9 +75,9 @@ ClientImpl::~ClientImpl() {
 
 void ClientImpl::TryConnect() {
   PERFETTO_DCHECK(socket_name_);
-  sock_ = base::UnixSocket::Connect(socket_name_, this, task_runner_,
-                                    kClientSockFamily, base::SockType::kStream,
-                                    base::SockPeerCredMode::kIgnore);
+  sock_ = base::UnixSocket::Connect(
+      socket_name_, this, task_runner_, base::GetSockFamily(socket_name_),
+      base::SockType::kStream, base::SockPeerCredMode::kIgnore);
 }
 
 void ClientImpl::BindService(base::WeakPtr<ServiceProxy> service_proxy) {

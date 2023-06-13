@@ -1016,6 +1016,17 @@ TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
 }
 #endif  // OS_LINUX || OS_ANDROID
 
+TEST_F(UnixSocketTest, GetSockFamily) {
+  ASSERT_EQ(GetSockFamily(""), SockFamily::kUnspec);
+  ASSERT_EQ(GetSockFamily("/path/to/sock"), SockFamily::kUnix);
+  ASSERT_EQ(GetSockFamily("local_dir_sock"), SockFamily::kUnix);
+  ASSERT_EQ(GetSockFamily("@abstract"), SockFamily::kUnix);
+  ASSERT_EQ(GetSockFamily("0.0.0.0:80"), SockFamily::kInet);
+  ASSERT_EQ(GetSockFamily("127.0.0.1:80"), SockFamily::kInet);
+  ASSERT_EQ(GetSockFamily("[effe::acca]:1234"), SockFamily::kInet6);
+  ASSERT_EQ(GetSockFamily("[::1]:123456"), SockFamily::kInet6);
+}
+
 }  // namespace
 }  // namespace base
 }  // namespace perfetto
