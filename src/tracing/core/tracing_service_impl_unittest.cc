@@ -4419,6 +4419,8 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(32);  // Buf 0.
   trace_config.add_buffers()->set_size_kb(32);  // Buf 1.
+  trace_config.set_trace_uuid_lsb(4242);
+  trace_config.set_trace_uuid_msb(3737);
   auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
   ds_cfg->set_name("ds_1");
   ds_cfg->set_target_buffer(0);
@@ -4469,8 +4471,11 @@ TEST_F(TracingServiceImplTest, CloneSession) {
           [clone_done, &clone_uuid](const Consumer::OnSessionClonedArgs& args) {
             ASSERT_TRUE(args.success);
             ASSERT_TRUE(args.error.empty());
-            ASSERT_NE(args.uuid.msb(), 0);
-            ASSERT_NE(args.uuid.lsb(), 0);
+            // Ensure the LSB is preserved, but the MSB is different. See
+            // comments in tracing_service_impl.cc and perfetto_cmd.cc around
+            // triggering_subscription_id().
+            ASSERT_EQ(args.uuid.lsb(), 4242);
+            ASSERT_NE(args.uuid.msb(), 3737);
             clone_uuid = args.uuid;
             clone_done();
           }));
