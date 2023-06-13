@@ -13,8 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
 
+import {BigintMath} from '../base/bigint_math';
+import {clamp} from '../base/math_utils';
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';
 
@@ -187,8 +188,9 @@ class TraceViewer implements m.ClassComponent {
           let startPx = Math.min(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           let endPx = Math.max(dragStartX, currentX) - TRACK_SHELL_WIDTH;
           if (startPx < 0 && endPx < 0) return;
-          startPx = Math.max(startPx, visibleTimeScale.pxSpan.start);
-          endPx = Math.min(endPx, visibleTimeScale.pxSpan.end);
+          const {pxSpan} = visibleTimeScale;
+          startPx = clamp(startPx, pxSpan.start, pxSpan.end);
+          endPx = clamp(endPx, pxSpan.start, pxSpan.end);
           frontendLocalState.selectArea(
               visibleTimeScale.pxToHpTime(startPx).toTPTime('floor'),
               visibleTimeScale.pxToHpTime(endPx).toTPTime('ceil'),
