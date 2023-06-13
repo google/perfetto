@@ -12,22 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedSliceTrack, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP, Selection} from '../../common/state';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
+import {v4 as uuidv4} from 'uuid';
+
 import {Actions} from '../../common/actions';
 import {Engine} from '../../common/engine';
+import {
+  generateSqlWithInternalLayout,
+} from '../../common/internal_layout_utils';
+import {
+  PrimaryTrackSortKey,
+  SCROLLING_TRACK_GROUP,
+  Selection,
+} from '../../common/state';
+import {OnSliceClickArgs} from '../../frontend/base_slice_track';
+import {
+  Columns,
+  GenericSliceDetailsTab,
+} from '../../frontend/generic_slice_details_tab';
+import {globals} from '../../frontend/globals';
+import {
+  NamedSliceTrack,
+  NamedSliceTrackTypes,
+} from '../../frontend/named_slice_track';
+import {NewTrackArgs, Track} from '../../frontend/track';
 import {DecideTracksResult} from '../chrome_scroll_jank';
-import {v4 as uuidv4} from 'uuid';
-import {GenericSliceDetailsTab, Columns} from '../../frontend/generic_slice_details_tab';
 
-export class TopLevelJankTrack extends NamedSliceTrack {
-  static readonly kind = 'org.chromium.ScrollJank.top_level_jank';
+export class TopLevelEventLatencyTrack extends NamedSliceTrack {
+  static readonly kind = 'org.chromium.ScrollJank.top_level_event_latencies';
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelJankTrack(args);
+    return new TopLevelEventLatencyTrack(args);
   }
 
   constructor(args: NewTrackArgs) {
@@ -35,27 +49,22 @@ export class TopLevelJankTrack extends NamedSliceTrack {
   }
 
   async initSqlTable(tableName: string) {
-    const sql = `CREATE VIEW ${tableName} AS
-    WITH unioned_data AS (
-      SELECT
-        "Scrolling: " || scroll_ids AS name,
-        ts,
-        dur,
-        0 AS depth
-      FROM chrome_scrolling_intervals
-      UNION ALL
-      SELECT
-        "Janky Scrolling Time" AS name,
-        ts,
-        dur,
-        1 AS depth
-      FROM chrome_scroll_jank_intervals_v2
-     )
-     SELECT
-       ROW_NUMBER() OVER(ORDER BY ts) AS id,
-       *
-     FROM unioned_data
-    `;
+    const sql =
+        `CREATE VIEW ${tableName} AS ` + generateSqlWithInternalLayout({
+          columns: [
+            'id',
+            'ts',
+            'dur',
+            'track_id',
+            'cause_of_jank || IIF(sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, "") AS name',
+            'name AS type',
+            'sub_cause_of_jank',
+          ],
+          layoutParams: {ts: 'ts', dur: 'dur'},
+          sourceTable: 'chrome_janky_event_latencies_v2',
+        }) +
+        `;`;
+
     await this.engine.query(sql);
   }
 
@@ -67,11 +76,14 @@ export class TopLevelJankTrack extends NamedSliceTrack {
   }
 
   onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
-    const columns : Columns = {};
-    columns['name'] = {};
-    columns['id'] = {displayName: 'Interval ID'};
+    const columns: Columns = {};
+    columns['name'] = {displayName: 'Cause of Jank'};
+    columns['sub_cause_of_jank'] = {displayName: 'Sub-cause of Jank'};
+    columns['id'] = {displayName: 'Slice ID'};
     columns['ts'] = {displayName: 'Start time'};
     columns['dur'] = {displayName: 'Duration'};
+    columns['type'] = {displayName: 'Slice Type'};
+
 
     const title = 'Scroll Jank Summary';
 
@@ -94,25 +106,23 @@ export class TopLevelJankTrack extends NamedSliceTrack {
   }
 }
 
-export async function addTopLevelJankTrack(engine: Engine):
+export async function addJankyLatenciesTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls');`);
   await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelJankTrack.kind,
+    kind: TopLevelEventLatencyTrack.kind,
     trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Scroll Jank Summary',
+    name: 'Scroll Janks',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
 
   return result;
 }
-

@@ -19,11 +19,18 @@ import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
 import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
-import {NamedSliceTrack} from '../../frontend/named_slice_track';
+import {
+  NamedSliceTrack,
+  NamedSliceTrackTypes,
+} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {DecideTracksResult} from '../chrome_scroll_jank';
 
-export class EventLatencyTrack extends NamedSliceTrack {
+export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
+  config: {baseTable: string;}
+}
+
+export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.event_latencies';
 
   static create(args: NewTrackArgs): Track {
@@ -36,12 +43,7 @@ export class EventLatencyTrack extends NamedSliceTrack {
 
   async initSqlTable(tableName: string) {
     const sql =
-      `CREATE VIEW ${tableName} AS ` +
-      generateSqlWithInternalLayout({
-        columns: ['id', 'ts', 'dur', 'track_id', 'cause_of_jank AS name'],
-        layoutParams: {ts: 'ts', dur: 'dur'},
-        sourceTable: 'chrome_janky_event_latencies_v2',
-      }) + `;`;
+        `CREATE VIEW ${tableName} AS SELECT * FROM ${this.config.baseTable}`;
 
     await this.engine.query(sql);
   }
@@ -50,21 +52,81 @@ export class EventLatencyTrack extends NamedSliceTrack {
   // this behavior should be customized to show jank-related data.
 }
 
-export async function addLatenciesTrack(engine: Engine):
+export async function addLatencyTracks(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
+  const subTableSql = generateSqlWithInternalLayout({
+    columns: ['id', 'ts', 'dur', 'track_id', 'name'],
+    layoutParams: {ts: 'ts', dur: 'dur'},
+    sourceTable: 'slice',
+    whereClause: `
+      EXTRACT_ARG(arg_set_id, 'event_latency.event_type') IN (
+        'FIRST_GESTURE_SCROLL_UPDATE',
+        'GESTURE_SCROLL_UPDATE',
+        'INERTIAL_GESTURE_SCROLL_UPDATE')
+      AND HAS_DESCENDANT_SLICE_WITH_NAME(
+        id,
+        'SubmitCompositorFrameToPresentationCompositorFrame')`,
+  });
+
+  // Table name must be unique - it cannot include '-' characters or begin with
+  // a numeric value.
+  const baseTable =
+      `table_${uuidv4().split('-').join('_')}_janky_event_latencies_v2`;
+  const tableDefSql = `CREATE TABLE ${baseTable} AS
+      WITH event_latencies AS (
+        ${subTableSql}
+      ), latency_stages AS (
+      SELECT
+        d.id,
+        d.ts,
+        d.dur,
+        d.track_id,
+        d.name,
+        d.depth,
+        min(a.id) AS parent_id
+      FROM slice s
+        JOIN descendant_slice(s.id) d
+        JOIN ancestor_slice(d.id) a
+      WHERE s.id IN (SELECT id FROM event_latencies)
+      GROUP BY d.id, d.ts, d.dur, d.track_id, d.name, d.parent_id, d.depth)
+    SELECT
+      id,
+      ts,
+      dur,
+      CASE
+        WHEN id IN (
+          SELECT id FROM chrome_janky_event_latencies_v2)
+        THEN 'Janky EventLatency'
+        ELSE name
+      END
+      AS name,
+      depth * 3 AS depth
+    FROM event_latencies
+    UNION ALL
+    SELECT
+      ls.id,
+      ls.ts,
+      ls.dur,
+      ls.name,
+      depth + (
+        (SELECT depth FROM event_latencies
+        WHERE id = ls.parent_id LIMIT 1) * 3) AS depth
+    FROM latency_stages ls;`;
+
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
+  await engine.query(tableDefSql);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
     kind: EventLatencyTrack.kind,
     trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Scroll Janks',
-    config: {},
+    name: 'Input Event Latencies',
+    config: {baseTable: baseTable},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
 

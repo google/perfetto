@@ -12,17 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {AddTrackArgs} from '../../common/actions';
+import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {PluginContext} from '../../common/plugin_api';
 
-import {addLatenciesTrack, EventLatencyTrack} from './event_latency_track';
+import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
 import {
-  addTopLevelScrollTrack,
   TopLevelScrollTrack,
 } from './scroll_track';
-import {Engine} from '../../common/engine';
 import {addTopLevelJankTrack, TopLevelJankTrack} from './top_level_jank_track';
-import {AddTrackArgs} from '../../common/actions';
+import {
+  addJankyLatenciesTrack,
+  TopLevelEventLatencyTrack,
+} from './top_level_janky_event_latencies';
 
 // Constants for rendering plugin tracks.
 export const INPUT_LATENCY_TRACK = 'InputLatency::';
@@ -55,20 +58,20 @@ export async function getScrollJankTracks(
         topLevelJanksResult.tracksToAdd[i];
   }
 
-  const topLevelScrolls = addTopLevelScrollTrack(engine);
-  const topLevelScrollsResult = await topLevelScrolls;
-  originalLength = result.tracksToAdd.length;
-  result.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
-  for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
-    result.tracksToAdd[i + originalLength] =
-        topLevelScrollsResult.tracksToAdd[i];
-  }
-
   // TODO(b/278844325): Top Level event latency summary is already rendered in
   // the TopLevelJankTrack; this track should be rendered at a more
   // intuitive location when the descendant slices are rendered.
   originalLength = result.tracksToAdd.length;
-  const eventLatencies = addLatenciesTrack(engine);
+  const jankyEventLatencies = addJankyLatenciesTrack(engine);
+  const jankyEventLatencyResult = await jankyEventLatencies;
+  result.tracksToAdd.length += jankyEventLatencyResult.tracksToAdd.length;
+  for (let i = 0; i < jankyEventLatencyResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] =
+        jankyEventLatencyResult.tracksToAdd[i];
+  }
+
+  originalLength = result.tracksToAdd.length;
+  const eventLatencies = addLatencyTracks(engine);
   const eventLatencyResult = await eventLatencies;
   result.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
   for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
@@ -81,6 +84,7 @@ export async function getScrollJankTracks(
 function activate(ctx: PluginContext) {
   ctx.registerTrack(TopLevelJankTrack);
   ctx.registerTrack(TopLevelScrollTrack);
+  ctx.registerTrack(TopLevelEventLatencyTrack);
   ctx.registerTrack(EventLatencyTrack);
 }
 
