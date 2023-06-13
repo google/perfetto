@@ -40,9 +40,9 @@
     <test class="com.android.tradefed.testtype.GTest" >
         <option name="native-test-device-path" value="/data/local/tmp" />
         <option name="module-name" value="CtsPerfettoTestCases" />
-        <option name="runtime-hint" value="0m40s" />
+        <option name="runtime-hint" value="2m40s" />
         <!-- test-timeout unit is ms -->
-        <option name="native-test-timeout" value="40000" />
+        <option name="native-test-timeout" value="180000" />
     </test>
 
     <!-- When this test is run in a Mainline context (e.g. with `mts-tradefed`), only enable it if
