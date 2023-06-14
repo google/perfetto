@@ -40,15 +40,12 @@ import {AnyAttrsVnode} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
-import {GenericSliceDetailsTabConfig} from './generic_slice_details_tab';
 
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
 
 export const CURRENT_SELECTION_TAG = 'current_selection';
-
-export type SqlObjectDetailsTabConfig = (GenericSliceDetailsTabConfig);
 
 function getDetailsHeight() {
   // This needs to be a function instead of a const to ensure the CSS constants
@@ -230,7 +227,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         },
       });
       break;
-    case 'BASIC_SQL_OBJECT':
+    case 'GENERIC_SLICE':
       bottomTabList.addTab({
         kind: newSelection.detailsPanelConfig.kind,
         tag: currentSelectionTag,
