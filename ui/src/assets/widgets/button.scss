@@ -98,7 +98,7 @@
 
   // Reduce padding when we are icon-only
   &.pf-icon-only {
-    & > i {
+    & > .pf-left-icon {
       margin: 0;
     }
 
