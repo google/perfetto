@@ -155,7 +155,7 @@ inline typename std::make_unsigned<T>::type ZigZagEncode(T value) {
   // Right-shift of negative values is implementation specific.
   // Assert the implementation does what we expect, which is that shifting any
   // positive value by sizeof(T) * 8 - 1 gives an all 0 bitmap, and a negative
-  // value gives and all 1 bitmap.
+  // value gives an all 1 bitmap.
   constexpr uint64_t kUnsignedZero = 0u;
   constexpr int64_t kNegativeOne = -1;
   constexpr int64_t kPositiveOne = 1;
