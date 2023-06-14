@@ -24,11 +24,7 @@ import {
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM} from '../../common/query_result';
-import {
-  TPDuration,
-  TPTime,
-  tpTimeToString,
-} from '../../common/time';
+import {formatDuration, TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -366,7 +362,7 @@ class CpuSliceTrack extends Track<Config, Data> {
               latencyWidth >= 20);
           // Latency time with a white semi-transparent background.
           const latency = tStart - details.wakeupTs;
-          const displayText = tpTimeToString(latency);
+          const displayText = formatDuration(latency);
           const measured = ctx.measureText(displayText);
           if (latencyWidth >= measured.width + 2) {
             ctx.fillStyle = 'rgba(255,255,255,0.7)';

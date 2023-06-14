@@ -27,7 +27,6 @@ import {
   PivotTableResult,
   SortDirection,
 } from '../common/state';
-import {tpTimeToCode} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -49,6 +48,7 @@ import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
 import {runQueryInNewTab} from './query_result_tab';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
+import {Duration} from './widgets/duration';
 
 
 interface PathItem {
@@ -195,11 +195,11 @@ export class PivotTable extends Panel<PivotTableAttrs> {
     return m('tr', renderedCells);
   }
 
-  renderCell(column: TableColumn, value: ColumnType): string {
+  renderCell(column: TableColumn, value: ColumnType): m.Children {
     if (column.kind === 'regular' &&
         (column.column === 'dur' || column.column === 'thread_dur')) {
       if (typeof value === 'bigint') {
-        return tpTimeToCode(value);
+        return m(Duration, {dur: value});
       }
     }
     return `${value}`;
