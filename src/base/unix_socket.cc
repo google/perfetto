@@ -162,7 +162,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
         PERFETTO_ELOG(
             "Abstract AF_UNIX sockets are not supported on Windows, see "
             "https://github.com/microsoft/WSL/issues/4240");
-        return SockaddrAny{};
+        return SockaddrAny();
 #endif
       }
       saddr.sun_family = AF_UNIX;
@@ -225,7 +225,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       return res;
 #else
       errno = ENOTSOCK;
-      return SockAddrAny{};
+      return SockaddrAny();
 #endif
     }
     case SockFamily::kUnspec:
