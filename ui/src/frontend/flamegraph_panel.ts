@@ -28,7 +28,6 @@ import {
   FlamegraphStateViewingOption,
   ProfileType,
 } from '../common/state';
-import {tpTimeToCode} from '../common/time';
 import {profileType} from '../controller/flamegraph_controller';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
@@ -40,6 +39,7 @@ import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {Button} from './widgets/button';
+import {Duration} from './widgets/duration';
 import {findRef} from './widgets/utils';
 
 interface FlamegraphDetailsPanelAttrs {}
@@ -108,7 +108,8 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                         toSelectedCallsite(
                             flamegraphDetails.expandedCallsite)}`),
                   m('div.time',
-                    `Snapshot time: ${tpTimeToCode(flamegraphDetails.dur)}`),
+                    `Snapshot time: `,
+                    m(Duration, {dur: flamegraphDetails.dur})),
                   m('input[type=text][placeholder=Focus]', {
                     oninput: (e: Event) => {
                       const target = (e.target as HTMLInputElement);

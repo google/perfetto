@@ -20,10 +20,10 @@ import {ArgValue} from '../common/arg_types';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {
+  formatDuration,
   TPDuration,
   tpDurationToSeconds,
   TPTime,
-  tpTimeToCode,
 } from '../common/time';
 import {Argument, convertArgsToTree, Key} from '../controller/args_parser';
 
@@ -35,6 +35,7 @@ import {Icons} from './semantic_icons';
 import {asTPTimestamp} from './sql_types';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
+import {Duration} from './widgets/duration';
 import {Column, GridLayout} from './widgets/grid_layout';
 import {MenuItem, PopupMenu2} from './widgets/menu';
 import {Section} from './widgets/section';
@@ -316,9 +317,13 @@ function getDisplayName(name: string|undefined, id: number|undefined): string|
   }
 }
 
-function computeDuration(ts: TPTime, dur: TPDuration): string {
-  return dur === -1n ? `${globals.state.traceTime.end - ts} (Did not end)` :
-                       tpTimeToCode(dur);
+function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
+  if (dur === -1n) {
+    const minDuration = globals.state.traceTime.end - ts;
+    return `${formatDuration(minDuration)} (Did not end)`;
+  } else {
+    return m(Duration, {dur});
+  }
 }
 
 export class ChromeSliceDetailsPanel implements m.ClassComponent {
@@ -420,8 +425,10 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
           sliceInfo.threadDur === -1n ? '' : ` (${(ratio * 100).toFixed(2)}%)`;
       return m(TreeNode, {
         left: 'Thread duration',
-        right: computeDuration(sliceInfo.threadTs, sliceInfo.threadDur) +
-            threadDurFractionSuffix,
+        right: [
+          computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
+          threadDurFractionSuffix,
+        ],
       });
     } else {
       return undefined;
@@ -486,7 +493,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
         TreeNode,
         {left: 'Flow'},
         m(TreeNode, {left: 'Slice', right: sliceLink}),
-        m(TreeNode, {left: 'Delay', right: tpTimeToCode(dur)}),
+        m(TreeNode, {left: 'Delay', right: m(Duration, {dur})}),
         m(TreeNode, {left: 'Thread', right: threadName}),
     );
   }
