@@ -29,6 +29,7 @@ import {
 } from '../common/high_precision_time';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {onSelectionChanged} from '../common/selection_observer';
 import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
 import {Span, tpTimeFromSeconds} from '../common/time';
 import {
@@ -43,6 +44,8 @@ import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
+import {SliceSqlId} from './sql_types';
+import {TPTimestamp} from './sql_types';
 import {PxSpan, TimeScale} from './time_scale';
 
 type Dispatch = (action: DeferredAction) => void;
@@ -84,9 +87,9 @@ export interface FlowPoint {
 
   sliceName: string;
   sliceCategory: string;
-  sliceId: number;
-  sliceStartTs: TPTime;
-  sliceEndTs: TPTime;
+  sliceId: SliceSqlId;
+  sliceStartTs: TPTimestamp;
+  sliceEndTs: TPTimestamp;
   // Thread and process info. Only set in sliceSelected not in areaSelected as
   // the latter doesn't display per-flow info and it'd be a waste to join
   // additional tables for undisplayed info in that case. Nothing precludes
@@ -576,11 +579,23 @@ class Globals {
   }
 
   makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
+    const previousState = this.state;
     // A new selection should cancel the current search selection.
     globals.dispatch(Actions.setSearchIndex({index: -1}));
     const tab = action.type === 'deselect' ? undefined : tabToOpen;
     globals.dispatch(Actions.setCurrentTab({tab}));
     globals.dispatch(action);
+
+    // HACK(stevegolton + altimin): This is a workaround to allow passing the
+    // next tab state to the Bottom Tab API
+    if (this.state.currentSelection !== previousState.currentSelection) {
+      // TODO(altimin): Currently we are not triggering this when changing
+      // the set of selected tracks via toggling per-track checkboxes.
+      // Fix that.
+      onSelectionChanged(
+          this.state.currentSelection ?? undefined,
+          tab === 'current_selection');
+    }
   }
 
   resetForTesting() {
