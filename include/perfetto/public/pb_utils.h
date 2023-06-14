@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_
 #define INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_
 
+#include <assert.h>
 #include <stdint.h>
 
 #include "perfetto/public/compiler.h"
@@ -84,6 +85,42 @@ static inline const uint8_t* PerfettoPbParseVarInt(const uint8_t* start,
   }
   *out_value = 0;
   return start;
+}
+
+static inline uint32_t PerfettoPbZigZagEncode32(int32_t value) {
+#if defined(__cplusplus) || \
+    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L)
+  // Right-shift of negative values is implementation specific.
+  // Assert the implementation does what we expect, which is that shifting an
+  // positive int32_t by 31 gives an all 0 bitmap, and a negative int32_t gives
+  // an all 1 bitmap.
+  static_assert(
+      PERFETTO_STATIC_CAST(uint32_t, INT32_C(-1) >> 31) == ~UINT32_C(0),
+      "implementation does not support assumed rightshift");
+  static_assert(PERFETTO_STATIC_CAST(uint32_t, INT32_C(1) >> 31) == UINT32_C(0),
+                "implementation does not support assumed rightshift");
+#endif
+
+  return (PERFETTO_STATIC_CAST(uint32_t, value) << 1) ^
+         PERFETTO_STATIC_CAST(uint32_t, value >> 31);
+}
+
+static inline uint64_t PerfettoPbZigZagEncode64(int64_t value) {
+#if defined(__cplusplus) || \
+    (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L)
+  // Right-shift of negative values is implementation specific.
+  // Assert the implementation does what we expect, which is that shifting an
+  // positive int64_t by 63 gives an all 0 bitmap, and a negative int64_t gives
+  // an all 1 bitmap.
+  static_assert(
+      PERFETTO_STATIC_CAST(uint64_t, INT64_C(-1) >> 63) == ~UINT64_C(0),
+      "implementation does not support assumed rightshift");
+  static_assert(PERFETTO_STATIC_CAST(uint64_t, INT64_C(1) >> 63) == UINT64_C(0),
+                "implementation does not support assumed rightshift");
+#endif
+
+  return (PERFETTO_STATIC_CAST(uint64_t, value) << 1) ^
+         PERFETTO_STATIC_CAST(uint64_t, value >> 63);
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_
