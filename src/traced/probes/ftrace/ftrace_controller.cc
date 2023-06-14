@@ -175,9 +175,8 @@ std::unique_ptr<FtraceController> FtraceController::Create(
 
   SyscallTable syscalls = SyscallTable::FromCurrentArch();
 
-  std::unique_ptr<FtraceConfigMuxer> muxer =
-      std::unique_ptr<FtraceConfigMuxer>(new FtraceConfigMuxer(
-          ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts));
+  auto muxer = std::make_unique<FtraceConfigMuxer>(
+      ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts);
   return std::unique_ptr<FtraceController>(
       new FtraceController(std::move(ftrace_procfs), std::move(table),
                            std::move(muxer), runner, observer));
@@ -190,9 +189,7 @@ FtraceController::FtraceController(std::unique_ptr<FtraceProcfs> ftrace_procfs,
                                    Observer* observer)
     : task_runner_(task_runner),
       observer_(observer),
-      symbolizer_(new LazyKernelSymbolizer()),
       primary_(std::move(ftrace_procfs), std::move(table), std::move(muxer)),
-      ftrace_clock_snapshot_(new FtraceClockSnapshot()),
       weak_factory_(this) {}
 
 FtraceController::~FtraceController() {
@@ -223,15 +220,16 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance) {
 
   PERFETTO_DCHECK(instance->per_cpu.empty());
   size_t num_cpus = instance->ftrace_procfs->NumberOfCpus();
+  const auto ftrace_clock = instance->ftrace_config_muxer->ftrace_clock();
   instance->per_cpu.clear();
   instance->per_cpu.reserve(num_cpus);
   size_t period_page_quota =
       instance->ftrace_config_muxer->GetPerCpuBufferSizePages();
   for (size_t cpu = 0; cpu < num_cpus; cpu++) {
-    auto reader = std::unique_ptr<CpuReader>(
-        new CpuReader(cpu, instance->table.get(), symbolizer_.get(),
-                      ftrace_clock_snapshot_.get(),
-                      instance->ftrace_procfs->OpenPipeForCpu(cpu)));
+    auto reader = std::make_unique<CpuReader>(
+        cpu, instance->ftrace_procfs->OpenPipeForCpu(cpu),
+        instance->table.get(), &symbolizer_, ftrace_clock,
+        &ftrace_clock_snapshot_);
     instance->per_cpu.emplace_back(std::move(reader), period_page_quota);
   }
 
@@ -239,8 +237,8 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance) {
   // manual clock snapshots so that the trace parser can do a best effort
   // conversion back to boot. This is primarily for old kernels that predate
   // boot support, and therefore default to "global" clock.
-  if (instance == &primary_ && instance->ftrace_config_muxer->ftrace_clock() !=
-                                   FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
+  if (instance == &primary_ &&
+      ftrace_clock != FtraceClock::FTRACE_CLOCK_UNSPECIFIED) {
     cpu_zero_stats_fd_ = primary_.ftrace_procfs->OpenCpuStats(0 /* cpu */);
     MaybeSnapshotFtraceClock();
   }
@@ -350,7 +348,6 @@ bool FtraceController::ReadTickForInstance(FtraceInstanceState* instance) {
 
   bool all_cpus_done = true;
   uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
-  const auto ftrace_clock = instance->ftrace_config_muxer->ftrace_clock();
   for (size_t i = 0; i < instance->per_cpu.size(); i++) {
     size_t orig_quota = instance->per_cpu[i].period_page_quota;
     if (orig_quota == 0)
@@ -358,7 +355,6 @@ bool FtraceController::ReadTickForInstance(FtraceInstanceState* instance) {
 
     size_t max_pages = std::min(orig_quota, kMaxPagesPerCpuPerReadTick);
     CpuReader& cpu_reader = *instance->per_cpu[i].reader;
-    cpu_reader.set_ftrace_clock(ftrace_clock);
     size_t pages_read =
         cpu_reader.ReadCycle(parsing_buf, kParsingBufferSizePages, max_pages,
                              instance->started_data_sources);
@@ -452,7 +448,7 @@ void FtraceController::StopIfNeeded(FtraceInstanceState* instance) {
     return;
 
   if (!retain_ksyms_on_stop_) {
-    symbolizer_->Destroy();
+    symbolizer_.Destroy();
   }
   retain_ksyms_on_stop_ = false;
 
@@ -513,7 +509,7 @@ bool FtraceController::StartDataSource(FtraceDataSource* data_source) {
   // Note that we're already recording data into the kernel ftrace
   // buffers while doing the symbol parsing.
   if (data_source->config().symbolize_ksyms()) {
-    symbolizer_->GetOrCreateKernelSymbolMap();
+    symbolizer_.GetOrCreateKernelSymbolMap();
     // If at least one config sets the KSYMS_RETAIN flag, keep the ksysm map
     // around in StopIfNeeded().
     const auto KRET = FtraceConfig::KSYMS_RETAIN;
@@ -546,8 +542,8 @@ void FtraceController::DumpFtraceStats(FtraceDataSource* data_source,
     return;
 
   DumpAllCpuStats(instance->ftrace_procfs.get(), stats_out);
-  if (symbolizer_ && symbolizer_->is_valid()) {
-    auto* symbol_map = symbolizer_->GetOrCreateKernelSymbolMap();
+  if (symbolizer_.is_valid()) {
+    auto* symbol_map = symbolizer_.GetOrCreateKernelSymbolMap();
     stats_out->kernel_symbols_parsed =
         static_cast<uint32_t>(symbol_map->num_syms());
     stats_out->kernel_symbols_mem_kb =
@@ -565,10 +561,10 @@ void FtraceController::MaybeSnapshotFtraceClock() {
   // Snapshot the boot clock *before* reading CPU stats so that
   // two clocks are as close togher as possible (i.e. if it was the
   // other way round, we'd skew by the const of string parsing).
-  ftrace_clock_snapshot_->boot_clock_ts = base::GetBootTimeNs().count();
+  ftrace_clock_snapshot_.boot_clock_ts = base::GetBootTimeNs().count();
 
   // A value of zero will cause this snapshot to be skipped.
-  ftrace_clock_snapshot_->ftrace_clock_ts =
+  ftrace_clock_snapshot_.ftrace_clock_ts =
       ReadFtraceNowTs(cpu_zero_stats_fd_).value_or(0);
 }
 
@@ -663,11 +659,11 @@ FtraceController::CreateSecondaryInstance(const std::string& instance_name) {
 
   auto syscalls = SyscallTable::FromCurrentArch();
 
-  auto muxer = std::unique_ptr<FtraceConfigMuxer>(new FtraceConfigMuxer(
+  auto muxer = std::make_unique<FtraceConfigMuxer>(
       ftrace_procfs.get(), table.get(), std::move(syscalls), vendor_evts,
-      /* secondary_instance= */ true));
-  return std::unique_ptr<FtraceInstanceState>(new FtraceInstanceState(
-      std::move(ftrace_procfs), std::move(table), std::move(muxer)));
+      /* secondary_instance= */ true);
+  return std::make_unique<FtraceInstanceState>(
+      std::move(ftrace_procfs), std::move(table), std::move(muxer));
 }
 
 // TODO(rsavitski): we want to eventually add support for the default
