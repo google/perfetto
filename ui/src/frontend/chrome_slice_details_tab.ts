@@ -14,25 +14,29 @@
 
 import m from 'mithril';
 
+import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {ArgValue} from '../common/arg_types';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
+import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
 import {
   formatDuration,
   TPDuration,
-  tpDurationToSeconds,
   TPTime,
 } from '../common/time';
-import {Argument, convertArgsToTree, Key} from '../controller/args_parser';
+import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
 
 import {Anchor} from './anchor';
-import {FlowPoint, globals, SliceDetails} from './globals';
+import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {FlowPoint, globals} from './globals';
+import {PanelSize} from './panel';
 import {runQueryInNewTab} from './query_result_tab';
-import {verticalScrollToTrack} from './scroll_helper';
 import {Icons} from './semantic_icons';
-import {asTPTimestamp} from './sql_types';
+import {Arg} from './sql/args';
+import {getSlice, SliceDetails, SliceRef} from './sql/slice';
+import {asSliceSqlId, asTPTimestamp} from './sql_types';
+import {getProcessName, getThreadName} from './thread_and_process_info';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
 import {Duration} from './widgets/duration';
@@ -88,9 +92,9 @@ const ITEMS: ContextMenuItem[] = [
                   JOIN thread USING (utid)
                   JOIN process USING (upid)
                 WHERE aidl_name IS NOT NULL
-                  AND pid = ${slice.pid}
-                  AND tid = ${slice.tid}`,
-                  `Binder names (${slice.processName}:${slice.tid})`,
+                  AND pid = ${slice.process?.pid}
+                  AND tid = ${slice.thread?.tid}`,
+                  `Binder names (${slice.process?.name}:${slice.thread?.tid})`,
                   ));
     },
   },
@@ -154,31 +158,20 @@ function getEngine(): EngineProxy|undefined {
   return engine;
 }
 
-function getArgValueRaw(value: ArgValue): string {
-  if (typeof value === 'object') {
-    return value.rawValue;
-  } else {
-    return value;
-  }
-}
-
-// Renders a key with a button to get dropdown things
-function renderArgKey(
-    key: string, fullKey?: string, value?: ArgValue): m.Children {
-  if (value === undefined || fullKey === undefined) {
+function renderArgKey(key: string, value?: Arg): m.Children {
+  if (value === undefined) {
     return key;
   } else {
+    const {key: fullKey, displayValue} = value;
     return m(
         PopupMenu2,
         {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
-        fullKey && m(MenuItem, {
+        m(MenuItem, {
           label: 'Copy full key',
           icon: 'content_copy',
-          onclick: () => {
-            navigator.clipboard.writeText(fullKey);
-          },
+          onclick: () => navigator.clipboard.writeText(fullKey),
         }),
-        value && fullKey && m(MenuItem, {
+        value && m(MenuItem, {
           label: 'Find slices with same arg value',
           icon: 'search',
           onclick: () => {
@@ -188,13 +181,12 @@ function renderArgKey(
               from slice
               join args using (arg_set_id)
               where key=${sqliteString(fullKey)} and display_value=${
-                    sqliteString(getArgValueRaw(value))}
+                    sqliteString(displayValue)}
           `,
-                `Arg: ${sqliteString(fullKey)}=${
-                    sqliteString(getArgValueRaw(value))}`);
+                `Arg: ${sqliteString(fullKey)}=${sqliteString(displayValue)}`);
           },
         }),
-        value && fullKey && m(MenuItem, {
+        value && m(MenuItem, {
           label: 'Visualise argument values',
           icon: 'query_stats',
           onclick: () => {
@@ -205,52 +197,25 @@ function renderArgKey(
   }
 }
 
+function isWebLink(value: unknown): value is string {
+  return typeof value === 'string' &&
+      (value.startsWith('http://') || value.startsWith('https://'));
+}
+
 // Try to render arg value as a special value, otherwise just render the text.
-function renderArgValue(value: ArgValue): m.Children {
-  if (typeof value === 'object' && 'kind' in value) {
-    const {kind} = value;
-    if (kind === 'SLICE') {
-      // Value looks like a slice link.
-      const {sliceId, trackId} = value;
-      return renderSliceLink(sliceId, trackId, `slice[${sliceId}]`);
-    } else {
-      const x: never = kind;
-      throw new Error(`No support for args of kind '${x}'`);
-    }
-  } else if (typeof value === 'string') {
-    if (value.startsWith('http://') || value.startsWith('https://')) {
-      // Value looks like a web link.
-      return m(
-          Anchor, {href: value, target: '_blank', icon: 'open_in_new'}, value);
-    } else {
-      // Value is nothing special.
-      return value;
-    }
+function renderArgValue({value}: Arg): m.Children {
+  if (isWebLink(value)) {
+    return renderWebLink(value);
   } else {
-    const x: never = value;
-    throw new Error(`Unable to process '${x}' as an arg value`);
+    return `${value}`;
   }
 }
 
-function renderSliceLink(id: number, trackId: string, name: string) {
-  return m(
-      Anchor,
-      {
-        icon: 'call_made',
-        onclick: () => {
-          globals.makeSelection(
-              Actions.selectChromeSlice({id, trackId, table: 'slice'}));
-          // Ideally we want to have a callback to
-          // findCurrentSelection after this selection has been
-          // made. Here we do not have the info for horizontally
-          // scrolling to ts.
-          verticalScrollToTrack(trackId, true);
-        },
-      },
-      name);
+function renderWebLink(url: string): m.Children {
+  return m(Anchor, {href: url, target: '_blank', icon: 'open_in_new'}, url);
 }
 
-function renderSummary(children: Argument<ArgValue>[]): m.Children {
+function renderSummary(children: ArgNode<Arg>[]): m.Children {
   const summary = children.slice(0, 2).map(({key}) => key).join(', ');
   const remaining = children.length - 2;
   if (remaining > 0) {
@@ -273,9 +238,10 @@ function stringifyKey(...key: Key[]): string {
       .join('');
 }
 
-function renderArgTreeNodes(args: Argument<ArgValue>[]): m.Children {
+function renderArgTreeNodes(
+    engine: EngineProxy, args: ArgNode<Arg>[]): m.Children {
   return args.map((arg) => {
-    const {key, path, value, children} = arg;
+    const {key, value, children} = arg;
     if (children && children.length === 1) {
       // If we only have one child, collapse into self and combine keys
       const child = children[0];
@@ -283,38 +249,19 @@ function renderArgTreeNodes(args: Argument<ArgValue>[]): m.Children {
         ...child,
         key: stringifyKey(key, child.key),
       };
-      return renderArgTreeNodes([compositeArg]);
+      return renderArgTreeNodes(engine, [compositeArg]);
     } else {
       return m(
           TreeNode,
           {
-            left: renderArgKey(stringifyKey(key), path, value),
+            left: renderArgKey(stringifyKey(key), value),
             right: exists(value) && renderArgValue(value),
             summary: children && renderSummary(children),
           },
-          children && renderArgTreeNodes(children),
+          children && renderArgTreeNodes(engine, children),
       );
     }
   });
-}
-
-interface Sliceish extends SliceDetails {
-  ts: TPTime;
-  dur: TPDuration;
-  name: string;
-}
-
-function isSliceish(slice: SliceDetails): slice is Sliceish {
-  return exists(slice.ts) && exists(slice.dur) && exists(slice.name);
-}
-
-function getDisplayName(name: string|undefined, id: number|undefined): string|
-    undefined {
-  if (name === undefined) {
-    return id === undefined ? undefined : `${id}`;
-  } else {
-    return id === undefined ? name : `${name} ${id}`;
-  }
 }
 
 function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
@@ -326,10 +273,88 @@ function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
   }
 }
 
-export class ChromeSliceDetailsPanel implements m.ClassComponent {
-  view() {
-    const slice = globals.sliceDetails;
-    if (isSliceish(slice)) {
+async function getAnnotationSlice(
+    engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
+  const query = await engine.query(`
+    SELECT
+      id,
+      name,
+      ts,
+      dur,
+      track_id as trackId,
+      thread_dur as threadDur,
+      cat,
+      ABS_TIME_STR(ts) as absTime
+    FROM annotation_slice
+    where id = ${id}`);
+
+  const it = query.firstRow({
+    id: NUM,
+    name: STR_NULL,
+    ts: LONG,
+    dur: LONG,
+    trackId: NUM,
+    threadDur: LONG_NULL,
+    cat: STR_NULL,
+    absTime: STR_NULL,
+  });
+
+  return {
+    id: asSliceSqlId(it.id),
+    name: it.name ?? 'null',
+    ts: asTPTimestamp(it.ts),
+    dur: it.dur,
+    sqlTrackId: it.trackId,
+    threadDur: it.threadDur ?? undefined,
+    category: it.cat ?? undefined,
+    absTime: it.absTime ?? undefined,
+  };
+}
+
+async function getSliceDetails(engine: EngineProxy, id: number, table: string):
+    Promise<SliceDetails|undefined> {
+  if (table === 'annotation') {
+    return getAnnotationSlice(engine, id);
+  } else {
+    return getSlice(engine, asSliceSqlId(id));
+  }
+}
+
+interface ChromeSliceDetailsTabConfig {
+  id: number;
+  table: string;
+}
+
+export class ChromeSliceDetailsTab extends
+    BottomTab<ChromeSliceDetailsTabConfig> {
+  static readonly kind = 'org.perfetto.ChromeSliceDetailsTab';
+
+  private sliceDetails?: SliceDetails;
+
+  static create(args: NewBottomTabArgs): ChromeSliceDetailsTab {
+    return new ChromeSliceDetailsTab(args);
+  }
+
+  constructor(args: NewBottomTabArgs) {
+    super(args);
+
+    // Start loading the slice details
+    const {id, table} = this.config;
+    getSliceDetails(this.engine, id, table)
+        .then((sliceDetails) => this.sliceDetails = sliceDetails);
+  }
+
+  renderTabCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize): void {
+    // No-op
+  }
+
+  getTitle(): string {
+    return `Current Selection`;
+  }
+
+  viewTab() {
+    if (exists(this.sliceDetails)) {
+      const slice = this.sliceDetails;
       return m(
           DetailsShell,
           {
@@ -340,7 +365,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
           m(
               GridLayout,
               this.renderDetails(slice),
-              this.renderRhs(slice),
+              this.renderRhs(this.engine, slice),
               ),
       );
     } else {
@@ -348,10 +373,14 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
     }
   }
 
-  private renderRhs(slice: Sliceish): m.Children {
+  isLoading() {
+    return !exists(this.sliceDetails);
+  }
+
+  private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
-    const args = this.renderArguments(slice);
+    const args = this.renderArguments(engine, slice);
     if (precFlows ?? followingFlows ?? args) {
       return m(
           Column,
@@ -364,63 +393,62 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
     }
   }
 
-  private renderDetails(slice: Sliceish) {
+  private renderDetails(slice: SliceDetails) {
     return m(
         Section,
         {title: 'Details'},
-        m(Tree,
-          m(TreeNode, {left: 'Name', right: slice.name}),
-          m(TreeNode, {
-            left: 'Category',
-            right: !slice.category || slice.category === '[NULL]' ?
-                'N/A' :
-                slice.category,
-          }),
-          m(TreeNode, {
-            left: 'Start time',
-            right: m(Timestamp, {ts: asTPTimestamp(slice.ts)}),
-          }),
-          exists(slice.absTime) &&
-              m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
-          m(TreeNode, {
-            left: 'Duration',
-            right: computeDuration(slice.ts, slice.dur),
-          }),
-          this.renderThreadDuration(slice),
-          Array.from(this.getProcessThreadDetails(slice))
-              .map(
-                  ([key, value]) =>
-                      exists(value) && m(TreeNode, {left: key, right: value})),
-          m(TreeNode, {
-            left: 'SQL ID',
-            right: m(SqlRef, {table: 'slice', id: slice.id}),
-          }),
-          slice.description &&
-              Array.from(slice.description)
-                  .map(
-                      ([key, value]) => m(TreeNode, {left: key, right: value}),
-                      )));
+        m(
+            Tree,
+            m(TreeNode, {left: 'Name', right: slice.name}),
+            m(TreeNode, {
+              left: 'Category',
+              right: !slice.category || slice.category === '[NULL]' ?
+                  'N/A' :
+                  slice.category,
+            }),
+            m(TreeNode, {
+              left: 'Start time',
+              right: m(Timestamp, {ts: asTPTimestamp(slice.ts)}),
+            }),
+            exists(slice.absTime) &&
+                m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
+            m(TreeNode, {
+              left: 'Duration',
+              right: computeDuration(slice.ts, slice.dur),
+            }),
+            this.renderThreadDuration(slice),
+            slice.thread && m(TreeNode, {
+              left: 'Thread',
+              right: getThreadName(slice.thread),
+            }),
+            slice.process && m(TreeNode, {
+              left: 'Process',
+              right: getProcessName(slice.process),
+            }),
+            slice.process && exists(slice.process.uid) && m(TreeNode, {
+              left: 'User ID',
+              right: slice.process.uid,
+            }),
+            slice.process && slice.process.packageName && m(TreeNode, {
+              left: 'Package name',
+              right: slice.process.packageName,
+            }),
+            slice.process && exists(slice.process.versionCode) && m(TreeNode, {
+              left: 'Version code',
+              right: slice.process.versionCode,
+            }),
+            m(TreeNode, {
+              left: 'SQL ID',
+              right: m(SqlRef, {table: 'slice', id: slice.id}),
+            }),
+            ));
   }
 
-  private getProcessThreadDetails(sliceInfo: SliceDetails) {
-    return new Map<string, string|undefined>([
-      ['Thread', getDisplayName(sliceInfo.threadName, sliceInfo.tid)],
-      ['Process', getDisplayName(sliceInfo.processName, sliceInfo.pid)],
-      ['User ID', sliceInfo.uid ? String(sliceInfo.uid) : undefined],
-      ['Package name', sliceInfo.packageName],
-      [
-        'Version code',
-        sliceInfo.versionCode ? String(sliceInfo.versionCode) : undefined,
-      ],
-    ]);
-  }
-
-  private renderThreadDuration(sliceInfo: Sliceish) {
+  private renderThreadDuration(sliceInfo: SliceDetails) {
     if (exists(sliceInfo.threadTs) && exists(sliceInfo.threadDur)) {
       // If we have valid thread duration, also display a percentage of
       // |threadDur| compared to |dur|.
-      const ratio = tpDurationToSeconds(sliceInfo.threadDur) /
-          tpDurationToSeconds(sliceInfo.dur);
+      const ratio = BigintMath.ratio(sliceInfo.threadDur, sliceInfo.dur);
       const threadDurFractionSuffix =
           sliceInfo.threadDur === -1n ? '' : ` (${(ratio * 100).toFixed(2)}%)`;
       return m(TreeNode, {
@@ -435,7 +463,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
     }
   }
 
-  private renderPrecedingFlows(slice: Sliceish): m.Children {
+  private renderPrecedingFlows(slice: SliceDetails): m.Children {
     const flows = globals.connectedFlows;
     const inFlows = flows.filter(({end}) => end.sliceId === slice.id);
 
@@ -456,7 +484,7 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
     }
   }
 
-  private renderFollowingFlows(slice: Sliceish): m.Children {
+  private renderFollowingFlows(slice: SliceDetails): m.Children {
     const flows = globals.connectedFlows;
     const outFlows = flows.filter(({begin}) => begin.sliceId === slice.id);
 
@@ -480,29 +508,39 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
   private renderFlow(
       flow: FlowPoint, dur: TPDuration,
       includeProcessName: boolean): m.Children {
-    const sliceId = flow.sliceId;
-    const trackId = globals.state.uiTrackIdByTraceTrackId[flow.trackId];
     const description = flow.sliceChromeCustomName === undefined ?
         flow.sliceName :
         flow.sliceChromeCustomName;
-    const sliceLink = renderSliceLink(sliceId, trackId, description);
     const threadName = includeProcessName ?
         `${flow.threadName} (${flow.processName})` :
         flow.threadName;
+
     return m(
         TreeNode,
         {left: 'Flow'},
-        m(TreeNode, {left: 'Slice', right: sliceLink}),
+        m(TreeNode, {
+          left: 'Slice',
+          right: m(SliceRef, {
+            id: asSliceSqlId(flow.sliceId),
+            name: description,
+            ts: flow.sliceStartTs,
+            dur: flow.sliceEndTs - flow.sliceStartTs,
+            sqlTrackId: flow.trackId,
+          }),
+        }),
         m(TreeNode, {left: 'Delay', right: m(Duration, {dur})}),
         m(TreeNode, {left: 'Thread', right: threadName}),
     );
   }
 
-  private renderArguments(slice: Sliceish): m.Children {
-    if (slice.args && slice.args.size > 0) {
+  private renderArguments(engine: EngineProxy, slice: SliceDetails):
+      m.Children {
+    if (slice.args && slice.args.length > 0) {
       const tree = convertArgsToTree(slice.args);
       return m(
-          Section, {title: 'Arguments'}, m(Tree, renderArgTreeNodes(tree)));
+          Section,
+          {title: 'Arguments'},
+          m(Tree, renderArgTreeNodes(engine, tree)));
     } else {
       return undefined;
     }
@@ -529,3 +567,5 @@ export class ChromeSliceDetailsPanel implements m.ClassComponent {
     }
   }
 }
+
+bottomTabRegistry.register(ChromeSliceDetailsTab);
