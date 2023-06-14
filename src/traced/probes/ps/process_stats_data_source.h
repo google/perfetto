@@ -17,11 +17,11 @@
 #ifndef SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 #define SRC_TRACED_PROBES_PS_PROCESS_STATS_DATA_SOURCE_H_
 
-#include <array>
+#include <functional>
 #include <limits>
 #include <memory>
-#include <set>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
@@ -30,7 +30,6 @@
 #include "perfetto/ext/tracing/core/basic_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/tracing/core/forward_decls.h"
-#include "src/traced/probes/common/cpu_freq_info.h"
 #include "src/traced/probes/probes_data_source.h"
 
 namespace perfetto {
@@ -54,8 +53,7 @@ class ProcessStatsDataSource : public ProbesDataSource {
   ProcessStatsDataSource(base::TaskRunner*,
                          TracingSessionID,
                          std::unique_ptr<TraceWriter> writer,
-                         const DataSourceConfig&,
-                         std::unique_ptr<CpuFreqInfo> cpu_freq_info);
+                         const DataSourceConfig&);
   ~ProcessStatsDataSource() override;
 
   base::WeakPtr<ProcessStatsDataSource> GetWeakPtr() const;
@@ -86,16 +84,12 @@ class ProcessStatsDataSource : public ProbesDataSource {
     uint32_t vm_swap_kb = std::numeric_limits<uint32_t>::max();
     uint32_t vm_locked_kb = std::numeric_limits<uint32_t>::max();
     uint32_t vm_hvm_kb = std::numeric_limits<uint32_t>::max();
-    int oom_score_adj = std::numeric_limits<int>::max();
+    int32_t oom_score_adj = std::numeric_limits<int32_t>::max();
     uint32_t smr_rss_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_anon_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_file_kb = std::numeric_limits<uint32_t>::max();
     uint32_t smr_pss_shmem_kb = std::numeric_limits<uint32_t>::max();
-
-    // ctime + stime from /proc/pid/stat
-    uint64_t cpu_time = std::numeric_limits<uint64_t>::max();
-
     // file descriptors
     base::FlatSet<uint64_t> seen_fds;
   };
@@ -111,21 +105,12 @@ class ProcessStatsDataSource : public ProbesDataSource {
   protos::pbzero::ProcessStats_Process* GetOrCreateStatsProcess(int32_t pid);
 
   // Functions for snapshotting process/thread long-term info and relationships.
-  void WriteProcess(int32_t pid, const std::string& proc_status);
-  void WriteThread(int32_t tid,
-                   int32_t tgid,
-                   const char* optional_name,
-                   const std::string& proc_status);
+  bool WriteProcess(int32_t pid, const std::string& proc_status);
+  void WriteThread(int32_t tid, int32_t tgid);
+  void WriteDetailedThread(int32_t tid,
+                           int32_t tgid,
+                           const std::string& proc_status);
   void WriteProcessOrThread(int32_t pid);
-  std::string ReadProcStatusEntry(const std::string& buf, const char* key);
-
-  constexpr static size_t kMaxNamespacedTidSize = 8;
-  using TidArray = std::array<int32_t, kMaxNamespacedTidSize>;
-  // Reads the thread IDs in each non-root level of PID namespace from
-  // /proc/tid/status.
-  void ReadNamespacedTids(int32_t tid,
-                          const std::string& proc_status,
-                          TidArray& out);
 
   // Functions for periodically sampling process stats/counters.
   static void Tick(base::WeakPtr<ProcessStatsDataSource>);
@@ -197,19 +182,8 @@ class ProcessStatsDataSource : public ProbesDataSource {
   uint32_t process_stats_cache_ttl_ticks_ = 0;
   std::unordered_map<int32_t, CachedProcessStats> process_stats_cache_;
 
-  using TimeInStateCacheEntry = std::tuple</* tid */ int32_t,
-                                           /* cpu_freq_index */ uint32_t,
-                                           /* ticks */ uint64_t>;
-
-  std::unique_ptr<CpuFreqInfo> cpu_freq_info_;
-
   // If true, the next trace packet will have the |incremental_state_cleared|
-  // flag set. Set when handling a ClearIncrementalState call.
-  //
-  // TODO(rsavitski): initialized to true since the first packet also doesn't
-  // have any prior state to refer to. It might make more sense to let the
-  // tracing service set this for every first packet (as it does for
-  // |previous_packet_dropped|).
+  // flag set. Set initially and when handling a ClearIncrementalState call.
   bool did_clear_incremental_state_ = true;
 
   base::WeakPtrFactory<ProcessStatsDataSource> weak_factory_;  // Keep last.
