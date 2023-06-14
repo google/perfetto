@@ -698,7 +698,7 @@ class TrackEventDataSource
       perfetto::protos::pbzero::TrackEvent::Type type,
       CounterTrack track,
       TimestampType timestamp,
-      ValueType value) PERFETTO_ALWAYS_INLINE {
+      ValueType value) PERFETTO_NO_INLINE {
     PERFETTO_DCHECK(type == perfetto::protos::pbzero::TrackEvent::TYPE_COUNTER);
     TraceForCategoryImpl(
         instances, category, /*name=*/nullptr, type, track, timestamp,
