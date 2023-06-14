@@ -14,14 +14,23 @@
 
 import m from 'mithril';
 
+import {BigintMath} from '../../base/bigint_math';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
-import {LONG, NUM, STR} from '../../common/query_result';
-import {TPDuration} from '../../common/time';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  STR,
+  STR_NULL,
+} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {Anchor} from '../anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
+import {Icons} from '../semantic_icons';
 import {
+  asArgSetId,
   asSliceSqlId,
   asUpid,
   asUtid,
@@ -38,15 +47,23 @@ import {
   ProcessInfo,
   ThreadInfo,
 } from '../thread_and_process_info';
+import {exists} from '../widgets/utils';
+
+import {Arg, getArgs} from './args';
 
 export interface SliceDetails {
   id: SliceSqlId;
   name: string;
   ts: TPTimestamp;
+  absTime?: string;
   dur: TPDuration;
   sqlTrackId: number;
   thread?: ThreadInfo;
   process?: ProcessInfo;
+  threadTs?: TPTime;
+  threadDur?: TPDuration;
+  category?: string;
+  args?: Arg[];
 }
 
 async function getUtidAndUpid(engine: EngineProxy, sqlTrackId: number):
@@ -99,7 +116,12 @@ async function getSliceFromConstraints(
       name,
       ts,
       dur,
-      track_id as trackId
+      track_id as trackId,
+      thread_dur as threadDur,
+      thread_ts as threadTs,
+      category,
+      arg_set_id as argSetId,
+      ABS_TIME_STR(ts) as absTime
     FROM slice
     ${constraintsToQueryFragment(constraints)}`);
   const it = query.iter({
@@ -108,6 +130,11 @@ async function getSliceFromConstraints(
     ts: LONG,
     dur: LONG,
     trackId: NUM,
+    threadDur: LONG_NULL,
+    threadTs: LONG_NULL,
+    category: STR_NULL,
+    argSetId: NUM,
+    absTime: STR_NULL,
   });
 
   const result: SliceDetails[] = [];
@@ -128,6 +155,11 @@ async function getSliceFromConstraints(
       sqlTrackId: it.trackId,
       thread,
       process,
+      threadDur: it.threadDur ?? undefined,
+      threadTs: exists(it.threadTs) ? it.threadTs : undefined,
+      category: it.category ?? undefined,
+      args: await getArgs(engine, asArgSetId(it.argSetId)),
+      absTime: it.absTime ?? undefined,
     });
   }
   return result;
@@ -160,14 +192,15 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
     return m(
         Anchor,
         {
-          icon: 'open_in_new',
+          icon: Icons.UpdateSelection,
           onclick: () => {
             const uiTrackId =
                 globals.state.uiTrackIdByTraceTrackId[vnode.attrs.sqlTrackId];
             if (uiTrackId === undefined) return;
             verticalScrollToTrack(uiTrackId, true);
-            focusHorizontalRange(
-                vnode.attrs.ts, vnode.attrs.ts + vnode.attrs.dur);
+            // Clamp duration to 1 - i.e. for instant events
+            const dur = BigintMath.max(1n, vnode.attrs.dur);
+            focusHorizontalRange(vnode.attrs.ts, vnode.attrs.ts + dur);
             globals.makeSelection(Actions.selectChromeSlice(
                 {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}));
           },
