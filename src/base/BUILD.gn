@@ -144,6 +144,9 @@ if (enable_perfetto_ipc) {
     if (is_win && perfetto_build_standalone) {
       libs = [ "Ws2_32.lib" ]
     }
+    if (is_linux || is_android) {
+      sources += [ "vm_sockets.h" ]
+    }
   }
 }
 
