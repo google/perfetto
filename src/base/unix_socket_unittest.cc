@@ -1014,6 +1014,57 @@ TEST_F(UnixSocketTest, Sockaddr_AbstractUnix) {
   ASSERT_EQ(0, connect(cli.fd(), reinterpret_cast<struct sockaddr*>(&addr),
                        addr_len));
 }
+
+bool VsockLoopBackAddrSupported() {
+  auto sock =
+      UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream);
+  return sock.Bind("vsock://1:10000");
+}
+
+TEST_F(UnixSocketTest, VSockStream) {
+  if (!VsockLoopBackAddrSupported())
+    GTEST_SKIP() << "vsock testing skipped: loopback address unsupported";
+
+  // Use the loopback CID (1) and a random unprileged port number.
+  StackString<128> sock_name("vsock://1:%d", 1024 + rand() % 10000);
+
+  // Set up the server.
+  auto srv =
+      UnixSocket::Listen(sock_name.ToStdString(), &event_listener_,
+                         &task_runner_, SockFamily::kVsock, SockType::kStream);
+  ASSERT_TRUE(srv && srv->is_listening());
+
+  std::unique_ptr<UnixSocket> prod;
+  EXPECT_CALL(event_listener_, OnNewIncomingConnection(srv.get(), _))
+      .WillOnce(Invoke([&](UnixSocket*, UnixSocket* s) {
+        // OnDisconnect() might spuriously happen depending on the dtor order.
+        EXPECT_CALL(event_listener_, OnDisconnect(s)).Times(AtLeast(0));
+        EXPECT_CALL(event_listener_, OnDataAvailable(s))
+            .WillRepeatedly(Invoke([](UnixSocket* prod_sock) {
+              prod_sock->ReceiveString();  // Read connection EOF;
+            }));
+        ASSERT_TRUE(s->SendStr("welcome"));
+      }));
+
+  // Set up the client.
+  prod =
+      UnixSocket::Connect(sock_name.ToStdString(), &event_listener_,
+                          &task_runner_, SockFamily::kVsock, SockType::kStream);
+  auto checkpoint = task_runner_.CreateCheckpoint("prod_connected");
+  EXPECT_CALL(event_listener_, OnDisconnect(prod.get())).Times(AtLeast(0));
+  EXPECT_CALL(event_listener_, OnConnect(prod.get(), true));
+  EXPECT_CALL(event_listener_, OnDataAvailable(prod.get()))
+      .WillRepeatedly(Invoke([checkpoint](UnixSocket* s) {
+        auto str = s->ReceiveString();
+        if (str == "")
+          return;  // Connection EOF.
+        ASSERT_EQ("welcome", str);
+        checkpoint();
+      }));
+
+  task_runner_.RunUntilCheckpoint("prod_connected");
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(prod.get()));
+}
 #endif  // OS_LINUX || OS_ANDROID
 
 TEST_F(UnixSocketTest, GetSockFamily) {
@@ -1025,6 +1076,10 @@ TEST_F(UnixSocketTest, GetSockFamily) {
   ASSERT_EQ(GetSockFamily("127.0.0.1:80"), SockFamily::kInet);
   ASSERT_EQ(GetSockFamily("[effe::acca]:1234"), SockFamily::kInet6);
   ASSERT_EQ(GetSockFamily("[::1]:123456"), SockFamily::kInet6);
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  ASSERT_EQ(GetSockFamily("vsock://-1:10000"), SockFamily::kVsock);
+#endif
 }
 
 }  // namespace
