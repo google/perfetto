@@ -216,7 +216,8 @@
 //     Generates
 //     `PROTO_begin_NAME(struct PROTO*, struct CTYPE* nested)` and
 //     `PROTO_end_NAME(struct PROTO*, struct CTYPE* nested)` that allows to
-//     begin and end a nested submessage.
+//     begin and end a nested submessage. `*nested` doesn't need to be
+//     initialized.
 //   * `STRING`: for bytes, string and repeated packed field types. `CTYPE`
 //     should be `const char *`. Generates multiple accessors:
 //      * PROTO_set_cstr_NAME(struct PROTO*, const char*): Sets the value of the
