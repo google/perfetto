@@ -16,6 +16,9 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
+import {
+  GenericSliceDetailsTabConfigBase,
+} from '../frontend/generic_slice_details_tab';
 import {globals} from '../frontend/globals';
 import {
   Aggregation,
@@ -62,7 +65,6 @@ import {
   VisibleState,
 } from './state';
 import {TPDuration, TPTime} from './time';
-import {SqlObjectDetailsTabConfig} from '../frontend/details_panel';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -815,19 +817,17 @@ export const StateActions = {
     };
   },
 
-  selectBasicSqlSlice(state: StateDraft, args: {
+  selectGenericSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
     start: TPTime,
     duration: TPDuration,
     trackId: string,
-    detailsPanelConfig: {
-      kind: string,
-      config: SqlObjectDetailsTabConfig
-    },
+    detailsPanelConfig:
+        {kind: string, config: GenericSliceDetailsTabConfigBase},
   }): void {
     state.currentSelection = {
-      kind: 'BASIC_SQL_OBJECT',
+      kind: 'GENERIC_SLICE',
       id: args.id,
       sqlTableName: args.sqlTableName,
       start: args.start,
