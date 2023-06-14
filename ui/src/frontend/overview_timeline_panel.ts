@@ -17,8 +17,9 @@ import m from 'mithril';
 import {hueForCpu} from '../common/colorizer';
 import {
   Span,
+  Timecode,
+  toDomainTime,
   TPTime,
-  tpTimeToSeconds,
 } from '../common/time';
 
 import {
@@ -32,7 +33,12 @@ import {InnerDragStrategy} from './drag/inner_drag_strategy';
 import {OuterDragStrategy} from './drag/outer_drag_strategy';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
-import {getMaxMajorTicks, TickGenerator, TickType} from './gridline_helper';
+import {
+  getMaxMajorTicks,
+  MIN_PX_PER_STEP,
+  TickGenerator,
+  TickType,
+} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {PxSpan, TimeScale} from './time_scale';
 
@@ -103,8 +109,9 @@ export class OverviewTimelinePanel extends Panel {
         if (xPos > this.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const sec = tpTimeToSeconds(time - globals.state.traceTime.start);
-          ctx.fillText(sec.toFixed(tickGen.digits) + ' s', xPos + 5, 18);
+          const relTime = toDomainTime(time);
+          const timecode = new Timecode(relTime);
+          ctx.fillText(timecode.dhhmmss, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
         } else if (type == TickType.MINOR) {

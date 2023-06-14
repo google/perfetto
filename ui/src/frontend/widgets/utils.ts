@@ -42,7 +42,7 @@ export function toHTMLElement(el: Element): HTMLElement {
 // Allows doing the following
 //   exists(val) && m('div', val)
 // Even if val is a non-nullish falsey value like 0 or ''
-export function exists<T>(value: T): value is Exclude<T, null|undefined> {
+export function exists<T>(value: T): value is NonNullable<T> {
   return value !== undefined && value !== null;
 }
 

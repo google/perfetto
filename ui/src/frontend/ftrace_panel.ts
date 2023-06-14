@@ -189,7 +189,7 @@ export class FtracePanel extends Panel<{}> {
       for (let i = 0; i < events.length; i++) {
         const {ts, name, cpu, process, args} = events[i];
 
-        const timestamp = m(Timestamp, {ts: asTPTimestamp(ts), minimal: true});
+        const timestamp = m(Timestamp, {ts: asTPTimestamp(ts)});
 
         const rank = i + offset;
 
