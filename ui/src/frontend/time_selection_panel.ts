@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
 
-import {Span, tpTimeToString} from '../common/time';
+import {BigintMath} from '../base/bigint_math';
+import {formatDuration, Span, Timecode, toDomainTime} from '../common/time';
 import {
   TPTime,
   TPTimeSpan,
@@ -188,9 +188,8 @@ export class TimeSelectionPanel extends Panel {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xPos =
         TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.tpTimeToPx(ts));
-    const offsetTime = tpTimeToString(ts - globals.state.traceTime.start);
-    const timeFromStart = tpTimeToString(ts);
-    const label = `${offsetTime} (${timeFromStart})`;
+    const domainTime = toDomainTime(ts);
+    const label = new Timecode(domainTime).dhhmmss;
     drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
@@ -199,7 +198,7 @@ export class TimeSelectionPanel extends Panel {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xLeft = visibleTimeScale.tpTimeToPx(span.start);
     const xRight = visibleTimeScale.tpTimeToPx(span.end);
-    const label = tpTimeToString(span.duration);
+    const label = formatDuration(span.duration);
     drawHBar(
         ctx,
         {
