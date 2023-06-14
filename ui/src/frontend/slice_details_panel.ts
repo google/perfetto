@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {formatTime, tpTimeToCode} from '../common/time';
 
 import {Anchor} from './anchor';
 import {globals, SliceDetails, ThreadDesc} from './globals';
@@ -24,6 +23,7 @@ import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
 import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
+import {Duration} from './widgets/duration';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
@@ -84,10 +84,13 @@ export class SliceDetailsPanel extends SlicePanel {
     if (!threadInfo) {
       return null;
     }
-    const timestamp = formatTime(sliceInfo.wakeupTs!);
+    const ts = asTPTimestamp(sliceInfo.wakeupTs!);
     return m(
         '.slice-details-wakeup-text',
-        m('', `Wakeup @ ${timestamp} on CPU ${sliceInfo.wakerCpu} by`),
+        m('',
+          `Wakeup @ `,
+          m(Timestamp, {ts}),
+          ` on CPU ${sliceInfo.wakerCpu} by`),
         m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
         m('', `T: ${threadInfo.threadName} [${threadInfo.tid}]`),
     );
@@ -98,10 +101,10 @@ export class SliceDetailsPanel extends SlicePanel {
       return null;
     }
 
-    const latency = tpTimeToCode(sliceInfo.ts - sliceInfo.wakeupTs);
+    const latency = sliceInfo.ts - sliceInfo.wakeupTs;
     return m(
         '.slice-details-latency-text',
-        m('', `Scheduling latency: ${latency}`),
+        m('', `Scheduling latency: `, m(Duration, {dur: latency})),
         m('.text-detail',
           `This is the interval from when the task became eligible to run
         (e.g. because of notifying a wait queue it was suspended on) to
