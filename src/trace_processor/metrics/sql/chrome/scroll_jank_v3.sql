@@ -125,7 +125,8 @@ DROP VIEW IF EXISTS chrome_merged_frame_view_with_jank;
 CREATE VIEW chrome_merged_frame_view_with_jank AS
 SELECT
   id,
-  start_ts,
+  MAX(start_ts) AS max_start_ts,
+  MIN(start_ts) AS min_start_ts,
   scroll_id,
   scroll_update_id,
   GROUP_CONCAT(scroll_update_id,',') AS encapsulated_scroll_ids,
@@ -144,7 +145,8 @@ ORDER BY presentation_timestamp;
 -- while calculating delay since last presented which usually should
 -- equal to |VSYNC_INTERVAL| if no jank is present.
 -- @column id                      gesture scroll slice id.
--- @column start_ts                OS timestamp of touch move arrival.
+-- @column min_start_ts            OS timestamp of the first touch move arrival within a frame.
+-- @column max_start_ts            OS timestamp of the last touch move arrival within a frame.
 -- @column scroll_id               The scroll which the touch belongs to.
 -- @column encapsulated_scroll_ids Trace ids of all frames presented in at this vsync.
 -- @column total_delta             Summation of all delta_y of all gesture scrolls in this frame.
@@ -163,9 +165,9 @@ SELECT
   (presentation_timestamp -
   LAG(presentation_timestamp, 1, presentation_timestamp)
   OVER (PARTITION BY scroll_id ORDER BY presentation_timestamp)) / 1e6 AS delay_since_last_frame,
-  (start_ts -
-  LAG(start_ts, 1, start_ts)
-  OVER (PARTITION BY scroll_id ORDER BY start_ts)) / 1e6 AS delay_since_last_input
+  (min_start_ts -
+  LAG(max_start_ts, 1, min_start_ts)
+  OVER (PARTITION BY scroll_id ORDER BY min_start_ts)) / 1e6 AS delay_since_last_input
 FROM chrome_merged_frame_view_with_jank;
 
 
