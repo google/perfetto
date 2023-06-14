@@ -18,4 +18,5 @@ export class Icons {
   static readonly ChangeViewport = 'query_stats';   // Could be 'search'
   static readonly ContextMenu = 'arrow_drop_down';  // Could be 'more_vert'
   static readonly Copy = 'content_copy';
+  static readonly Delete = 'delete';
 }

@@ -156,7 +156,7 @@ export class LogPanel extends Panel<{}> {
                 'onmouseover': this.onRowOver.bind(this, ts),
                 'onmouseout': this.onRowOut.bind(this),
               },
-              m('.cell', m(Timestamp, {ts: asTPTimestamp(ts), minimal: true})),
+              m('.cell', m(Timestamp, {ts: asTPTimestamp(ts)})),
               m('.cell', priorityLetter || '?'),
               m('.cell', tags[i]),
               hasProcessNames ? m('.cell.with-process', processNames[i]) :

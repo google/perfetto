@@ -14,15 +14,13 @@
 
 import m from 'mithril';
 
-import {
-  tpTimeToSeconds,
-  tpTimeToString,
-} from '../common/time';
+import {Timecode, toDomainTime, TPTime} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
+  MIN_PX_PER_STEP,
   TickGenerator,
   TickType,
   timeScaleForVisibleWindow,
@@ -36,11 +34,12 @@ export class TimeAxisPanel extends Panel {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.fillStyle = '#999';
-    ctx.font = '10px Roboto Condensed';
     ctx.textAlign = 'left';
+    ctx.font = '11px Roboto Condensed';
 
-    const startTime = tpTimeToString(globals.state.traceTime.start);
-    ctx.fillText(startTime + ' +', 6, 11);
+    const traceStartTime = globals.state.traceTime.start;
+    const width = renderTimecode(ctx, traceStartTime, 6, 10);
+    ctx.fillText('+', 6 + width, 15, 6);
 
     ctx.save();
     ctx.beginPath();
@@ -52,20 +51,39 @@ export class TimeAxisPanel extends Panel {
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-      const tickGen =
-          new TickGenerator(span, maxMajorTicks, globals.state.traceTime.start);
+      const tickGen = new TickGenerator(span, maxMajorTicks, traceStartTime);
       for (const {type, time} of tickGen) {
-        const position = Math.floor(map.tpTimeToPx(time));
-        const sec = tpTimeToSeconds(time - globals.state.traceTime.start);
         if (type === TickType.MAJOR) {
+          const position = Math.floor(map.tpTimeToPx(time));
           ctx.fillRect(position, 0, 1, size.height);
-          ctx.fillText(sec.toFixed(tickGen.digits) + ' s', position + 5, 10);
+          const relTime = toDomainTime(time);
+          renderTimecode(ctx, relTime, position + 5, 10);
         }
       }
     }
-
     ctx.restore();
-
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
   }
+}
+
+// Print a timecode over 2 lines with this formatting:
+// DdHH:MM:SS
+// mmm uuu nnn
+// Returns the resultant width of the timecode.
+function renderTimecode(
+    ctx: CanvasRenderingContext2D, time: TPTime, x: number, y: number): number {
+  const timecode = new Timecode(time);
+  ctx.font = '11px Roboto Condensed';
+
+  const {dhhmmss} = timecode;
+  const thinSpace = '\u2009';
+  const subsec = timecode.subsec(thinSpace);
+  ctx.fillText(dhhmmss, x, y, MIN_PX_PER_STEP);
+  const {width: firstRowWidth} = ctx.measureText(subsec);
+
+  ctx.font = '10.5px Roboto Condensed';
+  ctx.fillText(subsec, x, y + 10, MIN_PX_PER_STEP);
+  const {width: secondRowWidth} = ctx.measureText(subsec);
+
+  return Math.max(firstRowWidth, secondRowWidth);
 }

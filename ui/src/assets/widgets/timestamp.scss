@@ -12,16 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
+@import "theme";
 
-import {formatDuration, TPDuration} from '../../common/time';
+// Make millis, micros, & nanos slightly smaller than hh:mm:ss for readability.
+$subsec-font-size: 0.9em;
 
-interface DurationAttrs {
-  dur: TPDuration;
-}
-
-export class Duration implements m.ClassComponent<DurationAttrs> {
-  view(vnode: m.Vnode<DurationAttrs>) {
-    return formatDuration(vnode.attrs.dur);
+.pf-timecode {
+  // Spacing the sub sections using CSS rather than spaces makes the spaces
+  // disappear when copying.
+  .pf-timecode-millis {
+    margin-left: 1px;
+    font-size: $subsec-font-size;
+  }
+  .pf-timecode-micros {
+    margin-left: 2px;
+    font-size: $subsec-font-size;
+  }
+  .pf-timecode-nanos {
+    margin-left: 2px;
+    font-size: $subsec-font-size;
+  }
+  .pf-button {
+    margin-left: 2px;
   }
 }

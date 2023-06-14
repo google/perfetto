@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {TPTime, tpTimeToCode} from '../common/time';
+import {TPTime} from '../common/time';
 
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
@@ -27,6 +27,7 @@ import {
 } from './thread_and_process_info';
 import {getThreadState, goToSchedSlice, ThreadState} from './thread_state';
 import {DetailsShell} from './widgets/details_shell';
+import {Duration} from './widgets/duration';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
@@ -100,7 +101,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: tpTimeToCode(state.dur),
+          right: m(Duration, {dur: state.dur}),
         }),
         m(TreeNode, {
           left: 'State',
