@@ -1007,6 +1007,7 @@ perfetto_cc_library(
     name = "src_base_unix_socket",
     srcs = [
         "src/base/unix_socket.cc",
+        "src/base/vm_sockets.h",
     ],
     hdrs = [
         ":include_perfetto_base_base",
