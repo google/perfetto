@@ -4534,6 +4534,64 @@ TEST_F(TracingServiceImplTest, CloneSession) {
               Property(&protos::gen::TraceUuid::lsb, Eq(clone_uuid.lsb()))))));
 }
 
+// Test that a consumer cannot clone a session from a consumer with a different
+// uid (unless it's marked as eligible for bugreport, see next test).
+TEST_F(TracingServiceImplTest, CloneSessionAcrossUidDenied) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // The consumer that clones it and reads back the data.
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get(), 1234);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+
+  consumer->EnableTracing(trace_config);
+  auto flush_request = consumer->Flush();
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        clone_done();
+        ASSERT_FALSE(args.success);
+        ASSERT_TRUE(base::Contains(args.error, "session from another UID"));
+      }));
+  consumer2->CloneSession(1);
+  task_runner.RunUntilCheckpoint("clone_done");
+}
+
+// Test that a consumer can clone a session from a different uid if the trace is
+// marked as eligible for bugreport.
+TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  // The consumer that clones it and reads back the data.
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get(), 1234);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);
+  trace_config.set_bugreport_score(1);
+
+  consumer->EnableTracing(trace_config);
+  auto flush_request = consumer->Flush();
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs& args) {
+        clone_done();
+        ASSERT_TRUE(args.success);
+      }));
+  consumer2->CloneSession(1);
+  task_runner.RunUntilCheckpoint("clone_done");
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
