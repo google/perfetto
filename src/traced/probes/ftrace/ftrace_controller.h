@@ -30,6 +30,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/weak_ptr.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/cpu_reader.h"
 #include "src/traced/probes/ftrace/ftrace_config_utils.h"
 
@@ -153,7 +154,7 @@ class FtraceController {
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
   base::PagedMemory parsing_mem_;
-  std::unique_ptr<LazyKernelSymbolizer> symbolizer_;
+  LazyKernelSymbolizer symbolizer_;
   FtraceConfigId next_cfg_id_ = 1;
   int generation_ = 0;
   bool retain_ksyms_on_stop_ = false;
@@ -169,7 +170,7 @@ class FtraceController {
   // Additional state for snapshotting non-boot ftrace clock, specific to the
   // primary_ instance:
   base::ScopedFile cpu_zero_stats_fd_;
-  std::unique_ptr<FtraceClockSnapshot> ftrace_clock_snapshot_;
+  FtraceClockSnapshot ftrace_clock_snapshot_;
 
   base::WeakPtrFactory<FtraceController> weak_factory_;  // Keep last.
 };
