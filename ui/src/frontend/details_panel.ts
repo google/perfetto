@@ -22,7 +22,7 @@ import {Selection} from '../common/state';
 import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
 
 import {AggregationPanel} from './aggregation_panel';
-import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
+import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
@@ -33,6 +33,7 @@ import {
   FlowEventsPanel,
 } from './flow_events_panel';
 import {FtracePanel} from './ftrace_panel';
+import {GenericSliceDetailsTabConfig} from './generic_slice_details_tab';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
@@ -179,7 +180,8 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
-function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
+function handleSelectionChange(
+    newSelection: Selection|undefined, openCurrentSelectionTab: boolean): void {
   const currentSelectionTag = CURRENT_SELECTION_TAG;
   const bottomTabList = globals.bottomTabList;
   if (!bottomTabList) return;
@@ -195,6 +197,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         config: {
           id: newSelection.id,
         },
+        select: openCurrentSelectionTab,
       });
       break;
     case 'AREA':
@@ -205,6 +208,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
           config: {
             id: newSelection.noteId,
           },
+          select: openCurrentSelectionTab,
         });
       }
       break;
@@ -215,6 +219,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         config: {
           id: newSelection.id,
         },
+        select: openCurrentSelectionTab,
       });
       break;
     case 'DEBUG_SLICE':
@@ -225,6 +230,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
           sqlTableName: newSelection.sqlTableName,
           id: newSelection.id,
         },
+        select: openCurrentSelectionTab,
       });
       break;
     case 'GENERIC_SLICE':
@@ -232,6 +238,18 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         kind: newSelection.detailsPanelConfig.kind,
         tag: currentSelectionTag,
         config: newSelection.detailsPanelConfig.config,
+        select: openCurrentSelectionTab,
+      });
+      break;
+    case 'CHROME_SLICE':
+      bottomTabList.addTab({
+        kind: ChromeSliceDetailsTab.kind,
+        tag: currentSelectionTag,
+        config: {
+          id: newSelection.id,
+          table: newSelection.table,
+        },
+        select: openCurrentSelectionTab,
       });
       break;
     default:
@@ -310,13 +328,6 @@ export class DetailsPanel implements m.ClassComponent {
             vnode: m(CpuProfileDetailsPanel, {
               key: 'cpu_profile_sample',
             }),
-          });
-          break;
-        case 'CHROME_SLICE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
           });
           break;
         default:
