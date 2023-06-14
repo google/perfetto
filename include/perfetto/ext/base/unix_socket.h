@@ -62,7 +62,7 @@ class TaskRunner;
 // assuming that these enum values match the sysroot's SOCK_xxx defines rather
 // than using MkSockType() / MkSockFamily().
 enum class SockType { kStream = 100, kDgram, kSeqPacket };
-enum class SockFamily { kUnspec = 0, kUnix = 200, kInet, kInet6 };
+enum class SockFamily { kUnspec = 0, kUnix = 200, kInet, kInet6, kVsock };
 
 // Controls the getsockopt(SO_PEERCRED) behavior, which allows to obtain the
 // peer credentials.
