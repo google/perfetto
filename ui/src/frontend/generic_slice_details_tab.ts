@@ -27,14 +27,18 @@ export interface ColumnConfig {
   displayName?: string;
 }
 
-export type Columns = { [columnName: string]: ColumnConfig}
+export type Columns = {
+  [columnName: string]: ColumnConfig
+}
 
-export interface GenericSliceDetailsTabConfig {
-  sqlTableName: string;
-  id: number;
-  title: string;
+export interface GenericSliceDetailsTabConfigBase {
+  sqlTableName: string, title: string;
   // All columns are rendered if |columns| is undefined.
   columns?: Columns;
+}
+
+export type GenericSliceDetailsTabConfig = GenericSliceDetailsTabConfigBase&{
+  id: number;
 }
 
 // A details tab, which fetches slice-like object from a given SQL table by id
