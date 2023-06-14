@@ -24,7 +24,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/tracing/core/data_source_config.h"
 #include "src/base/test/test_task_runner.h"
-#include "src/traced/probes/common/cpu_freq_info_for_testing.h"
 #include "src/tracing/core/trace_writer_for_testing.h"
 #include "test/gtest_and_gmock.h"
 
@@ -50,13 +49,8 @@ class TestProcessStatsDataSource : public ProcessStatsDataSource {
   TestProcessStatsDataSource(base::TaskRunner* task_runner,
                              TracingSessionID id,
                              std::unique_ptr<TraceWriter> writer,
-                             const DataSourceConfig& config,
-                             std::unique_ptr<CpuFreqInfo> cpu_freq_info)
-      : ProcessStatsDataSource(task_runner,
-                               id,
-                               std::move(writer),
-                               config,
-                               std::move(cpu_freq_info)) {}
+                             const DataSourceConfig& config)
+      : ProcessStatsDataSource(task_runner, id, std::move(writer), config) {}
 
   MOCK_METHOD(const char*, GetProcMountpoint, (), (override));
   MOCK_METHOD(base::ScopedDir, OpenProcDir, (), (override));
@@ -76,14 +70,12 @@ class ProcessStatsDataSourceTest : public ::testing::Test {
         std::unique_ptr<TraceWriterForTesting>(new TraceWriterForTesting());
     writer_raw_ = writer.get();
     return std::unique_ptr<TestProcessStatsDataSource>(
-        new TestProcessStatsDataSource(
-            &task_runner_, 0, std::move(writer), cfg,
-            cpu_freq_info_for_testing.GetInstance()));
+        new TestProcessStatsDataSource(&task_runner_, 0, std::move(writer),
+                                       cfg));
   }
 
   base::TestTaskRunner task_runner_;
   TraceWriterForTesting* writer_raw_;
-  CpuFreqInfoForTesting cpu_freq_info_for_testing;
 };
 
 TEST_F(ProcessStatsDataSourceTest, WriteOnceProcess) {
