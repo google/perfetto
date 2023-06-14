@@ -18,6 +18,7 @@ import {LONG, NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
+import {asSliceSqlId, asTPTimestamp} from '../frontend/sql_types';
 import {
   ACTUAL_FRAMES_SLICE_TRACK_KIND,
   Config as ActualConfig,
@@ -124,12 +125,12 @@ export class FlowEventsController extends Controller<'main'> {
 
       const begin = {
         trackId: it.beginTrackId,
-        sliceId: it.beginSliceId,
+        sliceId: asSliceSqlId(it.beginSliceId),
         sliceName: nullToStr(it.beginSliceName),
         sliceChromeCustomName: nullToUndefined(it.beginSliceChromeCustomName),
         sliceCategory: nullToStr(it.beginSliceCategory),
-        sliceStartTs: it.beginSliceStartTs,
-        sliceEndTs: it.beginSliceEndTs,
+        sliceStartTs: asTPTimestamp(it.beginSliceStartTs),
+        sliceEndTs: asTPTimestamp(it.beginSliceEndTs),
         depth: it.beginDepth,
         threadName: nullToStr(it.beginThreadName),
         processName: nullToStr(it.beginProcessName),
@@ -137,12 +138,12 @@ export class FlowEventsController extends Controller<'main'> {
 
       const end = {
         trackId: it.endTrackId,
-        sliceId: it.endSliceId,
+        sliceId: asSliceSqlId(it.endSliceId),
         sliceName: nullToStr(it.endSliceName),
         sliceChromeCustomName: nullToUndefined(it.endSliceChromeCustomName),
         sliceCategory: nullToStr(it.endSliceCategory),
-        sliceStartTs: it.endSliceStartTs,
-        sliceEndTs: it.endSliceEndTs,
+        sliceStartTs: asTPTimestamp(it.endSliceStartTs),
+        sliceEndTs: asTPTimestamp(it.endSliceEndTs),
         depth: it.endDepth,
         threadName: nullToStr(it.endThreadName),
         processName: nullToStr(it.endProcessName),

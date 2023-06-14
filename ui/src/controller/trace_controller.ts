@@ -538,7 +538,7 @@ export class TraceController extends Controller<States> {
     // selection. Emit onSelectionChanged to ensure that the components (like
     // current selection details) react to it.
     if (globals.state.currentSelection !== null) {
-      onSelectionChanged(globals.state.currentSelection, undefined);
+      onSelectionChanged(globals.state.currentSelection, true);
     }
 
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {TPTime} from '../common/time';
+import {Brand} from './brand';
 
 import {globals} from './globals';
 
@@ -94,4 +95,21 @@ export function asThreadStateSqlId(v: number): ThreadStateSqlId;
 export function asThreadStateSqlId(v?: number): ThreadStateSqlId|undefined;
 export function asThreadStateSqlId(v?: number): ThreadStateSqlId|undefined {
   return v as (ThreadStateSqlId | undefined);
+}
+
+export type ArgSetId = Brand<number, 'ArgSetId'>;
+
+export function asArgSetId(v: number): ArgSetId;
+export function asArgSetId(v?: number): ArgSetId|undefined;
+export function asArgSetId(v?: number): ArgSetId|undefined {
+  return v as (ArgSetId | undefined);
+}
+
+// Id into |args| SQL table.
+export type ArgsId = Brand<number, 'ArgsId'>;
+
+export function asArgId(v: number): ArgsId;
+export function asArgId(v?: number): ArgsId|undefined;
+export function asArgId(v?: number): ArgsId|undefined {
+  return v as (ArgsId | undefined);
 }
