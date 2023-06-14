@@ -14,13 +14,16 @@
 
 import {RecordConfig} from '../controller/record_config_types';
 import {
+  GenericSliceDetailsTabConfigBase,
+} from '../frontend/generic_slice_details_tab';
+import {
   Aggregation,
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+
 import {Direction} from './event_set';
 import {TPDuration, TPTime} from './time';
-import {SqlObjectDetailsTabConfig} from '../frontend/details_panel';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.
@@ -378,24 +381,21 @@ export interface LogSelection {
   trackId: string;
 }
 
-export interface BasicSqlObjectSelection {
-  kind: 'BASIC_SQL_OBJECT';
+export interface GenericSliceSelection {
+  kind: 'GENERIC_SLICE';
   id: number;
   sqlTableName: string;
   start: TPTime;
   duration: TPDuration;
   // NOTE: this config can be expanded for multiple details panel types.
-  detailsPanelConfig: {
-    kind: string;
-    config: SqlObjectDetailsTabConfig;
-  };
+  detailsPanelConfig: {kind: string; config: GenericSliceDetailsTabConfigBase;};
 }
 
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection|
-     BasicSqlObjectSelection)&{trackId?: string};
+     GenericSliceSelection)&{trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {

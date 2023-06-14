@@ -60,8 +60,9 @@ export async function addLatencyTracks(engine: Engine):
 
   const subTableSql = generateSqlWithInternalLayout({
     columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-    layoutParams: {ts: 'ts', dur: 'dur'},
     sourceTable: 'slice',
+    ts: 'ts',
+    dur: 'dur',
     whereClause: `
       EXTRACT_ARG(arg_set_id, 'event_latency.event_type') IN (
         'FIRST_GESTURE_SCROLL_UPDATE',
@@ -125,7 +126,7 @@ export async function addLatencyTracks(engine: Engine):
     engineId: engine.id,
     kind: EventLatencyTrack.kind,
     trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Input Event Latencies',
+    name: 'Chrome Input Event Latencies',
     config: {baseTable: baseTable},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
