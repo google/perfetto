@@ -12,19 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NamedSliceTrack, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP, Selection} from '../../common/state';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
-import {globals} from '../../frontend/globals';
-import {Actions} from '../../common/actions';
-import {Engine} from '../../common/engine';
-import {DecideTracksResult} from '../chrome_scroll_jank';
 import {v4 as uuidv4} from 'uuid';
-import {GenericSliceDetailsTab, Columns} from '../../frontend/generic_slice_details_tab';
 
-export class TopLevelJankTrack extends NamedSliceTrack {
+import {Engine} from '../../common/engine';
+import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
+import {
+  Columns,
+  GenericSliceDetailsTab,
+} from '../../frontend/generic_slice_details_tab';
+import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NewTrackArgs, Track} from '../../frontend/track';
+import {DecideTracksResult} from '../chrome_scroll_jank';
+import {
+  CustomSqlDetailsPanelConfig,
+  CustomSqlTableDefConfig,
+  CustomSqlTableSliceTrack,
+} from '../custom_sql_table_slices';
+
+interface TopLevelJankTrackTypes extends NamedSliceTrackTypes {
+  config: {sqlTableName: string;}
+}
+
+export class TopLevelJankTrack extends
+    CustomSqlTableSliceTrack<TopLevelJankTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.top_level_jank';
+  displayColumns: Columns = {};
 
   static create(args: NewTrackArgs): Track {
     return new TopLevelJankTrack(args);
@@ -32,65 +44,32 @@ export class TopLevelJankTrack extends NamedSliceTrack {
 
   constructor(args: NewTrackArgs) {
     super(args);
+
+    this.displayColumns['name'] = {};
+    this.displayColumns['id'] = {displayName: 'Interval ID'};
+    this.displayColumns['ts'] = {displayName: 'Start time'};
+    this.displayColumns['dur'] = {displayName: 'Duration'};
+  }
+
+  getSqlDataSource(): CustomSqlTableDefConfig {
+    return {
+      sqlTableName: this.config.sqlTableName,
+    };
+  }
+
+  getDetailsPanel(): CustomSqlDetailsPanelConfig {
+    return {
+      kind: GenericSliceDetailsTab.kind,
+      config: {
+        sqlTableName: this.tableName,
+        title: 'Chrome Scroll Jank Summary',
+        columns: this.displayColumns,
+      },
+    };
   }
 
   async initSqlTable(tableName: string) {
-    const sql = `CREATE VIEW ${tableName} AS
-    WITH unioned_data AS (
-      SELECT
-        "Scrolling: " || scroll_ids AS name,
-        ts,
-        dur,
-        0 AS depth
-      FROM chrome_scrolling_intervals
-      UNION ALL
-      SELECT
-        "Janky Scrolling Time" AS name,
-        ts,
-        dur,
-        1 AS depth
-      FROM chrome_scroll_jank_intervals_v2
-     )
-     SELECT
-       ROW_NUMBER() OVER(ORDER BY ts) AS id,
-       *
-     FROM unioned_data
-    `;
-    await this.engine.query(sql);
-  }
-
-  isSelectionHandled(selection: Selection) {
-    if (selection.kind !== 'BASIC_SQL_OBJECT') {
-      return false;
-    }
-    return selection.trackId === this.trackId;
-  }
-
-  onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
-    const columns : Columns = {};
-    columns['name'] = {};
-    columns['id'] = {displayName: 'Interval ID'};
-    columns['ts'] = {displayName: 'Start time'};
-    columns['dur'] = {displayName: 'Duration'};
-
-    const title = 'Scroll Jank Summary';
-
-    globals.dispatch(Actions.selectBasicSqlSlice({
-      id: args.slice.id,
-      sqlTableName: this.tableName,
-      start: args.slice.start,
-      duration: args.slice.duration,
-      trackId: this.trackId,
-      detailsPanelConfig: {
-        kind: GenericSliceDetailsTab.kind,
-        config: {
-          id: args.slice.id,
-          sqlTableName: this.tableName,
-          title: title,
-          columns: columns,
-        },
-      },
-    }));
+    await super.initSqlTable(tableName);
   }
 }
 
@@ -100,19 +79,42 @@ export async function addTopLevelJankTrack(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls');`);
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
+  const viewName =
+      `view_${uuidv4().split('-').join('_')}_top_level_scrolls_jank_summary`;
+  const viewDefSql = `CREATE VIEW ${viewName} AS 
+      WITH unioned_data AS (
+      SELECT
+        "Scrolling: " || scroll_ids AS name,
+        ts,
+        dur
+      FROM chrome_scrolling_intervals
+      UNION ALL
+      SELECT
+        "Janky Scrolling Time" AS name,
+        ts,
+        dur
+      FROM chrome_scroll_jank_intervals_v2
+     )
+     SELECT
+       ROW_NUMBER() OVER(ORDER BY ts) AS id,
+       *
+     FROM unioned_data;`;
+
+  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
+  await engine.query(viewDefSql);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
     kind: TopLevelJankTrack.kind,
     trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Scroll Jank Summary',
-    config: {},
+    name: 'Chrome Scroll Jank Summary',
+    config: {
+      sqlTableName: viewName,
+    },
     trackGroup: SCROLLING_TRACK_GROUP,
   });
 
   return result;
 }
-
