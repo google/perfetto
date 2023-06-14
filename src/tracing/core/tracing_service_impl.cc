@@ -3580,8 +3580,13 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
         "The consumer is already attached to another tracing session");
   }
 
-  if (src->consumer_uid != consumer->uid_ && consumer->uid_ != 0)
+  // Skip the UID check for sessions marked with a bugreport_score > 0.
+  // Those sessions, by design, can be stolen by any other consumer for the
+  // sake of creating snapshots for bugreports.
+  if (src->config.bugreport_score() <= 0 &&
+      src->consumer_uid != consumer->uid_ && consumer->uid_ != 0) {
     return PERFETTO_SVC_ERR("Not allowed to clone a session from another UID");
+  }
 
   // First clone all TraceBuffer(s). This can fail because of ENOMEM. If it
   // happens bail out early before creating any session.
