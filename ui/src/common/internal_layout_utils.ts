@@ -17,15 +17,15 @@
 //
 // Fields:
 // @columns: a string array list of the columns to be selected from the table.
-// @layoutParams: a config of the timestamp (ts) and duration (dur) fields
 // required by the internal_layout function.
 // @sourceTable: the table in the FROM clause, source of the data.
 // @whereClause: the WHERE clause to filter data from the source table.
 // @orderByClause: the ORDER BY clause for the query data.
 interface GenerateSqlArgs {
   columns: string[];
-  layoutParams: {ts: string, dur: string};
   sourceTable: string;
+  ts: string;
+  dur: string;
   whereClause?: string;
   orderByClause?: string;
 }
@@ -34,9 +34,9 @@ interface GenerateSqlArgs {
 // SQL function as a depth field.
 export function generateSqlWithInternalLayout(sqlArgs: GenerateSqlArgs):
     string {
-  let sql = `SELECT ` + sqlArgs.columns.toString() + ', internal_layout(' +
-      sqlArgs.layoutParams.ts + ',' + sqlArgs.layoutParams.dur +
-      ') OVER (ORDER BY ' + sqlArgs.layoutParams.ts +
+  let sql = `SELECT ` + sqlArgs.columns.toString() +
+      `, internal_layout(${sqlArgs.ts}, ${sqlArgs.dur}) OVER (ORDER BY ${
+                sqlArgs.ts}` +
       ' ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS depth' +
       ' FROM ' + sqlArgs.sourceTable;
   if (sqlArgs.whereClause !== undefined) {
