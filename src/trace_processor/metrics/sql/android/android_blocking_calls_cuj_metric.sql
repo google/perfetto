@@ -198,7 +198,7 @@ SELECT AndroidBlockingCallsCujMetric('cuj', (
             'dur', cuj.dur,
             'blocking_calls', (
                 SELECT RepeatedField(
-                     AndroidBlockingCallsCujMetric_BlockingCall(
+                    AndroidBlockingCall(
                         'name', b.name,
                         'cnt', b.occurrences,
                         'total_dur_ms', b.total_dur_ms,
