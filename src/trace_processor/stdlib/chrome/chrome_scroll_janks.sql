@@ -13,11 +13,11 @@
 -- limitations under the License.
 
 -- TODO(b/286187288): Move this dependency to stdlib.
-SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
+SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
 SELECT IMPORT('common.slices');
 
 -- Selects EventLatency slices that correspond with janks in a scroll. This is
--- based on the V2 version of scroll jank metrics.
+-- based on the V3 version of scroll jank metrics.
 --
 -- @column id INT                     The slice id.
 -- @column ts INT                     The start timestamp of the slice.
@@ -28,36 +28,38 @@ SELECT IMPORT('common.slices');
 --                                    the jank.
 -- @column sub_cause_of_jank STRING   The stage of cause_of_jank that caused the
 --                                    jank.
-CREATE TABLE chrome_janky_event_latencies_v2 AS
-  SELECT
+-- @column frame_jank_ts INT          The start timestamp where frame
+--                                    frame presentation was delayed.
+-- @column frame_jank_dur INT         The duration in ms of the delay in frame
+--                                    presentation.
+CREATE TABLE chrome_janky_event_latencies_v3 AS
+SELECT
     s.id,
     s.ts,
     s.dur,
     s.track_id,
     s.name,
     e.cause_of_jank,
-    e.sub_cause_of_jank
+    e.sub_cause_of_jank,
+    CAST(s.ts + s.dur - ((e.delay_since_last_frame - e.vsync_interval) * 1e6) AS INT) AS frame_jank_ts,
+    CAST((e.delay_since_last_frame - e.vsync_interval) * 1e6 AS INT) AS frame_jank_dur
 FROM slice s
-JOIN event_latency_scroll_jank_cause e
-  ON s.id = e.slice_id
-WHERE
-  HAS_DESCENDANT_SLICE_WITH_NAME(
-    s.id,
-    'SubmitCompositorFrameToPresentationCompositorFrame');
+JOIN chrome_janky_frames e
+  ON s.id = e. event_latency_id;
 
 -- Defines slices for all of janky scrolling intervals in a trace.
 --
 -- @column id            The unique identifier of the janky interval.
 -- @column ts            The start timestamp of the janky interval.
 -- @column dur           The duration of the janky interval.
-CREATE TABLE chrome_scroll_jank_intervals_v2 AS
+CREATE TABLE chrome_scroll_jank_intervals_v3 AS
 -- Sub-table to retrieve all janky slice timestamps. Ordering calculations are
 -- based on timestamps rather than durations.
 WITH janky_latencies AS (
   SELECT
-    s.ts AS start_ts,
-    s.ts + s.dur AS end_ts
-  FROM chrome_janky_event_latencies_v2 s),
+    s.frame_jank_ts AS start_ts,
+    s.frame_jank_ts + s.frame_jank_dur AS end_ts
+  FROM chrome_janky_event_latencies_v3 s),
 -- Determine the local maximum timestamp for janks thus far; this will allow
 -- us to coalesce all earlier events up to the maximum.
 ordered_jank_end_ts AS (

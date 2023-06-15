@@ -93,7 +93,7 @@ export async function addTopLevelJankTrack(engine: Engine):
         "Janky Scrolling Time" AS name,
         ts,
         dur
-      FROM chrome_scroll_jank_intervals_v2
+      FROM chrome_scroll_jank_intervals_v3
      )
      SELECT
        ROW_NUMBER() OVER(ORDER BY ts) AS id,
