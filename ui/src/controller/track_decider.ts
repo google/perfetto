@@ -67,6 +67,7 @@ import {
   INPUT_LATENCY_TRACK,
 } from '../tracks/scroll_jank';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {THREAD_STATE_TRACK_V2_KIND} from '../tracks/thread_state_v2';
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
@@ -74,6 +75,22 @@ const TRACKS_V2_FLAG = featureFlags.register({
   description: 'Show tracks built on top of the Track V2 API.',
   defaultValue: false,
 });
+
+const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
+  id: 'tracksV2Compare',
+  name: 'Tracks V2: Also show V1 tracks',
+  description:
+      'Show V1 tracks side by side with V2 tracks. Does nothing if TracksV2 is not enabled.',
+  defaultValue: false,
+});
+
+function showV2(): boolean {
+  return TRACKS_V2_FLAG.get();
+}
+
+function showV1(): boolean {
+  return !showV2() || (showV2() && TRACKS_V2_COMPARE_FLAG.get());
+}
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -931,18 +948,38 @@ class TrackDecider {
         // the track creation as well.
         continue;
       }
-      const kind = THREAD_STATE_TRACK_KIND;
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind,
-        name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority: InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK,
-        },
-        config: {utid, tid},
-      });
+
+      const priority = InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK;
+
+      if (showV1()) {
+        const kind = THREAD_STATE_TRACK_KIND;
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: THREAD_STATE_TRACK_KIND,
+          name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority,
+          },
+          config: {utid, tid},
+        });
+      }
+
+      if (showV2()) {
+        const kind = THREAD_STATE_TRACK_V2_KIND;
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind,
+          name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority,
+          },
+          config: {utid, tid},
+        });
+      }
     }
   }
 
@@ -1272,25 +1309,27 @@ class TrackDecider {
       const kind = SLICE_TRACK_KIND;
       const name = TrackDecider.getTrackName(
           {name: trackName, utid, tid, threadName, kind});
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind,
-        name,
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority: isDefaultTrackForScope ?
-              InThreadTrackSortKey.DEFAULT_TRACK :
-              InThreadTrackSortKey.ORDINARY,
-        },
-        config: {
-          trackId,
-          maxDepth,
-          tid,
-        },
-      });
+      if (showV1()) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind,
+          name,
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority: isDefaultTrackForScope ?
+                InThreadTrackSortKey.DEFAULT_TRACK :
+                InThreadTrackSortKey.ORDINARY,
+          },
+          config: {
+            trackId,
+            maxDepth,
+            tid,
+          },
+        });
+      }
 
-      if (TRACKS_V2_FLAG.get()) {
+      if (showV2()) {
         this.tracksToAdd.push({
           engineId: this.engineId,
           kind: 'GenericSliceTrack',
