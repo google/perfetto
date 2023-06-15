@@ -578,12 +578,16 @@ class Globals {
     this._ftracePanelData = data;
   }
 
-  makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
+  makeSelection(
+      action: DeferredAction<{}>, tab: string|null = 'current_selection') {
     const previousState = this.state;
     // A new selection should cancel the current search selection.
     globals.dispatch(Actions.setSearchIndex({index: -1}));
-    const tab = action.type === 'deselect' ? undefined : tabToOpen;
-    globals.dispatch(Actions.setCurrentTab({tab}));
+    if (action.type === 'deselect') {
+      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
+    } else if (tab !== null) {
+      globals.dispatch(Actions.setCurrentTab({tab: tab}));
+    }
     globals.dispatch(action);
 
     // HACK(stevegolton + altimin): This is a workaround to allow passing the
