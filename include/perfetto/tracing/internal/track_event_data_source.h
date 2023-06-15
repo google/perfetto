@@ -557,9 +557,8 @@ class TrackEventDataSource
   // The DecayArgType method is used to avoid unnecessary instantiations of
   // templates on:
   // * string constants of different sizes.
-  // * integers of different sizes or constness.
-  // * floats of different sizes.
-  // This allows to avoid extra instantiations of TraceForCategory templates.
+  // * primitive of different constness (or references).
+  // This avoids extra instantiations of TraceForCategory templates.
   template <typename T>
   static T&& DecayArgType(T&& t) {
     return std::forward<T>(t);
@@ -567,15 +566,15 @@ class TrackEventDataSource
 
   static const char* DecayArgType(const char* s) { return s; }
   static uint64_t DecayArgType(uint64_t u) { return u; }
-  static uint64_t DecayArgType(uint32_t u) { return u; }
-  static uint64_t DecayArgType(uint16_t u) { return u; }
-  static uint64_t DecayArgType(uint8_t u) { return u; }
+  static uint32_t DecayArgType(uint32_t u) { return u; }
+  static uint16_t DecayArgType(uint16_t u) { return u; }
+  static uint8_t DecayArgType(uint8_t u) { return u; }
   static int64_t DecayArgType(int64_t i) { return i; }
-  static int64_t DecayArgType(int32_t i) { return i; }
-  static int64_t DecayArgType(int16_t i) { return i; }
-  static int64_t DecayArgType(int8_t i) { return i; }
+  static int32_t DecayArgType(int32_t i) { return i; }
+  static int16_t DecayArgType(int16_t i) { return i; }
+  static int8_t DecayArgType(int8_t i) { return i; }
   static bool DecayArgType(bool b) { return b; }
-  static double DecayArgType(float f) { return static_cast<double>(f); }
+  static float DecayArgType(float f) { return f; }
   static double DecayArgType(double f) { return f; }
 
   // Once we've determined tracing to be enabled for this category, actually
