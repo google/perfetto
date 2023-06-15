@@ -21,7 +21,6 @@ import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
 import {
-  formatDuration,
   TPDuration,
   TPTime,
 } from '../common/time';
@@ -267,7 +266,7 @@ function renderArgTreeNodes(
 function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
   if (dur === -1n) {
     const minDuration = globals.state.traceTime.end - ts;
-    return `${formatDuration(minDuration)} (Did not end)`;
+    return [m(Duration, {dur: minDuration}), ' (Did not end)'];
   } else {
     return m(Duration, {dur});
   }
