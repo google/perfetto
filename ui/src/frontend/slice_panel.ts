@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {formatDuration, TPDuration, TPTime} from '../common/time';
+import {TPDuration, TPTime} from '../common/time';
 
 import {globals, SliceDetails} from './globals';
 import {Panel} from './panel';
@@ -40,7 +40,7 @@ export abstract class SlicePanel extends Panel {
   protected computeDuration(ts: TPTime, dur: TPDuration): m.Children {
     if (dur === -1n) {
       const minDuration = globals.state.traceTime.end - ts;
-      return `${formatDuration(minDuration)} (Did not end)`;
+      return [m(Duration, {dur: minDuration}), ' (Did not end)'];
     } else {
       return m(Duration, {dur});
     }
