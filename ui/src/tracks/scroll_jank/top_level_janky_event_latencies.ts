@@ -65,7 +65,7 @@ export class TopLevelEventLatencyTrack extends
         'name AS type',
         'sub_cause_of_jank',
       ],
-      sqlTableName: 'chrome_janky_event_latencies_v2',
+      sqlTableName: 'chrome_janky_event_latencies_v3',
     };
   }
 
