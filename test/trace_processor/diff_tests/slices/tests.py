@@ -138,3 +138,25 @@ class Slices(TestSuite):
         "end_ts"
         174797566610797
         """))
+
+  def test_slice_flattened(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        SELECT import('experimental.slices');
+
+        SELECT name, root_name, ts, dur, depth, thread_name, tid, process_name, pid
+        FROM experimental_slice_flattened WHERE tid = 30944;
+      """,
+        out=Csv("""
+        "name","root_name","ts","dur","depth","thread_name","tid","process_name","pid"
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174793737042797,3937000,0,"CrBrowserMain",30944,"Browser",30944
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174793741016797,5930000,0,"CrBrowserMain",30944,"Browser",30944
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174793747000797,47000,0,"CrBrowserMain",30944,"Browser",30944
+        "Receive mojo message","ThreadControllerImpl::RunTask",174793747047797,136000,1,"CrBrowserMain",30944,"Browser",30944
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174793747183797,17000,0,"CrBrowserMain",30944,"Browser",30944
+        "Looper.dispatch: android.os.Handler(Kx3@57873a8)","Looper.dispatch: android.os.Handler(Kx3@57873a8)",174793747546797,119000,0,"CrBrowserMain",30944,"Browser",30944
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174796099970797,186000,0,"CrBrowserMain",30944,"Browser",30944
+        "Looper.dispatch: jy3(null)","Looper.dispatch: jy3(null)",174800056530797,1368000,0,"CrBrowserMain",30944,"Browser",30944
+        "ThreadControllerImpl::RunTask","ThreadControllerImpl::RunTask",174800107962797,132000,0,"CrBrowserMain",30944,"Browser",30944
+      """))
