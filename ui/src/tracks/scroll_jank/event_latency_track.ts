@@ -76,7 +76,7 @@ export async function addLatencyTracks(engine: Engine):
   // Table name must be unique - it cannot include '-' characters or begin with
   // a numeric value.
   const baseTable =
-      `table_${uuidv4().split('-').join('_')}_janky_event_latencies_v2`;
+      `table_${uuidv4().split('-').join('_')}_janky_event_latencies_v3`;
   const tableDefSql = `CREATE TABLE ${baseTable} AS
       WITH event_latencies AS (
         ${subTableSql}
@@ -100,7 +100,7 @@ export async function addLatencyTracks(engine: Engine):
       dur,
       CASE
         WHEN id IN (
-          SELECT id FROM chrome_janky_event_latencies_v2)
+          SELECT id FROM chrome_janky_event_latencies_v3)
         THEN 'Janky EventLatency'
         ELSE name
       END
