@@ -90,7 +90,7 @@ export abstract class CustomSqlTableSliceTrack<
     (detailsPanelConfig.config as GenericSliceDetailsTabConfig).id =
         args.slice.id;
 
-    globals.dispatch(Actions.selectGenericSlice({
+    globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
       start: args.slice.start,
