@@ -193,6 +193,11 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // there are at most |depth| slices.
   private incomplete = new Array<CastInternal<T['slice']>>();
 
+  // The currently selected slice.
+  // TODO(hjd): We should fetch this from the underlying data rather
+  // than just remembering it when we see it.
+  private selectedSlice?: CastInternal<T['slice']>;
+
   protected readonly tableName: string;
   private maxDurNs: TPDuration = 0n;
 
@@ -271,6 +276,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // Give a chance to the embedder to change colors and other stuff.
     this.onUpdatedSlices(this.slices);
     this.onUpdatedSlices(this.incomplete);
+    if (this.selectedSlice !== undefined) {
+      this.onUpdatedSlices([this.selectedSlice]);
+    }
   }
 
   protected isSelectionHandled(selection: Selection): boolean {
@@ -281,6 +289,16 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
     const supportedSelectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
     return supportedSelectionKinds.includes(selection.kind);
+  }
+
+  private getTitleFont(): string {
+    const size = this.sliceLayout.titleSizePx ?? 12;
+    return `${size}px Roboto Condensed`;
+  }
+
+  private getSubtitleFont(): string {
+    const size = this.sliceLayout.subtitleSizePx ?? 8;
+    return `${size}px Roboto Condensed`;
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -307,7 +325,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     let charWidth = this.charWidth;
     if (charWidth < 0) {
       // TODO(hjd): Centralize font measurement/invalidation.
-      ctx.font = '12px Roboto Condensed';
+      ctx.font = this.getTitleFont();
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
@@ -318,22 +336,21 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         vizTime.start.toTPTime('floor'), vizTime.end.toTPTime('ceil'));
 
     let selection = globals.state.currentSelection;
-
     if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }
+    const selectedId = selection ? (selection as {id: number}).id : undefined;
+    let discoveredSelection: CastInternal<T['slice']>|undefined;
 
     // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
     // everything in one go. The key is that state changes operations on the
     // canvas (e.g., color, fonts) dominate any number crunching we do in JS.
 
-    this.updateSliceAndTrackHeight();
     const sliceHeight = this.computedSliceHeight;
     const padding = this.sliceLayout.padding;
     const rowSpacing = this.computedRowSpacing;
 
     // First pass: compute geometry of slices.
-    let selSlice: CastInternal<T['slice']>|undefined;
 
     // pxEnd is the last visible pixel in the visible viewport. Drawing
     // anything < 0 or > pxEnd doesn't produce any visible effect as it goes
@@ -370,8 +387,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         slice.w = sliceVizLimit - slice.x;
       }
 
-      if (selection && (selection as {id: number}).id === slice.id) {
-        selSlice = slice;
+      if (selectedId === slice.id) {
+        discoveredSelection = slice;
       }
     }
 
@@ -399,7 +416,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // Third pass, draw the titles (e.g., process name for sched slices).
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = '12px Roboto Condensed';
+    ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
     for (const slice of vizSlices) {
       if ((slice.flags & SLICE_FLAGS_INSTANT) || !slice.title ||
@@ -411,13 +428,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       const rectXCenter = slice.x + slice.w / 2;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       const yDiv = slice.subTitle ? 3 : 2;
-      const yMidPoint = Math.floor(y + sliceHeight / yDiv) - 0.5;
+      const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
     }
 
     // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = this.getSubtitleFont();
     for (const slice of vizSlices) {
       if (slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX || !slice.subTitle ||
           (slice.flags & SLICE_FLAGS_INSTANT)) {
@@ -430,16 +447,24 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
 
+    // Update the selectedSlice if required.
+    if (discoveredSelection !== undefined) {
+      this.selectedSlice = discoveredSelection;
+    } else if (selectedId === undefined) {
+      this.selectedSlice = undefined;
+    }
+
     // Draw a thicker border around the selected slice (or chevron).
-    if (selSlice !== undefined) {
-      const color = selSlice.color;
-      const y = padding + selSlice.depth * (sliceHeight + rowSpacing);
+    if (this.selectedSlice !== undefined) {
+      const slice = this.selectedSlice;
+      const color = slice.color;
+      const y = padding + slice.depth * (sliceHeight + rowSpacing);
       ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
       ctx.strokeRect(
-          selSlice.x, y - THICKNESS / 2, selSlice.w, sliceHeight + THICKNESS);
+          slice.x, y - THICKNESS / 2, slice.w, sliceHeight + THICKNESS);
       ctx.closePath();
     }
 
@@ -457,7 +482,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // The only thing this does is drawing the sched latency arrow. We should
     // have some abstraction for that arrow (ideally the same we'd use for
     // flows).
-    this.drawSchedLatencyArrow(ctx, selSlice);
+    this.drawSchedLatencyArrow(ctx, this.selectedSlice);
 
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
@@ -762,9 +787,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   private getVisibleSlicesInternal(start: TPTime, end: TPTime):
       Array<CastInternal<T['slice']>> {
-    const slices =
+    let slices =
         filterVisibleSlices<CastInternal<T['slice']>>(this.slices, start, end);
-    return slices.concat(this.incomplete);
+    slices = slices.concat(this.incomplete);
+    // The selected slice is always visible:
+    if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
+      slices.push(this.selectedSlice);
+    }
+    return slices;
   }
 
   private updateSliceAndTrackHeight() {
