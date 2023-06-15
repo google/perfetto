@@ -14,7 +14,7 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {HttpRcpEngineCustomizer} from '../common/http_rpc_engine';
-import {assertExists} from '../base/logging';
+import {ErrorHandler, assertExists} from '../base/logging';
 import {Actions, AddTrackLikeArgs, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args, ArgsTree} from '../common/arg_types';
@@ -45,6 +45,7 @@ import { RafScheduler } from './raf_scheduler';
 import { Router } from './router';
 import {ServiceWorkerController} from './service_worker_controller';
 import {PxSpan, TimeScale} from './time_scale';
+import { maybeShowErrorDialog } from './error_dialog';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
@@ -265,6 +266,7 @@ class Globals {
   private _cachePrefix: string = '';
 
   private _viewOpener?: ViewOpener = undefined;
+  private _errorHandler: ErrorHandler = maybeShowErrorDialog;
   private _allowFileDrop = true;
   private _httpRpcEngineCustomizer?: HttpRcpEngineCustomizer;
   private _promptToLoadFromTraceProcessorShell = true;
@@ -639,6 +641,14 @@ class Globals {
 
   set viewOpener(viewOpener: ViewOpener | undefined) {
     this._viewOpener = viewOpener;
+  }
+
+  get errorHandler(): ErrorHandler {
+    return this._errorHandler;
+  }
+
+  set errorHandler(errorHandler: ErrorHandler) {
+    this._errorHandler = errorHandler;
   }
 
   get allowFileDrop(): boolean {

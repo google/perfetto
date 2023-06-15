@@ -19,7 +19,7 @@ import {Patch, produce} from 'immer';
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
-import {assertExists, reportError, setErrorHandler} from '../base/logging';
+import {assertExists, reportError} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
@@ -36,7 +36,6 @@ import {
 import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
-import {maybeShowErrorDialog} from './error_dialog';
 import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
 import {globals} from './globals';
@@ -233,9 +232,8 @@ function main() {
   document.head.append(script, css);
 
   // Add Error handlers for JS error and for uncaught exceptions in promises.
-  setErrorHandler((err: string) => maybeShowErrorDialog(err));
-  window.addEventListener('error', (e) => reportError(e));
-  window.addEventListener('unhandledrejection', (e) => reportError(e));
+  window.addEventListener('error', (e) => reportError(e, globals.errorHandler));
+  window.addEventListener('unhandledrejection', (e) => reportError(e, globals.errorHandler));
 
   const extensionLocalChannel = new MessageChannel();
 

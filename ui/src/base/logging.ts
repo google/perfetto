@@ -39,7 +39,9 @@ export function setErrorHandler(handler: ErrorHandler) {
   errorHandler = handler;
 }
 
-export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
+export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}): void;
+export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}, handler: ErrorHandler): void;
+export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}, handler = errorHandler) {
   let errLog = '';
   let errorObj = undefined;
 
@@ -62,7 +64,7 @@ export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
   errLog += `UA: ${navigator.userAgent}\n`;
 
   console.error(errLog, err);
-  errorHandler(errLog);
+  handler?.(errLog);
 }
 
 // This function serves two purposes.
