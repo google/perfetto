@@ -20,6 +20,8 @@ export interface SliceLayoutBase {
   // We have a optimization for when maxDepth - minDepth == 1 so it is useful
   // to set this correctly:
   maxDepth: number;
+  titleSizePx?: number;
+  subtitleSizePx?: number;
 }
 
 export const SLICE_LAYOUT_BASE_DEFAULTS: SliceLayoutBase = Object.freeze({
@@ -66,7 +68,9 @@ export const SLICE_LAYOUT_FLAT_DEFAULTS: SliceLayoutFlat = Object.freeze({
   minDepth: 0,
   maxDepth: 1,
   heightMode: 'FIXED',
-  fixedHeight: 30,
+  fixedHeight: 18,
+  titleSizePx: 10,
+  padding: 3,
 });
 
 export type SliceLayout =
