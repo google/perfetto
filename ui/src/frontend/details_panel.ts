@@ -33,7 +33,6 @@ import {
   FlowEventsPanel,
 } from './flow_events_panel';
 import {FtracePanel} from './ftrace_panel';
-import {GenericSliceDetailsTabConfig} from './generic_slice_details_tab';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
