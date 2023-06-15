@@ -16,6 +16,7 @@ import {globals} from '../frontend/globals';
 import {createEmptyState} from './empty_state';
 import {
   formatDuration,
+  formatDurationShort,
   Timecode,
   TPTime,
   TPTimeSpan,
@@ -28,23 +29,44 @@ beforeAll(() => {
 
 test('formatDuration', () => {
   expect(formatDuration(0n)).toEqual('0s');
-  expect(formatDuration(123n)).toEqual('123ns');
-  expect(formatDuration(1_234n)).toEqual('1.2us');
-  expect(formatDuration(12_345n)).toEqual('12.3us');
   expect(formatDuration(3_000_000_000n)).toEqual('3s');
-  expect(formatDuration(60_000_000_000n)).toEqual('60s');
-  expect(formatDuration(63_000_000_000n)).toEqual('63s');
-  expect(formatDuration(63_200_000_000n)).toEqual('63.2s');
-  expect(formatDuration(63_222_100_000n)).toEqual('63.2s');
-  expect(formatDuration(63_222_111_100n)).toEqual('63.2s');
-  expect(formatDuration(222_111_100n)).toEqual('222.1ms');
+  expect(formatDuration(60_000_000_000n)).toEqual('1m');
+  expect(formatDuration(63_000_000_000n)).toEqual('1m 3s');
+  expect(formatDuration(63_200_000_000n)).toEqual('1m 3s 200ms');
+  expect(formatDuration(63_222_100_000n)).toEqual('1m 3s 222ms 100us');
+  expect(formatDuration(63_222_111_100n)).toEqual('1m 3s 222ms 111us 100ns');
+  expect(formatDuration(222_111_100n)).toEqual('222ms 111us 100ns');
   expect(formatDuration(1_000n)).toEqual('1us');
   expect(formatDuration(3_000n)).toEqual('3us');
-  expect(formatDuration(1_000_001_000n)).toEqual('1s');
-  expect(formatDuration(200_000_000_030n)).toEqual('200s');
-  expect(formatDuration(3_600_000_000_000n)).toEqual('3600s');
-  expect(formatDuration(86_400_000_000_000n)).toEqual('86400s');
-  expect(formatDuration(31_536_000_000_000_000n)).toEqual('31536000s');
+  expect(formatDuration(1_000_001_000n)).toEqual('1s 1us');
+  expect(formatDuration(200_000_000_030n)).toEqual('3m 20s 30ns');
+  expect(formatDuration(3_600_000_000_000n)).toEqual('60m');
+  expect(formatDuration(3_600_000_000_001n)).toEqual('60m 1ns');
+  expect(formatDuration(86_400_000_000_000n)).toEqual('1,440m');
+  expect(formatDuration(86_400_000_000_001n)).toEqual('1,440m 1ns');
+  expect(formatDuration(31_536_000_000_000_000n)).toEqual('525,600m');
+  expect(formatDuration(31_536_000_000_000_001n)).toEqual('525,600m 1ns');
+});
+
+test('formatDurationShort', () => {
+  expect(formatDurationShort(0n)).toEqual('0s');
+  expect(formatDurationShort(123n)).toEqual('123ns');
+  expect(formatDurationShort(1_234n)).toEqual('1.2us');
+  expect(formatDurationShort(12_345n)).toEqual('12.3us');
+  expect(formatDurationShort(3_000_000_000n)).toEqual('3s');
+  expect(formatDurationShort(60_000_000_000n)).toEqual('60s');
+  expect(formatDurationShort(63_000_000_000n)).toEqual('63s');
+  expect(formatDurationShort(63_200_000_000n)).toEqual('63.2s');
+  expect(formatDurationShort(63_222_100_000n)).toEqual('63.2s');
+  expect(formatDurationShort(63_222_111_100n)).toEqual('63.2s');
+  expect(formatDurationShort(222_111_100n)).toEqual('222.1ms');
+  expect(formatDurationShort(1_000n)).toEqual('1us');
+  expect(formatDurationShort(3_000n)).toEqual('3us');
+  expect(formatDurationShort(1_000_001_000n)).toEqual('1s');
+  expect(formatDurationShort(200_000_000_030n)).toEqual('200s');
+  expect(formatDurationShort(3_600_000_000_000n)).toEqual('3600s');
+  expect(formatDurationShort(86_400_000_000_000n)).toEqual('86400s');
+  expect(formatDurationShort(31_536_000_000_000_000n)).toEqual('31536000s');
 });
 
 test('timecode', () => {
