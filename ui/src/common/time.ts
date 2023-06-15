@@ -18,14 +18,14 @@ import {asTPTimestamp, toTraceTime} from '../frontend/sql_types';
 
 import {ColumnType} from './query_result';
 
-// Print a duration using a handful of significant figures.
+// Print time to a few significant figures.
 // Use this when readability is more desireable than precision.
 // Examples: 1234 -> 1.23ns
 //           123456789 -> 123ms
 //           123,123,123,123,123 -> 34h 12m
 //           1,000,000,023 -> 1 s
 //           1,230,000,023 -> 1.2 s
-export function formatDuration(time: TPTime) {
+export function formatDurationShort(time: TPTime) {
   const sec = tpTimeToSeconds(time);
   const units = ['s', 'ms', 'us', 'ns'];
   const sign = Math.sign(sec);
@@ -36,6 +36,28 @@ export function formatDuration(time: TPTime) {
     u++;
   }
   return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10}${units[u]}`;
+}
+
+// Print time with absolute precision.
+// TODO(stevegolton): Merge this with formatDurationShort
+export function formatDuration(time: TPTime): string {
+  let result = '';
+  if (time < 1) return '0s';
+  const unitAndValue: [string, bigint][] = [
+    ['m', 60000000000n],
+    ['s', 1000000000n],
+    ['ms', 1000000n],
+    ['us', 1000n],
+    ['ns', 1n],
+  ];
+  unitAndValue.forEach(([unit, unitSize]) => {
+    if (time >= unitSize) {
+      const unitCount = time / unitSize;
+      result += unitCount.toLocaleString() + unit + ' ';
+      time %= unitSize;
+    }
+  });
+  return result.slice(0, -1);
 }
 
 // This class takes a time and converts it to a set of strings representing a
