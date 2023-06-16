@@ -16,6 +16,7 @@
 # This tool checks that every SQL object created without prefix
 # 'internal_' is documented with proper schema.
 
+import argparse
 import os
 import sys
 
@@ -26,9 +27,13 @@ from python.generators.stdlib_docs.parse import parse_file_to_dict
 
 
 def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--stdlib-sources',
+      default=os.path.join(ROOT_DIR, "src", "trace_processor", "stdlib"))
+  args = parser.parse_args()
   errors = []
-  metrics_sources = os.path.join(ROOT_DIR, "src", "trace_processor", "stdlib")
-  for root, _, files in os.walk(metrics_sources, topdown=True):
+  for root, _, files in os.walk(args.stdlib_sources, topdown=True):
     for f in files:
       path = os.path.join(root, f)
       if not path.endswith(".sql"):
