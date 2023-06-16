@@ -25,7 +25,7 @@ namespace {
 TEST(SelectorOverlay, MapToStorageRangeFirst) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   SelectorOverlay overlay(&selector);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(1, 4)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(1, 4));
 
   ASSERT_EQ(r.range.start, 4u);
   ASSERT_EQ(r.range.end, 8u);
@@ -34,7 +34,7 @@ TEST(SelectorOverlay, MapToStorageRangeFirst) {
 TEST(SelectorOverlay, MapToStorageRangeSecond) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0};
   SelectorOverlay overlay(&selector);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(1, 3)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(1, 3));
 
   ASSERT_EQ(r.range.start, 4u);
   ASSERT_EQ(r.range.end, 7u);
