@@ -23,6 +23,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
+#include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/overlays/storage_overlay.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
@@ -252,10 +253,10 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
                                     overlays::OverlayOp::kOther &&
                                 col.type() != c.value.type);
-    use_legacy = use_legacy ||
-                 col.overlay().row_map().size() != col.storage_base().size();
     use_legacy = use_legacy || col.IsSorted() || col.IsDense() || col.IsSetId();
-    use_legacy = use_legacy || col.overlay().row_map().IsIndexVector();
+    use_legacy =
+        use_legacy || (col.overlay().size() != col.storage_base().size() &&
+                       !col.overlay().row_map().IsBitVector());
     if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
       continue;
@@ -265,9 +266,14 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     uint32_t s_size = col.storage_base().non_null_size();
 
     storage::NumericStorage storage(s_data, s_size, col.col_type());
-    overlays::NullOverlay null_overlay(col.storage_base().bv());
-
     SimpleColumn s_col{OverlaysVec(), &storage};
+
+    overlays::SelectorOverlay selector_overlay(
+        col.overlay().row_map().GetIfBitVector());
+    if (col.overlay().size() != col.storage_base().size())
+      s_col.overlays.emplace_back(&selector_overlay);
+
+    overlays::NullOverlay null_overlay(col.storage_base().bv());
     if (col.IsNullable()) {
       s_col.overlays.emplace_back(&null_overlay);
     }
