@@ -20,6 +20,8 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "src/base/test/utils.h"
 #include "src/trace_processor/db/query_executor.h"
+#include "src/trace_processor/db/table.h"
+#include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
 
 namespace perfetto {
@@ -27,6 +29,24 @@ namespace trace_processor {
 namespace {
 
 using SliceTable = tables::SliceTable;
+using ThreadTrackTable = tables::ThreadTrackTable;
+using ExpectedFrameTimelineSliceTable = tables::ExpectedFrameTimelineSliceTable;
+using RawTable = tables::RawTable;
+using FtraceEventTable = tables::FtraceEventTable;
+
+// `SELECT * FROM SLICE` on android_monitor_contention_trace.at
+static char kSliceTable[] = "test/data/slice_table_for_benchmarks.csv";
+
+// `SELECT * FROM SLICE` on android_monitor_contention_trace.at
+static char kExpectedFrameTimelineTable[] =
+    "test/data/expected_frame_timeline_for_benchmarks.csv";
+
+// `SELECT id, cpu FROM raw` on chrome_android_systrace.pftrace.
+static char kRawTable[] = "test/data/raw_cpu_for_benchmarks.csv";
+
+// `SELECT id, cpu FROM ftrace_event` on chrome_android_systrace.pftrace.
+static char kFtraceEventTable[] =
+    "test/data/ftrace_event_cpu_for_benchmarks.csv";
 
 enum DB { V1, V2 };
 
@@ -51,12 +71,10 @@ std::vector<std::string> SplitCSVLine(const std::string& line) {
   return output;
 }
 
-std::vector<SliceTable::Row> LoadRowsFromCSVToSliceTable(
-    benchmark::State& state) {
-  std::vector<SliceTable::Row> rows;
+std::vector<std::string> ReadCSV(benchmark::State& state,
+                                 std::string file_name) {
   std::string table_csv;
-  static const char kTestTrace[] = "test/data/example_android_trace_30s.csv";
-  perfetto::base::ReadFile(perfetto::base::GetTestDataPath(kTestTrace),
+  perfetto::base::ReadFile(perfetto::base::GetTestDataPath(file_name),
                            &table_csv);
   if (table_csv.empty()) {
     state.SkipWithError(
@@ -65,44 +83,112 @@ std::vector<SliceTable::Row> LoadRowsFromCSVToSliceTable(
     return {};
   }
   PERFETTO_CHECK(!table_csv.empty());
-
-  std::vector<std::string> rows_strings = base::SplitString(table_csv, "\n");
-  for (size_t i = 1; i < rows_strings.size(); ++i) {
-    std::vector<std::string> row_vec = SplitCSVLine(rows_strings[i]);
-    SliceTable::Row row;
-    PERFETTO_CHECK(row_vec.size() >= 12);
-    row.ts = *base::StringToInt64(row_vec[2]);
-    row.dur = *base::StringToInt64(row_vec[3]);
-    row.track_id =
-        tables::ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
-    row.depth = *base::StringToUInt32(row_vec[7]);
-    row.stack_id = *base::StringToInt32(row_vec[8]);
-    row.parent_stack_id = *base::StringToInt32(row_vec[9]);
-    row.parent_id = base::StringToUInt32(row_vec[11]).has_value()
-                        ? std::make_optional<SliceTable::Id>(
-                              *base::StringToUInt32(row_vec[11]))
-                        : std::nullopt;
-    row.arg_set_id = *base::StringToUInt32(row_vec[11]);
-    row.thread_ts = base::StringToInt64(row_vec[12]);
-    row.thread_dur = base::StringToInt64(row_vec[13]);
-    rows.emplace_back(row);
-  }
-  return rows;
+  return base::SplitString(table_csv, "\n");
 }
 
-struct BenchmarkSliceTable {
-  explicit BenchmarkSliceTable(benchmark::State& state) : table_{&pool_} {
-    auto rows = LoadRowsFromCSVToSliceTable(state);
-    for (uint32_t i = 0; i < rows.size(); ++i) {
-      table_.Insert(rows[i]);
+SliceTable::Row GetSliceTableRow(std::string string_row) {
+  std::vector<std::string> row_vec = SplitCSVLine(string_row);
+  SliceTable::Row row;
+  PERFETTO_CHECK(row_vec.size() >= 12);
+  row.ts = *base::StringToInt64(row_vec[2]);
+  row.dur = *base::StringToInt64(row_vec[3]);
+  row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
+  row.depth = *base::StringToUInt32(row_vec[7]);
+  row.stack_id = *base::StringToInt32(row_vec[8]);
+  row.parent_stack_id = *base::StringToInt32(row_vec[9]);
+  row.parent_id = base::StringToUInt32(row_vec[11]).has_value()
+                      ? std::make_optional<SliceTable::Id>(
+                            *base::StringToUInt32(row_vec[11]))
+                      : std::nullopt;
+  row.arg_set_id = *base::StringToUInt32(row_vec[11]);
+  row.thread_ts = base::StringToInt64(row_vec[12]);
+  row.thread_dur = base::StringToInt64(row_vec[13]);
+  return row;
+}
+
+struct SliceTableForBenchmark {
+  explicit SliceTableForBenchmark(benchmark::State& state) : table_{&pool_} {
+    std::vector<std::string> rows_strings = ReadCSV(state, kSliceTable);
+
+    for (size_t i = 1; i < rows_strings.size(); ++i) {
+      table_.Insert(GetSliceTableRow(rows_strings[i]));
     }
   }
+
   StringPool pool_;
   SliceTable table_;
 };
 
-void SliceTableBenchmark(benchmark::State& state,
-                         BenchmarkSliceTable& table,
+struct ExpectedFrameTimelineTableForBenchmark {
+  explicit ExpectedFrameTimelineTableForBenchmark(benchmark::State& state)
+      : table_{&pool_, &parent_} {
+    std::vector<std::string> table_rows_as_string =
+        ReadCSV(state, kExpectedFrameTimelineTable);
+    std::vector<std::string> parent_rows_as_string =
+        ReadCSV(state, kSliceTable);
+
+    uint32_t cur_idx = 0;
+    for (size_t i = 1; i < table_rows_as_string.size(); ++i, ++cur_idx) {
+      std::vector<std::string> row_vec = SplitCSVLine(table_rows_as_string[i]);
+
+      uint32_t idx = *base::StringToUInt32(row_vec[0]);
+      while (cur_idx < idx) {
+        parent_.Insert(GetSliceTableRow(parent_rows_as_string[cur_idx + 1]));
+        cur_idx++;
+      }
+
+      ExpectedFrameTimelineSliceTable::Row row;
+      row.ts = *base::StringToInt64(row_vec[2]);
+      row.dur = *base::StringToInt64(row_vec[3]);
+      row.track_id = ThreadTrackTable::Id(*base::StringToUInt32(row_vec[4]));
+      row.depth = *base::StringToUInt32(row_vec[7]);
+      row.stack_id = *base::StringToInt32(row_vec[8]);
+      row.parent_stack_id = *base::StringToInt32(row_vec[9]);
+      row.parent_id = base::StringToUInt32(row_vec[11]).has_value()
+                          ? std::make_optional<SliceTable::Id>(
+                                *base::StringToUInt32(row_vec[11]))
+                          : std::nullopt;
+      row.arg_set_id = *base::StringToUInt32(row_vec[11]);
+      row.thread_ts = base::StringToInt64(row_vec[12]);
+      row.thread_dur = base::StringToInt64(row_vec[13]);
+      table_.Insert(row);
+    }
+  }
+  StringPool pool_;
+  SliceTable parent_{&pool_};
+  ExpectedFrameTimelineSliceTable table_;
+};
+
+struct FtraceEventTableForBenchmark {
+  explicit FtraceEventTableForBenchmark(benchmark::State& state) {
+    std::vector<std::string> raw_rows = ReadCSV(state, kRawTable);
+    std::vector<std::string> ftrace_event_rows =
+        ReadCSV(state, kFtraceEventTable);
+
+    uint32_t cur_idx = 0;
+    for (size_t i = 1; i < ftrace_event_rows.size(); ++i, cur_idx++) {
+      std::vector<std::string> row_vec = SplitCSVLine(ftrace_event_rows[i]);
+      uint32_t idx = *base::StringToUInt32(row_vec[0]);
+      while (cur_idx < idx) {
+        std::vector<std::string> raw_row = SplitCSVLine(raw_rows[cur_idx + 1]);
+        RawTable::Row r;
+        r.cpu = *base::StringToUInt32(raw_row[1]);
+        raw_.Insert(r);
+        cur_idx++;
+      }
+      FtraceEventTable::Row row;
+      row.cpu = *base::StringToUInt32(row_vec[1]);
+      table_.Insert(row);
+    }
+  }
+
+  StringPool pool_;
+  RawTable raw_{&pool_};
+  tables::FtraceEventTable table_{&pool_, &raw_};
+};
+
+void BenchmarkSliceTable(benchmark::State& state,
+                         SliceTableForBenchmark& table,
                          Constraint c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
@@ -114,26 +200,66 @@ void SliceTableBenchmark(benchmark::State& state,
                              benchmark::Counter::kInvert);
 }
 
-static void BM_DBv2SliceTableTrackIdEquals(benchmark::State& state) {
-  BenchmarkSliceTable table(state);
-  SliceTableBenchmark(state, table, table.table_.track_id().eq(100));
+void BenchmarkExpectedFrameTable(benchmark::State& state,
+                                 ExpectedFrameTimelineTableForBenchmark& table,
+                                 Constraint c) {
+  Table::kUseFilterV2 = state.range(0) == 1;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+  }
+  state.counters["s/row"] =
+      benchmark::Counter(static_cast<double>(table.table_.row_count()),
+                         benchmark::Counter::kIsIterationInvariantRate |
+                             benchmark::Counter::kInvert);
 }
 
-BENCHMARK(BM_DBv2SliceTableTrackIdEquals)->ArgsProduct({{DB::V1, DB::V2}});
-
-static void BM_DBv2SliceTableParentIdIsNotNull(benchmark::State& state) {
-  BenchmarkSliceTable table(state);
-  SliceTableBenchmark(state, table, table.table_.parent_id().is_not_null());
+void BenchmarkFtraceEventTable(benchmark::State& state,
+                               FtraceEventTableForBenchmark& table,
+                               Constraint c) {
+  Table::kUseFilterV2 = state.range(0) == 1;
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+  }
+  state.counters["s/row"] =
+      benchmark::Counter(static_cast<double>(table.table_.row_count()),
+                         benchmark::Counter::kIsIterationInvariantRate |
+                             benchmark::Counter::kInvert);
 }
 
-BENCHMARK(BM_DBv2SliceTableParentIdIsNotNull)->ArgsProduct({{DB::V1, DB::V2}});
-
-static void BM_DBv2SliceTableParentIdEq(benchmark::State& state) {
-  BenchmarkSliceTable table(state);
-  SliceTableBenchmark(state, table, table.table_.parent_id().eq(88));
+static void BM_QESliceTableTrackIdEq(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, table.table_.track_id().eq(100));
 }
 
-BENCHMARK(BM_DBv2SliceTableParentIdEq)->ArgsProduct({{DB::V1, DB::V2}});
+BENCHMARK(BM_QESliceTableTrackIdEq)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QESliceTableParentIdIsNotNull(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, table.table_.parent_id().is_not_null());
+}
+
+BENCHMARK(BM_QESliceTableParentIdIsNotNull)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QESliceTableParentIdEq(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, table.table_.parent_id().eq(88));
+}
+
+BENCHMARK(BM_QESliceTableParentIdEq)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QEFilterWithSparseSelector(benchmark::State& state) {
+  ExpectedFrameTimelineTableForBenchmark table(state);
+  BenchmarkExpectedFrameTable(state, table, table.table_.track_id().eq(88));
+}
+
+BENCHMARK(BM_QEFilterWithSparseSelector)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QEFilterWithDenseSelector(benchmark::State& state) {
+  FtraceEventTableForBenchmark table(state);
+  BenchmarkFtraceEventTable(state, table, table.table_.cpu().eq(4));
+}
+
+BENCHMARK(BM_QEFilterWithDenseSelector)->ArgsProduct({{DB::V1, DB::V2}});
 
 }  // namespace
 }  // namespace trace_processor
