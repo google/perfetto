@@ -14,8 +14,16 @@
 
 import m from 'mithril';
 
+import {globals} from '../globals';
+
+import {Menu, MenuItem} from './menu';
+import {TextInput} from './text_input';
+import {exists} from './utils';
+
 export interface SelectAttrs {
   disabled?: boolean;
+  // Whether to show a search box. Defaults to false.
+  filterable?: boolean;
   [htmlAttrs: string]: any;
 }
 
@@ -27,5 +35,52 @@ export class Select implements m.ClassComponent<SelectAttrs> {
         'select.pf-select' + (disabled ? '[disabled]' : ''),
         htmlAttrs,
         children);
+  }
+}
+
+export interface FilterableSelectAttrs extends SelectAttrs {
+  values: string[];
+  onSelected: (value: string) => void;
+  maxDisplayedItems?: number;
+  autofocusInput?: boolean;
+}
+
+export class FilterableSelect implements
+    m.ClassComponent<FilterableSelectAttrs> {
+  searchText = '';
+
+  view({attrs}: m.CVnode<FilterableSelectAttrs>) {
+    const filteredValues = attrs.values.filter((name) => {
+      return name.toLowerCase().includes(this.searchText.toLowerCase());
+    });
+
+    const extraItems = exists(attrs.maxDisplayedItems) &&
+        Math.max(0, filteredValues.length - attrs.maxDisplayedItems);
+
+    // TODO(altimin): when the user presses enter and there is only one item,
+    // select the first one.
+    // MAYBE(altimin): when the user presses enter and there are multiple items,
+    // select the first one.
+    return m(
+        'div',
+        m('.pf-search-bar',
+          m(TextInput, {
+            autofocus: attrs.autofocusInput,
+            oninput: (event: Event) => {
+              const eventTarget = event.target as HTMLTextAreaElement;
+              this.searchText = eventTarget.value;
+              globals.rafScheduler.scheduleFullRedraw();
+            },
+            value: this.searchText,
+            placeholder: 'Filter options...',
+            extraClasses: 'pf-search-box',
+          }),
+          m(Menu,
+            ...filteredValues.map(
+                (value) => m(MenuItem, {
+                  label: value,
+                  onclick: () => attrs.onSelected(value),
+                }),
+                extraItems && m('i', `+${extraItems} more`)))));
   }
 }
