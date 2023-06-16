@@ -224,61 +224,63 @@ TEST(QueryExecutor, SelectorOverlayIndex) {
 }
 
 TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
-  std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 0, 1, 2, 3, 4};
+  std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
 
-  // Select 6 elements from storage, resulting in a vector {0, 1, 3, 4, 1, 2}.
-  BitVector selector_bv{1, 1, 0, 1, 1, 0, 1, 1, 0, 0};
-  SelectorOverlay selector_overlay(&selector_bv);
-
-  // Add nulls, final vector {0, 1, NULL, 3, 4, NULL, 1, 2, NULL}.
-  BitVector null_bv{1, 1, 0, 1, 1, 0, 1, 1, 0};
+  // Current vector
+  // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
+  BitVector null_bv{1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0};
   NullOverlay null_overlay(&null_bv);
+
+  // Final vector
+  // 0, NULL, 3, NULL, 1, 3
+  BitVector selector_bv{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+  SelectorOverlay selector_overlay(&selector_bv);
 
   // Create the column.
   OverlaysVec overlays_vec;
-  overlays_vec.emplace_back(&null_overlay);
   overlays_vec.emplace_back(&selector_overlay);
+  overlays_vec.emplace_back(&null_overlay);
   SimpleColumn col{overlays_vec, &storage};
 
   // Filter.
   Constraint c{0, FilterOp::kGe, SqlValue::Long(2)};
-  QueryExecutor exec({col}, 9);
+  QueryExecutor exec({col}, 6);
   RowMap res = exec.Filter({c});
 
-  ASSERT_EQ(res.size(), 3u);
-  ASSERT_EQ(res.Get(0), 3u);
-  ASSERT_EQ(res.Get(1), 4u);
-  ASSERT_EQ(res.Get(2), 7u);
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 2u);
+  ASSERT_EQ(res.Get(1), 5u);
 }
 
 TEST(QueryExecutor, IsNull) {
-  std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 0, 1, 2, 3, 4};
+  std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
 
-  // Select 6 elements from storage, resulting in a vector {0, 1, 3, 4, 1, 2}.
-  BitVector selector_bv{1, 1, 0, 1, 1, 0, 1, 1, 0, 0};
-  SelectorOverlay selector_overlay(&selector_bv);
-
-  // Add nulls, final vector {0, 1, NULL, 3, 4, NULL, 1, 2, NULL}.
-  BitVector null_bv{1, 1, 0, 1, 1, 0, 1, 1, 0};
+  // Current vector
+  // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
+  BitVector null_bv{1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0};
   NullOverlay null_overlay(&null_bv);
+
+  // Final vector
+  // 0, NULL, 3, NULL, 1, 3
+  BitVector selector_bv{1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0};
+  SelectorOverlay selector_overlay(&selector_bv);
 
   // Create the column.
   OverlaysVec overlays_vec;
-  overlays_vec.emplace_back(&null_overlay);
   overlays_vec.emplace_back(&selector_overlay);
+  overlays_vec.emplace_back(&null_overlay);
   SimpleColumn col{overlays_vec, &storage};
 
   // Filter.
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
-  QueryExecutor exec({col}, 9);
+  QueryExecutor exec({col}, 6);
   RowMap res = exec.Filter({c});
 
-  ASSERT_EQ(res.size(), 3u);
-  ASSERT_EQ(res.Get(0), 2u);
-  ASSERT_EQ(res.Get(1), 5u);
-  ASSERT_EQ(res.Get(2), 8u);
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 1u);
+  ASSERT_EQ(res.Get(1), 3u);
 }
 
 }  // namespace
