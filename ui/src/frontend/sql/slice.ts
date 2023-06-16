@@ -185,10 +185,16 @@ interface SliceRefAttrs {
   readonly ts: TPTimestamp;
   readonly dur: TPDuration;
   readonly sqlTrackId: number;
+
+  // Whether clicking on the reference should change the current tab
+  // to "current selection" tab in addition to updating the selection
+  // and changing the viewport. True by default.
+  readonly switchToCurrentSelectionTab?: boolean;
 }
 
 export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
   view(vnode: m.Vnode<SliceRefAttrs>) {
+    const switchTab = vnode.attrs.switchToCurrentSelectionTab ?? true;
     return m(
         Anchor,
         {
@@ -201,8 +207,10 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
             // Clamp duration to 1 - i.e. for instant events
             const dur = BigintMath.max(1n, vnode.attrs.dur);
             focusHorizontalRange(vnode.attrs.ts, vnode.attrs.ts + dur);
-            globals.makeSelection(Actions.selectChromeSlice(
-                {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}));
+            globals.makeSelection(
+                Actions.selectChromeSlice(
+                    {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}),
+                switchTab ? 'current_selection' : null);
           },
         },
         vnode.attrs.name);

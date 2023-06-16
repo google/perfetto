@@ -21,19 +21,27 @@ import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
 import {
+  formatDuration,
   TPDuration,
   TPTime,
 } from '../common/time';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
 
 import {Anchor} from './anchor';
-import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
+import {
+  addTab,
+  BottomTab,
+  bottomTabRegistry,
+  NewBottomTabArgs,
+} from './bottom_tab';
 import {FlowPoint, globals} from './globals';
 import {PanelSize} from './panel';
 import {runQueryInNewTab} from './query_result_tab';
 import {Icons} from './semantic_icons';
 import {Arg} from './sql/args';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
+import {SqlTableTab} from './sql_table/tab';
+import {SqlTables} from './sql_table/well_known_tables';
 import {asSliceSqlId, asTPTimestamp} from './sql_types';
 import {getProcessName, getThreadName} from './thread_and_process_info';
 import {Button} from './widgets/button';
@@ -266,7 +274,7 @@ function renderArgTreeNodes(
 function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
   if (dur === -1n) {
     const minDuration = globals.state.traceTime.end - ts;
-    return [m(Duration, {dur: minDuration}), ' (Did not end)'];
+    return `${formatDuration(minDuration)} (Did not end)`;
   } else {
     return m(Duration, {dur});
   }
@@ -398,7 +406,28 @@ export class ChromeSliceDetailsTab extends
         {title: 'Details'},
         m(
             Tree,
-            m(TreeNode, {left: 'Name', right: slice.name}),
+            m(TreeNode, {
+              left: 'Name',
+              right: m(
+                  PopupMenu2,
+                  {
+                    trigger: m(Anchor, slice.name),
+                  },
+                  m(MenuItem, {
+                    label: 'Slices with the same name',
+                    onclick: () => {
+                      addTab({
+                        kind: SqlTableTab.kind,
+                        config: {
+                          table: SqlTables.slice,
+                          displayName: 'slice',
+                          filters: [`name = ${sqliteString(slice.name)}`],
+                        },
+                      });
+                    },
+                  }),
+                  ),
+            }),
             m(TreeNode, {
               left: 'Category',
               right: !slice.category || slice.category === '[NULL]' ?
