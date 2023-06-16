@@ -28,7 +28,7 @@ StorageRange NullOverlay::MapToStorageRange(TableRange t_range) const {
   uint32_t start = non_null_->CountSetBits(t_range.range.start);
   uint32_t end = non_null_->CountSetBits(t_range.range.end);
 
-  return StorageRange({Range(start, end)});
+  return StorageRange(start, end);
 }
 
 TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv,
