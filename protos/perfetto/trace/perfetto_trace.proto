@@ -7269,8 +7269,7 @@ message ScmCallStartFtraceEvent {
   optional uint64 x0 = 2;
   optional uint64 x5 = 3;
 }
-message ScmCallEndFtraceEvent {
-}
+message ScmCallEndFtraceEvent {}
 
 // End of protos/perfetto/trace/ftrace/scm.proto
 
