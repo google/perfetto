@@ -219,7 +219,8 @@ $bottom-tab-padding: 10px;
   }
 
   td {
-    padding: 2px 1px;
+    padding: 3px 5px;
+    white-space: nowrap;
 
     i.material-icons {
       // Shrink the icons inside the table cells to increase the information
