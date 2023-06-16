@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {EngineProxy} from '../common/engine';
+import {ColumnType, NUM} from '../common/query_result';
 import {SortDirection} from '../common/state';
-import {ColumnType} from '../common/query_result';
 
-interface OrderClause {
+export interface OrderClause {
   fieldName: string;
   direction?: SortDirection;
 }
@@ -81,7 +82,10 @@ export function fromNumNull(n: number|null): number|undefined {
   return n;
 }
 
-export function sqlValueToString(val: ColumnType): string {
+export function sqlValueToString(val: ColumnType): string;
+export function sqlValueToString(val?: ColumnType): string|undefined;
+export function sqlValueToString(val?: ColumnType): string|undefined {
+  if (val === undefined) return undefined;
   if (val instanceof Uint8Array) {
     return `<blob length=${val.length}>`;
   }
@@ -89,4 +93,18 @@ export function sqlValueToString(val: ColumnType): string {
     return 'NULL';
   }
   return val.toString();
+}
+
+export async function getTableRowCount(
+    engine: EngineProxy, tableName: string): Promise<number|undefined> {
+  const result =
+      await engine.query(`SELECT COUNT() as count FROM ${tableName}`);
+  if (result.numRows() === 0) {
+    return undefined;
+  }
+  return result
+      .firstRow({
+        count: NUM,
+      })
+      .count;
 }

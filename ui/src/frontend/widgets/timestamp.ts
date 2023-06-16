@@ -57,7 +57,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
   }
 }
 
-function renderTimecode(ts: TPTimestamp): m.Children {
+export function renderTimecode(ts: TPTimestamp): m.Children {
   const relTime = toDomainTime(ts);
   const {dhhmmss, millis, micros, nanos} = new Timecode(relTime);
   return [
