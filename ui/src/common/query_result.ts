@@ -71,6 +71,7 @@ export const LONG: bigint = 0n;
 export const LONG_NULL: bigint|null = 1n;
 
 export type ColumnType = string|number|bigint|null|Uint8Array;
+export type SqlValue = ColumnType;
 
 const SHIFT_32BITS = 32n;
 
@@ -159,7 +160,7 @@ export class QueryError extends Error {
 
 // One row extracted from an SQL result:
 export interface Row {
-  [key: string]: ColumnType|undefined;
+  [key: string]: ColumnType;
 }
 
 // The methods that any iterator has to implement.
