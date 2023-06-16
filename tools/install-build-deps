@@ -25,6 +25,7 @@ import sys
 import tempfile
 import time
 import zipfile
+import bz2
 
 from collections import namedtuple
 from platform import system, machine
@@ -35,7 +36,7 @@ from platform import system, machine
 # |source_url| can be either a git repo or a http url.
 # If a git repo, |checksum| is the SHA1 committish that will be checked out.
 # If a http url, |checksum| is the SHA256 of the downloaded file.
-# If the url is a .zip or .tgz file it will be automatically deflated under
+# If the url is a .zip, .tgz, or .tbz2 file it will be automatically deflated under
 # |target_folder|, taking care of stripping the root folder if it's a single
 # root (to avoid ending up with buildtools/protobuf/protobuf-1.2.3/... and have
 # instead just buildtools/protobuf).
@@ -658,12 +659,12 @@ def Main():
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
       continue
-    is_zip = local_path.endswith('.zip') or local_path.endswith('.tgz')
-    zip_target_dir = local_path[:-4] if is_zip else None
-    zip_dir_stamp = os.path.join(zip_target_dir, '.stamp') if is_zip else None
+    is_compressed = any([local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
+    compressed_target_dir = os.path.splitext(local_path)[0] if is_compressed else None
+    compressed_dir_stamp = os.path.join(compressed_target_dir, '.stamp') if is_compressed else None
 
-    if ((not is_zip and HashLocalFile(local_path) == dep.checksum) or
-        (is_zip and ReadFile(zip_dir_stamp) == dep.checksum)):
+    if ((not is_compressed and HashLocalFile(local_path) == dep.checksum) or
+        (is_compressed and ReadFile(compressed_dir_stamp) == dep.checksum)):
       continue
     deps_updated = True
     if args.check_only:
@@ -686,32 +687,39 @@ def Main():
 
     assert (HashLocalFile(local_path) == dep.checksum)
 
-    if is_zip:
-      logging.info('Extracting %s into %s' % (local_path, zip_target_dir))
-      assert (os.path.commonprefix((ROOT_DIR, zip_target_dir)) == ROOT_DIR)
-      RmtreeIfExists(zip_target_dir)
+    if is_compressed:
+      logging.info('Extracting %s into %s' % (local_path, compressed_target_dir))
+      assert (os.path.commonprefix((ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
+      RmtreeIfExists(compressed_target_dir)
 
       # Decompress the archive.
       if local_path.endswith('.tgz'):
-        MkdirRecursive(zip_target_dir)
-        subprocess.check_call(['tar', '-oxf', local_path], cwd=zip_target_dir)
+        MkdirRecursive(compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', local_path], cwd=compressed_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():
-            ExtractZipfilePreservePermissions(zf, info, zip_target_dir)
+            ExtractZipfilePreservePermissions(zf, info, compressed_target_dir)
+      elif local_path.endswith('.tbz2'):
+        tar_path = '{}.tar.tmp'.format(local_path)
+        with open(tar_path, 'w') as f:
+          with bz2.open(local_path, 'r') as bf:
+            f.write(bf.read())
+        MkdirRecursive(compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', tar_path], cwd=compressed_target_dir)
 
       # If the zip contains one root folder, rebase one level up moving all
       # its sub files and folders inside |target_dir|.
-      subdir = os.listdir(zip_target_dir)
+      subdir = os.listdir(compressed_target_dir)
       if len(subdir) == 1:
-        subdir = os.path.join(zip_target_dir, subdir[0])
+        subdir = os.path.join(compressed_target_dir, subdir[0])
         if os.path.isdir(subdir):
           for subf in os.listdir(subdir):
-            shutil.move(os.path.join(subdir, subf), zip_target_dir)
+            shutil.move(os.path.join(subdir, subf), compressed_target_dir)
           os.rmdir(subdir)
 
       # Create stamp and remove the archive.
-      with open(zip_dir_stamp, 'w') as stamp_file:
+      with open(compressed_dir_stamp, 'w') as stamp_file:
         stamp_file.write(dep.checksum)
       os.remove(local_path)
 
