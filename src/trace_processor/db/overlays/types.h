@@ -26,11 +26,17 @@ namespace overlays {
 
 // A range of indices in the table space.
 struct TableRange {
+  TableRange(uint32_t start, uint32_t end) : range(start, end) {}
+  explicit TableRange(RowMap::Range r) : range(r) {}
+
   RowMap::Range range;
 };
 
 // A range of indices in the storage space.
 struct StorageRange {
+  StorageRange(uint32_t start, uint32_t end) : range(start, end) {}
+  explicit StorageRange(RowMap::Range r) : range(r) {}
+
   RowMap::Range range;
 };
 
