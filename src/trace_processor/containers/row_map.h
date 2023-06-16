@@ -451,6 +451,12 @@ class RowMap {
     NoVariantMatched();
   }
 
+  // Returns the data in RowMap BitVector, nullptr if RowMap is in a different
+  // mode.
+  const BitVector* GetIfBitVector() const {
+    return std::get_if<BitVector>(&data_);
+  }
+
   // Returns the iterator over the rows in this RowMap.
   Iterator IterateRows() const { return Iterator(this); }
 
