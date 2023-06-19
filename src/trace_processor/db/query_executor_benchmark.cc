@@ -15,6 +15,7 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <string>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -23,6 +24,7 @@
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/tables/metadata_tables_py.h"
 #include "src/trace_processor/tables/slice_tables_py.h"
+#include "src/trace_processor/tables/track_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -246,6 +248,13 @@ static void BM_QESliceTableParentIdEq(benchmark::State& state) {
 }
 
 BENCHMARK(BM_QESliceTableParentIdEq)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QESliceTableSorted(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, table.table_.ts().gt(1000));
+}
+
+BENCHMARK(BM_QESliceTableSorted)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QEFilterWithSparseSelector(benchmark::State& state) {
   ExpectedFrameTimelineTableForBenchmark table(state);
