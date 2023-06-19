@@ -334,7 +334,7 @@ interface ChromeSliceDetailsTabConfig {
 
 export class ChromeSliceDetailsTab extends
     BottomTab<ChromeSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.ChromeSliceDetailsTab';
+  static readonly kind = 'dev.perfetto.ChromeSliceDetailsTab';
 
   private sliceDetails?: SliceDetails;
 
