@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,6 +29,18 @@ StorageRange SelectorOverlay::MapToStorageRange(TableRange t_range) const {
   return StorageRange{
       Range(selected_->IndexOfNthSet(t_range.range.start),
             selected_->IndexOfNthSet(t_range.range.end - 1) + 1)};
+}
+
+TableRangeOrBitVector SelectorOverlay::MapToTableRangeOrBitVector(
+    StorageRange s_range,
+    OverlayOp) const {
+  if (s_range.range.size() == 0)
+    return TableRangeOrBitVector(Range());
+
+  uint32_t start = selected_->CountSetBits(s_range.range.start);
+  uint32_t end = selected_->CountSetBits(s_range.range.end);
+
+  return TableRangeOrBitVector(Range(start, end));
 }
 
 TableBitVector SelectorOverlay::MapToTableBitVector(StorageBitVector s_bv,
