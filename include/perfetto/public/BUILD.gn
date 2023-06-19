@@ -31,6 +31,8 @@ source_set("public") {
     "producer.h",
     "stream_writer.h",
     "te_category_macros.h",
+    "te_macros.h",
+    "thread_utils.h",
     "track_event.h",
   ]
   public_deps = [

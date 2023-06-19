@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+#include "perfetto/public/abi/track_event_abi.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/te_category_macros.h"
+#include "perfetto/public/te_macros.h"
 #include "perfetto/public/track_event.h"
 
 #include <stdio.h>
@@ -30,23 +32,65 @@
 
 PERFETTO_TE_CATEGORIES_DEFINE(EXAMPLE_CATEGORIES)
 
+static struct PerfettoTeRegisteredTrack mytrack;
+static struct PerfettoTeRegisteredTrack mycounter;
+
 static void EnabledCb(struct PerfettoTeCategoryImpl* c,
                       PerfettoDsInstanceIndex inst_id,
                       bool enabled,
                       bool global_state_changed,
                       void* user_arg) {
   printf("Callback: %p id: %u on: %d, global_state_changed: %d, user_arg:%p\n",
-         (void*)c, inst_id, (int)enabled, (int)global_state_changed, user_arg);
+         PERFETTO_STATIC_CAST(void*, c), inst_id,
+         PERFETTO_STATIC_CAST(int, enabled),
+         PERFETTO_STATIC_CAST(int, global_state_changed), user_arg);
+  if (enabled) {
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("callback"), PERFETTO_TE_FLUSH());
+  }
 }
 
 int main(void) {
+  uint64_t flow_counter = 0;
   struct PerfettoProducerInitArgs args = {0};
   args.backends = PERFETTO_BACKEND_SYSTEM;
   PerfettoProducerInit(args);
   PerfettoTeInit();
   PERFETTO_TE_REGISTER_CATEGORIES(EXAMPLE_CATEGORIES);
-  PerfettoTeCategorySetCallback(&physics, EnabledCb, NULL);
+  PerfettoTeNamedTrackRegister(&mytrack, "mytrack", 0,
+                               PerfettoTeProcessTrackUuid());
+  PerfettoTeCounterTrackRegister(&mycounter, "mycounter",
+                                 PerfettoTeProcessTrackUuid());
+  PerfettoTeCategorySetCallback(&physics, EnabledCb, PERFETTO_NULL);
   for (;;) {
+    PERFETTO_TE(rendering, PERFETTO_TE_INSTANT("name1"));
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("name2"),
+                PERFETTO_TE_ARG_BOOL("dbg_arg", false),
+                PERFETTO_TE_ARG_STRING("dbg_arg2", "mystring"));
+    PERFETTO_TE(cat, PERFETTO_TE_SLICE_BEGIN("name"));
+    PERFETTO_TE(cat, PERFETTO_TE_SLICE_END());
+    flow_counter++;
+    PERFETTO_TE(physics, PERFETTO_TE_SLICE_BEGIN("name4"),
+                PERFETTO_TE_REGISTERED_TRACK(&mytrack),
+                PERFETTO_TE_FLOW(PerfettoTeProcessScopedFlow(flow_counter)));
+    PERFETTO_TE(physics, PERFETTO_TE_SLICE_END(),
+                PERFETTO_TE_REGISTERED_TRACK(&mytrack));
+    PERFETTO_TE(cat, PERFETTO_TE_INSTANT("name5"),
+                PERFETTO_TE_TIMESTAMP(PerfettoTeGetTimestamp()));
+    PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT("name6"),
+                PERFETTO_TE_DYNAMIC_CATEGORY_STRING("physics"),
+                PERFETTO_TE_TERMINATING_FLOW(
+                    PerfettoTeProcessScopedFlow(flow_counter)));
+    PERFETTO_TE(physics, PERFETTO_TE_COUNTER(),
+                PERFETTO_TE_REGISTERED_TRACK(&mycounter),
+                PERFETTO_TE_INT_COUNTER(79));
+    PERFETTO_TE(physics, PERFETTO_TE_INSTANT("name8"),
+                PERFETTO_TE_NAMED_TRACK("dynamictrack", 2,
+                                        PerfettoTeProcessTrackUuid()),
+                PERFETTO_TE_TIMESTAMP(PerfettoTeGetTimestamp()));
+    PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_COUNTER(),
+                PERFETTO_TE_DOUBLE_COUNTER(3.14),
+                PERFETTO_TE_REGISTERED_TRACK(&mycounter),
+                PERFETTO_TE_DYNAMIC_CATEGORY_STRING("physics"));
     sleep(1);
   }
 }

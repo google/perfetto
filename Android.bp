@@ -2046,6 +2046,7 @@ cc_test {
         ":perfetto_src_protozero_filtering_string_filter",
         ":perfetto_src_protozero_proto_ring_buffer",
         ":perfetto_src_protozero_protozero",
+        ":perfetto_src_shared_lib_intern_map",
         ":perfetto_src_shared_lib_shared_lib",
         ":perfetto_src_shared_lib_test_integrationtests",
         ":perfetto_src_shared_lib_test_utils",
@@ -9465,6 +9466,14 @@ filegroup {
     ],
 }
 
+// GN: //src/shared_lib:intern_map
+filegroup {
+    name: "perfetto_src_shared_lib_intern_map",
+    srcs: [
+        "src/shared_lib/intern_map.cc",
+    ],
+}
+
 // GN: //src/shared_lib:shared_lib
 filegroup {
     name: "perfetto_src_shared_lib_shared_lib",
@@ -9474,6 +9483,7 @@ filegroup {
         "src/shared_lib/pb_decoder.cc",
         "src/shared_lib/producer.cc",
         "src/shared_lib/stream_writer.cc",
+        "src/shared_lib/thread_utils.cc",
         "src/shared_lib/tracing_session.cc",
         "src/shared_lib/track_event.cc",
     ],
@@ -9492,6 +9502,14 @@ filegroup {
     name: "perfetto_src_shared_lib_test_utils",
     srcs: [
         "src/shared_lib/test/utils.cc",
+    ],
+}
+
+// GN: //src/shared_lib:unittests
+filegroup {
+    name: "perfetto_src_shared_lib_unittests",
+    srcs: [
+        "src/shared_lib/intern_map_unittest.cc",
     ],
 }
 
@@ -12096,8 +12114,11 @@ cc_test {
         ":perfetto_include_perfetto_profiling_pprof_builder",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_public_abi_base",
+        ":perfetto_include_perfetto_public_abi_public",
         ":perfetto_include_perfetto_public_base",
+        ":perfetto_include_perfetto_public_protos_protos",
         ":perfetto_include_perfetto_public_protozero",
+        ":perfetto_include_perfetto_public_public",
         ":perfetto_include_perfetto_test_test_support",
         ":perfetto_include_perfetto_trace_processor_basic_types",
         ":perfetto_include_perfetto_trace_processor_storage",
@@ -12277,6 +12298,8 @@ cc_test {
         ":perfetto_src_protozero_testing_messages_lite_gen",
         ":perfetto_src_protozero_testing_messages_zero_gen",
         ":perfetto_src_protozero_unittests",
+        ":perfetto_src_shared_lib_intern_map",
+        ":perfetto_src_shared_lib_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
         ":perfetto_src_trace_processor_db_db",

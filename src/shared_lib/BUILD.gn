@@ -12,8 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import("../../gn/test.gni")
+
+source_set("intern_map") {
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/public",
+    "../base",
+  ]
+  sources = [
+    "intern_map.cc",
+    "intern_map.h",
+  ]
+}
+
 source_set("shared_lib") {
   deps = [
+    ":intern_map",
     "../../gn:default_deps",
     "../../include/perfetto/protozero",
     "../../include/perfetto/public",
@@ -29,6 +44,7 @@ source_set("shared_lib") {
     "reset_for_testing.h",
     "stream_writer.cc",
     "stream_writer.h",
+    "thread_utils.cc",
     "tracing_session.cc",
     "track_event.cc",
   ]
@@ -41,4 +57,16 @@ shared_library("libperfetto_c") {
     "../../gn:default_deps",
   ]
   public_deps = [ "../../include/perfetto/public" ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":intern_map",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
+    "../base:test_support",
+  ]
+  sources = [ "intern_map_unittest.cc" ]
 }

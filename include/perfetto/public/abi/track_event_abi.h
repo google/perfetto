@@ -103,6 +103,48 @@ PerfettoTeCategoryImplGetIid(struct PerfettoTeCategoryImpl* cat);
 PERFETTO_SDK_EXPORT void PerfettoTeCategoryImplDestroy(
     struct PerfettoTeCategoryImpl*);
 
+enum PerfettoTeTimestampType {
+  PERFETTO_TE_TIMESTAMP_TYPE_MONOTONIC = 3,
+  PERFETTO_TE_TIMESTAMP_TYPE_BOOT = 6,
+  PERFETTO_TE_TIMESTAMP_TYPE_INCREMENTAL = 64,
+  PERFETTO_TE_TIMESTAMP_TYPE_ABSOLUTE = 65,
+};
+
+enum {
+#ifdef __linux__
+  PERFETTO_I_CLOCK_INCREMENTAL_UNDERNEATH = PERFETTO_TE_TIMESTAMP_TYPE_BOOT,
+#else
+  PERFETTO_I_CLOCK_INCREMENTAL_UNDERNEATH =
+      PERFETTO_TE_TIMESTAMP_TYPE_MONOTONIC,
+#endif
+};
+
+struct PerfettoTeTimestamp {
+  // PerfettoTeTimestampType
+  uint32_t clock_id;
+  uint64_t value;
+};
+
+// Returns the current timestamp.
+PERFETTO_SDK_EXPORT struct PerfettoTeTimestamp PerfettoTeGetTimestamp(void);
+
+struct PerfettoTeRegisteredTrackImpl {
+  void* descriptor;  // Owned (malloc).
+  size_t descriptor_size;
+  uint64_t uuid;
+};
+
+// The UUID of the process track for the current process.
+extern PERFETTO_SDK_EXPORT uint64_t perfetto_te_process_track_uuid;
+
+// The type of an event.
+enum PerfettoTeType {
+  PERFETTO_TE_TYPE_SLICE_BEGIN = 1,
+  PERFETTO_TE_TYPE_SLICE_END = 2,
+  PERFETTO_TE_TYPE_INSTANT = 3,
+  PERFETTO_TE_TYPE_COUNTER = 4,
+};
+
 #ifdef __cplusplus
 }
 #endif
