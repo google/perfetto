@@ -50,6 +50,11 @@ class StorageOverlay {
   // indices in the storage space.
   virtual StorageRange MapToStorageRange(TableRange) const = 0;
 
+  // Returns the smallest Range or BitVector containing all of the elements
+  // matching the OverlayOp.
+  virtual TableRangeOrBitVector MapToTableRangeOrBitVector(StorageRange,
+                                                           OverlayOp) const = 0;
+
   // Maps a BitVector of indices in storage space to an equivalent range of
   // indices in the table space.
   virtual TableBitVector MapToTableBitVector(StorageBitVector,
