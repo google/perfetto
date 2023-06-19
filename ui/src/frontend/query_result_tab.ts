@@ -56,7 +56,7 @@ interface QueryResultTabConfig {
 }
 
 export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
-  static readonly kind = 'org.perfetto.QueryResultTab';
+  static readonly kind = 'dev.perfetto.QueryResultTab';
 
   queryResponse?: QueryResponse;
   sqlViewName?: string;

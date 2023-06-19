@@ -32,7 +32,7 @@ interface SqlTableTabConfig {
 }
 
 export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
-  static readonly kind = 'org.perfetto.SqlTableTab';
+  static readonly kind = 'dev.perfetto.SqlTableTab';
 
   private state: SqlTableState;
 
