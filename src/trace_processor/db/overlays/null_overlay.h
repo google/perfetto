@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DB_OVERLAYS_NULL_OVERLAY_H_
 
 #include "src/trace_processor/db/overlays/storage_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -30,6 +31,9 @@ class NullOverlay : public StorageOverlay {
   explicit NullOverlay(const BitVector* null) : non_null_(std::move(null)) {}
 
   StorageRange MapToStorageRange(TableRange) const override;
+
+  TableRangeOrBitVector MapToTableRangeOrBitVector(StorageRange,
+                                                   OverlayOp) const override;
 
   TableBitVector MapToTableBitVector(StorageBitVector,
                                      OverlayOp) const override;

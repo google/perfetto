@@ -31,6 +31,9 @@ class SelectorOverlay : public StorageOverlay {
 
   StorageRange MapToStorageRange(TableRange) const override;
 
+  TableRangeOrBitVector MapToTableRangeOrBitVector(StorageRange,
+                                                   OverlayOp) const override;
+
   TableBitVector MapToTableBitVector(StorageBitVector,
                                      OverlayOp) const override;
 

@@ -321,7 +321,7 @@ RowMap::Range NumericStorage::BinarySearchIntrinsic(
     RowMap::Range search_range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
-    return RowMap::Range(0, size());
+    return search_range;
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
     return RowMap::Range();
