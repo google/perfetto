@@ -18,12 +18,13 @@ import {EngineProxy} from '../../common/engine';
 import {NUM, Row} from '../../common/query_result';
 import {globals} from '../globals';
 import {constraintsToQueryFragment} from '../sql_utils';
+
 import {
   Column,
   columnFromSqlTableColumn,
   sqlProjectionsForColumn,
 } from './column';
-import {SqlTableDescription} from './table_description';
+import {SqlTableDescription, startsHidden} from './table_description';
 
 interface ColumnOrderClause {
   // We only allow the table to be sorted by the columns which are displayed to
@@ -78,7 +79,7 @@ export class SqlTableState {
     this.filters = filters || [];
     this.columns = [];
     for (const column of this.table.columns) {
-      if (column.startsHidden) continue;
+      if (startsHidden(column)) continue;
       this.columns.push(columnFromSqlTableColumn(column));
     }
     this.orderBy = [];
