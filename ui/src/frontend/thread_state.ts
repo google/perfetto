@@ -22,14 +22,17 @@ import {
   TPDuration,
   TPTime,
 } from '../common/time';
-import {Anchor} from './anchor';
 
+import {Anchor} from './anchor';
 import {globals} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
+import {Icons} from './semantic_icons';
 import {
+  asTPTimestamp,
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
+  TPTimestamp,
   Utid,
 } from './sql_types';
 import {
@@ -50,7 +53,7 @@ export interface ThreadState {
   // Id of the corresponding entry in the |sched| table.
   schedSqlId?: SchedSqlId;
   // Timestamp of the beginning of this thread state in nanoseconds.
-  ts: TPTime;
+  ts: TPTimestamp;
   // Duration of this thread state in nanoseconds.
   dur: TPDuration;
   // CPU id if this thread state corresponds to a thread running on the CPU.
@@ -109,7 +112,7 @@ export async function getThreadStateFromConstraints(
     result.push({
       threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
       schedSqlId: fromNumNull(it.schedSqlId) as (SchedSqlId | undefined),
-      ts: it.ts,
+      ts: asTPTimestamp(it.ts),
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
       state: translateState(it.state || undefined, ioWait),
@@ -153,7 +156,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTime) {
 
 interface ThreadStateRefAttrs {
   id: ThreadStateSqlId;
-  ts: TPTime;
+  ts: TPTimestamp;
   dur: TPDuration;
   utid: Utid;
   // If not present, a placeholder name will be used.
@@ -165,7 +168,7 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
     return m(
         Anchor,
         {
-          icon: 'open_in_new',
+          icon: Icons.UpdateSelection,
           onclick: () => {
             let trackId: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {

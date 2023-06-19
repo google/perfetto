@@ -119,3 +119,11 @@ export async function getThreadInfo(
 export function getThreadName(info?: ThreadInfo): string|undefined {
   return getDisplayName(info?.name, info?.tid);
 }
+
+// Return the full thread name, including the process name.
+export function getFullThreadName(info?: ThreadInfo): string|undefined {
+  if (info?.process === undefined) {
+    return getThreadName(info);
+  }
+  return `${getThreadName(info)} ${getProcessName(info.process)}`;
+}
