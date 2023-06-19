@@ -22,11 +22,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/overlays/storage_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
+#include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/table.h"
 
 namespace perfetto {
@@ -125,10 +128,16 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   if (rm->empty())
     return;
 
+  if (col.sorted_intrinsically && c.op != FilterOp::kNe) {
+    BinarySearch(c, col, rm);
+    return;
+  }
+
   uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
   uint32_t range_size = rm_last - rm_first;
+
   // If the number of elements in the rowmap is small or the number of elements
   // is less than 1/10th of the range, use indexed filtering.
   // TODO(b/283763282): use Overlay estimations.
@@ -178,6 +187,45 @@ BitVector QueryExecutor::LinearSearch(const Constraint& c,
     filtered_storage = StorageBitVector({std::move(mapped_to_table.bv)});
   }
   return std::move(filtered_storage.bv);
+}
+
+void QueryExecutor::BinarySearch(const Constraint& c,
+                                 const SimpleColumn& col,
+                                 RowMap* rm) {
+  // TODO(b/283763282): We should align these to word boundaries.
+  TableRange table_range{Range(rm->Get(0), rm->Get(rm->size() - 1) + 1)};
+  base::SmallVector<Range, kMaxOverlayCount> overlay_bounds;
+
+  for (const auto& overlay : col.overlays) {
+    StorageRange storage_range = overlay->MapToStorageRange(table_range);
+    overlay_bounds.emplace_back(storage_range.range);
+    table_range = TableRange({storage_range.range});
+  }
+
+  // Use binary search algorithm on storage.
+  overlays::TableRangeOrBitVector res(
+      col.storage->BinarySearchIntrinsic(c.op, c.value, table_range.range));
+
+  OverlayOp op = overlays::FilterOpToOverlayOp(c.op);
+  for (uint32_t i = 0; i < col.overlays.size(); ++i) {
+    uint32_t rev_i = static_cast<uint32_t>(col.overlays.size()) - 1 - i;
+
+    if (res.IsBitVector()) {
+      TableBitVector t_bv = col.overlays[rev_i]->MapToTableBitVector(
+          StorageBitVector{res.TakeIfBitVector()}, op);
+      res.val = std::move(t_bv.bv);
+    } else {
+      res = col.overlays[rev_i]->MapToTableRangeOrBitVector(
+          StorageRange(res.TakeIfRange()), op);
+    }
+  }
+
+  if (res.IsBitVector()) {
+    rm->Intersect(RowMap(res.TakeIfBitVector()));
+    return;
+  }
+
+  rm->Intersect(RowMap(res.TakeIfRange().start, res.TakeIfRange().end));
 }
 
 RowMap QueryExecutor::IndexSearch(const Constraint& c,
@@ -253,10 +301,12 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
                                     overlays::OverlayOp::kOther &&
                                 col.type() != c.value.type);
-    use_legacy = use_legacy || col.IsSorted() || col.IsDense() || col.IsSetId();
+    use_legacy = use_legacy || col.IsDense() || col.IsSetId();
     use_legacy =
         use_legacy || (col.overlay().size() != col.storage_base().size() &&
                        !col.overlay().row_map().IsBitVector());
+    use_legacy = use_legacy ||
+                 (col.IsSorted() && col.overlay().row_map().IsIndexVector());
     if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
       continue;
@@ -266,7 +316,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     uint32_t s_size = col.storage_base().non_null_size();
 
     storage::NumericStorage storage(s_data, s_size, col.col_type());
-    SimpleColumn s_col{OverlaysVec(), &storage};
+    SimpleColumn s_col{OverlaysVec(), &storage, col.IsSorted()};
 
     overlays::SelectorOverlay selector_overlay(
         col.overlay().row_map().GetIfBitVector());

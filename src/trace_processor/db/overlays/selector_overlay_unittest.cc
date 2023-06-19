@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/overlays/selector_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -38,6 +39,26 @@ TEST(SelectorOverlay, MapToStorageRangeSecond) {
 
   ASSERT_EQ(r.range.start, 4u);
   ASSERT_EQ(r.range.end, 7u);
+}
+
+TEST(SelectorOverlay, MapToTableRangeFirst) {
+  BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1};
+  SelectorOverlay overlay(&selector);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(2, 5), OverlayOp::kOther);
+
+  ASSERT_EQ(r.TakeIfRange().start, 1u);
+  ASSERT_EQ(r.TakeIfRange().end, 3u);
+}
+
+TEST(SelectorOverlay, MapToTableRangeSecond) {
+  BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0};
+  SelectorOverlay overlay(&selector);
+  auto r = overlay.MapToTableRangeOrBitVector(StorageRange(0, 10),
+                                              OverlayOp::kOther);
+
+  ASSERT_EQ(r.TakeIfRange().start, 0u);
+  ASSERT_EQ(r.TakeIfRange().end, 6u);
 }
 
 TEST(SelectorOverlay, MapToTableBitVector) {
