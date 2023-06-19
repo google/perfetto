@@ -28,6 +28,7 @@ source_set("public") {
     "producer_abi.h",
     "stream_writer_abi.h",
     "tracing_session_abi.h",
+    "track_event_abi.h",
   ]
   public_deps = [ ":base" ]
 }

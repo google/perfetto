@@ -30,6 +30,8 @@ source_set("public") {
     "pb_msg.h",
     "producer.h",
     "stream_writer.h",
+    "te_category_macros.h",
+    "track_event.h",
   ]
   public_deps = [
     ":base",

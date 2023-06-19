@@ -9475,6 +9475,7 @@ filegroup {
         "src/shared_lib/producer.cc",
         "src/shared_lib/stream_writer.cc",
         "src/shared_lib/tracing_session.cc",
+        "src/shared_lib/track_event.cc",
     ],
 }
 

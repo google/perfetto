@@ -17,6 +17,7 @@ source_set("shared_lib") {
     "../../gn:default_deps",
     "../../include/perfetto/protozero",
     "../../include/perfetto/public",
+    "../base",
     "../tracing:client_api",
     "../tracing:platform_impl",
   ]
@@ -29,6 +30,7 @@ source_set("shared_lib") {
     "stream_writer.cc",
     "stream_writer.h",
     "tracing_session.cc",
+    "track_event.cc",
   ]
   defines = [ "PERFETTO_SHLIB_SDK_IMPLEMENTATION" ]
 }
