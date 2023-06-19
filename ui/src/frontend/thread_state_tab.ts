@@ -14,18 +14,25 @@
 
 import m from 'mithril';
 
-import {TPTime} from '../common/time';
+import {formatDurationShort, TPTime} from '../common/time';
 
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {globals} from './globals';
 import {asTPTimestamp, SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
+  getFullThreadName,
   getProcessName,
   getThreadName,
   ThreadInfo,
 } from './thread_and_process_info';
-import {getThreadState, goToSchedSlice, ThreadState} from './thread_state';
+import {
+  getThreadState,
+  getThreadStateFromConstraints,
+  goToSchedSlice,
+  ThreadState,
+  ThreadStateRef,
+} from './thread_state';
 import {DetailsShell} from './widgets/details_shell';
 import {Duration} from './widgets/duration';
 import {GridLayout} from './widgets/grid_layout';
@@ -39,10 +46,18 @@ interface ThreadStateTabConfig {
   readonly id: ThreadStateSqlId;
 }
 
+interface RelatedThreadStates {
+  prev?: ThreadState;
+  next?: ThreadState;
+  waker?: ThreadState;
+  wakee?: ThreadState[];
+}
+
 export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   static readonly kind = 'org.perfetto.ThreadStateTab';
 
   state?: ThreadState;
+  relatedStates?: RelatedThreadStates;
   loaded: boolean = false;
 
   static create(args: NewBottomTabArgs): ThreadStateTab {
@@ -52,11 +67,53 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   constructor(args: NewBottomTabArgs) {
     super(args);
 
-    getThreadState(this.engine, this.config.id).then((state?: ThreadState) => {
+    this.load().then(() => {
       this.loaded = true;
-      this.state = state;
       globals.rafScheduler.scheduleFullRedraw();
     });
+  }
+
+  async load() {
+    this.state = await getThreadState(this.engine, this.config.id);
+
+    if (!this.state) {
+      return;
+    }
+
+    const relatedStates: RelatedThreadStates = {};
+    relatedStates.prev = (await getThreadStateFromConstraints(this.engine, {
+      filters: [
+        `ts + dur = ${this.state.ts}`,
+        `utid = ${this.state.thread?.utid}`,
+      ],
+      limit: 1,
+    }))[0];
+    relatedStates.next = (await getThreadStateFromConstraints(this.engine, {
+      filters: [
+        `ts = ${this.state.ts + this.state.dur}`,
+        `utid = ${this.state.thread?.utid}`,
+      ],
+      limit: 1,
+    }))[0];
+    if (this.state.wakerThread?.utid !== undefined) {
+      relatedStates.waker = (await getThreadStateFromConstraints(this.engine, {
+        filters: [
+          `utid = ${this.state.wakerThread?.utid}`,
+          `ts <= ${this.state.ts}`,
+          `ts + dur >= ${this.state.ts}`,
+        ],
+      }))[0];
+    }
+    relatedStates.wakee = await getThreadStateFromConstraints(this.engine, {
+      filters: [
+        `waker_utid = ${this.state.thread?.utid}`,
+        `state = 'R'`,
+        `ts >= ${this.state.ts}`,
+        `ts <= ${this.state.ts + this.state.dur}`,
+      ],
+    });
+
+    this.relatedStates = relatedStates;
   }
 
   getTitle() {
@@ -75,7 +132,10 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
               Section,
               {title: 'Details'},
               this.state && this.renderTree(this.state),
-              )),
+              ),
+          m(Section,
+            {title: 'Related thread states'},
+            this.renderRelatedThreadStates())),
     );
   }
 
@@ -154,8 +214,63 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     );
   }
 
+  private renderRelatedThreadStates(): m.Children {
+    if (this.state === undefined || this.relatedStates === undefined) {
+      return 'Loading';
+    }
+    const startTs = this.state.ts;
+    const renderRef = (state: ThreadState, name?: string) => m(ThreadStateRef, {
+      id: state.threadStateSqlId,
+      ts: state.ts,
+      dur: state.dur,
+      utid: state.thread!.utid,
+      name,
+    });
+
+    const nameForNextOrPrev = (state: ThreadState) =>
+        `${state.state} for ${formatDurationShort(state.dur)}`;
+    return m(
+        Tree,
+        this.relatedStates.waker && m(TreeNode, {
+          left: 'Waker',
+          right: renderRef(
+              this.relatedStates.waker,
+              getFullThreadName(this.relatedStates.waker.thread)),
+        }),
+        this.relatedStates.prev && m(TreeNode, {
+          left: 'Previous state',
+          right: renderRef(
+              this.relatedStates.prev,
+              nameForNextOrPrev(this.relatedStates.prev)),
+        }),
+        this.relatedStates.next && m(TreeNode, {
+          left: 'Next state',
+          right: renderRef(
+              this.relatedStates.next,
+              nameForNextOrPrev(this.relatedStates.next)),
+        }),
+        this.relatedStates.wakee && this.relatedStates.wakee.length > 0 &&
+            m(TreeNode,
+              {
+                left: 'Woken threads',
+              },
+              this.relatedStates.wakee.map(
+                  (state) =>
+                      m(TreeNode, ({
+                          left: m(Timestamp, {
+                            ts: state.ts,
+                            display: `Start+${
+                                formatDurationShort(state.ts - startTs)}`,
+                          }),
+                          right:
+                              renderRef(state, getFullThreadName(state.thread)),
+                        })))),
+    );
+  }
+
+
   isLoading() {
-    return this.state === undefined;
+    return this.state === undefined || this.relatedStates === undefined;
   }
 
   renderTabCanvas(): void {}
