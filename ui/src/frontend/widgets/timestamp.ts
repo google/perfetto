@@ -30,6 +30,9 @@ interface TimestampAttrs {
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.
   ts: TPTimestamp;
+  // Custom text value to show instead of the default HH:MM:SS.mmm uuu nnn
+  // formatting.
+  display?: m.Children;
   extraMenuItems?: m.Child[];
 }
 
@@ -49,7 +52,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
                   globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
                 },
               },
-              renderTimecode(ts)),
+              attrs.display ?? renderTimecode(ts)),
         },
         m(MenuItem, {
           icon: Icons.Copy,
