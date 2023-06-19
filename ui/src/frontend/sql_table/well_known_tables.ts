@@ -102,9 +102,7 @@ const sliceTable: SqlTableDescription = {
     {
       name: 'arg_set_id',
       title: 'Arg',
-      display: {
-        type: 'arg_set_id',
-      },
+      type: 'arg_set_id',
     },
   ],
 };
