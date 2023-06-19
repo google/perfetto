@@ -27,7 +27,7 @@ import {
 } from '../sql_types';
 
 export type ArgValue = bigint|string|number|boolean|null;
-type ArgValueType = 'int'|'uint'|'string'|'bool'|'real'|'null';
+type ArgValueType = 'int'|'uint'|'pointer'|'string'|'bool'|'real'|'null';
 
 export interface Arg {
   id: ArgsId;
@@ -90,6 +90,9 @@ function parseValue(valueType: ArgValueType, value: {
     case 'int':
     case 'uint':
       return value.intValue;
+    case 'pointer':
+      return value.intValue === null ? null :
+                                       `0x${value.intValue.toString(16)}`;
     case 'string':
       return value.stringValue;
     case 'bool':
