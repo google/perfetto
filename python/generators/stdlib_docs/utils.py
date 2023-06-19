@@ -12,14 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from enum import Enum
 import re
 from typing import Dict, List
-
-from python.generators.stdlib_docs.types import ObjKind
 
 LOWER_NAME = r'[a-z_\d]+'
 UPPER_NAME = r'[A-Z_\d]+'
 ANY_WORDS = r'[^\s].*'
+ANY_NON_QUOTE = r'[^\']*.*'
 TYPE = r'[A-Z]+'
 SQL = r'[\s\S]*?'
 
@@ -47,9 +47,16 @@ CREATE_VIEW_FUNCTION_PATTERN = (
     # Args: anything before closing bracket with '.
     fr"({ANY_WORDS})\)',\s*"
     # Return columns: anything between two '.
-    fr"'\s*({ANY_WORDS})',\s*"
+    fr"'\s*({ANY_NON_QUOTE})\s*',\s*"
     # Sql: Anything between ' and ');. We are catching \'.
     fr"'({SQL})'\s*\);")
+
+
+class ObjKind(str, Enum):
+  table_view = 'table_view'
+  function = 'function'
+  view_function = 'view_function'
+
 
 PATTERN_BY_KIND = {
     ObjKind.table_view: CREATE_TABLE_VIEW_PATTERN,
