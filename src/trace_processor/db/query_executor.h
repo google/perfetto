@@ -42,6 +42,8 @@ class QueryExecutor {
     base::SmallVector<const overlays::StorageOverlay*, kMaxOverlayCount>
         overlays;
     const storage::Storage* storage;
+    // TODO(b/283763282): Move knowledge about sorted state to Storage
+    bool sorted_intrinsically = false;
   };
 
   // |row_count| is the size of the last overlay.
@@ -85,6 +87,12 @@ class QueryExecutor {
     return IndexSearch(c, col, rm);
   }
 
+  static void BinarySearchForTesting(const Constraint& c,
+                                     const SimpleColumn& col,
+                                     RowMap* rm) {
+    BinarySearch(c, col, rm);
+  }
+
  private:
   // Updates RowMap with result of filtering single column using the Constraint.
   static void FilterColumn(const Constraint&, const SimpleColumn&, RowMap*);
@@ -94,6 +102,8 @@ class QueryExecutor {
   static BitVector LinearSearch(const Constraint&,
                                 const SimpleColumn&,
                                 RowMap*);
+
+  static void BinarySearch(const Constraint&, const SimpleColumn&, RowMap*);
 
   // Filters the column using Index algorithm - finds the indices to filter the
   // storage with.

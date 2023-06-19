@@ -40,6 +40,25 @@ TEST(NullOverlay, MapToStorageRangeOnBoundary) {
   ASSERT_EQ(r.range.end, 4u);
 }
 
+TEST(NullOverlay, MapToTableRangeOutsideBoundary) {
+  BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
+  NullOverlay overlay(&bv);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(1, 3), OverlayOp::kOther);
+
+  // All set bits between |bv| index 3 and 6.
+  ASSERT_EQ(r.TakeIfBitVector().CountSetBits(), 2u);
+}
+
+TEST(NullOverlay, MapToTableRangeOnBoundary) {
+  BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
+  NullOverlay overlay(&bv);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(0, 5), OverlayOp::kOther);
+
+  ASSERT_EQ(r.TakeIfBitVector().CountSetBits(), 5u);
+}
+
 TEST(NullOverlay, MapToTableBitVector) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
   NullOverlay overlay(&bv);
