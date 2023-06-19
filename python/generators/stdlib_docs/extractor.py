@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from re import Match
 from typing import List, Optional, Tuple
 
-from python.generators.stdlib_docs.types import ObjKind
+from python.generators.stdlib_docs.utils import ObjKind
 from python.generators.stdlib_docs.utils import extract_comment
 from python.generators.stdlib_docs.utils import match_pattern
 from python.generators.stdlib_docs.utils import PATTERN_BY_KIND
