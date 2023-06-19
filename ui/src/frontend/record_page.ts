@@ -767,6 +767,10 @@ export const RecordPage = createPage({
       } as RecordingSectionAttrs));
     }
 
+    if (isChromeTarget(globals.state.recordingTarget)) {
+      globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
+    }
+
     return m(
         '.record-page',
         globals.state.recordingInProgress ? m('.hider') : [],
