@@ -40,7 +40,7 @@ interface ThreadStateTabConfig {
 }
 
 export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
-  static readonly kind = 'org.perfetto.ThreadStateTab';
+  static readonly kind = 'dev.perfetto.ThreadStateTab';
 
   state?: ThreadState;
   loaded: boolean = false;

@@ -46,7 +46,7 @@ export type GenericSliceDetailsTabConfig = GenericSliceDetailsTabConfigBase&{
 // need to be rendered and how.
 export class GenericSliceDetailsTab extends
     BottomTab<GenericSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.GenericSliceDetailsTab';
+  static readonly kind = 'dev.perfetto.GenericSliceDetailsTab';
 
   data: {[key: string]: ColumnType}|undefined;
 
