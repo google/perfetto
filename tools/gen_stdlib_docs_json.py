@@ -71,6 +71,11 @@ def main():
     import_key = path.split(".sql")[0].replace("/", ".")
 
     docs = parse_file_to_dict(path, sql)
+    if isinstance(docs, list):
+      for d in docs:
+        print(d)
+      return 1
+
     assert isinstance(docs, dict)
     if not any(docs.values()):
       continue
