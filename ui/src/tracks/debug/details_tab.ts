@@ -87,7 +87,7 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
 
 export class DebugSliceDetailsTab extends
     BottomTab<DebugSliceDetailsTabConfig> {
-  static readonly kind = 'org.perfetto.DebugSliceDetailsTab';
+  static readonly kind = 'dev.perfetto.DebugSliceDetailsTab';
 
   data?: {
     name: string,
