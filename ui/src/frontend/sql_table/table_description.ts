@@ -21,7 +21,7 @@
 // additional filtering.
 
 export type DisplayConfig =
-    SliceIdDisplayConfig|Timestamp|Duration|ThreadDuration|ArgSetId;
+    SliceIdDisplayConfig|Timestamp|Duration|ThreadDuration;
 
 // Common properties for all columns.
 interface SqlTableColumnBase {
@@ -29,8 +29,6 @@ interface SqlTableColumnBase {
   name: string;
   // Display name of the column in the UI.
   title?: string;
-  // Whether the column should be hidden by default.
-  startsHidden?: boolean;
 }
 
 export interface ArgSetIdColumn extends SqlTableColumnBase {
@@ -41,9 +39,16 @@ export interface RegularSqlTableColumn extends SqlTableColumnBase {
   // Special rendering instructions for this column, including the list
   // of additional columns required for the rendering.
   display?: DisplayConfig;
+  // Whether the column should be hidden by default.
+  startsHidden?: boolean;
 }
 
 export type SqlTableColumn = RegularSqlTableColumn|ArgSetIdColumn;
+
+export function startsHidden(c: SqlTableColumn): boolean {
+  if (isArgSetIdColumn(c)) return true;
+  return c.startsHidden ?? false;
+}
 
 export function isArgSetIdColumn(c: SqlTableColumn): c is ArgSetIdColumn {
   return (c as {type?: string}).type === 'arg_set_id';
@@ -88,10 +93,4 @@ export interface Duration {
 // Column displaying thread durations.
 export interface ThreadDuration {
   type: 'thread_duration';
-}
-
-// Column corresponding to an arg_set_id. Will never be directly displayed,
-// but will allow the user select an argument to display from the arg_set.
-export interface ArgSetId {
-  type: 'arg_set_id';
 }
