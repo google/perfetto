@@ -14,12 +14,14 @@
 
 import m from 'mithril';
 
+import {Actions} from '../../common/actions';
 import {Timecode, toDomainTime} from '../../common/time';
+import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
+import {globals} from '../globals';
 import {Icons} from '../semantic_icons';
 import {TPTimestamp} from '../sql_types';
 
-import {Button} from './button';
 import {MenuItem, PopupMenu2} from './menu';
 
 // import {MenuItem, PopupMenu2} from './menu';
@@ -28,31 +30,35 @@ interface TimestampAttrs {
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.
   ts: TPTimestamp;
+  extraMenuItems?: m.Child[];
 }
 
 export class Timestamp implements m.ClassComponent<TimestampAttrs> {
   view({attrs}: m.Vnode<TimestampAttrs>) {
     const {ts} = attrs;
     return m(
-        'span.pf-timecode',
-        renderTimecode(ts),
-        m(
-            PopupMenu2,
-            {
-              trigger: m(Button, {
-                icon: Icons.ContextMenu,
-                compact: true,
-                minimal: true,
-              }),
-            },
-            m(MenuItem, {
-              icon: Icons.Copy,
-              label: `Copy raw value`,
-              onclick: () => {
-                copyToClipboard(ts.toString());
+        PopupMenu2,
+        {
+          trigger: m(
+              Anchor,
+              {
+                onmouseover: () => {
+                  globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
+                },
+                onmouseout: () => {
+                  globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
+                },
               },
-            }),
-            ),
+              renderTimecode(ts)),
+        },
+        m(MenuItem, {
+          icon: Icons.Copy,
+          label: `Copy raw value`,
+          onclick: () => {
+            copyToClipboard(ts.toString());
+          },
+        }),
+        ...(attrs.extraMenuItems ?? []),
     );
   }
 }
@@ -60,11 +66,12 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
 export function renderTimecode(ts: TPTimestamp): m.Children {
   const relTime = toDomainTime(ts);
   const {dhhmmss, millis, micros, nanos} = new Timecode(relTime);
-  return [
-    m('span.pf-timecode-hms', dhhmmss),
-    '.',
-    m('span.pf-timecode-millis', millis),
-    m('span.pf-timecode-micros', micros),
-    m('span.pf-timecode-nanos', nanos),
-  ];
+  return m(
+      'span.pf-timecode',
+      m('span.pf-timecode-hms', dhhmmss),
+      '.',
+      m('span.pf-timecode-millis', millis),
+      m('span.pf-timecode-micros', micros),
+      m('span.pf-timecode-nanos', nanos),
+  );
 }
