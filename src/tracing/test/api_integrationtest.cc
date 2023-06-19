@@ -3092,13 +3092,15 @@ TEST_P(PerfettoApiTest, InlineTypedExtensionField) {
     TRACE_EVENT(
         "test", "TestEventWithExtensionArgs",
         perfetto::protos::pbzero::TestExtension::kIntExtensionForTesting,
-        std::vector<int>{42});
+        std::vector<int>{42},
+        perfetto::protos::pbzero::TestExtension::kUintExtensionForTesting, 42u);
   }
 
   std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
   EXPECT_GE(raw_trace.size(), 0u);
 
-  bool found_extension = false;
+  bool found_int_extension = false;
+  bool found_uint_extension = false;
   perfetto::protos::pbzero::Trace_Decoder trace(
       reinterpret_cast<uint8_t*>(raw_trace.data()), raw_trace.size());
 
@@ -3116,12 +3118,17 @@ TEST_P(PerfettoApiTest, InlineTypedExtensionField) {
          f = decoder.ReadField()) {
       if (f.id() == perfetto::protos::pbzero::TestExtension::
                         FieldMetadata_IntExtensionForTesting::kFieldId) {
-        found_extension = true;
+        found_int_extension = true;
+      } else if (f.id() ==
+                 perfetto::protos::pbzero::TestExtension::
+                     FieldMetadata_UintExtensionForTesting::kFieldId) {
+        found_uint_extension = true;
       }
     }
   }
 
-  EXPECT_TRUE(found_extension);
+  EXPECT_TRUE(found_int_extension);
+  EXPECT_TRUE(found_uint_extension);
 }
 
 TEST_P(PerfettoApiTest, TrackEventInstant) {

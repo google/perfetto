@@ -31,6 +31,7 @@ message TestExtension {
     repeated int32 int_extension_for_testing = 9901;
     optional string omitted_extension_for_testing = 9902;
     optional TestExtensionChild nested_message_extension_for_testing = 9903;
+    optional uint32 uint_extension_for_testing = 9904;
   }
 }
 
