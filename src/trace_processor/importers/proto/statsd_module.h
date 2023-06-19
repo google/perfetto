@@ -63,7 +63,13 @@ class StatsdModule : public ProtoImporterModule {
 
   ~StatsdModule() override;
 
-  void ParseTracePacketData(const protos::pbzero::TracePacket_Decoder& decoder,
+  ModuleResult TokenizePacket(const protos::pbzero::TracePacket::Decoder&,
+                              TraceBlobView* packet,
+                              int64_t packet_timestamp,
+                              PacketSequenceState* state,
+                              uint32_t field_id) override;
+
+  void ParseTracePacketData(const protos::pbzero::TracePacket::Decoder& decoder,
                             int64_t ts,
                             const TracePacketData&,
                             uint32_t field_id) override;
