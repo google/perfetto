@@ -25,7 +25,7 @@ import {asSliceSqlId, asTPTimestamp} from '../sql_types';
 import {sqlValueToString} from '../sql_utils';
 import {Err} from '../widgets/error';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
-import {renderTimecode} from '../widgets/timestamp';
+import {Timestamp} from '../widgets/timestamp';
 
 import {Column} from './column';
 import {SqlTableState} from './state';
@@ -83,11 +83,6 @@ function displayValue(value: SqlValue): m.Child {
   return sqlValueToString(value);
 }
 
-function displayTimestamp(value: SqlValue): m.Children {
-  if (typeof value !== 'bigint') return displayValue(value);
-  return renderTimecode(asTPTimestamp(value));
-}
-
 function displayDuration(value: TPTime): string;
 function displayDuration(value: SqlValue): m.Children;
 function displayDuration(value: SqlValue): m.Children {
@@ -100,8 +95,6 @@ function display(column: Column, row: Row): m.Children {
 
   // Handle all cases when we have non-trivial formatting.
   switch (column.display?.type) {
-    case 'timestamp':
-      return displayTimestamp(value);
     case 'duration':
     case 'thread_duration':
       return displayDuration(value);
@@ -125,11 +118,6 @@ function getContextMenuItems(
   const result: m.Child[] = [];
   const value = row[column.alias];
 
-  if (column.display?.type === 'timestamp' && typeof value === 'bigint') {
-    result.push(copyMenuItem('Copy raw timestamp', `${value}`));
-    // result.push(
-    //    copyMenuItem('Copy formatted timestamp', displayTimestamp(value)));
-  }
   if ((column.display?.type === 'duration' ||
        column.display?.type === 'thread_duration') &&
       typeof value === 'bigint') {
@@ -148,6 +136,32 @@ function getContextMenuItems(
   }
 
   return result;
+}
+
+function renderStandardColumn(
+    column: Column, row: Row, state: SqlTableState): m.Children {
+  const displayValue = display(column, row);
+  const contextMenuItems: m.Child[] = getContextMenuItems(column, row, state);
+  return m(
+      PopupMenu2,
+      {
+        trigger: m(Anchor, displayValue),
+      },
+      ...contextMenuItems,
+  );
+}
+
+function renderTimestampColumn(
+    column: Column, row: Row, state: SqlTableState): m.Children {
+  const value = row[column.alias];
+  if (typeof value !== 'bigint') {
+    return renderStandardColumn(column, row, state);
+  }
+
+  return m(Timestamp, {
+    ts: asTPTimestamp(value),
+    extraMenuItems: getContextMenuItems(column, row, state),
+  });
 }
 
 function renderSliceIdColumn(
@@ -193,14 +207,8 @@ export function renderCell(
   if (column.display && column.display.type === 'slice_id') {
     return renderSliceIdColumn(
         {alias: column.alias, display: column.display}, row);
+  } else if (column.display && column.display.type === 'timestamp') {
+    return renderTimestampColumn(column, row, state);
   }
-  const displayValue = display(column, row);
-  const contextMenuItems: m.Child[] = getContextMenuItems(column, row, state);
-  return m(
-      PopupMenu2,
-      {
-        trigger: m(Anchor, displayValue),
-      },
-      ...contextMenuItems,
-  );
+  return renderStandardColumn(column, row, state);
 }

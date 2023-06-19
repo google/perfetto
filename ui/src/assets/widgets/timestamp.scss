@@ -14,23 +14,17 @@
 
 @import "theme";
 
-// Make millis, micros, & nanos slightly smaller than hh:mm:ss for readability.
-$subsec-font-size: 0.9em;
-
 .pf-timecode {
   // Spacing the sub sections using CSS rather than spaces makes the spaces
   // disappear when copying.
   .pf-timecode-millis {
     margin-left: 1px;
-    font-size: $subsec-font-size;
   }
   .pf-timecode-micros {
     margin-left: 2px;
-    font-size: $subsec-font-size;
   }
   .pf-timecode-nanos {
     margin-left: 2px;
-    font-size: $subsec-font-size;
   }
   .pf-button {
     margin-left: 2px;
