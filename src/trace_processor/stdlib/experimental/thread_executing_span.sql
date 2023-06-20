@@ -42,7 +42,7 @@ SELECT
   thread_state.waker_utid
 FROM thread_state
 WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
-   AND thread_state.irq_context = 0 OR thread_state.irq_context IS NULL;
+   AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
 -- Similar to |internal_runnable_state| but finds the runnable states at thread fork.
 CREATE VIEW internal_fork_runnable_state
