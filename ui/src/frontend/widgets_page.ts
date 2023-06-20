@@ -23,6 +23,7 @@ import {PopupMenuButton} from './popup_menu';
 import {Icons} from './semantic_icons';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
+import {Callout} from './widgets/callout';
 import {Checkbox} from './widgets/checkbox';
 import {EmptyState} from './widgets/empty_state';
 import {Form, FormButtonBar, FormLabel} from './widgets/form';
@@ -649,6 +650,20 @@ export const WidgetsPage = createPage({
               }),
             ),
           }),
+          m('h2', 'Callout'),
+          m(
+            WidgetShowcase, {
+              renderWidget: () => m(
+                Callout,
+                {
+                  icon: 'info',
+                },
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
+                'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
+                'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
+                'finibus est.',
+              ),
+            }),
     );
   },
 });

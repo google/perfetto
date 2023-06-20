@@ -262,14 +262,22 @@ $bottom-tab-padding: 10px;
   }
 }
 
-.query-table {
-  width: 100%;
+.pf-query-panel {
+  display: contents;
+  .pf-query-warning {
+    padding: 4px;
+    position: sticky;
+    left: 0;
+  }
+}
+
+.pf-query-table {
+  min-width: 100%;
   font-size: 14px;
   border: 0;
   thead td {
-    // TODO(stevegolton): Get sticky working again.
-    // position: sticky;
-    // top: 0;
+    position: sticky;
+    top: 0;
     background-color: hsl(214, 22%, 90%);
     color: #262f3c;
     text-align: center;
