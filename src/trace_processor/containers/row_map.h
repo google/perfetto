@@ -244,6 +244,9 @@ class RowMap {
     NoVariantMatched();
   }
 
+  // Returns maximum size of the output. Ie range.end or size of the BV.
+  OutputIndex output_size() const;
+
   // Returns whether the RowMap contains the given index.
   bool Contains(OutputIndex index) const {
     if (auto* range = std::get_if<Range>(&data_)) {
