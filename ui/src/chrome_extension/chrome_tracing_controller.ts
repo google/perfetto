@@ -178,7 +178,7 @@ export class ChromeTracingController extends RpcConsumerPort {
     };
     this.sendMessage(response);
     if (res.eof) return;
-    this.readBuffers(offset + res.data.length);
+    this.readBuffers(offset + chunk.length);
   }
 
   async disableTracing() {
