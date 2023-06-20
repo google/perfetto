@@ -90,7 +90,7 @@ bool MessageFilter::SetFilterRoot(const uint32_t* field_ids,
   for (const uint32_t* it = field_ids; it < field_ids + num_fields; ++it) {
     uint32_t field_id = *it;
     auto res = filter_.Query(root_msg_idx, field_id);
-    if (!res.allowed || res.simple_field())
+    if (!res.allowed || !res.nested_msg_field())
       return false;
     root_msg_idx = res.nested_msg_index;
   }
@@ -199,7 +199,8 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
             return SetUnrecoverableErrorState();
           }
 
-          if (filter.allowed && !filter.simple_field() && submessage_len > 0) {
+          if (filter.allowed && filter.nested_msg_field() &&
+              submessage_len > 0) {
             // submessage_len == 0 is the edge case of a message with a 0-len
             // (but present) submessage. In this case, if allowed, we don't want
             // to push any further state (doing so would desync the FSM) but we

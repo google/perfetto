@@ -46,15 +46,19 @@ class FilterBytecodeParser {
   struct QueryResult {
     bool allowed;  // Whether the field is allowed at all or no.
 
-    // If |allowed|==true && simple_field()==false, this tells the message index
-    // of the nested field that should be used when recursing in the parser.
+    // If |allowed|==true && nested_msg_field() == true, this tells the message
+    // index of the nested field that should be used when recursing in the
+    // parser.
     uint32_t nested_msg_index;
 
     // If |allowed|==true, specifies if the field is of a simple type (varint,
-    // fixed32/64, string or byte) or a nested field that needs recursion.
-    // In the latter case the caller is expected to use |nested_msg_index| for
-    // the next Query() calls.
+    // fixed32/64, string or byte).
     bool simple_field() const { return nested_msg_index == kSimpleField; }
+
+    // If |allowed|==true, specifies if the field is a nested field that needs
+    // recursion. The caller is expected to use |nested_msg_index| for the next
+    // Query() calls.
+    bool nested_msg_field() const { return nested_msg_index < kSimpleField; }
   };
 
   // Loads a filter. The filter data consists of a sequence of varints which
