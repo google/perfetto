@@ -326,9 +326,9 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
   auto range = display_token_to_surface_slice_.equal_range(token);
   if (opt_slice_id) {
     for (auto it = range.first; it != range.second; ++it) {
-      SliceId display_slice = *opt_slice_id;  // SurfaceFlinger
       SliceId surface_slice = it->second;     // App
-      context_->flow_tracker->InsertFlow(display_slice, surface_slice);
+      SliceId display_slice = *opt_slice_id;  // SurfaceFlinger
+      context_->flow_tracker->InsertFlow(surface_slice, display_slice);
     }
   }
   display_token_to_surface_slice_.erase(range.first, range.second);
