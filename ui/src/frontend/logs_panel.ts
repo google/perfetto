@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time';
 import {
@@ -30,21 +29,20 @@ import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
 import {asTPTimestamp} from './sql_types';
+import {DetailsShell} from './widgets/details_shell';
 import {Timestamp} from './widgets/timestamp';
+import {VirtualScrollContainer} from './widgets/virtual_scroll_container';
 
 const ROW_H = 20;
 
 export class LogPanel extends Panel<{}> {
-  private scrollContainer?: HTMLElement;
   private bounds?: LogBounds;
   private entries?: LogEntries;
 
   private visibleRowOffset = 0;
   private visibleRowCount = 0;
 
-  recomputeVisibleRowsAndUpdate() {
-    const scrollContainer = assertExists(this.scrollContainer);
-
+  recomputeVisibleRowsAndUpdate(scrollContainer: HTMLElement) {
     const prevOffset = this.visibleRowOffset;
     const prevCount = this.visibleRowCount;
     this.visibleRowOffset = Math.floor(scrollContainer.scrollTop / ROW_H);
@@ -59,15 +57,11 @@ export class LogPanel extends Panel<{}> {
     }
   }
 
-  oncreate({dom}: m.CVnodeDOM) {
-    this.scrollContainer = assertExists(dom.parentElement as HTMLElement);
-    this.scrollContainer.addEventListener(
-        'scroll', this.onScroll.bind(this), {passive: true});
+  oncreate(_: m.CVnodeDOM) {
     // TODO(stevegolton): Type assersions are a source of bugs.
     // Let's try to find another way of doing this.
     this.bounds = globals.trackDataStore.get(LogBoundsKey) as LogBounds;
     this.entries = globals.trackDataStore.get(LogEntriesKey) as LogEntries;
-    this.recomputeVisibleRowsAndUpdate();
   }
 
   onbeforeupdate(_: m.CVnodeDOM) {
@@ -75,14 +69,12 @@ export class LogPanel extends Panel<{}> {
     // Let's try to find another way of doing this.
     this.bounds = globals.trackDataStore.get(LogBoundsKey) as LogBounds;
     this.entries = globals.trackDataStore.get(LogEntriesKey) as LogEntries;
-    this.recomputeVisibleRowsAndUpdate();
   }
 
-  onScroll() {
-    if (this.scrollContainer === undefined) return;
-    this.recomputeVisibleRowsAndUpdate();
+  onScroll = (scrollContainer: HTMLElement) => {
+    this.recomputeVisibleRowsAndUpdate(scrollContainer);
     globals.rafScheduler.scheduleFullRedraw();
-  }
+  };
 
   onRowOver(ts: TPTime) {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
@@ -167,18 +159,22 @@ export class LogPanel extends Panel<{}> {
       }
     }
 
+    // TODO(stevegolton): Add a 'loading' state to DetailsShell, which shows a
+    // scrolling scrolly bar at the bottom of the banner & map isStale to it
     return m(
-        '.log-panel',
-        m('header',
-          {
-            'class': isStale ? 'stale' : '',
-          },
-          [
-            m('.log-rows-label',
-              `Logs rows [${offset}, ${offset + count}] / ${total}`),
-            m(LogsFilters),
-          ]),
-        m('.rows', {style: {height: `${total * ROW_H}px`}}, rows));
+        DetailsShell,
+        {
+          title: 'Android Logs',
+          description: `[${offset}, ${offset + count}] / ${total}`,
+          buttons: m(LogsFilters),
+        },
+        m(
+            VirtualScrollContainer,
+            {onScroll: this.onScroll},
+            m('.log-panel',
+              m('.rows', {style: {height: `${total * ROW_H}px`}}, rows)),
+            ),
+    );
   }
 
   renderCanvas() {}
