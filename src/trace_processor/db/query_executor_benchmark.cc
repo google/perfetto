@@ -270,6 +270,13 @@ static void BM_QEFilterWithDenseSelector(benchmark::State& state) {
 
 BENCHMARK(BM_QEFilterWithDenseSelector)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QEFilterId(benchmark::State& state) {
+  FtraceEventTableForBenchmark table(state);
+  BenchmarkFtraceEventTable(state, table, table.table_.id().eq(500));
+}
+
+BENCHMARK(BM_QEFilterId)->ArgsProduct({{DB::V1, DB::V2}});
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
