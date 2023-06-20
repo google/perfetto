@@ -64,11 +64,9 @@ current_ua (R	currentUa$
 timestamp_ns (RtimestampNs
 duration_ns (R
 durationNs
-¹
-Wprotos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"”
-,AndroidSysUINotificationsBlockingCallsMetricq
-blocking_calls (2J.perfetto.protos.AndroidSysUINotificationsBlockingCallsMetric.BlockingCallRblockingCallsð
-BlockingCall
+€
+;protos/perfetto/metrics/android/android_blocking_call.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"÷
+AndroidBlockingCall
 name (	Rname
 cnt (Rcnt 
 total_dur_ms (R
@@ -83,26 +81,21 @@ totalDurNs
 max_dur_ns (RmaxDurNs
 
 min_dur_ns (RminDurNs
-„
-Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ï
+Ü
+Wprotos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.protoperfetto.protos;protos/perfetto/metrics/android/android_blocking_call.proto6protos/perfetto/metrics/android/process_metadata.proto"{
+,AndroidSysUINotificationsBlockingCallsMetricK
+blocking_calls (2$.perfetto.protos.AndroidBlockingCallRblockingCalls
+•
+Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfetto.protos;protos/perfetto/metrics/android/android_blocking_call.proto6protos/perfetto/metrics/android/process_metadata.proto"Ã
 AndroidBlockingCallsCujMetricD
-cuj (22.perfetto.protos.AndroidBlockingCallsCujMetric.CujRcujò
+cuj (22.perfetto.protos.AndroidBlockingCallsCujMetric.CujRcujÛ
 Cuj
 id (Rid
 name (	RnameA
 process (2'.perfetto.protos.AndroidProcessMetadataRprocess
 ts (Rts
-dur (Rdurb
-blocking_calls (2;.perfetto.protos.AndroidBlockingCallsCujMetric.BlockingCallRblockingCalls’
-BlockingCall
-name (	Rname
-cnt (Rcnt 
-total_dur_ms (R
-totalDurMs
-
-max_dur_ms (RmaxDurMs
-
-min_dur_ms (RminDurMs
+dur (RdurK
+blocking_calls (2$.perfetto.protos.AndroidBlockingCallRblockingCalls
 Ô
 0protos/perfetto/metrics/android/cpu_metric.protoperfetto.protos"Ž
 AndroidCpuMetricL
