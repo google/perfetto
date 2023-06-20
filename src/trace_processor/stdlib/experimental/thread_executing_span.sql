@@ -339,6 +339,8 @@ ON experimental_thread_executing_span_graph(parent_id);
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
 -- @column blocked_function   Kernel blocking function of thread state before waking up.
+-- @column is_root            Whether this span is the root in the slice tree.
+-- @column is_leaf            Whether this span is the leaf in the slice tree.
 -- @column depth              Tree depth from |root_id|
 -- @column root_id            Thread state id used to start the recursion. Helpful for SQL JOINs
 SELECT CREATE_VIEW_FUNCTION(
@@ -410,6 +412,8 @@ SELECT * FROM chain
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
 -- @column blocked_function   Kernel blocking function of thread state before waking up.
+-- @column is_root            Whether this span is the root in the slice tree.
+-- @column is_leaf            Whether this span is the leaf in the slice tree.
 -- @column height             Tree height from |leaf_id|
 -- @column leaf_id            Thread state id used to start the recursion. Helpful for SQL JOINs
 SELECT CREATE_VIEW_FUNCTION(
