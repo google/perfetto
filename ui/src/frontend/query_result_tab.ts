@@ -105,6 +105,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     return m(QueryTable, {
       query: this.config.query,
       resp: this.queryResponse,
+      fillParent: true,
       onClose: () => closeTab(this.uuid),
       contextButtons: [
         this.sqlViewName === undefined ?
