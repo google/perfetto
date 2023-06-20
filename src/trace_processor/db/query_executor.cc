@@ -22,12 +22,14 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/overlays/storage_overlay.h"
 #include "src/trace_processor/db/overlays/types.h"
 #include "src/trace_processor/db/query_executor.h"
+#include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/table.h"
@@ -294,39 +296,58 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
     const Column& col = table->columns()[c.col_idx];
+    uint32_t column_size = col.IsId() ? col.overlay().row_map().output_size()
+                                      : col.storage_base().size();
+
+    // RowMap size
     bool use_legacy = rm.size() == 1;
+
+    // Column types
     use_legacy = use_legacy || col.col_type() == ColumnType::kString ||
-                 col.col_type() == ColumnType::kDummy ||
-                 col.col_type() == ColumnType::kId;
+                 col.col_type() == ColumnType::kDummy;
+
+    // Mismatched types
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
                                     overlays::OverlayOp::kOther &&
                                 col.type() != c.value.type);
+
+    // Specific column flags.
     use_legacy = use_legacy || col.IsDense() || col.IsSetId();
-    use_legacy =
-        use_legacy || (col.overlay().size() != col.storage_base().size() &&
-                       !col.overlay().row_map().IsBitVector());
+
+    // Non bit vector based selector
+    use_legacy = use_legacy || (col.overlay().size() != column_size &&
+                                !col.overlay().row_map().IsBitVector());
+
+    // Extrinsically sorted columns
     use_legacy = use_legacy ||
                  (col.IsSorted() && col.overlay().row_map().IsIndexVector());
+
     if (use_legacy) {
       col.FilterInto(c.op, c.value, &rm);
       continue;
     }
 
-    const void* s_data = col.storage_base().data();
-    uint32_t s_size = col.storage_base().non_null_size();
-
-    storage::NumericStorage storage(s_data, s_size, col.col_type());
-    SimpleColumn s_col{OverlaysVec(), &storage, col.IsSorted()};
+    std::unique_ptr<Storage> storage;
+    SimpleColumn s_col{OverlaysVec(), nullptr, col.IsSorted()};
+    if (col.IsId()) {
+      storage.reset(new storage::IdStorage(column_size));
+    } else {
+      storage.reset(new storage::NumericStorage(
+          col.storage_base().data(), col.storage_base().non_null_size(),
+          col.col_type()));
+    }
+    s_col.storage = storage.get();
 
     overlays::SelectorOverlay selector_overlay(
         col.overlay().row_map().GetIfBitVector());
-    if (col.overlay().size() != col.storage_base().size())
+    if (col.overlay().size() != column_size)
       s_col.overlays.emplace_back(&selector_overlay);
 
-    overlays::NullOverlay null_overlay(col.storage_base().bv());
-    if (col.IsNullable()) {
+    BitVector null_bv;
+    overlays::NullOverlay null_overlay(
+        col.IsNullable() ? col.storage_base().bv() : &null_bv);
+    if (col.IsNullable())
       s_col.overlays.emplace_back(&null_overlay);
-    }
 
     uint32_t pre_count = rm.size();
     FilterColumn(c, s_col, &rm);
