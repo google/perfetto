@@ -154,11 +154,17 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
   if (state->eat_next_bytes > 0) {
     // This is the case where the previous tokenizer_.Push() call returned a
     // length delimited message which is NOT a submessage (a string or a bytes
-    // field). We just want to consume it, and pass it through in output
+    // field). We just want to consume it, and pass it through/filter strings
     // if the field was allowed.
     --state->eat_next_bytes;
-    if (state->passthrough_eaten_bytes)
+    if (state->action == StackState::kPassthrough) {
       *(out_++) = octet;
+    } else if (state->action == StackState::kFilterString) {
+      *(out_++) = octet;
+      if (state->eat_next_bytes == 0) {
+        // TODO(lalitm): do the filtering using |filter_string_ptr|.
+      }
+    }
   } else {
     MessageTokenizer::Token token = tokenizer_.Push(octet);
     // |token| will not be valid() in most cases and this is WAI. When pushing
@@ -224,9 +230,16 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
           } else {
             // A string or bytes field, or a 0 length submessage.
             state->eat_next_bytes = submessage_len;
-            state->passthrough_eaten_bytes = filter.allowed;
-            if (filter.allowed)
+            if (filter.allowed && filter.filter_string_field()) {
+              state->action = StackState::kFilterString;
               AppendLenDelim(token.field_id, submessage_len, &out_);
+              state->filter_string_ptr = out_;
+            } else if (filter.allowed) {
+              state->action = StackState::kPassthrough;
+              AppendLenDelim(token.field_id, submessage_len, &out_);
+            } else {
+              state->action = StackState::kDrop;
+            }
           }
           break;
       }  // switch(type)
@@ -278,7 +291,7 @@ void MessageFilter::SetUnrecoverableErrorState() {
   auto& state = stack_[0];
   state.eat_next_bytes = UINT32_MAX;
   state.in_bytes_limit = UINT32_MAX;
-  state.passthrough_eaten_bytes = false;
+  state.action = StackState::kDrop;
   out_ = out_buf_.get();  // Reset the write pointer.
 }
 
