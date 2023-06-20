@@ -16,6 +16,8 @@ import("../../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
+    "id_storage.cc",
+    "id_storage.h",
     "numeric_storage.cc",
     "numeric_storage.h",
     "storage.cc",
