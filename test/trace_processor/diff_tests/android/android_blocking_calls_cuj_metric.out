@@ -15,6 +15,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 6
       max_dur_ms: 3
       min_dur_ms: 1
+      total_dur_ns: 6000000
+      max_dur_ns: 3000000
+      min_dur_ns: 1000000
     }
   }
   cuj {
@@ -33,6 +36,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 6
       max_dur_ms: 3
       min_dur_ms: 1
+      total_dur_ns: 6000000
+      max_dur_ns: 3000000
+      min_dur_ns: 1000000
     }
   }
   cuj {
@@ -51,6 +57,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "CoroutineContinuation"
@@ -58,6 +67,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "ExpNotRow#onMeasure(BigTextStyle)"
@@ -79,6 +91,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "ImageDecoder#decodeDrawable"
@@ -86,6 +101,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "LoadApkAssetsFd <...>"
@@ -93,6 +111,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "Lock contention on <...>"
@@ -100,6 +121,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "NotificationStackScrollLayout#onMeasure"
@@ -114,6 +138,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "binder transaction"
@@ -121,6 +148,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "configChanged"
@@ -128,6 +158,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "inflate"
@@ -135,6 +168,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "layout"
@@ -142,6 +178,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "measure"
@@ -149,6 +188,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "monitor contention with <...>"
@@ -156,6 +198,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "relayoutWindow <...>"
@@ -163,6 +208,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
   }
   cuj {
@@ -181,6 +229,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
   }
   cuj {
@@ -199,6 +250,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
   }
   cuj {
@@ -217,6 +271,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "binder transaction"
@@ -224,6 +281,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
   }
 }

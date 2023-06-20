@@ -1,4 +1,4 @@
-android_blocking_calls_cuj_metric {
+ android_blocking_calls_cuj_metric {
   cuj {
     id: 1
     name: "FIRST_CUJ"
@@ -25,6 +25,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 0
+      total_dur_ns: 10950000
+      max_dur_ns: 10000000
+      min_dur_ns: 50000
     }
   }
   cuj {
@@ -53,6 +56,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 68
       max_dur_ms: 49
       min_dur_ms: 0
+      total_dur_ns: 68499000
+      max_dur_ns: 49500000
+      min_dur_ns: 50000
     }
   }
 }
