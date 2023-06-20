@@ -243,6 +243,19 @@ RowMap RowMap::Copy() const {
   NoVariantMatched();
 }
 
+OutputIndex RowMap::output_size() const {
+  if (auto* range = std::get_if<Range>(&data_)) {
+    return range->end;
+  }
+  if (auto* bv = std::get_if<BitVector>(&data_)) {
+    return bv->size();
+  }
+  if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    return vec->empty() ? 0 : *std::max_element(vec->begin(), vec->end()) + 1;
+  }
+  NoVariantMatched();
+}
+
 RowMap RowMap::SelectRowsSlow(const RowMap& selector) const {
   return std::visit(
       [](const auto& def, const auto& selector_def) {
