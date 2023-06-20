@@ -14,8 +14,8 @@
 
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
 
+import {BigintMath} from '../base/bigint_math';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
@@ -28,6 +28,9 @@ import {Panel} from './panel';
 import {Router} from './router';
 import {reveal} from './scroll_helper';
 import {Button} from './widgets/button';
+import {Callout} from './widgets/callout';
+import {DetailsShell} from './widgets/details_shell';
+import {exists} from './widgets/utils';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -183,7 +186,8 @@ class QueryTableContent implements m.ClassComponent<QueryTableContentAttrs> {
     if (resp.error) {
       return m('.query-error', `SQL error: ${resp.error}`);
     } else {
-      return m('table.query-table', m('thead', tableHeader), m('tbody', rows));
+      return m(
+          'table.pf-query-table', m('thead', tableHeader), m('tbody', rows));
     }
   }
 }
@@ -193,59 +197,81 @@ interface QueryTableAttrs {
   onClose: () => void;
   resp?: QueryResponse;
   contextButtons?: m.Child[];
+  fillParent: boolean;
 }
 
 export class QueryTable extends Panel<QueryTableAttrs> {
-  view(vnode: m.CVnode<QueryTableAttrs>) {
-    const resp = vnode.attrs.resp;
+  view({attrs}: m.CVnode<QueryTableAttrs>) {
+    const {
+      resp,
+      query,
+      onClose,
+      contextButtons = [],
+      fillParent,
+    } = attrs;
 
-    const header: m.Child[] = [
-      m('span',
-        resp ? `Query result - ${Math.round(resp.durationMs)} ms` :
-               `Query - running`),
-      m('span.code.text-select', vnode.attrs.query),
-      m('span.spacer'),
-      ...(vnode.attrs.contextButtons ?? []),
+    return m(
+        DetailsShell,
+        {
+          title: this.renderTitle(resp),
+          description: query,
+          buttons: this.renderButtons(query, onClose, contextButtons, resp),
+          fillParent,
+        },
+        resp && this.renderTableContent(resp),
+    );
+  }
+
+  renderTitle(resp?: QueryResponse) {
+    if (exists(resp)) {
+      return `Query result - ${Math.round(resp.durationMs)} ms`;
+    } else {
+      return 'Query - running';
+    }
+  }
+
+  renderButtons(
+      query: string, onClose: () => void, contextButtons: m.Child[],
+      resp?: QueryResponse) {
+    return [
+      contextButtons,
       m(Button, {
         label: 'Copy query',
         minimal: true,
         onclick: () => {
-          copyToClipboard(vnode.attrs.query);
+          copyToClipboard(query);
         },
       }),
+      (resp && resp.error === undefined) && m(Button, {
+        label: 'Copy result (.tsv)',
+        minimal: true,
+        onclick: () => {
+          queryResponseToClipboard(resp);
+        },
+      }),
+      m(Button, {
+        minimal: true,
+        label: 'Close',
+        onclick: onClose,
+      }),
     ];
-    if (resp) {
-      if (resp.error === undefined) {
-        header.push(m(Button, {
-          label: 'Copy result (.tsv)',
-          minimal: true,
-          onclick: () => {
-            queryResponseToClipboard(resp);
-          },
-        }));
-      }
-    }
-    header.push(m(Button, {
-      label: 'Close',
-      minimal: true,
-      onclick: () => vnode.attrs.onClose(),
-    }));
+  }
 
-    const headers = [m('header.overview', ...header)];
-
-    if (resp === undefined) {
-      return headers;
-    }
-
-    if (resp.statementWithOutputCount > 1) {
-      headers.push(
-          m('header.overview',
-            `${resp.statementWithOutputCount} out of ${resp.statementCount} ` +
-                `statements returned a result. Only the results for the last ` +
-                `statement are displayed in the table below.`));
-    }
-
-    return [...headers, m(QueryTableContent, {resp})];
+  renderTableContent(resp: QueryResponse) {
+    return m(
+        '.pf-query-panel',
+        resp.statementWithOutputCount > 1 &&
+            m('.pf-query-warning',
+              m(
+                  Callout,
+                  {icon: 'warning'},
+                  `${resp.statementWithOutputCount} out of ${
+                      resp.statementCount} `,
+                  'statements returned a result. ',
+                  'Only the results for the last statement are displayed.',
+                  )),
+        m(QueryTableContent, {resp}),
+    );
   }
 
   renderCanvas() {}

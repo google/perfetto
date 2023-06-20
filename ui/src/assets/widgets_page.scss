@@ -58,6 +58,7 @@
   .widget-container {
     display: flex;
     min-width: 300px;
+    max-width: 600px;
     min-height: 250px;
     border-radius: 3px;
     box-shadow: inset 2px 2px 10px #00000020;

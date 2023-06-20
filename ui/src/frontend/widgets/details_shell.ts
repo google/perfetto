@@ -19,10 +19,8 @@ interface DetailsShellAttrs {
   title: m.Children;
   description?: m.Children;
   buttons?: m.Children;
-  // If true, this container will fill the parent, and content scrolling is
-  // expected to be handled internally.
-  // Defaults to false.
-  matchParent?: boolean;
+  // Stretch/shrink the content to fill the parent vertically.
+  fillParent?: boolean;
 }
 
 // A shell for details panels to be more visually consistent.
@@ -33,12 +31,12 @@ export class DetailsShell implements m.ClassComponent<DetailsShellAttrs> {
       title,
       description,
       buttons,
-      matchParent,
+      fillParent = true,
     } = attrs;
 
     return m(
         'section.pf-details-shell',
-        {class: classNames(matchParent && 'pf-match-parent')},
+        {class: classNames(fillParent && 'pf-fill-parent')},
         m(
             'header.pf-header-bar',
             m('h1.pf-header-title', title),
