@@ -220,6 +220,7 @@ export const AnalyzePage = createPage({
             state.queryResult = undefined;
             globals.rafScheduler.scheduleFullRedraw();
           },
+          fillParent: false,
         }),
         m(QueryHistoryComponent));
   },
