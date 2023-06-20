@@ -50,6 +50,29 @@ message AndroidProcessMetadata {
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
 
+// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
+
+// Blocking call on the main thread.
+message AndroidBlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
+    // Total duration within the CUJ in nanoseconds
+    optional int64 total_dur_ns = 6;
+    // Maximal duration within the CUJ in nanoseconds
+    optional int64 max_dur_ns = 7;
+    // Minimal duration within the CUJ in nanoseconds
+    optional int64 min_dur_ns = 8;
+}
+// End of protos/perfetto/metrics/android/android_blocking_call.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
 // Blocking calls inside Android CUJs. Shows count and total duration for each.
@@ -75,21 +98,7 @@ message AndroidBlockingCallsCujMetric {
     optional int64 dur = 5;
 
     // List of blocking calls on the process main thread.
-    repeated BlockingCall blocking_calls = 6;
-  }
-
-  // Blocking call on the main thread.
-  message BlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
+    repeated AndroidBlockingCall blocking_calls = 6;
   }
 }
 
@@ -137,27 +146,7 @@ message AndroidFrameTimelineMetric {
 
 // Blocking calls inside System UI Notifications. Shows count and total duration for each.
 message AndroidSysUINotificationsBlockingCallsMetric {
-  repeated BlockingCall blocking_calls = 1;
-
-  // Blocking call on the main thread.
-  message BlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
-    // Total duration within the CUJ in nanoseconds
-    optional int64 total_dur_ns = 6;
-    // Maximal duration within the CUJ in nanoseconds
-    optional int64 max_dur_ns = 7;
-    // Minimal duration within the CUJ in nanoseconds
-    optional int64 min_dur_ns = 8;
-  }
+  repeated AndroidBlockingCall blocking_calls = 1;
 }
 
 // End of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
