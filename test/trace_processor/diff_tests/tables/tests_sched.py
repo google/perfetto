@@ -182,6 +182,18 @@ class TablesSched(TestSuite):
         1735842081507,293868,3475,527,"shell svc 3474","/apex/com.android.adbd/bin/adbd","adbd","/apex/com.android.adbd/bin/adbd","[NULL]","[NULL]","[NULL]"
         """))
 
+  def test_thread_executing_span_internal_runnable_state_has_no_running(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT COUNT(*) AS count FROM internal_runnable_state WHERE state = 'Running'
+        """,
+        out=Csv("""
+        "count"
+        0
+        """))
+
   def test_thread_executing_span_graph_has_no_null_dur(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
