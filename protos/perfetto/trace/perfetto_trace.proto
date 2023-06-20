@@ -3170,9 +3170,19 @@ message TraceConfig {
   // design.
   //
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
-  // Android T with a different field number.
+  // Android T with a different field number. Updated in Android U with a new
+  // bytecode version which supports string filtering.
   message TraceFilter {
+    // =========================
+    // Filter bytecode.
+    // =========================
+
+    // The bytecode as implemented in Android T.
     optional bytes bytecode = 1;
+
+    // The bytecode as implemented in Android U. Adds support for string
+    // filtering.
+    optional bytes bytecode_v2 = 2;
   }
   // old field number for trace_filter
   reserved 32;
