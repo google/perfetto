@@ -105,15 +105,19 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
     }
 
     if (opcode == kFilterOpcode_SimpleField ||
-        opcode == kFilterOpcode_NestedField) {
+        opcode == kFilterOpcode_NestedField ||
+        opcode == kFilterOpcode_FilterString) {
       // Field words are organized as follow:
       // MSB: 1 if allowed, 0 if not allowed.
       // Remaining bits:
       //   Message index in the case of nested (non-simple) messages.
-      //   0x7f..f in the case of simple messages.
+      //   0x7f..e in the case of string fields which need filtering.
+      //   0x7f..f in the case of simple fields.
       uint32_t msg_id;
       if (opcode == kFilterOpcode_SimpleField) {
         msg_id = kSimpleField;
+      } else if (opcode == kFilterOpcode_FilterString) {
+        msg_id = kFilterStringField;
       } else {  // FILTER_OPCODE_NESTED_FIELD
         // The next word in the bytecode contains the message index.
         if (!has_next_word) {

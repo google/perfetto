@@ -36,7 +36,14 @@ enum FilterOpcode : uint32_t {
   // (without any shifting) is the index of the filter that should be used to
   // recurse into the nested message.
   kFilterOpcode_NestedField = 3,
+
+  // The imediate value is the id of the allowed field. The behaviour of this
+  // opcode is the same as kFilterOpcode_SimpleField, with the further semantic
+  // that the field is a string and needs to be processed using the string
+  // filtering fules.
+  kFilterOpcode_FilterString = 4,
 };
+
 }  // namespace protozero
 
 #endif  // SRC_PROTOZERO_FILTERING_FILTER_BYTECODE_COMMON_H_
