@@ -338,6 +338,21 @@ TEST(RowMapUnittest, ContainsIndexVector) {
   ASSERT_FALSE(rm.Contains(6));
 }
 
+TEST(RowMapUnittest, OutputSizeIV) {
+  RowMap rm(std::vector<uint32_t>{0u, 2u, 3u, 5u});
+  ASSERT_EQ(rm.output_size(), 6u);
+}
+
+TEST(RowMapUnittest, OutputSizeRange) {
+  RowMap rm(0, 10);
+  ASSERT_EQ(rm.output_size(), 10u);
+}
+
+TEST(RowMapUnittest, OutputSizeBV) {
+  RowMap rm(BitVector{0, 1, 0, 1, 0, 1, 0});
+  ASSERT_EQ(rm.output_size(), 7u);
+}
+
 TEST(RowMapUnittest, SelectRangeWithRange) {
   RowMap rm(93, 157);
   RowMap picker(4, 7);
