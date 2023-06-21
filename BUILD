@@ -1301,6 +1301,8 @@ perfetto_cc_library(
 perfetto_filegroup(
     name = "src_trace_processor_db_overlays_overlays",
     srcs = [
+        "src/trace_processor/db/overlays/arrangement_overlay.cc",
+        "src/trace_processor/db/overlays/arrangement_overlay.h",
         "src/trace_processor/db/overlays/null_overlay.cc",
         "src/trace_processor/db/overlays/null_overlay.h",
         "src/trace_processor/db/overlays/selector_overlay.cc",
