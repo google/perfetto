@@ -4362,6 +4362,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_chrome_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -4436,6 +4437,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
@@ -4493,6 +4495,7 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_metrics_webview_descriptor",
     srcs: [
+        "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
