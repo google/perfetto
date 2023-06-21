@@ -112,7 +112,7 @@ base::Status ToMonotonic::Run(ClockConverter* tracker,
   return base::OkStatus();
 }
 
-struct ToUiTimeFormat : public SqlFunction {
+struct ToTimecode : public SqlFunction {
   static base::Status Run(void*,
                           size_t argc,
                           sqlite3_value** argv,
@@ -120,13 +120,13 @@ struct ToUiTimeFormat : public SqlFunction {
                           Destructors& destructors);
 };
 
-base::Status ToUiTimeFormat::Run(void*,
-                                 size_t argc,
-                                 sqlite3_value** argv,
-                                 SqlValue& out,
-                                 Destructors& destructors) {
+base::Status ToTimecode::Run(void*,
+                             size_t argc,
+                             sqlite3_value** argv,
+                             SqlValue& out,
+                             Destructors& destructors) {
   if (argc != 1) {
-    return base::ErrStatus("TO_UI_TIME_FORMAT: 1 arg required");
+    return base::ErrStatus("TO_TIMECODE: 1 arg required");
   }
 
   // If the timestamp is null, just return null as the result.
@@ -134,8 +134,7 @@ base::Status ToUiTimeFormat::Run(void*,
     return base::OkStatus();
   }
   if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
-    return base::ErrStatus(
-        "TO_UI_TIME_FORMAT: first argument should be timestamp");
+    return base::ErrStatus("TO_TIMECODE: first argument should be timestamp");
   }
 
   int64_t ns = sqlite3_value_int64(argv[0]);
