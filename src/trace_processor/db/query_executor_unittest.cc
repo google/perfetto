@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/query_executor.h"
+#include "src/trace_processor/db/overlays/arrangement_overlay.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
@@ -28,6 +29,7 @@ using OverlaysVec = base::SmallVector<const overlays::StorageOverlay*,
                                       QueryExecutor::kMaxOverlayCount>;
 using NumericStorage = storage::NumericStorage;
 using SimpleColumn = QueryExecutor::SimpleColumn;
+using ArrangementOverlay = overlays::ArrangementOverlay;
 using NullOverlay = overlays::NullOverlay;
 using SelectorOverlay = overlays::SelectorOverlay;
 
@@ -223,6 +225,48 @@ TEST(QueryExecutor, SelectorOverlayIndex) {
   ASSERT_EQ(res.Get(2), 5u);
 }
 
+TEST(QueryExecutor, ArrangementOverlayBounds) {
+  std::vector<int64_t> storage_data(5);
+  std::iota(storage_data.begin(), storage_data.end(), 0);
+  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+
+  std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
+  overlays::ArrangementOverlay overlay(&arrangement);
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&overlay);
+
+  SimpleColumn col{overlays_vec, &storage};
+
+  Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
+  RowMap rm(0, 5);
+  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 0u);
+  ASSERT_EQ(res.Get(1), 4u);
+}
+
+TEST(QueryExecutor, ArrangmentOverlayIndex) {
+  std::vector<int64_t> storage_data(5);
+  std::iota(storage_data.begin(), storage_data.end(), 0);
+  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+
+  std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
+  overlays::ArrangementOverlay overlay(&arrangement);
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&overlay);
+
+  SimpleColumn col{overlays_vec, &storage};
+
+  Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
+  RowMap rm(0, 5);
+  RowMap res = QueryExecutor::IndexedColumnFilterForTesting(c, col, &rm);
+
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 0u);
+  ASSERT_EQ(res.Get(1), 4u);
+}
+
 TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
@@ -253,7 +297,37 @@ TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
   ASSERT_EQ(res.Get(1), 5u);
 }
 
-TEST(QueryExecutor, IsNull) {
+TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
+  std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
+  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+
+  // Current vector
+  // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
+  BitVector null_bv{1, 1, 0, 1, 1, 1, 0, 0, 1, 1, 1, 0};
+  NullOverlay null_overlay(&null_bv);
+
+  // Final vector
+  // NULL, 3, NULL, NULL, 3, NULL
+  std::vector<uint32_t> arrangement{2, 4, 6, 2, 4, 6};
+  ArrangementOverlay arrangement_overlay(&arrangement);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&arrangement_overlay);
+  overlays_vec.emplace_back(&null_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue::Long(1)};
+  QueryExecutor exec({col}, 6);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 1u);
+  ASSERT_EQ(res.Get(1), 4u);
+}
+
+TEST(QueryExecutor, IsNullWithSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
 
