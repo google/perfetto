@@ -424,7 +424,7 @@ export class SelectionController extends Controller<'main'> {
     return {startTime: ts, value, delta, duration, name};
   }
 
-  async schedulingDetails(ts: TPTime, utid: number|Long) {
+  async schedulingDetails(ts: TPTime, utid: number) {
     // Find the ts of the first wakeup before the current slice.
     const wakeResult = await this.args.engine.query(`
       select ts, waker_utid as wakerUtid
