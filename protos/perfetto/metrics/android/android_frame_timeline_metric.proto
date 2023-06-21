@@ -21,6 +21,32 @@ package perfetto.protos;
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 message AndroidFrameTimelineMetric {
+  message JankTypeMetric {
+    // The jank type
+    optional string type = 1;
+
+    // The count of frames with this jank type
+    optional int64 total_count = 2;
+
+    // The count of frames with this jank type and present type = PRESENT_UNSPECIFIED
+    optional int64 present_unspecified_count = 3;
+
+    // The count of frames with this jank type and present type = PRESENT_ON_TIME
+    optional int64 present_on_time_count = 4;
+
+    // The count of frames with this jank type and present type = PRESENT_LATE
+    optional int64 present_late_count = 5;
+
+    // The count of frames with this jank type and present type = PRESENT_EARLY
+    optional int64 present_early_count = 6;
+
+    // The count of frames with this jank type and present type = PRESENT_DROPPED
+    optional int64 present_dropped_count = 7;
+
+    // The count of frames with this jank type and present type = PRESENT_UNKNOWN
+    optional int64 present_unknown_count = 8;
+  }
+
   message ProcessBreakdown {
     optional AndroidProcessMetadata process = 3;
 
@@ -41,6 +67,9 @@ message AndroidFrameTimelineMetric {
     optional double frame_dur_ms_p99 = 17;
     optional int64 dropped_frames = 18;
 
+    // Metrics for each jank type in this process
+    repeated JankTypeMetric jank_types = 19;
+
     reserved 1, 2;
   }
 
@@ -49,6 +78,9 @@ message AndroidFrameTimelineMetric {
   optional int64 dropped_frames = 6;
 
   repeated ProcessBreakdown process = 2;
+
+  // Metrics for each jank type globally
+  repeated JankTypeMetric jank_types = 7;
 
   reserved 1;
 }
