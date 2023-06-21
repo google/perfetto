@@ -38,6 +38,7 @@ events can be represented using
 TrackEvent.
 
 ## How can I use Perfetto tooling without instrumenting my program?
+
 A common problem is that users want to use Perfetto analysis and visualization
 tooling but they don't want to instrument their program. This can be because
 Perfetto is not a good fit for their use-case or because they may already have
@@ -46,3 +47,10 @@ an existing tracing system.
 The recommended approach for this is to emit Perfetto's native TrackEvent proto
 format. A reference guide for this is available
 [here](/docs/reference/synthetic-track-event.md).
+
+
+## My app has multiple processes. How can see all of them in the same trace?
+
+Use the [Tracing SDK](/docs/instrumentation/tracing-sdk.md#system-mode) in
+"system mode". All processes will connect to `traced` over a socket and traced
+will emit one trace with all processes.
