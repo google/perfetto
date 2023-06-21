@@ -15,6 +15,34 @@
 
 SELECT RUN_METRIC('android/process_metadata.sql');
 
+DROP VIEW IF EXISTS splitted_jank_type_timeline;
+CREATE VIEW splitted_jank_type_timeline AS
+WITH RECURSIVE split_jank_type AS (
+  SELECT
+    upid,
+    name,
+    present_type,
+    '' AS jank_type,
+    jank_type || ', ' AS unparsed
+  FROM actual_frame_timeline_slice
+  UNION ALL
+  SELECT
+    upid,
+    name,
+    present_type,
+    substr(unparsed, 1, instr(unparsed, ',')-1) AS jank_type,
+    substr(unparsed, instr(unparsed, ',')+2) AS unparsed
+  FROM split_jank_type
+  WHERE unparsed != ''
+)
+SELECT
+  upid,
+  name AS vsync,
+  present_type,
+  jank_type
+FROM split_jank_type
+WHERE jank_type != '';
+
 DROP VIEW IF EXISTS android_frame_timeline_metric_per_process;
 CREATE VIEW android_frame_timeline_metric_per_process AS
 WITH frames AS (
@@ -64,8 +92,34 @@ JOIN process_metadata USING (upid)
 GROUP BY upid, process_name;
 
 DROP VIEW IF EXISTS android_frame_timeline_metric_output;
-CREATE VIEW android_frame_timeline_metric_output
-AS
+CREATE VIEW android_frame_timeline_metric_output AS
+WITH per_jank_type_metric AS (
+  SELECT
+    jank_type,
+    COUNT(DISTINCT(vsync)) AS total_count,
+    COUNT(DISTINCT(IIF(present_type = 'Unspecified Present', vsync, NULL))) AS present_unspecified_count,
+    COUNT(DISTINCT(IIF(present_type = 'On-time Present', vsync, NULL))) AS present_on_time_count,
+    COUNT(DISTINCT(IIF(present_type = 'Late Present', vsync, NULL))) AS present_late_count,
+    COUNT(DISTINCT(IIF(present_type = 'Early Present', vsync, NULL))) AS present_early_count,
+    COUNT(DISTINCT(IIF(present_type = 'Dropped Frame', vsync, NULL))) AS present_dropped_count,
+    COUNT(DISTINCT(IIF(present_type = 'Unknown Present', vsync, NULL))) AS present_unknown_count
+  FROM splitted_jank_type_timeline
+  GROUP BY jank_type
+),
+per_process_jank_type_metric AS (
+  SELECT
+    upid,
+    jank_type,
+    COUNT(DISTINCT(vsync)) AS total_count,
+    COUNT(DISTINCT(IIF(present_type = 'Unspecified Present', vsync, NULL))) AS present_unspecified_count,
+    COUNT(DISTINCT(IIF(present_type = 'On-time Present', vsync, NULL))) AS present_on_time_count,
+    COUNT(DISTINCT(IIF(present_type = 'Late Present', vsync, NULL))) AS present_late_count,
+    COUNT(DISTINCT(IIF(present_type = 'Early Present', vsync, NULL))) AS present_early_count,
+    COUNT(DISTINCT(IIF(present_type = 'Dropped Frame', vsync, NULL))) AS present_dropped_count,
+    COUNT(DISTINCT(IIF(present_type = 'Unknown Present', vsync, NULL))) AS present_unknown_count
+  FROM splitted_jank_type_timeline
+  GROUP BY upid, jank_type
+)
 SELECT
   AndroidFrameTimelineMetric(
     'total_frames', SUM(total_frames),
@@ -90,6 +144,43 @@ SELECT
             'frame_dur_ms_p90', frame_dur_ms_p90,
             'frame_dur_ms_p95', frame_dur_ms_p95,
             'frame_dur_ms_p99', frame_dur_ms_p99,
-            'dropped_frames', dropped_frames))
-      FROM android_frame_timeline_metric_per_process))
+            'dropped_frames', dropped_frames,
+            'jank_types', (
+              SELECT
+                RepeatedField(
+                  AndroidFrameTimelineMetric_JankTypeMetric(
+                    'type', jank_type,
+                    'total_count', total_count,
+                    'present_unspecified_count', present_unspecified_count,
+                    'present_on_time_count', present_on_time_count,
+                    'present_late_count', present_late_count,
+                    'present_early_count', present_early_count,
+                    'present_dropped_count', present_dropped_count,
+                    'present_unknown_count', present_unknown_count
+                  )
+                )
+              FROM per_process_jank_type_metric
+              WHERE upid = process.upid
+            )
+          )
+        )
+      FROM android_frame_timeline_metric_per_process process
+    ),
+    'jank_types', (
+      SELECT
+        RepeatedField(
+          AndroidFrameTimelineMetric_JankTypeMetric(
+            'type', jank_type,
+            'total_count', total_count,
+            'present_unspecified_count', present_unspecified_count,
+            'present_on_time_count', present_on_time_count,
+            'present_late_count', present_late_count,
+            'present_early_count', present_early_count,
+            'present_dropped_count', present_dropped_count,
+            'present_unknown_count', present_unknown_count
+          )
+        )
+      FROM per_jank_type_metric
+    )
+  )
 FROM android_frame_timeline_metric_per_process;
