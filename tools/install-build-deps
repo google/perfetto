@@ -383,7 +383,28 @@ UI_DEPS = [
     Dependency(
         'buildtools/typefaces.tgz',
         'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
-        TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all')
+        TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
+
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
+        'ac76e9ab6a770479f93c1a2bf978d72636dbcb02608554378cf30075a78a22ac',
+        'linux', 'arm64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-8.6.3',
+        '5a58ccd78d44faac138d901976a7a8917c0f2a2f83743cfdd895fcd0bb6aa135',
+        'linux', 'x64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-8.6.3',
+        'f527713d3183e30cfbfd7fd6403ceed730831c53649e50c979961eab3b2cf866',
+        'darwin', 'arm64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-8.6.3',
+        '6b425f7f0342341e9ee9427a9a2be2c89936c4a04efe6125f7af667eb02b10c1',
+        'darwin', 'x64'),
 ]
 
 # Dependencies to build gRPC.
@@ -538,29 +559,35 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running `npm ci` in {0}".format(UI_DIR))
-  # `npm ci` is like `npm install` but respects package-lock.json.
-  subprocess.check_call([os.path.join(TOOLS_DIR, 'npm'), 'ci'], cwd=UI_DIR)
+  logging.info("Running `pnpm install --frozen-lockfile` in {0}".format(UI_DIR))
+
+  # Some node modules have postinstall scripts (already bad) but worse
+  # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
+  # so here we need to ensure that our hermetic node is available in
+  # PATH.
+  env = os.environ.copy()
+  env['PATH'] = TOOLS_DIR + ':' + env['PATH']
+
+  subprocess.check_call([os.path.join(TOOLS_DIR, 'pnpm'), 'install', '--frozen-lockfile'], cwd=UI_DIR, env=env)
   # pbjs has the bad habit of installing extra packages on its first run. Run
   # it here, so we avoid fetches while building.
-  node_bin = os.path.join(TOOLS_DIR, 'node')
-  pbjs = [node_bin, 'node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
-  subprocess.call(pbjs, cwd=UI_DIR)
+  pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
+  subprocess.call(pbjs, cwd=UI_DIR, env=env)
   with open(NODE_MODULES_STATUS_FILE, 'w') as f:
-    f.write(HashLocalFile(os.path.join(UI_DIR, 'package-lock.json')))
+    f.write(HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml')))
 
 
 def CheckNodeModules():
   """Returns True if the modules are up-to-date.
 
   There doesn't seem to be an easy way to check node modules versions. Instead
-  just check if package-lock.json changed since the last `npm install` call.
+  just check if pnpm-lock.json changed since the last `pnpm install` call.
   """
   if not os.path.exists(NODE_MODULES_STATUS_FILE):
     return False
   with open(NODE_MODULES_STATUS_FILE, 'r') as f:
     actual = f.read()
-  expected = HashLocalFile(os.path.join(UI_DIR, 'package-lock.json'))
+  expected = HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml'))
   return expected == actual
 
 

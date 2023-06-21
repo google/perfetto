@@ -304,9 +304,9 @@ function runTests(cfgFile) {
   }
   if (cfg.watch) {
     args.push('--watchAll');
-    addTask(execNode, ['jest', args, {async: true}]);
+    addTask(execModule, ['jest', args, {async: true}]);
   } else {
-    addTask(execNode, ['jest', args]);
+    addTask(execModule, ['jest', args]);
   }
 }
 
@@ -343,7 +343,11 @@ function compileScss() {
   // In watch mode, don't exit(1) if scss fails. It can easily happen by
   // having a typo in the css. It will still print an error.
   const noErrCheck = !!cfg.watch;
-  addTask(execNode, ['node-sass', ['--quiet', src, dst], {noErrCheck}]);
+  const args = [src, dst];
+  if (!cfg.verbose) {
+    args.unshift('--quiet');
+  }
+  addTask(execModule, ['sass', args, {noErrCheck}]);
 }
 
 function compileProtos() {
@@ -381,14 +385,14 @@ function compileProtos() {
     '-o',
     dstJs,
   ].concat(inputs);
-  addTask(execNode, ['pbjs', pbjsArgs]);
+  addTask(execModule, ['pbjs', pbjsArgs]);
 
   // Note: If you are looking into slowness of pbts it is not pbts
   // itself that is slow. It invokes jsdoc to parse the comments out of
   // the |dstJs| with https://github.com/hegemonic/catharsis which is
   // pinning a CPU core the whole time.
   const pbtsArgs = ['--no-comments', '-p', ROOT_DIR, '-o', dstTs, dstJs];
-  addTask(execNode, ['pbts', pbtsArgs]);
+  addTask(execModule, ['pbts', pbtsArgs]);
 }
 
 function generateImports(dir, name) {
@@ -471,9 +475,9 @@ function transpileTsProject(project, options) {
 
   if (options !== undefined && options.watch) {
     args.push('--watch', '--preserveWatchOutput');
-    addTask(execNode, ['tsc', args, {async: true}]);
+    addTask(execModule, ['tsc', args, {async: true}]);
   } else {
-    addTask(execNode, ['tsc', args]);
+    addTask(execModule, ['tsc', args]);
   }
 }
 
@@ -486,9 +490,9 @@ function bundleJs(cfgName) {
     // --waitForBundleInput is sadly quite busted so it is required ts
     // has build at least once before invoking this.
     args.push('--watch', '--no-watch.clearScreen');
-    addTask(execNode, ['rollup', args, {async: true}]);
+    addTask(execModule, ['rollup', args, {async: true}]);
   } else {
-    addTask(execNode, ['rollup', args]);
+    addTask(execModule, ['rollup', args]);
   }
 }
 
@@ -722,11 +726,9 @@ function exec(cmd, args, opts) {
   }
 }
 
-function execNode(module, args, opts) {
+function execModule(module, args, opts) {
   const modPath = pjoin(ROOT_DIR, 'ui/node_modules/.bin', module);
-  const nodeBin = pjoin(ROOT_DIR, 'tools/node');
-  args = [modPath].concat(args || []);
-  return exec(nodeBin, args, opts);
+  return exec(modPath, args || [], opts);
 }
 
 // ------------------------------------------
