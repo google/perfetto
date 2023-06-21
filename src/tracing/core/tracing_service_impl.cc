@@ -21,8 +21,10 @@
 #include <string.h>
 
 #include <cinttypes>
+#include <optional>
 #include <regex>
 #include <unordered_set>
+#include "perfetto/base/time.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -73,6 +75,7 @@
 #include "perfetto/tracing/core/tracing_service_state.h"
 #include "src/android_stats/statsd_logging_helper.h"
 #include "src/protozero/filtering/message_filter.h"
+#include "src/protozero/filtering/string_filter.h"
 #include "src/tracing/core/packet_stream_validator.h"
 #include "src/tracing/core/shared_memory_arbiter_impl.h"
 #include "src/tracing/core/trace_buffer.h"
@@ -294,6 +297,24 @@ void AppendOwnedSlicesToPacket(std::unique_ptr<uint8_t[]> data,
     src_ptr += slice_size;
     size_left -= slice_size;
   }
+}
+
+using TraceFilter = protos::gen::TraceConfig::TraceFilter;
+std::optional<protozero::StringFilter::Policy> ConvertPolicy(
+    TraceFilter::StringFilterPolicy policy) {
+  switch (policy) {
+    case TraceFilter::SFP_UNSPECIFIED:
+      return std::nullopt;
+    case TraceFilter::SFP_MATCH_REDACT_GROUPS:
+      return protozero::StringFilter::Policy::kMatchRedactGroups;
+    case TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS:
+      return protozero::StringFilter::Policy::kAtraceMatchRedactGroups;
+    case TraceFilter::SFP_MATCH_BREAK:
+      return protozero::StringFilter::Policy::kMatchBreak;
+    case TraceFilter::SFP_ATRACE_MATCH_BREAK:
+      return protozero::StringFilter::Policy::kAtraceMatchBreak;
+  }
+  return std::nullopt;
 }
 
 }  // namespace
@@ -789,13 +810,31 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
   std::unique_ptr<protozero::MessageFilter> trace_filter;
   if (cfg.has_trace_filter()) {
     const auto& filt = cfg.trace_filter();
-    const std::string& bytecode = filt.bytecode();
     trace_filter.reset(new protozero::MessageFilter());
+
+    protozero::StringFilter& string_filter = trace_filter->string_filter();
+    for (const auto& rule : filt.string_filter_chain().rules()) {
+      auto opt_policy = ConvertPolicy(rule.policy());
+      if (!opt_policy.has_value()) {
+        MaybeLogUploadEvent(
+            cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
+        return PERFETTO_SVC_ERR(
+            "Trace filter has invalid string filtering rules, aborting");
+      }
+      string_filter.AddRule(*opt_policy, rule.regex_pattern(),
+                            rule.atrace_payload_starts_with());
+    }
+
+    const std::string& bytecode_v1 = filt.bytecode();
+    const std::string& bytecode_v2 = filt.bytecode_v2();
+    const std::string& bytecode =
+        bytecode_v2.empty() ? bytecode_v1 : bytecode_v2;
     if (!trace_filter->LoadFilterBytecode(bytecode.data(), bytecode.size())) {
       MaybeLogUploadEvent(
           cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
       return PERFETTO_SVC_ERR("Trace filter bytecode invalid, aborting");
     }
+
     // The filter is created using perfetto.protos.Trace as root message
     // (because that makes it possible to play around with the `proto_filter`
     // tool on actual traces). Here in the service, however, we deal with
@@ -2366,6 +2405,7 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
   // by the earlier call to SetFilterRoot() in EnableTracing().
   PERFETTO_DCHECK(trace_filter.root_msg_index() != 0);
   std::vector<protozero::MessageFilter::InputSlice> filter_input;
+  auto start = base::GetWallTimeNs();
   for (TracePacket& packet : *packets) {
     const auto& packet_slices = packet.slices();
     filter_input.clear();
@@ -2390,6 +2430,9 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
                               filtered_packet.size, kMaxTracePacketSliceSize,
                               &packet);
   }
+  auto end = base::GetWallTimeNs();
+  tracing_session->filter_time_taken_ns +=
+      static_cast<uint64_t>((end - start).count());
 }
 
 void TracingServiceImpl::MaybeCompressPackets(
@@ -3310,6 +3353,7 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     filt_stats->set_input_bytes(tracing_session->filter_input_bytes);
     filt_stats->set_output_bytes(tracing_session->filter_output_bytes);
     filt_stats->set_errors(tracing_session->filter_errors);
+    filt_stats->set_time_taken_ns(tracing_session->filter_time_taken_ns);
   }
 
   for (BufferID buf_id : tracing_session->buffers_index) {
