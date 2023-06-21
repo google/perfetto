@@ -232,7 +232,7 @@ FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
 
   res.allowed = (field_state & kAllowed) != 0;
   res.nested_msg_index = field_state & ~kAllowed;
-  PERFETTO_DCHECK(res.simple_field() ||
+  PERFETTO_DCHECK(!res.nested_msg_field() ||
                   res.nested_msg_index < message_offset_.size() - 1);
   return res;
 }
