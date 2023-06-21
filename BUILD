@@ -308,6 +308,7 @@ perfetto_cc_binary(
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_filter_util",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_string_filter",
         "src/tools/proto_filter/proto_filter.cc",
     ],
     deps = [
@@ -414,6 +415,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_string_filter",
         ":src_protozero_proto_ring_buffer",
         ":src_traced_probes_android_game_intervention_list_android_game_intervention_list",
         ":src_traced_probes_android_log_android_log",
@@ -1245,6 +1247,15 @@ perfetto_filegroup(
         "src/protozero/filtering/message_filter.cc",
         "src/protozero/filtering/message_filter.h",
         "src/protozero/filtering/message_tokenizer.h",
+    ],
+)
+
+# GN target: //src/protozero/filtering:string_filter
+perfetto_filegroup(
+    name = "src_protozero_filtering_string_filter",
+    srcs = [
+        "src/protozero/filtering/string_filter.cc",
+        "src/protozero/filtering/string_filter.h",
     ],
 )
 
@@ -4858,6 +4869,7 @@ perfetto_cc_library(
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_parser",
         ":src_protozero_filtering_message_filter",
+        ":src_protozero_filtering_string_filter",
         ":src_tracing_client_api_without_backends",
         ":src_tracing_common",
         ":src_tracing_core_core",

@@ -25,6 +25,7 @@ source_set("message_filter") {
   ]
   deps = [
     ":bytecode_parser",
+    ":string_filter",
     "..:protozero",
     "../../../gn:default_deps",
     "../../base",
@@ -62,6 +63,18 @@ source_set("bytecode_generator") {
   ]
 }
 
+source_set("string_filter") {
+  sources = [
+    "string_filter.cc",
+    "string_filter.h",
+  ]
+  deps = [
+    "..:protozero",
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 source_set("filter_util") {
   testonly = true
   sources = [
@@ -85,6 +98,7 @@ perfetto_unittest_source_set("unittests") {
     ":bytecode_generator",
     ":bytecode_parser",
     ":message_filter",
+    ":string_filter",
     "..:protozero",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
@@ -96,6 +110,7 @@ perfetto_unittest_source_set("unittests") {
     "filter_bytecode_generator_unittest.cc",
     "filter_bytecode_parser_unittest.cc",
     "message_tokenizer_unittest.cc",
+    "string_filter_unittest.cc",
   ]
 
   # On chromium component build we cannot have a test target depening boh on
@@ -115,12 +130,16 @@ if (enable_perfetto_benchmarks) {
     testonly = true
     deps = [
       ":message_filter",
+      ":string_filter",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
       "../../base",
       "../../base:test_support",
     ]
-    sources = [ "message_filter_benchmark.cc" ]
+    sources = [
+      "message_filter_benchmark.cc",
+      "string_filter_benchmark.cc",
+    ]
   }
 }
 
