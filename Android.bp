@@ -9422,6 +9422,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_overlays_overlays",
     srcs: [
+        "src/trace_processor/db/overlays/arrangement_overlay.cc",
         "src/trace_processor/db/overlays/null_overlay.cc",
         "src/trace_processor/db/overlays/selector_overlay.cc",
         "src/trace_processor/db/overlays/storage_overlay.cc",
@@ -9432,6 +9433,7 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_overlays_unittests",
     srcs: [
+        "src/trace_processor/db/overlays/arrangement_overlay_unittest.cc",
         "src/trace_processor/db/overlays/null_overlay_unittest.cc",
         "src/trace_processor/db/overlays/selector_overlay_unittest.cc",
     ],

@@ -92,6 +92,9 @@ class RowMap {
       PERFETTO_DCHECK(end >= start);
       return end - start;
     }
+    inline bool Contains(uint32_t val) const {
+      return val >= start && val < end;
+    }
   };
 
   // Allows efficient iteration over the rows of a RowMap.
@@ -240,6 +243,26 @@ class RowMap {
     }
     if (auto* vec = std::get_if<IndexVector>(&data_)) {
       return GetIndexVector(*vec, row);
+    }
+    NoVariantMatched();
+  }
+
+  // Returns the vector of all indices in the RowMap.
+  std::vector<OutputIndex> GetAllIndices() const {
+    if (auto* range = std::get_if<Range>(&data_)) {
+      std::vector<uint32_t> res(range->size());
+      std::iota(res.begin(), res.end(), range->start);
+      return res;
+    }
+    if (auto* bv = std::get_if<BitVector>(&data_)) {
+      std::vector<uint32_t> res;
+      for (auto it = bv->IterateSetBits(); it; it.Next()) {
+        res.push_back(it.index());
+      }
+      return res;
+    }
+    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+      return *vec;
     }
     NoVariantMatched();
   }
@@ -458,6 +481,12 @@ class RowMap {
   // mode.
   const BitVector* GetIfBitVector() const {
     return std::get_if<BitVector>(&data_);
+  }
+
+  // Returns the data in RowMap IndexVector, nullptr if RowMap is in a different
+  // mode.
+  const std::vector<uint32_t>* GetIfIndexVector() const {
+    return std::get_if<IndexVector>(&data_);
   }
 
   // Returns the iterator over the rows in this RowMap.
