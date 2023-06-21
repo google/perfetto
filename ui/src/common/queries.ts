@@ -26,6 +26,7 @@ export interface QueryResponse {
   rows: Row[];
   statementCount: number;
   statementWithOutputCount: number;
+  lastStatementSql: string;
 }
 
 export interface QueryRunParams {
@@ -78,6 +79,7 @@ export async function runQuery(
     rows,
     statementCount: queryRes.statementCount(),
     statementWithOutputCount: queryRes.statementWithOutputCount(),
+    lastStatementSql: queryRes.lastStatementSql(),
   };
   return result;
 }

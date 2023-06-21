@@ -85,5 +85,9 @@ uint32_t Iterator::StatementWithOutputCount() {
   return iterator_->StatementCountWithOutput();
 }
 
+std::string Iterator::LastStatementSql() {
+  return iterator_->LastStatementSql();
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
