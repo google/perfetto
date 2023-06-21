@@ -112,6 +112,62 @@ base::Status ToMonotonic::Run(ClockConverter* tracker,
   return base::OkStatus();
 }
 
+struct ToUiTimeFormat : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status ToUiTimeFormat::Run(void*,
+                                 size_t argc,
+                                 sqlite3_value** argv,
+                                 SqlValue& out,
+                                 Destructors& destructors) {
+  if (argc != 1) {
+    return base::ErrStatus("TO_UI_TIME_FORMAT: 1 arg required");
+  }
+
+  // If the timestamp is null, just return null as the result.
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::OkStatus();
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    return base::ErrStatus(
+        "TO_UI_TIME_FORMAT: first argument should be timestamp");
+  }
+
+  int64_t ns = sqlite3_value_int64(argv[0]);
+
+  int64_t us = ns / 1000;
+  ns = ns % 1000;
+
+  int64_t ms = us / 1000;
+  us = us % 1000;
+
+  int64_t ss = ms / 1000;
+  ms = ms % 1000;
+
+  int64_t mm = ss / 60;
+  ss = ss % 60;
+
+  int64_t hh = mm % 60;
+  mm = mm % 60;
+
+  base::StackString<64> buf("%02" PRId64 ":%02" PRId64 ":%02" PRId64
+                            " %03" PRId64 " %03" PRId64 " %03" PRId64,
+                            hh, mm, ss, ms, us, ns);
+  std::unique_ptr<char, base::FreeDeleter> s(
+      static_cast<char*>(malloc(buf.len() + 1)));
+  memcpy(s.get(), buf.c_str(), buf.len() + 1);
+
+  destructors.string_destructor = free;
+  out = SqlValue::String(s.release());
+
+  return base::OkStatus();
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto
 
