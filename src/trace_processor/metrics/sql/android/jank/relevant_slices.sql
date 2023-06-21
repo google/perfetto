@@ -176,9 +176,9 @@ JOIN actual_frame_timeline_slice app_timeline
   ON do_frame.upid = app_timeline.upid
     AND do_frame.vsync = CAST(app_timeline.name AS INTEGER)
 JOIN directly_connected_flow(app_timeline.id) flow
-  ON flow.slice_in = app_timeline.id
+  ON flow.slice_out = app_timeline.id
 JOIN actual_frame_timeline_slice sf_timeline
-  ON flow.slice_out = sf_timeline.id
+  ON flow.slice_in = sf_timeline.id
 JOIN android_jank_cuj_sf_process sf_process
   ON sf_timeline.upid = sf_process.upid
 -- In cases where there are multiple layers drawn we would have separate frame timeline
