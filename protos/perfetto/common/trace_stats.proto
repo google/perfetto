@@ -191,6 +191,7 @@ message TraceStats {
     optional uint64 input_bytes = 2;
     optional uint64 output_bytes = 3;
     optional uint64 errors = 4;
+    optional uint64 time_taken_ns = 5;
   }
   optional FilterStats filter_stats = 11;
 

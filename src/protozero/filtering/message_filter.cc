@@ -18,6 +18,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/protozero/filtering/string_filter.h"
 
 namespace protozero {
 
@@ -90,7 +91,7 @@ bool MessageFilter::SetFilterRoot(const uint32_t* field_ids,
   for (const uint32_t* it = field_ids; it < field_ids + num_fields; ++it) {
     uint32_t field_id = *it;
     auto res = filter_.Query(root_msg_idx, field_id);
-    if (!res.allowed || res.simple_field())
+    if (!res.allowed || !res.nested_msg_field())
       return false;
     root_msg_idx = res.nested_msg_index;
   }
@@ -154,11 +155,19 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
   if (state->eat_next_bytes > 0) {
     // This is the case where the previous tokenizer_.Push() call returned a
     // length delimited message which is NOT a submessage (a string or a bytes
-    // field). We just want to consume it, and pass it through in output
+    // field). We just want to consume it, and pass it through/filter strings
     // if the field was allowed.
     --state->eat_next_bytes;
-    if (state->passthrough_eaten_bytes)
+    if (state->action == StackState::kPassthrough) {
       *(out_++) = octet;
+    } else if (state->action == StackState::kFilterString) {
+      *(out_++) = octet;
+      if (state->eat_next_bytes == 0) {
+        string_filter_.MaybeFilter(
+            reinterpret_cast<char*>(state->filter_string_ptr),
+            static_cast<size_t>(out_ - state->filter_string_ptr));
+      }
+    }
   } else {
     MessageTokenizer::Token token = tokenizer_.Push(octet);
     // |token| will not be valid() in most cases and this is WAI. When pushing
@@ -199,7 +208,8 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
             return SetUnrecoverableErrorState();
           }
 
-          if (filter.allowed && !filter.simple_field() && submessage_len > 0) {
+          if (filter.allowed && filter.nested_msg_field() &&
+              submessage_len > 0) {
             // submessage_len == 0 is the edge case of a message with a 0-len
             // (but present) submessage. In this case, if allowed, we don't want
             // to push any further state (doing so would desync the FSM) but we
@@ -223,9 +233,16 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
           } else {
             // A string or bytes field, or a 0 length submessage.
             state->eat_next_bytes = submessage_len;
-            state->passthrough_eaten_bytes = filter.allowed;
-            if (filter.allowed)
+            if (filter.allowed && filter.filter_string_field()) {
+              state->action = StackState::kFilterString;
               AppendLenDelim(token.field_id, submessage_len, &out_);
+              state->filter_string_ptr = out_;
+            } else if (filter.allowed) {
+              state->action = StackState::kPassthrough;
+              AppendLenDelim(token.field_id, submessage_len, &out_);
+            } else {
+              state->action = StackState::kDrop;
+            }
           }
           break;
       }  // switch(type)
@@ -277,7 +294,7 @@ void MessageFilter::SetUnrecoverableErrorState() {
   auto& state = stack_[0];
   state.eat_next_bytes = UINT32_MAX;
   state.in_bytes_limit = UINT32_MAX;
-  state.passthrough_eaten_bytes = false;
+  state.action = StackState::kDrop;
   out_ = out_buf_.get();  // Reset the write pointer.
 }
 

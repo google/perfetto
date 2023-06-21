@@ -43,6 +43,9 @@ class FilterBytecodeGenerator {
   // Allows a simple field (varint, fixed32/64, string or bytes).
   void AddSimpleField(uint32_t field_id);
 
+  // Allows a string field which needs to be filtered.
+  void AddFilterStringField(uint32_t field_id);
+
   // Allows a range of simple fields. |range_start| is the id of the first field
   // in range, |range_len| the number of fields in the range.
   // AddSimpleFieldRange(N,1) is semantically equivalent to AddSimpleField(N)
