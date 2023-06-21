@@ -22571,7 +22571,6 @@ android_binder {
     }
   }
   unaggregated_txn_breakdown {
-    aidl_name: "AIDL::cpp::ITunnelModeEnabledListener::onTunnelModeEnabledChanged::cppClient"
     client_process: "system_server"
     client_thread: "android.display"
     is_main_thread: false
@@ -40324,7 +40323,6 @@ android_binder {
     }
   }
   unaggregated_txn_breakdown {
-    aidl_name: "AIDL::cpp::IServiceManager::getService::cppClient"
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
