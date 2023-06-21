@@ -77,6 +77,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "ExpNotRow#onMeasure(MessagingStyle)"
@@ -84,6 +87,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "ImageDecoder#decodeBitmap"
@@ -131,6 +137,9 @@ android_blocking_calls_cuj_metric {
       total_dur_ms: 10
       max_dur_ms: 10
       min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
     }
     blocking_calls {
       name: "SuspendThreadByThreadId <...>"
