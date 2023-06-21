@@ -38,6 +38,17 @@ bool LoadBytecode(FilterBytecodeParser* parser,
   return parser->Load(words.data(), words.size());
 }
 
+TEST(FilterBytecodeParserTest, EomHandling) {
+  FilterBytecodeParser parser;
+
+  // EOM not being correctly at the end should cause a parse failure.
+  EXPECT_FALSE(LoadBytecode(&parser, {kFilterOpcode_SimpleField | 1}));
+  EXPECT_FALSE(LoadBytecode(&parser, {kFilterOpcode_SimpleFieldRange | 1,
+                                      kFilterOpcode_EndOfMessage}));
+  EXPECT_FALSE(LoadBytecode(&parser, {kFilterOpcode_NestedField | (4u << 3),
+                                      kFilterOpcode_EndOfMessage}));
+}
+
 TEST(FilterBytecodeParserTest, ParserSimpleFields) {
   FilterBytecodeParser parser;
   EXPECT_FALSE(parser.Load(nullptr, 0));
