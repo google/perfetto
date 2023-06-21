@@ -12,17 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {produce} from 'immer';
 import m from 'mithril';
 
+import {Actions} from '../../common/actions';
 import {DataSource} from '../../common/recordingV2/recording_interfaces_v2';
 import {getBuiltinChromeCategoryList, isChromeTarget} from '../../common/state';
 import {globals} from '../globals';
 import {
-  CategoriesCheckboxList,
+  CategoryGetter,
   CompactProbe,
   Toggle,
   ToggleAttrs,
 } from '../record_widgets';
+import {GridLayout} from '../widgets/grid_layout';
+import {
+  MultiSelect,
+  MultiSelectDiff,
+  Option as MultiSelectOption,
+} from '../widgets/multiselect';
+import {PopupPosition} from '../widgets/popup';
 
 import {RecordingSectionAttrs} from './recording_sections';
 
@@ -38,41 +47,133 @@ function extractChromeCategories(dataSources: DataSource[]): string[]|
 
 class ChromeCategoriesSelection implements
     m.ClassComponent<RecordingSectionAttrs> {
-  view({attrs}: m.CVnode<RecordingSectionAttrs>) {
-    // If we are attempting to record via the Chrome extension, we receive the
-    // list of actually supported categories via DevTools. Otherwise, we fall
-    // back to an integrated list of categories from a recent version of Chrome.
-    let categories = globals.state.chromeCategories ||
-        extractChromeCategories(attrs.dataSources);
-    if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
-      categories = getBuiltinChromeCategoryList();
-    }
+  private defaultCategoryOptions: MultiSelectOption[]|undefined = undefined;
+  private disabledByDefaultCategoryOptions: MultiSelectOption[]|undefined =
+      undefined;
 
-    const defaultCategories = new Map<string, string>();
-    const disabledByDefaultCategories = new Map<string, string>();
-    const disabledPrefix = 'disabled-by-default-';
-    categories.forEach((cat) => {
-      if (cat.startsWith(disabledPrefix)) {
-        disabledByDefaultCategories.set(cat, cat.replace(disabledPrefix, ''));
-      } else {
-        defaultCategories.set(cat, cat);
+  static updateValue(attrs: CategoryGetter, diffs: MultiSelectDiff[]) {
+    const traceCfg = produce(globals.state.recordConfig, (draft) => {
+      const values = attrs.get(draft);
+      for (const diff of diffs) {
+        const value = diff.id;
+        const index = values.indexOf(value);
+        const enabled = diff.checked;
+        if (enabled && index === -1) {
+          values.push(value);
+        }
+        if (!enabled && index !== -1) {
+          values.splice(index, 1);
+        }
       }
     });
+    globals.dispatch(Actions.setRecordConfig({config: traceCfg}));
+  }
+
+  view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    if (this.defaultCategoryOptions === undefined ||
+        this.disabledByDefaultCategoryOptions === undefined) {
+      // If we are attempting to record via the Chrome extension, we receive the
+      // list of actually supported categories via DevTools. Otherwise, we fall
+      // back to an integrated list of categories from a recent version of
+      // Chrome.
+      let categories = globals.state.chromeCategories ||
+          extractChromeCategories(attrs.dataSources);
+      if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
+        categories = getBuiltinChromeCategoryList();
+      }
+      this.defaultCategoryOptions = [];
+      this.disabledByDefaultCategoryOptions = [];
+      const disabledPrefix = 'disabled-by-default-';
+      categories.forEach((cat) => {
+        if (cat.startsWith(disabledPrefix) &&
+            this.disabledByDefaultCategoryOptions !== undefined) {
+          this.disabledByDefaultCategoryOptions.push({
+            id: cat,
+            name: cat.replace(disabledPrefix, ''),
+            checked: false,
+          });
+        } else if (
+            !cat.startsWith(disabledPrefix) &&
+            this.defaultCategoryOptions !== undefined) {
+          this.defaultCategoryOptions.push({
+            id: cat,
+            name: cat,
+            checked: false,
+          });
+        }
+      });
+    }
+
+    const defaultConfigGetter: CategoryGetter = {
+      get: (cfg) => cfg.chromeCategoriesSelected,
+      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+    };
+
+    const disabledByDefaultConfigGetter: CategoryGetter = {
+      get: (cfg) => cfg.chromeCategoriesSelected,
+      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+    };
 
     return m(
-        '.chrome-categories',
-        m(CategoriesCheckboxList, {
-          categories: defaultCategories,
-          title: 'Additional categories',
-          get: (cfg) => cfg.chromeCategoriesSelected,
-          set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-        }),
-        m(CategoriesCheckboxList, {
-          categories: disabledByDefaultCategories,
-          title: 'High overhead categories',
-          get: (cfg) => cfg.chromeHighOverheadCategoriesSelected,
-          set: (cfg, val) => cfg.chromeHighOverheadCategoriesSelected = val,
-        }));
+        GridLayout,
+        m('h2', 'Chrome Tracing Categories'),
+        m('section.pf-section',
+          m('article',
+            m(
+                MultiSelect,
+                {
+                  label: 'Additional Categories',
+                  minimal: true,
+                  compact: true,
+                  icon: 'filter_list_alt',
+                  popupPosition: PopupPosition.Top,
+                  options: this.defaultCategoryOptions,
+                  repeatCheckedItemsAtTop: true,
+                  onChange: (diffs: MultiSelectDiff[]) => {
+                    diffs.forEach(({id, checked}) => {
+                      if (this.defaultCategoryOptions === undefined) {
+                        return;
+                      }
+                      for (const option of this.defaultCategoryOptions) {
+                        if (option.id == id) {
+                          option.checked = checked;
+                        }
+                      }
+                    });
+                    ChromeCategoriesSelection.updateValue(
+                        defaultConfigGetter, diffs);
+                  },
+                },
+                ))),
+        m('section.pf-section',
+          m('article',
+            m(
+                MultiSelect,
+                {
+                  label: 'High Overhead Categories',
+                  minimal: true,
+                  compact: true,
+                  icon: 'filter_list_alt',
+                  popupPosition: PopupPosition.Top,
+                  options: this.disabledByDefaultCategoryOptions,
+                  repeatCheckedItemsAtTop: true,
+                  onChange: (diffs: MultiSelectDiff[]) => {
+                    diffs.forEach(({id, checked}) => {
+                      if (this.disabledByDefaultCategoryOptions === undefined) {
+                        return;
+                      }
+                      for (const option of this
+                               .disabledByDefaultCategoryOptions) {
+                        if (option.id == id) {
+                          option.checked = checked;
+                        }
+                      }
+                    });
+                    ChromeCategoriesSelection.updateValue(
+                        disabledByDefaultConfigGetter, diffs);
+                  },
+                },
+                ))));
   }
 }
 
