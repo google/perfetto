@@ -277,6 +277,26 @@ static void BM_QEFilterId(benchmark::State& state) {
 
 BENCHMARK(BM_QEFilterId)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QEFilterWithArrangement(benchmark::State& state) {
+  Table::kUseFilterV2 = state.range(0) == 1;
+
+  SliceTableForBenchmark table(state);
+  Order order{table.table_.dur().index_in_table(), false};
+  Table slice_sorted_with_duration = table.table_.Sort({order});
+
+  Constraint c{table.table_.track_id().index_in_table(), FilterOp::kGt,
+               SqlValue::Long(10)};
+  for (auto _ : state) {
+    benchmark::DoNotOptimize(slice_sorted_with_duration.FilterToRowMap({c}));
+  }
+  state.counters["s/row"] = benchmark::Counter(
+      static_cast<double>(slice_sorted_with_duration.row_count()),
+      benchmark::Counter::kIsIterationInvariantRate |
+          benchmark::Counter::kInvert);
+}
+
+BENCHMARK(BM_QEFilterWithArrangement)->ArgsProduct({{DB::V1, DB::V2}});
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
