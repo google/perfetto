@@ -297,6 +297,9 @@ export interface QueryResult {
   // Returns the number of SQL statement that produced output rows. This number
   // is <= statementCount().
   statementWithOutputCount(): number;
+
+  // Returns the last SQL statement.
+  lastStatementSql(): string;
 }
 
 // Interface exposed to engine.ts to pump in the data as new row batches arrive.
@@ -327,6 +330,7 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   private _errorInfo: QueryErrorInfo;
   private _statementCount = 0;
   private _statementWithOutputCount = 0;
+  private _lastStatementSql = '';
 
   constructor(errorInfo: QueryErrorInfo) {
     this._errorInfo = errorInfo;
@@ -368,6 +372,9 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
   }
   statementWithOutputCount(): number {
     return this._statementWithOutputCount;
+  }
+  lastStatementSql(): string {
+    return this._lastStatementSql;
   }
 
   iter<T extends Row>(spec: T): RowIterator<T> {
@@ -477,6 +484,10 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
 
         case 5:
           this._statementWithOutputCount = reader.uint32();
+          break;
+
+        case 6:
+          this._lastStatementSql = reader.string();
           break;
 
         default:
@@ -914,6 +925,9 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
   }
   statementWithOutputCount() {
     return this.impl.statementWithOutputCount();
+  }
+  lastStatementSql() {
+    return this.impl.lastStatementSql();
   }
 
   // WritableQueryResult implementation.
