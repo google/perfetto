@@ -64,6 +64,8 @@ BitVector SelectorOverlay::IsStorageLookupRequired(
 
 StorageIndexVector SelectorOverlay::MapToStorageIndexVector(
     TableIndexVector t_iv) const {
+  PERFETTO_DCHECK(*std::max_element(t_iv.indices.begin(), t_iv.indices.end()) <=
+                  selected_->CountSetBits());
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
   std::vector<uint32_t> s_iv;
