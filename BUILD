@@ -3935,6 +3935,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_metrics_android_protos",
     srcs = [
+        "protos/perfetto/metrics/android/android_blocking_call.proto",
         "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto",
         "protos/perfetto/metrics/android/android_frame_timeline_metric.proto",
         "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto",
