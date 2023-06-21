@@ -24,30 +24,15 @@ namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
+namespace {
+
 using Range = RowMap::Range;
 
-BitVector IdStorage::LinearSearch(FilterOp op,
-                                  SqlValue sql_val,
-                                  RowMap::Range range) const {
-  PERFETTO_DCHECK(op == FilterOp::kNe);
-  if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-      sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
-    return BitVector(size_, false);
-
-  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
-  BitVector ret(range.start, false);
-  ret.Resize(range.end, true);
-  ret.Resize(size_, false);
-
-  ret.Clear(val);
-  return ret;
-}
-
 template <typename Comparator>
-BitVector LinearSearchWithComparator(uint32_t val,
-                                     uint32_t* indices,
-                                     uint32_t indices_size,
-                                     Comparator comparator) {
+BitVector IndexSearchWithComparator(uint32_t val,
+                                    uint32_t* indices,
+                                    uint32_t indices_size,
+                                    Comparator comparator) {
   // Slow path: we compare <64 elements and append to get us to a word
   // boundary.
   const uint32_t* ptr = indices;
@@ -79,6 +64,24 @@ BitVector LinearSearchWithComparator(uint32_t val,
   }
   return std::move(builder).Build();
 }
+}  // namespace
+
+BitVector IdStorage::LinearSearch(FilterOp op,
+                                  SqlValue sql_val,
+                                  RowMap::Range range) const {
+  PERFETTO_DCHECK(op == FilterOp::kNe);
+  if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
+      sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
+    return BitVector(size_, false);
+
+  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
+  BitVector ret(range.start, false);
+  ret.Resize(range.end, true);
+  ret.Resize(size_, false);
+
+  ret.Clear(val);
+  return ret;
+}
 
 BitVector IdStorage::IndexSearch(FilterOp op,
                                  SqlValue sql_val,
@@ -96,23 +99,23 @@ BitVector IdStorage::IndexSearch(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::equal_to<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::equal_to<uint32_t>());
     case FilterOp::kNe:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::not_equal_to<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::not_equal_to<uint32_t>());
     case FilterOp::kLe:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::less_equal<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::less_equal<uint32_t>());
     case FilterOp::kLt:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::less<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::less<uint32_t>());
     case FilterOp::kGt:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::greater<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::greater<uint32_t>());
     case FilterOp::kGe:
-      return LinearSearchWithComparator(val, indices, indices_size,
-                                        std::greater_equal<uint32_t>());
+      return IndexSearchWithComparator(val, indices, indices_size,
+                                       std::greater_equal<uint32_t>());
     case FilterOp::kGlob:
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
@@ -164,6 +167,7 @@ RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
 }
 
 void IdStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
+  // We can use sort, as |indices| will not have duplicates.
   Sort(indices, indices_size);
 }
 

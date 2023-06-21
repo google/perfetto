@@ -243,7 +243,7 @@ RowMap RowMap::Copy() const {
   NoVariantMatched();
 }
 
-OutputIndex RowMap::output_size() const {
+OutputIndex RowMap::Max() const {
   if (auto* range = std::get_if<Range>(&data_)) {
     return range->end;
   }
