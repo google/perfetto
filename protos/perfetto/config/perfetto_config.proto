@@ -3183,6 +3183,73 @@ message TraceConfig {
     // The bytecode as implemented in Android U. Adds support for string
     // filtering.
     optional bytes bytecode_v2 = 2;
+
+    // =========================
+    // String filtering
+    // =========================
+
+    // The principles and terminology of string filtering is heavily inspired by
+    // iptables. A "rule" decide how strings should be filtered. Each rule
+    // contains a "policy" which indicates the algorithm to use for filtering.
+    // A "chain" is a list of rules which will be sequentially checked against
+    // each string.
+    //
+    // The first rule which applies to the string terminates filtering for that
+    // string. If no rules apply, the string is left unchanged.
+
+    // A policy specifies which algorithm should be used for filtering the
+    // string.
+    enum StringFilterPolicy {
+      SFP_UNSPECIFIED = 0;
+
+      // Tries to match the string field against |regex_pattern|. If it
+      // matches, all matching groups are "redacted" (i.e. replaced with a
+      // constant string) and filtering is terminated (i.e. no further rules are
+      // checked). If it doesn't match, the string is left unchanged and the
+      // next rule in chain is considered.
+      SFP_MATCH_REDACT_GROUPS = 1;
+
+      // Like |SFP_MATCH_REDACT_GROUPS| but tries to do some pre-work before
+      // checking the regex. Specifically, it tries to parse the string field as
+      // an atrace tracepoint and checks if the post-tgid field starts with
+      // |atrace_post_tgid_starts_with|. The regex matching is only performed if
+      // this check succeeds.
+      SFP_ATRACE_MATCH_REDACT_GROUPS = 2;
+
+      // Tries to match the string field against |regex_pattern|. If it
+      // matches, filtering is terminated (i.e. no further rules are checked).
+      // If it doesn't match, the string is left unchanged and the next rule in
+      // chain is considered.
+      SFP_MATCH_BREAK = 3;
+
+      // Like |SFP_MATCH_BREAK| but tries to do some pre-work before checking
+      // the regex. Specifically, it tries to parse the string field as an
+      // atrace tracepoint and checks if the post-tgid field starts with
+      // |atrace_post_tgid_starts_with|. The regex matching is only performed if
+      // this check succeeds.
+      SFP_ATRACE_MATCH_BREAK = 4;
+    }
+
+    // A rule specifies how strings should be filtered.
+    message StringFilterRule {
+      // The policy (i.e. algorithm) dictating how strings matching this rule
+      // should be handled.
+      optional StringFilterPolicy policy = 1;
+
+      // The regex pattern used to match against each string.
+      optional string regex_pattern = 2;
+
+      // The string which should appear after the tgid in atrace tracepoint
+      // strings.
+      optional string atrace_payload_starts_with = 3;
+    }
+
+    // A chain is a list of rules which string will be sequentially checked
+    // against.
+    message StringFilterChain {
+      repeated StringFilterRule rules = 1;
+    }
+    optional StringFilterChain string_filter_chain = 3;
   }
   // old field number for trace_filter
   reserved 32;
