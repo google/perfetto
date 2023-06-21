@@ -139,6 +139,10 @@ class IteratorImpl {
     return result_.ok() ? result_->statement_count_with_output : 0;
   }
 
+  std::string LastStatementSql() const {
+    return result_.ok() ? sqlite3_sql(*result_->stmt) : "";
+  }
+
  private:
   // Dummy function to pass to ScopedResource.
   static int DummyClose(TraceProcessorImpl*) { return 0; }
