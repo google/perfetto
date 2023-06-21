@@ -416,6 +416,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                context_.clock_converter.get());
   RegisterFunction<ToMonotonic>(&engine_, "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
+  RegisterFunction<ToUiTimeFormat>(&engine_, "TO_UI_TIME_FORMAT", 1);
   RegisterFunction<CreateFunction>(&engine_, "CREATE_FUNCTION", 3, &engine_);
   RegisterFunction<ExperimentalMemoize>(&engine_, "EXPERIMENTAL_MEMOIZE", 1,
                                         &engine_);
