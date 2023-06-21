@@ -209,6 +209,9 @@ message QueryResult {
 
   // The number of statements which produced output rows in the provided SQL.
   optional uint32 statement_with_output_count = 5;
+
+  // The last statement in the provided SQL.
+  optional string last_statement_sql = 6;
 }
 
 // Input for the /status endpoint.
