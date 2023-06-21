@@ -245,7 +245,7 @@ class RowMap {
   }
 
   // Returns maximum size of the output. Ie range.end or size of the BV.
-  OutputIndex output_size() const;
+  OutputIndex Max() const;
 
   // Returns whether the RowMap contains the given index.
   bool Contains(OutputIndex index) const {

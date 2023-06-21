@@ -296,8 +296,8 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
     const Column& col = table->columns()[c.col_idx];
-    uint32_t column_size = col.IsId() ? col.overlay().row_map().output_size()
-                                      : col.storage_base().size();
+    uint32_t column_size =
+        col.IsId() ? col.overlay().row_map().Max() : col.storage_base().size();
 
     // RowMap size
     bool use_legacy = rm.size() == 1;
