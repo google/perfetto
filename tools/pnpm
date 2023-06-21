@@ -1,5 +1,5 @@
-#!/bin/bash
-# Copyright (C) 2022 The Android Open Source Project
+#!/usr/bin/env python3
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,17 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-set -e -u
-ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
-ESLINT_PATH="$ROOT_DIR/ui/node_modules/.bin/eslint"
+import os
+import sys
 
-if [[ ! -x "$ESLINT_PATH" ]]; then
-  echo "eslint not found ($ESLINT_PATH). Run '$ROOT_DIR/tools/install-build-deps --ui'"
-  exit 1
-fi
-
-# Need to add node to the search path.
-TOOLS_PATH="$ROOT_DIR/tools"
-PATH=$TOOLS_PATH:$PATH
-
-exec "$ESLINT_PATH" "$@"
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(ROOT_DIR)
+__package__ = 'tools'
+from .run_buildtools_binary import run_buildtools_binary
+run_buildtools_binary(['pnpm'] + sys.argv[1:])
