@@ -4613,4 +4613,72 @@ TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   EXPECT_THAT(error, HasSubstr("Invalid buffer sizes"));
 }
 
+TEST_F(TracingServiceImplTest, StringFiltering) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt;
+  // Message 0: root Trace proto.
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  // Message 2: TestEvent proto. Allow only the `str` sub-field as a striong.
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+  auto* rule = chain->add_rules();
+  rule->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS);
+  rule->set_atrace_payload_starts_with("payload1");
+  rule->set_regex_pattern(R"(B\|\d+\|pay(lo)ad1(\d*))");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+  static constexpr size_t kNumTestPackets = 20;
+  for (size_t i = 0; i < kNumTestPackets; i++) {
+    auto tp = writer->NewTracePacket();
+    std::string payload("B|1023|payload" + std::to_string(i));
+    tp->set_for_testing()->set_str(payload.c_str(), payload.size());
+  }
+
+  auto flush_request = consumer->Flush();
+  producer->WaitForFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6ad1")))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6ad1P")))));
+}
+
 }  // namespace perfetto
