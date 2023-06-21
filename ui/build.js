@@ -69,8 +69,10 @@ const argparse = require('argparse');
 const childProcess = require('child_process');
 const crypto = require('crypto');
 const fs = require('fs');
+const readline = require('readline');
 const http = require('http');
 const path = require('path');
+const csstree = require('css-tree');
 const fswatch = require('node-watch');  // Like fs.watch(), but works on Linux.
 const pjoin = path.join;
 
@@ -464,7 +466,46 @@ function buildWasm(skipWasmBuild) {
     }
   }
 }
-
+function addClassToCSS(inputPath, outputPath,parentClass ) {
+  const cssOutput = fs.readFileSync(inputPath,{
+    flag:'r'
+  });
+  const ast =csstree.parse(cssOutput.toString())
+  csstree.walk(ast,{
+    visit: 'Selector',
+    enter(node){
+      if(node.children){
+        let classData = {
+          type: 'ClassSelector',
+            name: parentClass
+        };
+        if(node.children.first.type === 'ClassSelector' || node.children.first.type === 'TypeSelector'){
+          let skip = false;
+          const uneffectedSelectors =['perfetto','to','from'];
+          if(node.children.first.type === 'ClassSelector' || node.children.first.name.startsWith('*')){
+            classData.name+=' '
+          }
+          for (let index = 0; index < uneffectedSelectors.length; index++) {
+            if(node.children.first.name === uneffectedSelectors[index] || uneffectedSelectors[index].match(/\d/g)){
+              skip=true;
+            }
+          }
+          if(!skip){
+            node.children.prependData(classData)
+          }
+        }
+      }
+    }
+  })
+  const stream = fs.createWriteStream(outputPath,{
+    flags: 'w'
+  })
+  let generatedCSS = csstree.generate(ast);
+  // Add \n for readability
+  generatedCSS = generatedCSS.replace(/}/g,'}\n');
+  // Write to outputPath
+  stream.write(generatedCSS);
+}
 function copyCSSAndWASM() {
   const css = pjoin(cfg.outDistDir, 'perfetto.css');
   const assets = pjoin(cfg.outDistDir, 'assets')
@@ -472,7 +513,8 @@ function copyCSSAndWASM() {
   const trace_processor = pjoin(cfg.outDistDir, 'trace_processor.wasm');
   const traceconv_bundle = pjoin(cfg.outDistDir, 'traceconv_bundle.js');
   const traceconv = pjoin(cfg.outDistDir, 'traceconv.wasm');
-  addTask(cp, [css, pjoin(ROOT_DIR, 'ui', 'css',  'perfetto.css')]);
+  
+  addTask(addClassToCSS, [css,pjoin(ROOT_DIR, 'ui', 'css',  'perfetto.css'),'perfetto']);
   addTask(cpR, [assets, pjoin(ROOT_DIR, 'ui', 'css', 'assets')]);
   addTask(cp, [engine_bundle, pjoin(ROOT_DIR, 'ui', 'wasm',  'engine_bundle.js')]);
   addTask(cp, [trace_processor, pjoin(ROOT_DIR, 'ui', 'wasm',  'trace_processor.wasm')]);

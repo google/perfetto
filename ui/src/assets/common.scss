@@ -69,7 +69,8 @@ html {
 
 html,
 body,
-body > main {
+body > main,
+.perfetto {
   height: 100%;
   width: 100%;
   padding: 0;
@@ -103,7 +104,8 @@ table {
   user-select: text;
 }
 
-body > main {
+body > main,
+.perfetto {
   display: grid;
   grid-template-areas:
     "sidebar topbar"
@@ -111,8 +113,7 @@ body > main {
     "sidebar page";
   grid-template-rows: auto auto 1fr;
   grid-template-columns: auto 1fr;
-  color: #121212;
-  overflow: hidden;
+  color: var(--main-foreground-color);
 }
 
 body.filedrag::after {
