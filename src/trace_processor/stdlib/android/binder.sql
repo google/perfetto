@@ -123,8 +123,10 @@ WITH
       ON binder_reply.track_id = reply_thread_track.id
     JOIN thread reply_thread ON reply_thread.utid = reply_thread_track.utid
     JOIN process reply_process ON reply_process.upid = reply_thread.upid
-    LEFT JOIN slice aidl
-      ON aidl.parent_id = binder_reply.id AND (aidl.name GLOB 'AIDL::*' OR aidl.name GLOB 'HIDL::*')
+    LEFT JOIN slice aidl ON aidl.parent_id = binder_reply.id
+        AND (aidl.name GLOB 'AIDL::cpp*Server'
+             OR aidl.name GLOB 'AIDL::java*server'
+             OR aidl.name GLOB 'HIDL::*server')
   )
 SELECT
   MIN(aidl_name) AS aidl_name,
