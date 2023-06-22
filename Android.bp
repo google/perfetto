@@ -2080,11 +2080,12 @@ cc_test {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
-        ":perfetto_src_trace_processor_prelude_functions_functions",
-        ":perfetto_src_trace_processor_prelude_functions_interface",
-        ":perfetto_src_trace_processor_prelude_operators_operators",
-        ":perfetto_src_trace_processor_prelude_table_functions_interface",
-        ":perfetto_src_trace_processor_prelude_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -2281,9 +2282,9 @@ cc_test {
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_src_trace_processor_prelude_table_functions_tables",
-        "perfetto_src_trace_processor_prelude_tables_views_tables_views",
-        "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
+        "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        "perfetto_src_trace_processor_perfetto_sql_prelude_prelude",
+        "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_tables_tables_python",
     ],
     defaults: [
@@ -10227,105 +10228,114 @@ filegroup {
     ],
 }
 
-// GN: //src/trace_processor/prelude/functions:functions
+// GN: //src/trace_processor/perfetto_sql/engine:engine
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_functions_functions",
+    name: "perfetto_src_trace_processor_perfetto_sql_engine_engine",
     srcs: [
-        "src/trace_processor/prelude/functions/create_function.cc",
-        "src/trace_processor/prelude/functions/create_function_internal.cc",
-        "src/trace_processor/prelude/functions/create_view_function.cc",
-        "src/trace_processor/prelude/functions/import.cc",
-        "src/trace_processor/prelude/functions/layout_functions.cc",
-        "src/trace_processor/prelude/functions/math.cc",
-        "src/trace_processor/prelude/functions/pprof_functions.cc",
-        "src/trace_processor/prelude/functions/sqlite3_str_split.cc",
-        "src/trace_processor/prelude/functions/stack_functions.cc",
-        "src/trace_processor/prelude/functions/to_ftrace.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/functions:interface
+// GN: //src/trace_processor/perfetto_sql/intrinsics/functions:functions
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_functions_interface",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
     srcs: [
-        "src/trace_processor/prelude/functions/sql_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_function_internal.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/import.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/math.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/functions:unittests
+// GN: //src/trace_processor/perfetto_sql/intrinsics/functions:interface
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_functions_unittests",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
     srcs: [
-        "src/trace_processor/prelude/functions/sqlite3_str_split_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/operators:operators
+// GN: //src/trace_processor/perfetto_sql/intrinsics/functions:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_operators_operators",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_unittests",
     srcs: [
-        "src/trace_processor/prelude/operators/span_join_operator.cc",
-        "src/trace_processor/prelude/operators/window_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split_unittest.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/operators:unittests
+// GN: //src/trace_processor/perfetto_sql/intrinsics/operators:operators
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_operators_unittests",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
     srcs: [
-        "src/trace_processor/prelude/operators/span_join_operator_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/table_functions:interface
+// GN: //src/trace_processor/perfetto_sql/intrinsics/operators:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_table_functions_interface",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_unittests",
     srcs: [
-        "src/trace_processor/prelude/table_functions/table_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator_unittest.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/table_functions:table_functions
+// GN: //src/trace_processor/perfetto_sql/intrinsics/table_functions:interface
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_table_functions_table_functions",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
     srcs: [
-        "src/trace_processor/prelude/table_functions/ancestor.cc",
-        "src/trace_processor/prelude/table_functions/connected_flow.cc",
-        "src/trace_processor/prelude/table_functions/descendant.cc",
-        "src/trace_processor/prelude/table_functions/experimental_annotated_stack.cc",
-        "src/trace_processor/prelude/table_functions/experimental_counter_dur.cc",
-        "src/trace_processor/prelude/table_functions/experimental_flamegraph.cc",
-        "src/trace_processor/prelude/table_functions/experimental_flat_slice.cc",
-        "src/trace_processor/prelude/table_functions/experimental_sched_upid.cc",
-        "src/trace_processor/prelude/table_functions/experimental_slice_layout.cc",
-        "src/trace_processor/prelude/table_functions/flamegraph_construction_algorithms.cc",
-        "src/trace_processor/prelude/table_functions/view.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/table_functions:tables
+// GN: //src/trace_processor/perfetto_sql/intrinsics/table_functions:table_functions
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
+    srcs: [
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.cc",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/intrinsics/table_functions:tables
 genrule {
-    name: "perfetto_src_trace_processor_prelude_table_functions_tables",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
     srcs: [
-        "src/trace_processor/prelude/table_functions/tables.py",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.py",
     ],
     tools: [
-        "perfetto_src_trace_processor_prelude_table_functions_tables_binary",
+        "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables_binary",
     ],
-    cmd: "$(location perfetto_src_trace_processor_prelude_table_functions_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
+    cmd: "$(location perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables_binary) --gen-dir=$(genDir) --relative-input-dir=external/perfetto --inputs $(in)",
     out: [
-        "src/trace_processor/prelude/table_functions/tables_py.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h",
     ],
 }
 
-// GN: //src/trace_processor/prelude/table_functions:tables
+// GN: //src/trace_processor/perfetto_sql/intrinsics/table_functions:tables
 python_binary_host {
-    name: "perfetto_src_trace_processor_prelude_table_functions_tables_binary",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables_binary",
     srcs: [
         "python/generators/trace_processor_table/public.py",
         "python/generators/trace_processor_table/serialize.py",
         "python/generators/trace_processor_table/util.py",
-        "src/trace_processor/prelude/table_functions/tables.py",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables.py",
         "src/trace_processor/tables/android_tables.py",
         "src/trace_processor/tables/counter_tables.py",
         "src/trace_processor/tables/flow_tables.py",
@@ -10341,29 +10351,73 @@ python_binary_host {
     main: "tools/gen_tp_table_headers.py",
 }
 
-// GN: //src/trace_processor/prelude/table_functions:unittests
+// GN: //src/trace_processor/perfetto_sql/intrinsics/table_functions:unittests
 filegroup {
-    name: "perfetto_src_trace_processor_prelude_table_functions_unittests",
+    name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_unittests",
     srcs: [
-        "src/trace_processor/prelude/table_functions/ancestor_unittest.cc",
-        "src/trace_processor/prelude/table_functions/connected_flow_unittest.cc",
-        "src/trace_processor/prelude/table_functions/descendant_unittest.cc",
-        "src/trace_processor/prelude/table_functions/experimental_counter_dur_unittest.cc",
-        "src/trace_processor/prelude/table_functions/experimental_flat_slice_unittest.cc",
-        "src/trace_processor/prelude/table_functions/experimental_slice_layout_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice_unittest.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout_unittest.cc",
     ],
 }
 
-// GN: //src/trace_processor/prelude/tables_views:tables_views
+// GN: //src/trace_processor/perfetto_sql/prelude:prelude
 genrule {
-    name: "perfetto_src_trace_processor_prelude_tables_views_tables_views",
+    name: "perfetto_src_trace_processor_perfetto_sql_prelude_prelude",
     srcs: [
-        "src/trace_processor/prelude/tables_views/tables.sql",
-        "src/trace_processor/prelude/tables_views/views.sql",
+        "src/trace_processor/perfetto_sql/prelude/tables.sql",
+        "src/trace_processor/perfetto_sql/prelude/views.sql",
     ],
     cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=prelude::tables_views --cpp-out=$(out) $(in)",
     out: [
-        "src/trace_processor/prelude/tables_views/tables_views.h",
+        "src/trace_processor/perfetto_sql/prelude/tables_views.h",
+    ],
+    tool_files: [
+        "tools/gen_amalgamated_sql.py",
+    ],
+}
+
+// GN: //src/trace_processor/perfetto_sql/stdlib:stdlib
+genrule {
+    name: "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
+    srcs: [
+        "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/network_packets.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_maxsdk28.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk29.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk33.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/startups.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scroll_janks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scrolls.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/cpu_powerups.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/histograms.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/speedometer.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/counters.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/cpus.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/metadata.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/percentiles.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/android_broadcast.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/proto_path.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/thread_executing_span.sql",
+        "src/trace_processor/perfetto_sql/stdlib/pkvm/hypervisor.sql",
+    ],
+    cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --cpp-out=$(out) $(in)",
+    out: [
+        "src/trace_processor/perfetto_sql/stdlib/stdlib.h",
     ],
     tool_files: [
         "tools/gen_amalgamated_sql.py",
@@ -10426,8 +10480,6 @@ filegroup {
     name: "perfetto_src_trace_processor_sqlite_sqlite",
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table.cc",
-        "src/trace_processor/sqlite/perfetto_sql_engine.cc",
-        "src/trace_processor/sqlite/perfetto_sql_parser.cc",
         "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sqlite_engine.cc",
@@ -10443,54 +10495,9 @@ filegroup {
     name: "perfetto_src_trace_processor_sqlite_unittests",
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
-        "src/trace_processor/sqlite/perfetto_sql_parser_unittest.cc",
         "src/trace_processor/sqlite/query_constraints_unittest.cc",
         "src/trace_processor/sqlite/sqlite_tokenizer_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
-    ],
-}
-
-// GN: //src/trace_processor/stdlib:gen_amalgamated_stdlib
-genrule {
-    name: "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
-    srcs: [
-        "src/trace_processor/stdlib/android/battery.sql",
-        "src/trace_processor/stdlib/android/battery_stats.sql",
-        "src/trace_processor/stdlib/android/binder.sql",
-        "src/trace_processor/stdlib/android/monitor_contention.sql",
-        "src/trace_processor/stdlib/android/network_packets.sql",
-        "src/trace_processor/stdlib/android/process_metadata.sql",
-        "src/trace_processor/stdlib/android/slices.sql",
-        "src/trace_processor/stdlib/android/startup/internal_startups_maxsdk28.sql",
-        "src/trace_processor/stdlib/android/startup/internal_startups_minsdk29.sql",
-        "src/trace_processor/stdlib/android/startup/internal_startups_minsdk33.sql",
-        "src/trace_processor/stdlib/android/startup/startups.sql",
-        "src/trace_processor/stdlib/android/statsd.sql",
-        "src/trace_processor/stdlib/chrome/chrome_scroll_janks.sql",
-        "src/trace_processor/stdlib/chrome/chrome_scrolls.sql",
-        "src/trace_processor/stdlib/chrome/cpu_powerups.sql",
-        "src/trace_processor/stdlib/chrome/histograms.sql",
-        "src/trace_processor/stdlib/chrome/metadata.sql",
-        "src/trace_processor/stdlib/chrome/speedometer.sql",
-        "src/trace_processor/stdlib/common/counters.sql",
-        "src/trace_processor/stdlib/common/cpus.sql",
-        "src/trace_processor/stdlib/common/metadata.sql",
-        "src/trace_processor/stdlib/common/percentiles.sql",
-        "src/trace_processor/stdlib/common/slices.sql",
-        "src/trace_processor/stdlib/common/timestamps.sql",
-        "src/trace_processor/stdlib/experimental/android_broadcast.sql",
-        "src/trace_processor/stdlib/experimental/flat_slices.sql",
-        "src/trace_processor/stdlib/experimental/proto_path.sql",
-        "src/trace_processor/stdlib/experimental/slices.sql",
-        "src/trace_processor/stdlib/experimental/thread_executing_span.sql",
-        "src/trace_processor/stdlib/pkvm/hypervisor.sql",
-    ],
-    cmd: "$(location tools/gen_amalgamated_sql.py) --namespace=stdlib --cpp-out=$(out) $(in)",
-    out: [
-        "src/trace_processor/stdlib/amalgamated_stdlib.h",
-    ],
-    tool_files: [
-        "tools/gen_amalgamated_sql.py",
     ],
 }
 
@@ -12150,14 +12157,15 @@ cc_test {
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_metrics_unittests",
-        ":perfetto_src_trace_processor_prelude_functions_functions",
-        ":perfetto_src_trace_processor_prelude_functions_interface",
-        ":perfetto_src_trace_processor_prelude_functions_unittests",
-        ":perfetto_src_trace_processor_prelude_operators_operators",
-        ":perfetto_src_trace_processor_prelude_operators_unittests",
-        ":perfetto_src_trace_processor_prelude_table_functions_interface",
-        ":perfetto_src_trace_processor_prelude_table_functions_table_functions",
-        ":perfetto_src_trace_processor_prelude_table_functions_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_unittests",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_unittests",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_rpc_unittests",
         ":perfetto_src_trace_processor_sorter_sorter",
@@ -12396,9 +12404,9 @@ cc_test {
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_src_trace_processor_prelude_table_functions_tables",
-        "perfetto_src_trace_processor_prelude_tables_views_tables_views",
-        "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
+        "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        "perfetto_src_trace_processor_perfetto_sql_prelude_prelude",
+        "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_tables_py_tables_unittest",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_trace_processor_views_macros_unittest",
@@ -12840,11 +12848,12 @@ cc_binary {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
-        ":perfetto_src_trace_processor_prelude_functions_functions",
-        ":perfetto_src_trace_processor_prelude_functions_interface",
-        ":perfetto_src_trace_processor_prelude_operators_operators",
-        ":perfetto_src_trace_processor_prelude_table_functions_interface",
-        ":perfetto_src_trace_processor_prelude_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
         ":perfetto_src_trace_processor_sorter_sorter",
@@ -12921,9 +12930,9 @@ cc_binary {
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_src_trace_processor_prelude_table_functions_tables",
-        "perfetto_src_trace_processor_prelude_tables_views_tables_views",
-        "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
+        "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        "perfetto_src_trace_processor_perfetto_sql_prelude_prelude",
+        "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_tables_tables_python",
     ],
     defaults: [
@@ -13067,11 +13076,12 @@ cc_binary_host {
         ":perfetto_src_trace_processor_lib",
         ":perfetto_src_trace_processor_metatrace",
         ":perfetto_src_trace_processor_metrics_metrics",
-        ":perfetto_src_trace_processor_prelude_functions_functions",
-        ":perfetto_src_trace_processor_prelude_functions_interface",
-        ":perfetto_src_trace_processor_prelude_operators_operators",
-        ":perfetto_src_trace_processor_prelude_table_functions_interface",
-        ":perfetto_src_trace_processor_prelude_table_functions_table_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_operators_operators",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
+        ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",
@@ -13150,9 +13160,9 @@ cc_binary_host {
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_sql_gen_amalgamated_sql_metrics",
-        "perfetto_src_trace_processor_prelude_table_functions_tables",
-        "perfetto_src_trace_processor_prelude_tables_views_tables_views",
-        "perfetto_src_trace_processor_stdlib_gen_amalgamated_stdlib",
+        "perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
+        "perfetto_src_trace_processor_perfetto_sql_prelude_prelude",
+        "perfetto_src_trace_processor_perfetto_sql_stdlib_stdlib",
         "perfetto_src_trace_processor_tables_tables_python",
         "perfetto_src_traceconv_gen_cc_trace_descriptor",
     ],
