@@ -17,6 +17,7 @@ import {Draft} from 'immer';
 import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {RecordConfig} from '../controller/record_config_types';
 import {
+  GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../frontend/generic_slice_details_tab';
 import {globals} from '../frontend/globals';
@@ -800,23 +801,6 @@ export const StateActions = {
         state.pendingScrollId = args.scroll ? args.id : undefined;
       },
 
-  selectDebugSlice(state: StateDraft, args: {
-    id: number,
-    sqlTableName: string,
-    start: TPTime,
-    duration: TPDuration,
-    trackId: string,
-  }): void {
-    state.currentSelection = {
-      kind: 'DEBUG_SLICE',
-      id: args.id,
-      sqlTableName: args.sqlTableName,
-      start: args.start,
-      duration: args.duration,
-      trackId: args.trackId,
-    };
-  },
-
   selectGenericSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
@@ -826,6 +810,11 @@ export const StateActions = {
     detailsPanelConfig:
         {kind: string, config: GenericSliceDetailsTabConfigBase},
   }): void {
+    const detailsPanelConfig: GenericSliceDetailsTabConfig = {
+      id: args.id,
+      ...args.detailsPanelConfig.config,
+    };
+
     state.currentSelection = {
       kind: 'GENERIC_SLICE',
       id: args.id,
@@ -833,7 +822,8 @@ export const StateActions = {
       start: args.start,
       duration: args.duration,
       trackId: args.trackId,
-      detailsPanelConfig: args.detailsPanelConfig,
+      detailsPanelConfig:
+          {kind: args.detailsPanelConfig.kind, config: detailsPanelConfig},
     };
   },
 
