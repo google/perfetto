@@ -24,13 +24,13 @@ screen.
 * Expected Timeline
 Each slice represents the time given to the app for rendering the
 frame. To avoid janks in the system, the app is expected to finish within this
-time frame.
+time frame. The start time is the time the Choreographer callback was scheduled to run.
 
 * Actual Timeline
 These slices represent the actual time an app took to complete the frame
-(including GPU work) and send it to SurfaceFlinger for composition. **Note: The
-actual frame start of apps is not yet known to FrameTimeline. Expected start
-time is used instead**. The end time of the slices here represent `max(gpu time,
+(including GPU work) and send it to SurfaceFlinger for composition. The start time
+is the time that `Choreographer#doFrame` or `AChoreographer_vsyncCallback` started to run.
+The end time of the slices here represent `max(gpu time,
 post time)`. **Post time** is the time the app's frame was posted to
 SurfaceFlinger.
 
