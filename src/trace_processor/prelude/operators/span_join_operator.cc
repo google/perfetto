@@ -28,6 +28,7 @@
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -106,8 +107,9 @@ std::string EscapedSqliteValueAsString(sqlite3_value* value) {
 
 }  // namespace
 
-SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3* db, const void*)
-    : db_(db) {}
+SpanJoinOperatorTable::SpanJoinOperatorTable(sqlite3*,
+                                             PerfettoSqlEngine* engine)
+    : engine_(engine) {}
 SpanJoinOperatorTable::~SpanJoinOperatorTable() = default;
 
 util::Status SpanJoinOperatorTable::Init(int argc,
@@ -229,7 +231,8 @@ void SpanJoinOperatorTable::CreateSchemaColsForDefn(
 }
 
 std::unique_ptr<SqliteTable::BaseCursor> SpanJoinOperatorTable::CreateCursor() {
-  return std::unique_ptr<SpanJoinOperatorTable::Cursor>(new Cursor(this, db_));
+  return std::unique_ptr<SpanJoinOperatorTable::Cursor>(
+      new Cursor(this, engine_));
 }
 
 int SpanJoinOperatorTable::BestIndex(const QueryConstraints& qc,
@@ -328,10 +331,8 @@ util::Status SpanJoinOperatorTable::CreateTableDefinition(
   }
 
   std::vector<SqliteTable::Column> cols;
-  auto status = sqlite_utils::GetColumnsForTable(db_, desc.name, cols);
-  if (!status.ok()) {
-    return status;
-  }
+  RETURN_IF_ERROR(sqlite_utils::GetColumnsForTable(
+      engine_->sqlite_engine()->db(), desc.name, cols));
 
   uint32_t required_columns_found = 0;
   uint32_t ts_idx = std::numeric_limits<uint32_t>::max();
@@ -392,10 +393,11 @@ std::string SpanJoinOperatorTable::GetNameForGlobalColumnIndex(
   return defn.columns()[locator.col_index].name().c_str();
 }
 
-SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table, sqlite3* db)
+SpanJoinOperatorTable::Cursor::Cursor(SpanJoinOperatorTable* table,
+                                      PerfettoSqlEngine* engine)
     : SqliteTable::BaseCursor(table),
-      t1_(table, &table->t1_defn_, db),
-      t2_(table, &table->t2_defn_, db),
+      t1_(table, &table->t1_defn_, engine),
+      t2_(table, &table->t2_defn_, engine),
       table_(table) {}
 SpanJoinOperatorTable::Cursor::~Cursor() = default;
 
@@ -592,8 +594,8 @@ base::Status SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context,
 
 SpanJoinOperatorTable::Query::Query(SpanJoinOperatorTable* table,
                                     const TableDefinition* definition,
-                                    sqlite3* db)
-    : defn_(definition), db_(db), table_(table) {
+                                    PerfettoSqlEngine* engine)
+    : defn_(definition), engine_(engine), table_(table) {
   PERFETTO_DCHECK(!defn_->IsPartitioned() ||
                   defn_->partition_idx() < defn_->columns().size());
 }
@@ -604,7 +606,7 @@ util::Status SpanJoinOperatorTable::Query::Initialize(
     const QueryConstraints& qc,
     sqlite3_value** argv,
     InitialEofBehavior eof_behavior) {
-  *this = Query(table_, definition(), db_);
+  *this = Query(table_, definition(), engine_);
   sql_query_ = CreateSqlQuery(
       table_->ComputeSqlConstraintsForDefinition(*defn_, qc, argv));
   util::Status status = Rewind();
@@ -729,18 +731,11 @@ util::Status SpanJoinOperatorTable::Query::NextSliceState() {
 }
 
 util::Status SpanJoinOperatorTable::Query::Rewind() {
-  sqlite3_stmt* stmt = nullptr;
-  int res =
-      sqlite3_prepare_v2(db_, sql_query_.c_str(),
-                         static_cast<int>(sql_query_.size()), &stmt, nullptr);
-  stmt_.reset(stmt);
-
-  cursor_eof_ = res != SQLITE_OK;
-  if (res != SQLITE_OK)
-    return util::ErrStatus(
-        "%s", sqlite_utils::FormatErrorMessage(
-                  stmt_.get(), base::StringView(sql_query_), db_, res)
-                  .c_message());
+  auto res = engine_->sqlite_engine()->PrepareStatement(
+      SqlSource::FromSpanJoin(sql_query_, table_->name()));
+  cursor_eof_ = false;
+  RETURN_IF_ERROR(res.status());
+  stmt_ = std::move(res.value());
 
   RETURN_IF_ERROR(CursorNext());
 
@@ -765,27 +760,23 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
 }
 
 util::Status SpanJoinOperatorTable::Query::CursorNext() {
-  auto* stmt = stmt_.get();
-  int res;
   if (defn_->IsPartitioned()) {
     auto partition_idx = static_cast<int>(defn_->partition_idx());
     // Fastforward through any rows with null partition keys.
     int row_type;
     do {
-      res = sqlite3_step(stmt);
-      row_type = sqlite3_column_type(stmt, partition_idx);
-    } while (res == SQLITE_ROW && row_type == SQLITE_NULL);
+      cursor_eof_ = !stmt_->Step();
+      RETURN_IF_ERROR(stmt_->status());
+      row_type = sqlite3_column_type(stmt_->sqlite_stmt(), partition_idx);
+    } while (!cursor_eof_ && row_type == SQLITE_NULL);
 
-    if (res == SQLITE_ROW && row_type != SQLITE_INTEGER) {
+    if (!cursor_eof_ && row_type != SQLITE_INTEGER) {
       return util::ErrStatus("SPAN_JOIN: partition is not an int");
     }
   } else {
-    res = sqlite3_step(stmt);
+    cursor_eof_ = !stmt_->Step();
   }
-  cursor_eof_ = res != SQLITE_ROW;
-  return res == SQLITE_ROW || res == SQLITE_DONE
-             ? util::OkStatus()
-             : util::ErrStatus("SPAN_JOIN: %s", sqlite3_errmsg(db_));
+  return base::OkStatus();
 }
 
 std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
@@ -816,7 +807,7 @@ void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
     return;
   }
 
-  sqlite3_stmt* stmt = stmt_.get();
+  sqlite3_stmt* stmt = stmt_->sqlite_stmt();
   int idx = static_cast<int>(index);
   switch (sqlite3_column_type(stmt, idx)) {
     case SQLITE_INTEGER:

@@ -23,6 +23,7 @@
 #include <cstddef>
 #include <cstring>
 #include <optional>
+#include <string>
 #include <utility>
 
 #include "perfetto/base/logging.h"
@@ -142,76 +143,6 @@ inline void ReportSqlValue(
 
 inline ScopedSqliteString ExpandedSqlForStmt(sqlite3_stmt* stmt) {
   return ScopedSqliteString(sqlite3_expanded_sql(stmt));
-}
-
-inline base::Status FormatErrorMessage(base::StringView sql,
-                                       sqlite3* db,
-                                       int error_code) {
-  uint32_t offset = static_cast<uint32_t>(sqlite3_error_offset(db));
-
-  auto error_opt = FindLineWithOffset(sql, offset);
-
-  if (!error_opt.has_value()) {
-    return base::ErrStatus("Error: %s (errcode: %d)", sqlite3_errmsg(db),
-                           error_code);
-  }
-
-  auto error = error_opt.value();
-
-  return base::ErrStatus(
-      "Error in line:%u, col: %u.\n"
-      "%s\n"
-      "%s^\n"
-      "%s (errcode: %d)",
-      error.line_num, error.line_offset + 1, error.line.ToStdString().c_str(),
-      std::string(error.line_offset, ' ').c_str(), sqlite3_errmsg(db),
-      error_code);
-}
-
-inline base::Status FormatErrorMessage(sqlite3_stmt* stmt,
-                                       std::optional<base::StringView> sql,
-                                       sqlite3* db,
-                                       int error_code) {
-  if (stmt) {
-    auto expanded_sql = ExpandedSqlForStmt(stmt);
-    PERFETTO_CHECK(expanded_sql);
-    return FormatErrorMessage(expanded_sql.get(), db, error_code);
-  }
-  PERFETTO_CHECK(sql.has_value());
-  return FormatErrorMessage(sql.value(), db, error_code);
-}
-
-inline base::Status PrepareStmt(sqlite3* db,
-                                const char* sql,
-                                ScopedStmt* stmt,
-                                const char** tail) {
-  sqlite3_stmt* raw_stmt = nullptr;
-  int err = sqlite3_prepare_v2(db, sql, -1, &raw_stmt, tail);
-  stmt->reset(raw_stmt);
-  if (err != SQLITE_OK)
-    return base::ErrStatus("%s", FormatErrorMessage(sql, db, err).c_message());
-  return base::OkStatus();
-}
-
-inline bool IsStmtDone(sqlite3_stmt* stmt) {
-  return !sqlite3_stmt_busy(stmt);
-}
-
-inline base::Status StepStmtUntilDone(sqlite3_stmt* stmt) {
-  PERFETTO_DCHECK(stmt);
-
-  if (IsStmtDone(stmt))
-    return base::OkStatus();
-
-  int err;
-  for (err = sqlite3_step(stmt); err == SQLITE_ROW; err = sqlite3_step(stmt)) {
-  }
-  if (err != SQLITE_DONE) {
-    auto db = sqlite3_db_handle(stmt);
-    return base::ErrStatus(
-        "%s", FormatErrorMessage(stmt, std::nullopt, db, err).c_message());
-  }
-  return base::OkStatus();
 }
 
 inline void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {

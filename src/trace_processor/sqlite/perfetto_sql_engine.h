@@ -19,6 +19,7 @@
 
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 
@@ -30,23 +31,34 @@ namespace trace_processor {
 // by and executed against SQLite.
 class PerfettoSqlEngine {
  public:
-  struct ExecutionResult {
-    ScopedStmt stmt;
+  struct ExecutionStats {
     uint32_t column_count = 0;
     uint32_t statement_count = 0;
     uint32_t statement_count_with_output = 0;
   };
+  struct ExecutionResult {
+    SqliteEngine::PreparedStatement stmt;
+    ExecutionStats stats;
+  };
 
   PerfettoSqlEngine();
 
-  // Executes all the statements in |sql| until the last one and returns a
-  // |ExecutionResult| object containing a |ScopedStmt| for the final statement
-  // and metadata about all statements executed.
+  // Executes all the statements in |sql| and returns a |ExecutionResult|
+  // object. The metadata will reference all the statements executed and the
+  // |ScopedStmt| be empty.
   //
   // Returns an error if the execution of any statement failed or if there was
   // no valid SQL to run.
-  base::StatusOr<ExecutionResult> ExecuteUntilLastStatement(
-      const std::string& sql);
+  base::StatusOr<ExecutionStats> Execute(SqlSource sql);
+
+  // Executes all the statements in |sql| fully until the final statement and
+  // returns a |ExecutionResult| object containing a |ScopedStmt| for the final
+  // statement (which has been stepped once) and metadata about all statements
+  // executed.
+  //
+  // Returns an error if the execution of any statement failed or if there was
+  // no valid SQL to run.
+  base::StatusOr<ExecutionResult> ExecuteUntilLastStatement(SqlSource sql);
 
   // Registers a trace processor C++ function to be runnable from SQL.
   //

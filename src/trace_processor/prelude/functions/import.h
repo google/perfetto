@@ -24,6 +24,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/trace_processor/prelude/functions/sql_function.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto {
@@ -31,8 +32,7 @@ namespace trace_processor {
 
 struct Import : public SqlFunction {
   struct Context {
-    sqlite3* db;
-    TraceProcessor* tp;
+    PerfettoSqlEngine* engine;
     base::FlatHashMap<std::string, sql_modules::RegisteredModule>* modules;
   };
 
