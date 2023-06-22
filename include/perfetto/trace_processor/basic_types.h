@@ -254,7 +254,7 @@ struct SqlModule {
 
   // If true, SqlModule will override registered module with the same name. Can
   // only be set if enable_dev_features is true, otherwise will throw an error.
-  bool allow_module_override;
+  bool allow_module_override = false;
 };
 
 }  // namespace trace_processor

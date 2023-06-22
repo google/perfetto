@@ -21,6 +21,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -33,7 +34,7 @@ using SqliteSql = PerfettoSqlParser::SqliteSql;
 class PerfettoSqlParserTest : public ::testing::Test {
  protected:
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
-      const char* sql) {
+      SqlSource sql) {
     PerfettoSqlParser parser(sql);
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
@@ -47,25 +48,24 @@ class PerfettoSqlParserTest : public ::testing::Test {
 };
 
 TEST_F(PerfettoSqlParserTest, Empty) {
-  ASSERT_THAT(*Parse(""), testing::IsEmpty());
+  ASSERT_THAT(*Parse(SqlSource::FromExecuteQuery("")), testing::IsEmpty());
 }
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
-  static constexpr char kSql[] = "SELECT * FROM slice;";
-  ASSERT_THAT(*Parse(kSql), testing::ElementsAre(SqliteSql{kSql, 0}));
+  auto res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res}));
 }
 
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
-  static constexpr char kSql[] = "SELECT * FROM slice; SELECT * FROM s";
-  ASSERT_THAT(*Parse(kSql),
-              testing::ElementsAre(SqliteSql{"SELECT * FROM slice;", 0},
-                                   SqliteSql{"SELECT * FROM s", 21}));
+  auto res =
+      SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res.Substr(0, 20)},
+                                                SqliteSql{res.Substr(21, 15)}));
 }
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
-  static constexpr char kSql[] = " ; SELECT * FROM s; ; ;";
-  ASSERT_THAT(*Parse(kSql),
-              testing::ElementsAre(SqliteSql{"SELECT * FROM s;", 3}));
+  auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res.Substr(3, 16)}));
 }
 
 }  // namespace

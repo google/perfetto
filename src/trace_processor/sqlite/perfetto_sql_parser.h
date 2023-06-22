@@ -21,6 +21,7 @@
 #include <variant>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
 namespace perfetto {
@@ -41,18 +42,14 @@ class PerfettoSqlParser {
   // Indicates that the specified SQLite SQL was extracted directly from a
   // PerfettoSQL statement and should be directly executed with SQLite.
   struct SqliteSql {
-    std::string_view sql;
-    uint32_t global_pos;
-
-    bool operator==(const SqliteSql& o) const {
-      return sql == o.sql && global_pos == o.global_pos;
-    }
+    SqlSource sql;
+    bool operator==(const SqliteSql& c) const { return sql == c.sql; }
   };
   using Statement = std::variant<SqliteSql>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(const char* sql);
+  explicit PerfettoSqlParser(SqlSource);
 
   // Attempts to parse to the next statement in the SQL. Returns true if
   // a statement was successfully parsed and false if EOF was reached or the
@@ -74,8 +71,12 @@ class PerfettoSqlParser {
   const base::Status& status() const { return status_; }
 
  private:
+  // This cannot be moved because we keep pointers into |sql_| in |tokenizer_|.
+  PerfettoSqlParser(PerfettoSqlParser&&) = delete;
+  PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
+
+  SqlSource sql_;
   SqliteTokenizer tokenizer_;
-  const char* start_ = nullptr;
   base::Status status_;
   std::optional<Statement> statement_;
 };
