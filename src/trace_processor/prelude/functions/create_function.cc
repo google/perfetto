@@ -24,6 +24,7 @@
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -34,20 +35,14 @@ namespace trace_processor {
 
 namespace {
 
-base::StatusOr<ScopedStmt> CreateStatement(PerfettoSqlEngine* engine,
-                                           const std::string& sql,
-                                           const std::string& prototype) {
-  ScopedStmt stmt;
-  const char* tail = nullptr;
-  base::Status status = sqlite_utils::PrepareStmt(engine->sqlite_engine()->db(),
-                                                  sql.c_str(), &stmt, &tail);
-  if (!status.ok()) {
-    return base::ErrStatus(
-        "CREATE_FUNCTION[prototype=%s]: SQLite error when preparing "
-        "statement %s",
-        prototype.c_str(), status.message().c_str());
-  }
-  return std::move(stmt);
+base::StatusOr<SqliteEngine::PreparedStatement> CreateStatement(
+    PerfettoSqlEngine* engine,
+    const std::string& sql,
+    const std::string& prototype) {
+  auto res = engine->sqlite_engine()->PrepareStatement(
+      SqlSource::FromFunction(sql.c_str(), prototype));
+  RETURN_IF_ERROR(res.status());
+  return std::move(res.value());
 }
 
 base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
@@ -454,7 +449,7 @@ class CreatedFunction::Context {
   // Prepare a statement and push it into the stack of allocated statements
   // for this function.
   base::Status PrepareStatement() {
-    base::StatusOr<ScopedStmt> stmt =
+    base::StatusOr<SqliteEngine::PreparedStatement> stmt =
         CreateStatement(engine_, sql_, prototype_str_);
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
@@ -492,7 +487,7 @@ class CreatedFunction::Context {
 
   // Returns the statement that is used for the current invocation.
   sqlite3_stmt* CurrentStatement() {
-    return stmts_[current_recursion_level_ - 1].get();
+    return stmts_[current_recursion_level_ - 1].sqlite_stmt();
   }
 
   // This function is called each time the function returns and resets the
@@ -585,7 +580,7 @@ class CreatedFunction::Context {
   // the stack requires a dedicated statement, we maintain a stack of prepared
   // statements and use the top one for each new call (allocating a new one if
   // needed).
-  std::vector<ScopedStmt> stmts_;
+  std::vector<SqliteEngine::PreparedStatement> stmts_;
   // A list of statements to verify to ensure that they don't have more rows
   // in VerifyPostConditions.
   std::vector<sqlite3_stmt*> empty_stmts_to_validate_;

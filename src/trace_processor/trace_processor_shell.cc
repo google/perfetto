@@ -271,7 +271,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
   base::Status status = attach_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   // Export real and virtual tables.
   auto tables_it = g_tp->ExecuteQuery(
@@ -289,11 +289,11 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
     status = export_it.Status();
     if (!status.ok())
-      return base::ErrStatus("SQLite error: %s", status.c_message());
+      return base::ErrStatus("%s", status.c_message());
   }
   status = tables_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   // Export views.
   auto views_it =
@@ -313,18 +313,18 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
     status = export_it.Status();
     if (!status.ok())
-      return base::ErrStatus("SQLite error: %s", status.c_message());
+      return base::ErrStatus("%s", status.c_message());
   }
   status = views_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   auto detach_it = g_tp->ExecuteQuery("DETACH DATABASE perfetto_export");
   bool detach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!detach_has_more);
   status = detach_it.Status();
   return status.ok() ? base::OkStatus()
-                     : base::ErrStatus("SQLite error: %s", status.c_message());
+                     : base::ErrStatus("%s", status.c_message());
 }
 
 class ErrorPrinter : public google::protobuf::io::ErrorCollector {
@@ -413,8 +413,7 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
     base::Status status =
         g_tp->ComputeMetricText(metric_names, TraceProcessor::kProtoText, &out);
     if (!status.ok()) {
-      return base::ErrStatus("Error when computing metrics: %s",
-                             status.c_message());
+      return status;
     }
     out += '\n';
     fwrite(out.c_str(), sizeof(char), out.size(), stdout);
@@ -422,12 +421,7 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
   }
 
   std::vector<uint8_t> metric_result;
-  base::Status status = g_tp->ComputeMetric(metric_names, &metric_result);
-  if (!status.ok()) {
-    return base::ErrStatus("Error when computing metrics: %s",
-                           status.c_message());
-  }
-
+  RETURN_IF_ERROR(g_tp->ComputeMetric(metric_names, &metric_result));
   switch (format) {
     case OutputFormat::kJson: {
       // TODO(b/182165266): Handle this using ComputeMetricText.
@@ -517,7 +511,7 @@ void PrintQueryResultInteractively(Iterator* it,
 
   base::Status status = it->Status();
   if (!status.ok()) {
-    PERFETTO_ELOG("SQLite error: %s", status.c_message());
+    fprintf(stderr, "%s\n", status.c_message());
   }
   printf("\nQuery executed in %.3f ms\n\n",
          static_cast<double>((t_end - t_start).count()) / 1E6);
@@ -572,7 +566,7 @@ base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
 
 base::Status RunQueriesAndPrintResult(const std::string& sql_query,
                                       FILE* output) {
-  PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
+  PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
   auto query_start = std::chrono::steady_clock::now();
 
   auto it = g_tp->ExecuteQuery(sql_query);
@@ -1097,7 +1091,9 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
 base::Status RunQueries(const std::string& query_file_path,
                         bool expect_output) {
   std::string queries;
-  base::ReadFile(query_file_path.c_str(), &queries);
+  if (!base::ReadFile(query_file_path.c_str(), &queries)) {
+    return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
+  }
 
   base::Status status;
   if (expect_output) {
@@ -1106,8 +1102,7 @@ base::Status RunQueries(const std::string& query_file_path,
     status = RunQueriesWithoutOutput(queries);
   }
   if (!status.ok()) {
-    return base::ErrStatus("Encountered error while running queries: %s",
-                           status.c_message());
+    return base::ErrStatus("%s", status.c_message());
   }
   return base::OkStatus();
 }
@@ -1501,7 +1496,7 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
         base::Status status =
             RunMetrics(options.metrics, options.metric_format, *options.pool);
         if (!status.ok()) {
-          PERFETTO_ELOG("%s", status.c_message());
+          fprintf(stderr, "%s\n", status.c_message());
         }
       } else {
         PrintShellUsage();
@@ -1724,7 +1719,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 int main(int argc, char** argv) {
   auto status = perfetto::trace_processor::TraceProcessorMain(argc, argv);
   if (!status.ok()) {
-    PERFETTO_ELOG("%s", status.c_message());
+    fprintf(stderr, "%s\n", status.c_message());
     return 1;
   }
   return 0;
