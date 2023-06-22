@@ -24,6 +24,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -75,15 +76,11 @@ base::Status Import::Run(Import::Context* ctx,
     return base::OkStatus();
   }
 
-  auto import_iter = ctx->tp->ExecuteQuery(module_file->sql);
-  if (import_iter.StatementWithOutputCount() > 0)
+  auto it = ctx->engine->Execute(
+      SqlSource::FromModuleImport(module_file->sql, import_key));
+  RETURN_IF_ERROR(it.status());
+  if (it->statement_count_with_output > 0)
     return base::ErrStatus("IMPORT: Imported file returning values.");
-  {
-    auto status = import_iter.Status();
-    if (!status.ok())
-      return base::ErrStatus("SQLite error on IMPORT: %s", status.c_message());
-  }
-
   module_file->imported = true;
   return base::OkStatus();
 }

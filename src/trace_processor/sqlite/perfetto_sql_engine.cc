@@ -16,7 +16,18 @@
 
 #include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 
+#include <optional>
+#include <string>
+#include <variant>
+
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include "src/trace_processor/sqlite/perfetto_sql_parser.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -24,14 +35,15 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-void IncrementCountForStmt(sqlite3_stmt* stmt,
-                           PerfettoSqlEngine::ExecutionResult* res) {
+void IncrementCountForStmt(const SqliteEngine::PreparedStatement& p_stmt,
+                           PerfettoSqlEngine::ExecutionStats* res) {
   res->statement_count++;
 
   // If the stmt is already done, it clearly didn't have any output.
-  if (sqlite_utils::IsStmtDone(stmt))
+  if (p_stmt.IsDone())
     return;
 
+  sqlite3_stmt* stmt = p_stmt.sqlite_stmt();
   if (sqlite3_column_count(stmt) == 1) {
     sqlite3_value* value = sqlite3_column_value(stmt, 0);
 
@@ -94,100 +106,101 @@ void PerfettoSqlEngine::RegisterTableFunction(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
 }
 
-base::StatusOr<PerfettoSqlEngine::ExecutionResult>
-PerfettoSqlEngine::ExecuteUntilLastStatement(const std::string& sql) {
-  ExecutionResult res;
+base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
+    SqlSource sql) {
+  auto res = ExecuteUntilLastStatement(std::move(sql));
+  RETURN_IF_ERROR(res.status());
+  if (res->stmt.IsDone()) {
+    return res->stats;
+  }
+  while (res->stmt.Step()) {
+  }
+  RETURN_IF_ERROR(res->stmt.status());
+  return res->stats;
+}
 
-  // A sql string can contain several statements. Some of them might be comment
-  // only, e.g. "SELECT 1; /* comment */; SELECT 2;". Here we process one
-  // statement on each iteration. SQLite's sqlite_prepare_v2 (wrapped by
-  // PrepareStmt) returns on each iteration a pointer to the unprocessed string.
-  //
-  // Unfortunately we cannot call PrepareStmt and tokenize all statements
-  // upfront because sqlite_prepare_v2 also semantically checks the statement
-  // against the schema. In some cases statements might depend on the execution
-  // of previous ones (e.e. CREATE VIEW x; SELECT FROM x; DELETE VIEW x;).
-  //
-  // Also, unfortunately, we need to PrepareStmt to find out if a statement is a
-  // comment or a real statement.
+base::StatusOr<PerfettoSqlEngine::ExecutionResult>
+PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
+  // A SQL string can contain several statements. Some of them might be comment
+  // only, e.g. "SELECT 1; /* comment */; SELECT 2;". Some statements can also
+  // be PerfettoSQL statements which we need to transpile before execution or
+  // execute without delegating to SQLite.
   //
   // The logic here is the following:
-  //  - We invoke PrepareStmt on each statement.
-  //  - If the statement is a comment we simply skip it.
-  //  - If the statement is valid, we step once to make sure side effects take
-  //    effect.
+  //  - We parse the statement as a PerfettoSQL statement.
+  //  - If the statement is actually an SQLite statement, we invoke PrepareStmt.
+  //  - We step once to make sure side effects take effect (e.g. for CREATE
+  //    TABLE statements, tables are created).
   //  - If we encounter a valid statement afterwards, we step internally through
   //    all rows of the previous one. This ensures that any further side effects
   //    take hold *before* we step into the next statement.
-  //  - Once no further non-comment statements are encountered, we return an
-  //    iterator to the last valid statement.
-  for (const char* rem_sql = sql.c_str(); rem_sql && rem_sql[0];) {
-    ScopedStmt cur_stmt;
+  //  - Once no further statements are encountered, we return the prepared
+  //    statement for the last valid statement.
+  std::optional<SqliteEngine::PreparedStatement> res;
+  ExecutionStats stats;
+  PerfettoSqlParser parser(std::move(sql_source));
+  while (parser.Next()) {
+    // If none of the above matched, this must just be an SQL statement directly
+    // executable by SQLite.
+    auto* sql = std::get_if<PerfettoSqlParser::SqliteSql>(&parser.statement());
+    PERFETTO_CHECK(sql);
+
+    // Try to get SQLite to prepare the statement.
+    std::optional<SqliteEngine::PreparedStatement> cur_stmt;
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
-      const char* tail = nullptr;
-      RETURN_IF_ERROR(
-          sqlite_utils::PrepareStmt(engine_.db(), rem_sql, &cur_stmt, &tail));
-      rem_sql = tail;
+      auto stmt_or = engine_.PrepareStatement(std::move(sql->sql));
+      RETURN_IF_ERROR(stmt_or.status());
+      cur_stmt = std::move(stmt_or.value());
     }
 
     // The only situation where we'd have an ok status but also no prepared
-    // statement is if the statement of SQL we parsed was a pure comment. In
-    // this case, just continue to the next statement.
-    if (!cur_stmt)
-      continue;
+    // statement is if the SQL was a pure comment. However, the PerfettoSQL
+    // parser should filter out such statements so this should never happen.
+    PERFETTO_DCHECK(cur_stmt->sqlite_stmt());
 
     // Before stepping into |cur_stmt|, we need to finish iterating through
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
-    if (res.stmt) {
+    if (res && !res->IsDone()) {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP_UNTIL_DONE",
                         [&res](metatrace::Record* record) {
-                          auto expanded_sql =
-                              sqlite_utils::ExpandedSqlForStmt(res.stmt.get());
-                          record->AddArg("SQL", expanded_sql.get());
+                          record->AddArg("SQL", res->expanded_sql());
                         });
-      RETURN_IF_ERROR(sqlite_utils::StepStmtUntilDone(res.stmt.get()));
-      res.stmt.reset();
+      while (res->Step()) {
+      }
+      RETURN_IF_ERROR(res->status());
     }
 
-    PERFETTO_DLOG("Executing statement: %s", sqlite3_sql(*cur_stmt));
+    // Propogate the current statement to the next iteration.
+    res = std::move(cur_stmt);
 
+    // Step the newly prepared statement once. This is considered to be
+    // "executing" the statement.
     {
       PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_FIRST_STEP",
-                        [&cur_stmt](metatrace::Record* record) {
-                          auto expanded_sql =
-                              sqlite_utils::ExpandedSqlForStmt(*cur_stmt);
-                          record->AddArg("SQL", expanded_sql.get());
+                        [&res](metatrace::Record* record) {
+                          record->AddArg("SQL", res->expanded_sql());
                         });
-
-      // Now step once into |cur_stmt| so that when we prepare the next statment
-      // we will have executed any dependent bytecode in this one.
-      int err = sqlite3_step(*cur_stmt);
-      if (err != SQLITE_ROW && err != SQLITE_DONE) {
-        return base::ErrStatus(
-            "%s", sqlite_utils::FormatErrorMessage(
-                      cur_stmt.get(), base::StringView(sql), engine_.db(), err)
-                      .c_message());
-      }
+      PERFETTO_DLOG("Executing statement: %s", res->sql());
+      res->Step();
+      RETURN_IF_ERROR(res->status());
     }
 
     // Increment the neecessary counts for the statement.
-    IncrementCountForStmt(cur_stmt.get(), &res);
-
-    // Propogate the current statement to the next iteration.
-    res.stmt = std::move(cur_stmt);
+    IncrementCountForStmt(*res, &stats);
   }
+  RETURN_IF_ERROR(parser.status());
 
-  // If we didn't manage to prepare a single statment, that means everything
+  // If we didn't manage to prepare a single statement, that means everything
   // in the SQL was treated as a comment.
-  if (!res.stmt)
+  if (!res)
     return base::ErrStatus("No valid SQL to run");
 
-  // Update the output statment and column count.
-  res.column_count =
-      static_cast<uint32_t>(sqlite3_column_count(res.stmt.get()));
-  return std::move(res);
+  // Update the output statement and column count.
+  stats.column_count =
+      static_cast<uint32_t>(sqlite3_column_count(res->sqlite_stmt()));
+  return ExecutionResult{std::move(*res), stats};
 }
 
 }  // namespace trace_processor

@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/perfetto_sql_parser.h"
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
 namespace perfetto {
@@ -31,8 +32,8 @@ bool TokenIsTerminal(Token t) {
 
 }  // namespace
 
-PerfettoSqlParser::PerfettoSqlParser(const char* sql)
-    : tokenizer_(sql), start_(sql) {}
+PerfettoSqlParser::PerfettoSqlParser(SqlSource sql)
+    : sql_(std::move(sql)), tokenizer_(sql_.sql().c_str()) {}
 
 bool PerfettoSqlParser::Next() {
   PERFETTO_DCHECK(status_.ok());
@@ -47,15 +48,14 @@ bool PerfettoSqlParser::Next() {
 
     if (TokenIsTerminal(token)) {
       // If we have a non-space character we've seen, just return all the stuff
-      // we've seen between that and the current token.
+      // after that point.
       if (non_space_ptr) {
         uint32_t offset_of_non_space =
-            static_cast<uint32_t>(non_space_ptr - start_);
+            static_cast<uint32_t>(non_space_ptr - sql_.sql().c_str());
         uint32_t chars_since_non_space =
             static_cast<uint32_t>(tokenizer_.ptr() - non_space_ptr);
-        statement_ = Statement(
-            SqliteSql{std::string_view(non_space_ptr, chars_since_non_space),
-                      offset_of_non_space});
+        statement_ =
+            SqliteSql{sql_.Substr(offset_of_non_space, chars_since_non_space)};
         return true;
       }
       // This means we've seen a semi-colon without any non-space content. Just

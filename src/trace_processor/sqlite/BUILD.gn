@@ -26,6 +26,8 @@ source_set("sqlite") {
     "perfetto_sql_parser.h",
     "query_cache.h",
     "scoped_db.h",
+    "sql_source.cc",
+    "sql_source.h",
     "sql_stats_table.cc",
     "sql_stats_table.h",
     "sqlite_engine.cc",

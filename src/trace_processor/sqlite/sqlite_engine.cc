@@ -16,12 +16,16 @@
 
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
+#include <optional>
 #include <utility>
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
+#include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
+#include "src/trace_processor/sqlite/sqlite_utils.h"
 
 // In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -61,6 +65,12 @@ void InitializeSqlite(sqlite3* db) {
 #endif
 }
 
+std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
+  int offset = sqlite3_error_offset(db);
+  return offset == -1 ? std::nullopt
+                      : std::make_optional(static_cast<uint32_t>(offset));
+}
+
 }  // namespace
 
 SqliteEngine::SqliteEngine() {
@@ -82,6 +92,20 @@ SqliteEngine::~SqliteEngine() {
     PERFETTO_CHECK(ret == 0);
   }
   fn_ctx_.Clear();
+}
+
+base::StatusOr<SqliteEngine::PreparedStatement> SqliteEngine::PrepareStatement(
+    SqlSource sql) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
+  sqlite3_stmt* raw_stmt = nullptr;
+  int err =
+      sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
+  if (err != SQLITE_OK) {
+    const char* errmsg = sqlite3_errmsg(db_.get());
+    std::string frame = sql.AsTracebackFrame(GetErrorOffset());
+    return base::ErrStatus("%s%s", frame.c_str(), errmsg);
+  }
+  return PreparedStatement{ScopedStmt(raw_stmt), std::move(sql)};
 }
 
 base::Status SqliteEngine::RegisterFunction(const char* name,
@@ -134,6 +158,51 @@ base::StatusOr<std::unique_ptr<SqliteTable>> SqliteEngine::RestoreSqliteTable(
 void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
   auto* res = fn_ctx_.Find(std::make_pair(name, argc));
   return res ? *res : nullptr;
+}
+
+std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
+  return GetErrorOffsetDb(db_.get());
+}
+
+SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
+                                                   SqlSource tagged)
+    : stmt_(std::move(stmt)), sql_source_(std::move(tagged)) {}
+
+bool SqliteEngine::PreparedStatement::Step() {
+  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_STEP",
+                    [this](metatrace::Record* record) {
+                      record->AddArg("SQL", expanded_sql());
+                    });
+
+  // Now step once into |cur_stmt| so that when we prepare the next statment
+  // we will have executed any dependent bytecode in this one.
+  int err = sqlite3_step(stmt_.get());
+  if (err == SQLITE_ROW) {
+    return true;
+  }
+  if (err == SQLITE_DONE) {
+    return false;
+  }
+  sqlite3* db = sqlite3_db_handle(stmt_.get());
+  std::string frame = sql_source_.AsTracebackFrame(GetErrorOffsetDb(db));
+  const char* errmsg = sqlite3_errmsg(db);
+  status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+  return false;
+}
+
+bool SqliteEngine::PreparedStatement::IsDone() const {
+  return !sqlite3_stmt_busy(stmt_.get());
+}
+
+const char* SqliteEngine::PreparedStatement::sql() const {
+  return sqlite3_sql(stmt_.get());
+}
+
+const char* SqliteEngine::PreparedStatement::expanded_sql() {
+  if (!expanded_sql_) {
+    expanded_sql_.reset(sqlite3_expanded_sql(stmt_.get()));
+  }
+  return expanded_sql_.get();
 }
 
 }  // namespace trace_processor

@@ -15,6 +15,7 @@
  */
 
 #include <algorithm>
+#include <cstdio>
 #include <map>
 #include <optional>
 #include <random>
@@ -22,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -484,6 +486,60 @@ TEST_F(TraceProcessorIntegrationTest, TraceWithUuidReadInParts) {
   auto it = Query("select str_value from metadata where name = 'trace_uuid'");
   ASSERT_TRUE(it.Next());
   EXPECT_STREQ(it.Get(0).string_value, "123e4567-e89b-12d3-a456-426655443322");
+}
+
+TEST_F(TraceProcessorIntegrationTest, ErrorMessageExecuteQuery) {
+  auto it = Query("select t from slice");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  ASSERT_THAT(it.Status().message(),
+              testing::Eq(R"(Traceback (most recent call last):
+  File "stdin" line 1 col 8
+    select t from slice
+           ^
+no such column: t)"));
+}
+
+TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
+  ASSERT_TRUE(
+      Processor()->RegisterMetric("foo/bar.sql", "select t from slice").ok());
+
+  auto it = Query("select RUN_METRIC('foo/bar.sql');");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  ASSERT_EQ(it.Status().message(),
+            R"(Traceback (most recent call last):
+  File "stdin" line 1 col 1
+    select RUN_METRIC('foo/bar.sql');
+    ^
+  Metric file "foo/bar.sql" line 1 col 8
+    select t from slice
+           ^
+no such column: t)");
+}
+
+TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
+  SqlModule module;
+  module.name = "foo";
+  module.files.push_back(std::make_pair("foo.bar", "select t from slice"));
+
+  ASSERT_TRUE(Processor()->RegisterSqlModule(module).ok());
+
+  auto it = Query("select IMPORT('foo.bar');");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  ASSERT_EQ(it.Status().message(),
+            R"(Traceback (most recent call last):
+  File "stdin" line 1 col 1
+    select IMPORT('foo.bar');
+    ^
+  Module import "foo.bar" line 1 col 8
+    select t from slice
+           ^
+no such column: t)");
 }
 
 }  // namespace
