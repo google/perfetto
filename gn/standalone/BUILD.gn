@@ -258,6 +258,13 @@ config("default") {
       "-mfpu=neon",
       "-mthumb",
     ]
+  } else if (current_cpu == "riscv64") {
+    if (!is_clang) {
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=104338
+      libs += [
+        "atomic",
+      ]
+    }
   } else if (current_cpu == "x86") {
     asmflags += [ "-m32" ]
     cflags += [
