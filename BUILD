@@ -2208,6 +2208,8 @@ perfetto_filegroup(
         "src/trace_processor/sqlite/perfetto_sql_parser.h",
         "src/trace_processor/sqlite/query_cache.h",
         "src/trace_processor/sqlite/scoped_db.h",
+        "src/trace_processor/sqlite/sql_source.cc",
+        "src/trace_processor/sqlite/sql_source.h",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sql_stats_table.h",
         "src/trace_processor/sqlite/sqlite_engine.cc",
