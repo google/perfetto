@@ -18,8 +18,12 @@ import {hueForCpu} from '../common/colorizer';
 import {
   Span,
   Timecode,
+  TimestampFormat,
+  timestampFormat,
+  timestampOffset,
   toDomainTime,
   TPTime,
+  tpTimeToSeconds,
 } from '../common/time';
 
 import {
@@ -96,10 +100,10 @@ export class OverviewTimelinePanel extends Panel {
 
     if (size.width > TRACK_SHELL_WIDTH && this.traceTime.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
-      const tickGen = new TickGenerator(
-          this.traceTime, maxMajorTicks, globals.state.traceTime.start);
+      const offset = timestampOffset();
+      const tickGen = new TickGenerator(this.traceTime, maxMajorTicks, offset);
 
-      // Draw time labels on the top header.
+      // Draw time labels
       ctx.font = '10px Roboto Condensed';
       ctx.fillStyle = '#999';
       for (const {type, time} of tickGen) {
@@ -108,9 +112,8 @@ export class OverviewTimelinePanel extends Panel {
         if (xPos > this.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const relTime = toDomainTime(time);
-          const timecode = new Timecode(relTime);
-          ctx.fillText(timecode.dhhmmss, xPos + 5, 18, MIN_PX_PER_STEP);
+          const domainTime = toDomainTime(time);
+          renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
         } else if (type == TickType.MINOR) {
@@ -231,4 +234,47 @@ export class OverviewTimelinePanel extends Panel {
   private static inBorderRange(a: number, b: number): boolean {
     return Math.abs(a - b) < this.HANDLE_SIZE_PX / 2;
   }
+}
+
+// Print a timestamp in the configured time format
+function renderTimestamp(
+    ctx: CanvasRenderingContext2D,
+    time: TPTime,
+    x: number,
+    y: number,
+    minWidth: number,
+    ): void {
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+      renderTimecode(ctx, time, x, y, minWidth);
+      break;
+    case TimestampFormat.Raw:
+      ctx.fillText(time.toString(), x, y, minWidth);
+      break;
+    case TimestampFormat.RawLocale:
+      ctx.fillText(time.toLocaleString(), x, y, minWidth);
+      break;
+    case TimestampFormat.Seconds:
+      ctx.fillText(tpTimeToSeconds(time).toString() + ' s', x, y, minWidth);
+      break;
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
+  }
+}
+
+// Print a timecode over 2 lines with this formatting:
+// DdHH:MM:SS
+// mmm uuu nnn
+function renderTimecode(
+    ctx: CanvasRenderingContext2D,
+    time: TPTime,
+    x: number,
+    y: number,
+    minWidth: number,
+    ): void {
+  const timecode = new Timecode(time);
+  const {dhhmmss} = timecode;
+  ctx.fillText(dhhmmss, x, y, minWidth);
 }

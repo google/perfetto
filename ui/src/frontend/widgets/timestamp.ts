@@ -15,7 +15,14 @@
 import m from 'mithril';
 
 import {Actions} from '../../common/actions';
-import {Timecode, toDomainTime} from '../../common/time';
+import {
+  Timecode,
+  TimestampFormat,
+  timestampFormat,
+  toDomainTime,
+  TPTime,
+  tpTimeToSeconds,
+} from '../../common/time';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
 import {globals} from '../globals';
@@ -52,7 +59,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
                   globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
                 },
               },
-              attrs.display ?? renderTimecode(ts)),
+              attrs.display ?? renderTimestamp(ts)),
         },
         m(MenuItem, {
           icon: Icons.Copy,
@@ -66,9 +73,26 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
   }
 }
 
-export function renderTimecode(ts: TPTimestamp): m.Children {
-  const relTime = toDomainTime(ts);
-  const {dhhmmss, millis, micros, nanos} = new Timecode(relTime);
+function renderTimestamp(time: TPTime): m.Children {
+  const fmt = timestampFormat();
+  const domainTime = toDomainTime(time);
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+      return renderTimecode(domainTime);
+    case TimestampFormat.Raw:
+      return domainTime.toString();
+    case TimestampFormat.RawLocale:
+      return domainTime.toLocaleString();
+    case TimestampFormat.Seconds:
+      return tpTimeToSeconds(domainTime).toString() + ' s';
+    default:
+      const x: never = fmt;
+      throw new Error(`Invalid timestamp ${x}`);
+  }
+}
+
+export function renderTimecode(time: TPTime): m.Children {
+  const {dhhmmss, millis, micros, nanos} = new Timecode(time);
   return m(
       'span.pf-timecode',
       m('span.pf-timecode-hms', dhhmmss),

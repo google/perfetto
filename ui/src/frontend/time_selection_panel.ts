@@ -19,11 +19,13 @@ import {
   formatDurationShort,
   Span,
   Timecode,
+  TimestampFormat,
+  timestampFormat,
+  timestampOffset,
   toDomainTime,
-} from '../common/time';
-import {
   TPTime,
   TPTimeSpan,
+  tpTimeToSeconds,
 } from '../common/time';
 
 import {
@@ -150,8 +152,10 @@ export class TimeSelectionPanel extends Panel {
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-      for (const {type, time} of new TickGenerator(
-               span, maxMajorTicks, globals.state.traceTime.start)) {
+
+      const offset = timestampOffset();
+      const tickGen = new TickGenerator(span, maxMajorTicks, offset);
+      for (const {type, time} of tickGen) {
         const px = Math.floor(map.tpTimeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
@@ -194,8 +198,7 @@ export class TimeSelectionPanel extends Panel {
     const xPos =
         TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.tpTimeToPx(ts));
     const domainTime = toDomainTime(ts);
-    const thinSpace = '\u2009';
-    const label = new Timecode(domainTime).toString(thinSpace);
+    const label = stringifyTimestamp(domainTime);
     drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
@@ -224,5 +227,23 @@ export class TimeSelectionPanel extends Panel {
       width: size.width - TRACK_SHELL_WIDTH,
       height: size.height,
     };
+  }
+}
+
+function stringifyTimestamp(time: TPTime): string {
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+      const THIN_SPACE = '\u2009';
+      return new Timecode(time).toString(THIN_SPACE);
+    case TimestampFormat.Raw:
+      return time.toString();
+    case TimestampFormat.RawLocale:
+      return time.toLocaleString();
+    case TimestampFormat.Seconds:
+      return tpTimeToSeconds(time).toString() + ' s';
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
   }
 }

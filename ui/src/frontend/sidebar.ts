@@ -26,7 +26,15 @@ import {
   enableMetatracing,
   isMetatracingEnabled,
 } from '../common/metatracing';
-import {EngineMode, TraceArrayBufferSource} from '../common/state';
+import {
+  EngineMode,
+  TraceArrayBufferSource,
+} from '../common/state';
+import {
+  setTimestampFormat,
+  TimestampFormat,
+  timestampFormat,
+} from '../common/time';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 
 import {Animation} from './animation';
@@ -47,6 +55,7 @@ import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
+import {Button} from './widgets/button';
 
 const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
 
@@ -830,6 +839,30 @@ const ServiceWorkerWidget: m.Component = {
   },
 };
 
+function cycleTimestampFormat() {
+  let nextFmt: TimestampFormat = TimestampFormat.Timecode;
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+      nextFmt = TimestampFormat.Raw;
+      break;
+    case TimestampFormat.Raw:
+      nextFmt = TimestampFormat.RawLocale;
+      break;
+    case TimestampFormat.RawLocale:
+      nextFmt = TimestampFormat.Seconds;
+      break;
+    case TimestampFormat.Seconds:
+      nextFmt = TimestampFormat.Timecode;
+      break;
+    default:
+      const x: never = fmt;
+      throw new Error(`Invalid timestamp format ${x}`);
+  }
+  setTimestampFormat(nextFmt);
+  globals.rafScheduler.scheduleFullRedraw();
+}
+
 const SidebarFooter: m.Component = {
   view() {
     return m(
@@ -843,6 +876,13 @@ const SidebarFooter: m.Component = {
             'assessment')),
         m(EngineRPCWidget),
         m(ServiceWorkerWidget),
+        m(Button, {
+          icon: 'schedule',
+          minimal: true,
+          compact: true,
+          title: 'Cycle timestamp formats',
+          onclick: cycleTimestampFormat,
+        }),
         m(
             '.version',
             m('a',
