@@ -162,7 +162,9 @@ void WriteQueryConstraintsToMetatrace(metatrace::Record* r,
 bool SqliteTable::debug = false;
 
 SqliteTable::SqliteTable() = default;
-SqliteTable::~SqliteTable() = default;
+SqliteTable::~SqliteTable() {
+  engine_->OnSqliteTableDestroyed(name_);
+}
 
 base::Status SqliteTable::ModifyConstraints(QueryConstraints*) {
   return base::OkStatus();

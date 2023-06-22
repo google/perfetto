@@ -22,6 +22,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 #include <type_traits>
 
 #include "perfetto/base/status.h"
@@ -109,6 +110,12 @@ class SqliteEngine {
   // Gets the context for a registered SQL function.
   void* GetFunctionContext(const std::string& name, int argc);
 
+  // Should be called when a SqliteTable instance is created.
+  void OnSqliteTableCreated(const std::string& name, SqliteTable::TableType);
+
+  // Should be called when a SqliteTable instance is destroyed.
+  void OnSqliteTableDestroyed(const std::string& name);
+
   sqlite3* db() const { return db_.get(); }
 
  private:
@@ -126,6 +133,7 @@ class SqliteEngine {
   SqliteEngine(SqliteEngine&&) noexcept = delete;
   SqliteEngine& operator=(SqliteEngine&&) = delete;
 
+  base::FlatHashMap<std::string, SqliteTable::TableType> sqlite_tables_;
   base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 
