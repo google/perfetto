@@ -129,6 +129,8 @@ declare_args() {
     _target_triplet = "arm-linux-gnueabihf"
     _default_target_sysroot =
         rebase_path("//buildtools/debian_sid_arm-sysroot", root_build_dir)
+  } else if (target_os == "linux" && target_cpu == "riscv64") {
+    _target_triplet = "riscv64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x64") {
     _target_triplet = "x86_64-linux-gnu"
   } else if (target_os == "linux" && target_cpu == "x86") {
