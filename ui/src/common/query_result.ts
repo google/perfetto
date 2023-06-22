@@ -47,15 +47,10 @@
 // the next batch (if any) within the QueryResultImpl.
 // This object is part of the API exposed to tracks / controllers.
 
-import protobuf from 'protobufjs/minimal';
+// Ensure protobuf is initialized.
+import '../core/static_initializers';
 
-// Disable Long.js support in protobuf. This seems to be enabled only in tests
-// but not in production code. In any case, for now we want casting to number
-// accepting the 2**53 limitation. This is consistent with passing
-// --force-number in the protobuf.js codegen invocation in //ui/BUILD.gn .
-// See also https://github.com/protobufjs/protobuf.js/issues/1253 .
-protobuf.util.Long = undefined as any;
-protobuf.configure();
+import protobuf from 'protobufjs/minimal';
 
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
