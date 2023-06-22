@@ -24,6 +24,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -32,10 +33,13 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+class PerfettoSqlEngine;
 
 // Implements the SPAN JOIN operation between two tables on a particular column.
 //
@@ -70,7 +74,7 @@ namespace trace_processor {
 // All other columns apart from timestamp (ts), duration (dur) and the join key
 // are passed through unchanged.
 class SpanJoinOperatorTable final
-    : public TypedSqliteTable<SpanJoinOperatorTable, const void*> {
+    : public TypedSqliteTable<SpanJoinOperatorTable, PerfettoSqlEngine*> {
  public:
   // Enum indicating whether the queries on the two inner tables should
   // emit shadows.
@@ -159,7 +163,9 @@ class SpanJoinOperatorTable final
       kEof,
     };
 
-    Query(SpanJoinOperatorTable*, const TableDefinition*, sqlite3* db);
+    Query(SpanJoinOperatorTable*,
+          const TableDefinition*,
+          PerfettoSqlEngine* engine);
     virtual ~Query();
 
     Query(Query&&) noexcept = default;
@@ -278,20 +284,20 @@ class SpanJoinOperatorTable final
     int64_t CursorTs() const {
       PERFETTO_DCHECK(!cursor_eof_);
       auto ts_idx = static_cast<int>(defn_->ts_idx());
-      return sqlite3_column_int64(stmt_.get(), ts_idx);
+      return sqlite3_column_int64(stmt_->sqlite_stmt(), ts_idx);
     }
 
     int64_t CursorDur() const {
       PERFETTO_DCHECK(!cursor_eof_);
       auto dur_idx = static_cast<int>(defn_->dur_idx());
-      return sqlite3_column_int64(stmt_.get(), dur_idx);
+      return sqlite3_column_int64(stmt_->sqlite_stmt(), dur_idx);
     }
 
     int64_t CursorPartition() const {
       PERFETTO_DCHECK(!cursor_eof_);
       PERFETTO_DCHECK(defn_->IsPartitioned());
       auto partition_idx = static_cast<int>(defn_->partition_idx());
-      return sqlite3_column_int64(stmt_.get(), partition_idx);
+      return sqlite3_column_int64(stmt_->sqlite_stmt(), partition_idx);
     }
 
     State state_ = State::kMissingPartitionShadow;
@@ -309,17 +315,17 @@ class SpanJoinOperatorTable final
     int64_t missing_partition_end_ = 0;
 
     std::string sql_query_;
-    ScopedStmt stmt_;
+    std::optional<SqliteEngine::PreparedStatement> stmt_;
 
     const TableDefinition* defn_ = nullptr;
-    sqlite3* db_ = nullptr;
+    PerfettoSqlEngine* engine_ = nullptr;
     SpanJoinOperatorTable* table_ = nullptr;
   };
 
   // Base class for a cursor on the span table.
   class Cursor final : public SqliteTable::BaseCursor {
    public:
-    Cursor(SpanJoinOperatorTable*, sqlite3* db);
+    Cursor(SpanJoinOperatorTable*, PerfettoSqlEngine*);
     ~Cursor() final;
 
     base::Status Filter(const QueryConstraints& qc,
@@ -351,7 +357,7 @@ class SpanJoinOperatorTable final
     SpanJoinOperatorTable* table_;
   };
 
-  SpanJoinOperatorTable(sqlite3*, const void*);
+  SpanJoinOperatorTable(sqlite3*, PerfettoSqlEngine*);
   ~SpanJoinOperatorTable() final;
 
   // Table implementation.
@@ -431,7 +437,7 @@ class SpanJoinOperatorTable final
   PartitioningType partitioning_;
   base::FlatHashMap<size_t, ColumnLocator> global_index_to_column_locator_;
 
-  sqlite3* const db_;
+  PerfettoSqlEngine* engine_ = nullptr;
 };
 
 }  // namespace trace_processor

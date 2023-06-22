@@ -24,6 +24,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
+#include "sqlite3.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/descriptors.h"
@@ -651,15 +654,8 @@ base::Status RunMetric::Run(RunMetric::Context* ctx,
         metric_it->sql.c_str());
   }
 
-  auto it = ctx->tp->ExecuteQuery(subbed_sql);
-  it.Next();
-
-  base::Status status = it.Status();
-  if (!status.ok()) {
-    return base::ErrStatus("RUN_METRIC: Error when running file %s: %s", path,
-                           status.c_message());
-  }
-  return base::OkStatus();
+  auto res = ctx->engine->Execute(SqlSource::FromMetricFile(subbed_sql, path));
+  return res.status();
 }
 
 base::Status UnwrapMetricProto::Run(Context*,
@@ -708,7 +704,7 @@ base::Status UnwrapMetricProto::Run(Context*,
   return base::OkStatus();
 }
 
-base::Status ComputeMetrics(TraceProcessor* tp,
+base::Status ComputeMetrics(PerfettoSqlEngine* engine,
                             const std::vector<std::string> metrics_to_compute,
                             const std::vector<SqlMetricFile>& sql_metrics,
                             const DescriptorPool& pool,
@@ -726,9 +722,9 @@ base::Status ComputeMetrics(TraceProcessor* tp,
       return base::ErrStatus("Unknown metric %s", name.c_str());
 
     const auto& sql_metric = *metric_it;
-    auto prep_it = tp->ExecuteQuery(sql_metric.sql);
-    prep_it.Next();
-    RETURN_IF_ERROR(prep_it.Status());
+    auto prep_it =
+        engine->Execute(SqlSource::FromMetric(sql_metric.sql, metric_it->path));
+    RETURN_IF_ERROR(prep_it.status());
 
     auto output_query =
         "SELECT * FROM " + sql_metric.output_table_name.value() + ";";
@@ -736,37 +732,37 @@ base::Status ComputeMetrics(TraceProcessor* tp,
         metatrace::Category::QUERY, "COMPUTE_METRIC_QUERY",
         [&](metatrace::Record* r) { r->AddArg("SQL", output_query); });
 
-    auto it = tp->ExecuteQuery(output_query.c_str());
-    auto has_next = it.Next();
-    RETURN_IF_ERROR(it.Status());
+    auto it = engine->ExecuteUntilLastStatement(
+        SqlSource::FromExecuteQuery(output_query));
+    RETURN_IF_ERROR(it.status());
 
     // Allow the query to return no rows. This has the same semantic as an
     // empty proto being returned.
     const auto& field_name = sql_metric.proto_field_name.value();
-    if (!has_next) {
+    if (it->stmt.IsDone()) {
       metric_builder.AppendBytes(field_name, nullptr, 0);
       continue;
     }
 
-    if (it.ColumnCount() != 1) {
+    if (it->stats.column_count != 1) {
       return base::ErrStatus("Output table %s should have exactly one column",
                              sql_metric.output_table_name.value().c_str());
     }
 
-    SqlValue col = it.Get(0);
+    SqlValue col = sqlite_utils::SqliteValueToSqlValue(
+        sqlite3_column_value(it->stmt.sqlite_stmt(), 0));
     if (col.type != SqlValue::kBytes) {
       return base::ErrStatus("Output table %s column has invalid type",
                              sql_metric.output_table_name.value().c_str());
     }
     RETURN_IF_ERROR(metric_builder.AppendSqlValue(field_name, col));
 
-    has_next = it.Next();
+    bool has_next = it->stmt.Step();
     if (has_next) {
       return base::ErrStatus("Output table %s should have at most one row",
                              sql_metric.output_table_name.value().c_str());
     }
-
-    RETURN_IF_ERROR(it.Status());
+    RETURN_IF_ERROR(it->stmt.status());
   }
   *metrics_proto = metric_builder.SerializeRaw();
   return base::OkStatus();

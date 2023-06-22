@@ -17,14 +17,15 @@
 #include "src/trace_processor/prelude/functions/create_view_function.h"
 
 #include <numeric>
+#include <optional>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
-#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -36,7 +37,7 @@ namespace trace_processor {
 namespace {
 
 class CreatedViewFunction final
-    : public TypedSqliteTable<CreatedViewFunction, void*> {
+    : public TypedSqliteTable<CreatedViewFunction, PerfettoSqlEngine*> {
  public:
   class Cursor final : public SqliteTable::BaseCursor {
    public:
@@ -51,14 +52,13 @@ class CreatedViewFunction final
     base::Status Column(sqlite3_context* context, int N);
 
    private:
-    ScopedStmt scoped_stmt_;
-    sqlite3_stmt* stmt_ = nullptr;
+    std::optional<SqliteEngine::PreparedStatement> stmt_;
     CreatedViewFunction* table_ = nullptr;
     bool is_eof_ = false;
     int next_call_count_ = 0;
   };
 
-  CreatedViewFunction(sqlite3*, void*);
+  CreatedViewFunction(sqlite3*, PerfettoSqlEngine*);
   ~CreatedViewFunction() final;
 
   base::Status Init(int argc, const char* const* argv, Schema*) final;
@@ -84,7 +84,7 @@ class CreatedViewFunction final
     return i == (return_values_.size() + prototype_.arguments.size());
   }
 
-  sqlite3* db_ = nullptr;
+  PerfettoSqlEngine* engine_ = nullptr;
 
   Prototype prototype_;
   std::vector<sql_argument::ArgumentDefinition> return_values_;
@@ -93,7 +93,8 @@ class CreatedViewFunction final
   std::string sql_defn_str_;
 };
 
-CreatedViewFunction::CreatedViewFunction(sqlite3* db, void*) : db_(db) {}
+CreatedViewFunction::CreatedViewFunction(sqlite3*, PerfettoSqlEngine* engine)
+    : engine_(engine) {}
 CreatedViewFunction::~CreatedViewFunction() = default;
 
 base::Status CreatedViewFunction::Init(int argc,
@@ -132,30 +133,18 @@ base::Status CreatedViewFunction::Init(int argc,
   }
 
   // Verify that the provided SQL prepares to a statement correctly.
-  ScopedStmt stmt;
-  sqlite3_stmt* raw_stmt = nullptr;
-  int ret = sqlite3_prepare_v2(db_, sql_defn_str_.data(),
-                               static_cast<int>(sql_defn_str_.size()),
-                               &raw_stmt, nullptr);
-  stmt.reset(raw_stmt);
-  if (ret != SQLITE_OK) {
-    return base::ErrStatus(
-        "%s: Failed to prepare SQL statement for function. "
-        "Check the SQL defintion this function for syntax errors.\n%s",
-        prototype_.function_name.c_str(),
-        sqlite_utils::FormatErrorMessage(
-            raw_stmt, base::StringView(sql_defn_str_), db_, ret)
-            .c_message());
-  }
+  auto res = engine_->sqlite_engine()->PrepareStatement(
+      SqlSource::FromFunction(sql_defn_str_, prototype_str_));
+  RETURN_IF_ERROR(res.status());
 
   // Verify that every argument name in the function appears in the
   // argument list.
   //
   // We intentionally loop from 1 to |used_param_count| because SQL
   // parameters are 1-indexed *not* 0-indexed.
-  int used_param_count = sqlite3_bind_parameter_count(stmt.get());
+  int used_param_count = sqlite3_bind_parameter_count(res->sqlite_stmt());
   for (int i = 1; i <= used_param_count; ++i) {
-    const char* name = sqlite3_bind_parameter_name(stmt.get(), i);
+    const char* name = sqlite3_bind_parameter_name(res->sqlite_stmt(), i);
 
     if (!name) {
       return base::ErrStatus(
@@ -187,7 +176,8 @@ base::Status CreatedViewFunction::Init(int argc,
 
   // Verify that the prepared statement column count matches the return
   // count.
-  uint32_t col_count = static_cast<uint32_t>(sqlite3_column_count(stmt.get()));
+  uint32_t col_count =
+      static_cast<uint32_t>(sqlite3_column_count(res->sqlite_stmt()));
   if (col_count != return_values_.size()) {
     return base::ErrStatus(
         "%s: number of return values %u does not match SQL statement column "
@@ -197,7 +187,8 @@ base::Status CreatedViewFunction::Init(int argc,
 
   // Verify that the return names matches the prepared statment column names.
   for (uint32_t i = 0; i < col_count; ++i) {
-    const char* name = sqlite3_column_name(stmt.get(), static_cast<int>(i));
+    const char* name =
+        sqlite3_column_name(res->sqlite_stmt(), static_cast<int>(i));
     if (name != return_values_[i].name()) {
       return base::ErrStatus(
           "%s: column %s at index %u does not match return value name %s.",
@@ -330,11 +321,10 @@ base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   // creating it very time.
   // TODO(lalitm): measure and implement whether it would be a good idea to
   // forward constraints here when we build the nested query.
-  int ret = sqlite3_prepare_v2(table_->db_, table_->sql_defn_str_.data(),
-                               static_cast<int>(table_->sql_defn_str_.size()),
-                               &stmt_, nullptr);
-  scoped_stmt_.reset(stmt_);
-  PERFETTO_CHECK(ret == SQLITE_OK);
+  auto res = table_->engine_->sqlite_engine()->PrepareStatement(
+      SqlSource::FromFunction(table_->sql_defn_str_, table_->prototype_str_));
+  RETURN_IF_ERROR(res->status());
+  stmt_ = std::move(res.value());
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
@@ -351,8 +341,8 @@ base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     PERFETTO_DCHECK(index < table_->prototype_.arguments.size());
 
     const auto& arg = table_->prototype_.arguments[index];
-    auto status = MaybeBindArgument(stmt_, table_->prototype_.function_name,
-                                    arg, argv[i]);
+    auto status = MaybeBindArgument(
+        stmt_->sqlite_stmt(), table_->prototype_.function_name, arg, argv[i]);
     RETURN_IF_ERROR(status);
   }
 
@@ -363,17 +353,9 @@ base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
 }
 
 base::Status CreatedViewFunction::Cursor::Next() {
-  int ret = sqlite3_step(stmt_);
-  is_eof_ = ret == SQLITE_DONE;
+  is_eof_ = !stmt_->Step();
   next_call_count_++;
-  if (ret != SQLITE_ROW && ret != SQLITE_DONE) {
-    return base::ErrStatus(
-        "%s: SQLite error while stepping statement: %s",
-        table_->prototype_.function_name.c_str(),
-        sqlite_utils::FormatErrorMessage(stmt_, std::nullopt, table_->db_, ret)
-            .c_message());
-  }
-  return base::OkStatus();
+  return stmt_->status();
 }
 
 bool CreatedViewFunction::Cursor::Eof() {
@@ -383,7 +365,7 @@ bool CreatedViewFunction::Cursor::Eof() {
 base::Status CreatedViewFunction::Cursor::Column(sqlite3_context* ctx, int i) {
   size_t idx = static_cast<size_t>(i);
   if (table_->IsReturnValueColumn(idx)) {
-    sqlite3_result_value(ctx, sqlite3_column_value(stmt_, i));
+    sqlite3_result_value(ctx, sqlite3_column_value(stmt_->sqlite_stmt(), i));
   } else if (table_->IsArgumentColumn(idx)) {
     // TODO(lalitm): it may be more appropriate to keep a note of the arguments
     // which we passed in and return them here. Not doing this to because it
@@ -455,36 +437,21 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
   )""";
   std::string function_name_str = function_name.ToStdString();
 
-  ScopedSqliteString errmsg;
-  char* errmsg_raw = nullptr;
-  int ret;
-
   NullTermStringView sql_defn(sql_defn_str);
-  if (sql_defn.size() < 512) {
-    base::StackString<1024> sql(kSqlTemplate, function_name_str.c_str(),
-                                function_name_str.c_str(), prototype_str,
-                                return_prototype_str, sql_defn_str);
-    ret = sqlite3_exec(ctx->db, sql.c_str(), nullptr, nullptr, &errmsg_raw);
-  } else {
-    std::vector<char> formatted_sql(sql_defn.size() + 1024);
-    base::SprintfTrunc(formatted_sql.data(), formatted_sql.size(), kSqlTemplate,
-                       function_name_str.c_str(), function_name_str.c_str(),
-                       prototype_str, return_prototype_str, sql_defn_str);
-    ret = sqlite3_exec(ctx->db, formatted_sql.data(), nullptr, nullptr,
-                       &errmsg_raw);
-  }
-
-  errmsg.reset(errmsg_raw);
-  if (ret != SQLITE_OK)
-    return base::ErrStatus("%s", errmsg.get());
+  std::string formatted_sql(sql_defn.size() + 1024, '\0');
+  base::SprintfTrunc(formatted_sql.data(), formatted_sql.size(), kSqlTemplate,
+                     function_name_str.c_str(), function_name_str.c_str(),
+                     prototype_str, return_prototype_str, sql_defn_str);
 
   // CREATE_VIEW_FUNCTION doesn't have a return value so just don't sent |out|.
-  return base::OkStatus();
+  auto res = ctx->Execute(
+      SqlSource::FromFunction(std::move(formatted_sql), prototype_str));
+  return res.status();
 }
 
-void RegisterCreateViewFunctionModule(SqliteEngine* engine) {
-  engine->RegisterVirtualTableModule<CreatedViewFunction>(
-      "internal_view_function_impl", nullptr,
+void RegisterCreateViewFunctionModule(PerfettoSqlEngine* engine) {
+  engine->sqlite_engine()->RegisterVirtualTableModule<CreatedViewFunction>(
+      "internal_view_function_impl", engine,
       SqliteTable::TableType::kExplicitCreate, false);
 }
 
