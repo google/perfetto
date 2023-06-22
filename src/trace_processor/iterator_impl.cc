@@ -18,7 +18,7 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
-#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_impl.h"
