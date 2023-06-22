@@ -18,6 +18,10 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 source_set("engine") {
   sources = [
+    "created_function.cc",
+    "created_function.h",
+    "function_util.cc",
+    "function_util.h",
     "perfetto_sql_engine.cc",
     "perfetto_sql_engine.h",
     "perfetto_sql_parser.cc",
@@ -31,7 +35,9 @@ source_set("engine") {
     "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
+    "../../types",
     "../../util",
+    "../../util:sql_argument",
   ]
 }
 
