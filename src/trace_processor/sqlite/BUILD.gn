@@ -20,10 +20,6 @@ source_set("sqlite") {
   sources = [
     "db_sqlite_table.cc",
     "db_sqlite_table.h",
-    "perfetto_sql_engine.cc",
-    "perfetto_sql_engine.h",
-    "perfetto_sql_parser.cc",
-    "perfetto_sql_parser.h",
     "query_cache.h",
     "scoped_db.h",
     "sql_source.cc",
@@ -54,8 +50,7 @@ source_set("sqlite") {
     "../db",
     "../importers/common",
     "../importers/ftrace:ftrace_descriptors",
-    "../prelude/functions:interface",
-    "../prelude/table_functions:interface",
+    "../perfetto_sql/intrinsics/table_functions:interface",
     "../storage",
     "../types",
     "../util",
@@ -79,7 +74,6 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "db_sqlite_table_unittest.cc",
-    "perfetto_sql_parser_unittest.cc",
     "query_constraints_unittest.cc",
     "sqlite_tokenizer_unittest.cc",
     "sqlite_utils_unittest.cc",
