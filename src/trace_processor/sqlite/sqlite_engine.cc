@@ -105,6 +105,9 @@ base::StatusOr<SqliteEngine::PreparedStatement> SqliteEngine::PrepareStatement(
     std::string frame = sql.AsTracebackFrame(GetErrorOffset());
     return base::ErrStatus("%s%s", frame.c_str(), errmsg);
   }
+  if (!raw_stmt) {
+    return base::ErrStatus("No SQL to execute");
+  }
   return PreparedStatement{ScopedStmt(raw_stmt), std::move(sql)};
 }
 
