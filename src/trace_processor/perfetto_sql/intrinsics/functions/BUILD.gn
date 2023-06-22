@@ -21,8 +21,6 @@ source_set("functions") {
     "clock_functions.h",
     "create_function.cc",
     "create_function.h",
-    "create_function_internal.cc",
-    "create_function_internal.h",
     "create_view_function.cc",
     "create_view_function.h",
     "import.cc",
