@@ -109,13 +109,14 @@ export async function addDebugTrack(
   const debugTrackId = ++debugTrackCount;
   const sqlTableName = `materialized_${debugTrackId}_${sqlViewName}`;
   // TODO(altimin): Support removing this table when the track is closed.
+  const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
   await engine.query(`
       create table ${sqlTableName} as
       with prepared_data as (
         select
           row_number() over () as id,
           ${sliceColumns.ts} as ts,
-          cast(${sliceColumns.dur} as int) as dur,
+          cast(${dur} as int) as dur,
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
           ${argColumns.map((c) => `'${c}' as '${ARG_PREFIX}${c}'`).join(',')}
