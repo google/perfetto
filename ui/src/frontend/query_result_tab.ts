@@ -134,11 +134,14 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     const viewId = uuidToViewName(uuid);
     // Assuming that the query results come from a SELECT query, try creating a
     // view to allow us to reuse it for further queries.
-    // TODO(altimin): This should get the actual query that was used to
-    // generate the results from the SQL query iterator.
+    const hasValidQueryResponse =
+        this.queryResponse && this.queryResponse.error === undefined;
+    const sqlQuery = hasValidQueryResponse ?
+        this.queryResponse!.lastStatementSql :
+        this.config.query;
     try {
-      const createViewResult = await this.engine.query(
-          `create view ${viewId} as ${this.config.query}`);
+      const createViewResult =
+          await this.engine.query(`create view ${viewId} as ${sqlQuery}`);
       if (createViewResult.error()) {
         // If it failed, do nothing.
         return '';

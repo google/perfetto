@@ -118,7 +118,7 @@ export async function addDebugTrack(
           cast(${sliceColumns.dur} as int) as dur,
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
-          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',')}
+          ${argColumns.map((c) => `'${c}' as '${ARG_PREFIX}${c}'`).join(',')}
         from ${sqlViewName}
       )
       select
