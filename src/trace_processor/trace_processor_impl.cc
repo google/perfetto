@@ -76,6 +76,7 @@
 #include "src/trace_processor/prelude/tables_views/tables_views.h"
 #include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -276,7 +277,7 @@ void SetupMetrics(TraceProcessor* tp,
   RegisterFunction<metrics::RunMetric>(
       engine, "RUN_METRIC", -1,
       std::unique_ptr<metrics::RunMetric::Context>(
-          new metrics::RunMetric::Context{tp, sql_metrics}));
+          new metrics::RunMetric::Context{engine, sql_metrics}));
 
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
@@ -418,16 +419,13 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                 context_.clock_converter.get());
   RegisterFunction<ToTimecode>(&engine_, "TO_TIMECODE", 1);
   RegisterFunction<CreateFunction>(&engine_, "CREATE_FUNCTION", 3, &engine_);
+  RegisterFunction<CreateViewFunction>(&engine_, "CREATE_VIEW_FUNCTION", 3,
+                                       &engine_);
   RegisterFunction<ExperimentalMemoize>(&engine_, "EXPERIMENTAL_MEMOIZE", 1,
                                         &engine_);
-  RegisterFunction<CreateViewFunction>(
-      &engine_, "CREATE_VIEW_FUNCTION", 3,
-      std::unique_ptr<CreateViewFunction::Context>(
-          new CreateViewFunction::Context{engine_.sqlite_engine()->db()}));
-  RegisterFunction<Import>(
-      &engine_, "IMPORT", 1,
-      std::unique_ptr<Import::Context>(new Import::Context{
-          engine_.sqlite_engine()->db(), this, &sql_modules_}));
+  RegisterFunction<Import>(&engine_, "IMPORT", 1,
+                           std::unique_ptr<Import::Context>(
+                               new Import::Context{&engine_, &sql_modules_}));
   RegisterFunction<ToFtrace>(
       &engine_, "TO_FTRACE", 1,
       std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
@@ -465,16 +463,16 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   // Operator tables.
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_join", storage, SqliteTable::TableType::kExplicitCreate, false);
+      "span_join", &engine_, SqliteTable::TableType::kExplicitCreate, false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_left_join", storage, SqliteTable::TableType::kExplicitCreate,
+      "span_left_join", &engine_, SqliteTable::TableType::kExplicitCreate,
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_outer_join", storage, SqliteTable::TableType::kExplicitCreate,
+      "span_outer_join", &engine_, SqliteTable::TableType::kExplicitCreate,
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
       "window", storage, SqliteTable::TableType::kExplicitCreate, true);
-  RegisterCreateViewFunctionModule(engine_.sqlite_engine());
+  RegisterCreateViewFunctionModule(&engine_);
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(engine_.sqlite_engine()->db());
@@ -724,7 +722,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           sql, base::GetWallTimeNs().count());
 
   base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
-      engine_.ExecuteUntilLastStatement(sql);
+      engine_.ExecuteUntilLastStatement(
+          SqlSource::FromExecuteQuery(sql.c_str()));
   std::unique_ptr<IteratorImpl> impl(
       new IteratorImpl(this, std::move(result), sql_stats_row));
   return Iterator(std::move(impl));
@@ -773,21 +772,13 @@ base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_module) {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
-  std::string stripped_sql;
-  for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
-    if (strncmp(sp.cur_token(), "--", 2) != 0) {
-      stripped_sql.append(sp.cur_token());
-      stripped_sql.push_back('\n');
-    }
-  }
-
   // Check if the metric with the given path already exists and if it does,
   // just update the SQL associated with it.
   auto it = std::find_if(
       sql_metrics_.begin(), sql_metrics_.end(),
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
-    it->sql = stripped_sql;
+    it->sql = sql;
     return base::OkStatus();
   }
 
@@ -803,7 +794,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
   metrics::SqlMetricFile metric;
   metric.path = path;
-  metric.sql = stripped_sql;
+  metric.sql = sql;
 
   if (IsRootMetricField(no_ext_name)) {
     metric.proto_field_name = no_ext_name;
@@ -869,7 +860,7 @@ base::Status TraceProcessorImpl::ComputeMetric(
     return base::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(this, metric_names, sql_metrics_, pool_,
+  return metrics::ComputeMetrics(&engine_, metric_names, sql_metrics_, pool_,
                                  root_descriptor, metrics_proto);
 }
 

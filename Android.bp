@@ -10428,6 +10428,7 @@ filegroup {
         "src/trace_processor/sqlite/db_sqlite_table.cc",
         "src/trace_processor/sqlite/perfetto_sql_engine.cc",
         "src/trace_processor/sqlite/perfetto_sql_parser.cc",
+        "src/trace_processor/sqlite/sql_source.cc",
         "src/trace_processor/sqlite/sql_stats_table.cc",
         "src/trace_processor/sqlite/sqlite_engine.cc",
         "src/trace_processor/sqlite/sqlite_table.cc",
