@@ -367,7 +367,7 @@ class TrackDecider {
       parentName: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
 
     const parentIdToGroupId = new Map<number, string>();
@@ -383,6 +383,11 @@ class TrackDecider {
       const parentTrackId = it.parentId;
       const maxDepth = it.maxDepth;
       let trackGroup = SCROLLING_TRACK_GROUP;
+
+      // If there are no slices in this track, skip it.
+      if (maxDepth === null) {
+        continue;
+      }
 
       if (parentTrackId !== null) {
         const groupId = parentIdToGroupId.get(parentTrackId);
@@ -1115,7 +1120,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -1125,6 +1130,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1174,7 +1184,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -1184,6 +1194,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1233,7 +1248,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -1244,6 +1259,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1747,7 +1767,7 @@ class TrackDecider {
         'max_layout_depth(track_count INT, track_ids STRING)',
         'INT',
         '
-          select ifnull(iif(
+          select iif(
             $track_count = 1,
             (
               select max(depth)
@@ -1758,7 +1778,7 @@ class TrackDecider {
               select max(layout_depth)
               from experimental_slice_layout($track_ids)
             )
-          ), 0);
+          );
         '
       );
     `);
