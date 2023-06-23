@@ -259,6 +259,26 @@ void TypedIndexSearch(T typed_val,
 
 }  // namespace
 
+RangeOrBitVector NumericStorage::Search(FilterOp op,
+                                        SqlValue value,
+                                        RowMap::Range range) const {
+  if (is_sorted_)
+    return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+  return RangeOrBitVector(LinearSearch(op, value, range));
+}
+
+RangeOrBitVector NumericStorage::IndexSearch(FilterOp op,
+                                             SqlValue value,
+                                             uint32_t* indices,
+                                             uint32_t indices_count,
+                                             bool sorted) const {
+  if (sorted) {
+    return RangeOrBitVector(
+        BinarySearchExtrinsic(op, value, indices, indices_count));
+  }
+  return RangeOrBitVector(IndexSearch(op, value, indices, indices_count));
+}
+
 BitVector NumericStorage::LinearSearch(FilterOp op,
                                        SqlValue sql_val,
                                        RowMap::Range range) const {
