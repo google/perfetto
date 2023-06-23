@@ -110,10 +110,10 @@ export async function addDebugTrack(
         select
           row_number() over () as id,
           ${sliceColumns.ts} as ts,
-          cast(${dur} as int) as dur,
+          ifnull(cast(${dur} as int), -1) as dur,
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
-          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',')}
+          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
         from ${sqlViewName}
       )
       select

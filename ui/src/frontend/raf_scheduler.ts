@@ -109,6 +109,19 @@ export class RafScheduler {
     this.maybeScheduleAnimationFrame(true);
   }
 
+  // Schedule a full redraw to happen after a short delay (50 ms).
+  // This is done to prevent flickering / visual noise and allow the UI to fetch
+  // the initial data from the Trace Processor.
+  // There is a chance that someone else schedules a full redraw in the
+  // meantime, forcing the flicker, but in practice it works quite well and
+  // avoids a lot of complexity for the callers.
+  scheduleDelayedFullRedraw() {
+    // 50ms is half of the responsiveness threshold (100ms):
+    // https://web.dev/rail/#response-process-events-in-under-50ms
+    const delayMs = 50;
+    setTimeout(() => this.scheduleFullRedraw(), delayMs);
+  }
+
   syncDomRedraw(nowMs: number) {
     const redrawStart = debugNow();
     this._syncDomRedraw(nowMs);
