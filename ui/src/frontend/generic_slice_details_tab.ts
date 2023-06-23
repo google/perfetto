@@ -32,7 +32,8 @@ export type Columns = {
 }
 
 export interface GenericSliceDetailsTabConfigBase {
-  sqlTableName: string, title: string;
+  sqlTableName: string;
+  title: string;
   // All columns are rendered if |columns| is undefined.
   columns?: Columns;
 }

@@ -248,8 +248,7 @@ function findTimeRangeOfSelection(): {startTs: TPTime, endTs: TPTime} {
     }
   } else if (selection.kind === 'LOG') {
     // TODO(hjd): Make focus selection work for logs.
-  } else if (
-      selection.kind === 'DEBUG_SLICE' || selection.kind === 'GENERIC_SLICE') {
+  } else if (selection.kind === 'GENERIC_SLICE') {
     startTs = selection.start;
     if (selection.duration > 0) {
       endTs = startTs + selection.duration;

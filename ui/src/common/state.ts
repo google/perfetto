@@ -314,14 +314,6 @@ export interface SliceSelection {
   id: number;
 }
 
-export interface DebugSliceSelection {
-  kind: 'DEBUG_SLICE';
-  id: number;
-  sqlTableName: string;
-  start: TPTime;
-  duration: TPDuration;
-}
-
 export interface CounterSelection {
   kind: 'COUNTER';
   leftTs: TPTime;
@@ -394,8 +386,8 @@ export interface GenericSliceSelection {
 export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
-     AreaSelection|PerfSamplesSelection|LogSelection|DebugSliceSelection|
-     GenericSliceSelection)&{trackId?: string};
+     AreaSelection|PerfSamplesSelection|LogSelection|GenericSliceSelection)&
+    {trackId?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
