@@ -291,6 +291,7 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
+      "perfetto_sql/engine:unittests",
       "perfetto_sql/intrinsics/functions:unittests",
       "perfetto_sql/intrinsics/operators:unittests",
       "perfetto_sql/intrinsics/table_functions:unittests",

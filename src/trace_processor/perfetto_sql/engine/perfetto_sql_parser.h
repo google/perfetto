@@ -45,7 +45,18 @@ class PerfettoSqlParser {
     SqlSource sql;
     bool operator==(const SqliteSql& c) const { return sql == c.sql; }
   };
-  using Statement = std::variant<SqliteSql>;
+  // Indicates that the specified SQL was a CREATE PERFETTO FUNCTION statement
+  // with the following parameters.
+  struct CreateFunction {
+    std::string prototype;
+    std::string returns;
+    SqlSource sql;
+    bool operator==(const CreateFunction& c) const {
+      return std::tie(prototype, returns, sql) ==
+             std::tie(c.prototype, c.returns, c.sql);
+    }
+  };
+  using Statement = std::variant<SqliteSql, CreateFunction>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
@@ -74,6 +85,10 @@ class PerfettoSqlParser {
   // This cannot be moved because we keep pointers into |sql_| in |tokenizer_|.
   PerfettoSqlParser(PerfettoSqlParser&&) = delete;
   PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
+
+  bool ParseCreatePerfettoFunction();
+
+  bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
 
   SqlSource sql_;
   SqliteTokenizer tokenizer_;
