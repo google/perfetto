@@ -22,5 +22,6 @@ perfetto_sql_source_set("chrome_sql") {
     "histograms.sql",
     "metadata.sql",
     "speedometer.sql",
+    "tasks.sql",
   ]
 }

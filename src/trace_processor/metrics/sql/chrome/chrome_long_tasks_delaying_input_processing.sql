@@ -44,11 +44,11 @@ SELECT
   window_end_id,
   blocked_gesture,
   cis.upid,
-  GET_SCROLL_TYPE(blocked_gesture, lts.interface_name) AS scroll_type
+  GET_SCROLL_TYPE(blocked_gesture, lts.task_name) AS scroll_type
 FROM chrome_input_to_browser_interval_slice_ids cis
 LEFT JOIN (
   SELECT
-    m.interface_name,
+    m.task_name,
     m.id,
     upid,
     s.ts,
