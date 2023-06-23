@@ -16,6 +16,7 @@
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 
+#include "src/trace_processor/db/storage/types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -53,9 +54,10 @@ TEST(NumericStorageUnittest, CompareFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
-  BitVector bv =
-      storage.LinearSearch(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
-
+  RangeOrBitVector range_or_bv =
+      storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
+  BitVector bv = range_or_bv.TakeIfBitVector();
+  ASSERT_TRUE(range_or_bv.IsBitVector());
   ASSERT_EQ(bv.CountSetBits(), 28u);
   ASSERT_EQ(bv.IndexOfNthSet(0), 100u);
 }
@@ -63,10 +65,10 @@ TEST(NumericStorageUnittest, CompareFast) {
 TEST(NumericStorageUnittest, CompareSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
-  Range range = storage.BinarySearchIntrinsic(
-      FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
-
+  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32, true);
+  Range range =
+      storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128))
+          .TakeIfRange();
   ASSERT_EQ(range.size(), 28u);
   ASSERT_EQ(range.start, 100u);
   ASSERT_EQ(range.end, 128u);
@@ -78,8 +80,10 @@ TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  Range range = storage.BinarySearchExtrinsic(FilterOp::kGe, SqlValue::Long(60),
-                                              sorted_order.data(), 10);
+  Range range = storage
+                    .IndexSearch(FilterOp::kGe, SqlValue::Long(60),
+                                 sorted_order.data(), 10, true)
+                    .TakeIfRange();
 
   ASSERT_EQ(range.size(), 4u);
   ASSERT_EQ(range.start, 6u);
@@ -92,8 +96,10 @@ TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  Range range = storage.BinarySearchExtrinsic(FilterOp::kLt, SqlValue::Long(60),
-                                              sorted_order.data(), 10);
+  Range range = storage
+                    .IndexSearch(FilterOp::kLt, SqlValue::Long(60),
+                                 sorted_order.data(), 10, true)
+                    .TakeIfRange();
 
   ASSERT_EQ(range.size(), 6u);
   ASSERT_EQ(range.start, 0u);
@@ -106,8 +112,10 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
 
   NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
 
-  Range range = storage.BinarySearchExtrinsic(FilterOp::kEq, SqlValue::Long(60),
-                                              sorted_order.data(), 10);
+  Range range = storage
+                    .IndexSearch(FilterOp::kEq, SqlValue::Long(60),
+                                 sorted_order.data(), 10, true)
+                    .TakeIfRange();
 
   ASSERT_EQ(range.size(), 1u);
   ASSERT_EQ(range.start, 6u);
@@ -116,8 +124,8 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicEqSimple) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kEq, SqlValue::Long(15),
-                                              Range(10, 20));
+  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(15), Range(10, 20))
+                    .TakeIfRange();
   ASSERT_EQ(range.size(), 1u);
   ASSERT_EQ(range.start, 15u);
   ASSERT_EQ(range.end, 16u);
@@ -125,53 +133,54 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicEqSimple) {
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicEqOnRangeBoundary) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kEq, SqlValue::Long(20),
-                                              Range(10, 20));
+  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(20), Range(10, 20))
+                    .TakeIfRange();
   ASSERT_EQ(range.size(), 0u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicEqOutsideRange) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kEq, SqlValue::Long(25),
-                                              Range(10, 20));
+  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(25), Range(10, 20))
+                    .TakeIfRange();
   ASSERT_EQ(range.size(), 0u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicEqTooBig) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(
-      FilterOp::kEq, SqlValue::Long(125), Range(10, 20));
+  Range range =
+      storage.Search(FilterOp::kEq, SqlValue::Long(125), Range(10, 20))
+          .TakeIfRange();
   ASSERT_EQ(range.size(), 0u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicLe) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kLe, SqlValue::Long(50),
-                                              Range(30, 70));
+  Range range = storage.Search(FilterOp::kLe, SqlValue::Long(50), Range(30, 70))
+                    .TakeIfRange();
   ASSERT_EQ(range.start, 30u);
   ASSERT_EQ(range.end, 51u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicLt) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kLt, SqlValue::Long(50),
-                                              Range(30, 70));
+  Range range = storage.Search(FilterOp::kLt, SqlValue::Long(50), Range(30, 70))
+                    .TakeIfRange();
   ASSERT_EQ(range.start, 30u);
   ASSERT_EQ(range.end, 50u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicGe) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kGe, SqlValue::Long(40),
-                                              Range(30, 70));
+  Range range = storage.Search(FilterOp::kGe, SqlValue::Long(40), Range(30, 70))
+                    .TakeIfRange();
   ASSERT_EQ(range.start, 40u);
   ASSERT_EQ(range.end, 70u);
 }
 
 TEST(IdStorageUnittest, BinarySearchIntrinsicGt) {
   IdStorage storage(100);
-  Range range = storage.BinarySearchIntrinsic(FilterOp::kGt, SqlValue::Long(40),
-                                              Range(30, 70));
+  Range range = storage.Search(FilterOp::kGt, SqlValue::Long(40), Range(30, 70))
+                    .TakeIfRange();
   ASSERT_EQ(range.start, 41u);
   ASSERT_EQ(range.end, 70u);
 }
