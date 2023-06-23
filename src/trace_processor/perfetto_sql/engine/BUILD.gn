@@ -43,12 +43,17 @@ source_set("engine") {
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "perfetto_sql_parser_unittest.cc" ]
+  sources = [
+    "perfetto_sql_engine_unittest.cc",
+    "perfetto_sql_parser_unittest.cc",
+  ]
   deps = [
     ":engine",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../gn:sqlite",
     "../../../base",
+    "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
   ]
 }
