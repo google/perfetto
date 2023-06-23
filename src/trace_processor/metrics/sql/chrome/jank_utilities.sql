@@ -81,25 +81,3 @@ SELECT CREATE_FUNCTION(
       -- Otherwise return null
     ) - 0.5 - 1e-9'
 );
-
--- Extract mojo information for the long-task-tracking scenario for specific
--- names. For example, LongTaskTracker slices may have associated IPC
--- metadata, or InterestingTask slices for input may have associated IPC to
--- determine whether the task is fling/etc.
-SELECT CREATE_VIEW_FUNCTION(
-  'SELECT_LONG_TASK_SLICES(name STRING)',
-  'interface_name STRING, ipc_hash INT, message_type STRING, id INT',
-  'SELECT
-      EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
-      EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
-      CASE
-        WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
-        ELSE "message"
-      END AS message_type,
-      s.id
-    FROM slice s
-    WHERE
-      category GLOB "*scheduler.long_tasks*"
-      AND name = $name
-  '
-);
