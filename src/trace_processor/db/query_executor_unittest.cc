@@ -40,10 +40,10 @@ TEST(QueryExecutor, OnlyStorageRange) {
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
   RowMap rm(0, 5);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 3u);
-  ASSERT_EQ(res.Get(0), 2u);
+  ASSERT_EQ(rm.size(), 3u);
+  ASSERT_EQ(rm.Get(0), 2u);
 }
 
 TEST(QueryExecutor, OnlyStorageRangeIsNull) {
@@ -53,9 +53,9 @@ TEST(QueryExecutor, OnlyStorageRangeIsNull) {
 
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(3)};
   RowMap rm(0, 5);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 0u);
+  ASSERT_EQ(rm.size(), 0u);
 }
 
 TEST(QueryExecutor, OnlyStorageIndex) {
@@ -103,11 +103,11 @@ TEST(QueryExecutor, NullOverlayBounds) {
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
   RowMap rm(0, 10);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 2u);
-  ASSERT_EQ(res.Get(0), 4u);
-  ASSERT_EQ(res.Get(1), 8u);
+  ASSERT_EQ(rm.size(), 2u);
+  ASSERT_EQ(rm.Get(0), 4u);
+  ASSERT_EQ(rm.Get(1), 8u);
 }
 
 TEST(QueryExecutor, NullOverlayRangeIsNull) {
@@ -123,14 +123,14 @@ TEST(QueryExecutor, NullOverlayRangeIsNull) {
 
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(3)};
   RowMap rm(0, 10);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 5u);
-  ASSERT_EQ(res.Get(0), 2u);
-  ASSERT_EQ(res.Get(1), 5u);
-  ASSERT_EQ(res.Get(2), 6u);
-  ASSERT_EQ(res.Get(3), 7u);
-  ASSERT_EQ(res.Get(4), 9u);
+  ASSERT_EQ(rm.size(), 5u);
+  ASSERT_EQ(rm.Get(0), 2u);
+  ASSERT_EQ(rm.Get(1), 5u);
+  ASSERT_EQ(rm.Get(2), 6u);
+  ASSERT_EQ(rm.Get(3), 7u);
+  ASSERT_EQ(rm.Get(4), 9u);
 }
 
 TEST(QueryExecutor, NullOverlayIndex) {
@@ -195,10 +195,10 @@ TEST(QueryExecutor, SelectorOverlayBounds) {
 
   Constraint c{0, FilterOp::kGt, SqlValue::Long(1)};
   RowMap rm(0, 3);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 1u);
-  ASSERT_EQ(res.Get(0), 2u);
+  ASSERT_EQ(rm.size(), 1u);
+  ASSERT_EQ(rm.Get(0), 2u);
 }
 
 TEST(QueryExecutor, SelectorOverlayIndex) {
@@ -239,11 +239,11 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
   RowMap rm(0, 5);
-  RowMap res = QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
+  QueryExecutor::BoundedColumnFilterForTesting(c, col, &rm);
 
-  ASSERT_EQ(res.size(), 2u);
-  ASSERT_EQ(res.Get(0), 0u);
-  ASSERT_EQ(res.Get(1), 4u);
+  ASSERT_EQ(rm.size(), 2u);
+  ASSERT_EQ(rm.Get(0), 0u);
+  ASSERT_EQ(rm.Get(1), 4u);
 }
 
 TEST(QueryExecutor, ArrangmentOverlayIndex) {
@@ -359,7 +359,7 @@ TEST(QueryExecutor, IsNullWithSelector) {
 
 TEST(QueryExecutor, BinarySearch) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6};
-  NumericStorage storage(storage_data.data(), 7, ColumnType::kInt64);
+  NumericStorage storage(storage_data.data(), 7, ColumnType::kInt64, true);
 
   // Add nulls - {0, 1, NULL, NULL, 2, 3, NULL, NULL, 4, 5, 6, NULL}
   BitVector null_bv{1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0};
@@ -373,7 +373,7 @@ TEST(QueryExecutor, BinarySearch) {
   OverlaysVec overlays_vec;
   overlays_vec.emplace_back(&selector_overlay);
   overlays_vec.emplace_back(&null_overlay);
-  SimpleColumn col{overlays_vec, &storage, true};
+  SimpleColumn col{overlays_vec, &storage};
 
   // Filter.
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
@@ -387,7 +387,7 @@ TEST(QueryExecutor, BinarySearch) {
 
 TEST(QueryExecutor, BinarySearchIsNull) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64, true);
 
   // Select 6 elements from storage, resulting in a vector {0, 1, 3, 4, 6, 7}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0, 1, 1, 0, 0};
@@ -401,7 +401,7 @@ TEST(QueryExecutor, BinarySearchIsNull) {
   OverlaysVec overlays_vec;
   overlays_vec.emplace_back(&null_overlay);
   overlays_vec.emplace_back(&selector_overlay);
-  SimpleColumn col{overlays_vec, &storage, true};
+  SimpleColumn col{overlays_vec, &storage};
 
   // Filter.
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
