@@ -19,6 +19,7 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -98,7 +99,7 @@ class PerfettoSqlEngine {
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   base::Status RegisterSqlFunction(std::string prototype,
                                    std::string return_type,
-                                   std::string sql);
+                                   SqlSource sql);
 
   // Enables memoization for the given SQL function.
   base::Status EnableSqlFunctionMemoization(const std::string& name);

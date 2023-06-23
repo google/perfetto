@@ -40,7 +40,7 @@ base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
   int ret = sqlite3_step(stmt);
   RETURN_IF_ERROR(SqliteRetToStatus(db, prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
-    auto expanded_sql = sqlite_utils::ExpandedSqlForStmt(stmt);
+    auto expanded_sql = ScopedSqliteString(sqlite3_expanded_sql(stmt));
     return base::ErrStatus(
         "%s: multiple values were returned when executing function body. "
         "Executed SQL was %s",
@@ -430,8 +430,7 @@ class State : public CreatedFunction::Context {
   // for this function.
   base::Status PrepareStatement() {
     base::StatusOr<SqliteEngine::PreparedStatement> stmt =
-        engine_->sqlite_engine()->PrepareStatement(
-            SqlSource::FromFunction(sql_.c_str(), prototype_str_));
+        engine_->sqlite_engine()->PrepareStatement(*sql_);
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
     stmts_.push_back(std::move(stmt.value()));
@@ -444,7 +443,7 @@ class State : public CreatedFunction::Context {
   void Reset(Prototype prototype,
              std::string prototype_str,
              sql_argument::Type return_type,
-             std::string sql) {
+             SqlSource sql) {
     // Re-registration of valid functions is not allowed.
     PERFETTO_DCHECK(!is_valid_);
     PERFETTO_DCHECK(stmts_.empty());
@@ -545,7 +544,7 @@ class State : public CreatedFunction::Context {
 
   sql_argument::Type return_type() const { return return_type_; }
 
-  const std::string& sql() const { return sql_; }
+  const std::string& sql() const { return sql_->sql(); }
 
   bool is_valid() const { return is_valid_; }
 
@@ -556,7 +555,7 @@ class State : public CreatedFunction::Context {
   Prototype prototype_;
   std::string prototype_str_;
   sql_argument::Type return_type_;
-  std::string sql_;
+  std::optional<SqlSource> sql_;
   // Perfetto SQL functions support recursion. Given that each function call in
   // the stack requires a dedicated statement, we maintain a stack of prepared
   // statements and use the top one for each new call (allocating a new one if
@@ -683,7 +682,7 @@ base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
                                                 std::string prototype_str,
                                                 sql_argument::Type return_type,
                                                 std::string return_type_str,
-                                                std::string sql_str) {
+                                                SqlSource source) {
   State* state = static_cast<State*>(ctx);
   if (state->is_valid()) {
     // If the function already exists, just verify that the prototype, return
@@ -702,17 +701,16 @@ base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
           sql_argument::TypeToHumanFriendlyString(state->return_type()),
           return_type_str.c_str());
     }
-
-    if (state->sql() != sql_str) {
+    if (state->sql() != source.sql()) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: function SQL changed from %s to %s",
-          prototype_str.c_str(), state->sql().c_str(), sql_str.c_str());
+          prototype_str.c_str(), state->sql().c_str(), source.sql().c_str());
     }
     return base::OkStatus();
   }
 
   state->Reset(std::move(prototype), std::move(prototype_str), return_type,
-               std::move(sql_str));
+               std::move(source));
 
   // Ideally, we would unregister the function here if the statement prep
   // failed, but SQLite doesn't allow unregistering functions inside active

@@ -73,6 +73,20 @@ void IncrementCountForStmt(const SqliteEngine::PreparedStatement& p_stmt,
   res->statement_count_with_output++;
 }
 
+base::Status AddTracebackIfNeeded(base::Status status,
+                                  const SqlSource& source) {
+  if (status.ok()) {
+    return status;
+  }
+  if (status.GetPayload("perfetto.dev/has_traceback") == "true") {
+    return status;
+  }
+  std::string traceback = source.AsTracebackFrame(std::nullopt);
+  status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
+  status.SetPayload("perfetto.dev/has_traceback", "true");
+  return status;
+}
+
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine() : query_cache_(new QueryCache()) {}
@@ -124,6 +138,10 @@ base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
 
 base::StatusOr<PerfettoSqlEngine::ExecutionResult>
 PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
+  // TODO(lalitm): remove this copy once we fully move CREATE PERFETTO FUNCTION
+  // parsing to the parser.
+  SqlSource copy = sql_source;
+
   // A SQL string can contain several statements. Some of them might be comment
   // only, e.g. "SELECT 1; /* comment */; SELECT 2;". Some statements can also
   // be PerfettoSQL statements which we need to transpile before execution or
@@ -131,6 +149,9 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   //
   // The logic here is the following:
   //  - We parse the statement as a PerfettoSQL statement.
+  //  - If the statement is something we can execute, execute it instantly and
+  //    prepare a dummy SQLite statement so the rest of the code continues to
+  //    work correctly.
   //  - If the statement is actually an SQLite statement, we invoke PrepareStmt.
   //  - We step once to make sure side effects take effect (e.g. for CREATE
   //    TABLE statements, tables are created).
@@ -143,16 +164,28 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   ExecutionStats stats;
   PerfettoSqlParser parser(std::move(sql_source));
   while (parser.Next()) {
-    // If none of the above matched, this must just be an SQL statement directly
-    // executable by SQLite.
-    auto* sql = std::get_if<PerfettoSqlParser::SqliteSql>(&parser.statement());
-    PERFETTO_CHECK(sql);
+    std::optional<SqlSource> source;
+    if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
+            &parser.statement())) {
+      RETURN_IF_ERROR(AddTracebackIfNeeded(
+          RegisterSqlFunction(cf->prototype, cf->returns, cf->sql), copy));
+      // Since the rest of the code requires a statement, just use a no-value
+      // dummy statement.
+      source = SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
+    } else {
+      // If none of the above matched, this must just be an SQL statement
+      // directly executable by SQLite.
+      auto* sql =
+          std::get_if<PerfettoSqlParser::SqliteSql>(&parser.statement());
+      PERFETTO_CHECK(sql);
+      source = std::move(sql->sql);
+    }
 
     // Try to get SQLite to prepare the statement.
     std::optional<SqliteEngine::PreparedStatement> cur_stmt;
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
-      auto stmt_or = engine_.PrepareStatement(std::move(sql->sql));
+      auto stmt_or = engine_.PrepareStatement(std::move(*source));
       RETURN_IF_ERROR(stmt_or.status());
       cur_stmt = std::move(stmt_or.value());
     }
@@ -208,7 +241,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
 
 base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
                                                     std::string return_type_str,
-                                                    std::string sql_str) {
+                                                    SqlSource sql) {
   // Parse all the arguments into a more friendly form.
   Prototype prototype;
   base::Status status =
@@ -245,8 +278,7 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
   }
   return CreatedFunction::ValidateOrPrepare(
       ctx, std::move(prototype), std::move(prototype_str),
-      std::move(*opt_return_type), std::move(return_type_str),
-      std::move(sql_str));
+      std::move(*opt_return_type), std::move(return_type_str), std::move(sql));
 }
 
 base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
