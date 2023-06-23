@@ -12,21 +12,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {constraintsToQueryFragment} from './sql_utils';
+import {constraintsToQueryPrefix, constraintsToQuerySuffix} from './sql_utils';
 
 // Clean up repeated whitespaces to allow for easier testing.
 function normalize(s: string): string {
   return s.replace(/\s+/g, ' ');
 }
 
-test('constraintsToQueryFragment: where', () => {
-  expect(normalize(constraintsToQueryFragment({
+test('constraintsToQueryPrefix: empty', () => {
+  expect(normalize(constraintsToQueryPrefix({}))).toEqual('');
+});
+
+test('constraintsToQueryPrefix: one CTE', () => {
+  expect(normalize(constraintsToQueryPrefix({
+    commonTableExpressions: {'foo': 'select * from bar'},
+  }))).toEqual('WITH foo AS (select * from bar)');
+});
+
+test('constraintsToQueryPrefix: one CTE', () => {
+  expect(normalize(constraintsToQueryPrefix({
+    commonTableExpressions: {
+      'foo1': 'select * from bar1',
+      'foo2': 'select * from bar2',
+    },
+  })))
+      .toEqual(
+          'WITH foo1 AS (select * from bar1), foo2 AS (select * from bar2)');
+});
+
+test('constraintsToQuerySuffix: where', () => {
+  expect(normalize(constraintsToQuerySuffix({
     filters: ['ts > 1000', 'dur != 0'],
   }))).toEqual('WHERE ts > 1000 and dur != 0');
 });
 
-test('constraintsToQueryFragment: order by', () => {
-  expect(normalize(constraintsToQueryFragment({
+test('constraintsToQuerySuffix: order by', () => {
+  expect(normalize(constraintsToQuerySuffix({
     orderBy: [
       {fieldName: 'name'},
       {fieldName: 'count', direction: 'DESC'},
@@ -36,18 +57,18 @@ test('constraintsToQueryFragment: order by', () => {
   }))).toEqual('ORDER BY name, count DESC, value');
 });
 
-test('constraintsToQueryFragment: limit', () => {
-  expect(normalize(constraintsToQueryFragment({limit: 3}))).toEqual('LIMIT 3');
+test('constraintsToQuerySuffix: limit', () => {
+  expect(normalize(constraintsToQuerySuffix({limit: 3}))).toEqual('LIMIT 3');
 });
 
-test('constraintsToQueryFragment: group by', () => {
-  expect(normalize(constraintsToQueryFragment({
+test('constraintsToQuerySuffix: group by', () => {
+  expect(normalize(constraintsToQuerySuffix({
     groupBy: ['foo', undefined, 'bar'],
   }))).toEqual('GROUP BY foo, bar');
 });
 
-test('constraintsToQueryFragment: all', () => {
-  expect(normalize(constraintsToQueryFragment({
+test('constraintsToQuerySuffix: all', () => {
+  expect(normalize(constraintsToQuerySuffix({
     filters: ['id != 1'],
     groupBy: ['track_id'],
     orderBy: [{fieldName: 'ts'}],
@@ -55,8 +76,8 @@ test('constraintsToQueryFragment: all', () => {
   }))).toEqual('WHERE id != 1 GROUP BY track_id ORDER BY ts LIMIT 1');
 });
 
-test('constraintsToQueryFragment: all undefined', () => {
-  expect(normalize(constraintsToQueryFragment({
+test('constraintsToQuerySuffix: all undefined', () => {
+  expect(normalize(constraintsToQuerySuffix({
     filters: [undefined],
     orderBy: [undefined, undefined],
     groupBy: [undefined, undefined],

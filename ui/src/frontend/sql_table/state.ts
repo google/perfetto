@@ -14,10 +14,15 @@
 
 import {arrayEquals} from '../../base/array_utils';
 import {SortDirection} from '../../base/comparison_utils';
+import {sqliteString} from '../../base/string_utils';
 import {EngineProxy} from '../../common/engine';
 import {NUM, Row} from '../../common/query_result';
 import {globals} from '../globals';
-import {constraintsToQueryFragment} from '../sql_utils';
+import {
+  constraintsToQueryPrefix,
+  constraintsToQuerySuffix,
+  SQLConstraints,
+} from '../sql_utils';
 
 import {
   Column,
@@ -43,6 +48,18 @@ interface Data {
   error?: string;
 }
 
+// In the common case, filter is an expression which evaluates to a boolean.
+// However, when filtering args, it's substantially (10x) cheaper to do a
+// join with the args table, as it means that trace processor can cache the
+// query on the key instead of invoking a function for each row of the entire
+// `slice` table.
+export type Filter = string|{
+  type: 'arg_filter',
+  argSetIdColumn: string,
+  argName: string,
+  op: string,
+}
+
 interface RowCount {
   // Total number of rows in view, excluding the pagination.
   // Undefined if the query returned an error.
@@ -50,12 +67,13 @@ interface RowCount {
   // Filters which were used to compute this row count.
   // We need to recompute the totalRowCount only when filters change and not
   // when the set of columns / order by changes.
-  filters: string[];
+  filters: Filter[];
 }
 
 export class SqlTableState {
   private readonly engine_: EngineProxy;
   private readonly table_: SqlTableDescription;
+  private readonly additionalImports: string[];
 
   get engine() {
     return this.engine_;
@@ -64,7 +82,7 @@ export class SqlTableState {
     return this.table_;
   }
 
-  private filters: string[];
+  private filters: Filter[];
   private columns: Column[];
   private orderBy: ColumnOrderClause[];
   private offset = 0;
@@ -72,9 +90,11 @@ export class SqlTableState {
   private rowCount?: RowCount;
 
   constructor(
-      engine: EngineProxy, table: SqlTableDescription, filters?: string[]) {
+      engine: EngineProxy, table: SqlTableDescription, filters?: Filter[],
+      imports?: string[]) {
     this.engine_ = engine;
     this.table_ = table;
+    this.additionalImports = imports || [];
 
     this.filters = filters || [];
     this.columns = [];
@@ -98,22 +118,48 @@ export class SqlTableState {
     return Array.from(result);
   }
 
+  getQueryConstraints(): SQLConstraints {
+    const result: SQLConstraints = {
+      commonTableExpressions: {},
+      joins: [],
+      filters: [],
+    };
+    let cteId = 0;
+    for (const filter of this.filters) {
+      if (typeof filter === 'string') {
+        result.filters!.push(filter);
+      } else {
+        const cteName = `arg_sets_${cteId++}`;
+        result.commonTableExpressions![cteName] = `
+          SELECT DISTINCT arg_set_id
+          FROM args
+          WHERE key = ${sqliteString(filter.argName)}
+            AND display_value ${filter.op}
+        `;
+        result.joins!.push(`JOIN ${cteName} ON ${cteName}.arg_set_id = ${
+            this.table.name}.${filter.argSetIdColumn}`);
+      }
+    }
+    return result;
+  }
+
   private getSQLImports() {
-    return (this.table.imports || [])
+    const tableImports = this.table.imports || [];
+    return [...tableImports, ...this.additionalImports]
         .map((i) => `SELECT IMPORT("${i}");`)
         .join('\n');
   }
 
   private getCountRowsSQLQuery(): string {
+    const constraints = this.getQueryConstraints();
     return `
       ${this.getSQLImports()}
 
+      ${constraintsToQueryPrefix(constraints)}
       SELECT
         COUNT() AS count
       FROM ${this.table.name}
-      ${constraintsToQueryFragment({
-      filters: this.filters,
-    })}
+      ${constraintsToQuerySuffix(constraints)}
     `;
   }
 
@@ -122,21 +168,21 @@ export class SqlTableState {
                                        fieldName: c.column.alias,
                                        direction: c.direction,
                                      }));
+    const constraints = this.getQueryConstraints();
+    constraints.orderBy = orderBy;
     return `
       ${this.getSQLImports()}
 
+      ${constraintsToQueryPrefix(constraints)}
       SELECT
         ${this.getSQLProjections().join(',\n')}
       FROM ${this.table.name}
-      ${constraintsToQueryFragment({
-      filters: this.filters,
-      orderBy: orderBy,
-    })}
+      ${constraintsToQuerySuffix(constraints)}
     `;
   }
 
-  getPaginatedSQLQuery():
-      string {  // We fetch one more row to determine if we can go forward.
+  getPaginatedSQLQuery(): string {
+    // We fetch one more row to determine if we can go forward.
     return `
       ${this.getNonPaginatedSQLQuery()}
       LIMIT ${ROW_LIMIT + 1}
@@ -239,8 +285,10 @@ export class SqlTableState {
     return this.data === undefined;
   }
 
-  removeFilter(filter: string) {
-    this.filters.splice(this.filters.indexOf(filter), 1);
+  // Filters are compared by reference, so the caller is required to pass an
+  // object which was previously returned by getFilters.
+  removeFilter(filter: Filter) {
+    this.filters = this.filters.filter((f) => f !== filter);
     this.reload();
   }
 
@@ -249,7 +297,7 @@ export class SqlTableState {
     this.reload();
   }
 
-  getFilters(): string[] {
+  getFilters(): Filter[] {
     return this.filters;
   }
 
