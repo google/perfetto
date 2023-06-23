@@ -39,12 +39,17 @@ export class Select implements m.ClassComponent<SelectAttrs> {
 }
 
 export interface FilterableSelectAttrs extends SelectAttrs {
+  // The values to show in the select.
   values: string[];
+  // Called when the user selects an option.
   onSelected: (value: string) => void;
+  // If set, only the first maxDisplayedItems will be shown.
   maxDisplayedItems?: number;
+  // Whether the input field should be focused when the widget is created.
   autofocusInput?: boolean;
 }
 
+// A select widget with a search box, allowing the user to filter the options.
 export class FilterableSelect implements
     m.ClassComponent<FilterableSelectAttrs> {
   searchText = '';
@@ -53,6 +58,10 @@ export class FilterableSelect implements
     const filteredValues = attrs.values.filter((name) => {
       return name.toLowerCase().includes(this.searchText.toLowerCase());
     });
+
+    const displayedValues = attrs.maxDisplayedItems === undefined ?
+        filteredValues :
+        filteredValues.slice(0, attrs.maxDisplayedItems);
 
     const extraItems = exists(attrs.maxDisplayedItems) &&
         Math.max(0, filteredValues.length - attrs.maxDisplayedItems);
@@ -65,22 +74,25 @@ export class FilterableSelect implements
         'div',
         m('.pf-search-bar',
           m(TextInput, {
-            autofocus: attrs.autofocusInput,
             oninput: (event: Event) => {
               const eventTarget = event.target as HTMLTextAreaElement;
               this.searchText = eventTarget.value;
               globals.rafScheduler.scheduleFullRedraw();
             },
+            onload: (event: Event) => {
+              if (!attrs.autofocusInput) return;
+              const eventTarget = event.target as HTMLTextAreaElement;
+              eventTarget.focus();
+            },
             value: this.searchText,
-            placeholder: 'Filter options...',
+            placeholder: 'Filter...',
             extraClasses: 'pf-search-box',
           }),
           m(Menu,
-            ...filteredValues.map(
-                (value) => m(MenuItem, {
-                  label: value,
-                  onclick: () => attrs.onSelected(value),
-                }),
-                extraItems && m('i', `+${extraItems} more`)))));
+            ...displayedValues.map((value) => m(MenuItem, {
+                                     label: value,
+                                     onclick: () => attrs.onSelected(value),
+                                   })),
+            extraItems ? m('i', `+${extraItems} more`) : null)));
   }
 }
