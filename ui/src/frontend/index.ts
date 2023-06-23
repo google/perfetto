@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Need to turn off Long
-import '../common/query_result';
+// Keep this import first.
+import '../core/static_initializers';
 
 import {Patch, produce} from 'immer';
 import m from 'mithril';
@@ -23,7 +23,6 @@ import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
-import {initializeImmerJs} from '../common/immer_init';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
@@ -214,7 +213,6 @@ function main() {
   const extensionLocalChannel = new MessageChannel();
 
   initWasm(globals.root);
-  initializeImmerJs();
   initController(extensionLocalChannel.port1);
 
   const dispatch = (action: DeferredAction) => {
