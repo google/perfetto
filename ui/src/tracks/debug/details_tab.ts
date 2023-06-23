@@ -23,6 +23,9 @@ import {
   bottomTabRegistry,
   NewBottomTabArgs,
 } from '../../frontend/bottom_tab';
+import {
+  GenericSliceDetailsTabConfig,
+} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
 import {
   getSlice,
@@ -35,6 +38,7 @@ import {
   TPTimestamp,
   Utid,
 } from '../../frontend/sql_types';
+import {sqlValueToString} from '../../frontend/sql_utils';
 import {
   getProcessName,
   getThreadName,
@@ -53,13 +57,8 @@ import {
   Tree,
   TreeNode,
 } from '../../frontend/widgets/tree';
-import {ARG_PREFIX} from './add_debug_track_menu';
-import {sqlValueToString} from '../../frontend/sql_utils';
 
-interface DebugSliceDetailsTabConfig {
-  sqlTableName: string;
-  id: number;
-}
+import {ARG_PREFIX} from './add_debug_track_menu';
 
 function sqlValueToNumber(value?: ColumnType): number|undefined {
   if (typeof value === 'bigint') return Number(value);
@@ -86,7 +85,7 @@ function renderTreeContents(dict: {[key: string]: m.Child}): m.Child[] {
 }
 
 export class DebugSliceDetailsTab extends
-    BottomTab<DebugSliceDetailsTabConfig> {
+    BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.DebugSliceDetailsTab';
 
   data?: {
