@@ -23,8 +23,10 @@ import {
 } from './time';
 
 beforeAll(() => {
-  globals.state = createEmptyState();
-  globals.state.traceTime.start = 0n;
+  globals.initStore(createEmptyState());
+  globals.store.edit((draft) => {
+    draft.traceTime.start = 0n;
+  });
 });
 
 test('formatDuration', () => {

@@ -15,7 +15,7 @@
 // Need to turn off Long
 import '../common/query_result';
 
-import {Patch, produce} from 'immer';
+import {Draft} from 'immer';
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
@@ -55,74 +55,38 @@ import {WidgetsPage} from './widgets_page';
 const EXTENSION_ID = 'lfmkphfpdbjijhpomgecfikhfohaoine';
 
 class FrontendApi {
-  private state: State;
-
   constructor() {
-    this.state = createEmptyState();
+    globals.store.subscribe(this.handleStoreUpdate);
   }
 
-  dispatchMultiple(actions: DeferredAction[]) {
-    const oldState = this.state;
-    const patches: Patch[] = [];
-    for (const action of actions) {
-      const originalLength = patches.length;
-      const morePatches = this.applyAction(action);
-      patches.length += morePatches.length;
-      for (let i = 0; i < morePatches.length; ++i) {
-        patches[i + originalLength] = morePatches[i];
-      }
-    }
-
-    if (this.state === oldState) {
-      return;
-    }
-
-    // Update overall state.
-    globals.state = this.state;
-
-    // If the visible time in the global state has been updated more recently
-    // than the visible time handled by the frontend @ 60fps, update it. This
-    // typically happens when restoring the state from a permalink.
-    globals.frontendLocalState.mergeState(this.state.frontendLocalState);
+  private handleStoreUpdate = (state: State, oldState: State) => {
+    // If the visible time in the global state has been updated more
+    // recently than the visible time handled by the frontend @ 60fps,
+    // update it. This typically happens when restoring the state from a
+    // permalink.
+    globals.frontendLocalState.mergeState(state.frontendLocalState);
 
     // Only redraw if something other than the frontendLocalState changed.
     let key: keyof State;
-    for (key in this.state) {
+    for (key in state) {
       if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
-          oldState[key] !== this.state[key]) {
+          oldState[key] !== state[key]) {
         globals.rafScheduler.scheduleFullRedraw();
         break;
       }
     }
 
-    if (patches.length > 0) {
-      // Need to avoid reentering the controller so move this to a
-      // separate task.
-      setTimeout(() => {
-        runControllers();
-      }, 0);
-    }
-  }
+    // Run in microtask to aboid avoid reentry
+    setTimeout(runControllers, 0);
+  };
 
-  private applyAction(action: DeferredAction): Patch[] {
-    const patches: Patch[] = [];
-
-    // 'produce' creates a immer proxy which wraps the current state turning
-    // all imperative mutations of the state done in the callback into
-    // immutable changes to the returned state.
-    this.state = produce(
-        this.state,
-        (draft) => {
-          (StateActions as any)[action.type](draft, action.args);
-        },
-        (morePatches, _) => {
-          const originalLength = patches.length;
-          patches.length += morePatches.length;
-          for (let i = 0; i < morePatches.length; ++i) {
-            patches[i + originalLength] = morePatches[i];
-          }
-        });
-    return patches;
+  dispatchMultiple(actions: DeferredAction[]) {
+    const edits = actions.map((action) => {
+      return (draft: Draft<State>) => {
+        (StateActions as any)[action.type](draft, action.args);
+      };
+    });
+    globals.store.edit(edits);
   }
 }
 
@@ -241,7 +205,7 @@ function main() {
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  globals.initialize(dispatch, router);
+  globals.initialize(dispatch, router, createEmptyState());
   globals.serviceWorkerController.install();
 
   const frontendApi = new FrontendApi();
