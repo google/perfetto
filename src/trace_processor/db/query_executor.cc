@@ -129,11 +129,6 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   if (rm->empty())
     return;
 
-  if (col.sorted_intrinsically && c.op != FilterOp::kNe) {
-    BinarySearch(c, col, rm);
-    return;
-  }
-
   uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
@@ -147,50 +142,10 @@ void QueryExecutor::FilterColumn(const Constraint& c,
     return;
   }
 
-  BitVector bv = LinearSearch(c, col, rm);
-  if (rm->IsRange()) {
-    // If |rm| is a range, the BitVector returned by LinearSearch perfectly
-    // captures the previously filtered results already so does not need to
-    // be intersected.
-    *rm = RowMap(std::move(bv));
-  } else if (rm->IsBitVector()) {
-    // We need to reconcile our BitVector with |rm| to ensure that we don't
-    // discard results from previous searches.
-    rm->Intersect(RowMap(std::move(bv)));
-  } else {
-    // As we use |IsIndexVector()| above, to always use IndexSearch, we should
-    // never hit this case.
-    PERFETTO_FATAL("Should not happen");
-  }
+  LinearSearch(c, col, rm);
 }
 
-BitVector QueryExecutor::LinearSearch(const Constraint& c,
-                                      const SimpleColumn& col,
-                                      RowMap* rm) {
-  // TODO(b/283763282): We should align these to word boundaries.
-  TableRange table_range(rm->Get(0), rm->Get(rm->size() - 1) + 1);
-  base::SmallVector<Range, kMaxOverlayCount> overlay_bounds;
-
-  for (const auto& overlay : col.overlays) {
-    StorageRange storage_range = overlay->MapToStorageRange(table_range);
-    overlay_bounds.emplace_back(storage_range.range);
-    table_range = TableRange(storage_range.range);
-  }
-
-  // Use linear search algorithm on storage.
-  overlays::StorageBitVector filtered_storage{
-      col.storage->LinearSearch(c.op, c.value, table_range.range)};
-
-  for (uint32_t i = 0; i < col.overlays.size(); ++i) {
-    uint32_t rev_i = static_cast<uint32_t>(col.overlays.size()) - 1 - i;
-    TableBitVector mapped_to_table = col.overlays[rev_i]->MapToTableBitVector(
-        std::move(filtered_storage), overlays::FilterOpToOverlayOp(c.op));
-    filtered_storage = StorageBitVector({std::move(mapped_to_table.bv)});
-  }
-  return std::move(filtered_storage.bv);
-}
-
-void QueryExecutor::BinarySearch(const Constraint& c,
+void QueryExecutor::LinearSearch(const Constraint& c,
                                  const SimpleColumn& col,
                                  RowMap* rm) {
   // TODO(b/283763282): We should align these to word boundaries.
@@ -205,7 +160,7 @@ void QueryExecutor::BinarySearch(const Constraint& c,
 
   // Use binary search algorithm on storage.
   overlays::TableRangeOrBitVector res(
-      col.storage->BinarySearchIntrinsic(c.op, c.value, table_range.range));
+      col.storage->Search(c.op, c.value, table_range.range));
 
   OverlayOp op = overlays::FilterOpToOverlayOp(c.op);
   for (uint32_t i = 0; i < col.overlays.size(); ++i) {
@@ -214,7 +169,7 @@ void QueryExecutor::BinarySearch(const Constraint& c,
     if (res.IsBitVector()) {
       TableBitVector t_bv = col.overlays[rev_i]->MapToTableBitVector(
           StorageBitVector{res.TakeIfBitVector()}, op);
-      res.val = std::move(t_bv.bv);
+      res.val = RangeOrBitVector(std::move(t_bv.bv));
     } else {
       res = col.overlays[rev_i]->MapToTableRangeOrBitVector(
           StorageRange(res.TakeIfRange()), op);
@@ -273,10 +228,14 @@ RowMap QueryExecutor::IndexSearch(const Constraint& c,
         overlay->MapToStorageIndexVector({to_filter.current()}).indices;
   }
 
-  BitVector matched_in_storage = col.storage->IndexSearch(
+  RangeOrBitVector matched_in_storage = col.storage->IndexSearch(
       c.op, c.value, to_filter.current().data(),
       static_cast<uint32_t>(to_filter.current().size()));
-  count_removed += to_filter.KeepAtSet(std::move(matched_in_storage));
+
+  // TODO(b/283763282): Remove after implementing extrinsic binary search.
+  PERFETTO_DCHECK(matched_in_storage.IsBitVector());
+
+  count_removed += to_filter.KeepAtSet(matched_in_storage.TakeIfBitVector());
   valid.insert(valid.end(), to_filter.global().begin(),
                to_filter.global().end());
 
@@ -322,7 +281,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     PERFETTO_CHECK(!(col.overlay().size() != column_size &&
                      col.overlay().row_map().IsRange()));
 
-    SimpleColumn s_col{OverlaysVec(), nullptr, col.IsSorted()};
+    SimpleColumn s_col{OverlaysVec(), nullptr};
 
     // Create storage
     std::unique_ptr<Storage> storage;
@@ -331,7 +290,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     } else {
       storage.reset(new storage::NumericStorage(
           col.storage_base().data(), col.storage_base().non_null_size(),
-          col.col_type()));
+          col.col_type(), col.IsSorted()));
     }
     s_col.storage = storage.get();
 

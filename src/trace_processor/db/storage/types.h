@@ -16,10 +16,35 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_TYPES_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_TYPES_H_
 
+#include <variant>
 #include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/row_map.h"
 
 namespace perfetto {
 namespace trace_processor {
+
+// Used for result of filtering, which is sometimes (for more optimised
+// operations) a Range and BitVector otherwise. Stores a variant of Range and
+// BitVector.
+struct RangeOrBitVector {
+  using Range = RowMap::Range;
+  explicit RangeOrBitVector(Range range) : val(range) {}
+  explicit RangeOrBitVector(BitVector bv) : val(std::move(bv)) {}
+
+  bool IsRange() const { return std::holds_alternative<Range>(val); }
+  bool IsBitVector() const { return std::holds_alternative<BitVector>(val); }
+
+  BitVector TakeIfBitVector() {
+    PERFETTO_DCHECK(IsBitVector());
+    return std::move(*std::get_if<BitVector>(&val));
+  }
+  Range TakeIfRange() {
+    PERFETTO_DCHECK(IsRange());
+    return std::move(*std::get_if<Range>(&val));
+  }
+
+  std::variant<RowMap::Range, BitVector> val = Range();
+};
 
 // Represents the possible filter operations on a column.
 enum class FilterOp {

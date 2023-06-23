@@ -29,31 +29,29 @@ namespace storage {
 // Storage for Id columns.
 class IdStorage final : public Storage {
  public:
-  IdStorage(uint32_t size) : size_(size) {}
+  explicit IdStorage(uint32_t size) : size_(size) {}
+
+  RangeOrBitVector Search(FilterOp op,
+                          SqlValue value,
+                          RowMap::Range range) const override;
+
+  RangeOrBitVector IndexSearch(FilterOp op,
+                               SqlValue value,
+                               uint32_t* indices,
+                               uint32_t indices_count,
+                               bool sorted) const override;
 
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  BitVector LinearSearch(FilterOp, SqlValue, RowMap::Range) const override;
-
-  BitVector IndexSearch(FilterOp, SqlValue, uint32_t*, uint32_t) const override;
-
-  RowMap::Range BinarySearchIntrinsic(
-      FilterOp op,
-      SqlValue val,
-      RowMap::Range search_range) const override;
-
-  RowMap::Range BinarySearchExtrinsic(FilterOp,
-                                      SqlValue,
-                                      uint32_t*,
-                                      uint32_t) const override {
-    PERFETTO_FATAL("Should not be called");
-  }
-
   uint32_t size() const override { return size_; }
 
  private:
+  BitVector IndexSearch(FilterOp, SqlValue, uint32_t*, uint32_t) const;
+  RowMap::Range BinarySearchIntrinsic(FilterOp op,
+                                      SqlValue val,
+                                      RowMap::Range search_range) const;
   const uint32_t size_ = 0;
 };
 
