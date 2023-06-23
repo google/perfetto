@@ -57,7 +57,12 @@ export function isArgSetIdColumn(c: SqlTableColumn): c is ArgSetIdColumn {
 export interface SqlTableDescription {
   readonly imports?: string[];
   name: string;
+  displayName?: string;
   columns: SqlTableColumn[];
+}
+
+export function tableDisplayName(table: SqlTableDescription): string {
+  return table.displayName ?? table.name;
 }
 
 // Additional columns needed to display the given column.

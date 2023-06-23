@@ -32,6 +32,7 @@ import {Icons} from '../semantic_icons';
 import {
   asArgSetId,
   asSliceSqlId,
+  asTPTimestamp,
   asUpid,
   asUtid,
   SliceSqlId,
@@ -39,8 +40,7 @@ import {
   Upid,
   Utid,
 } from '../sql_types';
-import {asTPTimestamp} from '../sql_types';
-import {constraintsToQueryFragment, SQLConstraints} from '../sql_utils';
+import {constraintsToQuerySuffix, SQLConstraints} from '../sql_utils';
 import {
   getProcessInfo,
   getThreadInfo,
@@ -123,7 +123,7 @@ async function getSliceFromConstraints(
       arg_set_id as argSetId,
       ABS_TIME_STR(ts) as absTime
     FROM slice
-    ${constraintsToQueryFragment(constraints)}`);
+    ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
     id: NUM,
     name: STR,
