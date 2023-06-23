@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 
+#include <memory>
 #include <optional>
 #include <utility>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -82,6 +84,29 @@ SqliteEngine::SqliteEngine() {
 }
 
 SqliteEngine::~SqliteEngine() {
+  // IMPORTANT: the order of operations in this destructor is very sensitive and
+  // should not be changed without careful consideration of the consequences.
+  // Thankfully, because we are very aggressive with PERFETTO_CHECK, mistakes
+  // will usually manifest as crashes, but this is not guaranteed.
+
+  // Drop any explicitly created virtual tables before destroying the database
+  // so that any prepared statements are correctly finalized. Note that we need
+  // to do this in two steps (first create all the SQLs before then executing
+  // them) because |OnSqliteTableDestroyed| will be called as each DROP is
+  // executed.
+  std::vector<std::string> drop_stmts;
+  for (auto it = sqlite_tables_.GetIterator(); it; ++it) {
+    if (it.value() != SqliteTable::TableType::kExplicitCreate) {
+      continue;
+    }
+    base::StackString<1024> drop("DROP TABLE %s", it.key().c_str());
+    drop_stmts.emplace_back(drop.ToStdString());
+  }
+  for (const auto& drop : drop_stmts) {
+    int ret = sqlite3_exec(db(), drop.c_str(), nullptr, nullptr, nullptr);
+    PERFETTO_CHECK(ret == SQLITE_OK);
+  }
+
   // It is important to unregister any functions that have been registered with
   // the database before destroying it. This is because functions can hold onto
   // prepared statements, which must be finalized before database destruction.
@@ -89,9 +114,20 @@ SqliteEngine::~SqliteEngine() {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
                                          nullptr, nullptr, nullptr, nullptr);
-    PERFETTO_CHECK(ret == 0);
+    PERFETTO_CHECK(ret == SQLITE_OK);
   }
   fn_ctx_.Clear();
+
+  // Reset the database itself.
+  db_.reset();
+
+  // SQLite is not guaranteed to pick saved tables back up when destroyed as
+  // from it's perspective, it has called xDisconnect. Make sure to do that
+  // ourselves.
+  saved_tables_.Clear();
+
+  // The above operations should have cleared all the tables.
+  PERFETTO_CHECK(sqlite_tables_.size() == 0);
 }
 
 base::StatusOr<SqliteEngine::PreparedStatement> SqliteEngine::PrepareStatement(
@@ -155,7 +191,9 @@ base::StatusOr<std::unique_ptr<SqliteTable>> SqliteEngine::RestoreSqliteTable(
     return base::ErrStatus("Table with name %s does not exist in saved state",
                            table_name.c_str());
   }
-  return std::move(*res);
+  std::unique_ptr<SqliteTable> table = std::move(*res);
+  PERFETTO_CHECK(saved_tables_.Erase(table_name));
+  return std::move(table);
 }
 
 void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
@@ -165,6 +203,16 @@ void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
 
 std::optional<uint32_t> SqliteEngine::GetErrorOffset() const {
   return GetErrorOffsetDb(db_.get());
+}
+
+void SqliteEngine::OnSqliteTableCreated(const std::string& name,
+                                        SqliteTable::TableType type) {
+  auto it_and_inserted = sqlite_tables_.Insert(name, type);
+  PERFETTO_CHECK(it_and_inserted.second);
+}
+
+void SqliteEngine::OnSqliteTableDestroyed(const std::string& name) {
+  PERFETTO_CHECK(sqlite_tables_.Erase(name));
 }
 
 SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
