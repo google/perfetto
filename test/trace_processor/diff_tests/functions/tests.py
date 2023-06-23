@@ -285,6 +285,19 @@ class Functions(TestSuite):
         15,1
       """))
 
+  def test_create_view_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_view_function('f(x INT)', 'result INT', 'SELECT $x + 1 as result');
+
+        SELECT * FROM f(5);
+      """,
+        out=Csv("""
+        "result"
+        6
+      """))
+
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
