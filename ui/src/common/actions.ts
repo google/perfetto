@@ -38,7 +38,13 @@ import {
 } from './dragndrop_logic';
 import {createEmptyState} from './empty_state';
 import {DEFAULT_VIEWING_OPTION, PERF_SAMPLES_KEY} from './flamegraph_util';
-import {traceEventBegin, traceEventEnd, TraceEventScope} from './metatracing';
+import {
+  MetatraceTrackId,
+  traceEvent,
+  traceEventBegin,
+  traceEventEnd,
+  TraceEventScope,
+} from './metatracing';
 import {
   AdbRecordingTarget,
   Area,
@@ -538,7 +544,8 @@ export const StateActions = {
     if (statusTraceEvent) {
       traceEventEnd(statusTraceEvent);
     }
-    statusTraceEvent = traceEventBegin(args.msg);
+    statusTraceEvent =
+        traceEventBegin(args.msg, {track: MetatraceTrackId.kOmniboxStatus});
     state.status = args;
   },
 
@@ -1061,7 +1068,13 @@ export const StateActions = {
   },
 
   setCurrentTab(state: StateDraft, args: {tab: string|undefined}) {
-    state.currentTab = args.tab;
+    traceEvent('setCurrentTab', () => {
+      state.currentTab = args.tab;
+    }, {
+      args: {
+        tab: args.tab ?? '<undefined>',
+      },
+    });
   },
 
   toggleAllTrackGroups(state: StateDraft, args: {collapsed: boolean}) {

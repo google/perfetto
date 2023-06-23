@@ -19,7 +19,15 @@ import {featureFlags} from './feature_flags';
 import {toNs} from './time';
 
 const METATRACING_BUFFER_SIZE = 100000;
-const JS_THREAD_ID = 2;
+
+export enum MetatraceTrackId {
+  // 1 is reserved for the Trace Processor track.
+  // Events emitted by the JS main thread.
+  kMainThread = 2,
+  // Async track for the status (e.g. "loading tracks") shown to the user
+  // in the omnibox.
+  kOmniboxStatus = 3,
+}
 
 import MetatraceCategories = perfetto.protos.MetatraceCategories;
 
@@ -67,20 +75,29 @@ interface TraceEvent {
   eventName: string;
   startNs: number;
   durNs: number;
+  track: MetatraceTrackId;
+  args?: {[key: string]: string};
 }
 
 const traceEvents: TraceEvent[] = [];
 
 function readMetatrace(): Uint8Array {
   const eventToPacket = (e: TraceEvent): TracePacket => {
+    const metatraceEvent = PerfettoMetatrace.create({
+      eventName: e.eventName,
+      threadId: e.track,
+      eventDurationNs: e.durNs,
+    });
+    for (const [key, value] of Object.entries(e.args ?? {})) {
+      metatraceEvent.args.push(PerfettoMetatrace.Arg.create({
+        key,
+        value,
+      }));
+    }
     return TracePacket.create({
       timestamp: e.startNs,
       timestampClockId: 1,
-      perfettoMetatrace: PerfettoMetatrace.create({
-        eventName: e.eventName,
-        threadId: JS_THREAD_ID,
-        eventDurationNs: e.durNs,
-      }),
+      perfettoMetatrace: metatraceEvent,
     });
   };
   const packets: TracePacket[] = [];
@@ -93,8 +110,14 @@ function readMetatrace(): Uint8Array {
   return Trace.encode(trace).finish();
 }
 
+interface TraceEventParams {
+  track?: MetatraceTrackId;
+  args?: {[key: string]: string};
+}
+
 export type TraceEventScope = {
-  startNs: number, eventName: string;
+  startNs: number; eventName: string;
+  params?: TraceEventParams;
 };
 
 const correctedTimeOrigin = new Date().getTime() - performance.now();
@@ -103,10 +126,23 @@ function now(): number {
   return toNs((correctedTimeOrigin + performance.now()) / 1000);
 }
 
-export function traceEventBegin(eventName: string): TraceEventScope {
+export function traceEvent<T>(
+    name: string, event: () => T, params?: TraceEventParams): T {
+  const scope = traceEventBegin(name, params);
+  try {
+    const result = event();
+    return result;
+  } finally {
+    traceEventEnd(scope);
+  }
+}
+
+export function traceEventBegin(
+    eventName: string, params?: TraceEventParams): TraceEventScope {
   return {
     eventName,
     startNs: now(),
+    params: params,
   };
 }
 
@@ -117,6 +153,8 @@ export function traceEventEnd(traceEvent: TraceEventScope) {
     eventName: traceEvent.eventName,
     startNs: traceEvent.startNs,
     durNs: now() - traceEvent.startNs,
+    track: traceEvent.params?.track ?? MetatraceTrackId.kMainThread,
+    args: traceEvent.params?.args,
   });
   while (traceEvents.length > METATRACING_BUFFER_SIZE) {
     traceEvents.shift();
