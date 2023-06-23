@@ -22,7 +22,6 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/trace_processor/basic_types.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function_internal.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"

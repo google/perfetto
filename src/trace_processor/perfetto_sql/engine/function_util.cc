@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function_internal.h"
+#include "src/trace_processor/perfetto_sql/engine/function_util.h"
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
