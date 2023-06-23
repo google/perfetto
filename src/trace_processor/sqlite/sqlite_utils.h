@@ -141,10 +141,6 @@ inline void ReportSqlValue(
   }
 }
 
-inline ScopedSqliteString ExpandedSqlForStmt(sqlite3_stmt* stmt) {
-  return ScopedSqliteString(sqlite3_expanded_sql(stmt));
-}
-
 inline void SetSqliteError(sqlite3_context* ctx, const base::Status& status) {
   PERFETTO_CHECK(!status.ok());
   sqlite3_result_error(ctx, status.c_message(), -1);

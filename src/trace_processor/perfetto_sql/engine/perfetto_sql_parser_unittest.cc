@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 
+#include <cstdint>
 #include <variant>
 #include <vector>
 
@@ -30,6 +31,14 @@ namespace {
 
 using Result = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
+using CreateFn = PerfettoSqlParser::CreateFunction;
+
+SqlSource FindSubstr(const SqlSource& source, const std::string& needle) {
+  size_t off = source.sql().find(needle);
+  PERFETTO_CHECK(off != std::string::npos);
+  return source.Substr(static_cast<uint32_t>(off),
+                       static_cast<uint32_t>(needle.size()));
+}
 
 class PerfettoSqlParserTest : public ::testing::Test {
  protected:
@@ -66,6 +75,41 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
   ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res.Substr(3, 16)}));
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo() returns INT as select 1");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
+                               "foo()", "INT", FindSubstr(res, "select 1")}));
+
+  res = SqlSource::FromExecuteQuery(
+      "create perfetto function bar(x INT, y LONG) returns STRING as select "
+      "'foo'");
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(CreateFn{"bar(x INT, y LONG)", "STRING",
+                                            FindSubstr(res, "select 'foo'")}));
+
+  res = SqlSource::FromExecuteQuery(
+      "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As select "
+      "'foo'");
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(CreateFn{"bar(x INT, y LONG)", "STRING",
+                                            FindSubstr(res, "select 'foo'")}));
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo( returns INT as select 1");
+  ASSERT_FALSE(Parse(res).status().ok());
+
+  res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(x INT) as select 1");
+  ASSERT_FALSE(Parse(res).status().ok());
+
+  res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo(x INT) returns INT");
+  ASSERT_FALSE(Parse(res).status().ok());
 }
 
 }  // namespace

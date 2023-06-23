@@ -94,7 +94,7 @@ SqlSource SqlSource::FromSpanJoin(std::string sql, const std::string& name) {
                    1);
 }
 
-SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) {
+SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
   auto line_and_col = UpdateLineAndColumnForOffset(sql_, line_, col_, offset);
   return SqlSource(sql_.substr(offset, len), name_, include_traceback_header_,
                    line_and_col.first, line_and_col.second);

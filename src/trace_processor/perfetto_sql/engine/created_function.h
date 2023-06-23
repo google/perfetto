@@ -25,6 +25,7 @@
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/types/destructible.h"
 #include "src/trace_processor/util/sql_argument.h"
@@ -54,7 +55,7 @@ struct CreatedFunction : public SqlFunction {
                                         std::string prototype_str,
                                         sql_argument::Type return_type,
                                         std::string return_type_str,
-                                        std::string sql_str);
+                                        SqlSource sql);
   static base::Status EnableMemoization(Context*);
 };
 
