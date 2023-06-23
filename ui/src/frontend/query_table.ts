@@ -19,6 +19,7 @@ import {BigintMath} from '../base/bigint_math';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
+import {formatDurationShort, tpDurationFromNanos} from '../common/time';
 
 import {Anchor} from './anchor';
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';
@@ -30,7 +31,6 @@ import {reveal} from './scroll_helper';
 import {Button} from './widgets/button';
 import {Callout} from './widgets/callout';
 import {DetailsShell} from './widgets/details_shell';
-import {exists} from './widgets/utils';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -223,11 +223,14 @@ export class QueryTable extends Panel<QueryTableAttrs> {
   }
 
   renderTitle(resp?: QueryResponse) {
-    if (exists(resp)) {
-      return `Query result - ${Math.round(resp.durationMs)} ms`;
-    } else {
+    if (!resp) {
       return 'Query - running';
     }
+    const result = resp.error ? 'error' : `${resp.rows.length} rows`;
+    const msToNs = 1e6;
+    const dur =
+        formatDurationShort(tpDurationFromNanos(resp.durationMs * msToNs));
+    return `Query result (${result}) - ${dur}`;
   }
 
   renderButtons(

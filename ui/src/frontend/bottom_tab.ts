@@ -17,9 +17,10 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
+import {traceEvent} from '../common/metatracing';
 import {Registry} from '../common/registry';
-import {globals} from './globals';
 
+import {globals} from './globals';
 import {Panel, PanelSize, PanelVNode} from './panel';
 
 export interface NewBottomTabArgs {
@@ -211,23 +212,34 @@ export class BottomTabList {
   // created panel (which can be used in the future to close it).
   addTab(args: AddTabArgs): AddTabResult {
     const uuid = uuidv4();
-    const newPanel = bottomTabRegistry.get(args.kind).create({
-      engine: this.engine,
-      uuid,
-      config: args.config,
-      tag: args.tag,
-    });
+    return traceEvent('addTab', () => {
+      const newPanel = bottomTabRegistry.get(args.kind).create({
+        engine: this.engine,
+        uuid,
+        config: args.config,
+        tag: args.tag,
+      });
 
-    this.pendingTabs.push({
-      tab: newPanel,
-      args,
-      startTime: window.performance.now(),
-    });
-    this.flushPendingTabs();
+      this.pendingTabs.push({
+        tab: newPanel,
+        args,
+        startTime: window.performance.now(),
+      });
+      this.flushPendingTabs();
 
-    return {
-      uuid,
-    };
+      return {
+        uuid,
+      };
+    }, {
+      args: {
+        'uuid': uuid,
+        'kind': args.kind,
+        'tag': args.tag ?? '<undefined>',
+        'config': JSON.stringify(
+            args.config,
+            (_, value) => typeof value === 'bigint' ? value.toString() : value),
+      },
+    });
   }
 
   closeTabByTag(tag: string) {
@@ -301,19 +313,30 @@ export class BottomTabList {
         // The first tab is not ready yet, wait.
         return;
       }
-      this.pendingTabs.shift();
 
-      const index =
-          args.tag ? this.tabs.findIndex((tab) => tab.tag === args.tag) : -1;
-      if (index === -1) {
-        this.tabs.push(tab);
-      } else {
-        this.tabs[index] = tab;
-      }
+      traceEvent('addPendingTab', () => {
+        this.pendingTabs.shift();
 
-      if (args.select === undefined || args.select === true) {
-        globals.dispatch(Actions.setCurrentTab({tab: tabSelectionKey(tab)}));
-      }
+        const index =
+            args.tag ? this.tabs.findIndex((tab) => tab.tag === args.tag) : -1;
+        if (index === -1) {
+          this.tabs.push(tab);
+        } else {
+          this.tabs[index] = tab;
+        }
+
+        if (args.select === undefined || args.select === true) {
+          globals.dispatch(Actions.setCurrentTab({tab: tabSelectionKey(tab)}));
+        }
+        // setCurrentTab will usually schedule a redraw, but not if we replace
+        // the tab with the same tag, so we force an update here.
+        globals.rafScheduler.scheduleFullRedraw();
+      }, {
+        args: {
+          'uuid': tab.uuid,
+          'is_loading': tab.isLoading().toString(),
+        },
+      });
     }
   }
 
