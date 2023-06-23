@@ -17,7 +17,11 @@ import m from 'mithril';
 import {EngineProxy} from '../../common/engine';
 import {STR} from '../../common/query_result';
 import {globals} from '../globals';
-import {constraintsToQueryFragment} from '../sql_utils';
+import {
+  constraintsToQueryPrefix,
+  constraintsToQuerySuffix,
+  SQLConstraints,
+} from '../sql_utils';
 import {FilterableSelect} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 
@@ -30,7 +34,7 @@ interface ArgumentSelectorAttrs {
   engine: EngineProxy;
   argSetId: ArgSetIdColumn;
   tableName: string;
-  filters: string[];
+  constraints: SQLConstraints;
   // List of aliases for existing columns by the table.
   alreadySelectedColumns: Set<string>;
   onArgumentSelected: (argument: string) => void;
@@ -52,11 +56,10 @@ export class ArgumentSelector implements
       -- Encapsulate the query in a CTE to avoid clashes between filters
       -- and columns of the 'args' table.
       WITH arg_sets AS (
-        SELECT DISTINCT ${attrs.argSetId.name} as arg_set_id
+        ${constraintsToQueryPrefix(attrs.constraints)}
+        SELECT DISTINCT ${attrs.tableName}.${attrs.argSetId.name} as arg_set_id
         FROM ${attrs.tableName}
-        ${constraintsToQueryFragment({
-      filters: attrs.filters,
-    })}
+        ${constraintsToQuerySuffix(attrs.constraints)}
       )
       SELECT
         DISTINCT args.key as key

@@ -21,6 +21,7 @@ import {Icons} from '../semantic_icons';
 import {BasicTable} from '../widgets/basic_table';
 import {Button} from '../widgets/button';
 import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
+import {Spinner} from '../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
 import {argColumn, Column, columnFromSqlTableColumn} from './column';
@@ -47,8 +48,11 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   renderFilters(): m.Children {
     const filters: m.Child[] = [];
     for (const filter of this.state.getFilters()) {
+      const label = typeof filter === 'string' ?
+          filter :
+          `Arg(${filter.argName}) ${filter.op}`;
       filters.push(m(Button, {
-        label: filter,
+        label,
         icon: 'close',
         onclick: () => {
           this.state.removeFilter(filter);
@@ -82,7 +86,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                 engine: this.engine,
                 argSetId: column,
                 tableName: this.table.name,
-                filters: this.state.getFilters(),
+                constraints: this.state.getQueryConstraints(),
                 alreadySelectedColumns: existingColumns,
                 onArgumentSelected: (argument: string) => {
                   addColumn(argColumn(column, argument));
@@ -156,6 +160,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
               render: (row: Row) => renderCell(column, row, this.state),
             })),
       }),
+      this.state.isLoading() && m(Spinner),
       this.state.getQueryError() !== undefined &&
           m('.query-error', this.state.getQueryError()),
     ];

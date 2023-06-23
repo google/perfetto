@@ -29,15 +29,29 @@ import {
   Aggregation,
   TableColumn,
 } from './pivot_table_types';
+import {SqlTables} from './sql_table/well_known_tables';
 
 export interface Table {
   name: string;
+  displayName: string;
   columns: string[];
 }
 
 export const sliceTable = {
-  name: 'slice',
-  columns: ['type', 'ts', 'dur', 'category', 'name', 'depth'],
+  name: SqlTables.slice.name,
+  displayName: 'slice',
+  columns: [
+    'type',
+    'ts',
+    'dur',
+    'category',
+    'name',
+    'depth',
+    'pid',
+    'process_name',
+    'tid',
+    'thread_name',
+  ],
 };
 
 // Columns of `slice` table available for aggregation.
@@ -55,20 +69,6 @@ export const sliceAggregationColumns = [
 // columns in the UI.
 export const tables: Table[] = [
   sliceTable,
-  {
-    name: 'process',
-    columns: [
-      'type',
-      'pid',
-      'name',
-      'parent_upid',
-      'uid',
-      'android_appid',
-      'cmdline',
-    ],
-  },
-  {name: 'thread', columns: ['type', 'name', 'tid', 'upid', 'is_main_thread']},
-  {name: 'thread_track', columns: ['type', 'name', 'utid']},
 ];
 
 // Queried "table column" is either:
@@ -97,12 +97,12 @@ function aggregationAlias(aggregationIndex: number): string {
   return `agg_${aggregationIndex}`;
 }
 
-export function areaFilter(area: Area): string {
-  return `
-    ts + dur > ${area.start}
-    and ts < ${area.end}
-    and track_id in (${getSelectedTrackIds(area).join(', ')})
-  `;
+export function areaFilters(area: Area): string[] {
+  return [
+    `ts + dur > ${area.start}`,
+    `ts < ${area.end}`,
+    `track_id in (${getSelectedTrackIds(area).join(', ')})`,
+  ];
 }
 
 export function expression(column: TableColumn): string {
@@ -110,7 +110,7 @@ export function expression(column: TableColumn): string {
     case 'regular':
       return `${column.table}.${column.column}`;
     case 'argument':
-      return extractArgumentExpression(column.argument, 'slice');
+      return extractArgumentExpression(column.argument, SqlTables.slice.name);
   }
 }
 
@@ -160,20 +160,17 @@ export function generateQueryFromState(state: PivotTableState):
     }
   }
 
-  const joins = `
-    left join thread_track on thread_track.id = slice.track_id
-    left join thread using (utid)
-    left join process using (upid)
-  `;
-
   const whereClause = state.constrainToArea ?
-      `where ${areaFilter(globals.state.areas[state.selectionArea.areaId])}` :
+      `where ${
+          areaFilters(globals.state.areas[state.selectionArea.areaId])
+              .join(' and\n')}` :
       '';
   const text = `
+    select import('experimental.slices');
+
     select
       ${renderedPivots.concat(aggregations).join(',\n')}
-    from slice
-    ${pivots.length > 0 ? joins : ''}
+    from ${SqlTables.slice.name}
     ${whereClause}
     group by ${renderedPivots.join(', ')}
     ${sortClauses.length > 0 ? ('order by ' + sortClauses.join(', ')) : ''}

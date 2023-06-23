@@ -20,6 +20,7 @@ import {
   autosaveConfigStore,
   recordTargetStore,
 } from '../frontend/record_config';
+import {SqlTables} from '../frontend/sql_table/well_known_tables';
 
 import {featureFlags} from './feature_flags';
 import {
@@ -59,16 +60,21 @@ export function createEmptyNonSerializableState(): NonSerializableState {
   return {
     pivotTable: {
       queryResult: null,
-      selectedPivots: [{kind: 'regular', table: 'slice', column: 'name'}],
+      selectedPivots:
+          [{kind: 'regular', table: SqlTables.slice.name, column: 'name'}],
       selectedAggregations: [
         {
           aggregationFunction: 'SUM',
-          column: {kind: 'regular', table: 'slice', column: 'dur'},
+          column: {kind: 'regular', table: SqlTables.slice.name, column: 'dur'},
           sortDirection: 'DESC',
         },
         {
           aggregationFunction: 'SUM',
-          column: {kind: 'regular', table: 'slice', column: 'thread_dur'},
+          column: {
+            kind: 'regular',
+            table: SqlTables.slice.name,
+            column: 'thread_dur',
+          },
         },
         COUNT_AGGREGATION,
       ],

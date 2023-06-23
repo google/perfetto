@@ -182,15 +182,18 @@ function renderArgKey(key: string, value?: Arg): m.Children {
           label: 'Find slices with same arg value',
           icon: 'search',
           onclick: () => {
-            runQueryInNewTab(
-                `
-              select slice.*
-              from slice
-              join args using (arg_set_id)
-              where key=${sqliteString(fullKey)} and display_value=${
-                    sqliteString(displayValue)}
-          `,
-                `Arg: ${sqliteString(fullKey)}=${sqliteString(displayValue)}`);
+            addTab({
+              kind: SqlTableTab.kind,
+              config: {
+                table: SqlTables.slice,
+                filters: [{
+                  type: 'arg_filter',
+                  argSetIdColumn: 'arg_set_id',
+                  argName: fullKey,
+                  op: `= ${sqliteString(displayValue)}`,
+                }],
+              },
+            });
           },
         }),
         value && m(MenuItem, {

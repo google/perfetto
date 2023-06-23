@@ -28,11 +28,12 @@ import {
   SortDirection,
 } from '../common/state';
 
+import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {
   aggregationIndex,
-  areaFilter,
+  areaFilters,
   extractArgumentExpression,
   sliceAggregationColumns,
   tables,
@@ -45,8 +46,9 @@ import {
   TableColumn,
 } from './pivot_table_types';
 import {PopupMenuButton, popupMenuIcon, PopupMenuItem} from './popup_menu';
-import {runQueryInNewTab} from './query_result_tab';
 import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
+import {SqlTableTab} from './sql_table/tab';
+import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
 import {Duration} from './widgets/duration';
 
@@ -68,9 +70,9 @@ interface DrillFilter {
 function drillFilterColumnName(column: TableColumn): string {
   switch (column.kind) {
     case 'argument':
-      return extractArgumentExpression(column.argument, 'slice');
+      return extractArgumentExpression(column.argument, SqlTables.slice.name);
     case 'regular':
-      return `${column.table}.${column.column}`;
+      return `${column.column}`;
   }
 }
 
@@ -94,7 +96,7 @@ function readableColumnName(column: TableColumn) {
     case 'argument':
       return `Argument ${column.argument}`;
     case 'regular':
-      return `${column.table}.${column.column}`;
+      return `${column.column}`;
   }
 }
 
@@ -136,18 +138,15 @@ export class PivotTable extends Panel<PivotTableAttrs> {
             onclick: () => {
               const queryFilters = filters.map(renderDrillFilter);
               if (this.constrainToArea) {
-                queryFilters.push(areaFilter(area));
+                queryFilters.push(...areaFilters(area));
               }
-              const query = `
-                select slice.* from slice
-                left join thread_track on slice.track_id = thread_track.id
-                left join thread using (utid)
-                left join process using (upid)
-                where ${queryFilters.join(' and \n')}
-              `;
-              // TODO(ddrone): the UI of running query as if it was a canned or
-              // custom query is a temporary one, replace with a proper UI.
-              runQueryInNewTab(query, 'Pivot table details');
+              addTab({
+                kind: SqlTableTab.kind,
+                config: {
+                  table: SqlTables.slice,
+                  filters: queryFilters,
+                },
+              });
             },
           },
           m('i.material-icons', 'arrow_right')));
@@ -389,7 +388,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
     }
 
     const sliceAggregationsItem = this.aggregationPopupTableGroup(
-        'slice', sliceAggregationColumns, index);
+        SqlTables.slice.name, sliceAggregationColumns, index);
     if (sliceAggregationsItem !== undefined) {
       popupItems.push(sliceAggregationsItem);
     }
@@ -457,7 +456,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
       items.push({
         itemType: 'group',
         itemId: `pivot-${table.name}`,
-        text: `Add ${table.name} pivot`,
+        text: `Add ${table.displayName} pivot`,
         children: group,
       });
     }
