@@ -24,8 +24,7 @@
 -- find stack samples on.
 
 
-SELECT RUN_METRIC('chrome/chrome_tasks.sql');
-
+SELECT IMPORT('chrome.tasks');
 
 SELECT CREATE_FUNCTION(
   'DescribeSymbol(symbol STRING, frame_name STRING)',
