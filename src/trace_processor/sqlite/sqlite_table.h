@@ -291,7 +291,7 @@ class TypedSqliteTableBase : public SqliteTable {
 template <typename SubTable, typename Context>
 class TypedSqliteTable : public TypedSqliteTableBase {
  public:
-  struct ModuleArg : BaseModuleArg {
+  struct ModuleArg : public BaseModuleArg {
     Context context;
   };
 
@@ -302,6 +302,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
     auto arg = std::make_unique<ModuleArg>();
     arg->module = CreateModule(table_type, updatable);
     arg->engine = engine;
+    arg->table_type = table_type;
     arg->context = std::move(ctx);
     return arg;
   }

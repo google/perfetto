@@ -34,16 +34,6 @@ namespace trace_processor {
 
 namespace {
 
-base::StatusOr<SqliteEngine::PreparedStatement> CreateStatement(
-    PerfettoSqlEngine* engine,
-    const std::string& sql,
-    const std::string& prototype) {
-  auto res = engine->sqlite_engine()->PrepareStatement(
-      SqlSource::FromFunction(sql.c_str(), prototype));
-  RETURN_IF_ERROR(res.status());
-  return std::move(res.value());
-}
-
 base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
                              sqlite3* db,
                              const Prototype& prototype) {
@@ -440,7 +430,8 @@ class State : public CreatedFunction::Context {
   // for this function.
   base::Status PrepareStatement() {
     base::StatusOr<SqliteEngine::PreparedStatement> stmt =
-        CreateStatement(engine_, sql_, prototype_str_);
+        engine_->sqlite_engine()->PrepareStatement(
+            SqlSource::FromFunction(sql_.c_str(), prototype_str_));
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
     stmts_.push_back(std::move(stmt.value()));
