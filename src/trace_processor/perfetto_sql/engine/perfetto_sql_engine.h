@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
@@ -75,7 +76,7 @@ class PerfettoSqlEngine {
   // |determistic|: whether this function has deterministic output given the
   //                same set of arguments.
   template <typename Function = SqlFunction>
-  base::Status RegisterSqlFunction(const char* name,
+  base::Status RegisterCppFunction(const char* name,
                                    int argc,
                                    typename Function::Context* ctx,
                                    bool deterministic = true);
@@ -87,11 +88,20 @@ class PerfettoSqlEngine {
   // this pointer instead of the essentially static requirement of the context
   // pointer above.
   template <typename Function>
-  base::Status RegisterSqlFunction(
+  base::Status RegisterCppFunction(
       const char* name,
       int argc,
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
+
+  // Registers a function with the prototype |prototype| which returns a value
+  // of |return_type| and is implemented by executing the SQL statement |sql|.
+  base::Status RegisterSqlFunction(std::string prototype,
+                                   std::string return_type,
+                                   std::string sql);
+
+  // Enables memoization for the given SQL function.
+  base::Status EnableSqlFunctionMemoization(const std::string& name);
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
@@ -168,7 +178,7 @@ void WrapSqlFunction(sqlite3_context* ctx, int argc, sqlite3_value** argv) {
 }  // namespace perfetto_sql_internal
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqlFunction(
+base::Status PerfettoSqlEngine::RegisterCppFunction(
     const char* name,
     int argc,
     typename Function::Context* ctx,
@@ -179,7 +189,7 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(
 }
 
 template <typename Function>
-base::Status PerfettoSqlEngine::RegisterSqlFunction(
+base::Status PerfettoSqlEngine::RegisterCppFunction(
     const char* name,
     int argc,
     std::unique_ptr<typename Function::Context> user_data,

@@ -79,8 +79,8 @@ struct Exp : public SqlFunction {
 }  // namespace
 
 base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
-  RETURN_IF_ERROR(engine.RegisterSqlFunction<Ln>("ln", 1, nullptr, true));
-  return engine.RegisterSqlFunction<Exp>("exp", 1, nullptr, true);
+  RETURN_IF_ERROR(engine.RegisterCppFunction<Ln>("ln", 1, nullptr, true));
+  return engine.RegisterCppFunction<Exp>("exp", 1, nullptr, true);
 }
 
 }  // namespace perfetto::trace_processor
