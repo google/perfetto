@@ -36,7 +36,7 @@ import {
   Utid,
 } from './sql_types';
 import {
-  constraintsToQueryFragment,
+  constraintsToQuerySuffix,
   fromNumNull,
   SQLConstraints,
 } from './sql_utils';
@@ -87,7 +87,7 @@ export async function getThreadStateFromConstraints(
       thread_state.utid as utid,
       waker_utid as wakerUtid
     FROM thread_state
-    ${constraintsToQueryFragment(constraints)}`);
+    ${constraintsToQuerySuffix(constraints)}`);
   const it = query.iter({
     threadStateSqlId: NUM,
     schedSqlId: NUM_NULL,

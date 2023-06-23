@@ -16,6 +16,7 @@ import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("common") {
   sources = [
+    "args.sql",
     "counters.sql",
     "cpus.sql",
     "metadata.sql",
