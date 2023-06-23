@@ -251,7 +251,7 @@ class Chrome(TestSuite):
         trace=DataPath(
             'chrome_page_load_all_categories_not_extended.pftrace.gz'),
         query="""
-        SELECT RUN_METRIC('chrome/chrome_tasks.sql');
+        SELECT IMPORT('chrome.tasks');
 
         SELECT full_name as name, task_type, count() AS count
         FROM chrome_tasks
@@ -266,11 +266,7 @@ class Chrome(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('top_level_java_choreographer_slices'),
         query="""
-        SELECT RUN_METRIC(
-          'chrome/chrome_tasks_template.sql',
-          'slice_table_name', 'slice',
-          'function_prefix', ''
-        );
+        SELECT IMPORT('chrome.tasks');
 
         SELECT
           full_name,
@@ -484,7 +480,7 @@ class Chrome(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_custom_navigation_trace.gz'),
         query="""
-        SELECT RUN_METRIC('chrome/chrome_tasks.sql');
+        SELECT IMPORT('chrome.tasks');
 
         SELECT full_name, task_type, count() AS count
         FROM chrome_tasks

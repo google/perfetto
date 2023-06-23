@@ -1902,7 +1902,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_base.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_tasks_delaying_input_processing_template.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_tasks_template.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_thread_slice.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_unsymbolized_args.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_user_event_hashes.sql",
@@ -2206,6 +2205,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/chrome/histograms.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/speedometer.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/tasks.sql",
     ],
 )
 

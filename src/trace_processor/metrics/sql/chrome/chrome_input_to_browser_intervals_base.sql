@@ -31,33 +31,27 @@ SELECT CREATE_FUNCTION(
   FROM
     PRECEDING_FLOW(($id)) flow');
 
+-- Returns a Chrome task which contains the given slice.
 SELECT CREATE_FUNCTION(
-  '{{function_prefix}}GET_MOJO_PARENT_INTERFACE_TAG(id LONG)',
+  '{{function_prefix}}GET_ENCLOSING_CHROME_TASK_NAME(slice_id LONG)',
   'STRING',
   'SELECT
-    interface_name
-    FROM
-    (SELECT MAX(mojo.id),
-    interface_name
-      FROM ((SELECT id FROM ancestor_slice(($id))
-             UNION
-             SELECT slice.id as id FROM PRECEDING_FLOW(($id)) flow
-        	 JOIN slice ON flow.slice_out = slice.id) candidates
-    JOIN chrome_mojo_slices_tbl mojo
-    ON mojo.id = candidates.id
-      OR (SELECT COUNT() FROM ancestor_slice(candidates.id) parents
-      WHERE parents.id = mojo.id) > 0))'
+    task.name
+    FROM ancestor_slice($slice_id)
+    JOIN chrome_tasks task USING (id)
+    LIMIT 1
+  '
 );
 
 SELECT CREATE_FUNCTION(
-  '{{function_prefix}}GET_SCROLL_TYPE(blocked_gesture BOOL, mojo_interface_tag STRING)',
+  '{{function_prefix}}GET_SCROLL_TYPE(blocked_gesture BOOL, task_name STRING)',
   'STRING',
   'SELECT
     CASE WHEN ($blocked_gesture)
     THEN (SELECT
-            CASE WHEN ($mojo_interface_tag) = "viz.mojom.BeginFrameObserver"
+            CASE WHEN ($task_name) glob "viz.mojom.BeginFrameObserver *"
             THEN "fling"
-            WHEN ($mojo_interface_tag) = "blink.mojom.WidgetInputHandler"
+            WHEN ($task_name) glob "blink.mojom.WidgetInputHandler *"
             THEN "blocking_touch_move"
             ELSE "unknown" END)
     ELSE "regular" END AS delay_type');

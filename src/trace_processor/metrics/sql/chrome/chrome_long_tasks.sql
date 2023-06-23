@@ -17,11 +17,35 @@
 --          active development and the values & meaning might change without
 --          notice.
 
-SELECT RUN_METRIC('chrome/jank_utilities.sql');
-SELECT RUN_METRIC(
-  'chrome/chrome_tasks_template.sql',
-  'slice_table_name', 'slice',
-  'function_prefix', ''
+SELECT IMPORT("chrome.tasks");
+
+-- Extract mojo information for the long-task-tracking scenario for specific
+-- names. For example, LongTaskTracker slices may have associated IPC
+-- metadata, or InterestingTask slices for input may have associated IPC to
+-- determine whether the task is fling/etc.
+SELECT CREATE_VIEW_FUNCTION(
+  'SELECT_LONG_TASK_SLICES(name STRING)',
+  'interface_name STRING, ipc_hash INT, message_type STRING, id INT, task_name STRING',
+  '
+    WITH slices_with_mojo_data AS (
+      SELECT
+          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
+          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
+          CASE
+            WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
+            ELSE "message"
+          END AS message_type,
+          id
+      FROM slice
+      WHERE
+        category GLOB "*scheduler.long_tasks*"
+        AND name = $name
+    )
+    SELECT
+      *,
+      printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
+    FROM slices_with_mojo_data;
+  '
 );
 
 SELECT CREATE_FUNCTION(
@@ -50,8 +74,7 @@ WITH
       mojo.interface_name,
       mojo.ipc_hash,
       mojo.message_type,
-      EXTRACT_ARG(s.arg_set_id, 'task.posted_from.file_name') AS posted_from_file_name,
-      EXTRACT_ARG(s.arg_set_id, 'task.posted_from.function_name') AS posted_from_function_name
+      INTERNAL_GET_POSTED_FROM(s.arg_set_id) as posted_from
     FROM long_tasks_extracted_slices mojo
     JOIN slice s ON mojo.id = s.id
   )
@@ -61,7 +84,7 @@ SELECT
     WHEN interface_name IS NOT NULL
       THEN printf('%s %s (hash=%d)', interface_name, message_type, ipc_hash)
     ELSE
-      FORMAT_SCHEDULER_TASK_NAME(posted_from_file_name || ':' || posted_from_function_name)
+      INTERNAL_FORMAT_SCHEDULER_TASK_NAME(posted_from)
     END AS full_name,
   interface_name IS NOT NULL AS is_mojo
 FROM raw_extracted_values;
@@ -76,16 +99,19 @@ WITH
   -- Select UI thread BeginMainFrames frames.
   root_slices AS (
     SELECT *
-    FROM SELECT_BEGIN_MAIN_FRAME_JAVA_SLICES('LongTaskTracker')
+    FROM INTERNAL_SELECT_BEGIN_MAIN_FRAME_JAVA_SLICES('LongTaskTracker')
     UNION ALL
-    SELECT * FROM chrome_choreographer_tasks WHERE IS_LONG_CHOREOGRAPHER_TASK(dur)
+    SELECT id, "Choreographer" as kind, ts, dur, name
+    FROM slice
+    WHERE IS_LONG_CHOREOGRAPHER_TASK(dur)
+      AND name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*"
   ),
   -- Intermediate step to allow us to sort java view names.
   root_slice_and_java_view_not_grouped AS (
     SELECT
       s1.id, s1.kind, s2.name AS java_view_name
     FROM root_slices s1
-    JOIN chrome_java_views_internal s2
+    JOIN internal_chrome_java_views s2
       ON (
         s1.ts < s2.ts AND s1.ts + s1.dur > s2.ts + s2.dur)
   )
@@ -104,7 +130,7 @@ WITH -- Generate full names for tasks with java views.
   java_views_tasks AS (
     SELECT
       printf('%s(java_views=%s)', kind, java_views) as full_name,
-      GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+      INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
       id
     FROM long_task_slices_with_java_views
     WHERE kind = "SingleThreadProxy::BeginMainFrame"
@@ -122,12 +148,12 @@ WITH -- Generate full names for tasks with java views.
       -- NOTE: unless Navigation category is enabled and recorded on the same
       -- track as the LongTaskTracker slice, frame type will always be unknown.
       printf('%s (%s)',
-        HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name),
-        IFNULL(EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
+        INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name),
+        IFNULL(INTERNAL_EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
       'navigation_task' AS task_type,
       id
     FROM scheduler_tasks_with_mojo
-    WHERE HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name) IS NOT NULL
+    WHERE INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name) IS NOT NULL
   )
 SELECT
   COALESCE(s4.full_name, s3.full_name, s2.full_name, s1.full_name) AS full_name,
@@ -142,7 +168,7 @@ UNION ALL
 -- LongTaskTracker slice, so join them separately.
 SELECT
   printf('%s(java_views=%s)', kind, java_views) as full_name,
-  GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+  INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
   id
 FROM long_task_slices_with_java_views
 WHERE kind = "Choreographer";
