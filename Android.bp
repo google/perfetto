@@ -10238,6 +10238,15 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/perfetto_sql/engine:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_perfetto_sql_engine_unittests",
+    srcs: [
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine_unittest.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/perfetto_sql/intrinsics/functions:functions
 filegroup {
     name: "perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
@@ -12159,6 +12168,7 @@ cc_test {
         ":perfetto_src_trace_processor_metrics_metrics",
         ":perfetto_src_trace_processor_metrics_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_engine_engine",
+        ":perfetto_src_trace_processor_perfetto_sql_engine_unittests",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_functions",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_interface",
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_functions_unittests",

@@ -58,7 +58,7 @@ class SqlSource {
 
   // Creates a SqlSource instance with the SQL taken as a substring starting at
   // |offset| with |len| characters.
-  SqlSource Substr(uint32_t offset, uint32_t len);
+  SqlSource Substr(uint32_t offset, uint32_t len) const;
 
   // Returns the this SqlSource instance as a string which can be appended as a
   // "traceback" frame to an error message. Callers can pass an optional
