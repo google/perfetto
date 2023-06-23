@@ -36,6 +36,11 @@ namespace trace_processor {
 
 namespace {
 
+void ResetStatement(sqlite3_stmt* stmt) {
+  sqlite3_reset(stmt);
+  sqlite3_clear_bindings(stmt);
+}
+
 class CreatedViewFunction final
     : public TypedSqliteTable<CreatedViewFunction, PerfettoSqlEngine*> {
  public:
@@ -65,8 +70,13 @@ class CreatedViewFunction final
   std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
 
+  base::StatusOr<SqliteEngine::PreparedStatement> GetOrCreateStatement();
+  void ReturnStatementForReuse(SqliteEngine::PreparedStatement stmt);
+
  private:
   Schema CreateSchema();
+
+  base::StatusOr<SqliteEngine::PreparedStatement> CreateStatement();
 
   bool IsReturnValueColumn(size_t i) const {
     PERFETTO_DCHECK(i < schema().columns().size());
@@ -91,6 +101,9 @@ class CreatedViewFunction final
 
   std::string prototype_str_;
   std::string sql_defn_str_;
+
+  // A prepared statement to be reused across function invocations.
+  std::optional<SqliteEngine::PreparedStatement> prepared_stmt_;
 };
 
 CreatedViewFunction::CreatedViewFunction(sqlite3*, PerfettoSqlEngine* engine)
@@ -133,18 +146,17 @@ base::Status CreatedViewFunction::Init(int argc,
   }
 
   // Verify that the provided SQL prepares to a statement correctly.
-  auto res = engine_->sqlite_engine()->PrepareStatement(
-      SqlSource::FromFunction(sql_defn_str_, prototype_str_));
-  RETURN_IF_ERROR(res.status());
+  auto stmt = CreateStatement();
+  RETURN_IF_ERROR(stmt.status());
 
   // Verify that every argument name in the function appears in the
   // argument list.
   //
   // We intentionally loop from 1 to |used_param_count| because SQL
   // parameters are 1-indexed *not* 0-indexed.
-  int used_param_count = sqlite3_bind_parameter_count(res->sqlite_stmt());
+  int used_param_count = sqlite3_bind_parameter_count(stmt->sqlite_stmt());
   for (int i = 1; i <= used_param_count; ++i) {
-    const char* name = sqlite3_bind_parameter_name(res->sqlite_stmt(), i);
+    const char* name = sqlite3_bind_parameter_name(stmt->sqlite_stmt(), i);
 
     if (!name) {
       return base::ErrStatus(
@@ -177,7 +189,7 @@ base::Status CreatedViewFunction::Init(int argc,
   // Verify that the prepared statement column count matches the return
   // count.
   uint32_t col_count =
-      static_cast<uint32_t>(sqlite3_column_count(res->sqlite_stmt()));
+      static_cast<uint32_t>(sqlite3_column_count(stmt->sqlite_stmt()));
   if (col_count != return_values_.size()) {
     return base::ErrStatus(
         "%s: number of return values %u does not match SQL statement column "
@@ -188,7 +200,7 @@ base::Status CreatedViewFunction::Init(int argc,
   // Verify that the return names matches the prepared statment column names.
   for (uint32_t i = 0; i < col_count; ++i) {
     const char* name =
-        sqlite3_column_name(res->sqlite_stmt(), static_cast<int>(i));
+        sqlite3_column_name(stmt->sqlite_stmt(), static_cast<int>(i));
     if (name != return_values_[i].name()) {
       return base::ErrStatus(
           "%s: column %s at index %u does not match return value name %s.",
@@ -196,6 +208,8 @@ base::Status CreatedViewFunction::Init(int argc,
           return_values_[i].name().c_str());
     }
   }
+
+  ReturnStatementForReuse(std::move(stmt.value()));
 
   // Now we've parsed prototype and return values, create the schema.
   *schema = CreateSchema();
@@ -259,10 +273,44 @@ int CreatedViewFunction::BestIndex(const QueryConstraints& qc,
   return SQLITE_OK;
 }
 
+base::StatusOr<SqliteEngine::PreparedStatement>
+CreatedViewFunction::GetOrCreateStatement() {
+  if (prepared_stmt_) {
+    auto stmt = std::move(*prepared_stmt_);
+    prepared_stmt_.reset();
+    return std::move(stmt);
+  }
+  return CreateStatement();
+}
+
+base::StatusOr<SqliteEngine::PreparedStatement>
+CreatedViewFunction::CreateStatement() {
+  auto res = engine_->sqlite_engine()->PrepareStatement(
+      SqlSource::FromFunction(sql_defn_str_, prototype_str_));
+  if (!res.ok()) {
+    return base::ErrStatus(
+        "%s: Failed to prepare SQL statement for function. "
+        "Check the SQL defintion this function for syntax errors.\n%s",
+        prototype_.function_name.c_str(), res.status().c_message());
+  }
+  return std::move(res.value());
+}
+
+void CreatedViewFunction::ReturnStatementForReuse(
+    SqliteEngine::PreparedStatement stmt) {
+  if (!stmt.sqlite_stmt()) {
+    return;
+  }
+  ResetStatement(stmt.sqlite_stmt());
+  prepared_stmt_ = std::move(stmt);
+}
+
 CreatedViewFunction::Cursor::Cursor(CreatedViewFunction* table)
     : SqliteTable::BaseCursor(table), table_(table) {}
 
-CreatedViewFunction::Cursor::~Cursor() = default;
+CreatedViewFunction::Cursor::~Cursor() {
+  table_->ReturnStatementForReuse(std::move(stmt_.value()));
+}
 
 base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
                                                  sqlite3_value** argv,
@@ -307,7 +355,7 @@ base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
     seen_argument_constraints++;
   }
 
-  // Verify that we saw one valid constriant for every input argument.
+  // Verify that we saw one valid constraint for every input argument.
   if (seen_argument_constraints < table_->prototype_.arguments.size()) {
     return base::ErrStatus(
         "%s: missing value for input argument. Saw %zu arguments but expected "
@@ -317,14 +365,18 @@ base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
   }
 
   // Prepare the SQL definition as a statement using SQLite.
-  // TODO(lalitm): see if we can reuse this prepared statement rather than
-  // creating it very time.
   // TODO(lalitm): measure and implement whether it would be a good idea to
   // forward constraints here when we build the nested query.
-  auto res = table_->engine_->sqlite_engine()->PrepareStatement(
-      SqlSource::FromFunction(table_->sql_defn_str_, table_->prototype_str_));
-  RETURN_IF_ERROR(res->status());
-  stmt_ = std::move(res.value());
+  if (stmt_) {
+    // Filter can be called multiple times for the same cursor, so if we
+    // already have a statement, reset and reuse it. Otherwise, create a
+    // new one.
+    ResetStatement(stmt_->sqlite_stmt());
+  } else {
+    auto stmt = table_->GetOrCreateStatement();
+    RETURN_IF_ERROR(stmt.status());
+    stmt_ = std::move(*stmt);
+  }
 
   // Bind all the arguments to the appropriate places in the function.
   for (size_t i = 0; i < qc.constraints().size(); ++i) {
