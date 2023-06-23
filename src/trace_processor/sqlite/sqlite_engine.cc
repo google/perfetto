@@ -139,7 +139,9 @@ base::StatusOr<SqliteEngine::PreparedStatement> SqliteEngine::PrepareStatement(
   if (err != SQLITE_OK) {
     const char* errmsg = sqlite3_errmsg(db_.get());
     std::string frame = sql.AsTracebackFrame(GetErrorOffset());
-    return base::ErrStatus("%s%s", frame.c_str(), errmsg);
+    base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
+    status.SetPayload("perfetto.dev/has_traceback", "true");
+    return status;
   }
   if (!raw_stmt) {
     return base::ErrStatus("No SQL to execute");
