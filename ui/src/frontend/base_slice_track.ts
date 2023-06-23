@@ -33,7 +33,7 @@ import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
-import {constraintsToQueryFragment} from './sql_utils';
+import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs, SliceRect, Track} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
@@ -610,7 +610,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     const extraCols = this.extraSqlColumns.join(',');
     const maybeDepth = this.isFlat() ? undefined : 'depth';
 
-    const constraint = constraintsToQueryFragment({
+    const constraint = constraintsToQuerySuffix({
       filters: [
         `ts >= ${slicesKey.start - this.maxDurNs}`,
         `ts <= ${slicesKey.end}`,

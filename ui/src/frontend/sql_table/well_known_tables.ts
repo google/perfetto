@@ -17,6 +17,7 @@ import {SqlTableDescription} from './table';
 const sliceTable: SqlTableDescription = {
   imports: ['experimental.slices'],
   name: 'experimental_slice_with_thread_and_process_info',
+  displayName: 'slice',
   columns: [
     {
       name: 'id',

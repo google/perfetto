@@ -32,7 +32,7 @@ import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
-import {Select} from './widgets/select';
+import {FilterableSelect, Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
 import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
@@ -308,6 +308,14 @@ export const WidgetsPage = createPage({
           initialOpts: {
             disabled: false,
           },
+        }),
+        m('h2', 'Filterable Select'),
+        m(WidgetShowcase, {
+          renderWidget: () =>
+              m(FilterableSelect, {
+                values: ['foo', 'bar', 'baz'],
+                onSelected: () => {},
+              }),
         }),
         m('h2', 'Empty State'),
         m(WidgetShowcase, {

@@ -10403,6 +10403,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/chrome/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/speedometer.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/tasks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/args.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/counters.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/cpus.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/metadata.sql",
