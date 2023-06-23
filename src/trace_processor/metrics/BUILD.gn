@@ -47,7 +47,8 @@ source_set("metrics") {
     "../../../protos/perfetto/trace_processor:metrics_impl_zero",
     "../../base",
     "../../protozero:protozero",
-    "../prelude/functions",
+    "../perfetto_sql/engine",
+    "../perfetto_sql/intrinsics/functions",
     "../sqlite",
   ]
   public_deps = [
