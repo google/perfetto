@@ -20,7 +20,7 @@
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/prelude/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 

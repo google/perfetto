@@ -169,12 +169,13 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/proto:minimal",
       "importers/systrace:full",
       "metrics",
-      "prelude/functions",
-      "prelude/operators",
-      "prelude/table_functions",
-      "prelude/tables_views",
+      "perfetto_sql/engine",
+      "perfetto_sql/intrinsics/functions",
+      "perfetto_sql/intrinsics/operators",
+      "perfetto_sql/intrinsics/table_functions",
+      "perfetto_sql/prelude",
+      "perfetto_sql/stdlib",
       "sqlite",
-      "stdlib:gen_amalgamated_stdlib",
       "storage",
       "tables",
       "types",
@@ -290,9 +291,9 @@ perfetto_unittest_source_set("unittests") {
   }
   if (enable_perfetto_trace_processor_sqlite) {
     deps += [
-      "prelude/functions:unittests",
-      "prelude/operators:unittests",
-      "prelude/table_functions:unittests",
+      "perfetto_sql/intrinsics/functions:unittests",
+      "perfetto_sql/intrinsics/operators:unittests",
+      "perfetto_sql/intrinsics/table_functions:unittests",
       "sqlite:unittests",
     ]
   }
