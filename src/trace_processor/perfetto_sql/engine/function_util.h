@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_
 
 #include <sqlite3.h>
 #include <optional>
@@ -23,7 +23,6 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_view.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/util/sql_argument.h"
 
 namespace perfetto {
@@ -61,4 +60,4 @@ base::Status MaybeBindIntArgument(sqlite3_stmt*,
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_FUNCTIONS_CREATE_FUNCTION_INTERNAL_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_FUNCTION_UTIL_H_

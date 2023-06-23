@@ -22,6 +22,9 @@
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/string_view.h"
+#include "src/trace_processor/perfetto_sql/engine/created_function.h"
+#include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -201,6 +204,61 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   stats.column_count =
       static_cast<uint32_t>(sqlite3_column_count(res->sqlite_stmt()));
   return ExecutionResult{std::move(*res), stats};
+}
+
+base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
+                                                    std::string return_type_str,
+                                                    std::string sql_str) {
+  // Parse all the arguments into a more friendly form.
+  Prototype prototype;
+  base::Status status =
+      ParsePrototype(base::StringView(prototype_str), prototype);
+  if (!status.ok()) {
+    return base::ErrStatus("CREATE_FUNCTION[prototype=%s]: %s",
+                           prototype_str.c_str(), status.c_message());
+  }
+
+  // Parse the return type into a enum format.
+  auto opt_return_type =
+      sql_argument::ParseType(base::StringView(return_type_str));
+  if (!opt_return_type) {
+    return base::ErrStatus(
+        "CREATE_FUNCTION[prototype=%s, return=%s]: unknown return type "
+        "specified",
+        prototype_str.c_str(), return_type_str.c_str());
+  }
+
+  int created_argc = static_cast<int>(prototype.arguments.size());
+  auto* ctx = static_cast<CreatedFunction::Context*>(
+      sqlite_engine()->GetFunctionContext(prototype.function_name,
+                                          created_argc));
+  if (!ctx) {
+    // We register the function with SQLite before we prepare the statement so
+    // the statement can reference the function itself, enabling recursive
+    // calls.
+    std::unique_ptr<CreatedFunction::Context> created_fn_ctx =
+        CreatedFunction::MakeContext(this);
+    ctx = created_fn_ctx.get();
+    RETURN_IF_ERROR(RegisterCppFunction<CreatedFunction>(
+        prototype.function_name.c_str(), created_argc,
+        std::move(created_fn_ctx)));
+  }
+  return CreatedFunction::ValidateOrPrepare(
+      ctx, std::move(prototype), std::move(prototype_str),
+      std::move(*opt_return_type), std::move(return_type_str),
+      std::move(sql_str));
+}
+
+base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
+    const std::string& name) {
+  constexpr size_t kSupportedArgCount = 1;
+  CreatedFunction::Context* ctx = static_cast<CreatedFunction::Context*>(
+      sqlite_engine()->GetFunctionContext(name.c_str(), kSupportedArgCount));
+  if (!ctx) {
+    return base::ErrStatus(
+        "EXPERIMENTAL_MEMOIZE: Function %s(INT) does not exist", name.c_str());
+  }
+  return CreatedFunction::EnableMemoization(ctx);
 }
 
 }  // namespace trace_processor
