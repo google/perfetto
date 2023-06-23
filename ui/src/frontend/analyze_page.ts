@@ -65,6 +65,7 @@ export function runAnalyzeQuery(query: string) {
       globals.rafScheduler.scheduleFullRedraw();
     });
   }
+  globals.rafScheduler.scheduleDelayedFullRedraw();
 }
 
 function getEngine(): EngineProxy|undefined {

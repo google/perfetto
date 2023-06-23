@@ -312,8 +312,10 @@ $bottom-tab-padding: 10px;
 .query-error {
   padding: 20px 10px;
   color: hsl(-10, 50%, 50%);
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: "Roboto Mono", sans-serif;
+  font-size: 12px;
   font-weight: 300;
+  white-space: pre;
 }
 
 .dropdown {
