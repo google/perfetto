@@ -16,10 +16,8 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_OVERLAYS_TYPES_H_
 #define SRC_TRACE_PROCESSOR_DB_OVERLAYS_TYPES_H_
 
-#include <variant>
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
@@ -54,25 +52,20 @@ struct StorageBitVector {
   BitVector bv;
 };
 
-using RangeOrBitVector = std::variant<Range, BitVector>;
-
+// RangeOrBitVector of indices in the table space.
 struct TableRangeOrBitVector {
   explicit TableRangeOrBitVector(Range range) : val(range) {}
   explicit TableRangeOrBitVector(BitVector bv) : val(std::move(bv)) {}
+  explicit TableRangeOrBitVector(RangeOrBitVector r_or_bv)
+      : val(std::move(r_or_bv)) {}
 
-  bool IsRange() const { return std::holds_alternative<Range>(val); }
-  bool IsBitVector() const { return std::holds_alternative<BitVector>(val); }
+  bool IsRange() const { return val.IsRange(); }
+  bool IsBitVector() const { return val.IsBitVector(); }
 
-  BitVector TakeIfBitVector() {
-    PERFETTO_DCHECK(IsBitVector());
-    return std::move(*std::get_if<BitVector>(&val));
-  }
-  Range TakeIfRange() {
-    PERFETTO_DCHECK(IsRange());
-    return std::move(*std::get_if<Range>(&val));
-  }
+  BitVector TakeIfBitVector() { return val.TakeIfBitVector(); }
+  Range TakeIfRange() { return val.TakeIfRange(); }
 
-  RangeOrBitVector val = Range();
+  RangeOrBitVector val = RangeOrBitVector(Range());
 };
 
 // Represents a vector of indices in the table space.
