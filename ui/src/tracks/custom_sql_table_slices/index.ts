@@ -20,7 +20,6 @@ import {PluginContext} from '../../common/plugin_api';
 import {Selection} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {
-  GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
@@ -87,9 +86,6 @@ export abstract class CustomSqlTableSliceTrack<
     }
 
     const detailsPanelConfig = this.getDetailsPanel();
-    (detailsPanelConfig.config as GenericSliceDetailsTabConfig).id =
-        args.slice.id;
-
     globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
