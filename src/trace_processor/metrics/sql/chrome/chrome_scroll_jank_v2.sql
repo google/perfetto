@@ -39,7 +39,12 @@ SELECT
   COUNT(*) AS num_scroll_janks,
   RepeatedField(
     ChromeScrollJankV2_ScrollJankCauseAndDuration(
-      'cause', cause.cause_of_jank, 'duration_ms', jank.dur / 1.0e6))
+      'cause',
+      cause.cause_of_jank,
+      'sub_cause',
+      cause.sub_cause_of_jank,
+      'duration_ms',
+      jank.dur / 1.0e6))
     AS scroll_jank_causes_and_durations
 FROM
   scroll_event_latency_jank AS jank
