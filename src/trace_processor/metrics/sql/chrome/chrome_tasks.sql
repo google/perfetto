@@ -14,8 +14,6 @@
 -- limitations under the License.
 --
 
-SELECT RUN_METRIC(
-  "chrome/chrome_tasks_template.sql",
-  "slice_table_name", "slice",
-  "function_prefix", ""
-);
+-- Compat layer for old clients.
+-- TODO(altimin): Remove it once everyone uses stdlib directly.
+SELECT IMPORT("chrome.tasks");
