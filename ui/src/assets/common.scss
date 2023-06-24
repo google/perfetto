@@ -305,6 +305,11 @@ $bottom-tab-padding: 10px;
     }
     &[clickable] {
       cursor: pointer;
+      &:active {
+        background-color: hsl(206, 19%, 75%);
+        box-shadow: inset 1px 1px 4px #00000040;
+        transition: none;
+      }
     }
   }
 }
