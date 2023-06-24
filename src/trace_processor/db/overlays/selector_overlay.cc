@@ -45,11 +45,12 @@ TableRangeOrBitVector SelectorOverlay::MapToTableRangeOrBitVector(
 
 TableBitVector SelectorOverlay::MapToTableBitVector(StorageBitVector s_bv,
                                                     OverlayOp) const {
-  PERFETTO_DCHECK(selected_->size() >= s_bv.bv.size());
+  PERFETTO_DCHECK(s_bv.bv.size() <= selected_->size());
   BitVector res(selected_->CountSetBits());
   // TODO(b/283763282): Implement this variation of |UpdateSetBits| in
   // BitVector.
-  for (auto it = selected_->IterateSetBits(); it; it.Next()) {
+  for (auto it = selected_->IterateSetBits(); it && it.index() < s_bv.bv.size();
+       it.Next()) {
     if (s_bv.bv.IsSet(it.index()))
       res.Set(it.ordinal());
   }

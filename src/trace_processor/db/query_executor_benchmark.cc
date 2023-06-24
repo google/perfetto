@@ -270,12 +270,19 @@ static void BM_QEFilterWithDenseSelector(benchmark::State& state) {
 
 BENCHMARK(BM_QEFilterWithDenseSelector)->ArgsProduct({{DB::V1, DB::V2}});
 
-static void BM_QEFilterId(benchmark::State& state) {
+static void BM_QESliceEventFilterId(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, table.table_.id().eq(500));
+}
+
+BENCHMARK(BM_QESliceEventFilterId)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QEFtraceEventFilterId(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
   BenchmarkFtraceEventTable(state, table, table.table_.id().eq(500));
 }
 
-BENCHMARK(BM_QEFilterId)->ArgsProduct({{DB::V1, DB::V2}});
+BENCHMARK(BM_QEFtraceEventFilterId)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QEFilterWithArrangement(benchmark::State& state) {
   Table::kUseFilterV2 = state.range(0) == 1;

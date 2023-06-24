@@ -137,11 +137,13 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   // If the number of elements in the rowmap is small or the number of elements
   // is less than 1/10th of the range, use indexed filtering.
   // TODO(b/283763282): use Overlay estimations.
-  if (rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size) {
+  bool disallows_index_search = rm->IsRange();
+  bool prefers_index_search =
+      rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size;
+  if (!disallows_index_search && prefers_index_search) {
     *rm = IndexSearch(c, col, rm);
     return;
   }
-
   LinearSearch(c, col, rm);
 }
 
