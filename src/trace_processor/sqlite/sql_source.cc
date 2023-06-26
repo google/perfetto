@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/ext/base/sys_types.h"
 
 namespace perfetto {
 namespace trace_processor {
