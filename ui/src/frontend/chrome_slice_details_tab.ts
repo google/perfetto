@@ -47,7 +47,7 @@ import {getProcessName, getThreadName} from './thread_and_process_info';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
 import {Duration} from './widgets/duration';
-import {Column, GridLayout} from './widgets/grid_layout';
+import {GridLayout, GridLayoutColumn} from './widgets/grid_layout';
 import {MenuItem, PopupMenu2} from './widgets/menu';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
@@ -390,7 +390,7 @@ export class ChromeSliceDetailsTab extends
     const args = this.renderArguments(engine, slice);
     if (precFlows ?? followingFlows ?? args) {
       return m(
-          Column,
+          GridLayoutColumn,
           precFlows,
           followingFlows,
           args,
