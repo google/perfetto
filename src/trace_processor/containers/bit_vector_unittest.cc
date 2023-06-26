@@ -532,9 +532,7 @@ TEST(BitVectorUnittest, RangeStressTest) {
 }
 
 TEST(BitVectorUnittest, BuilderSkip) {
-  BitVector::Builder builder(128);
-
-  builder.Skip(127);
+  BitVector::Builder builder(128, 127);
   builder.Append(1);
 
   BitVector bv = std::move(builder).Build();
