@@ -15,6 +15,7 @@
  */
 
 #include <benchmark/benchmark.h>
+#include <initializer_list>
 #include <string>
 
 #include "perfetto/ext/base/file_utils.h"
@@ -191,10 +192,10 @@ struct FtraceEventTableForBenchmark {
 
 void BenchmarkSliceTable(benchmark::State& state,
                          SliceTableForBenchmark& table,
-                         Constraint c) {
+                         std::initializer_list<Constraint> c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(table.table_.FilterToRowMap(c));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -217,10 +218,10 @@ void BenchmarkExpectedFrameTable(benchmark::State& state,
 
 void BenchmarkFtraceEventTable(benchmark::State& state,
                                FtraceEventTableForBenchmark& table,
-                               Constraint c) {
+                               std::initializer_list<Constraint> c) {
   Table::kUseFilterV2 = state.range(0) == 1;
   for (auto _ : state) {
-    benchmark::DoNotOptimize(table.table_.FilterToRowMap({c}));
+    benchmark::DoNotOptimize(table.table_.FilterToRowMap(c));
   }
   state.counters["s/row"] =
       benchmark::Counter(static_cast<double>(table.table_.row_count()),
@@ -230,28 +231,28 @@ void BenchmarkFtraceEventTable(benchmark::State& state,
 
 static void BM_QESliceTableTrackIdEq(benchmark::State& state) {
   SliceTableForBenchmark table(state);
-  BenchmarkSliceTable(state, table, table.table_.track_id().eq(100));
+  BenchmarkSliceTable(state, table, {table.table_.track_id().eq(100)});
 }
 
 BENCHMARK(BM_QESliceTableTrackIdEq)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QESliceTableParentIdIsNotNull(benchmark::State& state) {
   SliceTableForBenchmark table(state);
-  BenchmarkSliceTable(state, table, table.table_.parent_id().is_not_null());
+  BenchmarkSliceTable(state, table, {table.table_.parent_id().is_not_null()});
 }
 
 BENCHMARK(BM_QESliceTableParentIdIsNotNull)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QESliceTableParentIdEq(benchmark::State& state) {
   SliceTableForBenchmark table(state);
-  BenchmarkSliceTable(state, table, table.table_.parent_id().eq(88));
+  BenchmarkSliceTable(state, table, {table.table_.parent_id().eq(88)});
 }
 
 BENCHMARK(BM_QESliceTableParentIdEq)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QESliceTableSorted(benchmark::State& state) {
   SliceTableForBenchmark table(state);
-  BenchmarkSliceTable(state, table, table.table_.ts().gt(1000));
+  BenchmarkSliceTable(state, table, {table.table_.ts().gt(1000)});
 }
 
 BENCHMARK(BM_QESliceTableSorted)->ArgsProduct({{DB::V1, DB::V2}});
@@ -265,24 +266,34 @@ BENCHMARK(BM_QEFilterWithSparseSelector)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QEFilterWithDenseSelector(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
-  BenchmarkFtraceEventTable(state, table, table.table_.cpu().eq(4));
+  BenchmarkFtraceEventTable(state, table, {table.table_.cpu().eq(4)});
 }
 
 BENCHMARK(BM_QEFilterWithDenseSelector)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QESliceEventFilterId(benchmark::State& state) {
   SliceTableForBenchmark table(state);
-  BenchmarkSliceTable(state, table, table.table_.id().eq(500));
+  BenchmarkSliceTable(state, table, {table.table_.id().eq(500)});
 }
 
 BENCHMARK(BM_QESliceEventFilterId)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QEFtraceEventFilterId(benchmark::State& state) {
   FtraceEventTableForBenchmark table(state);
-  BenchmarkFtraceEventTable(state, table, table.table_.id().eq(500));
+  BenchmarkFtraceEventTable(state, table, {table.table_.id().eq(500)});
 }
 
 BENCHMARK(BM_QEFtraceEventFilterId)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QESliceTableTsAndTrackId(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(
+      state, table,
+      {table.table_.ts().ge(1740530419866), table.table_.ts().le(1740530474097),
+       table.table_.track_id().eq(100)});
+}
+
+BENCHMARK(BM_QESliceTableTsAndTrackId)->ArgsProduct({{DB::V1, DB::V2}});
 
 static void BM_QEFilterWithArrangement(benchmark::State& state) {
   Table::kUseFilterV2 = state.range(0) == 1;
