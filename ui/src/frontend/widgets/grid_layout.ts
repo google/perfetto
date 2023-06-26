@@ -14,15 +14,89 @@
 
 import m from 'mithril';
 
-// Just some wrappers around CSS
+// GridLayout is a container that arranges elements into a two-column grid when
+// the screen is wide, and a single column when the screen is narrow.
+// Consider the following layout (where A, B, C, and D are arbitrary components)
+//   m(GridLayout, A, B, C, D)
+//
+// On a wide screen we get:
+// ┌─────────┐ ┌─────────┐
+// │    A    │ │    B    │
+// │         │ └─────────┘
+// │         │
+// └─────────┘
+// ┌─────────┐ ┌─────────┐
+// │    C    │ │    D    │
+// │         │ │         │
+// │         │ └─────────┘
+// └─────────┘
+//
+// And on a narrow screen we get:
+// ┌─────┐
+// │  A  │
+// │     │
+// │     │
+// └─────┘
+// ┌─────┐
+// │  B  │
+// └────-┘
+// ┌─────┐
+// │  C  │
+// │     │
+// │     │
+// └─────┘
+// ┌─────┐
+// │  D  │
+// │     │
+// └─────┘
 export class GridLayout implements m.ClassComponent {
   view({children}: m.Vnode) {
     return m('div.pf-grid-layout', children);
   }
 }
 
-export class Column implements m.ClassComponent {
+// ColumnLayouts can be used inside a GridLayout to group elements together
+// vertically and to acheive a more aesthetically pleasing vertical spacing of
+// elements in the same column.
+// Consider the same example from above but instead the elements are placed
+// inside columns.
+//   m(GridLayout, m(Column, A, C), m(Column, B, D))
+//
+// On a wide screen we get:
+// ┌─────────┐ ┌─────────┐
+// │    A    │ │    B    │
+// │         │ └─────────┘
+// │         │ ┌─────────┐ <- This gap has disappeared
+// └─────────┘ │    D    │
+// ┌─────────┐ │         │
+// │    C    │ └─────────┘
+// │         │
+// │         │
+// └─────────┘
+//
+// And on a narrow screen we get:
+// ┌─────┐
+// │  A  │
+// │     │
+// │     │
+// └─────┘
+// ┌─────┐
+// │  C  │
+// │     │
+// │     │
+// └─────┘
+// ┌─────┐
+// │  B  │
+// └────-┘
+// ┌─────┐
+// │  D  │
+// │     │
+// └─────┘
+//
+// The gap between column elements are the same size as the gaps in the grid
+// layout, so we get keep spacing between all elements in the grid.
+export class GridLayoutColumn implements m.ClassComponent {
   view({children}: m.Vnode) {
-    return m('div.pf-column', children);
+    return m('div.pf-grid-layout-column', children);
   }
 }
