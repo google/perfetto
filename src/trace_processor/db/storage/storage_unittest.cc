@@ -56,7 +56,7 @@ TEST(NumericStorageUnittest, CompareFast) {
   NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
   RangeOrBitVector range_or_bv =
       storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
-  BitVector bv = range_or_bv.TakeIfBitVector();
+  BitVector bv = std::move(range_or_bv).TakeIfBitVector();
   ASSERT_TRUE(range_or_bv.IsBitVector());
   ASSERT_EQ(bv.CountSetBits(), 28u);
   ASSERT_EQ(bv.IndexOfNthSet(0), 100u);
