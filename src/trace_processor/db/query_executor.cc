@@ -176,12 +176,18 @@ void QueryExecutor::LinearSearch(const Constraint& c,
     }
   }
 
-  if (res.IsBitVector()) {
-    rm->Intersect(RowMap(res.TakeIfBitVector()));
+  if (res.IsRange()) {
+    rm->Intersect(RowMap(res.TakeIfRange().start, res.TakeIfRange().end));
     return;
   }
 
-  rm->Intersect(RowMap(res.TakeIfRange().start, res.TakeIfRange().end));
+  // The BitVector was already limited on the RowMap when created, so we can
+  // take it as it is.
+  if (rm->IsRange()) {
+    *rm = RowMap(res.TakeIfBitVector());
+  } else {
+    rm->Intersect(RowMap(res.TakeIfBitVector()));
+  }
 }
 
 RowMap QueryExecutor::IndexSearch(const Constraint& c,
