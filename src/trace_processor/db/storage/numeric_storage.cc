@@ -289,8 +289,7 @@ BitVector NumericStorage::LinearSearch(FilterOp op,
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
     return BitVector(size(), false);
 
-  BitVector::Builder builder(range.end);
-  builder.Skip(range.start);
+  BitVector::Builder builder(range.end, range.start);
   if (const auto* u32 = std::get_if<uint32_t>(&*val)) {
     auto* start = static_cast<const uint32_t*>(data_) + range.start;
     TypedLinearSearch(*u32, start, op, builder);
