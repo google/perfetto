@@ -83,9 +83,7 @@ BitVector::BitVector(std::vector<uint64_t> words,
                      std::vector<uint32_t> counts,
                      uint32_t size)
     : size_(size), counts_(std::move(counts)), words_(std::move(words)) {
-  uint32_t words_size = static_cast<uint32_t>(words_.size());
-  if (words_size % Block::kWords != 0)
-    words_.resize(words_.size() + 8 - (words_.size() % 8u));
+  PERFETTO_CHECK(words_.size() % Block::kWords == 0);
 }
 
 void BitVector::Resize(uint32_t new_size, bool filler) {
