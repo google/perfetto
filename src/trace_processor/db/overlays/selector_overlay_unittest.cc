@@ -47,8 +47,9 @@ TEST(SelectorOverlay, MapToTableRangeFirst) {
   auto r =
       overlay.MapToTableRangeOrBitVector(StorageRange(2, 5), OverlayOp::kOther);
 
-  ASSERT_EQ(r.TakeIfRange().start, 1u);
-  ASSERT_EQ(r.TakeIfRange().end, 3u);
+  Range range = std::move(r).TakeIfRange();
+  ASSERT_EQ(range.start, 1u);
+  ASSERT_EQ(range.end, 3u);
 }
 
 TEST(SelectorOverlay, MapToTableRangeSecond) {
@@ -57,8 +58,9 @@ TEST(SelectorOverlay, MapToTableRangeSecond) {
   auto r = overlay.MapToTableRangeOrBitVector(StorageRange(0, 10),
                                               OverlayOp::kOther);
 
-  ASSERT_EQ(r.TakeIfRange().start, 0u);
-  ASSERT_EQ(r.TakeIfRange().end, 6u);
+  Range range = std::move(r).TakeIfRange();
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 6u);
 }
 
 TEST(SelectorOverlay, MapToTableBitVector) {

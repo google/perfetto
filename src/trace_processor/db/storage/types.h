@@ -34,11 +34,11 @@ struct RangeOrBitVector {
   bool IsRange() const { return std::holds_alternative<Range>(val); }
   bool IsBitVector() const { return std::holds_alternative<BitVector>(val); }
 
-  BitVector TakeIfBitVector() {
+  BitVector TakeIfBitVector() && {
     PERFETTO_DCHECK(IsBitVector());
     return std::move(*std::get_if<BitVector>(&val));
   }
-  Range TakeIfRange() {
+  Range TakeIfRange() && {
     PERFETTO_DCHECK(IsRange());
     return std::move(*std::get_if<Range>(&val));
   }
