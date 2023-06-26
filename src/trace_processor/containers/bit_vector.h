@@ -54,13 +54,12 @@ class BitVector {
   class Builder {
    public:
     // Creates a Builder for building a BitVector of |size| bits.
-    explicit Builder(uint32_t size)
-        : words_(BlockCount(size) * Block::kWords), size_(size) {}
-
-    // Skips forward |n| bits leaving them as zeroed.
-    void Skip(uint32_t n) {
-      PERFETTO_DCHECK(global_bit_offset_ + n <= size_);
-      global_bit_offset_ += n;
+    explicit Builder(uint32_t size, uint32_t skip = 0)
+        : words_(BlockCount(size) * Block::kWords),
+          global_bit_offset_(skip),
+          size_(size),
+          skipped_blocks_(skip / Block::kBits) {
+      PERFETTO_CHECK(global_bit_offset_ <= size_);
     }
 
     // Appends a single bit to the builder.
@@ -79,6 +78,7 @@ class BitVector {
     void AppendWord(uint64_t word) {
       PERFETTO_DCHECK(global_bit_offset_ % BitWord::kBits == 0);
       PERFETTO_DCHECK(global_bit_offset_ + BitWord::kBits <= size_);
+
       words_[global_bit_offset_ / BitWord::kBits] = word;
       global_bit_offset_ += BitWord::kBits;
     }
@@ -88,16 +88,13 @@ class BitVector {
       if (size_ == 0)
         return BitVector();
 
-      Address addr = IndexToAddress(size_ - 1);
-      uint32_t no_blocks = addr.block_idx + 1;
-      std::vector<uint32_t> counts(no_blocks);
-
-      // Calculate counts only for full blocks.
-      for (uint32_t i = 1; i < no_blocks; ++i) {
+      std::vector<uint32_t> counts(BlockCount(size_));
+      PERFETTO_CHECK(skipped_blocks_ < counts.size());
+      for (uint32_t i = skipped_blocks_ + 1; i < counts.size(); ++i) {
         counts[i] = counts[i - 1] +
                     ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
       }
-      return BitVector{std::move(words_), std::move(counts), size_};
+      return BitVector(std::move(words_), std::move(counts), size_);
     }
 
     // Returns the number of bits which are in complete words which can be
@@ -132,6 +129,7 @@ class BitVector {
     std::vector<uint64_t> words_;
     uint32_t global_bit_offset_ = 0;
     uint32_t size_ = 0;
+    uint32_t skipped_blocks_ = 0;
   };
 
   // Creates an empty bitvector.
