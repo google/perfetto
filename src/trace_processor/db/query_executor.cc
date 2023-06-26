@@ -170,25 +170,26 @@ void QueryExecutor::LinearSearch(const Constraint& c,
 
     if (res.IsBitVector()) {
       TableBitVector t_bv = col.overlays[rev_i]->MapToTableBitVector(
-          StorageBitVector{res.TakeIfBitVector()}, op);
+          StorageBitVector{std::move(res).TakeIfBitVector()}, op);
       res.val = RangeOrBitVector(std::move(t_bv.bv));
     } else {
       res = col.overlays[rev_i]->MapToTableRangeOrBitVector(
-          StorageRange(res.TakeIfRange()), op);
+          StorageRange(std::move(res).TakeIfRange()), op);
     }
   }
 
   if (res.IsRange()) {
-    rm->Intersect(RowMap(res.TakeIfRange().start, res.TakeIfRange().end));
+    Range range = std::move(res).TakeIfRange();
+    rm->Intersect(RowMap(range.start, range.end));
     return;
   }
 
   // The BitVector was already limited on the RowMap when created, so we can
   // take it as it is.
   if (rm->IsRange()) {
-    *rm = RowMap(res.TakeIfBitVector());
+    *rm = RowMap(std::move(res).TakeIfBitVector());
   } else {
-    rm->Intersect(RowMap(res.TakeIfBitVector()));
+    rm->Intersect(RowMap(std::move(res).TakeIfBitVector()));
   }
 }
 
@@ -243,7 +244,8 @@ RowMap QueryExecutor::IndexSearch(const Constraint& c,
   // TODO(b/283763282): Remove after implementing extrinsic binary search.
   PERFETTO_DCHECK(matched_in_storage.IsBitVector());
 
-  count_removed += to_filter.KeepAtSet(matched_in_storage.TakeIfBitVector());
+  count_removed +=
+      to_filter.KeepAtSet(std::move(matched_in_storage).TakeIfBitVector());
   valid.insert(valid.end(), to_filter.global().begin(),
                to_filter.global().end());
 

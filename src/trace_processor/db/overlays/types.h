@@ -62,8 +62,8 @@ struct TableRangeOrBitVector {
   bool IsRange() const { return val.IsRange(); }
   bool IsBitVector() const { return val.IsBitVector(); }
 
-  BitVector TakeIfBitVector() { return val.TakeIfBitVector(); }
-  Range TakeIfRange() { return val.TakeIfRange(); }
+  BitVector TakeIfBitVector() && { return std::move(val).TakeIfBitVector(); }
+  Range TakeIfRange() && { return std::move(val).TakeIfRange(); }
 
   RangeOrBitVector val = RangeOrBitVector(Range());
 };
