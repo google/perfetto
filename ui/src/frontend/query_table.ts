@@ -111,6 +111,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
             // account for cases when dblclick fires late.
             ondblclick: () => this.highlightSlice(row),
             clickable: true,
+            title: 'Go to slice',
           },
           cells);
     } else {
