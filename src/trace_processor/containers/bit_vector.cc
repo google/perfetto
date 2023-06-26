@@ -305,11 +305,7 @@ BitVector BitVector::IntersectRange(uint32_t range_start,
   if (range_start >= end_idx)
     return BitVector();
 
-  Builder builder(end_idx);
-
-  // All bits before start should be empty.
-  builder.Skip(range_start);
-
+  Builder builder(end_idx, range_start);
   uint32_t front_bits = builder.BitsUntilWordBoundaryOrFull();
   uint32_t cur_index = range_start;
   for (uint32_t i = 0; i < front_bits; ++i, ++cur_index) {
