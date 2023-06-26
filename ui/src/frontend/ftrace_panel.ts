@@ -24,9 +24,9 @@ import {Panel} from './panel';
 import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {
-  MultiSelect,
   MultiSelectDiff,
   Option as MultiSelectOption,
+  PopupMultiSelect,
 } from './widgets/multiselect';
 import {PopupPosition} from './widgets/popup';
 import {Timestamp} from './widgets/timestamp';
@@ -136,7 +136,7 @@ export class FtracePanel extends Panel<{}> {
         });
 
     return m(
-        MultiSelect,
+        PopupMultiSelect,
         {
           label: 'Filter',
           minimal: true,
