@@ -29,7 +29,11 @@ import {EmptyState} from './widgets/empty_state';
 import {Form, FormButtonBar, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
-import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
+import {
+  MultiSelect,
+  MultiSelectDiff,
+  PopupMultiSelect,
+} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
 import {Select} from './widgets/select';
@@ -391,9 +395,32 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
           initialOpts: {filled: false},
         }),
-        m('h2', 'MultiSelect'),
+        m('h2', 'MultiSelect panel'),
         m(WidgetShowcase, {
-          renderWidget: ({icon, ...rest}) => m(MultiSelect, {
+          renderWidget: ({...rest}) => m(MultiSelect, {
+            options: Object.entries(options).map(([key, value]) => {
+              return {
+                id: key,
+                name: key,
+                checked: value,
+              };
+            }),
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                options[id] = checked;
+              });
+              globals.rafScheduler.scheduleFullRedraw();
+            },
+            ...rest,
+          }),
+          initialOpts: {
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+          },
+        }),
+        m('h2', 'Popup with MultiSelect'),
+        m(WidgetShowcase, {
+          renderWidget: ({icon, ...rest}) => m(PopupMultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
                 id: key,

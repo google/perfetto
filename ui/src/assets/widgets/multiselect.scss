@@ -17,13 +17,16 @@
   overflow-y: auto;
 }
 
-.pf-multiselect-popup {
+.pf-multi-select-fixed-size {
+  max-height: 300px;
+}
+
+.pf-multiselect-panel {
   font-family: $pf-font;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   width: 280px;
-  max-height: 300px;
   margin: 5px;
   & > .pf-search-bar {
     margin-bottom: 8px;
