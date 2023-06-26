@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {StringListPatch} from 'src/common/state';
 
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
+import {StringListPatch} from '../common/state';
 import {TPTime} from '../common/time';
 
 import {globals} from './globals';
