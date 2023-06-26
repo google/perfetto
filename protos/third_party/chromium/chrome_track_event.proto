@@ -651,6 +651,7 @@ message BackForwardCacheCanStoreDocumentResult {
     ERROR_DOCUMENT = 54;
     FENCED_FRAMES_EMBEDDER = 55;
     COOKIE_DISABLED = 56;
+    HTTP_AUTH_REQUIRED = 57;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -936,6 +937,9 @@ message SequenceManagerTask {
 
     UI_USER_BLOCKING_DEFERRABLE_TQ = 52;
     IO_USER_BLOCKING_DEFERRABLE_TQ = 53;
+
+    UI_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 54;
+    IO_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 55;
   }
 
   optional Priority priority = 1;
