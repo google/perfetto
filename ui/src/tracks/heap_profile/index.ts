@@ -12,12 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ProfileType} from 'src/common/state';
-
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {PluginContext} from '../../common/plugin_api';
 import {LONG, STR} from '../../common/query_result';
+import {ProfileType} from '../../common/state';
 import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {profileType} from '../../controller/flamegraph_controller';
