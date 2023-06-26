@@ -54,7 +54,8 @@ class BitVector {
   class Builder {
    public:
     // Creates a Builder for building a BitVector of |size| bits.
-    explicit Builder(uint32_t size) : words_(WordCount(size)), size_(size) {}
+    explicit Builder(uint32_t size)
+        : words_(BlockCount(size) * Block::kWords), size_(size) {}
 
     // Skips forward |n| bits leaving them as zeroed.
     void Skip(uint32_t n) {
