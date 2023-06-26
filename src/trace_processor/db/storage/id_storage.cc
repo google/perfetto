@@ -131,13 +131,14 @@ RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
                                                SqlValue sql_val,
                                                Range range) const {
   PERFETTO_DCHECK(range.end <= size_);
-  if (op == FilterOp::kEq) {
+  if (op == FilterOp::kEq && sql_val.type == SqlValue::Type::kLong) {
     int64_t long_val = sql_val.AsLong();
-    auto end = static_cast<uint32_t>(
-        std::min(long_val, static_cast<int64_t>(range.end - 1)));
-    auto start = static_cast<uint32_t>(
-        std::max(long_val, static_cast<int64_t>(range.start)));
-    return Range(end, end + (start <= end));
+    if (long_val > std::numeric_limits<uint32_t>::max() ||
+        long_val < std::numeric_limits<uint32_t>::min()) {
+      return RowMap::Range();
+    }
+    uint32_t res = static_cast<uint32_t>(long_val);
+    return Range(res, res + (range.start <= res && res < range.end));
   }
 
   if (op == FilterOp::kIsNotNull)
@@ -145,11 +146,11 @@ RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
 
   if (op == FilterOp::kIsNull || op == FilterOp::kGlob || sql_val.is_null() ||
       sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-      sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
+      sql_val.AsLong() < std::numeric_limits<uint32_t>::min()) {
     return RowMap::Range();
+  }
 
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
-
   switch (op) {
     case FilterOp::kLe:
       return RowMap::Range(range.start, std::min(val + 1, range.end));

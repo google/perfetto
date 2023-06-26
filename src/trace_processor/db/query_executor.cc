@@ -178,19 +178,24 @@ void QueryExecutor::LinearSearch(const Constraint& c,
     }
   }
 
+  if (rm->IsRange()) {
+    if (res.IsRange()) {
+      Range range = std::move(res).TakeIfRange();
+      *rm = RowMap(range.start, range.end);
+    } else {
+      // The BitVector was already limited on the RowMap when created, so we can
+      // take it as it is.
+      *rm = RowMap(std::move(res).TakeIfBitVector());
+    }
+    return;
+  }
+
   if (res.IsRange()) {
     Range range = std::move(res).TakeIfRange();
     rm->Intersect(RowMap(range.start, range.end));
     return;
   }
-
-  // The BitVector was already limited on the RowMap when created, so we can
-  // take it as it is.
-  if (rm->IsRange()) {
-    *rm = RowMap(std::move(res).TakeIfBitVector());
-  } else {
-    rm->Intersect(RowMap(std::move(res).TakeIfBitVector()));
-  }
+  rm->Intersect(RowMap(std::move(res).TakeIfBitVector()));
 }
 
 RowMap QueryExecutor::IndexSearch(const Constraint& c,
