@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "src/trace_processor/db/storage/id_storage.h"
+
 #include "src/trace_processor/db/storage/numeric_storage.h"
 
 #include "src/trace_processor/db/storage/types.h"
@@ -74,6 +74,18 @@ TEST(NumericStorageUnittest, CompareSorted) {
   ASSERT_EQ(range.end, 128u);
 }
 
+TEST(NumericStorageUnittest, CompareSortedSubset) {
+  std::vector<uint32_t> data_vec(128);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32, true);
+  Range range =
+      storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(102, 104))
+          .TakeIfRange();
+  ASSERT_EQ(range.size(), 2u);
+  ASSERT_EQ(range.start, 102u);
+  ASSERT_EQ(range.end, 104u);
+}
+
 TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
@@ -120,78 +132,6 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
   ASSERT_EQ(range.size(), 1u);
   ASSERT_EQ(range.start, 6u);
   ASSERT_EQ(range.end, 7u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqSimple) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(15), Range(10, 20))
-                    .TakeIfRange();
-  ASSERT_EQ(range.size(), 1u);
-  ASSERT_EQ(range.start, 15u);
-  ASSERT_EQ(range.end, 16u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqOnRangeBoundary) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(20), Range(10, 20))
-                    .TakeIfRange();
-  ASSERT_EQ(range.size(), 0u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqOutsideRange) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kEq, SqlValue::Long(25), Range(10, 20))
-                    .TakeIfRange();
-  ASSERT_EQ(range.size(), 0u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqTooBig) {
-  IdStorage storage(100);
-  Range range =
-      storage.Search(FilterOp::kEq, SqlValue::Long(125), Range(10, 20))
-          .TakeIfRange();
-  ASSERT_EQ(range.size(), 0u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicLe) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kLe, SqlValue::Long(50), Range(30, 70))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 30u);
-  ASSERT_EQ(range.end, 51u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicLt) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kLt, SqlValue::Long(50), Range(30, 70))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 30u);
-  ASSERT_EQ(range.end, 50u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicGe) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kGe, SqlValue::Long(40), Range(30, 70))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 40u);
-  ASSERT_EQ(range.end, 70u);
-}
-
-TEST(IdStorageUnittest, BinarySearchIntrinsicGt) {
-  IdStorage storage(100);
-  Range range = storage.Search(FilterOp::kGt, SqlValue::Long(40), Range(30, 70))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 41u);
-  ASSERT_EQ(range.end, 70u);
-}
-
-TEST(IdStorageUnittest, Sort) {
-  std::vector<uint32_t> order{4, 3, 6, 1, 5};
-  IdStorage storage(10);
-  storage.Sort(order.data(), 5);
-
-  std::vector<uint32_t> sorted_order{1, 3, 4, 5, 6};
-  ASSERT_EQ(order, sorted_order);
 }
 
 }  // namespace

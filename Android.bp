@@ -9471,7 +9471,8 @@ filegroup {
 filegroup {
     name: "perfetto_src_trace_processor_db_storage_unittests",
     srcs: [
-        "src/trace_processor/db/storage/storage_unittest.cc",
+        "src/trace_processor/db/storage/id_storage_unittest.cc",
+        "src/trace_processor/db/storage/numeric_storage_unittest.cc",
     ],
 }
 
