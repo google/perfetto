@@ -988,6 +988,14 @@
     }
   }
 
+  .chrome-categories {
+    padding-top: 8px;
+    padding-bottom: 8px;
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+  }
+
   .dropdown {
     border: 1px solid #eee;
     outline: none;

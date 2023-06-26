@@ -25,13 +25,12 @@ import {
   Toggle,
   ToggleAttrs,
 } from '../record_widgets';
-import {GridLayout} from '../widgets/grid_layout';
 import {
   MultiSelect,
   MultiSelectDiff,
   Option as MultiSelectOption,
 } from '../widgets/multiselect';
-import {PopupPosition} from '../widgets/popup';
+import {Section} from '../widgets/section';
 
 import {RecordingSectionAttrs} from './recording_sections';
 
@@ -70,12 +69,19 @@ class ChromeCategoriesSelection implements
   }
 
   view({attrs}: m.CVnode<RecordingSectionAttrs>) {
+    const categoryConfigGetter: CategoryGetter = {
+      get: (cfg) => cfg.chromeCategoriesSelected,
+      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
+    };
+
     if (this.defaultCategoryOptions === undefined ||
         this.disabledByDefaultCategoryOptions === undefined) {
       // If we are attempting to record via the Chrome extension, we receive the
       // list of actually supported categories via DevTools. Otherwise, we fall
       // back to an integrated list of categories from a recent version of
       // Chrome.
+      const enabled =
+          new Set(categoryConfigGetter.get(globals.state.recordConfig));
       let categories = globals.state.chromeCategories ||
           extractChromeCategories(attrs.dataSources);
       if (!categories || !isChromeTarget(globals.state.recordingTarget)) {
@@ -85,12 +91,14 @@ class ChromeCategoriesSelection implements
       this.disabledByDefaultCategoryOptions = [];
       const disabledPrefix = 'disabled-by-default-';
       categories.forEach((cat) => {
+        const checked = enabled.has(cat);
+
         if (cat.startsWith(disabledPrefix) &&
             this.disabledByDefaultCategoryOptions !== undefined) {
           this.disabledByDefaultCategoryOptions.push({
             id: cat,
             name: cat.replace(disabledPrefix, ''),
-            checked: false,
+            checked: checked,
           });
         } else if (
             !cat.startsWith(disabledPrefix) &&
@@ -98,37 +106,23 @@ class ChromeCategoriesSelection implements
           this.defaultCategoryOptions.push({
             id: cat,
             name: cat,
-            checked: false,
+            checked: checked,
           });
         }
       });
     }
 
-    const defaultConfigGetter: CategoryGetter = {
-      get: (cfg) => cfg.chromeCategoriesSelected,
-      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-    };
-
-    const disabledByDefaultConfigGetter: CategoryGetter = {
-      get: (cfg) => cfg.chromeCategoriesSelected,
-      set: (cfg, val) => cfg.chromeCategoriesSelected = val,
-    };
-
     return m(
-        GridLayout,
-        m('h2', 'Chrome Tracing Categories'),
-        m('section.pf-section',
-          m('article',
+        'div.chrome-categories',
+        m(
+            Section,
+            {title: 'Additional Categories'},
             m(
                 MultiSelect,
                 {
-                  label: 'Additional Categories',
-                  minimal: true,
-                  compact: true,
-                  icon: 'filter_list_alt',
-                  popupPosition: PopupPosition.Top,
                   options: this.defaultCategoryOptions,
-                  repeatCheckedItemsAtTop: true,
+                  repeatCheckedItemsAtTop: false,
+                  fixedSize: false,
                   onChange: (diffs: MultiSelectDiff[]) => {
                     diffs.forEach(({id, checked}) => {
                       if (this.defaultCategoryOptions === undefined) {
@@ -141,22 +135,19 @@ class ChromeCategoriesSelection implements
                       }
                     });
                     ChromeCategoriesSelection.updateValue(
-                        defaultConfigGetter, diffs);
+                        categoryConfigGetter, diffs);
                   },
                 },
-                ))),
-        m('section.pf-section',
-          m('article',
+                )),
+        m(
+            Section,
+            {title: 'High Overhead Categories'},
             m(
                 MultiSelect,
                 {
-                  label: 'High Overhead Categories',
-                  minimal: true,
-                  compact: true,
-                  icon: 'filter_list_alt',
-                  popupPosition: PopupPosition.Top,
                   options: this.disabledByDefaultCategoryOptions,
-                  repeatCheckedItemsAtTop: true,
+                  repeatCheckedItemsAtTop: false,
+                  fixedSize: false,
                   onChange: (diffs: MultiSelectDiff[]) => {
                     diffs.forEach(({id, checked}) => {
                       if (this.disabledByDefaultCategoryOptions === undefined) {
@@ -170,10 +161,10 @@ class ChromeCategoriesSelection implements
                       }
                     });
                     ChromeCategoriesSelection.updateValue(
-                        disabledByDefaultConfigGetter, diffs);
+                        categoryConfigGetter, diffs);
                   },
                 },
-                ))));
+                )));
   }
 }
 
