@@ -24,7 +24,7 @@ $pf-responsive-gutter: 8px;
 
   align-items: start;
 
-  & > .pf-column {
+  & > .pf-grid-layout-column {
     display: flex;
     flex-direction: column;
     gap: $pf-responsive-gutter;
