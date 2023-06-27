@@ -30,6 +30,7 @@
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
+#include "src/trace_processor/db/storage/string_storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/table.h"
 
@@ -274,8 +275,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     bool use_legacy = rm.size() <= 1;
 
     // Column types
-    use_legacy = use_legacy || col.col_type() == ColumnType::kString ||
-                 col.col_type() == ColumnType::kDummy;
+    use_legacy = use_legacy || col.col_type() == ColumnType::kDummy;
 
     // Mismatched types
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
@@ -298,12 +298,22 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     PERFETTO_CHECK(!(col.overlay().size() != column_size &&
                      col.overlay().row_map().IsRange()));
 
+    // String columns are inherently nullable: null values are signified with
+    // Id::Null(). String columns are also never sorted.
+    PERFETTO_CHECK(!(col.col_type() == ColumnType::kString &&
+                     (col.IsNullable() || col.IsSorted())));
+
     SimpleColumn s_col{OverlaysVec(), nullptr};
 
     // Create storage
     std::unique_ptr<Storage> storage;
     if (col.IsId()) {
       storage.reset(new storage::IdStorage(column_size));
+    } else if (col.col_type() == ColumnType::kString) {
+      storage.reset(new storage::StringStorage(
+          table->string_pool(),
+          static_cast<const StringPool::Id*>(col.storage_base().data()),
+          col.storage_base().non_null_size()));
     } else {
       storage.reset(new storage::NumericStorage(
           col.storage_base().data(), col.storage_base().non_null_size(),

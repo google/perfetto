@@ -384,6 +384,9 @@ class Column {
   Constraint is_null() const {
     return Constraint{index_in_table_, FilterOp::kIsNull, SqlValue()};
   }
+  Constraint glob_value(SqlValue value) const {
+    return Constraint{index_in_table_, FilterOp::kGlob, value};
+  }
 
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{index_in_table_, false}; }
