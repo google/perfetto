@@ -15,7 +15,6 @@
 // Keep this import first.
 import '../core/static_initializers';
 
-
 import {Draft} from 'immer';
 import m from 'mithril';
 
@@ -32,7 +31,6 @@ import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
 
-import {AnalyzePage} from './analyze_page';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -43,6 +41,7 @@ import {HomePage} from './home_page';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
 import {postMessageHandler} from './post_message_handler';
+import {QueryPage} from './query_page';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Router} from './router';
@@ -192,7 +191,7 @@ function main() {
     '/': HomePage,
     '/viewer': ViewerPage,
     '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
-    '/query': AnalyzePage,
+    '/query': QueryPage,
     '/flags': FlagsPage,
     '/metrics': MetricsPage,
     '/info': TraceInfoPage,
