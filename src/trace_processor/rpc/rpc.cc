@@ -138,6 +138,8 @@ TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
       return TraceProcessor::MetatraceCategories::QUERY;
     case ProtoEnum::FUNCTION:
       return TraceProcessor::MetatraceCategories::FUNCTION;
+    case ProtoEnum::DB:
+      return TraceProcessor::MetatraceCategories::DB;
     case ProtoEnum::ALL:
       return TraceProcessor::MetatraceCategories::ALL;
     case ProtoEnum::NONE:

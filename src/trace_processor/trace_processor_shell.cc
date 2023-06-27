@@ -670,6 +670,8 @@ metatrace::MetatraceCategories ParseMetatraceCategories(std::string s) {
       result = static_cast<Cat>(result | Cat::FUNCTION);
     } else if (cur == "query") {
       result = static_cast<Cat>(result | Cat::QUERY);
+    } else if (cur == "db") {
+      result = static_cast<Cat>(result | Cat::DB);
     } else {
       PERFETTO_ELOG("Unknown metatrace category %s", cur.data());
       exit(1);
@@ -698,7 +700,7 @@ struct CommandLineOptions {
   std::string metatrace_path;
   size_t metatrace_buffer_capacity = 0;
   metatrace::MetatraceCategories metatrace_categories =
-      metatrace::MetatraceCategories::ALL;
+      metatrace::MetatraceCategories::TOPLEVEL;
   bool dev = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
