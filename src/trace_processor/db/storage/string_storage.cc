@@ -99,7 +99,6 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_ + range.start;
-
   BitVector::Builder builder(range.end, range.start);
 
   switch (op) {
@@ -126,11 +125,18 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
       utils::LinearSearchWithComparator(string_pool_->Get(val), start,
                                         GreaterEqual{string_pool_}, builder);
       break;
-    case FilterOp::kGlob:
-      utils::LinearSearchWithComparator(
-          util::GlobMatcher::FromPattern(string_pool_->Get(val)), start,
-          Glob{string_pool_}, builder);
+    case FilterOp::kGlob: {
+      util::GlobMatcher matcher =
+          util::GlobMatcher::FromPattern(sql_val.AsString());
+      if (matcher.IsEquality()) {
+        utils::LinearSearchWithComparator(
+            val, start, std::equal_to<StringPool::Id>(), builder);
+        break;
+      }
+      utils::LinearSearchWithComparator(std::move(matcher), start,
+                                        Glob{string_pool_}, builder);
       break;
+    }
     case FilterOp::kIsNull:
       utils::LinearSearchWithComparator(val, start, IsNull(), builder);
       break;
@@ -183,11 +189,20 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
       utils::IndexSearchWithComparator(string_pool_->Get(val), start, indices,
                                        GreaterEqual{string_pool_}, builder);
       break;
-    case FilterOp::kGlob:
+    case FilterOp::kGlob: {
+      util::GlobMatcher matcher =
+          util::GlobMatcher::FromPattern(sql_val.AsString());
+      if (matcher.IsEquality()) {
+        utils::IndexSearchWithComparator(
+            val, start, indices, std::equal_to<StringPool::Id>(), builder);
+        break;
+      }
       utils::IndexSearchWithComparator(
           util::GlobMatcher::FromPattern(string_pool_->Get(val)), start,
           indices, Glob{string_pool_}, builder);
       break;
+    }
+
     case FilterOp::kIsNull:
       utils::IndexSearchWithComparator(val, start, indices, IsNull(), builder);
       break;
