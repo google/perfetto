@@ -21,7 +21,6 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
 import {
   HighPrecisionTime,
@@ -31,10 +30,11 @@ import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {onSelectionChanged} from '../common/selection_observer';
 import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
-import {Span, tpTimeFromSeconds} from '../common/time';
 import {
+  Span,
   TPDuration,
   TPTime,
+  tpTimeFromSeconds,
   TPTimeSpan,
 } from '../common/time';
 
@@ -44,8 +44,8 @@ import {FrontendLocalState} from './frontend_local_state';
 import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
-import {SliceSqlId} from './sql_types';
-import {TPTimestamp} from './sql_types';
+import {SliceSqlId, TPTimestamp} from './sql_types';
+import {createStore, Store} from './store';
 import {PxSpan, TimeScale} from './time_scale';
 
 type Dispatch = (action: DeferredAction) => void;
@@ -218,7 +218,7 @@ class Globals {
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
-  private _state?: State = undefined;
+  private _store?: Store<State>;
   private _frontendLocalState?: FrontendLocalState = undefined;
   private _rafScheduler?: RafScheduler = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
@@ -271,10 +271,10 @@ class Globals {
 
   engines = new Map<string, Engine>();
 
-  initialize(dispatch: Dispatch, router: Router) {
+  initialize(dispatch: Dispatch, router: Router, initialState: State) {
     this._dispatch = dispatch;
     this._router = router;
-    this._state = createEmptyState();
+    this._store = createStore(initialState);
     this._frontendLocalState = new FrontendLocalState();
     this._rafScheduler = new RafScheduler();
     this._serviceWorkerController = new ServiceWorkerController();
@@ -299,6 +299,11 @@ class Globals {
     this.engines.clear();
   }
 
+  // Only initialises the store - useful for testing.
+  initStore(initialState: State) {
+    this._store = createStore(initialState);
+  }
+
   get router(): Router {
     return assertExists(this._router);
   }
@@ -312,11 +317,11 @@ class Globals {
   }
 
   get state(): State {
-    return assertExists(this._state);
+    return assertExists(this._store).state;
   }
 
-  set state(state: State) {
-    this._state = assertExists(state);
+  get store(): Store<State> {
+    return assertExists(this._store);
   }
 
   get dispatch(): Dispatch {
@@ -604,7 +609,7 @@ class Globals {
 
   resetForTesting() {
     this._dispatch = undefined;
-    this._state = undefined;
+    this._store = undefined;
     this._frontendLocalState = undefined;
     this._rafScheduler = undefined;
     this._serviceWorkerController = undefined;
