@@ -23,6 +23,7 @@
 #include "src/trace_processor/db/storage/types.h"
 
 #include "src/trace_processor/db/storage/utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/glob.h"
 
 namespace perfetto {
@@ -94,13 +95,22 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
     return RangeOrBitVector(Range());
   }
+
   StringPool::Id val =
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_ + range.start;
-  BitVector::Builder builder(range.end, range.start);
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::Search",
+                    [range, op, &sql_val](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(range.start));
+                      r->AddArg("End", std::to_string(range.end));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                      r->AddArg("String", sql_val.AsString());
+                    });
 
+  BitVector::Builder builder(range.end, range.start);
   switch (op) {
     case FilterOp::kEq:
       utils::LinearSearchWithComparator(
@@ -161,6 +171,13 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_;
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::IndexSearch",
+                    [indices_size, op, &sql_val](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_size));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                      r->AddArg("String", sql_val.AsString());
+                    });
 
   BitVector::Builder builder(indices_size);
 
