@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {TPTimeSpan} from '../common/time';
+import {timestampOffset, TPTimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -47,8 +47,10 @@ export class TickmarkPanel extends Panel {
     if (size.width > TRACK_SHELL_WIDTH && visibleSpan.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-      for (const {type, time} of new TickGenerator(
-               visibleSpan, maxMajorTicks, globals.state.traceTime.start)) {
+
+      const offset = timestampOffset();
+      const tickGen = new TickGenerator(visibleSpan, maxMajorTicks, offset);
+      for (const {type, time} of tickGen) {
         const px = Math.floor(map.tpTimeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
