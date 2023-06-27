@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include <threads.h>
-#include <time.h>
+#include <unistd.h>
 
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/producer.h"
@@ -58,6 +57,6 @@ int main(void) {
       }
       PerfettoDsTracerPacketEnd(&ctx, &root);
     }
-    thrd_sleep(&(struct timespec){.tv_sec = 1}, NULL);
+    sleep(1);
   }
 }
