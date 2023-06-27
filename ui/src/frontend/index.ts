@@ -168,6 +168,10 @@ function setupContentSecurityPolicy() {
       'https://www.google-analytics.com',
       'https://www.googletagmanager.com',
     ],
+    'style-src': [
+      `'self'`,
+      `'unsafe-inline'`,
+    ],
     'navigate-to': ['https://*.perfetto.dev', 'self'],
   };
   const meta = document.createElement('meta');

@@ -25,6 +25,7 @@ import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
 import {Callout} from './widgets/callout';
 import {Checkbox} from './widgets/checkbox';
+import {Editor} from './widgets/editor';
 import {EmptyState} from './widgets/empty_state';
 import {Form, FormButtonBar, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
@@ -699,6 +700,10 @@ export const WidgetsPage = createPage({
                 'finibus est.',
               ),
             }),
+          m('h2', 'Editor'),
+          m(WidgetShowcase, {
+            renderWidget: () => m(Editor),
+          }),
     );
   },
 });
