@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include "src/trace_processor/db/storage/id_storage.h"
 
 #include "src/trace_processor/db/storage/types.h"
