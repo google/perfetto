@@ -92,10 +92,27 @@ class NoDep(object):
     return f'"{self.src}" may not depend on "{self.dst}" ' + self.reasoning
 
 
-# We have two kinds of rules:
+class NoCircularDeps(object):
+
+  def __init__(self):
+    pass
+
+  def check(self, graph):
+    for node in graph:
+      for child in graph[node]:
+        for reached, path in dfs(graph, child):
+          if reached == node:
+            yield Failure([node] + path, self)
+
+  def __str__(self):
+    return f'circular dependencies can cause complex issues'
+
+
+# We have three kinds of rules:
 # NoDirectDep(a, b) = files matching regex 'a' cannot *directly* import
 #   files matching regex 'b' - but they may indirectly depend on them.
 # NoDep(a, b) = as above but 'a' may not even transitively import 'b'.
+# NoCircularDeps = forbid introduction of circular dependencies
 RULES = [
     NoDirectDep(
         r'/plugins/.*',
@@ -121,6 +138,15 @@ RULES = [
     #  r'/core/.*',
     #  'core should depend on base not the other way round',
     #),
+
+    # Fails at the moment as we have several circular dependencies. One
+    # example:
+    # ui/src/frontend/cookie_consent.ts
+    #    -> ui/src/frontend/globals.ts
+    #    -> ui/src/frontend/router.ts
+    #    -> ui/src/frontend/pages.ts
+    #    -> ui/src/frontend/cookie_consent.ts
+    #NoCircularDeps(),
 ]
 
 
@@ -171,6 +197,24 @@ def bfs(graph, src):
 
   while queue:
     node, path = queue.pop(0)
+    if node in seen:
+      continue
+
+    seen.add(node)
+
+    path = path[:]
+    path.append(node)
+
+    yield node, path
+    queue.extend([(child, path) for child in graph[node]])
+
+
+def dfs(graph, src):
+  seen = set()
+  queue = [(src, [])]
+
+  while queue:
+    node, path = queue.pop()
     if node in seen:
       continue
 
