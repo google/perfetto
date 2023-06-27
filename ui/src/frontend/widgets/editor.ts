@@ -26,6 +26,7 @@ export interface EditorAttrs {
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
 
+  // Callback for every change to the text.
   onUpdate?: (text: string) => void;
 }
 
