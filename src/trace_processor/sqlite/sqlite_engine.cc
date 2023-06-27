@@ -222,7 +222,7 @@ SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
     : stmt_(std::move(stmt)), sql_source_(std::move(tagged)) {}
 
 bool SqliteEngine::PreparedStatement::Step() {
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_STEP",
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP",
                     [this](metatrace::Record* record) {
                       record->AddArg("SQL", expanded_sql());
                     });
