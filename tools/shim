@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+# The idea is for a tool named /tools/foo-bar you mv it to
+# /python/tools/foo_bar.py then softlink /tools/shim to /tools/foo-bar.
+# /tools/foo-bar then continues to work as an alias for
+# /python/tools/foo_bar.py but you get the advantage of formatting
+# & code sharing.
+import os
+import sys
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+NAME = os.path.basename(sys.argv[0]).replace('-', '_')
+NAME = NAME if NAME.endswith('.py') else NAME + '.py'
+PATH = os.path.join(ROOT_DIR, 'python', 'tools', NAME)
+assert os.path.isfile(PATH), f'Shim target {PATH} does not exist.'
+os.execv(PATH, sys.argv)
