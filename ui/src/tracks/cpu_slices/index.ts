@@ -75,7 +75,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     `);
 
     const queryLastSlice = await this.query(`
-    select max(id) as lastSliceId from ${this.tableName('sched')}
+    select ifnull(max(id), -1) as lastSliceId from ${this.tableName('sched')}
     `);
     this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
 
