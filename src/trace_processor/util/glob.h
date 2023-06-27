@@ -96,6 +96,9 @@ class GlobMatcher {
 
   explicit GlobMatcher(base::StringView pattern);
 
+  GlobMatcher(const GlobMatcher&) = delete;
+  GlobMatcher& operator=(const GlobMatcher&) = delete;
+
   // Returns whether |input| starts with the pattern in |segment| following
   // glob matching rules.
   bool StartsWith(base::StringView input, const Segment& segment) {
