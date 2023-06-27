@@ -162,9 +162,7 @@ void WriteQueryConstraintsToMetatrace(metatrace::Record* r,
 bool SqliteTable::debug = false;
 
 SqliteTable::SqliteTable() = default;
-SqliteTable::~SqliteTable() {
-  engine_->OnSqliteTableDestroyed(name_);
-}
+SqliteTable::~SqliteTable() = default;
 
 base::Status SqliteTable::ModifyConstraints(QueryConstraints*) {
   return base::OkStatus();
@@ -291,7 +289,9 @@ base::Status TypedSqliteTableBase::DeclareAndAssignVtab(
 }
 
 int TypedSqliteTableBase::xDestroy(sqlite3_vtab* t) {
-  delete static_cast<SqliteTable*>(t);
+  auto* table = static_cast<SqliteTable*>(t);
+  table->engine_->OnSqliteTableDestroyed(table->name_);
+  delete table;
   return SQLITE_OK;
 }
 

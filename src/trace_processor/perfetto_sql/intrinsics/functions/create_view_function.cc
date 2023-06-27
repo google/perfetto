@@ -285,15 +285,8 @@ CreatedViewFunction::GetOrCreateStatement() {
 
 base::StatusOr<SqliteEngine::PreparedStatement>
 CreatedViewFunction::CreateStatement() {
-  auto res = engine_->sqlite_engine()->PrepareStatement(
+  return engine_->sqlite_engine()->PrepareStatement(
       SqlSource::FromFunction(sql_defn_str_, prototype_str_));
-  if (!res.ok()) {
-    return base::ErrStatus(
-        "%s: Failed to prepare SQL statement for function. "
-        "Check the SQL defintion this function for syntax errors.\n%s",
-        prototype_.function_name.c_str(), res.status().c_message());
-  }
-  return std::move(res.value());
 }
 
 void CreatedViewFunction::ReturnStatementForReuse(
