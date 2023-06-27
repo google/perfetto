@@ -19,6 +19,7 @@
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
+#include "src/trace_processor/db/storage/string_storage.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -28,6 +29,7 @@ namespace {
 using OverlaysVec = base::SmallVector<const overlays::StorageOverlay*,
                                       QueryExecutor::kMaxOverlayCount>;
 using NumericStorage = storage::NumericStorage;
+using StringStorage = storage::StringStorage;
 using SimpleColumn = QueryExecutor::SimpleColumn;
 using ArrangementOverlay = overlays::ArrangementOverlay;
 using NullOverlay = overlays::NullOverlay;
@@ -412,6 +414,35 @@ TEST(QueryExecutor, BinarySearchIsNull) {
   ASSERT_EQ(res.Get(0), 0u);
   ASSERT_EQ(res.Get(1), 1u);
   ASSERT_EQ(res.Get(2), 2u);
+}
+
+TEST(QueryExecutor, StringBinarySearchIsNull) {
+  StringPool pool;
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  ids.insert(ids.begin() + 3, StringPool::Id::Null());
+  StringStorage storage(&pool, ids.data(), 7);
+
+  // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
+  BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};
+  SelectorOverlay selector_overlay(&selector_bv);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&selector_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 1u);
+  ASSERT_EQ(res.Get(0), 2u);
 }
 
 }  // namespace

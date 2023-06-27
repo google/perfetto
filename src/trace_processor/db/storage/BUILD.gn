@@ -22,12 +22,16 @@ source_set("storage") {
     "numeric_storage.h",
     "storage.cc",
     "storage.h",
+    "string_storage.cc",
+    "string_storage.h",
     "types.h",
+    "utils.h",
   ]
   deps = [
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../containers",
+    "../../util:glob",
   ]
 }
 
@@ -36,6 +40,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "id_storage_unittest.cc",
     "numeric_storage_unittest.cc",
+    "string_storage_unittest.cc",
   ]
   deps = [
     ":storage",
