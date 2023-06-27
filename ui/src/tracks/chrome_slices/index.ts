@@ -16,7 +16,10 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
-import {HighPrecisionTime} from '../../common/high_precision_time';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../../common/high_precision_time';
 import {PluginContext} from '../../common/plugin_api';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
 import {TPDuration, TPTime} from '../../common/time';
@@ -25,6 +28,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
+import {PxSpan, TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
@@ -178,7 +182,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
 
-    const {visibleTimeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {visibleTimeScale, visibleWindowTime, windowSpan} =
+        globals.frontendLocalState;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -203,6 +208,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     // drawings, otherwise it would result under another rect.
     let drawRectOnSelected = () => {};
 
+
     for (let i = 0; i < data.starts.length; i++) {
       const tStart = data.starts[i];
       let tEnd = data.ends[i];
@@ -219,7 +225,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         tEnd = visibleWindowTime.end.toTPTime('ceil');
       }
 
-      const rect = this.getSliceRect(tStart, tEnd, depth);
+      const rect = this.getSliceRect(
+          visibleTimeScale, visibleWindowTime, windowSpan, tStart, tEnd, depth);
       if (!rect || !rect.visible) {
         continue;
       }
@@ -408,17 +415,13 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     return SLICE_HEIGHT * (this.config.maxDepth + 1) + 2 * TRACK_PADDING;
   }
 
-  getSliceRect(tStart: TPTime, tEnd: TPTime, depth: number): SliceRect
-      |undefined {
-    const {
-      visibleTimeScale: timeScale,
-      visibleWindowTime,
-      windowSpan,
-    } = globals.frontendLocalState;
-
+  getSliceRect(
+      visibleTimeScale: TimeScale, visibleWindowTime: HighPrecisionTimeSpan,
+      windowSpan: PxSpan, tStart: TPTime, tEnd: TPTime,
+      depth: number): SliceRect|undefined {
     const pxEnd = windowSpan.end;
-    const left = Math.max(timeScale.tpTimeToPx(tStart), 0);
-    const right = Math.min(timeScale.tpTimeToPx(tEnd), pxEnd);
+    const left = Math.max(visibleTimeScale.tpTimeToPx(tStart), 0);
+    const right = Math.min(visibleTimeScale.tpTimeToPx(tEnd), pxEnd);
 
     const visible =
         !(visibleWindowTime.start.gt(tEnd) || visibleWindowTime.end.lt(tStart));
