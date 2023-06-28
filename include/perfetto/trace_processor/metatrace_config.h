@@ -25,15 +25,16 @@ enum MetatraceCategories {
   TOPLEVEL = 1 << 0,
   QUERY = 1 << 1,
   FUNCTION = 1 << 2,
+  DB = 1 << 3,
 
   NONE = 0,
-  ALL = TOPLEVEL | QUERY | FUNCTION,
+  ALL = TOPLEVEL | QUERY | FUNCTION | DB,
 };
 
 struct MetatraceConfig {
   MetatraceConfig();
 
-  MetatraceCategories categories = MetatraceCategories::ALL;
+  MetatraceCategories categories = MetatraceCategories::TOPLEVEL;
   // Requested buffer size. The implemenation may choose to allocate a larger
   // buffer size for efficiency.
   size_t override_buffer_size = 0;

@@ -27,9 +27,11 @@ enum MetatraceCategories {
   QUERY = 2;
   // 1 << 2.
   FUNCTION = 4;
+  // 1 << 3.
+  DB = 8;
 
   // Aliases for common subsets.
   NONE = 0;
   // TOPLEVEL | QUERY | FUNCTION
-  ALL = 7;
+  ALL = 15;
 }

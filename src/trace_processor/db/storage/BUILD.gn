@@ -28,6 +28,7 @@ source_set("storage") {
     "utils.h",
   ]
   deps = [
+    "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../containers",
