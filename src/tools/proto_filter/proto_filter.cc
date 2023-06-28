@@ -39,6 +39,8 @@ const char kUsage[] =
 -F --filter_out:     Path of the filter bytecode file generated from the --schema-in definition.
 -T --filter_oct_out: Like --filter_out, but emits a octal-escaped C string suitable for .pbtx.
 -d --dedupe:         Minimize filter size by deduping leaf messages with same field ids.
+-x --passthrough:    Passthrough a nested message as an opaque bytes field.
+-g --filter_string:  Filter the string using separately specified rules before passing it through.
 
 Example usage:
 
@@ -49,7 +51,9 @@ Example usage:
 # Generate the filter bytecode from a .proto schema
 
   proto_filter -r perfetto.protos.Trace -s protos/perfetto/trace/trace.proto \
-               -F /tmp/bytecode [--dedupe] [-x protos.Message:field_to_pass]
+               -F /tmp/bytecode [--dedupe] \
+               [-x protos.Message:message_field_to_pass] \
+               [-r protos.Message:string_field_to_filter]
 
 # List the used/filtered fields from a trace file
 
@@ -81,6 +85,7 @@ int Main(int argc, char** argv) {
       {"filter_out", required_argument, nullptr, 'F'},
       {"filter_oct_out", required_argument, nullptr, 'T'},
       {"passthrough", required_argument, nullptr, 'x'},
+      {"filter_string", required_argument, nullptr, 'g'},
       {nullptr, 0, nullptr, 0}};
 
   std::string msg_in;
@@ -92,11 +97,12 @@ int Main(int argc, char** argv) {
   std::string proto_path;
   std::string root_message_arg;
   std::set<std::string> passthrough_fields;
+  std::set<std::string> filter_string_fields;
   bool dedupe = false;
 
   for (;;) {
-    int option =
-        getopt_long(argc, argv, "hvdI:s:r:i:o:f:F:T:x:", long_options, nullptr);
+    int option = getopt_long(argc, argv,
+                             "hvdI:s:r:i:o:f:F:T:x:g:", long_options, nullptr);
 
     if (option == -1)
       break;  // EOF.
@@ -156,6 +162,11 @@ int Main(int argc, char** argv) {
       continue;
     }
 
+    if (option == 'g') {
+      filter_string_fields.insert(optarg);
+      continue;
+    }
+
     if (option == 'h') {
       fprintf(stdout, kUsage);
       exit(0);
@@ -183,7 +194,8 @@ int Main(int argc, char** argv) {
   if (!schema_in.empty()) {
     PERFETTO_LOG("Loading proto schema from %s", schema_in.c_str());
     if (!filter.LoadMessageDefinition(schema_in, root_message_arg, proto_path,
-                                      passthrough_fields)) {
+                                      passthrough_fields,
+                                      filter_string_fields)) {
       PERFETTO_ELOG("Failed to parse proto schema from %s", schema_in.c_str());
       return 1;
     }

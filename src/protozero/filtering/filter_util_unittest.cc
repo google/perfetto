@@ -339,5 +339,42 @@ TracePacket 5 bytes cfg
   EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));
 }
 
+TEST(SchemaParserTest, FilterString) {
+  auto schema = MkTemp(R"(
+  syntax = "proto2";
+  message Root {
+    optional int32 i32 = 13;
+    optional TracePacket packet = 7;
+  }
+  message TraceConfig {
+    optional string f1 = 1;
+  }
+  message TracePacket {
+    optional int32 f1 = 3;
+    optional int64 f2 = 4;
+    optional TraceConfig cfg = 5;
+  }
+  )");
+
+  FilterUtil filter;
+  std::set<std::string> filter_string{"TraceConfig:f1"};
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "Root", "", {},
+                                           filter_string));
+
+  EXPECT_EQ(R"(Root 7 message packet TracePacket
+Root 13 int32 i32
+TracePacket 3 int32 f1
+TracePacket 4 int64 f2
+TracePacket 5 message cfg TraceConfig
+TraceConfig 1 string f1 # FILTER STRING
+)",
+            FilterToText(filter));
+
+  std::string bytecode = filter.GenerateFilterBytecode();
+  // If we generate bytecode from the schema itself, all fields are allowed and
+  // the result is identical to the unfiltered output.
+  EXPECT_EQ(FilterToText(filter), FilterToText(filter, bytecode));
+}
+
 }  // namespace
 }  // namespace protozero
