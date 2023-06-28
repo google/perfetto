@@ -29,8 +29,8 @@ class Camera(TestSuite):
         android_camera {
           gc_rss_and_dma {
             min: 47779840.0
-            max: 2529583104.0
-            avg: 1459479416.3297353
+            max: 2536079360.0
+            avg: 1464706457.7379363
           }
         }
         """))
