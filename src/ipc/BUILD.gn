@@ -141,6 +141,7 @@ perfetto_proto_library("test_messages_@TYPE@") {
 perfetto_component("perfetto_ipc") {
   public_deps = [
     ":client",
+    ":common",
     ":host",
     "../../gn:default_deps",
   ]
