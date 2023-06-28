@@ -38,6 +38,7 @@ import {installFileDropHandler} from './file_drop_handler';
 import {FlagsPage} from './flags_page';
 import {globals} from './globals';
 import {HomePage} from './home_page';
+import {InsightsPage} from './insights_page';
 import {initLiveReloadIfLocalhost} from './live_reload';
 import {MetricsPage} from './metrics_page';
 import {postMessageHandler} from './post_message_handler';
@@ -192,6 +193,7 @@ function main() {
     '/viewer': ViewerPage,
     '/record': RECORDING_V2_FLAG.get() ? RecordPageV2 : RecordPage,
     '/query': QueryPage,
+    '/insights': InsightsPage,
     '/flags': FlagsPage,
     '/metrics': MetricsPage,
     '/info': TraceInfoPage,
