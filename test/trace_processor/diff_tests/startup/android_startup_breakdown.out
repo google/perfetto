@@ -82,12 +82,14 @@ android_startup {
       compilation_filter: "speed"
       compilation_reason: "install-dm"
       location: "/system/framework/oat/arm/com.google.android.calendar.odex"
+      summary: "com.google.android.calendar.odex: up-to-date/speed/install-dm"
     }
     optimization_status {
       odex_status: "io-error-no-oat"
       compilation_filter: "run-from-apk"
       compilation_reason: "unknown"
       location: "error"
+      summary: "error: io-error-no-oat/run-from-apk/unknown"
     }
     event_timestamps {
       intent_received: 102000000000

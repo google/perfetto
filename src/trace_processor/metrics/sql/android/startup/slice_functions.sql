@@ -155,6 +155,26 @@ SELECT CREATE_FUNCTION(
   '
 );
 
+SELECT CREATE_FUNCTION(
+  'SUMMARY_FOR_OPTIMIZATION_STATUS(loc STRING, status STRING, filter STRING, reason STRING)',
+  'STRING',
+  '
+    SELECT
+      CASE
+        WHEN
+          $loc GLOB "*/base.odex" AND $loc GLOB "*==/*-*"
+        THEN STR_SPLIT(STR_SPLIT($loc, "==/", 1), "-", 0) || "/.../"
+        ELSE ""
+      END ||
+      CASE
+        WHEN $loc GLOB "*/*"
+          THEN REVERSE(STR_SPLIT(REVERSE($loc), "/", 0))
+        ELSE $loc
+      END ||
+      ": " || $status || "/" || $filter || "/" || $reason
+  '
+);
+
 SELECT CREATE_VIEW_FUNCTION(
   'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(startup_id INT, threshold DOUBLE)',
   'name STRING',
