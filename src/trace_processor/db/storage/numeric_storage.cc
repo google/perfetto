@@ -16,10 +16,12 @@
  */
 
 #include "src/trace_processor/db/storage/numeric_storage.h"
+#include <string>
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/storage/utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -216,6 +218,14 @@ RangeOrBitVector NumericStorage::IndexSearch(FilterOp op,
 BitVector NumericStorage::LinearSearch(FilterOp op,
                                        SqlValue sql_val,
                                        RowMap::Range range) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::LinearSearch",
+                    [&range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(range.start));
+                      r->AddArg("End", std::to_string(range.end));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
     return BitVector(size(), true);
@@ -246,6 +256,13 @@ BitVector NumericStorage::IndexSearch(FilterOp op,
                                       SqlValue sql_val,
                                       uint32_t* indices,
                                       uint32_t indices_count) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
+                    [indices_count, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_count));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
     return BitVector(indices_count, true);
