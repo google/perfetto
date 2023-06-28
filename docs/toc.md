@@ -69,6 +69,7 @@
   * [perfetto cmdline](reference/perfetto-cli.md)
   * [heap_profile cmdline](reference/heap_profile-cli.md)
   * [Synthetic TrackEvent](reference/synthetic-track-event.md)
+  * [Android Version Notes](reference/android-version-notes.md)
 
 * [Contributing](#)
     * [Getting started](contributing/getting-started.md)
