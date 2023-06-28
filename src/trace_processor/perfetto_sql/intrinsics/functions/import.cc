@@ -58,6 +58,9 @@ base::Status Import::Run(Import::Context* ctx,
 
   const char* import_key =
       reinterpret_cast<const char*>(sqlite3_value_text(import_val));
+  PERFETTO_TP_TRACE(
+      metatrace::Category::TOPLEVEL, "Import",
+      [import_key](metatrace::Record* r) { r->AddArg("Import", import_key); });
 
   std::string module_name = sql_modules::GetModuleName(import_key);
   auto module = ctx->modules->Find(module_name);
