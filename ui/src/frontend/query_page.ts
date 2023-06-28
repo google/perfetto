@@ -114,7 +114,7 @@ class QueryInput implements m.ClassComponent {
 export const QueryPage = createPage({
   view() {
     return m(
-        '.analyze-page',
+        '.query-page',
         m(Callout, 'Enter query and press Cmd/Ctrl + Enter'),
         m(QueryInput),
         state.executedQuery === undefined ? null : m(QueryTable, {
