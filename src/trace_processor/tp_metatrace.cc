@@ -31,6 +31,8 @@ ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
     result = static_cast<ProtoEnum>(result | ProtoEnum::FUNCTION);
   if (categories & MetatraceCategories::QUERY)
     result = static_cast<ProtoEnum>(result | ProtoEnum::QUERY);
+  if (categories & MetatraceCategories::DB)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::DB);
   return result;
 }
 
