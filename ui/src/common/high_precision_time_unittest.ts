@@ -316,11 +316,22 @@ describe('HighPrecisionTimeSpan', () => {
   it('checks if span intersects another span', () => {
     const x = mkSpan('10', '20');
 
-    expect(x.intersects(mkSpan('0', '10'))).toBeFalsy();
-    expect(x.intersects(mkSpan('5', '15'))).toBeTruthy();
-    expect(x.intersects(mkSpan('12', '18'))).toBeTruthy();
-    expect(x.intersects(mkSpan('15', '25'))).toBeTruthy();
-    expect(x.intersects(mkSpan('20', '30'))).toBeFalsy();
-    expect(x.intersects(mkSpan('5', '25'))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan('0', '10'))).toBeFalsy();
+    expect(x.intersectsSpan(mkSpan('5', '15'))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan('12', '18'))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan('15', '25'))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan('20', '30'))).toBeFalsy();
+    expect(x.intersectsSpan(mkSpan('5', '25'))).toBeTruthy();
+  });
+
+  it('checks intersection', () => {
+    const x = mkSpan('10', '20');
+
+    expect(x.intersects(mkTime('0'), mkTime('10'))).toBeFalsy();
+    expect(x.intersects(mkTime('5'), mkTime('15'))).toBeTruthy();
+    expect(x.intersects(mkTime('12'), mkTime('18'))).toBeTruthy();
+    expect(x.intersects(mkTime('15'), mkTime('25'))).toBeTruthy();
+    expect(x.intersects(mkTime('20'), mkTime('30'))).toBeFalsy();
+    expect(x.intersects(mkTime('5'), mkTime('25'))).toBeTruthy();
   });
 });
