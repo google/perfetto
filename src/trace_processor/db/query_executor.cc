@@ -274,6 +274,11 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     // RowMap size
     bool use_legacy = rm.size() <= 1;
 
+    // Rare cases where we have a range which doesn't match the size of the
+    // column.
+    use_legacy = col.overlay().size() != column_size &&
+                 col.overlay().row_map().IsRange();
+
     // Column types
     use_legacy = use_legacy || col.col_type() == ColumnType::kDummy;
 
@@ -293,10 +298,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       col.FilterInto(c.op, c.value, &rm);
       continue;
     }
-
-    // For selection, we should use either BitVector or IndexVector, not Range.
-    PERFETTO_CHECK(!(col.overlay().size() != column_size &&
-                     col.overlay().row_map().IsRange()));
 
     // String columns are inherently nullable: null values are signified with
     // Id::Null(). String columns are also never sorted.
