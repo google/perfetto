@@ -150,6 +150,13 @@ const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
+  id: 'showInsightsPageInNav',
+  name: 'Show insights page',
+  description: 'Show a link to the insights page in the side bar.',
+  defaultValue: false,
+});
+
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
@@ -233,7 +240,13 @@ const SECTIONS: Section[] = [
         i: 'file_download',
         checkDownloadDisabled: true,
       },
-      {t: 'Query (SQL)', a: navigateAnalyze, i: 'control_camera'},
+      {t: 'Query (SQL)', a: navigateQuery, i: 'database'},
+      {
+        t: 'Insights',
+        a: navigateInsights,
+        i: 'insights',
+        isVisible: () => INSIGHTS_PAGE_IN_NAV_FLAG.get(),
+      },
       {t: 'Metrics', a: navigateMetrics, i: 'speed'},
       {t: 'Info and stats', a: navigateInfo, i: 'info'},
     ],
@@ -557,9 +570,14 @@ function navigateWidgets(e: Event) {
   Router.navigate('#!/widgets');
 }
 
-function navigateAnalyze(e: Event) {
+function navigateQuery(e: Event) {
   e.preventDefault();
   Router.navigate('#!/query');
+}
+
+function navigateInsights(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/insights');
 }
 
 function navigateFlags(e: Event) {
