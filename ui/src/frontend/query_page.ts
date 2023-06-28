@@ -27,19 +27,19 @@ import {QueryTable} from './query_table';
 import {Callout} from './widgets/callout';
 import {Editor} from './widgets/editor';
 
-interface AnalyzePageState {
+interface QueryPageState {
   enteredText: string;
   executedQuery?: string;
   queryResult?: QueryResponse;
   heightPx: string;
 }
 
-const state: AnalyzePageState = {
+const state: QueryPageState = {
   enteredText: '',
   heightPx: '100px',
 };
 
-export function runAnalyzeQuery(query: string) {
+function runManualQuery(query: string) {
   state.executedQuery = query;
   state.queryResult = undefined;
   const engine = getEngine();
@@ -47,7 +47,7 @@ export function runAnalyzeQuery(query: string) {
     runQuery(query, engine).then((resp: QueryResponse) => {
       addTab({
         kind: QueryResultTab.kind,
-        tag: 'query_page_query',
+        tag: 'analyze_page_query',
         config: {
           query: query,
           title: 'Standalone Query',
@@ -70,7 +70,7 @@ function getEngine(): EngineProxy|undefined {
   if (engineId === undefined) {
     return undefined;
   }
-  const engine = globals.engines.get(engineId)?.getProxy('AnalyzePage');
+  const engine = globals.engines.get(engineId)?.getProxy('QueryPage');
   return engine;
 }
 
@@ -101,7 +101,7 @@ class QueryInput implements m.ClassComponent {
           return;
         }
         queryHistoryStorage.saveQuery(text);
-        runAnalyzeQuery(text);
+        runManualQuery(text);
       },
 
       onUpdate: (text: string) => {
@@ -111,7 +111,7 @@ class QueryInput implements m.ClassComponent {
   }
 }
 
-export const AnalyzePage = createPage({
+export const QueryPage = createPage({
   view() {
     return m(
         '.analyze-page',
@@ -127,6 +127,8 @@ export const AnalyzePage = createPage({
           },
           fillParent: false,
         }),
-        m(QueryHistoryComponent));
+        m(QueryHistoryComponent, {
+          runQuery: runManualQuery,
+        }));
   },
 });
