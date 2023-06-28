@@ -1,4 +1,4 @@
-// Copyright (C) 2020 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-.query-page {
-  overflow-y: auto;
-  overflow-x: hidden;
-  .pf-editor {
-    width: 100%;
-    height: 0;
-    min-height: 3rem;
-    overflow-y: auto;
-    resize: vertical;
-  }
-}
+import {createPage} from './pages';
+
+export const InsightsPage = createPage({
+  view() {
+    return m('.insights-page');
+  },
+});
