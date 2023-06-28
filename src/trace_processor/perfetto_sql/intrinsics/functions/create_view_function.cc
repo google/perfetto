@@ -302,7 +302,9 @@ CreatedViewFunction::Cursor::Cursor(CreatedViewFunction* table)
     : SqliteTable::BaseCursor(table), table_(table) {}
 
 CreatedViewFunction::Cursor::~Cursor() {
-  table_->ReturnStatementForReuse(std::move(stmt_.value()));
+  if (stmt_) {
+    table_->ReturnStatementForReuse(std::move(stmt_.value()));
+  }
 }
 
 base::Status CreatedViewFunction::Cursor::Filter(const QueryConstraints& qc,
