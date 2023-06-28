@@ -15,8 +15,6 @@
 import {TPTime} from '../common/time';
 import {Brand} from './brand';
 
-import {globals} from './globals';
-
 // Type-safe aliases for various flavours of ints Trace Processor exposes
 // (e.g. timestamp or ids into a given SQL table) and functions to work with
 // them.
@@ -35,11 +33,6 @@ export function asTPTimestamp(v: bigint): TPTimestamp;
 export function asTPTimestamp(v?: bigint): TPTimestamp|undefined;
 export function asTPTimestamp(v?: bigint): TPTimestamp|undefined {
   return v as (TPTimestamp | undefined);
-}
-
-// TODO: unify this with common/time.ts.
-export function toTraceTime(ts: TPTimestamp): TPTime {
-  return ts - globals.state.traceTime.start;
 }
 
 // Unique id for a process, id into |process| table.
