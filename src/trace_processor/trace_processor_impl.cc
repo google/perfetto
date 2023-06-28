@@ -415,6 +415,7 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                context_.storage.get());
   RegisterFunction<AbsTimeStr>(&engine_, "ABS_TIME_STR", 1,
                                context_.clock_converter.get());
+  RegisterFunction<Reverse>(&engine_, "REVERSE", 1);
   RegisterFunction<ToMonotonic>(&engine_, "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
   RegisterFunction<ToTimecode>(&engine_, "TO_TIMECODE", 1);
