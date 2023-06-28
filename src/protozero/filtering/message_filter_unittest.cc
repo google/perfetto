@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include "perfetto/ext/base/base64.h"
 #include "test/gtest_and_gmock.h"
 
 #include <random>
@@ -183,6 +184,7 @@ TEST(MessageFilterTest, Passthrough) {
   std::vector<uint8_t> encoded = msg.SerializeAsArray();
 
   auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
+  ASSERT_FALSE(filtered.error);
   ASSERT_LT(filtered.size, encoded.size());
 
   ProtoDecoder dec(filtered.data.get(), filtered.size);
@@ -275,6 +277,48 @@ TEST(MessageFilterTest, ChangeRoot) {
     EXPECT_TRUE(dec.FindField(5).valid());
     EXPECT_EQ(dec.FindField(5).as_int32(), 105);
   }
+}
+
+TEST(MessageFilterTest, StringFilter) {
+  auto schema = perfetto::base::TempFile::Create();
+  static const char kSchema[] = R"(
+  syntax = "proto2";
+  message TracePacket {
+    optional TraceConfig cfg = 1;
+  };
+  message TraceConfig {
+    optional string f2 = 1;
+  }
+  )";
+
+  perfetto::base::WriteAll(*schema, kSchema, strlen(kSchema));
+  perfetto::base::FlushFile(*schema);
+
+  FilterUtil filter;
+  ASSERT_TRUE(filter.LoadMessageDefinition(schema.path(), "", "", {},
+                                           {"TraceConfig:f2"}));
+  std::string bytecode = filter.GenerateFilterBytecode();
+  ASSERT_GT(bytecode.size(), 0u);
+  PERFETTO_LOG(
+      "%s", perfetto::base::Base64Encode(perfetto::base::StringView(bytecode))
+                .c_str());
+
+  HeapBuffered<Message> msg;
+  msg->AppendVarInt(/*field_id=*/1, 10);
+
+  // Fill `cfg`.
+  auto* nest = msg->BeginNestedMessage<Message>(/*field_id=*/1);
+  nest->AppendString(/*field_id=*/1, "f2.payload");
+  nest->Finalize();
+
+  MessageFilter flt;
+  ASSERT_TRUE(flt.LoadFilterBytecode(bytecode.data(), bytecode.size()));
+
+  std::vector<uint8_t> encoded = msg.SerializeAsArray();
+
+  auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
+  ASSERT_FALSE(filtered.error);
+  ASSERT_LT(filtered.size, encoded.size());
 }
 
 TEST(MessageFilterTest, MalformedInput) {
