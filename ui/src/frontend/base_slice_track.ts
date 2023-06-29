@@ -20,10 +20,10 @@ import {
   colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time';
 import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
 import {
+  Span,
   TPDuration,
   tpDurationFromNanos,
   TPTime,
@@ -878,7 +878,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   }
 
   getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindowTime: HighPrecisionTimeSpan,
+      _visibleTimeScale: TimeScale, _visibleWindow: Span<TPTime, TPDuration>,
       _windowSpan: PxSpan, _tStart: TPTime, _tEnd: TPTime,
       _depth: number): SliceRect|undefined {
     // TODO(hjd): Implement this as part of updating flow events.
