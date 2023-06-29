@@ -67,7 +67,7 @@ trace.add_atrace_begin(ts=to_s(191), tid=3, pid=3, buf='inflate')
 trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
 trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
 trace.add_atrace_begin(
-    ts=193,
+    ts=to_s(193),
     tid=3,
     pid=3,
     buf='performResume:com.google.android.calendar.MainActivity')

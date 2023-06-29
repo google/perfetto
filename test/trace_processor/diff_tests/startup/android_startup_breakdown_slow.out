@@ -20,8 +20,8 @@ android_startup {
         dur_ms: 8000.0
       }
       time_bind_application {
-        dur_ns: 9000000000
-        dur_ms: 9000.0
+        dur_ns: 10000000000
+        dur_ms: 10000.0
       }
       time_activity_start {
         dur_ns: 1000000000
@@ -55,6 +55,10 @@ android_startup {
       mcycles_by_core_type {
         unknown: 103
       }
+      time_to_running_state {
+        dur_ns: 78000000000
+        dur_ms: 78000.0
+      }
     }
     activity_hosting_process_count: 1
     process {
@@ -76,6 +80,11 @@ android_startup {
       name: "com.google.android.calendar.MainActivity"
       method: "performCreate"
       ts_method_start: 188000000000
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
+      method: "performResume"
+      ts_method_start: 193000000000
     }
     optimization_status {
       odex_status: "up-to-date"
