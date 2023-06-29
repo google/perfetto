@@ -25,47 +25,29 @@ import {
 } from '../../frontend/generic_slice_details_tab';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {DecideTracksResult} from '../chrome_scroll_jank';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
-export class TopLevelEventLatencyTrack extends
+import {ScrollJankTracks as DecideTracksResult} from './index';
+
+export {Data} from '../chrome_slices';
+
+export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.top_level_event_latencies';
+  static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
   displayColumns: Columns = {};
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelEventLatencyTrack(args);
-  }
-
-  constructor(args: NewTrackArgs) {
-    super(args);
-    this.displayColumns['cause_of_jank'] = {displayName: 'Cause of Jank'};
-    this.displayColumns['sub_cause_of_jank'] = {
-      displayName: 'Sub-cause of Jank',
-    };
-    this.displayColumns['id'] = {displayName: 'Slice ID'};
-    this.displayColumns['ts'] = {displayName: 'Start time'};
-    this.displayColumns['dur'] = {displayName: 'Duration'};
-    this.displayColumns['type'] = {displayName: 'Slice Type'};
+    return new TopLevelScrollTrack(args);
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      columns: [
-        'id',
-        'ts',
-        'dur',
-        'track_id',
-        'cause_of_jank || IIF(sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, "") AS name',
-        'cause_of_jank',
-        'name AS type',
-        'sub_cause_of_jank',
-      ],
-      sqlTableName: 'chrome_janky_event_latencies_v3',
+      columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
+      sqlTableName: 'chrome_scrolls',
     };
   }
 
@@ -74,32 +56,39 @@ export class TopLevelEventLatencyTrack extends
       kind: GenericSliceDetailsTab.kind,
       config: {
         sqlTableName: this.tableName,
-        title: 'Chrome Scroll Jank Event Latency: Cause',
+        title: 'Chrome Top Level Scrolls',
         columns: this.displayColumns,
       },
     };
   }
 
+  constructor(args: NewTrackArgs) {
+    super(args);
+
+    this.displayColumns['id'] = {displayName: 'Scroll Id (gesture_scroll_id)'};
+    this.displayColumns['ts'] = {displayName: 'Start time'};
+    this.displayColumns['dur'] = {displayName: 'Duration'};
+  }
+
   async initSqlTable(tableName: string) {
-    super.initSqlTable(tableName);
+    await super.initSqlTable(tableName);
   }
 }
 
-export async function addJankyLatenciesTrack(engine: Engine):
+export async function addTopLevelScrollTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
-
+  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelEventLatencyTrack.kind,
-    trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Chrome Scroll Jank Event Latencies',
+    kind: TopLevelScrollTrack.kind,
+    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+    name: 'Chrome Top Level Scrolls',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
