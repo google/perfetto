@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
@@ -53,7 +54,6 @@ import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
 import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
-import {exists} from './widgets/utils';
 
 interface ContextMenuItem {
   name: string;

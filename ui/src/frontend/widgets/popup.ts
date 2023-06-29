@@ -18,7 +18,7 @@ import m from 'mithril';
 import {globals} from '../globals';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../classnames';
-import {findRef, isOrContains, toHTMLElement} from './utils';
+import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 
 // Note: We could just use the Placement type from popper.js instead, which is a

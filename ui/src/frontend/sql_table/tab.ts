@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 
+import {exists} from '../../base/utils';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from '../bottom_tab';
 import {copyToClipboard} from '../clipboard';
 import {Icons} from '../semantic_icons';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
-import {exists} from '../widgets/utils';
 
 import {SqlTableState} from './state';
 import {SqlTable} from './table';

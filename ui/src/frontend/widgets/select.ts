@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 
+import {exists} from '../../base/utils';
 import {globals} from '../globals';
 
 import {Menu, MenuItem} from './menu';
 import {TextInput} from './text_input';
-import {exists} from './utils';
 
 export interface SelectAttrs {
   disabled?: boolean;
