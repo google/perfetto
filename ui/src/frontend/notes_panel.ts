@@ -108,6 +108,26 @@ export class NotesPanel extends Panel {
                 m('i.material-icons',
                   {title: 'Clear all pinned tracks'},
                   'clear_all')),
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.emitter?.emit('filter');
+                  },
+                },
+                m('i.material-icons',
+                  {title: 'Add in Filtered Tracks'},
+                  'list')),
+              m('button',
+                {
+                  onclick: (e: Event) => {
+                    e.preventDefault();
+                    globals.emitter?.emit('create_track');
+                  },
+                },
+                m('i.material-icons',
+                  {title: 'Create a Custom Track'},
+                  'add')),
             ] :
             '');
   }
