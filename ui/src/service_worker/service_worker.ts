@@ -67,16 +67,31 @@ const INSTALL_TIMEOUT_MS = 30000;
 // The reinstallation will cache the new files from the v.1.2-sha/manifest.json.
 self.addEventListener('install', (event) => {
   const doInstall = async () => {
-    if (await caches.has('BYPASS_SERVICE_WORKER')) {
+    // If we can not access the cache we must give up on the service
+    // worker:
+    let bypass = true;
+    try {
+      bypass = await caches.has('BYPASS_SERVICE_WORKER');
+    } catch (_) {
+      // TODO(288483453)
+    }
+    if (bypass) {
       // Throw will prevent the installation.
       throw new Error(LOG_TAG + 'skipping installation, bypass enabled');
     }
 
     // Delete old cache entries from the pre-feb-2021 service worker.
-    for (const key of await caches.keys()) {
-      if (key.startsWith('dist-')) {
-        await caches.delete(key);
+    try {
+      for (const key of await caches.keys()) {
+        if (key.startsWith('dist-')) {
+          await caches.delete(key);
+        }
       }
+    } catch (_) {
+      // TODO(288483453)
+      // It's desirable to delete the old entries but it's not actually
+      // damaging to keep them around so don't give up on the
+      // installation if this fails.
     }
 
     // The UI should register this as service_worker.js?v=v1.2-sha. Extract the
@@ -165,7 +180,7 @@ async function handleHttpRequest(req: Request): Promise<Response> {
       // Fall through the code below.
     }
   } else if (url.pathname === '/offline') {
-    // Escape hatch to force serving the offline version without attemping the
+    // Escape hatch to force serving the offline version without attempting the
     // network fetch.
     const cachedRes = await caches.match(new Request('/'), cacheOps);
     if (cachedRes) return cachedRes;
