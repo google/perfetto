@@ -157,6 +157,14 @@ class StringPool {
 
   size_t size() const { return string_index_.size(); }
 
+  // Maximum Id of a small (not large) string in the string pool.
+  StringPool::Id MaxSmallStringId() const {
+    return Id::BlockString(blocks_.size() - 1, blocks_.back().pos());
+  }
+
+  // Returns whether there is at least one large string in a string pool
+  bool HasLargeString() const { return !large_strings_.empty(); }
+
  private:
   using StringHash = uint64_t;
 
