@@ -112,7 +112,7 @@ export class NotesPanel extends Panel {
                 {
                   onclick: (e: Event) => {
                     e.preventDefault();
-                    globals.emitter?.emit('filter');
+                    globals.emitter.emit('filter');
                   },
                 },
                 m('i.material-icons',
@@ -122,7 +122,7 @@ export class NotesPanel extends Panel {
                 {
                   onclick: (e: Event) => {
                     e.preventDefault();
-                    globals.emitter?.emit('create_track');
+                    globals.emitter.emit('create_track');
                   },
                 },
                 m('i.material-icons',
