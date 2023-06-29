@@ -128,15 +128,26 @@ describe('TPTimeSpan', () => {
     expect(x.contains(mkSpan(20n, 30n))).toBeFalsy();
   });
 
+  it('checks intersection with span', () => {
+    const x = mkSpan(10n, 20n);
+
+    expect(x.intersectsSpan(mkSpan(0n, 10n))).toBeFalsy();
+    expect(x.intersectsSpan(mkSpan(5n, 15n))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan(12n, 18n))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan(15n, 25n))).toBeTruthy();
+    expect(x.intersectsSpan(mkSpan(20n, 30n))).toBeFalsy();
+    expect(x.intersectsSpan(mkSpan(5n, 25n))).toBeTruthy();
+  });
+
   it('checks intersection', () => {
     const x = mkSpan(10n, 20n);
 
-    expect(x.intersects(mkSpan(0n, 10n))).toBeFalsy();
-    expect(x.intersects(mkSpan(5n, 15n))).toBeTruthy();
-    expect(x.intersects(mkSpan(12n, 18n))).toBeTruthy();
-    expect(x.intersects(mkSpan(15n, 25n))).toBeTruthy();
-    expect(x.intersects(mkSpan(20n, 30n))).toBeFalsy();
-    expect(x.intersects(mkSpan(5n, 25n))).toBeTruthy();
+    expect(x.intersects(0n, 10n)).toBeFalsy();
+    expect(x.intersects(5n, 15n)).toBeTruthy();
+    expect(x.intersects(12n, 18n)).toBeTruthy();
+    expect(x.intersects(15n, 25n)).toBeTruthy();
+    expect(x.intersects(20n, 30n)).toBeFalsy();
+    expect(x.intersects(5n, 25n)).toBeTruthy();
   });
 
   it('can add', () => {

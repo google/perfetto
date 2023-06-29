@@ -19,7 +19,6 @@ import {
   TPDuration,
   tpDurationToSeconds,
   TPTime,
-  TPTimeSpan,
 } from '../common/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
@@ -220,8 +219,7 @@ export function drawGridLines(
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 
-  const {earliest, latest} = globals.frontendLocalState.visibleWindow;
-  const span = new TPTimeSpan(earliest, latest);
+  const span = globals.frontendLocalState.visibleTimeSpan;
   if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
     const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);

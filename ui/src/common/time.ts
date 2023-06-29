@@ -209,13 +209,15 @@ export interface Span<Unit, Duration = Unit> {
   get duration(): Duration;
   get midpoint(): Unit;
   contains(span: Unit|Span<Unit, Duration>): boolean;
-  intersects(x: Span<Unit>): boolean;
+  intersectsSpan(span: Span<Unit, Duration>): boolean;
+  intersects(a: Unit, b: Unit): boolean;
   equals(span: Span<Unit, Duration>): boolean;
   add(offset: Duration): Span<Unit, Duration>;
   pad(padding: Duration): Span<Unit, Duration>;
 }
 
 export class TPTimeSpan implements Span<TPTime, TPDuration> {
+  static readonly ZERO = new TPTimeSpan(0n, 0n);
   readonly start: TPTime;
   readonly end: TPTime;
 
@@ -243,8 +245,12 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
     }
   }
 
-  intersects(x: Span<TPTime, TPDuration>): boolean {
-    return !(x.end <= this.start || x.start >= this.end);
+  intersectsSpan(span: Span<TPTime, TPDuration>): boolean {
+    return !(span.end <= this.start || span.start >= this.end);
+  }
+
+  intersects(start: TPTime, end: TPTime): boolean {
+    return !(end <= this.start || start >= this.end);
   }
 
   equals(span: Span<TPTime, TPDuration>): boolean {

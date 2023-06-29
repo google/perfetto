@@ -16,9 +16,8 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {HighPrecisionTimeSpan} from '../common/high_precision_time';
 import {TrackState} from '../common/state';
-import {TPTime} from '../common/time';
+import {Span, TPDuration, TPTime} from '../common/time';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
@@ -461,13 +460,13 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 
   getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindowTime: HighPrecisionTimeSpan,
+      visibleTimeScale: TimeScale, visibleWindow: Span<TPTime, TPDuration>,
       windowSpan: PxSpan, tStart: TPTime, tDur: TPTime,
       depth: number): SliceRect|undefined {
     if (this.track === undefined) {
       return undefined;
     }
     return this.track.getSliceRect(
-        visibleTimeScale, visibleWindowTime, windowSpan, tStart, tDur, depth);
+        visibleTimeScale, visibleWindow, windowSpan, tStart, tDur, depth);
   }
 }
