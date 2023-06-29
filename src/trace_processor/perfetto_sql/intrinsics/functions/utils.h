@@ -101,6 +101,44 @@ base::Status Hash::Run(void*,
   return base::OkStatus();
 }
 
+struct Reverse : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status Reverse::Run(void*,
+                       size_t argc,
+                       sqlite3_value** argv,
+                       SqlValue& out,
+                       Destructors& destructors) {
+  if (argc != 1) {
+    return base::ErrStatus("REVERSE: expected one arg but got %zu", argc);
+  }
+
+  // If the string is null, just return null as the result.
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::OkStatus();
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_TEXT) {
+    return base::ErrStatus("REVERSE: argument should be string");
+  }
+
+  const char* in = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+  std::string_view in_str = in;
+  std::string reversed(in_str.rbegin(), in_str.rend());
+
+  std::unique_ptr<char, base::FreeDeleter> s(
+      static_cast<char*>(malloc(reversed.size() + 1)));
+  memcpy(s.get(), reversed.c_str(), reversed.size() + 1);
+
+  destructors.string_destructor = free;
+  out = SqlValue::String(s.release());
+  return base::OkStatus();
+};
+
 struct Base64Encode : public SqlFunction {
   static base::Status Run(void*,
                           size_t argc,

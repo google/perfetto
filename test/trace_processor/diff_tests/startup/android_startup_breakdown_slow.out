@@ -82,12 +82,14 @@ android_startup {
       compilation_filter: "speed-profile"
       compilation_reason: "install"
       location: "/system/framework/oat/arm/com.android.location.provider.odex"
+      summary: "com.android.location.provider.odex: up-to-date/speed-profile/install"
     }
     optimization_status {
       odex_status: "io-error-no-oat"
       compilation_filter: "run-from-apk"
       compilation_reason: "unknown"
       location: "error"
+      summary: "error: io-error-no-oat/run-from-apk/unknown"
     }
     event_timestamps {
       intent_received: 102000000000
