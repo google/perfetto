@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {findRef} from '../base/dom_utils';
 import {assertExists, assertTrue} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
@@ -40,7 +41,6 @@ import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {Button} from './widgets/button';
 import {Duration} from './widgets/duration';
-import {findRef} from './widgets/utils';
 
 interface FlamegraphDetailsPanelAttrs {}
 
