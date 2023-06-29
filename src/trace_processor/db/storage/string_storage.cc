@@ -74,6 +74,22 @@ struct Glob {
   const StringPool* pool_;
 };
 
+struct GlobFullStringPool {
+  GlobFullStringPool(StringPool* pool, util::GlobMatcher& matcher)
+      : pool_(pool), matches_(pool->MaxSmallStringId().raw_id()) {
+    PERFETTO_DCHECK(!pool->HasLargeString());
+    for (auto it = pool->CreateIterator(); it; ++it) {
+      auto id = it.StringId();
+      matches_[id.raw_id()] = matcher.Matches(pool->Get(id));
+    }
+  }
+  bool operator()(StringPool::Id rhs, StringPool::Id) {
+    return matches_[rhs.raw_id()];
+  }
+  StringPool* pool_;
+  std::vector<uint8_t> matches_;
+};
+
 struct IsNull {
   bool operator()(StringPool::Id rhs, StringPool::Id) const {
     return rhs == StringPool::Id::Null();
@@ -138,13 +154,34 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
     case FilterOp::kGlob: {
       util::GlobMatcher matcher =
           util::GlobMatcher::FromPattern(sql_val.AsString());
+
+      // If glob pattern doesn't involve any special characters, the function
+      // called should be equality.
       if (matcher.IsEquality()) {
         utils::LinearSearchWithComparator(
             val, start, std::equal_to<StringPool::Id>(), builder);
         break;
       }
-      utils::LinearSearchWithComparator(std::move(matcher), start,
-                                        Glob{string_pool_}, builder);
+
+      // For very big string pools (or small ranges) run a standard glob
+      // function.
+      if (range.size() < string_pool_->size()) {
+        utils::LinearSearchWithComparator(std::move(matcher), start,
+                                          Glob{string_pool_}, builder);
+        break;
+      }
+
+      // Optimised glob function works only if there are no large strings in
+      // string pool.
+      if (string_pool_->HasLargeString()) {
+        utils::LinearSearchWithComparator(std::move(matcher), start,
+                                          Glob{string_pool_}, builder);
+        break;
+      }
+
+      utils::LinearSearchWithComparator(
+          StringPool::Id::Null(), start,
+          GlobFullStringPool{string_pool_, matcher}, builder);
       break;
     }
     case FilterOp::kIsNull:
@@ -214,9 +251,8 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
             val, start, indices, std::equal_to<StringPool::Id>(), builder);
         break;
       }
-      utils::IndexSearchWithComparator(
-          util::GlobMatcher::FromPattern(string_pool_->Get(val)), start,
-          indices, Glob{string_pool_}, builder);
+      utils::IndexSearchWithComparator(std::move(matcher), start, indices,
+                                       Glob{string_pool_}, builder);
       break;
     }
 
