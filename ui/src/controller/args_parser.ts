@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {exists} from '../frontend/widgets/utils';
+import {exists} from '../base/utils';
 
 export type Key = string|number;
 

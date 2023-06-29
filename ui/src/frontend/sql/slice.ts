@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {BigintMath} from '../../base/bigint_math';
+import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {
@@ -47,7 +48,6 @@ import {
   ProcessInfo,
   ThreadInfo,
 } from '../thread_and_process_info';
-import {exists} from '../widgets/utils';
 
 import {Arg, getArgs} from './args';
 

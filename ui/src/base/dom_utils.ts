@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 // Check whether a DOM element contains another, or whether they're the same
 export function isOrContains(container: Element, target: Element): boolean {
   return container === target || container.contains(target);
@@ -36,18 +34,4 @@ export function toHTMLElement(el: Element): HTMLElement {
     throw new Error('Element is not an HTLMElement');
   }
   return el as HTMLElement;
-}
-
-// Return true if value is not nullish - i.e. not null or undefined
-// Allows doing the following
-//   exists(val) && m('div', val)
-// Even if val is a non-nullish falsey value like 0 or ''
-export function exists<T>(value: T): value is NonNullable<T> {
-  return value !== undefined && value !== null;
-}
-
-// Check if a mithril component vnode has children
-export function hasChildren({children}: m.Vnode<any>): boolean {
-  return Array.isArray(children) && children.length > 0 &&
-      children.some(exists);
 }
