@@ -125,7 +125,7 @@ export class NotesPanel extends Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.frontendLocalState.visibleWindow.timestampSpan;
+    const span = globals.frontendLocalState.visibleTimeSpan;
     const {visibleTimeScale} = globals.frontendLocalState;
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
