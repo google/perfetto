@@ -12,127 +12,87 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {
   PluginContext,
 } from '../../common/plugin_api';
-import {NUM} from '../../common/query_result';
-import {InThreadTrackSortKey} from '../../common/state';
+
+import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
+import {TopLevelScrollTrack} from './scroll_track';
+import {addTopLevelJankTrack, TopLevelJankTrack} from './top_level_jank_track';
 import {
-  NamedSliceTrack,
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {runQueryInNewTab} from '../../frontend/query_result_tab';
-import {NewTrackArgs, Track} from '../../frontend/track';
+  addJankyLatenciesTrack,
+  TopLevelEventLatencyTrack,
+} from './top_level_janky_event_latencies_track';
+import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 
 export {Data} from '../chrome_slices';
 
-const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
+export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   id: 'enableChromeScrollJankPlugin',
   name: 'Enable Chrome Scroll Jank plugin',
   description: 'Adds new tracks for scroll jank in Chrome',
   defaultValue: false,
 });
 
-interface ChromeScrollJankTrackConfig {}
+export const INPUT_LATENCY_TRACK = 'InputLatency::';
 
-interface ChromeScrollJankTrackTypes extends NamedSliceTrackTypes {
-  config: ChromeScrollJankTrackConfig;
-}
+export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
+  id: 'enableScrollJankPluginV2',
+  name: 'Enable Scroll Jank plugin V2',
+  description: 'Adds new tracks and visualizations for scroll jank.',
+  defaultValue: false,
+});
 
-class ChromeScrollJankTrack extends
-    NamedSliceTrack<ChromeScrollJankTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
-  static create(args: NewTrackArgs): Track {
-    return new ChromeScrollJankTrack(args);
-  }
-
-  async initSqlTable(tableName: string) {
-    await this.engine.query(`
-create view ${tableName} as
-select s2.ts, s2.dur, s2.id, 0 as depth, s1.full_name as name
-from chrome_tasks_delaying_input_processing s1
-join slice s2 on s2.id=s1.slice_id
-    `);
-  }
-}
-
-export type DecideTracksResult = {
+export type ScrollJankTracks = {
   tracksToAdd: AddTrackArgs[],
 };
 
-export type GetTrackGroupUuidFn = (utid: number, upid: number|null) => string;
-
-export async function decideTracks(
-    engine: Engine,
-    getTrackGroupUuid: GetTrackGroupUuidFn): Promise<DecideTracksResult> {
-  const result: DecideTracksResult = {
+export async function getScrollJankTracks(engine: Engine):
+    Promise<ScrollJankTracks> {
+  const result: ScrollJankTracks = {
     tracksToAdd: [],
   };
-  if (!ENABLE_CHROME_SCROLL_JANK_PLUGIN.get()) {
-    return result;
+
+  const topLevelJanks = addTopLevelJankTrack(engine);
+  const topLevelJanksResult = await topLevelJanks;
+  let originalLength = result.tracksToAdd.length;
+  result.tracksToAdd.length += topLevelJanksResult.tracksToAdd.length;
+  for (let i = 0; i < topLevelJanksResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] = topLevelJanksResult.tracksToAdd[i];
   }
 
-  const queryResult = await engine.query(`
-    select utid, upid
-    from thread
-    where name='CrBrowserMain'
-    `);
-
-  const it = queryResult.iter({
-    utid: NUM,
-    upid: NUM,
-  });
-
-  if (!it.valid()) {
-    return result;
+  // TODO(b/278844325): Top Level event latency summary is already rendered in
+  // the TopLevelJankTrack; this track should be rendered at a more
+  // intuitive location when the descendant slices are rendered.
+  originalLength = result.tracksToAdd.length;
+  const jankyEventLatencies = addJankyLatenciesTrack(engine);
+  const jankyEventLatencyResult = await jankyEventLatencies;
+  result.tracksToAdd.length += jankyEventLatencyResult.tracksToAdd.length;
+  for (let i = 0; i < jankyEventLatencyResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] =
+        jankyEventLatencyResult.tracksToAdd[i];
   }
 
-  result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: ChromeScrollJankTrack.kind,
-    trackSortKey: {
-      utid: it.utid,
-      priority: InThreadTrackSortKey.ORDINARY,
-    },
-    name: 'Scroll Jank causes - long tasks',
-    config: {},
-    trackGroup: getTrackGroupUuid(it.utid, it.upid),
-  });
-
-  // Initialise the chrome_tasks_delaying_input_processing table. It will be
-  // used in the sql table above.
-  await engine.query(`
-select RUN_METRIC(
-   'chrome/chrome_tasks_delaying_input_processing.sql',
-   'duration_causing_jank_ms',
-   /* duration_causing_jank_ms = */ '8');`);
-
-  const query = `
-     select
-       s1.full_name,
-       s1.duration_ms,
-       s1.slice_id,
-       s1.thread_dur_ms,
-       s2.id,
-       s2.ts,
-       s2.dur,
-       s2.track_id
-     from chrome_tasks_delaying_input_processing s1
-     join slice s2 on s1.slice_id=s2.id
-     `;
-  runQueryInNewTab(query, 'Scroll Jank: long tasks');
+  originalLength = result.tracksToAdd.length;
+  const eventLatencies = addLatencyTracks(engine);
+  const eventLatencyResult = await eventLatencies;
+  result.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
+  for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+  }
 
   return result;
 }
 
 function activate(ctx: PluginContext) {
-  ctx.registerTrack(ChromeScrollJankTrack);
+  ctx.registerTrack(ChromeTasksScrollJankTrack);
+  ctx.registerTrack(TopLevelJankTrack);
+  ctx.registerTrack(TopLevelScrollTrack);
+  ctx.registerTrack(TopLevelEventLatencyTrack);
+  ctx.registerTrack(EventLatencyTrack);
 }
 
 export const plugin = {

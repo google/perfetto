@@ -15,45 +15,58 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Engine} from '../../common/engine';
-import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
+import {
+  PrimaryTrackSortKey,
+  SCROLLING_TRACK_GROUP,
+} from '../../common/state';
 import {
   Columns,
   GenericSliceDetailsTab,
 } from '../../frontend/generic_slice_details_tab';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {DecideTracksResult} from '../chrome_scroll_jank';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
-interface TopLevelJankTrackTypes extends NamedSliceTrackTypes {
-  config: {sqlTableName: string;}
-}
+import {ScrollJankTracks as DecideTracksResult} from './index';
 
-export class TopLevelJankTrack extends
-    CustomSqlTableSliceTrack<TopLevelJankTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.top_level_jank';
+export class TopLevelEventLatencyTrack extends
+    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  static readonly kind = 'org.chromium.ScrollJank.top_level_event_latencies';
   displayColumns: Columns = {};
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelJankTrack(args);
+    return new TopLevelEventLatencyTrack(args);
   }
 
   constructor(args: NewTrackArgs) {
     super(args);
-
-    this.displayColumns['name'] = {};
-    this.displayColumns['id'] = {displayName: 'Interval ID'};
+    this.displayColumns['cause_of_jank'] = {displayName: 'Cause of Jank'};
+    this.displayColumns['sub_cause_of_jank'] = {
+      displayName: 'Sub-cause of Jank',
+    };
+    this.displayColumns['id'] = {displayName: 'Slice ID'};
     this.displayColumns['ts'] = {displayName: 'Start time'};
     this.displayColumns['dur'] = {displayName: 'Duration'};
+    this.displayColumns['type'] = {displayName: 'Slice Type'};
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      sqlTableName: this.config.sqlTableName,
+      columns: [
+        'id',
+        'ts',
+        'dur',
+        'track_id',
+        'cause_of_jank || IIF(sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, "") AS name',
+        'cause_of_jank',
+        'name AS type',
+        'sub_cause_of_jank',
+      ],
+      sqlTableName: 'chrome_janky_event_latencies_v3',
     };
   }
 
@@ -62,57 +75,33 @@ export class TopLevelJankTrack extends
       kind: GenericSliceDetailsTab.kind,
       config: {
         sqlTableName: this.tableName,
-        title: 'Chrome Scroll Jank Summary',
+        title: 'Chrome Scroll Jank Event Latency: Cause',
         columns: this.displayColumns,
       },
     };
   }
 
   async initSqlTable(tableName: string) {
-    await super.initSqlTable(tableName);
+    super.initSqlTable(tableName);
   }
 }
 
-export async function addTopLevelJankTrack(engine: Engine):
+export async function addJankyLatenciesTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  const viewName =
-      `view_${uuidv4().split('-').join('_')}_top_level_scrolls_jank_summary`;
-  const viewDefSql = `CREATE VIEW ${viewName} AS 
-      WITH unioned_data AS (
-      SELECT
-        "Scrolling: " || scroll_ids AS name,
-        ts,
-        dur
-      FROM chrome_scrolling_intervals
-      UNION ALL
-      SELECT
-        "Janky Scrolling Time" AS name,
-        ts,
-        dur
-      FROM chrome_scroll_jank_intervals_v3
-     )
-     SELECT
-       ROW_NUMBER() OVER(ORDER BY ts) AS id,
-       *
-     FROM unioned_data;`;
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
-  await engine.query(viewDefSql);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelJankTrack.kind,
+    kind: TopLevelEventLatencyTrack.kind,
     trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Chrome Scroll Jank Summary',
-    config: {
-      sqlTableName: viewName,
-    },
+    name: 'Chrome Scroll Jank Event Latencies',
+    config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
 

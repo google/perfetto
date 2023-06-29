@@ -24,7 +24,7 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {DecideTracksResult} from '../chrome_scroll_jank';
+import {ScrollJankTracks as DecideTracksResult} from './index';
 
 export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
   config: {baseTable: string;}
