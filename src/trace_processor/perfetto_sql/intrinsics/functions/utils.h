@@ -137,7 +137,7 @@ base::Status Reverse::Run(void*,
   destructors.string_destructor = free;
   out = SqlValue::String(s.release());
   return base::OkStatus();
-};
+}
 
 struct Base64Encode : public SqlFunction {
   static base::Status Run(void*,
