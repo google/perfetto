@@ -19,7 +19,6 @@
 // Design doc: http://go/perfetto-offline.
 
 import {reportError} from '../base/logging';
-import {ignoreCacheUnactionableErrors} from '../common/errors';
 
 import {globals} from './globals';
 
@@ -32,8 +31,10 @@ class BypassCache {
   static async isBypassed(): Promise<boolean> {
     try {
       return await caches.has(BYPASS_ID);
-    } catch (e) {
-      return ignoreCacheUnactionableErrors(e, false);
+    } catch (_) {
+      // TODO(288483453): Reinstate:
+      // return ignoreCacheUnactionableErrors(e, false);
+      return false;
     }
   }
 
@@ -44,8 +45,9 @@ class BypassCache {
       } else {
         await caches.delete(BYPASS_ID);
       }
-    } catch (e) {
-      ignoreCacheUnactionableErrors(e, undefined);
+    } catch (_) {
+      // TODO(288483453): Reinstate:
+      // ignoreCacheUnactionableErrors(e, undefined);
     }
   }
 }
