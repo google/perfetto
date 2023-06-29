@@ -175,6 +175,7 @@ message AndroidStartupMetric {
     optional string compilation_filter = 2;
     optional string compilation_reason = 3;
     optional string location = 4;
+    optional string summary = 5;
   }
 
   // Contains the name and duration of class verification occurred during
