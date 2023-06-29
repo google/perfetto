@@ -16,8 +16,7 @@ import produce, {Draft} from 'immer';
 
 import {Disposable} from '../base/disposable';
 import {lookupPath, Path} from '../base/object_utils';
-
-import {exists} from './widgets/utils';
+import {exists} from '../base/utils';
 
 export class StoreError extends Error {
   constructor(message: string) {
