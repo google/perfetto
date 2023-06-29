@@ -289,7 +289,13 @@ SELECT
         'location', SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
         'odex_status', STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
         'compilation_filter', STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
-        'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1)
+        'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1),
+        'summary',
+        SUMMARY_FOR_OPTIMIZATION_STATUS(
+          SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
+          STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
+          STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
+          STR_SPLIT(slice_name, ' reason=', 1))
         ))
       FROM (
         SELECT *

@@ -706,8 +706,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-Ô.
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ò-
+î.
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ì-
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -772,13 +772,14 @@ HscMetricsN
 destination_process (	RdestinationProcess
 flags (	Rflags
 code (	Rcode
-	data_size (RdataSize¯
+	data_size (RdataSizeÉ
 OptimizationStatus
 odex_status (	R
 odexStatus-
 compilation_filter (	RcompilationFilter-
 compilation_reason (	RcompilationReason
-location (	Rlocation8
+location (	Rlocation
+summary (	Rsummary8
 VerifyClass
 name (	Rname
 dur_ns (RdurNs[
