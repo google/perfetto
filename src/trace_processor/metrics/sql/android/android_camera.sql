@@ -54,7 +54,7 @@ FROM rss_and_swap_span
 JOIN (
   SELECT max(start_ts), upid
   FROM process
-  WHERE name = 'cameraserver'
+  WHERE name GLOB '*cameraserver'
   LIMIT 1
 ) AS cameraserver USING (upid);
 
