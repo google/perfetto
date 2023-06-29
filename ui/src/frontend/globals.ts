@@ -809,18 +809,3 @@ class Globals {
 }
 
 export const globals = new Globals();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
