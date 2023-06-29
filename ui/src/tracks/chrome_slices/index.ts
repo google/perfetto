@@ -221,6 +221,10 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         tEnd = visibleWindowTime.end.toTPTime('ceil');
       }
 
+      if (!visibleTimeSpan.intersects(tStart, tEnd)) {
+        continue;
+      }
+
       const rect = this.getSliceRect(
           visibleTimeScale, visibleTimeSpan, windowSpan, tStart, tEnd, depth);
       if (!rect || !rect.visible) {
