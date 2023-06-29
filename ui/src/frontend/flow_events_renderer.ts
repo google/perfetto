@@ -146,7 +146,7 @@ export class FlowEventsRenderer {
 
   private getSliceRect(args: FlowEventsRendererArgs, point: FlowPoint):
       SliceRect|undefined {
-    const {visibleTimeScale, visibleWindowTime, windowSpan} =
+    const {visibleTimeScale, visibleTimeSpan, windowSpan} =
         globals.frontendLocalState;
     const trackPanel = args.trackIdToTrackPanel.get(point.trackId) ?.panel;
     if (!trackPanel) {
@@ -154,7 +154,7 @@ export class FlowEventsRenderer {
     }
     return trackPanel.getSliceRect(
         visibleTimeScale,
-        visibleWindowTime,
+        visibleTimeSpan,
         windowSpan,
         point.sliceStartTs,
         point.sliceEndTs,
