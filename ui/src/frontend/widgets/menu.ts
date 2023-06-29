@@ -13,10 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
+
+import {hasChildren} from '../../base/mithril_utils';
 import {classNames} from '../classnames';
+
 import {Icon} from './icon';
 import {Popup, PopupPosition} from './popup';
-import {hasChildren} from './utils';
 
 export interface MenuItemAttrs {
   // Text to display on the menu button.
