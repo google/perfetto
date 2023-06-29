@@ -73,20 +73,28 @@ Technical Information:
       }
 
       // For the 'Click here to clear all caches'.
-      window.clearAllCaches = () => {
+      window.clearAllCaches = async () => {
         if (window.localStorage) window.localStorage.clear();
         if (window.sessionStorage) window.sessionStorage.clear();
         const promises = [];
         if (window.caches) {
-          window.caches.keys().then(
-            keys => keys.forEach(k => promises.push(window.caches.delete(k))));
+          try {
+            const keys = await window.caches.keys();
+            keys.forEach(k => promises.push(window.caches.delete(k)));
+          } catch (_) {
+            // TODO(288483453)
+          }
         }
         if (navigator.serviceWorker) {
-          navigator.serviceWorker.getRegistrations().then(regs => {
-            regs.forEach(reg => promises.push(reg.unregister()));
-          });
+          const regs = await navigator.serviceWorker.getRegistrations();
+          regs.forEach(reg => promises.push(reg.unregister()));
         }
-        Promise.all(promises).then(() => window.location.reload());
+        try {
+          await Promise.all(promises);
+        } catch (_) {
+          // TODO(288483453)
+        }
+        window.location.reload();
       }
 
       // If the frontend doesn't come up, make the error page above visible.
