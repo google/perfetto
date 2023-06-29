@@ -18,7 +18,6 @@
  * containing it is discarded by Chrome (e.g. because the tab was not used for
  * a long time) or when the user accidentally hits reload.
  */
-import {ignoreCacheUnactionableErrors} from './errors';
 import {TraceArrayBufferSource, TraceSource} from './state';
 
 const TRACE_CACHE_NAME = 'cached_traces';
@@ -44,8 +43,10 @@ async function cacheDelete(key: Request): Promise<boolean> {
     const cache = await getCache();
     if (cache === undefined) return false;  // Cache storage not supported.
     return cache.delete(key);
-  } catch (e) {
-    return ignoreCacheUnactionableErrors(e, false);
+  } catch (_) {
+    // TODO(288483453): Reinstate:
+    // return ignoreCacheUnactionableErrors(e, false);
+    return false;
   }
 }
 
@@ -54,8 +55,9 @@ async function cachePut(key: string, value: Response): Promise<void> {
     const cache = await getCache();
     if (cache === undefined) return;  // Cache storage not supported.
     cache.put(key, value);
-  } catch (e) {
-    ignoreCacheUnactionableErrors(e, undefined);
+  } catch (_) {
+    // TODO(288483453): Reinstate:
+    // ignoreCacheUnactionableErrors(e, undefined);
   }
 }
 
@@ -64,8 +66,10 @@ async function cacheMatch(key: Request|string): Promise<Response|undefined> {
     const cache = await getCache();
     if (cache === undefined) return undefined;  // Cache storage not supported.
     return cache.match(key);
-  } catch (e) {
-    return ignoreCacheUnactionableErrors(e, undefined);
+  } catch (_) {
+    // TODO(288483453): Reinstate:
+    // ignoreCacheUnactionableErrors(e, undefined);
+    return undefined;
   }
 }
 
@@ -75,7 +79,9 @@ async function cacheKeys(): Promise<readonly Request[]> {
     if (cache === undefined) return [];  // Cache storage not supported.
     return cache.keys();
   } catch (e) {
-    return ignoreCacheUnactionableErrors(e, []);
+    // TODO(288483453): Reinstate:
+    // return ignoreCacheUnactionableErrors(e, []);
+    return [];
   }
 }
 
