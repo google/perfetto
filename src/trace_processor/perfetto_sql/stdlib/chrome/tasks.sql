@@ -20,80 +20,59 @@ SELECT IMPORT("common.slices");
 -- argument of descendant ScopedSetIpcHash slice.
 -- This is relevant only for the older Chrome traces, where mojo IPC
 -- hash was reported in a separate ScopedSetIpcHash slice.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_EXTRACT_MOJO_IPC_HASH(slice_id INT)',
-  'INT',
-  '
-    SELECT EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash")
-    FROM descendant_slice($slice_id)
-    WHERE name="ScopedSetIpcHash"
-    ORDER BY id
-    LIMIT 1
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_EXTRACT_MOJO_IPC_HASH(slice_id INT)
+RETURNS INT AS
+SELECT EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash")
+FROM descendant_slice($slice_id)
+WHERE name="ScopedSetIpcHash"
+ORDER BY id
+LIMIT 1;
 
 -- Returns the frame type (main frame vs subframe) for key navigation tasks
 -- which capture the associated RenderFrameHost in an argument.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_EXTRACT_FRAME_TYPE(slice_id INT)',
-  'INT',
-  '
-    SELECT EXTRACT_ARG(arg_set_id, "render_frame_host.frame_type")
-    FROM descendant_slice($slice_id)
-    WHERE name IN ("RenderFrameHostImpl::BeginNavigation",
-        "RenderFrameHostImpl::DidCommitProvisionalLoad",
-        "RenderFrameHostImpl::DidCommitSameDocumentNavigation",
-        "RenderFrameHostImpl::DidStopLoading")
-    LIMIT 1
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_EXTRACT_FRAME_TYPE(slice_id INT)
+RETURNS INT AS
+SELECT EXTRACT_ARG(arg_set_id, "render_frame_host.frame_type")
+FROM descendant_slice($slice_id)
+WHERE name IN (
+  "RenderFrameHostImpl::BeginNavigation",
+  "RenderFrameHostImpl::DidCommitProvisionalLoad",
+  "RenderFrameHostImpl::DidCommitSameDocumentNavigation",
+  "RenderFrameHostImpl::DidStopLoading"
+)
+LIMIT 1;
 
 -- Human-readable aliases for a few key navigation tasks.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(task_name STRING)',
-  'STRING',
-  'SELECT
-    CASE
-      WHEN $task_name = "content.mojom.FrameHost message (hash=2168461044)"
-        THEN "FrameHost::BeginNavigation"
-      WHEN $task_name = "content.mojom.FrameHost message (hash=3561497419)"
-        THEN "FrameHost::DidCommitProvisionalLoad"
-      WHEN $task_name = "content.mojom.FrameHost message (hash=1421450774)"
-        THEN "FrameHost::DidCommitSameDocumentNavigation"
-      WHEN $task_name = "content.mojom.FrameHost message (hash=368650583)"
-        THEN "FrameHost::DidStopLoading"
-    END
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(task_name STRING)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $task_name = "content.mojom.FrameHost message (hash=2168461044)"
+      THEN "FrameHost::BeginNavigation"
+    WHEN $task_name = "content.mojom.FrameHost message (hash=3561497419)"
+      THEN "FrameHost::DidCommitProvisionalLoad"
+    WHEN $task_name = "content.mojom.FrameHost message (hash=1421450774)"
+      THEN "FrameHost::DidCommitSameDocumentNavigation"
+    WHEN $task_name = "content.mojom.FrameHost message (hash=368650583)"
+      THEN "FrameHost::DidStopLoading"
+  END;
 
 -- Takes a task name and formats it correctly for scheduler tasks.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_FORMAT_SCHEDULER_TASK_NAME(task_name STRING)',
-  'STRING',
-  'SELECT
-    printf("RunTask(posted_from=%s)", $task_name)
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_FORMAT_SCHEDULER_TASK_NAME(task_name STRING)
+RETURNS STRING AS
+SELECT printf("RunTask(posted_from=%s)", $task_name);
 
 -- Takes the category and determines whether it is "Java" only, as opposed to
 -- "toplevel,Java".
-SELECT CREATE_FUNCTION(
-  'INTERNAL_JAVA_NOT_TOP_LEVEL_CATEGORY(category STRING)',
-  'BOOL',
-  'SELECT
-    $category GLOB "*Java*" AND $category not GLOB "*toplevel*"
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_JAVA_NOT_TOP_LEVEL_CATEGORY(category STRING)
+RETURNS BOOL AS
+SELECT $category GLOB "*Java*" AND $category not GLOB "*toplevel*";
 
 -- Takes the category and determines whether is any valid
 -- toplevel category or combination of categories.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_ANY_TOP_LEVEL_CATEGORY(category STRING)',
-  'BOOL',
-  'SELECT
-    $category IN ("toplevel", "toplevel,viz", "toplevel,Java")
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_ANY_TOP_LEVEL_CATEGORY(category STRING)
+RETURNS BOOL AS
+SELECT $category IN ("toplevel", "toplevel,viz", "toplevel,Java");
 
 -- TODO(altimin): the situations with kinds in this file is a bit of a mess.
 -- The idea is that it should work as `type` in the `slice` table, pointing to
@@ -103,16 +82,13 @@ SELECT CREATE_FUNCTION(
 -- `create perfetto table`.
 
 -- Get task type for a given task kind.
-SELECT CREATE_FUNCTION(
-  'INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind STRING)',
-  'STRING',
-    'SELECT
-      (CASE $kind
-        WHEN "Choreographer" THEN "choreographer"
-        WHEN "SingleThreadProxy::BeginMainFrame" THEN "ui_thread_begin_main_frame"
-      END)
-    '
-);
+CREATE PERFETTO FUNCTION INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind STRING)
+RETURNS STRING AS
+SELECT
+  CASE $kind
+    WHEN "Choreographer" THEN "choreographer"
+    WHEN "SingleThreadProxy::BeginMainFrame" THEN "ui_thread_begin_main_frame"
+  END;
 
 -- All slices corresponding to receiving mojo messages.
 -- On the newer Chrome versions, it's just "Receive mojo message" and
@@ -309,21 +285,18 @@ SELECT
   dur,
   name
 FROM slice
-WHERE
-  name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*";
+WHERE name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*";
 
 -- Extract task's posted_from information from task's arguments.
-SELECT CREATE_FUNCTION('INTERNAL_GET_POSTED_FROM(arg_set_id INT)', 'STRING',
-  '
-  WITH posted_from as (
-    SELECT
-      EXTRACT_ARG($arg_set_id, "task.posted_from.file_name") AS file_name,
-      EXTRACT_ARG($arg_set_id, "task.posted_from.function_name") AS function_name
-  )
+CREATE PERFETTO FUNCTION INTERNAL_GET_POSTED_FROM(arg_set_id INT)
+RETURNS STRING AS
+WITH posted_from as (
   SELECT
-    file_name || ":" || function_name as posted_from
-  FROM posted_from;
-  ');
+    EXTRACT_ARG($arg_set_id, "task.posted_from.file_name") AS file_name,
+    EXTRACT_ARG($arg_set_id, "task.posted_from.function_name") AS function_name
+)
+SELECT file_name || ":" || function_name as posted_from
+FROM posted_from;
 
 -- Selects the BeginMainFrame slices (which as posted from ScheduledActionSendBeginMainFrame),
 -- used for root-level processing. In top-level/Java based slices, these will correspond to the
@@ -441,26 +414,27 @@ ORDER BY task.id;
 
 -- Select the slice that might be the descendant mojo slice for the given task
 -- slice if it exists.
-SELECT CREATE_FUNCTION('INTERNAL_GET_DESCENDANT_MOJO_SLICE_CANDIDATE(slice_id INT)', 'INT',
-  '
-    SELECT
-      id
-    FROM descendant_slice($slice_id)
-    WHERE
-      -- The tricky case here is dealing with sync mojo IPCs: we do not want to
-      -- pick up sync IPCs when we are in a non-IPC task.
-      -- So we look at all toplevel events and pick up the first one:
-      -- for sync mojo messages, it will be "Send mojo message", which then
-      -- will fail.
-      -- Some events are excluded as they can legimately appear under "RunTask"
-      -- before "Receive mojo message".
-      category GLOB "*toplevel*" AND
-      name NOT IN (
-        "SimpleWatcher::OnHandleReady",
-        "MessagePipe peer closed")
-    ORDER by depth, ts
-    LIMIT 1
-  ');
+CREATE PERFETTO FUNCTION INTERNAL_GET_DESCENDANT_MOJO_SLICE_CANDIDATE(
+  slice_id INT
+)
+RETURNS INT AS
+SELECT
+  id
+FROM descendant_slice($slice_id)
+WHERE
+  -- The tricky case here is dealing with sync mojo IPCs: we do not want to
+  -- pick up sync IPCs when we are in a non-IPC task.
+  -- So we look at all toplevel events and pick up the first one:
+  -- for sync mojo messages, it will be "Send mojo message", which then
+  -- will fail.
+  -- Some events are excluded as they can legimately appear under "RunTask"
+  -- before "Receive mojo message".
+  category GLOB "*toplevel*" AND
+  name NOT IN (
+    "SimpleWatcher::OnHandleReady",
+    "MessagePipe peer closed")
+ORDER by depth, ts
+LIMIT 1;
 
 SELECT CREATE_VIEW_FUNCTION('INTERNAL_DESCENDANT_MOJO_SLICE(slice_id INT)',
   'task_name STRING',

@@ -64,38 +64,43 @@ VALUES
 
 -- Functions below retrieve specific columns for a given table set.
 
-SELECT CREATE_FUNCTION(
-  'ANDROID_JANK_CUJ_TABLE_SET_SLICE(table_set STRING)',
-  'STRING',
-  'SELECT slice_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
-);
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_SLICE(table_set STRING)
+RETURNS STRING AS
+SELECT slice_table_name
+FROM android_jank_cuj_table_set ts
+WHERE ts.name = $table_set;
 
-SELECT CREATE_FUNCTION(
-  'ANDROID_JANK_CUJ_TABLE_SET_FRAME_BOUNDARY(table_set STRING)',
-  'STRING',
-  'SELECT frame_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
-);
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_FRAME_BOUNDARY(
+  table_set STRING
+)
+RETURNS STRING AS
+SELECT frame_boundary_table_name
+FROM android_jank_cuj_table_set ts
+WHERE ts.name = $table_set;
 
-SELECT CREATE_FUNCTION(
-  'ANDROID_JANK_CUJ_TABLE_SET_CUJ_BOUNDARY(table_set STRING)',
-  'STRING',
-  'SELECT cuj_boundary_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
-);
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_CUJ_BOUNDARY(
+  table_set STRING
+)
+RETURNS STRING AS
+SELECT cuj_boundary_table_name
+FROM android_jank_cuj_table_set ts
+WHERE ts.name = $table_set;
 
-SELECT CREATE_FUNCTION(
-  'ANDROID_JANK_CUJ_TABLE_SET_FRAME(table_set STRING)',
-  'STRING',
-  'SELECT frame_table_name FROM android_jank_cuj_table_set ts WHERE ts.name = $table_set'
-);
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_FRAME(table_set STRING)
+RETURNS STRING AS
+SELECT frame_table_name
+FROM android_jank_cuj_table_set ts
+WHERE ts.name = $table_set;
 
 -- Checks if two slices, described by ts and dur, ts_second and dur_second, overlap.
 -- Does not handle cases where slices are unfinished (dur = -1).
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_SLICE_OVERLAPS(ts LONG,
+                                                        dur LONG,
+                                                        ts_second LONG,
+                                                        dur_second LONG)
+RETURNS BOOL AS
 SELECT
-  CREATE_FUNCTION(
-    'ANDROID_JANK_CUJ_SLICE_OVERLAPS(ts LONG, dur LONG, ts_second LONG, dur_second LONG)',
-    'BOOL',
-    'SELECT
-      -- A starts before B ends and A ends after B starts
-      ($ts < $ts_second + $dur_second AND $ts + $dur > $ts_second)
-      -- or A starts after B starts and A ends before B ends
-      OR ($ts > $ts_second AND $ts < $ts_second + $ts_dur)');
+  -- A starts before B ends and A ends after B starts
+  ($ts < $ts_second + $dur_second AND $ts + $dur > $ts_second)
+  -- or A starts after B starts and A ends before B ends
+  OR ($ts > $ts_second AND $ts < $ts_second + $ts_dur);

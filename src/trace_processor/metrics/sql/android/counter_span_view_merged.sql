@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
--- Creates a span view for counters that may be global or associated with a 
+-- Creates a span view for counters that may be global or associated with a
 -- process, assuming that in the latter case we don't actually care about the
 -- process (probably because it's always system_server). We may want to erase
 -- this distinction for example when merging system properties and atrace

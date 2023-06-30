@@ -166,6 +166,14 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
     if (tok.token_type == SqliteTokenType::TK_RP) {
       break;
     }
+    if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
+      base::StackString<1024> err(
+          "Malformed function prototype: %.*s is a SQL keyword so cannot "
+          "appear in a function prototype",
+          static_cast<int>(tok.str.size()), tok.str.data());
+      return ErrorAtToken(tok, err.c_str());
+    }
+
     // TODO(lalitm): add a link to create function documentation.
     return ErrorAtToken(
         tok, "Malformed function prototype: ')', ',', name or type expected");

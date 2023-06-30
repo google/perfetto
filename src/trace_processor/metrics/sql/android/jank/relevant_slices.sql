@@ -13,41 +13,36 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT CREATE_FUNCTION(
-  'VSYNC_FROM_NAME(slice_name STRING)',
-  'STRING',
-  'SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER)'
-);
+CREATE PERFETTO FUNCTION VSYNC_FROM_NAME(slice_name STRING)
+RETURNS STRING AS
+SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER);
 
-SELECT CREATE_FUNCTION(
-  'GPU_COMPLETION_FENCE_ID_FROM_NAME(slice_name STRING)',
-  'STRING',
-  'SELECT
-    CASE
-      WHEN
-        $slice_name GLOB "GPU completion fence *"
-      THEN
-        CAST(STR_SPLIT($slice_name, " ", 3) AS INTEGER)
-      WHEN
-        $slice_name GLOB "Trace GPU completion fence *"
-      THEN
-        CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
-      WHEN
-        $slice_name GLOB "waiting for GPU completion *"
-      THEN
-        CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
-      WHEN
-        $slice_name GLOB "Trace HWC release fence *"
-      THEN
-        CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
-      WHEN
-        $slice_name GLOB "waiting for HWC release *"
-      THEN
-        CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
-      ELSE NULL
-    END
-  '
-);
+CREATE PERFETTO FUNCTION GPU_COMPLETION_FENCE_ID_FROM_NAME(slice_name STRING)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN
+      $slice_name GLOB "GPU completion fence *"
+    THEN
+      CAST(STR_SPLIT($slice_name, " ", 3) AS INTEGER)
+    WHEN
+      $slice_name GLOB "Trace GPU completion fence *"
+    THEN
+      CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
+    WHEN
+      $slice_name GLOB "waiting for GPU completion *"
+    THEN
+      CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
+    WHEN
+      $slice_name GLOB "Trace HWC release fence *"
+    THEN
+      CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
+    WHEN
+      $slice_name GLOB "waiting for HWC release *"
+    THEN
+      CAST(STR_SPLIT($slice_name, " ", 4) AS INTEGER)
+    ELSE NULL
+  END;
 
 -- Find Choreographer#doFrame slices that are between the CUJ markers.
 -- We extract vsync IDs from doFrame slice names and use these as the source
