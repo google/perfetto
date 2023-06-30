@@ -16,12 +16,10 @@
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
 --
--- @arg path_id  INT Id of the path in EXPERIMENTAL_PROTO_PATH
+-- @arg path_id  INT LONG of the path in EXPERIMENTAL_PROTO_PATH
 -- @ret BYTES    Stack with one frame
-SELECT CREATE_FUNCTION(
-"EXPERIMENTAL_PROTO_PATH_TO_FRAME(path_id LONG)",
-"BYTES",
-"
+CREATE PERFETTO FUNCTON EXPERIMENTAL_PROTO_PATH_TO_FRAME(path_id LONG)
+RETURNS BYTES AS
 SELECT
   CAT_STACKS(
     'event.name:' || EXTRACT_ARG(arg_set_id, 'event.name'),
@@ -29,19 +27,16 @@ SELECT
     field_name,
     field_type)
 FROM EXPERIMENTAL_PROTO_PATH
-WHERE id = $path_id
-");
+WHERE id = $path_id;
 
 -- Creates a Stack following the parent relations in EXPERIMENTAL_PROTO_PATH
 -- table starting at the given path_id.
 --
--- @arg path_id  INT Id of the path in EXPERIMENTAL_PROTO_PATH that will be
+-- @arg path_id  LONG Id of the path in EXPERIMENTAL_PROTO_PATH that will be
 -- the leaf in the returned stack
 -- @ret BYTES    Stack
-SELECT CREATE_FUNCTION(
-"EXPERIMENTAL_PROTO_PATH_TO_STACK(path_id LONG)",
-"BYTES",
-"
+CREATE PERFETTO FUNCTION EXPERIMENTAL_PROTO_PATH_TO_STACK(path_id LONG)
+RETURNS BYTES AS
 WITH
   R AS (
     -- Starting at the given path_id generate a stack
@@ -67,5 +62,4 @@ WITH
 SELECT stack
 FROM R
 WHERE
-  parent_id IS NULL
-");
+  parent_id IS NULL;

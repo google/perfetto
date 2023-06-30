@@ -15,12 +15,9 @@
 -- Returns hardware class of the device, often use to find device brand
 -- and model.
 -- @ret STRING Hardware class name.
-SELECT CREATE_FUNCTION(
-  'CHROME_HARDWARE_CLASS()',
-  'STRING',
-  'SELECT
-    str_value
-   FROM metadata
-  WHERE name = "cr-hardware-class"
-  '
-);
+CREATE PERFETTO FUNCTION CHROME_HARDWARE_CLASS()
+RETURNS STRING AS
+SELECT
+  str_value
+  FROM metadata
+WHERE name = "cr-hardware-class";

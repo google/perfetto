@@ -48,11 +48,9 @@ SELECT CREATE_VIEW_FUNCTION(
   '
 );
 
-SELECT CREATE_FUNCTION(
-  'IS_LONG_CHOREOGRAPHER_TASK(dur LONG)',
-  'BOOL',
-  'SELECT $dur >= 4 * 1e6'
-);
+CREATE PERFETTO FUNCTION IS_LONG_CHOREOGRAPHER_TASK(dur LONG)
+RETURNS BOOL AS
+SELECT $dur >= 4 * 1e6;
 
 -- Note that not all slices will be mojo slices; filter on interface_name IS
 -- NOT NULL for mojo slices specifically.
