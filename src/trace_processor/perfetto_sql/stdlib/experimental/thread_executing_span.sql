@@ -497,22 +497,18 @@ chain AS (
 --
 -- @arg thread_state_id INT   Id of the thread_state to get the thread_executing_span id for
 -- @ret INT                   thread_executing_span id
-SELECT
-  CREATE_FUNCTION(
-'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(thread_state_id INT)',
-'INT',
-'
-WITH
-  t AS (
+CREATE PERFETTO FUNCTION
+EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(thread_state_id INT)
+RETURNS INT AS
+WITH t AS (
   SELECT
     ts,
     utid
   FROM thread_state
   WHERE
     id = $thread_state_id
-  )
-  SELECT
-    MAX(start_id) AS thread_executing_span_id
-  FROM internal_wakeup w, t
-  WHERE t.utid = w.utid AND t.ts >= w.start_ts AND t.ts < w.end_ts;
-');
+)
+SELECT
+  MAX(start_id) AS thread_executing_span_id
+FROM internal_wakeup w, t
+WHERE t.utid = w.utid AND t.ts >= w.start_ts AND t.ts < w.end_ts;

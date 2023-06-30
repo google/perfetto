@@ -43,6 +43,28 @@ def main():
 
       res = parse_file_to_dict(path, sql)
       errors += res if isinstance(res, list) else []
+
+      # Ban the use of LIKE in non-comment lines.
+      lines = [l.strip() for l in f.readlines()]
+      for line in lines:
+        if line.startswith('--'):
+          continue
+
+        if 'like' in line.casefold():
+          errors.append('LIKE is banned in trace processor metrics. '
+                        'Prefer GLOB instead.')
+          errors.append('Offending file: %s' % path)
+
+      # Ban the use of CREATE_FUNCTION.
+      for line in lines:
+        if line.startswith('--'):
+          continue
+
+        if 'create_function' in line.casefold():
+          errors.append('CREATE_FUNCTION is deprecated in trace processor. '
+                        'Prefer CREATE PERFETTO FUNCTION instead.')
+          errors.append('Offending file: %s' % path)
+
   sys.stderr.write("\n".join(errors))
   sys.stderr.write("\n")
   return 0 if not errors else 1

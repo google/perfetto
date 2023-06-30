@@ -23,18 +23,15 @@
 -- @task_name: a task name following chrome_tasks.sql naming convention to
 -- find stack samples on.
 
-
 SELECT IMPORT('chrome.tasks');
 
-SELECT CREATE_FUNCTION(
-  'DescribeSymbol(symbol STRING, frame_name STRING)',
-  'STRING',
-  'SELECT COALESCE($symbol,
-   CASE WHEN demangle($frame_name) IS NULL
-    THEN $frame_name
-    ELSE demangle($frame_name)
-   END)'
-);
+CREATE PERFETTO FUNCTION DescribeSymbol(symbol STRING, frame_name STRING)
+RETURNS STRING AS
+SELECT COALESCE($symbol,
+  CASE WHEN demangle($frame_name) IS NULL
+  THEN $frame_name
+  ELSE demangle($frame_name)
+  END);
 
 -- Get all Chrome tasks that match a specific name on a specific thread.
 -- The timestamps for those tasks are going to be used later on to gather

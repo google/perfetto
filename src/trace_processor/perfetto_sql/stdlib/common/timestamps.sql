@@ -19,27 +19,21 @@
 
 -- Fetch start of the trace.
 -- @ret LONG  Start of the trace in nanoseconds.
-SELECT CREATE_FUNCTION(
-    'TRACE_START()',
-    'LONG',
-    'SELECT start_ts FROM trace_bounds;'
-);
+CREATE PERFETTO FUNCTION TRACE_START()
+RETURNS LONG AS
+SELECT start_ts FROM trace_bounds;
 
 -- Fetch end of the trace.
 -- @ret LONG  End of the trace in nanoseconds.
-SELECT CREATE_FUNCTION(
-    'TRACE_END()',
-    'LONG',
-    'SELECT end_ts FROM trace_bounds;'
-);
+CREATE PERFETTO FUNCTION TRACE_END()
+RETURNS LONG AS
+SELECT end_ts FROM trace_bounds;
 
 -- Fetch duration of the trace.
 -- @ret LONG  Duration of the trace in nanoseconds.
-SELECT CREATE_FUNCTION(
-    'TRACE_DUR()',
-    'LONG',
-    'SELECT TRACE_END() - TRACE_START();'
-);
+CREATE PERFETTO FUNCTION TRACE_DUR()
+RETURNS LONG AS
+SELECT TRACE_END() - TRACE_START();
 
 -- Checks whether two spans are overlapping.
 --
@@ -48,14 +42,10 @@ SELECT CREATE_FUNCTION(
 -- @arg ts2 LONG      Start of second span.
 -- @arg ts_end2 LONG  End of second span.
 -- @ret BOOL          Whether two spans are overlapping.
-SELECT CREATE_FUNCTION(
-  'IS_SPANS_OVERLAPPING(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)',
-  'BOOL',
-  '
-    SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
-      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2))
-  '
-);
+CREATE PERFETTO FUNCTION IS_SPANS_OVERLAPPING(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)
+RETURNS BOOL AS
+SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
+      < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
 
 --Return the overlapping duration between two spans.
 --If either duration is less than 0 or there's no intersection, 0 is returned
@@ -65,11 +55,9 @@ SELECT CREATE_FUNCTION(
 -- @arg ts2 LONG Timestamp of second slice start.
 -- @arg dur2 LONG Duration of second slice.
 -- @ret INT               Overlapping duration
-SELECT CREATE_FUNCTION(
-  'SPANS_OVERLAPPING_DUR(ts1 LONG, dur1 LONG, ts2 LONG, dur2 LONG)',
-  'INT',
-  '
-  SELECT
+CREATE PERFETTO FUNCTION SPANS_OVERLAPPING_DUR(ts1 LONG, dur1 LONG, ts2 LONG, dur2 LONG)
+RETURNS INT AS
+SELECT
   CASE
     WHEN $dur1 = -1 OR $dur2 = -1 THEN 0
     WHEN $ts1 + $dur1 < $ts2 OR $ts2 + $dur2 < $ts1 THEN 0
@@ -77,6 +65,4 @@ SELECT CREATE_FUNCTION(
     WHEN ($ts1 < $ts2) AND ($ts1 + $dur1 < $ts2 + $dur2) THEN $ts1 + $dur1 - $ts2
     WHEN ($ts1 > $ts2) AND ($ts1 + $dur1 > $ts2 + $dur2) THEN $ts2 + $dur2 - $ts1
     ELSE $dur2
-  END
-  '
-);
+  END;

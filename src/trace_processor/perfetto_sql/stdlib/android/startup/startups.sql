@@ -75,20 +75,19 @@ SELECT ts, name, track_id
 FROM slice
 WHERE name IN ('bindApplication', 'activityStart', 'activityResume');
 
-SELECT CREATE_FUNCTION(
-  'INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(start_ts LONG, end_ts LONG, utid INT, name STRING)',
-  'INT',
-  '
-    SELECT COUNT(1)
-    FROM thread_track t
-    JOIN internal_startup_indicator_slices s ON s.track_id = t.id
-    WHERE
-      t.utid = $utid AND
-      s.ts >= $start_ts AND
-      s.ts < $end_ts AND
-      s.name = $name
-  '
-);
+CREATE PERFETTO FUNCTION INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(start_ts LONG,
+                                                                end_ts LONG,
+                                                                utid INT,
+                                                                name STRING)
+RETURNS INT AS
+SELECT COUNT(1)
+FROM thread_track t
+JOIN internal_startup_indicator_slices s ON s.track_id = t.id
+WHERE
+  t.utid = $utid AND
+  s.ts >= $start_ts AND
+  s.ts < $end_ts AND
+  s.name = $name;
 
 -- Maps a startup to the set of processes that handled the activity start.
 --
@@ -250,15 +249,11 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-SELECT CREATE_FUNCTION(
-  'ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)',
-  'INT',
-  '
-    SELECT SUM(slice_dur)
-    FROM android_thread_slices_for_all_startups
-    WHERE startup_id = $startup_id AND slice_name GLOB $slice_name
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+RETURNS INT AS
+SELECT SUM(slice_dur)
+FROM android_thread_slices_for_all_startups
+WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 
 -- Returns duration of startup for slice name on main thread.
 --
@@ -267,12 +262,8 @@ SELECT CREATE_FUNCTION(
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-SELECT CREATE_FUNCTION(
-  'ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)',
-  'INT',
-  '
-    SELECT SUM(slice_dur)
-    FROM android_thread_slices_for_all_startups
-    WHERE startup_id = $startup_id AND slice_name GLOB $slice_name AND is_main_thread
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+RETURNS INT AS
+SELECT SUM(slice_dur)
+FROM android_thread_slices_for_all_startups
+WHERE startup_id = $startup_id AND slice_name GLOB $slice_name AND is_main_thread;

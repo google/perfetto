@@ -73,11 +73,10 @@ CREATE TABLE foo_table AS
 {DESC}
 {ARGS_STR}
 {RET_STR}
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, dict)
 
@@ -183,11 +182,10 @@ CREATE TABLE bar_table AS
 -- @arg utid2 INT              Uint.
 -- @arg name STRING           String name.
 {RET_STR}
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, list)
 
@@ -199,11 +197,10 @@ SELECT CREATE_FUNCTION(
 -- @arg utid INT
 -- @arg name STRING           String name.
 {RET_STR}
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, list)
 
@@ -214,11 +211,10 @@ SELECT CREATE_FUNCTION(
 {ARGS_STR}
 --
 -- @ret BOOL
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, list)
 
@@ -236,11 +232,10 @@ SELECT CREATE_FUNCTION(
 -- description.
 {ARGS_STR}
 {RET_STR}
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, dict)
 
@@ -260,11 +255,10 @@ SELECT CREATE_FUNCTION(
 --                             which spans across multiple lines
 -- inconsistently.
 {RET_STR}
-SELECT CREATE_FUNCTION(
-  'FOO_FN({ARGS_SQL_STR})',
-  '{RET_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
+RETURNS {RET_SQL_STR}
+AS
+{SQL_STR};
     '''.strip())
     assert isinstance(res, dict)
 
