@@ -18,10 +18,15 @@ import {StatusResult} from '../common/protos';
 
 import {Engine, LoadingTracker} from './engine';
 
-export const RPC_URL = 'http://127.0.0.1:9001/';
-export const WS_URL = 'ws://127.0.0.1:9001/websocket';
-
 const RPC_CONNECT_TIMEOUT_MS = 2000;
+
+export function getRPC_URL(port: number) {
+  return `http://127.0.0.1:${port}/`;
+}
+
+export function getWS_URL(port: number) {
+  return `ws://127.0.0.1:${port}/websocket`;
+}
 
 export interface HttpRpcState {
   connected: boolean;
@@ -34,20 +39,22 @@ export type HttpRcpEngineCustomizer = (engine: HttpRpcEngine) => unknown;
 
 export class HttpRpcEngine extends Engine {
   readonly id: string;
+  readonly port: number;
   errorHandler: (err: string) => void = () => {};
   closeHandler: (code: number, reason: string) => void = (code, reason) => this.errorHandler(`Websocket closed (${code}: ${reason})`);
   private requestQueue = new Array<Uint8Array>();
   private websocket?: WebSocket;
   private connected = false;
 
-  constructor(id: string, loadingTracker?: LoadingTracker) {
+  constructor(id: string, loadingTracker?: LoadingTracker, port = 9001) {
     super(loadingTracker);
     this.id = id;
+    this.port = port;
   }
 
   rpcSendRequestBytes(data: Uint8Array): void {
     if (this.websocket === undefined) {
-      this.websocket = new WebSocket(WS_URL);
+      this.websocket = new WebSocket(getWS_URL(this.port));
       this.websocket.onopen = () => this.onWebsocketConnected();
       this.websocket.onmessage = (e) => this.onWebsocketMessage(e);
       this.websocket.onclose = (e) =>
@@ -78,15 +85,15 @@ export class HttpRpcEngine extends Engine {
     });
   }
 
-  static async checkConnection(): Promise<HttpRpcState> {
+  static async checkConnection(port: number): Promise<HttpRpcState> {
     const httpRpcState: HttpRpcState = {connected: false};
     console.info(
-        `It's safe to ignore the ERR_CONNECTION_REFUSED on ${RPC_URL} below. ` +
+        `It's safe to ignore the ERR_CONNECTION_REFUSED on ${getRPC_URL(port)} below. ` +
         `That might happen while probing the external native accelerator. The ` +
         `error is non-fatal and unlikely to be the culprit for any UI bug.`);
     try {
       const resp = await fetchWithTimeout(
-          RPC_URL + 'status',
+          getRPC_URL(port) + 'status',
           {method: 'post', cache: 'no-cache'},
           RPC_CONNECT_TIMEOUT_MS);
       if (resp.status !== 200) {

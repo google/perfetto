@@ -347,13 +347,13 @@ export class TraceController extends Controller<States> {
     let engineMode: EngineMode;
     let useRpc = false;
     if (globals.state.newEngineMode === 'USE_HTTP_RPC_IF_AVAILABLE') {
-      useRpc = (await HttpRpcEngine.checkConnection()).connected;
+      useRpc = (await HttpRpcEngine.checkConnection(globals.httpRpcEnginePort)).connected;
     }
     let engine;
     if (useRpc) {
       console.log('Opening trace using native accelerator over HTTP+RPC');
       engineMode = 'HTTP_RPC';
-      engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance);
+      engine = new HttpRpcEngine(this.engineId, LoadingManager.getInstance, globals.httpRpcEnginePort);
       engine.errorHandler = (err) => {
         globals.dispatch(
             Actions.setEngineFailed({mode: 'HTTP_RPC', failure: `${err}`}));

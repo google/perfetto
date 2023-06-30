@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {HttpRpcEngine, RPC_URL} from '../common/http_rpc_engine';
+import {HttpRpcEngine, getRPC_URL} from '../common/http_rpc_engine';
 import {StatusResult} from '../common/protos';
 import {VERSION} from '../gen/perfetto_version';
 import {perfetto} from '../gen/protos';
@@ -27,7 +27,7 @@ import {showModal} from './modal';
 const CURRENT_API_VERSION = perfetto.protos.TraceProcessorApiVersion
                                 .TRACE_PROCESSOR_CURRENT_API_VERSION;
 
-const PROMPT = `Trace Processor Native Accelerator detected on ${RPC_URL} with:
+const PROMPT = `Trace Processor Native Accelerator detected on ${getRPC_URL(globals.httpRpcEnginePort)} with:
 $loadedTraceName
 
 YES, use loaded trace:
@@ -50,7 +50,7 @@ too old. Get the latest version from get.perfetto.dev/trace_processor.
 `;
 
 
-const MSG_TOO_OLD = `The Trace Processor instance on ${RPC_URL} is too old.
+const MSG_TOO_OLD = `The Trace Processor instance on ${getRPC_URL(globals.httpRpcEnginePort)} is too old.
 
 This UI requires TraceProcessor features that are not present in the
 Trace Processor native accelerator you are currently running.
@@ -79,7 +79,7 @@ let forceUseOldVersion = false;
 // consistent UX (i.e. so that the user can tell if the RPC is working without
 // having to open a trace).
 export async function CheckHttpRpcConnection(): Promise<void> {
-  const state = await HttpRpcEngine.checkConnection();
+  const state = await HttpRpcEngine.checkConnection(globals.httpRpcEnginePort);
   globals.frontendLocalState.setHttpRpcState(state);
   if (!state.connected) return;
   const tpStatus = assertExists(state.status);

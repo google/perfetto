@@ -269,6 +269,7 @@ class Globals {
   private _errorHandler: ErrorHandler = maybeShowErrorDialog;
   private _allowFileDrop = true;
   private _httpRpcEngineCustomizer?: HttpRcpEngineCustomizer;
+  private _httpRpcEnginePort = 9001;
   private _promptToLoadFromTraceProcessorShell = true;
   private _trackFilteringEnabled = false;
   private _filteredTracks: AddTrackLikeArgs[] = [];
@@ -665,6 +666,14 @@ class Globals {
 
   set httpRpcEngineCustomizer(httpRpcEngineCustomizer: HttpRcpEngineCustomizer | undefined) {
     this._httpRpcEngineCustomizer = httpRpcEngineCustomizer;
+  }
+
+  get httpRpcEnginePort(): number {
+    return this._httpRpcEnginePort;
+  }
+
+  set httpRpcEnginePort(httpRpcEnginePort: number) {
+    this._httpRpcEnginePort = httpRpcEnginePort;
   }
 
   get promptToLoadFromTraceProcessorShell(): boolean {
