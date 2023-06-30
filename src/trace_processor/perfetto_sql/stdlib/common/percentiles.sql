@@ -92,22 +92,24 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @arg start_ts LONG        Timestamp of start of time range.
 -- @arg end_ts LONG          Timestamp of end of time range.
 -- @ret DOUBLE               Value for the percentile.
-SELECT CREATE_FUNCTION(
-    'COUNTER_TRACK_PERCENTILE_FOR_TIME(counter_track_id INT, percentile INT, start_ts LONG, end_ts LONG)',
-    'DOUBLE',
-    'SELECT value
-    FROM COUNTER_PERCENTILES_FOR_TIME_RANGE($counter_track_id, $start_ts, $end_ts)
-    WHERE percentile = $percentile;'
-);
+CREATE PERFETTO FUNCTION COUNTER_TRACK_PERCENTILE_FOR_TIME(counter_track_id INT,
+                                                          percentile INT,
+                                                          start_ts LONG,
+                                                          end_ts LONG)
+RETURNS DOUBLE AS
+SELECT value
+FROM COUNTER_PERCENTILES_FOR_TIME_RANGE($counter_track_id, $start_ts, $end_ts)
+WHERE percentile = $percentile;
 
 -- Value for specific percentile (range 1-100) for counter track ID.
 --
 -- @arg counter_track_id INT Id of the counter track.
 -- @arg percentile INT       Any of the numbers from 1 to 100.
 -- @ret DOUBLE               Value for the percentile.
-SELECT CREATE_FUNCTION(
-    'COUNTER_TRACK_PERCENTILE(counter_track_id INT, percentile INT)',
-    'DOUBLE',
-    'SELECT COUNTER_TRACK_PERCENTILE_FOR_TIME($counter_track_id, $percentile, TRACE_START(), TRACE_END());'
-);
-
+CREATE PERFETTO FUNCTION COUNTER_TRACK_PERCENTILE(counter_track_id INT,
+                                                  percentile INT)
+RETURNS DOUBLE AS
+SELECT COUNTER_TRACK_PERCENTILE_FOR_TIME($counter_track_id,
+                                         $percentile,
+                                         TRACE_START(),
+                                         TRACE_END());

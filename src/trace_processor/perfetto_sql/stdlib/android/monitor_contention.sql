@@ -18,42 +18,33 @@
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_THREAD(slice_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT($slice_name, "with owner ", 1), " (", 0)
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_THREAD(
+  slice_name STRING
+)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT($slice_name, "with owner ", 1), " (", 0);
 
 -- Extracts the blocking thread tid from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret INT                 Blocking thread tid
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(slice_name STRING)',
-    'INT',
-    '
-    SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT)
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(
+  slice_name STRING
+)
+RETURNS INT AS
+SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT);
 
 -- Extracts the blocking method from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD(slice_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD(
+  slice_name STRING
+)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
     || "("
-    || STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 1)
-  '
-);
+    || STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 1);
 
 -- Extracts a shortened form of the blocking method name from a slice name.
 -- The shortened form discards the parameter and return
@@ -61,30 +52,24 @@ SELECT
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKING_METHOD(
+  slice_name STRING
+)
+RETURNS STRING AS
 SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKING_METHOD(slice_name STRING)',
-    'STRING',
-    '
-    SELECT
-    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD($slice_name), " ", 1), "(", 0)
-  '
-);
+    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD($slice_name), " ", 1), "(", 0);
 
 -- Extracts the monitor contention blocked method from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD(slice_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD(
+  slice_name STRING
+)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
     || "("
-    || STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 1)
-  '
-);
+    || STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 1);
 
 -- Extracts a shortened form of the monitor contention blocked method name
 -- from a slice name. The shortened form discards the parameter and return
@@ -92,57 +77,44 @@ SELECT
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKED_METHOD(
+  slice_name STRING
+)
+RETURNS STRING AS
 SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKED_METHOD(slice_name STRING)',
-    'STRING',
-    '
-    SELECT
-    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD($slice_name), " ", 1), "(", 0)
-  '
-);
+    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD($slice_name), " ", 1), "(", 0);
 
 -- Extracts the number of waiters on the monitor from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret INT                 Count of waiters on the lock
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_WAITER_COUNT(slice_name STRING)',
-    'INT',
-    '
-    SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, "waiters=", 1), " ", 0) AS INT)
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_WAITER_COUNT(
+  slice_name STRING
+)
+RETURNS INT AS
+SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, "waiters=", 1), " ", 0) AS INT);
 
 -- Extracts the monitor contention blocking source location from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_SRC(slice_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 1), ")", 0)
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_SRC(
+  slice_name STRING
+)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 1), ")", 0);
 
 -- Extracts the monitor contention blocked source location from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-SELECT
-  CREATE_FUNCTION(
-    'ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(slice_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0)
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(
+  slice_name STRING
+)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
-CREATE TABLE internal_broken_android_monitor_contention
-AS
+CREATE TABLE internal_broken_android_monitor_contention AS
 SELECT ancestor.parent_id AS id FROM slice
     JOIN slice ancestor ON ancestor.id = slice.parent_id
     WHERE ancestor.name GLOB 'Lock contention on a monitor lock*'
