@@ -39,7 +39,7 @@ cc_test {
   ],
   test_suites: [
     "cts",
-    "mts",
+    "mts-art",
     "vts10",
     "general-tests",
   ],
