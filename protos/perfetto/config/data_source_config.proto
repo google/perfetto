@@ -24,6 +24,7 @@ import "protos/perfetto/config/android/android_polled_state_config.proto";
 import "protos/perfetto/config/android/android_system_property_config.proto";
 import "protos/perfetto/config/android/network_trace_config.proto";
 import "protos/perfetto/config/android/packages_list_config.proto";
+import "protos/perfetto/config/android/surfaceflinger_layers_config.proto";
 import "protos/perfetto/config/chrome/chrome_config.proto";
 import "protos/perfetto/config/ftrace/ftrace_config.proto";
 import "protos/perfetto/config/gpu/gpu_counter_config.proto";
@@ -163,6 +164,10 @@ message DataSourceConfig {
   // Data source name: android.network_packets.
   // Introduced in Android 14 (U).
   optional NetworkPacketTraceConfig network_packet_trace_config = 120
+      [lazy = true];
+
+  // Data source name: android.surfaceflinger.layers
+  optional SurfaceFlingerLayersConfig surfaceflinger_layers_config = 121
       [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
