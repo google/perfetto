@@ -60,11 +60,11 @@ SELECT CREATE_FUNCTION(
             $track = "battery_stats.wifi_signal_strength")
         THEN
           CASE $value
-            WHEN 0 THEN "none"
-            WHEN 1 THEN "poor"
-            WHEN 2 THEN "moderate"
-            WHEN 3 THEN "good"
-            WHEN 4 THEN "great"
+            WHEN 0 THEN "0/4"
+            WHEN 1 THEN "1/4"
+            WHEN 2 THEN "2/4"
+            WHEN 3 THEN "3/4"
+            WHEN 4 THEN "4/4"
             ELSE "unknown"
           END
       WHEN $track = "battery_stats.wifi_suppl"
