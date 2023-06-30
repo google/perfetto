@@ -344,7 +344,7 @@ class Globals {
     state = assertExists(state);
     let readyStateSet = state.engine?.ready && !this._state?.engine?.ready;
     this._state = assertExists(state);
-    if(readyStateSet){
+    if (readyStateSet) {
       this.emitter.emit('ready');
     }
   }
