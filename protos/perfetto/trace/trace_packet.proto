@@ -29,6 +29,8 @@ import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
+import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
+import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
@@ -94,7 +96,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 93.
+// Next id: 95.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -209,6 +211,10 @@ message TracePacket {
     // The "range of interest" for track events. See the message definition
     // comments for more details.
     TrackEventRangeOfInterest track_event_range_of_interest = 90;
+
+    // Winscope traces
+    LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
+    TransactionTraceEntry surfaceflinger_transactions = 94;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
