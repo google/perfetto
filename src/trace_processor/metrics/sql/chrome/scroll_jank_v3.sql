@@ -29,17 +29,40 @@ SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
 -- respective scroll ids and start/end timestamps.
 DROP VIEW IF EXISTS chrome_presented_gesture_scrolls;
 CREATE VIEW chrome_presented_gesture_scrolls AS
+WITH
+  chrome_gesture_scrolls AS (
+    SELECT
+      ts AS start_ts,
+      ts + dur AS end_ts,
+      id,
+      -- TODO(b/250089570) Add trace_id to EventLatency and update this script to use it.
+      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS scroll_update_id,
+      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id,
+      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.is_coalesced') AS is_coalesced
+    FROM slice
+    WHERE name = "InputLatency::GestureScrollUpdate"
+          AND dur != -1),
+  updates_with_coalesce_info AS (
+    SELECT
+      chrome_updates.*,
+      (
+        SELECT
+          MAX(id)
+        FROM chrome_gesture_scrolls updates
+        WHERE updates.is_coalesced = false
+          AND updates.start_ts <= chrome_updates.start_ts) AS coalesced_inside_id
+        FROM
+          chrome_gesture_scrolls chrome_updates)
 SELECT
-  ts AS start_ts,
-  ts + dur AS end_ts,
-  id,
-  -- TODO(b/250089570) Add trace_id to EventLatency and update this script to use it.
-  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS scroll_update_id,
-  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id
-FROM slice
-WHERE name = "InputLatency::GestureScrollUpdate"
-      AND EXTRACT_ARG(arg_set_id, 'chrome_latency_info.is_coalesced') = FALSE
-      AND dur != -1;
+  MIN(id) AS id,
+  MIN(start_ts) AS start_ts,
+  MAX(end_ts) AS end_ts,
+  MAX(start_ts) AS last_coalesced_input_ts,
+  scroll_update_id,
+  MIN(scroll_id) AS scroll_id
+FROM updates_with_coalesce_info
+GROUP BY coalesced_inside_id;
+
 
 
 -- Associate every trace_id with it's perceived delta_y on the screen after
@@ -82,6 +105,7 @@ CREATE VIEW chrome_full_frame_view AS
 SELECT
   frames.id,
   frames.start_ts,
+  frames.last_coalesced_input_ts,
   frames.scroll_id,
   frames.scroll_update_id,
   events.event_latency_id,
@@ -99,6 +123,7 @@ SELECT
   frames.start_ts,
   frames.scroll_id,
   frames.scroll_update_id,
+  frames.last_coalesced_input_ts,
   deltas.delta_y,
   frames.event_latency_id,
   frames.dur,
@@ -125,7 +150,7 @@ DROP VIEW IF EXISTS chrome_merged_frame_view_with_jank;
 CREATE VIEW chrome_merged_frame_view_with_jank AS
 SELECT
   id,
-  MAX(start_ts) AS max_start_ts,
+  MAX(last_coalesced_input_ts) AS max_start_ts,
   MIN(start_ts) AS min_start_ts,
   scroll_id,
   scroll_update_id,
