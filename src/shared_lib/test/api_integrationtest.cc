@@ -191,7 +191,7 @@ class SharedLibDataSourceTest : public testing::Test {
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoDsRegister(&data_source_1, kDataSourceName1,
-                       PerfettoDsNoCallbacks());
+                       PerfettoDsParamsDefault());
     RegisterDataSource2();
   }
 
@@ -211,36 +211,36 @@ class SharedLibDataSourceTest : public testing::Test {
   };
 
   void RegisterDataSource2() {
-    static struct PerfettoDsCallbacks callbacks = {};
-    callbacks.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* ds_config,
-                               size_t ds_config_size, void* user_arg) -> void* {
+    struct PerfettoDsParams params = PerfettoDsParamsDefault();
+    params.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* ds_config,
+                            size_t ds_config_size, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnSetup(ds_impl, inst_id, ds_config,
                                           ds_config_size, thiz->ds2_user_arg_);
     };
-    callbacks.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* user_arg,
-                               void* inst_ctx) -> void {
+    params.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* user_arg,
+                            void* inst_ctx) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
                                           inst_ctx);
     };
-    callbacks.on_stop_cb =
+    params.on_stop_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnStop(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
-    callbacks.on_flush_cb =
+    params.on_flush_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
-    callbacks.on_create_tls_cb =
+    params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -250,12 +250,12 @@ class SharedLibDataSourceTest : public testing::Test {
                                                        thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_tls_cb = [](void* ptr) {
+    params.on_delete_tls_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteTls(state->actual);
       delete state;
     };
-    callbacks.on_create_incr_cb =
+    params.on_create_incr_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -265,13 +265,13 @@ class SharedLibDataSourceTest : public testing::Test {
           ds_impl, inst_id, tracer, thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_incr_cb = [](void* ptr) {
+    params.on_delete_incr_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteIncr(state->actual);
       delete state;
     };
-    callbacks.user_arg = this;
-    PerfettoDsRegister(&data_source_2, kDataSourceName2, callbacks);
+    params.user_arg = this;
+    PerfettoDsRegister(&data_source_2, kDataSourceName2, params);
   }
 
   void* Ds2ActualCustomState(void* ptr) {
