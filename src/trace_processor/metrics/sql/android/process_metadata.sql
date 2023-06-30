@@ -56,13 +56,9 @@ FROM process_metadata_table
 LEFT JOIN upid_packages USING (upid);
 
 -- Given a process name, return if it is debuggable.
-SELECT CREATE_FUNCTION(
-  'IS_PROCESS_DEBUGGABLE(process_name STRING)',
-  'BOOL',
-  '
-    SELECT p.debuggable
-    FROM process_metadata_table p
-    WHERE p.process_name = $process_name
-    LIMIT 1
-  '
-);
+CREATE PERFETTO FUNCTION IS_PROCESS_DEBUGGABLE(process_name STRING)
+RETURNS BOOL AS
+SELECT p.debuggable
+FROM process_metadata_table p
+WHERE p.process_name = $process_name
+LIMIT 1;

@@ -20,104 +20,99 @@ SELECT IMPORT('common.timestamps');
 -- @arg track STRING  The counter track name (e.g. 'battery_stats.audio').
 -- @arg value FLOAT   The counter value.
 -- @ret STRING        The human-readable name for the counter value.
-SELECT CREATE_FUNCTION(
-  'ANDROID_BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)',
-  'STRING',
-  '
-  SELECT
-    CASE
-      WHEN ($track = "battery_stats.wifi_scan" OR
-            $track = "battery_stats.wifi_radio" OR
-            $track = "battery_stats.mobile_radio" OR
-            $track = "battery_stats.audio" OR
-            $track = "battery_stats.video" OR
-            $track = "battery_stats.camera" OR
-            $track = "battery_stats.power_save" OR
-            $track = "battery_stats.phone_in_call")
-        THEN
-          CASE $value
-            WHEN 0 THEN "inactive"
-            WHEN 1 THEN "active"
-            ELSE "unknown"
-          END
-      WHEN $track = "battery_stats.wifi"
-        THEN
-          CASE $value
-            WHEN 0 THEN "off"
-            WHEN 1 THEN "on"
-            ELSE "unknown"
-          END
-      WHEN $track = "battery_stats.phone_state"
-        THEN
-          CASE $value
-            WHEN 0 THEN "in"
-            WHEN 1 THEN "out"
-            WHEN 2 THEN "emergency"
-            WHEN 3 THEN "off"
-            ELSE "unknown"
-          END
-      WHEN ($track = "battery_stats.phone_signal_strength" OR
-            $track = "battery_stats.wifi_signal_strength")
-        THEN
-          CASE $value
-            WHEN 0 THEN "0/4"
-            WHEN 1 THEN "1/4"
-            WHEN 2 THEN "2/4"
-            WHEN 3 THEN "3/4"
-            WHEN 4 THEN "4/4"
-            ELSE "unknown"
-          END
-      WHEN $track = "battery_stats.wifi_suppl"
-        THEN
-          CASE $value
-            WHEN 0 THEN "invalid"
-            WHEN 1 THEN "disconnected"
-            WHEN 2 THEN "disabled"
-            WHEN 3 THEN "inactive"
-            WHEN 4 THEN "scanning"
-            WHEN 5 THEN "authenticating"
-            WHEN 6 THEN "associating"
-            WHEN 7 THEN "associated"
-            WHEN 8 THEN "4-way-handshake"
-            WHEN 9 THEN "group-handshake"
-            WHEN 10 THEN "completed"
-            WHEN 11 THEN "dormant"
-            WHEN 12 THEN "uninitialized"
-            ELSE "unknown"
-          END
-      WHEN $track = "battery_stats.data_conn"
-        THEN
-          CASE $value
-            WHEN 0 THEN "Out of service"
-            WHEN 1 THEN "2.5G (GPRS)"
-            WHEN 2 THEN "2.7G (EDGE)"
-            WHEN 3 THEN "3G (UMTS)"
-            WHEN 4 THEN "3G (CDMA)"
-            WHEN 5 THEN "3G (EVDO Rel 0)"
-            WHEN 6 THEN "3G (EVDO Rev A)"
-            WHEN 7 THEN "3G (LXRTT)"
-            WHEN 8 THEN "3.5G (HSDPA)"
-            WHEN 9 THEN "3.5G (HSUPA)"
-            WHEN 10 THEN "3.5G (HSPA)"
-            WHEN 11 THEN "2G (IDEN)"
-            WHEN 12 THEN "3G (EVDO Rev B)"
-            WHEN 13 THEN "4G (LTE)"
-            WHEN 14 THEN "3.5G (eHRPD)"
-            WHEN 15 THEN "3.7G (HSPA+)"
-            WHEN 16 THEN "2G (GSM)"
-            WHEN 17 THEN "3G (TD SCDMA)"
-            WHEN 18 THEN "Wifi calling (IWLAN)"
-            WHEN 19 THEN "4.5G (LTE CA)"
-            WHEN 20 THEN "5G (NR)"
-            WHEN 21 THEN "Emergency calls only"
-            WHEN 22 THEN "Other"
-            ELSE "unknown"
-          END
-      ELSE CAST($value AS text)
-    END
-  '
-);
-
+CREATE PERFETTO FUNCTION ANDROID_BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN ($track = "battery_stats.wifi_scan" OR
+          $track = "battery_stats.wifi_radio" OR
+          $track = "battery_stats.mobile_radio" OR
+          $track = "battery_stats.audio" OR
+          $track = "battery_stats.video" OR
+          $track = "battery_stats.camera" OR
+          $track = "battery_stats.power_save" OR
+          $track = "battery_stats.phone_in_call")
+      THEN
+        CASE $value
+          WHEN 0 THEN "inactive"
+          WHEN 1 THEN "active"
+          ELSE "unknown"
+        END
+    WHEN $track = "battery_stats.wifi"
+      THEN
+        CASE $value
+          WHEN 0 THEN "off"
+          WHEN 1 THEN "on"
+          ELSE "unknown"
+        END
+    WHEN $track = "battery_stats.phone_state"
+      THEN
+        CASE $value
+          WHEN 0 THEN "in"
+          WHEN 1 THEN "out"
+          WHEN 2 THEN "emergency"
+          WHEN 3 THEN "off"
+          ELSE "unknown"
+        END
+    WHEN ($track = "battery_stats.phone_signal_strength" OR
+          $track = "battery_stats.wifi_signal_strength")
+      THEN
+        CASE $value
+          WHEN 0 THEN "0/4"
+          WHEN 1 THEN "1/4"
+          WHEN 2 THEN "2/4"
+          WHEN 3 THEN "3/4"
+          WHEN 4 THEN "4/4"
+          ELSE "unknown"
+        END
+    WHEN $track = "battery_stats.wifi_suppl"
+      THEN
+        CASE $value
+          WHEN 0 THEN "invalid"
+          WHEN 1 THEN "disconnected"
+          WHEN 2 THEN "disabled"
+          WHEN 3 THEN "inactive"
+          WHEN 4 THEN "scanning"
+          WHEN 5 THEN "authenticating"
+          WHEN 6 THEN "associating"
+          WHEN 7 THEN "associated"
+          WHEN 8 THEN "4-way-handshake"
+          WHEN 9 THEN "group-handshake"
+          WHEN 10 THEN "completed"
+          WHEN 11 THEN "dormant"
+          WHEN 12 THEN "uninitialized"
+          ELSE "unknown"
+        END
+    WHEN $track = "battery_stats.data_conn"
+      THEN
+        CASE $value
+          WHEN 0 THEN "Out of service"
+          WHEN 1 THEN "2.5G (GPRS)"
+          WHEN 2 THEN "2.7G (EDGE)"
+          WHEN 3 THEN "3G (UMTS)"
+          WHEN 4 THEN "3G (CDMA)"
+          WHEN 5 THEN "3G (EVDO Rel 0)"
+          WHEN 6 THEN "3G (EVDO Rev A)"
+          WHEN 7 THEN "3G (LXRTT)"
+          WHEN 8 THEN "3.5G (HSDPA)"
+          WHEN 9 THEN "3.5G (HSUPA)"
+          WHEN 10 THEN "3.5G (HSPA)"
+          WHEN 11 THEN "2G (IDEN)"
+          WHEN 12 THEN "3G (EVDO Rev B)"
+          WHEN 13 THEN "4G (LTE)"
+          WHEN 14 THEN "3.5G (eHRPD)"
+          WHEN 15 THEN "3.7G (HSPA+)"
+          WHEN 16 THEN "2G (GSM)"
+          WHEN 17 THEN "3G (TD SCDMA)"
+          WHEN 18 THEN "Wifi calling (IWLAN)"
+          WHEN 19 THEN "4.5G (LTE CA)"
+          WHEN 20 THEN "5G (NR)"
+          WHEN 21 THEN "Emergency calls only"
+          WHEN 22 THEN "Other"
+          ELSE "unknown"
+        END
+    ELSE CAST($value AS text)
+  END;
 
 -- View of human readable battery stats counter-based states. These are recorded
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
