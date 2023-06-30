@@ -1295,9 +1295,9 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
                      DataSourceInstanceID>::value,
         "data_source_instance_id type mismatch");
     internal_state->muxer_id_for_testing = muxer_id_for_testing_;
+    RegisteredProducerBackend& backend = *FindProducerBackendById(backend_id);
 
     if (startup_session_id) {
-      RegisteredProducerBackend& backend = *FindProducerBackendById(backend_id);
       uint16_t& last_reservation =
           backend.producer->last_startup_target_buffer_reservation_;
       if (last_reservation == std::numeric_limits<uint16_t>::max()) {
@@ -1349,6 +1349,7 @@ TracingMuxerImpl::FindDataSourceRes TracingMuxerImpl::SetupDataSourceImpl(
 
     DataSourceBase::SetupArgs setup_args;
     setup_args.config = &cfg;
+    setup_args.backend_type = backend.type;
     setup_args.internal_instance_index = i;
 
     if (!rds.requires_callbacks_under_lock)
