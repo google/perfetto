@@ -17,9 +17,6 @@
 --
 -- @arg name STRING The name of the metadata entry.
 -- @ret LONG int_value for the given name. NULL if there's no such entry.
-SELECT
-    CREATE_FUNCTION(
-        'EXTRACT_INT_METADATA(name STRING)',
-        'LONG',
-        'SELECT int_value FROM metadata WHERE name = ($name)'
-    );
+CREATE PERFETTO FUNCTION EXTRACT_INT_METADATA(name STRING)
+RETURNS LONG AS
+SELECT int_value FROM metadata WHERE name = ($name);
