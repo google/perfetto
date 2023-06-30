@@ -191,10 +191,10 @@ FROM (
          dur,
          value_name AS slice_name,
          CASE track_name
-         WHEN 'battery_stats.mobile_radio' THEN 'Cellular radio'
+         WHEN 'battery_stats.mobile_radio' THEN 'Cellular interface'
          WHEN 'battery_stats.data_conn' THEN 'Cellular connection'
          WHEN 'battery_stats.phone_signal_strength' THEN 'Cellular strength'
-         WHEN 'battery_stats.wifi_radio' THEN 'WiFi radio'
+         WHEN 'battery_stats.wifi_radio' THEN 'WiFi interface'
          WHEN 'battery_stats.wifi_suppl' THEN 'Wifi supplicant state'
          WHEN 'battery_stats.wifi_signal_strength' THEN 'WiFi strength'
          ELSE NULL
