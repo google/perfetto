@@ -24,5 +24,6 @@ perfetto_proto_library("@TYPE@") {
     "android_system_property_config.proto",
     "network_trace_config.proto",
     "packages_list_config.proto",
+    "surfaceflinger_layers_config.proto",
   ]
 }
