@@ -93,6 +93,9 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
     // be retained.
     const DataSourceConfig* config = nullptr;
 
+    // Backend type.
+    BackendType backend_type = kUnspecifiedBackend;
+
     // The index of this data source instance (0..kMaxDataSourceInstances - 1).
     uint32_t internal_instance_index = 0;
   };
