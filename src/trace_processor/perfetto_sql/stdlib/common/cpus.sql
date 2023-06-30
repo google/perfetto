@@ -47,14 +47,10 @@ WINDOW win AS (ORDER BY maxfreq);
 --
 -- @arg cpu_index INT   Index of the CPU whose size we will guess.
 -- @ret STRING          A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
-SELECT CREATE_FUNCTION(
-  'GUESS_CPU_SIZE(cpu_index INT)',
-  'STRING',
-  '
-  SELECT
-    IIF((SELECT COUNT(DISTINCT n) FROM internal_ranked_cpus) >= 2, size, null) as size
-  FROM internal_ranked_cpus
-  LEFT JOIN internal_cpu_sizes USING(n)
-  WHERE cpu = $cpu_index;
-  '
-);
+CREATE PERFETTO FUNCTION GUESS_CPU_SIZE(cpu_index INT)
+RETURNS STRING AS
+SELECT
+  IIF((SELECT COUNT(DISTINCT n) FROM internal_ranked_cpus) >= 2, size, null) as size
+FROM internal_ranked_cpus
+LEFT JOIN internal_cpu_sizes USING(n)
+WHERE cpu = $cpu_index;

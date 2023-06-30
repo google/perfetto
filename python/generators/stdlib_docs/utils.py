@@ -22,34 +22,34 @@ ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
 TYPE = r'[A-Z]+'
 SQL = r'[\s\S]*?'
+WS = r'\s*'
 
 CREATE_TABLE_VIEW_PATTERN = (
     # Match create table/view and catch type
-    r'CREATE (?:VIRTUAL )?(TABLE|VIEW)?(?:IF NOT EXISTS)?\s*'
+    fr'CREATE{WS}(?:VIRTUAL )?{WS}(TABLE|VIEW){WS}(?:IF NOT EXISTS)?{WS}'
     # Catch the name
-    fr'({LOWER_NAME})\s*(?:AS|USING)?.*')
+    fr'{WS}({LOWER_NAME}){WS}(?:AS|USING)?{WS}.*')
 
 CREATE_FUNCTION_PATTERN = (
-    r"SELECT\s*CREATE_FUNCTION\(\s*"
     # Function name: we are matching everything [A-Z]* between ' and ).
-    fr"'\s*({UPPER_NAME})\s*\("
-    # Args: anything before closing bracket with '.
-    fr"({ANY_WORDS})\)',\s*"
+    fr"CREATE{WS}PERFETTO{WS}FUNCTION{WS}({UPPER_NAME}){WS}"
+    # Args: anything before closing bracket.
+    fr"{WS}\({WS}({ANY_WORDS}){WS}\){WS}"
     # Type: [A-Z]* between two '.
-    fr"'({TYPE})',\s*"
+    fr"{WS}RETURNS{WS}({TYPE}){WS}AS{WS}"
     # Sql: Anything between ' and ');. We are catching \'.
-    fr"'({SQL})'\s*\);")
+    fr"{WS}({SQL});")
 
 CREATE_VIEW_FUNCTION_PATTERN = (
-    r"SELECT\s*CREATE_VIEW_FUNCTION\(\s*"
+    fr"SELECT{WS}CREATE_VIEW_FUNCTION\({WS}"
     # Function name: we are matching everything [A-Z]* between ' and ).
-    fr"'({UPPER_NAME})\s*\("
+    fr"{WS}'{WS}({UPPER_NAME}){WS}\({WS}"
     # Args: anything before closing bracket with '.
-    fr"({ANY_WORDS})\)',\s*"
+    fr"{WS}({ANY_WORDS}){WS}\){WS}'{WS},{WS}"
     # Return columns: anything between two '.
-    fr"'\s*({ANY_NON_QUOTE})\s*',\s*"
+    fr"'{WS}({ANY_NON_QUOTE}){WS}',{WS}"
     # Sql: Anything between ' and ');. We are catching \'.
-    fr"'({SQL})'\s*\);")
+    fr"{WS}'{WS}({SQL}){WS}'{WS}\){WS};")
 
 
 class ObjKind(str, Enum):

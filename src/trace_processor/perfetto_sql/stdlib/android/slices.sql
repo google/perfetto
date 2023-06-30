@@ -23,23 +23,20 @@
 --
 -- @arg name STRING   Raw name of the slice
 -- @ret STRING        Simplified name.
-SELECT CREATE_FUNCTION(
-    'ANDROID_STANDARDIZE_SLICE_NAME(name STRING)',
-    'STRING',
-    '
-    SELECT
-        CASE
-        WHEN $name GLOB "Lock contention on*" THEN "Lock contention on <...>"
-        WHEN $name GLOB "monitor contention with*" THEN "monitor contention with <...>"
-        WHEN $name GLOB "SuspendThreadByThreadId*" THEN "SuspendThreadByThreadId <...>"
-        WHEN $name GLOB "LoadApkAssetsFd*" THEN "LoadApkAssetsFd <...>"
-        WHEN $name GLOB "relayoutWindow*" THEN "relayoutWindow <...>"
-        WHEN $name GLOB "*CancellableContinuationImpl*" THEN "CoroutineContinuation"
-        WHEN $name GLOB "Choreographer#doFrame*" THEN "Choreographer#doFrame"
-        WHEN $name GLOB "DrawFrames*" THEN "DrawFrames"
-        WHEN $name GLOB "/data/app*.apk" THEN "APK load"
-        WHEN $name GLOB "OpenDexFilesFromOat*" THEN "OpenDexFilesFromOat"
-        WHEN $name GLOB "Open oat file*" THEN "Open oat file"
-        ELSE $name
-        END
-');
+CREATE PERFETTO FUNCTION ANDROID_STANDARDIZE_SLICE_NAME(name STRING)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN $name GLOB "Lock contention on*" THEN "Lock contention on <...>"
+    WHEN $name GLOB "monitor contention with*" THEN "monitor contention with <...>"
+    WHEN $name GLOB "SuspendThreadByThreadId*" THEN "SuspendThreadByThreadId <...>"
+    WHEN $name GLOB "LoadApkAssetsFd*" THEN "LoadApkAssetsFd <...>"
+    WHEN $name GLOB "relayoutWindow*" THEN "relayoutWindow <...>"
+    WHEN $name GLOB "*CancellableContinuationImpl*" THEN "CoroutineContinuation"
+    WHEN $name GLOB "Choreographer#doFrame*" THEN "Choreographer#doFrame"
+    WHEN $name GLOB "DrawFrames*" THEN "DrawFrames"
+    WHEN $name GLOB "/data/app*.apk" THEN "APK load"
+    WHEN $name GLOB "OpenDexFilesFromOat*" THEN "OpenDexFilesFromOat"
+    WHEN $name GLOB "Open oat file*" THEN "Open oat file"
+    ELSE $name
+  END;
