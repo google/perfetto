@@ -10,6 +10,16 @@ java_library_host {
     ],
 }
 
+java_library {
+    name: "perfetto_config-lite",
+    proto: {
+        type: "lite",
+    },
+    srcs: [
+        "protos/perfetto/config/perfetto_config.proto",
+    ],
+}
+
 java_library_host {
     name: "perfetto_trace-full",
     proto: {
