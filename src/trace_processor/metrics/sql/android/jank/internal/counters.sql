@@ -36,20 +36,19 @@ SELECT
 FROM counter
 JOIN cuj_counter_track ON counter.track_id = cuj_counter_track.track_id;
 
-SELECT CREATE_FUNCTION(
-  'ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name STRING, counter_name STRING, ts_min INT, ts_max INT)',
-  'INT',
-  '
-  SELECT value
-  FROM android_jank_cuj_counter
-  WHERE
-    cuj_name = $cuj_name
-    AND counter_name = $counter_name
-    AND ts >= $ts_min
-    AND ($ts_max IS NULL OR ts <= $ts_max)
-  ORDER BY ts ASC LIMIT 1
-  '
-);
+CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name STRING,
+                                                        counter_name STRING,
+                                                        ts_min INT,
+                                                        ts_max INT)
+RETURNS INT AS
+SELECT value
+FROM android_jank_cuj_counter
+WHERE
+  cuj_name = $cuj_name
+  AND counter_name = $counter_name
+  AND ts >= $ts_min
+  AND ($ts_max IS NULL OR ts <= $ts_max)
+ORDER BY ts ASC LIMIT 1;
 
 DROP TABLE IF EXISTS cuj_marker_missed_callback;
 CREATE TABLE cuj_marker_missed_callback AS
@@ -61,19 +60,21 @@ FROM slice marker
 JOIN track marker_track on  marker_track.id = marker.track_id
 WHERE marker.name GLOB '*FT#Missed*';
 
-SELECT CREATE_FUNCTION(
-   'ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name STRING, ts_min INT, ts_max INT, callback_missed STRING)',
-   'INT',
-   '
-   SELECT IFNULL(SUM(marker_name GLOB $callback_missed), 0)
-   FROM cuj_marker_missed_callback
-   WHERE
-     cuj_slice_name = $cuj_slice_name
-     AND ts >= $ts_min
-     AND ($ts_max IS NULL OR ts <= $ts_max)
-   ORDER BY ts ASC LIMIT 1
-   '
-);
+CREATE PERFETTO FUNCTION ANDROID_MISSED_VSYNCS_FOR_CALLBACK(
+  cuj_slice_name STRING,
+  ts_min INT,
+  ts_max INT,
+  callback_missed STRING
+)
+RETURNS INT AS
+SELECT IFNULL(SUM(marker_name GLOB $callback_missed), 0)
+FROM cuj_marker_missed_callback
+WHERE
+  cuj_slice_name = $cuj_slice_name
+  AND ts >= $ts_min
+  AND ($ts_max IS NULL OR ts <= $ts_max)
+ORDER BY ts ASC
+LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
 CREATE TABLE android_jank_cuj_counter_metrics AS

@@ -45,43 +45,41 @@ FROM slice JOIN event_latency
   ON slice.parent_id = event_latency.slice_id;
 
 -- The function takes a breakdown name and checks if the breakdown name is known or not.
-SELECT CREATE_FUNCTION(
-  'InvalidNameOrNull(name STRING)',
-  -- Returns the input breakdown name if it's an unknown breakdown, NULL otherwise.
-  'STRING',
-  'SELECT
-    CASE
-      WHEN
-      $name not in (
-        "GenerationToBrowserMain", "GenerationToRendererCompositor",
-        "BrowserMainToRendererCompositor", "RendererCompositorQueueingDelay",
-        "RendererCompositorToMain", "RendererCompositorProcessing",
-        "RendererMainProcessing", "EndActivateToSubmitCompositorFrame",
-        "SubmitCompositorFrameToPresentationCompositorFrame",
-        "ArrivedInRendererCompositorToTermination",
-        "RendererCompositorStartedToTermination",
-        "RendererMainFinishedToTermination",
-        "RendererCompositorFinishedToTermination",
-        "RendererMainStartedToTermination",
-        "RendererCompositorFinishedToBeginImplFrame",
-        "RendererCompositorFinishedToCommit",
-        "RendererCompositorFinishedToEndCommit",
-        "RendererCompositorFinishedToActivation",
-        "RendererCompositorFinishedToEndActivate", 
-        "RendererCompositorFinishedToSubmitCompositorFrame",
-        "RendererMainFinishedToBeginImplFrame",
-        "RendererMainFinishedToSendBeginMainFrame",
-        "RendererMainFinishedToCommit", "RendererMainFinishedToEndCommit",
-        "RendererMainFinishedToActivation", "RendererMainFinishedToEndActivate",
-        "RendererMainFinishedToSubmitCompositorFrame",
-        "BeginImplFrameToSendBeginMainFrame",
-        "RendererCompositorFinishedToSendBeginMainFrame",
-        "SendBeginMainFrameToCommit", "Commit",
-        "EndCommitToActivation", "Activation")
-        THEN $name
-      ELSE NULL
-    END'
-);
+-- Returns the input breakdown name if it's an unknown breakdown, NULL otherwise.
+CREATE PERFETTO FUNCTION InvalidNameOrNull(name STRING)
+RETURNS STRING AS
+SELECT
+  CASE
+    WHEN
+    $name not in (
+      "GenerationToBrowserMain", "GenerationToRendererCompositor",
+      "BrowserMainToRendererCompositor", "RendererCompositorQueueingDelay",
+      "RendererCompositorToMain", "RendererCompositorProcessing",
+      "RendererMainProcessing", "EndActivateToSubmitCompositorFrame",
+      "SubmitCompositorFrameToPresentationCompositorFrame",
+      "ArrivedInRendererCompositorToTermination",
+      "RendererCompositorStartedToTermination",
+      "RendererMainFinishedToTermination",
+      "RendererCompositorFinishedToTermination",
+      "RendererMainStartedToTermination",
+      "RendererCompositorFinishedToBeginImplFrame",
+      "RendererCompositorFinishedToCommit",
+      "RendererCompositorFinishedToEndCommit",
+      "RendererCompositorFinishedToActivation",
+      "RendererCompositorFinishedToEndActivate",
+      "RendererCompositorFinishedToSubmitCompositorFrame",
+      "RendererMainFinishedToBeginImplFrame",
+      "RendererMainFinishedToSendBeginMainFrame",
+      "RendererMainFinishedToCommit", "RendererMainFinishedToEndCommit",
+      "RendererMainFinishedToActivation", "RendererMainFinishedToEndActivate",
+      "RendererMainFinishedToSubmitCompositorFrame",
+      "BeginImplFrameToSendBeginMainFrame",
+      "RendererCompositorFinishedToSendBeginMainFrame",
+      "SendBeginMainFrameToCommit", "Commit",
+      "EndCommitToActivation", "Activation")
+      THEN $name
+    ELSE NULL
+  END;
 
 -- Creates a view where each row contains information about one EventLatency event. Columns are duration of breakdowns.
 -- In the result it will be something like this:

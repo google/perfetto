@@ -55,15 +55,11 @@ GROUP BY 1, 2;
 
 -- Given a launch id and core type, returns the number of mcycles consumed
 -- on CPUs of that core type during the launch.
-SELECT CREATE_FUNCTION(
-  'MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(startup_id INT, core_type STRING)',
-  'INT',
-  '
-    SELECT mcycles
-    FROM mcycles_per_core_type_per_launch m
-    WHERE m.startup_id = $startup_id AND m.core_type = $core_type
-  '
-);
+CREATE PERFETTO FUNCTION MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(startup_id INT, core_type STRING)
+RETURNS INT AS
+SELECT mcycles
+FROM mcycles_per_core_type_per_launch m
+WHERE m.startup_id = $startup_id AND m.core_type = $core_type;
 
 -- Contains the process using the most mcycles during the launch
 -- *excluding the process being started*.
@@ -97,30 +93,23 @@ WHERE mcycles_rank <= 5;
 
 -- Given a launch id, returns the name of the processes consuming the most
 -- mcycles during the launch excluding the process being started.
-SELECT CREATE_FUNCTION(
-  'N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(startup_id INT)',
-  'STRING',
-  '
-    SELECT RepeatedField(process_name)
-    FROM (
-      SELECT IFNULL(process.name, "[NULL]") AS process_name
-      FROM top_mcyles_process_excluding_started_per_launch
-      JOIN process USING (upid)
-      WHERE startup_id = $startup_id
-      ORDER BY mcycles DESC
-    );
-  '
+CREATE PERFETTO FUNCTION N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(startup_id INT)
+RETURNS STRING AS
+SELECT RepeatedField(process_name)
+FROM (
+  SELECT IFNULL(process.name, "[NULL]") AS process_name
+  FROM top_mcyles_process_excluding_started_per_launch
+  JOIN process USING (upid)
+  WHERE startup_id = $startup_id
+  ORDER BY mcycles DESC
 );
 
 -- Given a launch id, returns the most active process name.
-SELECT CREATE_FUNCTION(
-  'MOST_ACTIVE_PROCESS_FOR_LAUNCH(startup_id INT)',
-  'STRING',
-  '
-    SELECT process.name AS process_name
-    FROM top_mcyles_process_excluding_started_per_launch
-    JOIN process USING (upid)
-    WHERE startup_id = $startup_id
-    ORDER BY mcycles DESC LIMIT 1;
-  '
-);
+CREATE PERFETTO FUNCTION MOST_ACTIVE_PROCESS_FOR_LAUNCH(startup_id INT)
+RETURNS STRING AS
+SELECT process.name AS process_name
+FROM top_mcyles_process_excluding_started_per_launch
+JOIN process USING (upid)
+WHERE startup_id = $startup_id
+ORDER BY mcycles DESC
+LIMIT 1;

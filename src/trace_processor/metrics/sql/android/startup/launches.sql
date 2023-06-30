@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- This metric will be deprecated soon. All of the tables have been 
+-- This metric will be deprecated soon. All of the tables have been
 -- migrated to SQL standard library and can be imported from:
 SELECT IMPORT('android.startup.startups');
 
