@@ -624,6 +624,9 @@ export interface State {
   // Pending deeplink which will happen when we first finish opening a
   // trace.
   pendingDeeplink?: PendingDeeplinkState;
+
+  // Individual plugin states
+  plugins: {[key: string]: any};
 }
 
 export const defaultTraceTime = {

@@ -36,8 +36,7 @@ from __future__ import print_function
 
 import os
 import argparse
-import subprocess
-import sys
+import re
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
@@ -45,7 +44,8 @@ PLUGINS_PATH = os.path.join(UI_SRC_DIR, 'common', 'plugins')
 
 
 def to_camel_case(s):
-  first, *rest = s.split('_')
+  # Split string on periods and underscores
+  first, *rest = re.split(r'\.|\_', s)
   return first + ''.join(x.title() for x in rest)
 
 
@@ -70,7 +70,7 @@ def gen_imports(input_dir, output_path):
   import_text = '\n'.join(imports)
   registration_text = '\n'.join(registrations)
 
-  expected = f"{header}\n\n{import_text}\n\n{registration_text}"
+  expected = f"{header}\n\n{import_text}\n\n{registration_text}\n"
 
   with open(output_path, 'w') as f:
     f.write(expected)

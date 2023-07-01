@@ -237,6 +237,7 @@ async function main() {
     scanDir('buildtools/typefaces');
     scanDir('buildtools/catapult_trace_viewer');
     generateImports('ui/src/tracks', 'all_tracks.ts');
+    generateImports('ui/src/plugins', 'all_plugins.ts');
     compileProtos();
     genVersion();
     transpileTsProject('ui');
