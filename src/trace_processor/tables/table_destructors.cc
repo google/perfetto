@@ -24,6 +24,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -113,6 +114,12 @@ MemorySnapshotTable::~MemorySnapshotTable() = default;
 ProcessMemorySnapshotTable::~ProcessMemorySnapshotTable() = default;
 MemorySnapshotNodeTable::~MemorySnapshotNodeTable() = default;
 MemorySnapshotEdgeTable::~MemorySnapshotEdgeTable() = default;
+
+// winscope_tables_py.h
+SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
+    default;
+SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
+SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
 
 }  // namespace tables
 

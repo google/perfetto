@@ -2073,6 +2073,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":perfetto_src_trace_processor_importers_proto_proto_importer_module",
+        ":perfetto_src_trace_processor_importers_proto_winscope_full",
         ":perfetto_src_trace_processor_importers_syscalls_full",
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
@@ -2278,6 +2279,7 @@ cc_test {
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -4733,6 +4735,24 @@ genrule {
     export_include_dirs: [
         ".",
         "protos",
+    ],
+}
+
+// GN: //protos/perfetto/trace/android:winscope_descriptor
+genrule {
+    name: "perfetto_protos_perfetto_trace_android_winscope_descriptor",
+    srcs: [
+        "protos/perfetto/trace/android/surfaceflinger_common.proto",
+        "protos/perfetto/trace/android/surfaceflinger_layers.proto",
+        "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
+        "protos/perfetto/trace/android/winscope.proto",
+    ],
+    tools: [
+        "aprotoc",
+    ],
+    cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --descriptor_set_out=$(out) $(in)",
+    out: [
+        "perfetto_protos_perfetto_trace_android_winscope_descriptor.bin",
     ],
 }
 
@@ -9976,6 +9996,32 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/proto/winscope:full
+filegroup {
+    name: "perfetto_src_trace_processor_importers_proto_winscope_full",
+    srcs: [
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.cc",
+        "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_args_parser.cc",
+        "src/trace_processor/importers/proto/winscope/winscope_module.cc",
+    ],
+}
+
+// GN: //src/trace_processor/importers/proto/winscope:gen_cc_winscope_descriptor
+genrule {
+    name: "perfetto_src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
+    srcs: [
+        ":perfetto_protos_perfetto_trace_android_winscope_descriptor",
+    ],
+    cmd: "$(location tools/gen_cc_proto_descriptor.py) --gen_dir=$(genDir) --cpp_out=$(out) $(in)",
+    out: [
+        "src/trace_processor/importers/proto/winscope/winscope.descriptor.h",
+    ],
+    tool_files: [
+        "tools/gen_cc_proto_descriptor.py",
+    ],
+}
+
 // GN: //src/trace_processor/importers/syscalls:full
 filegroup {
     name: "perfetto_src_trace_processor_importers_syscalls_full",
@@ -10411,6 +10457,7 @@ python_binary_host {
         "src/trace_processor/tables/slice_tables.py",
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
+        "src/trace_processor/tables/winscope_tables.py",
         "tools/gen_tp_table_headers.py",
     ],
     main: "tools/gen_tp_table_headers.py",
@@ -10639,6 +10686,7 @@ genrule {
         "src/trace_processor/tables/slice_tables.py",
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
+        "src/trace_processor/tables/winscope_tables.py",
     ],
     tools: [
         "perfetto_src_trace_processor_tables_tables_python_binary",
@@ -10655,6 +10703,7 @@ genrule {
         "src/trace_processor/tables/slice_tables_py.h",
         "src/trace_processor/tables/trace_proto_tables_py.h",
         "src/trace_processor/tables/track_tables_py.h",
+        "src/trace_processor/tables/winscope_tables_py.h",
     ],
 }
 
@@ -10675,6 +10724,7 @@ python_binary_host {
         "src/trace_processor/tables/slice_tables.py",
         "src/trace_processor/tables/trace_proto_tables.py",
         "src/trace_processor/tables/track_tables.py",
+        "src/trace_processor/tables/winscope_tables.py",
         "tools/gen_tp_table_headers.py",
     ],
     main: "tools/gen_tp_table_headers.py",
@@ -12218,6 +12268,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":perfetto_src_trace_processor_importers_proto_proto_importer_module",
         ":perfetto_src_trace_processor_importers_proto_unittests",
+        ":perfetto_src_trace_processor_importers_proto_winscope_full",
         ":perfetto_src_trace_processor_importers_syscalls_full",
         ":perfetto_src_trace_processor_importers_syscalls_unittests",
         ":perfetto_src_trace_processor_importers_systrace_full",
@@ -12472,6 +12523,7 @@ cc_test {
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -12913,6 +12965,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":perfetto_src_trace_processor_importers_proto_proto_importer_module",
+        ":perfetto_src_trace_processor_importers_proto_winscope_full",
         ":perfetto_src_trace_processor_importers_syscalls_full",
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
@@ -12998,6 +13051,7 @@ cc_binary {
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
@@ -13141,6 +13195,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
         ":perfetto_src_trace_processor_importers_proto_proto_importer_module",
+        ":perfetto_src_trace_processor_importers_proto_winscope_full",
         ":perfetto_src_trace_processor_importers_syscalls_full",
         ":perfetto_src_trace_processor_importers_systrace_full",
         ":perfetto_src_trace_processor_importers_systrace_systrace_line",
@@ -13228,6 +13283,7 @@ cc_binary_host {
         "perfetto_src_trace_processor_importers_proto_gen_cc_statsd_atoms_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_trace_descriptor",
         "perfetto_src_trace_processor_importers_proto_gen_cc_track_event_descriptor",
+        "perfetto_src_trace_processor_importers_proto_winscope_gen_cc_winscope_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_chrome_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_all_webview_metrics_descriptor",
         "perfetto_src_trace_processor_metrics_gen_cc_metrics_descriptor",
