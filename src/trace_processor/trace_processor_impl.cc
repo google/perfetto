@@ -594,6 +594,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterDbTable(storage->expected_frame_timeline_slice_table());
   RegisterDbTable(storage->actual_frame_timeline_slice_table());
 
+  RegisterDbTable(storage->surfaceflinger_layers_snapshot_table());
+  RegisterDbTable(storage->surfaceflinger_layer_table());
+  RegisterDbTable(storage->surfaceflinger_transactions_table());
+
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());
   RegisterDbTable(storage->cpu_freq_table());
