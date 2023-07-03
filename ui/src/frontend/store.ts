@@ -139,16 +139,19 @@ class StoreImpl<T> implements Store<T> {
 export class ProxyStoreImpl<RootT, T> implements Store<T> {
   private subscriptions = new Set<SubscriptionCallback<T>>();
   private rootSubscription;
+  private rootStore?: Store<RootT>;
 
   constructor(
-      private rootStore: Store<RootT>,
+      rootStore: Store<RootT>,
       private path: Path,
   ) {
+    this.rootStore = rootStore;
     this.rootSubscription = rootStore.subscribe(this.rootUpdateHandler);
   }
 
   dispose() {
     this.rootSubscription.dispose();
+    this.rootStore = undefined;
   }
 
   private rootUpdateHandler = (newState: RootT, oldState: RootT) => {
@@ -163,10 +166,15 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
   };
 
   get state(): T {
+    if (!this.rootStore) {
+      throw new StoreError('Proxy store is no longer useable');
+    }
+
     const state = lookupPath<T, RootT>(this.rootStore.state, this.path);
     if (state === undefined) {
       throw new StoreError(`No such subtree: ${this.path}`);
     }
+
     return state;
   }
 
@@ -179,6 +187,10 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
   }
 
   private applyEdits(edits: Edit<T>[]): void {
+    if (!this.rootStore) {
+      throw new StoreError('Proxy store is no longer useable');
+    }
+
     // Transform edits to work on the root store.
     const rootEdits = edits.map(
         (edit) => (state: Draft<RootT>) => {
@@ -197,6 +209,10 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
   }
 
   createProxy<NewSubStateT>(path: Path): Store<NewSubStateT> {
+    if (!this.rootStore) {
+      throw new StoreError('Proxy store is no longer useable');
+    }
+
     const fullPath = [...this.path, ...path];
     return new ProxyStoreImpl<RootT, NewSubStateT>(this.rootStore, fullPath);
   }
