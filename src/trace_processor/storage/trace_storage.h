@@ -46,6 +46,7 @@
 #include "src/trace_processor/tables/slice_tables_py.h"
 #include "src/trace_processor/tables/trace_proto_tables_py.h"
 #include "src/trace_processor/tables/track_tables_py.h"
+#include "src/trace_processor/tables/winscope_tables_py.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/views/slice_views.h"
 
@@ -712,6 +713,31 @@ class TraceStorage {
     return &actual_frame_timeline_slice_table_;
   }
 
+  const tables::SurfaceFlingerLayersSnapshotTable&
+  surfaceflinger_layers_snapshot_table() const {
+    return surfaceflinger_layers_snapshot_table_;
+  }
+  tables::SurfaceFlingerLayersSnapshotTable*
+  mutable_surfaceflinger_layers_snapshot_table() {
+    return &surfaceflinger_layers_snapshot_table_;
+  }
+
+  const tables::SurfaceFlingerLayerTable& surfaceflinger_layer_table() const {
+    return surfaceflinger_layer_table_;
+  }
+  tables::SurfaceFlingerLayerTable* mutable_surfaceflinger_layer_table() {
+    return &surfaceflinger_layer_table_;
+  }
+
+  const tables::SurfaceFlingerTransactionsTable&
+  surfaceflinger_transactions_table() const {
+    return surfaceflinger_transactions_table_;
+  }
+  tables::SurfaceFlingerTransactionsTable*
+  mutable_surfaceflinger_transactions_table() {
+    return &surfaceflinger_transactions_table_;
+  }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -962,6 +988,13 @@ class TraceStorage {
       &string_pool_, &slice_table_};
   tables::ActualFrameTimelineSliceTable actual_frame_timeline_slice_table_{
       &string_pool_, &slice_table_};
+
+  // Winscope tables
+  tables::SurfaceFlingerLayersSnapshotTable
+      surfaceflinger_layers_snapshot_table_{&string_pool_};
+  tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
+  tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
+      &string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};
