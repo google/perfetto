@@ -1,0 +1,133 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks {
+      clock_id: 6
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 2
+      timestamp: 1682359234732002451
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 1
+      timestamp: 1682359234732002451
+    }
+    clocks {
+      clock_id: 3
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 5
+      timestamp: 0
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  first_packet_on_sequence: true
+  timestamp: 2749532892211
+  timestamp_clock_id: 3
+  surfaceflinger_transactions {
+    elapsed_realtime_nanos: 2749532892211
+    vsync_id: 24776
+    transactions {
+      pid: 0
+      uid: 10238
+      vsync_id: 24769
+      input_event_id: 1223067573
+      post_time: 2749525432616
+      transaction_id: 10518374908656
+      layer_changes {
+        layer_id: 100
+        what: 17631439233024
+        transform: 0
+        transform_to_display_inverse: false
+        buffer_data {
+          buffer_id: 10518374907909
+          width: 1080
+          height: 2400
+          frame_number: 293
+          flags: 7
+          cached_buffer_id: 10518374907909
+          pixel_format: PIXEL_FORMAT_RGBA_8888
+          usage: 2816
+        }
+        auto_refresh: false
+        buffer_crop {
+          left: 0
+          top: 0
+          right: 0
+          bottom: 0
+        }
+        destination_frame {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+      }
+    }
+    displays_changed: false
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  trusted_pid: 592
+  previous_packet_dropped: true
+}
+
+packet {
+  timestamp: 2749555538126
+  timestamp_clock_id: 3
+  surfaceflinger_transactions {
+    elapsed_realtime_nanos: 2749555538126
+    vsync_id: 24805
+    transactions {
+      pid: 0
+      uid: 10238
+      vsync_id: 24784
+      input_event_id: 0
+      post_time: 2749535528319
+      transaction_id: 10518374908658
+      layer_changes {
+        layer_id: 100
+        what: 17631439233024
+        transform: 0
+        transform_to_display_inverse: false
+        buffer_data {
+          buffer_id: 10518374907908
+          width: 1080
+          height: 2400
+          frame_number: 294
+          flags: 7
+          cached_buffer_id: 10518374907908
+          pixel_format: PIXEL_FORMAT_RGBA_8888
+          usage: 2816
+        }
+        auto_refresh: false
+        buffer_crop {
+          left: 0
+          top: 0
+          right: 0
+          bottom: 0
+        }
+        destination_frame {
+          left: 0
+          top: 0
+          right: 1080
+          bottom: 2400
+        }
+      }
+    }
+    displays_changed: false
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  trusted_pid: 592
+}

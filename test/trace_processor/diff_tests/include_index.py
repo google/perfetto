@@ -28,6 +28,8 @@ sys.path.append(TRACE_PROCESSOR_TEST_DIR)
 from diff_tests.android.tests import Android
 from diff_tests.android.tests_bugreport import AndroidBugreport
 from diff_tests.android.tests_games import AndroidGames
+from diff_tests.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
+from diff_tests.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.atrace.tests import Atrace
 from diff_tests.atrace.tests_error_handling import AtraceErrorHandling
 from diff_tests.camera.tests import Camera
@@ -165,6 +167,10 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *StartupMetrics(index_path, 'startup', 'StartupMetrics').fetch(),
       *StartupLockContention(index_path, 'startup',
                              'StartupLockContention').fetch(),
+      *SurfaceFlingerLayers(index_path, 'android',
+                            'SurfaceFlingerLayers').fetch(),
+      *SurfaceFlingerTransactions(index_path, 'android',
+                                  'SurfaceFlingerTransactions').fetch(),
       *Tables(index_path, 'tables', 'Tables').fetch(),
       *TablesCounters(index_path, 'tables', 'TablesCounters').fetch(),
       *TablesSched(index_path, 'tables', 'TablesSched').fetch(),

@@ -253,7 +253,16 @@ namespace stats {
       "The corresponding timestamp_nanos entry for a StatsdAtom was "          \
       "missing. Defaulted to inaccurate packet timestamp."),                   \
   F(atom_unknown,                         kSingle,  kInfo,     kAnalysis,      \
-      "Unknown statsd atom. Atom descriptor may need to be updated")
+      "Unknown statsd atom. Atom descriptor may need to be updated"),          \
+  F(winscope_sf_layers_parse_errors,      kSingle,  kInfo,     kAnalysis,      \
+      "SurfaceFlinger layers snapshot has unknown fields, which results in "   \
+      "some arguments missing. You may need a newer version of trace "         \
+      "processor to parse them."),                                             \
+  F(winscope_sf_transactions_parse_errors,                                     \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "SurfaceFlinger transactions packet has unknown fields, which results "  \
+      "in some arguments missing. You may need a newer version of trace "      \
+      "processor to parse them.")
 // clang-format on
 
 enum Type {
