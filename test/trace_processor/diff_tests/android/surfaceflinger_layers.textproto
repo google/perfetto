@@ -1,0 +1,401 @@
+packet {
+  clock_snapshot {
+    primary_trace_clock: BUILTIN_CLOCK_BOOTTIME
+    clocks {
+      clock_id: 6
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 2
+      timestamp: 1682359234732002451
+    }
+    clocks {
+      clock_id: 4
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 1
+      timestamp: 1682359234732002451
+    }
+    clocks {
+      clock_id: 3
+      timestamp: 0
+    }
+    clocks {
+      clock_id: 5
+      timestamp: 0
+    }
+  }
+  trusted_uid: 9999
+  trusted_packet_sequence_id: 1
+}
+
+packet {
+  first_packet_on_sequence: true
+  timestamp: 2748300281655
+  timestamp_clock_id: 3
+  surfaceflinger_layers_snapshot {
+    elapsed_realtime_nanos: 2748300281655
+    where: "visibleRegionsDirty"
+    layers {
+      layers {
+        id: 3
+        name: "Display 0 name=\"Built-in Screen\"#3"
+        children: 4
+        children: 35
+        children: 43
+        children: 45
+        children: 44
+        children: 77
+        children: 87
+        type: "Layer"
+        layer_stack: 0
+        z: 0
+        crop {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+        is_opaque: false
+        invalidate: true
+        dataspace: "BT709 sRGB Full range"
+        pixel_format: "Unknown/None"
+        color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        requested_color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        flags: 2
+        transform {
+          type: 0
+        }
+        requested_transform {
+          type: 0
+        }
+        queued_frames: 0
+        is_protected: false
+        curr_frame: 0
+        corner_radius: 0.000000
+        source_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        screen_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        shadow_radius: 0.000000
+        is_relative_of: false
+        background_blur_radius: 0
+        owner_uid: 1000
+        is_trusted_overlay: false
+        requested_corner_radius: 0.000000
+        destination_frame {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+      }
+      layers {
+        id: 4
+        name: "WindowedMagnification:0:31#4"
+        children: 5
+        children: 13
+        children: 16
+        children: 20
+        children: 23
+        children: 27
+        children: 28
+        type: "Layer"
+        layer_stack: 0
+        z: 0
+        is_opaque: false
+        invalidate: true
+        dataspace: "BT709 sRGB Full range"
+        pixel_format: "Unknown/None"
+        color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        requested_color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        flags: 0
+        transform {
+          type: 0
+        }
+        requested_transform {
+          type: 0
+        }
+        parent: 3
+        queued_frames: 0
+        is_protected: false
+        curr_frame: 0
+        corner_radius: 0.000000
+        source_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        screen_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        shadow_radius: 0.000000
+        is_relative_of: false
+        background_blur_radius: 0
+        owner_uid: 1000
+        is_trusted_overlay: false
+        requested_corner_radius: 0.000000
+        destination_frame {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+      }
+    }
+    hwc_blob: "\n\nlastUeventTime(01:00:00.000) lastTimestamp(0)\nlastEnableVsyncTime(10:33:30.061)\nlastDisableVsyncTime(10:33:30.180)\nlastValidateTime(10:33:30.065)\nlastPresentTime(10:33:30.076)\n\nResource Manager:\n[RGB Restrictions]\nHW-Node 1-1:\n    maxDownScale = 1, maxUpscale = 1\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 16, minCropHeight = 16\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 1-2:\nSame as above\n\nHW-Node 7-1:\n    maxDownScale = 2, maxUpscale = 8\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 16, minCropHeight = 16\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 7-2:\nSame as above\n\nHW-Node 10-1:\n    maxDownScale = 4, maxUpscale = 8\n    maxFullWidth = 8192, maxFullHeight = 8192\n    minFullWidth = 1, minFullHeight = 1\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 8192, maxCropHeight = 8192\n    minCropWidth = 1, minCropHeight = 1\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 10-2:\nSame as above\n\n[YUV Restrictions]\nHW-Node 1-1:\n    maxDownScale = 1, maxUpscale = 1\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 32, minCropHeight = 32\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 1-2:\nSame as above\n\nHW-Node 7-1:\n    maxDownScale = 2, maxUpscale = 8\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 32, minCropHeight = 32\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 7-2:\nSame as above\n\nHW-Node 10-1:\n    maxDownScale = 4, maxUpscale = 8\n    maxFullWidth = 8192, maxFullHeight = 8192\n    minFullWidth = 1, minFullHeight = 1\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 8192, maxCropHeight = 8192\n    minCropWidth = 1, minCropHeight = 1\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 10-2:\nSame as above\n\nspecial plane num: 0:\n\n[PrimaryDisplay] display information size: 1080 x 2400, vsyncState: 2, colorMode: 9, colorTransformHint: 0, orientation 0\nCompositionInfo (1)\nmHasCompositionLayer(0)\n\tinternal_format: 0x1, afbc: 1\n\nCompositionInfo (2)\nmHasCompositionLayer(0)\n\nPanelGammaSource (0)\n\n============================== dump layers ===========================================\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   0    |    1     | 0xb4000076722154f0 | 71, 72, -1 |  1   | RGBA_8888 | 0x8810000 |    0    |  0x1  |     1      | 0.0764324 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|    sourceCrop    |    dispFrame     | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 2400 | 0, 0, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tassignedMPP: DPP_GF0\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 2400, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(1), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   1    |    1     | 0xb40000767220fcf0 | 60, 64, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     1      | 0.0683864 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop    |    dispFrame    | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 128 | 0, 0, 1080, 128 | 0, 0, 0, 0 | 0x0 |      1      |  2   |     2      |      2       |     0x0     |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tassignedMPP: DPP_GF1\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 128, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   2    |    1     | 0xb40000767220f350 | 37, 40, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     1      | 0.0763385 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|    sourceCrop    |    dispFrame     | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 2400 | 0, 0, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      2      |  2   |     2      |      2       |     0x0     |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tassignedMPP: DPP_GF2\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 2400, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n\n============================== dump ignore layers ===========================================\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   3    |    1     | 0xb40000767220e2d0 | 51, 52, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 0.0911009 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop    |    dispFrame    | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 128 | 0, 0, 1080, 128 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 128, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |  fps   |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n|   4    |    1     | 0xb40000767220f090 | 54, 55, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 90.849 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop   |      dispFrame      | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 74 | 0, 2326, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 2326, w: 1080, h: 74, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n\nBrightnessController:\n\tsysfs support 1, max 4095, valid brightness table 1, lhbm supported 1, ghbm supported 1\n\trequests: enhance hbm 0, lhbm 0, brightness 0.060924, instant hbm 0, DimBrightness 0\n\tstates: brighntess level 205, ghbm 0, dimming 1, lhbm 0\thdr layer state 0, unchecked lhbm request 0(0), unchecked ghbm request 0(0)\n\tdimming usage 0, hbm dimming 0, time us 5000000\n\twhite point nits current 2.000000, previous 2.000000\n\tcabc supported 0, cabcMode 0\n\nDisplay idle timer: disabled\n\t[0] vote to 0 ns\n\t[1] vote to 0 ns\nMin idle refresh rate: 0\nRefresh rate delay: 0 ns\n\t[0] vote to 0 ns\n\t[1] vote to 0 ns\n\t[2] vote to 0 ns\n"
+    displays {
+      id: 4619827677550801152
+      name: "Common Panel"
+      layer_stack: 0
+      size {
+        w: 1080
+        h: 2400
+      }
+      layer_stack_space_rect {
+        left: 0
+        top: 0
+        right: 1080
+        bottom: 2400
+      }
+      transform {
+        type: 0
+      }
+      is_virtual: false
+    }
+    vsync_id: 24766
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 592
+  previous_packet_dropped: true
+}
+
+packet {
+  timestamp: 2749500341063
+  timestamp_clock_id: 3
+  surfaceflinger_layers_snapshot {
+    elapsed_realtime_nanos: 2749500341063
+    where: "bufferLatched"
+    layers {
+      layers {
+        id: 3
+        name: "Display 0 name=\"Built-in Screen\"#3"
+        children: 4
+        children: 35
+        children: 43
+        children: 45
+        children: 44
+        children: 77
+        children: 87
+        type: "Layer"
+        layer_stack: 0
+        z: 0
+        crop {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+        is_opaque: false
+        invalidate: true
+        dataspace: "BT709 sRGB Full range"
+        pixel_format: "Unknown/None"
+        color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        requested_color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        flags: 2
+        transform {
+          type: 0
+        }
+        requested_transform {
+          type: 0
+        }
+        queued_frames: 0
+        is_protected: false
+        curr_frame: 0
+        corner_radius: 0.000000
+        source_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        screen_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        shadow_radius: 0.000000
+        is_relative_of: false
+        background_blur_radius: 0
+        owner_uid: 1000
+        is_trusted_overlay: false
+        requested_corner_radius: 0.000000
+        destination_frame {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+      }
+      layers {
+        id: 4
+        name: "WindowedMagnification:0:31#4"
+        children: 5
+        children: 13
+        children: 16
+        children: 20
+        children: 23
+        children: 27
+        children: 28
+        type: "Layer"
+        layer_stack: 0
+        z: 0
+        is_opaque: false
+        invalidate: true
+        dataspace: "BT709 sRGB Full range"
+        pixel_format: "Unknown/None"
+        color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        requested_color {
+          r: -1.000000
+          g: -1.000000
+          b: -1.000000
+          a: 1.000000
+        }
+        flags: 0
+        transform {
+          type: 0
+        }
+        requested_transform {
+          type: 0
+        }
+        parent: 3
+        queued_frames: 0
+        is_protected: false
+        curr_frame: 0
+        corner_radius: 0.000000
+        source_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        screen_bounds {
+          left: -10800.000000
+          top: -24000.000000
+          right: 10800.000000
+          bottom: 24000.000000
+        }
+        shadow_radius: 0.000000
+        is_relative_of: false
+        background_blur_radius: 0
+        owner_uid: 1000
+        is_trusted_overlay: false
+        requested_corner_radius: 0.000000
+        destination_frame {
+          left: 0
+          top: 0
+          right: -1
+          bottom: -1
+        }
+      }
+    }
+    hwc_blob: "\n\nlastUeventTime(01:00:00.000) lastTimestamp(0)\nlastEnableVsyncTime(10:33:59.440)\nlastDisableVsyncTime(10:33:30.180)\nlastValidateTime(10:33:59.446)\nlastPresentTime(10:33:59.446)\n\nResource Manager:\n[RGB Restrictions]\nHW-Node 1-1:\n    maxDownScale = 1, maxUpscale = 1\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 16, minCropHeight = 16\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 1-2:\nSame as above\n\nHW-Node 7-1:\n    maxDownScale = 2, maxUpscale = 8\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 16, minCropHeight = 16\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 7-2:\nSame as above\n\nHW-Node 10-1:\n    maxDownScale = 4, maxUpscale = 8\n    maxFullWidth = 8192, maxFullHeight = 8192\n    minFullWidth = 1, minFullHeight = 1\n    fullWidthAlign = 1, fullHeightAlign = 1\n    maxCropWidth = 8192, maxCropHeight = 8192\n    minCropWidth = 1, minCropHeight = 1\n    cropXAlign = 1, cropYAlign = 1\n    cropWidthAlign = 1, cropHeightAlign = 1\n\nHW-Node 10-2:\nSame as above\n\n[YUV Restrictions]\nHW-Node 1-1:\n    maxDownScale = 1, maxUpscale = 1\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 32, minCropHeight = 32\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 1-2:\nSame as above\n\nHW-Node 7-1:\n    maxDownScale = 2, maxUpscale = 8\n    maxFullWidth = 8190, maxFullHeight = 8190\n    minFullWidth = 16, minFullHeight = 16\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 4096, maxCropHeight = 4096\n    minCropWidth = 32, minCropHeight = 32\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 7-2:\nSame as above\n\nHW-Node 10-1:\n    maxDownScale = 4, maxUpscale = 8\n    maxFullWidth = 8192, maxFullHeight = 8192\n    minFullWidth = 1, minFullHeight = 1\n    fullWidthAlign = 2, fullHeightAlign = 2\n    maxCropWidth = 8192, maxCropHeight = 8192\n    minCropWidth = 1, minCropHeight = 1\n    cropXAlign = 2, cropYAlign = 2\n    cropWidthAlign = 2, cropHeightAlign = 2\n\nHW-Node 10-2:\nSame as above\n\nspecial plane num: 0:\n\n[PrimaryDisplay] display information size: 1080 x 2400, vsyncState: 1, colorMode: 9, colorTransformHint: 0, orientation 0\nCompositionInfo (1)\nmHasCompositionLayer(0)\n\tinternal_format: 0x1, afbc: 1\n\nCompositionInfo (2)\nmHasCompositionLayer(0)\n\nPanelGammaSource (0)\n\n============================== dump layers ===========================================\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   0    |    1     | 0xb400007672210ed0 | 47, 88, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     1      | 0.0323772 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|    sourceCrop    |    dispFrame     | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 2400 | 0, 0, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tassignedMPP: DPP_GF0\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 2400, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n\n============================== dump ignore layers ===========================================\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   3    |    1     | 0xb40000767220e2d0 | 51, 52, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 0.0911009 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop    |    dispFrame    | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 128 | 0, 0, 1080, 128 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 128, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |  fps   |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n|   4    |    1     | 0xb40000767220f090 | 54, 55, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 90.849 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+--------+\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop   |      dispFrame      | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 74 | 0, 2326, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+----------------+---------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 2326, w: 1080, h: 74, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   1    |    1     | 0xb40000767220fcf0 | 60, 64, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 0.0683864 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n|   sourceCrop    |    dispFrame    | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 128 | 0, 0, 1080, 128 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+-----------------+-----------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 128, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n| zOrder | priority |       handle       |     fd     | AFBC |  format   | dataSpace | colorTr | blend | planeAlpha |    fps    |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n|   2    |    1     | 0xb400007672211710 | 63, 65, -1 |  1   | RGBA_8888 | 0x88a0000 |    0    |  0x2  |     0      | 0.0323941 |\n+--------+----------+--------------------+------------+------+-----------+-----------+---------+-------+------------+-----------+\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n|    sourceCrop    |    dispFrame     | blockRect  | tr  | windowIndex | type | exynosType | validateType | overlayInfo |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n| 0, 0, 1080, 2400 | 0, 0, 1080, 2400 | 0, 0, 0, 0 | 0x0 |      0      |  2   |     2      |      2       |     0x0     |\n+------------------+------------------+------------+-----+-------------+------+------------+--------------+-------------+\n+---------+-----------+\n| MPPFlag | dim ratio |\n+---------+-----------+\n| 0x6042  |     1     |\n+---------+-----------+\nMPPFlags for otfMPP\n[DPP_GF0: 0x0] [DPP_GF1: 0x0] [DPP_GF2: 0x0] [DPP_VGRFS0: 0x0] [DPP_VGRFS1: 0x0] [DPP_VGRFS2: 0x0] \nMPPFlags for m2mMPP\n[G2D0-YUV_PRI: 0x80] [G2D0-YUV_PRI: 0x80] [G2D0-YUV_EXT: 0x80] [G2D0-RGB_PRI: 0x0] [G2D0-RGB_EXT: 0x0] \n[G2D0-COMBO_VIR: 0x0] \nacquireFence: -1\n\tresource is not assigned.\n\tdump midImg\n\tbufferHandle: 0x0, fullWidth: 1080, fullHeight: 2400, x: 0, y: 0, w: 1080, h: 2400, format: RGBA_8888\n\tusageFlags: 0xb00, layerFlags: 0x       0, acquireFenceFd: -1, releaseFenceFd: -1\n\tdataSpace(143261696), blending(2), transform(0x 0), afbc(0)\n\nBrightnessController:\n\tsysfs support 1, max 4095, valid brightness table 1, lhbm supported 1, ghbm supported 1\n\trequests: enhance hbm 0, lhbm 0, brightness 0.060924, instant hbm 0, DimBrightness 0\n\tstates: brighntess level 205, ghbm 0, dimming 1, lhbm 0\thdr layer state 0, unchecked lhbm request 0(0), unchecked ghbm request 0(0)\n\tdimming usage 0, hbm dimming 0, time us 5000000\n\twhite point nits current 2.000000, previous 2.000000\n\tcabc supported 0, cabcMode 0\n\nDisplay idle timer: disabled\n\t[0] vote to 0 ns\n\t[1] vote to 0 ns\nMin idle refresh rate: 0\nRefresh rate delay: 0 ns\n\t[0] vote to 0 ns\n\t[1] vote to 0 ns\n\t[2] vote to 0 ns\n"
+    displays {
+      id: 4619827677550801152
+      name: "Common Panel"
+      layer_stack: 0
+      size {
+        w: 1080
+        h: 2400
+      }
+      layer_stack_space_rect {
+        left: 0
+        top: 0
+        right: 1080
+        bottom: 2400
+      }
+      transform {
+        type: 0
+      }
+      is_virtual: false
+    }
+    vsync_id: 24767
+  }
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  trusted_pid: 592
+}
