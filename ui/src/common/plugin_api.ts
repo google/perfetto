@@ -16,6 +16,8 @@ import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
 
+import {TracePluginFactory} from './plugins';
+
 export {EngineProxy} from '../common/engine';
 export {
   LONG,
@@ -68,6 +70,10 @@ export interface PluginContext {
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
   registerTrack(track: TrackCreator): void;
+
+  // Register a new plugin factory for a plugin whose lifecycle in linked to
+  // that of the trace.
+  registerTracePluginFactory<T>(pluginFactory: TracePluginFactory<T>): void;
 }
 
 export interface PluginInfo {

@@ -12,21 +12,57 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../common/engine';
+import {Disposable} from 'src/base/disposable';
+
 import {
   TrackControllerFactory,
   trackControllerRegistry,
 } from '../controller/track_controller';
+import {Store} from '../frontend/store';
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
 
+import {Engine} from './engine';
 import {
+  EngineProxy,
   PluginContext,
   PluginInfo,
   TrackInfo,
   TrackProvider,
 } from './plugin_api';
 import {Registry} from './registry';
+import {State} from './state';
+
+// All trace plugins must implement this interface.
+export interface TracePlugin extends Disposable {
+  // This is where we would add potential extension points that plugins can
+  // override.
+  // E.g. commands(): Command[];
+  // For now, plugins don't do anything so this interface is empty.
+}
+
+// This interface defines what a plugin factory should look like.
+// This can be defined in the plugin class definition by defining a constructor
+// and the relevant static methods:
+// E.g.
+// class MyPlugin implements TracePlugin<MyState> {
+//   static migrate(initialState: unknown): MyState {...}
+//   constructor(store: Store<MyState>, engine: EngineProxy) {...}
+//   ... methods from the TracePlugin interface go here ...
+// }
+// ... which can then be passed around by class i.e. MyPlugin
+export interface TracePluginFactory<StateT> {
+  // Function to migrate the persistent state. Called before new().
+  migrate(initialState: unknown): StateT;
+
+  // Instantiate the plugin.
+  new(store: Store<StateT>, engine: EngineProxy): TracePlugin;
+}
+
+interface TracePluginContext {
+  plugin: TracePlugin;
+  store: Store<unknown>;
+}
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -34,6 +70,8 @@ import {Registry} from './registry';
 export class PluginContextImpl implements PluginContext {
   readonly pluginId: string;
   private trackProviders: TrackProvider[];
+  private tracePluginFactory?: TracePluginFactory<any>;
+  private _tracePluginCtx?: TracePluginContext;
 
   constructor(pluginId: string) {
     this.pluginId = pluginId;
@@ -53,6 +91,10 @@ export class PluginContextImpl implements PluginContext {
   registerTrackProvider(provider: TrackProvider) {
     this.trackProviders.push(provider);
   }
+
+  registerTracePluginFactory<T>(pluginFactory: TracePluginFactory<T>): void {
+    this.tracePluginFactory = pluginFactory;
+  }
   // ==================================================================
 
   // ==================================================================
@@ -62,11 +104,50 @@ export class PluginContextImpl implements PluginContext {
     return this.trackProviders.map((f) => f(proxy));
   }
 
+  onTraceLoad(store: Store<State>, engine: Engine): void {
+    const TracePluginClass = this.tracePluginFactory;
+    if (TracePluginClass) {
+      // Make an engine proxy for this plugin.
+      const engineProxy = engine.getProxy(this.pluginId);
+
+      // Extract the initial state and pass to the plugin factory for migration.
+      const initialState = store.state.plugins[this.pluginId];
+      const migratedState = TracePluginClass.migrate(initialState);
+
+      // Store the initial state in our root store.
+      store.edit((draft) => {
+        draft.plugins[this.pluginId] = migratedState;
+      });
+
+      // Create a proxy store for our plugin to use.
+      const storeProxy = store.createProxy<unknown>(['plugins', this.pluginId]);
+
+      // Instantiate the plugin.
+      this._tracePluginCtx = {
+        plugin: new TracePluginClass(storeProxy, engineProxy),
+        store: storeProxy,
+      };
+    }
+  }
+
+  onTraceClosed() {
+    if (this._tracePluginCtx) {
+      this._tracePluginCtx.plugin.dispose();
+      this._tracePluginCtx.store.dispose();
+      this._tracePluginCtx = undefined;
+    }
+  }
+
+  get tracePlugin(): TracePlugin|undefined {
+    return this._tracePluginCtx?.plugin;
+  }
+
   // Unload the plugin. Ideally no plugin code runs after this point.
   // PluginContext should unregister everything.
   revoke() {
     // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
     // etc.
+    // TODO(stevegolton): Close the trace plugin.
   }
   // ==================================================================
 }
@@ -122,6 +203,18 @@ export class PluginManager {
       }
     }
     return promises;
+  }
+
+  onTraceLoad(store: Store<State>, engine: Engine): void {
+    for (const context of this.contexts.values()) {
+      context.onTraceLoad(store, engine);
+    }
+  }
+
+  onTraceClose() {
+    for (const context of this.contexts.values()) {
+      context.onTraceClosed();
+    }
   }
 }
 
