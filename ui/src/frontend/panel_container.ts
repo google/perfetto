@@ -34,7 +34,7 @@ import {
   PerfStatsSource,
   RunningStatistics,
   runningStatStr,
-} from './perf';
+} from '../core/perf';
 import {TrackGroupAttrs} from './viewer_page';
 
 // If the panel container scrolls, the backing canvas height is

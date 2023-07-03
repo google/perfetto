@@ -41,8 +41,8 @@ import {
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
-import {setPerfHooks} from './perf';
-import {RafScheduler} from './raf_scheduler';
+import {setPerfHooks} from '../core/perf';
+import {RafScheduler} from '../core/raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId, TPTimestamp} from './sql_types';
