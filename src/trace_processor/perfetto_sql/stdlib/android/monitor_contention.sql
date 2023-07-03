@@ -219,6 +219,9 @@ SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
 LEFT JOIN android_monitor_contention parent ON child.blocked_utid = parent.blocking_utid
     AND parent.ts BETWEEN child.ts AND child.ts + child.dur;
 
+CREATE INDEX internal_android_monitor_contention_chain_idx
+  ON android_monitor_contention_chain (blocking_method, blocking_utid, ts);
+
 -- First blocked node on a lock, i.e nodes with |waiter_count| = 0. The |dur| here is adjusted
 -- to only account for the time between the first thread waiting and the first thread to acquire
 -- the lock. That way, the thread state span joins below only compute the thread states where
@@ -228,7 +231,7 @@ CREATE VIEW internal_first_blocked_contention
   AS
 SELECT start.id, start.blocking_utid, start.ts, MIN(end.ts + end.dur) - start.ts AS dur
 FROM android_monitor_contention_chain start
-JOIN android_monitor_contention_chain END
+JOIN android_monitor_contention_chain end
   ON
     start.blocking_utid = end.blocking_utid
     AND start.blocking_method = end.blocking_method
