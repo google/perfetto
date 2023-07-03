@@ -173,5 +173,8 @@ export function createEmptyState(): State {
       textEntry: '',
       hideNonMatching: true,
     },
+
+    // Somewhere to store plugins' persistent state.
+    plugins: {},
   };
 }
