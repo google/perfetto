@@ -37,9 +37,9 @@ perfetto_proto_library("@TYPE@") {
 perfetto_proto_library("winscope_deps") {
   proto_generators = [ "source_set" ]
   sources = [
+    "surfaceflinger_common.proto",
     "surfaceflinger_layers.proto",
     "surfaceflinger_transactions.proto",
-    "surfaceflinger_common.proto",
   ]
 }
 
