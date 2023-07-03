@@ -30,6 +30,7 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../common/metatracing';
+import {pluginManager} from '../common/plugins';
 import {
   LONG,
   NUM,
@@ -45,11 +46,7 @@ import {
   PendingDeeplinkState,
   ProfileType,
 } from '../common/state';
-import {Span} from '../common/time';
-import {
-  TPTime,
-  TPTimeSpan,
-} from '../common/time';
+import {Span, TPTime, TPTimeSpan} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
@@ -342,6 +339,7 @@ export class TraceController extends Controller<States> {
   }
 
   onDestroy() {
+    pluginManager.onTraceClose();
     globals.engines.delete(this.engineId);
   }
 
@@ -555,6 +553,8 @@ export class TraceController extends Controller<States> {
         }));
       }
     }
+
+    pluginManager.onTraceLoad(globals.store, engine);
 
     return engineMode;
   }
