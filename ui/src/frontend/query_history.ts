@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {globals} from './globals';
 import {STAR} from './icons';
 
 import {
@@ -27,6 +26,7 @@ import {
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
 import {Icon} from './widgets/icon';
+import {raf} from '../core/raf_scheduler';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
@@ -73,7 +73,7 @@ export class HistoryItemComponent implements
                 onclick: () => {
                   queryHistoryStorage.setStarred(
                       vnode.attrs.index, !vnode.attrs.entry.starred);
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 },
               },
               m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
@@ -87,7 +87,7 @@ export class HistoryItemComponent implements
             {
               onclick: () => {
                 queryHistoryStorage.remove(vnode.attrs.index);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             m(Icon, {icon: 'delete'}))),

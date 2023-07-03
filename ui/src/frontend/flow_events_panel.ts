@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {raf} from '../core/raf_scheduler';
 
 import {Flow, globals} from './globals';
 import {BLANK_CHECKBOX, CHECKBOX} from './icons';
@@ -169,7 +170,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                 });
               }
               globals.visibleFlowCategories.set(ALL_CATEGORIES, !allWasChecked);
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           },
           allWasChecked ? CHECKBOX : BLANK_CHECKBOX)),
@@ -189,7 +190,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                   globals.visibleFlowCategories.set(ALL_CATEGORIES, false);
                 }
                 globals.visibleFlowCategories.set(cat, !wasChecked);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             wasChecked ? CHECKBOX : BLANK_CHECKBOX)),
