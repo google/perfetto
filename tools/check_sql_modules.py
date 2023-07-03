@@ -45,7 +45,7 @@ def main():
       errors += res if isinstance(res, list) else []
 
       # Ban the use of LIKE in non-comment lines.
-      lines = [l.strip() for l in f.readlines()]
+      lines = [l.strip() for l in sql.split('\n')]
       for line in lines:
         if line.startswith('--'):
           continue
