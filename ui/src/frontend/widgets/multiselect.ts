@@ -13,8 +13,10 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {globals} from '../globals';
+
+import {raf} from '../../core/raf_scheduler';
 import {DESELECT, SELECT_ALL} from '../icons';
+
 import {Button} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
@@ -112,7 +114,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                               options.filter(({checked}) => checked)
                                   .map(({id}) => ({id, checked: false}));
                           onChange(diffs);
-                          globals.rafScheduler.scheduleFullRedraw();
+                          raf.scheduleFullRedraw();
                         },
                         disabled: !anyChecked,
                       }),
@@ -136,7 +138,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                       const diffs = options.filter(({checked}) => !checked)
                                         .map(({id}) => ({id, checked: true}));
                       onChange(diffs);
-                      globals.rafScheduler.scheduleFullRedraw();
+                      raf.scheduleFullRedraw();
                     },
                     disabled: allChecked,
                   }),
@@ -150,7 +152,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
                       const diffs = options.filter(({checked}) => checked)
                                         .map(({id}) => ({id, checked: false}));
                       onChange(diffs);
-                      globals.rafScheduler.scheduleFullRedraw();
+                      raf.scheduleFullRedraw();
                     },
                     disabled: !anyChecked,
                   }),
@@ -168,7 +170,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
           oninput: (event: Event) => {
             const eventTarget = event.target as HTMLTextAreaElement;
             this.searchText = eventTarget.value;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
           value: this.searchText,
           placeholder: 'Filter options...',
@@ -183,7 +185,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
       return m(Button, {
         onclick: () => {
           this.searchText = '';
-          globals.rafScheduler.scheduleFullRedraw();
+          raf.scheduleFullRedraw();
         },
         label: '',
         icon: 'close',
@@ -208,7 +210,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         classes: 'pf-multiselect-item',
         onchange: () => {
           onChange([{id, checked: !checked}]);
-          globals.rafScheduler.scheduleFullRedraw();
+          raf.scheduleFullRedraw();
         },
       });
     });

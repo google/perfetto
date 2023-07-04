@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {raf} from '../core/raf_scheduler';
+
 import {Animation} from './animation';
 import {DragGestureHandler} from './drag_gesture_handler';
 import {globals} from './globals';
@@ -248,12 +250,12 @@ export class PanAndZoomHandler {
   private onWheel(e: WheelEvent) {
     if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
       this.onPanned(e.deltaX * HORIZONTAL_WHEEL_PAN_SPEED);
-      globals.rafScheduler.scheduleRedraw();
+      raf.scheduleRedraw();
     } else if (e.ctrlKey && this.mousePositionX) {
       const sign = e.deltaY < 0 ? -1 : 1;
       const deltaY = sign * Math.log2(1 + Math.abs(e.deltaY));
       this.onZoomed(this.mousePositionX, deltaY * WHEEL_ZOOM_SPEED);
-      globals.rafScheduler.scheduleRedraw();
+      raf.scheduleRedraw();
     }
   }
 

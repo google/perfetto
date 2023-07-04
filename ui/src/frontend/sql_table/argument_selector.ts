@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {EngineProxy} from '../../common/engine';
 import {STR} from '../../common/query_result';
-import {globals} from '../globals';
+import {raf} from '../../core/raf_scheduler';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
@@ -73,7 +73,7 @@ export class ArgumentSelector implements
       if (attrs.alreadySelectedColumns.has(arg.alias)) continue;
       this.argList.push(it.key);
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   view({attrs}: m.Vnode<ArgumentSelectorAttrs>) {

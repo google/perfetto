@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 
+import {raf} from '../core/raf_scheduler';
+
 import {Anchor} from './anchor';
 import {classNames} from './classnames';
-import {globals} from './globals';
 import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
@@ -264,7 +265,7 @@ function PortalButton() {
           label: 'Toggle Portal',
           onclick: () => {
             portalOpen = !portalOpen;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         }),
         portalOpen &&
@@ -313,7 +314,7 @@ function ControlledPopup() {
             label: 'Close Popup',
             onclick: () => {
               popupOpen = !popupOpen;
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           }),
       );
@@ -415,7 +416,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !this.optValues[key];
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
       },
     });
   }
@@ -431,7 +432,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             this.optValues[key] = el.value;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         },
         optionElements);
@@ -606,7 +607,7 @@ export const WidgetsPage = createPage({
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -632,7 +633,7 @@ export const WidgetsPage = createPage({
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
             ...rest,
           }),

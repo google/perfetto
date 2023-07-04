@@ -23,7 +23,7 @@ import {
   SortDirection,
   withDirection,
 } from '../../base/comparison_utils';
-import {globals} from '../globals';
+import {raf} from '../../core/raf_scheduler';
 import {
   menuItem,
   PopupMenuButton,
@@ -124,13 +124,13 @@ export class TableData<T> {
     if (this._sortingInfo !== undefined) {
       this.reorder(this._sortingInfo);
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   resetOrder() {
     this.permutation = range(this.data.length);
     this._sortingInfo = undefined;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   get sortingInfo(): SortingInfo<T>|undefined {
@@ -142,7 +142,7 @@ export class TableData<T> {
     this.permutation.sort(withDirection(
         comparingBy((index: number) => this.data[index], info.ordering),
         info.direction));
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 }
 
