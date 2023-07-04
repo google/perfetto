@@ -15,18 +15,16 @@
 import {Vnode} from 'mithril';
 
 import {colorForString} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, STR} from '../../common/query_result';
-import {TPDuration} from '../../common/time';
-import {TPTime} from '../../common/time';
-import {TrackData} from '../../common/track_data';
-import {LIMIT} from '../../common/track_data';
+import {TPDuration, TPTime} from '../../common/time';
+import {LIMIT, TrackData} from '../../common/track_data';
 import {
   TrackController,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 
 export interface Data extends TrackData {

@@ -16,7 +16,6 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {hueForCpu} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {
   LONG,
   LONG_NULL,
@@ -30,6 +29,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
