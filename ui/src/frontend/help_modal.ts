@@ -15,6 +15,8 @@
 
 import m from 'mithril';
 
+import {raf} from '../core/raf_scheduler';
+
 import {globals} from './globals';
 import {
   KeyboardLayoutMap,
@@ -50,7 +52,7 @@ class KeyMappingsHelp implements m.ClassComponent {
     nativeKeyboardLayoutMap()
         .then((keyMap: KeyboardLayoutMap) => {
           this.keyMap = keyMap;
-          globals.rafScheduler.scheduleFullRedraw();
+          raf.scheduleFullRedraw();
         })
         .catch((e) => {
           if (e instanceof NotSupportedError ||
@@ -63,7 +65,7 @@ class KeyMappingsHelp implements m.ClassComponent {
             // The alternative would be to show key mappings for all keyboard
             // layouts which is not feasible.
             this.keyMap = new EnglishQwertyKeyboardLayoutMap();
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           } else {
             // Something unexpected happened. Either the browser doesn't conform
             // to the keyboard API spec, or the keyboard API spec has changed!

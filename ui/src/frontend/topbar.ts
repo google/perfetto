@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
@@ -47,13 +48,13 @@ function onKeyDown(e: Event) {
   if (mode === SEARCH && txt.value === '' && key === ':') {
     e.preventDefault();
     mode = COMMAND;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     return;
   }
 
   if (mode === COMMAND && txt.value === '' && key === 'Backspace') {
     mode = SEARCH;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     return;
   }
 
@@ -81,7 +82,7 @@ function onKeyUp(e: Event) {
     mode = SEARCH;
     txt.value = '';
     txt.blur();
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     return;
   }
 }
@@ -99,8 +100,7 @@ class Omnibox implements m.ClassComponent {
         globals.state.engine !== undefined && !globals.state.engine.ready;
 
     if (msgTTL > 0 || engineIsBusy) {
-      setTimeout(
-          () => globals.rafScheduler.scheduleFullRedraw(), msgTTL * 1000);
+      setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
       return m(
           `.omnibox.message-mode`,
           m(`input[placeholder=${globals.state.status.msg}][readonly]`, {
@@ -164,11 +164,11 @@ class Progress implements m.ClassComponent {
 
   oncreate(vnodeDom: m.CVnodeDOM) {
     this.progressBar = vnodeDom.dom as HTMLElement;
-    globals.rafScheduler.addRedrawCallback(this.loading);
+    raf.addRedrawCallback(this.loading);
   }
 
   onremove() {
-    globals.rafScheduler.removeRedrawCallback(this.loading);
+    raf.removeRedrawCallback(this.loading);
   }
 
   view() {
@@ -197,7 +197,7 @@ class NewVersionNotification implements m.ClassComponent {
           {
             onclick: () => {
               globals.frontendLocalState.newVersionAvailable = false;
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           },
           'Dismiss'),
@@ -226,7 +226,7 @@ class HelpPanningNotification implements m.ClassComponent {
             onclick: () => {
               globals.frontendLocalState.showPanningHint = false;
               localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           },
           'Dismiss'),

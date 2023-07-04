@@ -17,7 +17,7 @@ import {SortDirection} from '../../base/comparison_utils';
 import {sqliteString} from '../../base/string_utils';
 import {EngineProxy} from '../../common/engine';
 import {NUM, Row} from '../../common/query_result';
-import {globals} from '../globals';
+import {raf} from '../../core/raf_scheduler';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
@@ -259,14 +259,14 @@ export class SqlTableState {
 
     // Delay the visual update by 50ms to avoid flickering (if the query returns
     // before the data is loaded.
-    setTimeout(() => globals.rafScheduler.scheduleFullRedraw(), 50);
+    setTimeout(() => raf.scheduleFullRedraw(), 50);
 
     if (updateRowCount) {
       this.rowCount = await this.loadRowCount();
     }
     this.data = await this.loadData();
 
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   getTotalRowCount(): number|undefined {

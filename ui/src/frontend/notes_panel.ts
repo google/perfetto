@@ -18,6 +18,7 @@ import {Actions} from '../common/actions';
 import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
 import {timestampOffset} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {
   BottomTab,
@@ -63,11 +64,11 @@ export class NotesPanel extends Panel {
   oncreate({dom}: m.CVnodeDOM) {
     dom.addEventListener('mousemove', (e: Event) => {
       this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
-      globals.rafScheduler.scheduleRedraw();
+      raf.scheduleRedraw();
     }, {passive: true});
     dom.addEventListener('mouseenter', (e: Event) => {
       this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
-      globals.rafScheduler.scheduleRedraw();
+      raf.scheduleRedraw();
     });
     dom.addEventListener('mouseout', () => {
       this.hoveredX = null;
@@ -365,7 +366,7 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
             onclick: () => {
               globals.dispatch(Actions.removeNote({id: this.config.id}));
               globals.dispatch(Actions.setCurrentTab({tab: undefined}));
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           })),
     );

@@ -37,6 +37,7 @@ import {
 import {
   targetFactoryRegistry,
 } from '../common/recordingV2/target_factory_registry';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 import {fullscreenModalContainer} from './modal';
@@ -112,7 +113,7 @@ function RecordingPlatformSelection() {
           onclick: () => {
             shouldDisplayTargetModal = true;
             fullscreenModalContainer.createNew(addNewTargetModal());
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         },
         m('button', 'Add new recording target'),
@@ -455,7 +456,7 @@ function recordMenu(routePage: string) {
         class: controller.getState() > RecordingState.TARGET_INFO_DISPLAYED ?
             'disabled' :
             '',
-        onclick: () => globals.rafScheduler.scheduleFullRedraw(),
+        onclick: () => raf.scheduleFullRedraw(),
       },
       m('header', 'Trace config'),
       m('ul',

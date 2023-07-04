@@ -23,6 +23,7 @@ import {
   LogEntriesKey,
 } from '../common/logs';
 import {TPTime} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
@@ -73,7 +74,7 @@ export class LogPanel extends Panel<{}> {
 
   onScroll = (scrollContainer: HTMLElement) => {
     this.recomputeVisibleRowsAndUpdate(scrollContainer);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   };
 
   onRowOver(ts: TPTime) {
