@@ -13,11 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {colorForState} from '../../common/colorizer';
-import {
-  Color,
-} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
+import {Color, colorForState} from '../../common/colorizer';
 import {NUM_NULL, STR} from '../../common/query_result';
 import {Selection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
@@ -33,6 +29,7 @@ import {
   SliceLayout,
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const THREAD_STATE_ROW = {
   ...BASE_SLICE_ROW,

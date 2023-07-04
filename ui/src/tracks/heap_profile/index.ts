@@ -14,7 +14,6 @@
 
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, STR} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
 import {TPDuration, TPTime} from '../../common/time';
@@ -25,6 +24,7 @@ import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 

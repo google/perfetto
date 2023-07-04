@@ -22,7 +22,6 @@ import {
   drawIncompleteSlice,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM} from '../../common/query_result';
 import {formatDurationShort, TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
@@ -32,6 +31,7 @@ import {
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
