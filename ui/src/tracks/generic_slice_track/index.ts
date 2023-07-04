@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from '../../common/plugin_api';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export interface GenericSliceTrackConfig {
   sqlTrackId: number;

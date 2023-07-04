@@ -13,10 +13,9 @@
 // limitations under the License.
 
 import {EngineProxy} from '../common/engine';
+import {TracePluginFactory} from '../common/plugins';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
-
-import {TracePluginFactory} from './plugins';
 
 export {EngineProxy} from '../common/engine';
 export {

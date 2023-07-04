@@ -17,8 +17,9 @@ import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {
   PluginContext,
-} from '../../common/plugin_api';
+} from '../../public';
 
+import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
 import {TopLevelScrollTrack} from './scroll_track';
 import {addTopLevelJankTrack, TopLevelJankTrack} from './top_level_jank_track';
@@ -26,7 +27,6 @@ import {
   addJankyLatenciesTrack,
   TopLevelEventLatencyTrack,
 } from './top_level_janky_event_latencies_track';
-import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 
 export {Data} from '../chrome_slices';
 
