@@ -17,6 +17,7 @@ import m from 'mithril';
 
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
+import {raf} from '../core/raf_scheduler';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -59,10 +60,10 @@ function runManualQuery(query: string) {
         return;
       }
       state.queryResult = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
-  globals.rafScheduler.scheduleDelayedFullRedraw();
+  raf.scheduleDelayedFullRedraw();
 }
 
 function getEngine(): EngineProxy|undefined {
@@ -123,7 +124,7 @@ export const QueryPage = createPage({
           onClose: () => {
             state.executedQuery = undefined;
             state.queryResult = undefined;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
           fillParent: false,
         }),

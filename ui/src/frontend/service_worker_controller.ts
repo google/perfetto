@@ -19,6 +19,7 @@
 // Design doc: http://go/perfetto-offline.
 
 import {reportError} from '../base/logging';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 
@@ -73,11 +74,11 @@ export class ServiceWorkerController {
       }
       this.install();
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   onStateChange(sw: ServiceWorker) {
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     if (sw.state === 'installing') {
       this._installing = true;
     } else if (sw.state === 'activated') {

@@ -19,6 +19,7 @@ import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
+import {raf} from '../core/raf_scheduler';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
@@ -114,7 +115,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.isClosed = newHeight <= DRAG_HANDLE_HEIGHT_PX;
     this.isFullscreen = newHeight >= this.fullscreenHeight;
     this.resize(newHeight);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   onDragStart(_x: number, _y: number) {
@@ -149,7 +150,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                 this.isClosed = false;
                 this.isFullscreen = true;
                 this.resize(this.fullscreenHeight - DRAG_HANDLE_HEIGHT_PX);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
               disabled: this.isFullscreen,
@@ -170,7 +171,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                   this.previousHeight = this.height;
                   this.resize(0);
                 }
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               title,
             },

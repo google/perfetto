@@ -25,11 +25,8 @@ import {
   Timestamped,
   VisibleState,
 } from '../common/state';
-import {Span, TPDuration} from '../common/time';
-import {
-  TPTime,
-  TPTimeSpan,
-} from '../common/time';
+import {Span, TPDuration, TPTime, TPTimeSpan} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
@@ -193,7 +190,7 @@ export class FrontendLocalState {
 
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   addVisibleTrack(trackId: string) {
@@ -257,13 +254,12 @@ export class FrontendLocalState {
         end >= start,
         `Impossible select area: start [${start}] >= end [${end}]`);
     this.showPanningHint = true;
-    this._selectedArea = {start, end, tracks},
-    globals.rafScheduler.scheduleFullRedraw();
+    this._selectedArea = {start, end, tracks}, raf.scheduleFullRedraw();
   }
 
   deselectArea() {
     this._selectedArea = undefined;
-    globals.rafScheduler.scheduleRedraw();
+    raf.scheduleRedraw();
   }
 
   get selectedArea(): Area|undefined {

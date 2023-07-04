@@ -18,6 +18,7 @@ import {GridLayout} from '../..//frontend/widgets/grid_layout';
 import {Section} from '../..//frontend/widgets/section';
 import {ColumnType, LONG, STR} from '../../common/query_result';
 import {TPDuration, tpDurationFromSql, tpTimeFromSql} from '../../common/time';
+import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
   bottomTabRegistry,
@@ -26,7 +27,6 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
-import {globals} from '../../frontend/globals';
 import {
   getSlice,
   SliceDetails,
@@ -203,7 +203,7 @@ export class DebugSliceDetailsTab extends
         this.data.dur,
         sqlValueToNumber(this.data.args['track_id']));
 
-    globals.rafScheduler.scheduleRedraw();
+    raf.scheduleRedraw();
   }
 
   constructor(args: NewBottomTabArgs) {

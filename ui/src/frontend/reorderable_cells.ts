@@ -17,8 +17,7 @@
 import m from 'mithril';
 
 import {DropDirection} from '../common/dragndrop_logic';
-
-import {globals} from './globals';
+import {raf} from '../core/raf_scheduler';
 
 export interface ReorderableCell {
   content: m.Children;
@@ -77,7 +76,7 @@ export class ReorderableCellGroup implements
                   e.dataTransfer.setDragImage(placeholderElement, 0, 0);
                 }
 
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               ondragover: (e: DragEvent) => {
                 let target = e.target as HTMLElement;
@@ -107,7 +106,7 @@ export class ReorderableCellGroup implements
 
 
                 if (redraw) {
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 }
               },
               ondragenter: (e: DragEvent) => {
@@ -129,7 +128,7 @@ export class ReorderableCellGroup implements
                 }
 
                 this.draggingTo = -1;
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               ondragend: () => {
                 if (this.draggingTo !== this.draggingFrom &&
@@ -140,7 +139,7 @@ export class ReorderableCellGroup implements
 
                 this.draggingFrom = -1;
                 this.draggingTo = -1;
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             cell.content));

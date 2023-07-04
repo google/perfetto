@@ -18,6 +18,7 @@ import {BigintMath} from '../base/bigint_math';
 import {clamp} from '../base/math_utils';
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';
+import {raf} from '../core/raf_scheduler';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
@@ -107,7 +108,7 @@ class TraceViewer implements m.ClassComponent {
     // TODO: Do resize handling better.
     this.onResize = () => {
       updateDimensions();
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     };
 
     // Once ResizeObservers are out, we can stop accessing the window here.
@@ -130,7 +131,7 @@ class TraceViewer implements m.ClassComponent {
 
         // If the user has panned they no longer need the hint.
         localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
-        globals.rafScheduler.scheduleRedraw();
+        raf.scheduleRedraw();
       },
       onZoomed: (zoomedPositionPx: number, zoomRatio: number) => {
         // TODO(hjd): Avoid hardcoding TRACK_SHELL_WIDTH.
@@ -139,7 +140,7 @@ class TraceViewer implements m.ClassComponent {
         const rect = vnode.dom.getBoundingClientRect();
         const centerPoint = zoomPx / (rect.width - TRACK_SHELL_WIDTH);
         frontendLocalState.zoomVisibleWindow(1 - zoomRatio, centerPoint);
-        globals.rafScheduler.scheduleRedraw();
+        raf.scheduleRedraw();
       },
       editSelection: (currentPx: number) => {
         return onTimeRangeBoundary(currentPx) !== null;
@@ -198,7 +199,7 @@ class TraceViewer implements m.ClassComponent {
           frontendLocalState.areaY.start = dragStartY;
           frontendLocalState.areaY.end = currentY;
         }
-        globals.rafScheduler.scheduleRedraw();
+        raf.scheduleRedraw();
       },
       endSelection: (edit: boolean) => {
         globals.frontendLocalState.areaY.start = undefined;
@@ -220,7 +221,7 @@ class TraceViewer implements m.ClassComponent {
         // frontendLocalState.
         globals.frontendLocalState.deselectArea();
         // Full redraw to color track shell.
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
       },
     });
   }

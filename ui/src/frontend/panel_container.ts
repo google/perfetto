@@ -15,6 +15,15 @@
 import m from 'mithril';
 
 import {assertExists, assertFalse} from '../base/logging';
+import {
+  debugNow,
+  perfDebug,
+  perfDisplay,
+  PerfStatsSource,
+  RunningStatistics,
+  runningStatStr,
+} from '../core/perf';
+import {raf} from '../core/raf_scheduler';
 
 import {
   SELECTION_STROKE_COLOR,
@@ -27,14 +36,6 @@ import {
 } from './flow_events_renderer';
 import {globals} from './globals';
 import {isPanelVNode, Panel, PanelSize} from './panel';
-import {
-  debugNow,
-  perfDebug,
-  perfDisplay,
-  PerfStatsSource,
-  RunningStatistics,
-  runningStatStr,
-} from '../core/perf';
 import {TrackGroupAttrs} from './viewer_page';
 
 // If the panel container scrolls, the backing canvas height is
@@ -170,7 +171,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   constructor(vnode: m.CVnode<Attrs>) {
     this.attrs = vnode.attrs;
     this.canvasRedrawer = () => this.redrawCanvas();
-    globals.rafScheduler.addRedrawCallback(this.canvasRedrawer);
+    raf.addRedrawCallback(this.canvasRedrawer);
     perfDisplay.addContainer(this);
     this.flowEventsRenderer = new FlowEventsRenderer();
   }
@@ -197,7 +198,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.readParentSizeFromDom(vnodeDom.dom);
       this.updateCanvasDimensions();
       this.repositionCanvas();
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     };
 
     // Once ResizeObservers are out, we can stop accessing the window here.
@@ -208,7 +209,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.parentOnScroll = () => {
         this.scrollTop = assertExists(vnodeDom.dom.parentElement).scrollTop;
         this.repositionCanvas();
-        globals.rafScheduler.scheduleRedraw();
+        raf.scheduleRedraw();
       };
       vnodeDom.dom.parentElement!.addEventListener(
           'scroll', this.parentOnScroll, {passive: true});
@@ -217,7 +218,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   onremove({attrs, dom}: m.CVnodeDOM<Attrs>) {
     window.removeEventListener('resize', this.onResize);
-    globals.rafScheduler.removeRedrawCallback(this.canvasRedrawer);
+    raf.removeRedrawCallback(this.canvasRedrawer);
     if (attrs.doesScroll) {
       dom.parentElement!.removeEventListener('scroll', this.parentOnScroll);
     }

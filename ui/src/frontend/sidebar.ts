@@ -35,6 +35,7 @@ import {
   TimestampFormat,
   timestampFormat,
 } from '../common/time';
+import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 
 import {Animation} from './animation';
@@ -878,7 +879,7 @@ function cycleTimestampFormat() {
       throw new Error(`Invalid timestamp format ${x}`);
   }
   setTimestampFormat(nextFmt);
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
 }
 
 const SidebarFooter: m.Component = {
@@ -929,8 +930,7 @@ class HiringBanner implements m.ClassComponent {
 }
 
 export class Sidebar implements m.ClassComponent {
-  private _redrawWhileAnimating =
-      new Animation(() => globals.rafScheduler.scheduleFullRedraw());
+  private _redrawWhileAnimating = new Animation(() => raf.scheduleFullRedraw());
   view() {
     if (globals.hideSidebar) return null;
     const vdomSections = [];
@@ -1029,7 +1029,7 @@ export class Sidebar implements m.ClassComponent {
               {
                 onclick: () => {
                   section.expanded = !section.expanded;
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 },
               },
               m('h1', {title: section.summary}, section.title),

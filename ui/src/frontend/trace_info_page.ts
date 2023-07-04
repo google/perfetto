@@ -17,6 +17,7 @@ import m from 'mithril';
 
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -54,7 +55,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
               order by name, idx`;
     runQuery(query, engine).then((resp: QueryResponse) => {
       this.queryResponse = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
 
@@ -132,7 +133,7 @@ class TraceMetadata implements m.ClassComponent {
           order by priority desc, name`;
     runQuery(query, engine).then((resp: QueryResponse) => {
       this.queryResponse = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
 
@@ -191,7 +192,7 @@ class AndroidGameInterventionList implements m.ClassComponent {
                 from android_game_intervention_list`;
     runQuery(query, engine).then((resp: QueryResponse) => {
       this.queryResponse = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
 
@@ -279,7 +280,7 @@ class PackageList implements m.ClassComponent {
                 profileable_from_shell from package_list`;
     runQuery(query, engine).then((resp: QueryResponse) => {
       this.queryResponse = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
 

@@ -17,7 +17,7 @@ import * as vega from 'vega';
 import * as vegaLite from 'vega-lite';
 
 import {getErrorMessage} from '../../common/errors';
-import {globals} from '../globals';
+import {raf} from '../../core/raf_scheduler';
 
 import {Spinner} from './spinner';
 
@@ -36,7 +36,7 @@ function isVegaLite(spec: unknown): boolean {
 export interface VegaViewData {
   [name: string]: any;
 }
-;
+
 
 interface VegaViewAttrs {
   spec: string;
@@ -154,7 +154,7 @@ class VegaWrapper {
     }
     this._status = Status.Done;
     this.pending = undefined;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   private handleError(pending: Promise<vega.View>, err: unknown) {
@@ -168,7 +168,7 @@ class VegaWrapper {
   private setError(err: unknown) {
     this._status = Status.Error;
     this._error = getErrorMessage(err);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   dispose() {

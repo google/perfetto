@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from './globals';
+import {raf} from '../core/raf_scheduler';
 
 export class Animation {
   private startMs = 0;
@@ -31,12 +31,12 @@ export class Animation {
     }
     this.startMs = nowMs;
     this.endMs = nowMs + durationMs;
-    globals.rafScheduler.start(this.boundOnAnimationFrame);
+    raf.start(this.boundOnAnimationFrame);
   }
 
   stop() {
     this.endMs = 0;
-    globals.rafScheduler.stop(this.boundOnAnimationFrame);
+    raf.stop(this.boundOnAnimationFrame);
   }
 
   get startTimeMs(): number {
@@ -45,7 +45,7 @@ export class Animation {
 
   private onAnimationFrame(nowMs: number) {
     if (nowMs >= this.endMs) {
-      globals.rafScheduler.stop(this.boundOnAnimationFrame);
+      raf.stop(this.boundOnAnimationFrame);
       return;
     }
     this.onAnimationStep(Math.max(Math.round(nowMs - this.startMs), 0));

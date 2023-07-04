@@ -31,6 +31,7 @@ import {initController, runControllers} from '../controller';
 import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
+import {raf} from '../core/raf_scheduler';
 
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
@@ -72,7 +73,7 @@ class FrontendApi {
     for (key in state) {
       if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
           oldState[key] !== state[key]) {
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
         break;
       }
     }
@@ -201,7 +202,7 @@ function main() {
     '/widgets': WidgetsPage,
   });
   router.onRouteChanged = (route) => {
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     maybeOpenTraceFromRoute(route);
   };
 
@@ -214,7 +215,7 @@ function main() {
   globals.serviceWorkerController.install();
 
   const frontendApi = new FrontendApi();
-  globals.publishRedraw = () => globals.rafScheduler.scheduleFullRedraw();
+  globals.publishRedraw = () => raf.scheduleFullRedraw();
 
   // We proxy messages between the extension and the controller because the
   // controller's worker can't access chrome.runtime.
@@ -271,7 +272,7 @@ function onCssLoaded() {
   // And replace it with the root <main> element which will be used by mithril.
   document.body.innerHTML = '<main></main>';
   const main = assertExists(document.body.querySelector('main'));
-  globals.rafScheduler.domRedraw = () => {
+  raf.domRedraw = () => {
     m.render(main, globals.router.resolve());
   };
 
