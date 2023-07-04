@@ -98,8 +98,7 @@ describe('EventSet', () => {
       const events: EventSet<KeySet> = EmptyEventSet.get();
       const filtered = await events.filter(c(true));
 
-      // TODO(hjd): This should be true after the optimisation() lands.
-      // expect(filtered).toBe(events);
+      expect(filtered).toBe(events);
       expect(await filtered.isEmpty()).toEqual(true);
       expect(await filtered.count()).toEqual(0);
     });
@@ -111,8 +110,7 @@ describe('EventSet', () => {
         expression: c(0),
       });
 
-      // TODO(hjd): This should be true after the optimisations land.
-      // expect(sorted).toBe(events);
+      expect(sorted).toBe(events);
       expect(await sorted.isEmpty()).toEqual(true);
       expect(await sorted.count()).toEqual(0);
     });

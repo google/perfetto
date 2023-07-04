@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {arrayEquals, isArrayOf} from '../base/array_utils';
 import {intersect} from '../base/set_utils';
 
 // Contents:
@@ -104,15 +105,15 @@ export interface EventSet<P extends KeySet> {
 }
 
 interface UnionEventSet<T extends KeySet> extends EventSet<T> {
-  readonly parents: EventSet<KeySet>[];
+  readonly parents: EventSet<T>[];
   readonly isUnion: true;
-  create(...selections: EventSet<KeySet>[]): UnionEventSet<T>;
+  create(...events: EventSet<KeySet>[]): UnionEventSet<T>;
 }
 
 interface IntersectionEventSet<T extends KeySet> extends EventSet<T> {
-  readonly parents: EventSet<KeySet>[];
+  readonly parents: EventSet<T>[];
   readonly isIntersection: true;
-  create(...selections: EventSet<KeySet>[]): IntersectionEventSet<T>;
+  create(...events: EventSet<KeySet>[]): IntersectionEventSet<T>;
 }
 
 interface FilterEventSet<T extends KeySet> extends EventSet<T> {
@@ -510,7 +511,7 @@ export class ConcreteEventSet<P extends KeySet> extends
           id: e.id,
         };
         for (const [k, v] of Object.entries(keys)) {
-          // While the static typing prevents folks from doing hitting
+          // While the static typing prevents folks from hitting
           // this in the common case people can still on purpose pass
           // keysets and lie about the types.
           result[k] = (e as UntypedEvent)[k] ?? getKeyDefault(k, v);
@@ -555,9 +556,96 @@ export class ConcreteEventSet<P extends KeySet> extends
 // A critical pre-condition of this function is that EventSets are
 // immutable - this allows us to reuse parts of the input event set tree
 // in the output.
-export function optimise<T extends KeySet>(events: EventSet<T>): EventSet<T> {
+export function optimise<T extends KeySet>(eventSet: EventSet<T>): EventSet<T> {
+  // Empty EventSet can't be futher optimised.
+  if (isEmptyEventSet(eventSet)) {
+    return eventSet;
+  }
+
+  if (isConcreteEventSet(eventSet)) {
+    // A concrete events with zero elements is the empty events.
+    if (eventSet.events.length === 0) {
+      return new EmptyEventSet(eventSet.keys);
+    }
+    // ...but otherwise can not be optimised further.
+    return eventSet;
+  }
+
+  if (isUnionEventSet(eventSet)) {
+    const keys = eventSet.keys;
+
+    let newParents: EventSet<T>[] = eventSet.parents.slice();
+
+    // Empty sets don't contribute to the union.
+    newParents = newParents.filter((p) => !isEmptyEventSet(p));
+
+    // union([]) is empty.
+    if (newParents.length === 0) {
+      return new EmptyEventSet(keys);
+    }
+
+    if (newParents.length === 1) {
+      return newParents[0];
+    }
+
+    // The union of concrete EventSets is a concrete EventSets with all
+    // the events in.
+    if (isArrayOf<ConcreteEventSet<T>, EventSet<T>>(
+            isConcreteEventSet, newParents)) {
+      const seen = new Set<string>();
+      const events = [];
+      for (const p of newParents) {
+        for (const e of p.events) {
+          if (!seen.has(e.id)) {
+            events.push(e);
+            seen.add(e.id);
+          }
+        }
+      }
+      return ConcreteEventSet.from(eventSet.keys, events);
+    }
+
+    if (arrayEquals(newParents, eventSet.parents)) {
+      return eventSet;
+    } else {
+      return eventSet.create(...newParents);
+    }
+  }
+
+  if (isIntersectionEventSet(eventSet)) {
+    // For any x: intersect([x, 0]) is 0
+    for (const parent of eventSet.parents) {
+      if (isEmptyEventSet(parent)) {
+        return parent;
+      }
+    }
+    return eventSet;
+  }
+
+  if (isFilterEventSet(eventSet)) {
+    const parent = eventSet.parent;
+
+    if (isEmptyEventSet(parent)) {
+      return parent;
+    }
+
+    return eventSet;
+  }
+
+  if (isSortEventSet(eventSet)) {
+    const parent = eventSet.parent;
+
+    if (isEmptyEventSet(parent)) {
+      return parent;
+    }
+
+    return eventSet;
+  }
+
   // TODO(hjd): Re-add the optimisations from the prototype.
-  return events;
+  // TODO(hjd): Union([a, a]) === a but maybe not worth optimising.
+
+  return eventSet;
 }
 
 // EXPR ===============================================================
