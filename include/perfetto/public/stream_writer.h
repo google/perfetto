@@ -95,7 +95,7 @@ static inline uint8_t* PerfettoStreamWriterReserveBytes(
 
 // Returns the number of bytes written to the stream writer from the start.
 static inline size_t PerfettoStreamWriterGetWrittenSize(
-    struct PerfettoStreamWriter* w) {
+    const struct PerfettoStreamWriter* w) {
   return w->written_previously +
          PERFETTO_STATIC_CAST(size_t, w->write_ptr - w->begin);
 }
