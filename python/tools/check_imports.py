@@ -117,12 +117,12 @@ RULES = [
     NoDirectDep(
         r'/plugins/.*',
         r'/core/.*',
-        'instead plugins should depend on the API exposed at ui/src/api.',
+        'instead plugins should depend on the API exposed at ui/src/public.',
     ),
     #NoDirectDep(
     #    r'/tracks/.*',
     #    r'/core/.*',
-    #    'instead tracks should depend on the API exposed at ui/src/api.',
+    #    'instead tracks should depend on the API exposed at ui/src/public.',
     #),
     NoDep(
         r'/core/.*',
