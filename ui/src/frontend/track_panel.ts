@@ -18,6 +18,7 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 import {Span, TPDuration, TPTime} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
@@ -150,14 +151,14 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
     this.dragging = true;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
     dataTransfer.setDragImage(new Image(), 0, 0);
   }
 
   ondragend() {
     this.dragging = false;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   ondragover(e: DragEvent) {
@@ -176,19 +177,19 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     } else if (e.offsetY > e.target.scrollHeight / 3 * 2) {
       this.dropping = 'after';
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   ondragleave() {
     this.dropping = undefined;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   ondrop(e: DragEvent) {
     if (this.dropping === undefined) return;
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
     const srcId = dataTransfer.getData('perfetto/track');
     const dstId = this.attrs!.trackState.id;
     globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
@@ -210,11 +211,11 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
           onmousemove: (e: PerfettoMouseEvent) => {
             attrs.track.onMouseMove(
                 {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
-            globals.rafScheduler.scheduleRedraw();
+            raf.scheduleRedraw();
           },
           onmouseout: () => {
             attrs.track.onMouseOut();
-            globals.rafScheduler.scheduleRedraw();
+            raf.scheduleRedraw();
           },
           onmousedown: (e: PerfettoMouseEvent) => {
             this.mouseDownX = e.layerX;
@@ -245,7 +246,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
                     {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
               e.stopPropagation();
             }
-            globals.rafScheduler.scheduleRedraw();
+            raf.scheduleRedraw();
           },
         },
         node.children);

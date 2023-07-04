@@ -15,10 +15,10 @@
 import m from 'mithril';
 
 import {formatDurationShort, TPTime} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
-import {globals} from './globals';
 import {asTPTimestamp, SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
   getFullThreadName,
@@ -69,7 +69,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
 
     this.load().then(() => {
       this.loaded = true;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
 

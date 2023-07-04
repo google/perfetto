@@ -15,7 +15,8 @@
  */
 
 import m from 'mithril';
-import {globals} from './globals';
+
+import {raf} from '../core/raf_scheduler';
 
 interface ArgumentPopupArgs {
   onArgumentChange: (arg: string) => void;
@@ -43,7 +44,7 @@ export class ArgumentPopup implements m.ClassComponent<ArgumentPopupArgs> {
   setArgument(attrs: ArgumentPopupArgs, arg: string) {
     this.argument = arg;
     attrs.onArgumentChange(arg);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   renderMatches(attrs: ArgumentPopupArgs): m.Child[] {

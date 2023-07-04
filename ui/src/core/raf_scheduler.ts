@@ -224,3 +224,5 @@ export class RafScheduler implements PerfStatsSource {
               runningStatStr(this.perfStats.domRedraw)));
   }
 }
+
+export const raf = new RafScheduler();

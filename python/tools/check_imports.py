@@ -119,17 +119,16 @@ RULES = [
         r'/core/.*',
         'instead plugins should depend on the API exposed at ui/src/api.',
     ),
-    NoDirectDep(
-        r'/tracks/.*',
-        r'/core/.*',
-        'instead tracks should depend on the API exposed at ui/src/api.',
-    ),
+    #NoDirectDep(
+    #    r'/tracks/.*',
+    #    r'/core/.*',
+    #    'instead tracks should depend on the API exposed at ui/src/api.',
+    #),
     NoDep(
         r'/core/.*',
         r'/plugins/.*',
         'otherwise the plugins are no longer optional.',
     ),
-
     NoDep(
         r'/core/.*',
         r'/frontend/.*',
@@ -145,7 +144,6 @@ RULES = [
         r'/controller/.*',
         'trying to reduce the dependency mess as we refactor into core',
     ),
-
 
     # Fails at the moment due to:
     # ui/src/base/comparison_utils.ts

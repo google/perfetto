@@ -54,9 +54,10 @@
 // showModal({title: 'Foo', content, buttons: ...});
 
 import m from 'mithril';
+
 import {defer} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
-import {globals} from './globals';
+import {raf} from '../core/raf_scheduler';
 
 export interface ModalDefinition {
   title: string;
@@ -89,7 +90,7 @@ export class Modal implements m.ClassComponent<ModalDefinition> {
     // The next view pass will kick-off the modalFadeOut CSS animation by
     // appending the .modal-hidden CSS class.
     this.requestClose = true;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   view(vnode: m.Vnode<ModalDefinition>) {
@@ -196,7 +197,7 @@ class ModalImpl implements m.ClassComponent<ModalImplAttrs> {
   onremove() {
     if (this.onClose !== undefined) {
       this.onClose();
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     }
   }
 
@@ -248,7 +249,7 @@ export class ModalContainer {
               thiz.closeGeneration = thiz.generation;
               if (thiz.attrs?.onClose !== undefined) {
                 thiz.attrs.onClose();
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               }
             },
             close: thiz.closeGeneration === thiz.generation ? true :
@@ -276,7 +277,7 @@ export class ModalContainer {
 
   close() {
     this.closeGeneration = this.generation;
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 }
 
@@ -295,6 +296,6 @@ export async function showModal(attrs: ModalDefinition): Promise<void> {
     ...attrs,
     onClose: () => promise.resolve(),
   });
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
   return promise;
 }
