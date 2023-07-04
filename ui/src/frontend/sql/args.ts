@@ -62,7 +62,7 @@ export async function getArgs(
     stringValue: STR_NULL,
     realValue: NUM_NULL,
     valueType: STR,
-    displayValue: STR,
+    displayValue: STR_NULL,
   });
 
   const result: Arg[] = [];
@@ -74,7 +74,7 @@ export async function getArgs(
       flatKey: it.flatKey,
       key: it.key,
       value,
-      displayValue: it.displayValue,
+      displayValue: it.displayValue ?? 'NULL',
     });
   }
 
