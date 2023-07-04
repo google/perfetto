@@ -14,15 +14,12 @@
 
 import m from 'mithril';
 
-import {assertTrue} from '../base/logging';
-
-import {globals} from './globals';
-
 import {
   debugNow,
   measure,
   perfDebug,
   perfDisplay,
+  PerfStatsSource,
   RunningStatistics,
   runningStatStr,
 } from './perf';
@@ -56,7 +53,7 @@ export type RedrawCallback = (nowMs: number) => void;
 // - redraw callbacks that will repaint canvases.
 // This class guarantees that, on each frame, redraw callbacks are called after
 // all action callbacks.
-export class RafScheduler {
+export class RafScheduler implements PerfStatsSource {
   private actionCallbacks = new Set<ActionCallback>();
   private canvasRedrawCallbacks = new Set<RedrawCallback>();
   private _syncDomRedraw: RedrawCallback = (_) => {};
@@ -64,6 +61,8 @@ export class RafScheduler {
   private requestedFullRedraw = false;
   private isRedrawing = false;
   private _shutdown = false;
+  private _beforeRedraw: () => void = () => {};
+  private _afterRedraw: () => void = () => {};
 
   private perfStats = {
     rafActions: new RunningStatistics(),
@@ -103,6 +102,14 @@ export class RafScheduler {
     this._syncDomRedraw = cb;
   }
 
+  set beforeRedraw(cb: () => void) {
+    this._beforeRedraw = cb;
+  }
+
+  set afterRedraw(cb: () => void) {
+    this._afterRedraw = cb;
+  }
+
   // Schedule re-rendering of virtual DOM and canvas.
   scheduleFullRedraw() {
     this.requestedFullRedraw = true;
@@ -137,11 +144,11 @@ export class RafScheduler {
   private syncCanvasRedraw(nowMs: number) {
     const redrawStart = debugNow();
     if (this.isRedrawing) return;
-    globals.frontendLocalState.clearVisibleTracks();
+    this._beforeRedraw();
     this.isRedrawing = true;
     for (const redraw of this.canvasRedrawCallbacks) redraw(nowMs);
     this.isRedrawing = false;
-    globals.frontendLocalState.sendVisibleTracks();
+    this._afterRedraw();
     if (perfDebug()) {
       this.perfStats.rafCanvas.addValue(debugNow() - redrawStart);
     }
@@ -174,7 +181,7 @@ export class RafScheduler {
 
     const totalRafTime = debugNow() - rafStart;
     this.updatePerfStats(actionTime, domTime, canvasTime, totalRafTime);
-    perfDisplay.renderPerfStats();
+    perfDisplay.renderPerfStats(this);
 
     this.maybeScheduleAnimationFrame();
   }
@@ -190,7 +197,6 @@ export class RafScheduler {
   }
 
   renderPerfStats() {
-    assertTrue(perfDebug());
     return m(
         'div',
         m('div',
