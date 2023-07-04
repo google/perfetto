@@ -153,7 +153,7 @@ function main() {
   setupContentSecurityPolicy();
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time
-  // appenChild returns.
+  // appendChild returns.
   const cssLoadPromise = defer<void>();
   const css = document.createElement('link');
   css.rel = 'stylesheet';
