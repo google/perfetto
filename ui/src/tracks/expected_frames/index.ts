@@ -24,7 +24,7 @@ import {TPDuration, TPTime} from '../../common/time';
 import {
   TrackController,
 } from '../../controller/track_controller';
-import {PluginContext} from '../../common/plugin_api';
+import {PluginContext} from '../../public';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 
 export interface Config {

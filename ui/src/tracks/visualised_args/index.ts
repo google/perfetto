@@ -15,10 +15,10 @@
 import m from 'mithril';
 
 import {Actions} from '../../common/actions';
-import {PluginContext} from '../../common/plugin_api';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {PluginContext} from '../../public';
 import {
   ChromeSliceTrack,
   ChromeSliceTrackController,

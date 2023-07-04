@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from '../../common/plugin_api';
+import {PluginContext} from '../../public';
+
 import {DebugTrackV2} from './slice_track';
 
 function activate(ctx: PluginContext) {

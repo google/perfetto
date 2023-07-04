@@ -17,7 +17,6 @@ import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
 import {HighPrecisionTime} from '../../common/high_precision_time';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
 import {Span, TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
@@ -27,6 +26,7 @@ import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {PxSpan, TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;

@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy, PluginContext} from '../../common/plugin_api';
 import {TracePlugin} from '../../common/plugins';
 import {Store} from '../../frontend/store';
+import {EngineProxy, PluginContext} from '../../public';
 
 interface ExampleState {
   counter: number;
