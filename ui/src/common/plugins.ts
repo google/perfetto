@@ -21,15 +21,15 @@ import {
 import {Store} from '../frontend/store';
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
-
-import {Engine} from './engine';
 import {
   EngineProxy,
   PluginContext,
   PluginInfo,
   TrackInfo,
   TrackProvider,
-} from './plugin_api';
+} from '../public';
+
+import {Engine} from './engine';
 import {Registry} from './registry';
 import {State} from './state';
 

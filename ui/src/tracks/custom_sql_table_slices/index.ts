@@ -16,7 +16,6 @@ import {Actions} from '../../common/actions';
 import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
-import {PluginContext} from '../../common/plugin_api';
 import {Selection} from '../../common/state';
 import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {
@@ -28,6 +27,7 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export interface CustomSqlTableDefConfig {
   // Table name
