@@ -129,6 +129,24 @@ RULES = [
         r'/plugins/.*',
         'otherwise the plugins are no longer optional.',
     ),
+
+    NoDep(
+        r'/core/.*',
+        r'/frontend/.*',
+        'trying to reduce the dependency mess as we refactor into core',
+    ),
+    NoDep(
+        r'/core/.*',
+        r'/common/.*',
+        'trying to reduce the dependency mess as we refactor into core',
+    ),
+    NoDep(
+        r'/core/.*',
+        r'/controller/.*',
+        'trying to reduce the dependency mess as we refactor into core',
+    ),
+
+
     # Fails at the moment due to:
     # ui/src/base/comparison_utils.ts
     #    -> ui/src/common/query_result.ts
