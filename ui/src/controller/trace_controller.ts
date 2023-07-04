@@ -134,7 +134,8 @@ const METRICS = [
   'android_batt',
   'android_other_traces',
   'chrome_dropped_frames',
-  'chrome_long_latency',
+  // TODO(289365196): Reenable:
+  // 'chrome_long_latency',
   'trace_metadata',
   'android_trusty_workqueues',
 ];
