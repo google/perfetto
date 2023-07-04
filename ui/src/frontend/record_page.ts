@@ -574,6 +574,18 @@ async function addAndroidDevice() {
   await updateAvailableAdbDevices(device.serialNumber);
 }
 
+// We really should be getting the API version from the adb target, but
+// currently its too complicated to do that (== most likely, we need to finish
+// recordingV2 migration). For now, add an escape hatch to use Android S as a
+// default, given that the main features we want are gated by API level 31 and S
+// is old enough to be the default most of the time.
+const USE_ANDROID_S_AS_DEFAULT_FLAG = featureFlags.register({
+  id: 'recordingPageUseSAsDefault',
+  name: 'Use Android S as a default recording target',
+  description: 'Use Android S as a default recording target instead of Q',
+  defaultValue: false,
+});
+
 export async function updateAvailableAdbDevices(
     preferredDeviceSerial?: string) {
   const devices = await new AdbOverWebUsb().getPairedDevices();
@@ -587,8 +599,11 @@ export async function updateAvailableAdbDevices(
       // assume it is 'Q'. This can create problems with devices with an old
       // version of perfetto. The os detection should be done after the adb
       // connection, from adb_record_controller
-      availableAdbDevices.push(
-          {name: d.productName, serial: d.serialNumber, os: 'Q'});
+      availableAdbDevices.push({
+        name: d.productName,
+        serial: d.serialNumber,
+        os: USE_ANDROID_S_AS_DEFAULT_FLAG.get() ? 'S' : 'Q',
+      });
       if (preferredDeviceSerial && preferredDeviceSerial === d.serialNumber) {
         recordingTarget = availableAdbDevices[availableAdbDevices.length - 1];
       }
