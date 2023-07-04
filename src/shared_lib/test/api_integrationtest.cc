@@ -21,6 +21,7 @@
 #include "perfetto/public/abi/data_source_abi.h"
 #include "perfetto/public/abi/pb_decoder_abi.h"
 #include "perfetto/public/data_source.h"
+#include "perfetto/public/pb_decoder.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"
 #include "perfetto/public/protos/trace/trace.pzc.h"
@@ -101,6 +102,84 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg));
   MOCK_METHOD(void, OnDeleteIncr, (void*));
 };
+
+TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
+  // # proto-message: perfetto.protos.TestEvent
+  // counter: 5
+  // payload {
+  //   str: "hello"
+  //   single_int: -1
+  // }
+  std::string_view msg =
+      "\x18\x05\x2a\x12\x0a\x05\x68\x65\x6c\x6c\x6f\x28\xff\xff\xff\xff\xff\xff"
+      "\xff\xff\xff\x01";
+  size_t n_counter = 0;
+  size_t n_payload = 0;
+  size_t n_payload_str = 0;
+  size_t n_payload_single_int = 0;
+  for (struct PerfettoPbDecoderIterator it =
+           PerfettoPbDecoderIterateBegin(msg.data(), msg.size());
+       it.field.status != PERFETTO_PB_DECODER_DONE;
+       PerfettoPbDecoderIterateNext(&it)) {
+    if (it.field.status != PERFETTO_PB_DECODER_OK) {
+      ADD_FAILURE() << "Failed to parse main message";
+      break;
+    }
+    switch (it.field.id) {
+      case perfetto_protos_TestEvent_counter_field_number:
+        n_counter++;
+        EXPECT_EQ(it.field.wire_type, PERFETTO_PB_WIRE_TYPE_VARINT);
+        {
+          uint64_t val = 0;
+          EXPECT_TRUE(PerfettoPbDecoderFieldGetUint64(&it.field, &val));
+          EXPECT_EQ(val, 5u);
+        }
+        break;
+      case perfetto_protos_TestEvent_payload_field_number:
+        n_payload++;
+        EXPECT_EQ(it.field.wire_type, PERFETTO_PB_WIRE_TYPE_DELIMITED);
+        for (struct PerfettoPbDecoderIterator it2 =
+                 PerfettoPbDecoderIterateNestedBegin(it.field.value.delimited);
+             it2.field.status != PERFETTO_PB_DECODER_DONE;
+             PerfettoPbDecoderIterateNext(&it2)) {
+          if (it2.field.status != PERFETTO_PB_DECODER_OK) {
+            ADD_FAILURE() << "Failed to parse nested message";
+            break;
+          }
+          switch (it2.field.id) {
+            case perfetto_protos_TestEvent_TestPayload_str_field_number:
+              n_payload_str++;
+              EXPECT_EQ(it2.field.wire_type, PERFETTO_PB_WIRE_TYPE_DELIMITED);
+              EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(
+                                             it2.field.value.delimited.start),
+                                         it2.field.value.delimited.len),
+                        "hello");
+              break;
+            case perfetto_protos_TestEvent_TestPayload_single_int_field_number:
+              EXPECT_EQ(it2.field.wire_type, PERFETTO_PB_WIRE_TYPE_VARINT);
+              n_payload_single_int++;
+              {
+                int32_t val = 0;
+                EXPECT_TRUE(PerfettoPbDecoderFieldGetInt32(&it2.field, &val));
+                EXPECT_EQ(val, -1);
+              }
+              break;
+            default:
+              ADD_FAILURE() << "Unexpected nested field.id";
+              break;
+          }
+        }
+        break;
+      default:
+        ADD_FAILURE() << "Unexpected field.id";
+        break;
+    }
+  }
+  EXPECT_EQ(n_counter, 1u);
+  EXPECT_EQ(n_payload, 1u);
+  EXPECT_EQ(n_payload_str, 1u);
+  EXPECT_EQ(n_payload_single_int, 1u);
+}
 
 class SharedLibDataSourceTest : public testing::Test {
  protected:
