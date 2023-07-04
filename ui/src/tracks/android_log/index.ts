@@ -12,17 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM} from '../../common/query_result';
 import {TPDuration, TPTime} from '../../common/time';
-import {TrackData} from '../../common/track_data';
-import {LIMIT} from '../../common/track_data';
+import {LIMIT, TrackData} from '../../common/track_data';
 import {
   TrackController,
 } from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 

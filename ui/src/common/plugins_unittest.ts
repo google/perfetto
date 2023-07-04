@@ -12,7 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from './plugin_api';
+import {PluginContext} from '../public';
+
 import {PluginManager, PluginRegistry} from './plugins';
 
 test('can activate plugin', () => {

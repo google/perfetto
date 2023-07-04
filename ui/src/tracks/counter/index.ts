@@ -17,15 +17,6 @@ import m from 'mithril';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {
-  EngineProxy,
-  LONG,
-  LONG_NULL,
-  NUM,
-  PluginContext,
-  STR,
-  TrackInfo,
-} from '../../common/plugin_api';
 import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
@@ -34,6 +25,15 @@ import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {Button} from '../../frontend/widgets/button';
 import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
+import {
+  EngineProxy,
+  LONG,
+  LONG_NULL,
+  NUM,
+  PluginContext,
+  STR,
+  TrackInfo,
+} from '../../public';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
