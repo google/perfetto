@@ -19,6 +19,7 @@ import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {traceEvent} from '../common/metatracing';
 import {Registry} from '../common/registry';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 import {Panel, PanelSize, PanelVNode} from './panel';
@@ -168,7 +169,7 @@ addTab(args: AddTabArgs) {
     return;
   }
   tabList.addTab(args);
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
 }
 
 
@@ -181,7 +182,7 @@ closeTab(uuid: string) {
     return;
   }
   tabList.closeTabById(uuid);
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
 }
 
 interface PendingTab {
@@ -273,7 +274,7 @@ export class BottomTabList {
       globals.dispatch(Actions.setCurrentTab(
           {tab: tabSelectionKey(this.tabs[newActiveIndex])}));
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   // Check the list of the pending tabs and add the ones that are ready
@@ -330,7 +331,7 @@ export class BottomTabList {
         }
         // setCurrentTab will usually schedule a redraw, but not if we replace
         // the tab with the same tag, so we force an update here.
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
       }, {
         args: {
           'uuid': tab.uuid,
