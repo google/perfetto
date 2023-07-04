@@ -41,6 +41,7 @@ import {
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
+import {setPerfHooks} from './perf';
 import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
@@ -276,7 +277,17 @@ class Globals {
     this._router = router;
     this._store = createStore(initialState);
     this._frontendLocalState = new FrontendLocalState();
+
+    setPerfHooks(
+        () => this.state.perfDebug,
+        () => this.dispatch(Actions.togglePerfDebug({})));
+
     this._rafScheduler = new RafScheduler();
+    this._rafScheduler.beforeRedraw = () =>
+        this.frontendLocalState.clearVisibleTracks();
+    this._rafScheduler.afterRedraw = () =>
+        this.frontendLocalState.sendVisibleTracks();
+
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
         self.location && self.location.search.indexOf('testing=1') >= 0;
