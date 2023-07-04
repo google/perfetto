@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {exists} from '../../base/utils';
-import {globals} from '../globals';
+import {raf} from '../../core/raf_scheduler';
 
 import {Menu, MenuItem} from './menu';
 import {TextInput} from './text_input';
@@ -77,7 +77,7 @@ export class FilterableSelect implements
             oninput: (event: Event) => {
               const eventTarget = event.target as HTMLTextAreaElement;
               this.searchText = eventTarget.value;
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
             onload: (event: Event) => {
               if (!attrs.autofocusInput) return;

@@ -29,6 +29,7 @@ import {
   TPTime,
   tpTimeFromNanos,
 } from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
@@ -667,7 +668,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     this.slices = slices;
 
     this.sqlState = 'QUERY_DONE';
-    globals.rafScheduler.scheduleRedraw();
+    raf.scheduleRedraw();
   }
 
   private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {

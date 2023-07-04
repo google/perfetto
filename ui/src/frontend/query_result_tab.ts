@@ -18,6 +18,7 @@ import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../base/logging';
 import {QueryResponse, runQuery} from '../common/queries';
 import {QueryError} from '../common/query_result';
+import {raf} from '../core/raf_scheduler';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
@@ -30,11 +31,9 @@ import {
   closeTab,
   NewBottomTabArgs,
 } from './bottom_tab';
-import {globals} from './globals';
 import {QueryTable} from './query_table';
 import {Button} from './widgets/button';
 import {Popup, PopupPosition} from './widgets/popup';
-
 
 export function runQueryInNewTab(query: string, title: string, tag?: string) {
   return addTab({
@@ -79,7 +78,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     } else {
       const result = await runQuery(this.config.query, this.engine);
       this.queryResponse = result;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
       if (result.error !== undefined) {
         return;
       }
@@ -90,7 +89,7 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     if (uuid !== '') {
       this.sqlViewName = await this.createViewForDebugTrack(uuid);
       if (this.sqlViewName) {
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
       }
     }
   }

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 import m from 'mithril';
 
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
+import {raf} from '../core/raf_scheduler';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -59,10 +59,10 @@ export function runAnalyzeQuery(query: string) {
         return;
       }
       state.queryResult = resp;
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     });
   }
-  globals.rafScheduler.scheduleDelayedFullRedraw();
+  raf.scheduleDelayedFullRedraw();
 }
 
 function getEngine(): EngineProxy|undefined {
@@ -123,7 +123,7 @@ export const AnalyzePage = createPage({
           onClose: () => {
             state.executedQuery = undefined;
             state.queryResult = undefined;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
           fillParent: false,
         }),
