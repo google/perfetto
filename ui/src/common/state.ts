@@ -107,7 +107,8 @@ export const MAX_TIME = 180;
 // 30. Convert ftraceFilter.excludedNames from Set<string> to string[].
 // 31. Convert all timestamps to bigints.
 // 32. Add pendingDeeplink.
-export const STATE_VERSION = 31;
+// 33. Add plugins state.
+export const STATE_VERSION = 33;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
