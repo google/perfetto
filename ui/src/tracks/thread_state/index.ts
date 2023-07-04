@@ -18,7 +18,6 @@ import {assertFalse} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
 import {TPDuration, TPTime} from '../../common/time';
@@ -27,6 +26,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';

@@ -16,7 +16,6 @@
 import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM} from '../../common/query_result';
 import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
@@ -27,6 +26,7 @@ import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
