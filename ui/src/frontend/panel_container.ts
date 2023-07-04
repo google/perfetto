@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {assertExists, assertFalse, assertTrue} from '../base/logging';
+import {assertExists, assertFalse} from '../base/logging';
 
 import {
   SELECTION_STROKE_COLOR,
@@ -31,6 +31,7 @@ import {
   debugNow,
   perfDebug,
   perfDisplay,
+  PerfStatsSource,
   RunningStatistics,
   runningStatStr,
 } from './perf';
@@ -58,7 +59,8 @@ interface PanelInfo {
   y: number;
 }
 
-export class PanelContainer implements m.ClassComponent<Attrs> {
+export class PanelContainer implements m.ClassComponent<Attrs>,
+                                       PerfStatsSource {
   // These values are updated with proper values in oncreate.
   private parentWidth = 0;
   private parentHeight = 0;
@@ -498,15 +500,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.perfStats.panelsOnCanvas = panelsOnCanvas;
   }
 
-  renderPerfStats(index: number) {
-    assertTrue(perfDebug());
-    return [m(
-        'section',
-        m('div', `Panel Container ${index + 1}`),
-        m('div',
-          `${this.perfStats.totalPanels} panels, ` +
-              `${this.perfStats.panelsOnCanvas} on canvas.`),
-        m('div', runningStatStr(this.perfStats.renderStats)))];
+  renderPerfStats() {
+    return [
+      m('div',
+        `${this.perfStats.totalPanels} panels, ` +
+            `${this.perfStats.panelsOnCanvas} on canvas.`),
+      m('div', runningStatStr(this.perfStats.renderStats)),
+    ];
   }
 
   private getCanvasOverdrawHeightPerSide() {

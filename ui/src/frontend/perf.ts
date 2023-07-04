@@ -15,12 +15,18 @@
 
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
-import {globals} from './globals';
-import {PanelContainer} from './panel_container';
+const hooks = {
+  isDebug: () => false,
+  toggleDebug: () => {},
+};
+
+export function setPerfHooks(isDebug: () => boolean, toggleDebug: () => void) {
+  hooks.isDebug = isDebug;
+  hooks.toggleDebug = toggleDebug;
+}
 
 // Shorthand for if globals perf debug mode is on.
-export const perfDebug = () => globals.state.perfDebug;
+export const perfDebug = () => hooks.isDebug();
 
 // Returns performance.now() if perfDebug is enabled, otherwise 0.
 // This is needed because calling performance.now is generally expensive
@@ -88,30 +94,40 @@ export function runningStatStr(stat: RunningStatistics) {
       `Avg${stat.maxBufferSize}: ${stat.bufferMean.toFixed(2)}ms`;
 }
 
+export interface PerfStatsSource {
+  renderPerfStats(): m.Children;
+}
+
 // Globals singleton class that renders performance stats for the whole app.
 class PerfDisplay {
-  private containers: PanelContainer[] = [];
-  addContainer(container: PanelContainer) {
+  private containers: PerfStatsSource[] = [];
+
+  addContainer(container: PerfStatsSource) {
     this.containers.push(container);
   }
 
-  removeContainer(container: PanelContainer) {
+  removeContainer(container: PerfStatsSource) {
     const i = this.containers.indexOf(container);
     this.containers.splice(i, 1);
   }
 
-  renderPerfStats() {
+  renderPerfStats(src: PerfStatsSource) {
     if (!perfDebug()) return;
     const perfDisplayEl = document.querySelector('.perf-stats');
     if (!perfDisplayEl) return;
     m.render(perfDisplayEl, [
-      m('section', globals.rafScheduler.renderPerfStats()),
+      m('section', src.renderPerfStats()),
       m('button.close-button',
         {
-          onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
+          onclick: hooks.toggleDebug,
         },
         m('i.material-icons', 'close')),
-      this.containers.map((c, i) => m('section', c.renderPerfStats(i))),
+      this.containers.map(
+          (c, i) => m(
+              'section',
+              m('div', `Panel Container ${i + 1}`),
+              c.renderPerfStats(),
+              )),
     ]);
   }
 }
