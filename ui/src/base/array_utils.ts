@@ -40,3 +40,8 @@ export function arrayEquals(a: any[]|undefined, b: any[]|undefined): boolean {
   }
   return true;
 }
+
+export function isArrayOf<P, Q>(
+    predicate: (x: P|Q) => x is P, xs: (P|Q)[]): xs is P[] {
+  return xs.every(predicate);
+}
