@@ -300,8 +300,7 @@ declare_args() {
   # service and by the "perfetto" cmdline client) and to decompress traces (by
   # trace_processor).
   enable_perfetto_zlib =
-      (enable_perfetto_trace_processor && !build_with_chromium) ||
-      enable_perfetto_platform_services
+      enable_perfetto_trace_processor || enable_perfetto_platform_services
 
   # Enables function name demangling using sources from llvm. Otherwise
   # trace_processor falls back onto using the c++ runtime demangler, which
