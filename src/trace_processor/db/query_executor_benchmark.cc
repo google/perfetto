@@ -273,6 +273,13 @@ static void BM_QESliceTableNameGlob(benchmark::State& state) {
 
 BENCHMARK(BM_QESliceTableNameGlob)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QESliceTableNameRegex(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  BenchmarkSliceTable(state, table, {table.table_.name().regex(".*Pool.*")});
+}
+
+BENCHMARK(BM_QESliceTableNameRegex)->ArgsProduct({{DB::V1, DB::V2}});
+
 static void BM_QESliceTableSorted(benchmark::State& state) {
   SliceTableForBenchmark table(state);
   BenchmarkSliceTable(state, table, {table.table_.ts().gt(1000)});

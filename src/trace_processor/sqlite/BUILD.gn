@@ -55,6 +55,7 @@ source_set("sqlite") {
     "../types",
     "../util",
     "../util:profile_builder",
+    "../util:regex",
   ]
 }
 
