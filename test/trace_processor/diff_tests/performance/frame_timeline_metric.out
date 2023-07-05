@@ -96,16 +96,16 @@ android_frame_timeline_metric {
     missed_frames: 2
     missed_app_frames: 0
     missed_sf_frames: 1
-    frame_dur_max: 5000000
-    frame_dur_avg: 2499999
-    frame_dur_p50: 2499999
-    frame_dur_p90: 4499999
-    frame_dur_p95: 4749999
-    frame_dur_p99: 4949999
-    frame_dur_ms_p50: 2.4999995
-    frame_dur_ms_p90: 4.4999999
-    frame_dur_ms_p95: 4.74999995
-    frame_dur_ms_p99: 4.94999999
+    frame_dur_max: 14000000
+    frame_dur_avg: 14000000
+    frame_dur_p50: 14000000
+    frame_dur_p90: 14000000
+    frame_dur_p95: 14000000
+    frame_dur_p99: 14000000
+    frame_dur_ms_p50: 14.0
+    frame_dur_ms_p90: 14.0
+    frame_dur_ms_p95: 14.0
+    frame_dur_ms_p99: 14.0
     dropped_frames: 1
     jank_types {
       type: "Dropped Frame"
