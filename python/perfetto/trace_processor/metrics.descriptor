@@ -844,22 +844,17 @@ display_id (	R	displayId#
 missed_frame_rate (RmissedFrameRate1
 missed_hwc_frame_rate (RmissedHwcFrameRate1
 missed_gpu_frame_rate (RmissedGpuFrameRate
-ö
-0protos/perfetto/metrics/android/task_names.protoperfetto.protos"°
+»
+0protos/perfetto/metrics/android/task_names.protoperfetto.protos"õ
 AndroidTaskNamesC
-process (2).perfetto.protos.AndroidTaskNames.ProcessRprocessÖ
+process (2).perfetto.protos.AndroidTaskNames.ProcessRprocess›
 Process
 pid (Rpid!
 process_name (	RprocessName
 thread_name (	R
 threadName
 uid (Ruid(
-uid_package_name (	RuidPackageNamef
-short_lived_tasks (2:.perfetto.protos.AndroidTaskNames.Process.TaskCreationSpamRshortLivedTasksd
-long_lived_tasks (2:.perfetto.protos.AndroidTaskNames.Process.TaskCreationSpamRlongLivedTasksk
-TaskCreationSpam,
-thread_name_prefix (	RthreadNamePrefix)
-max_count_per_sec (RmaxCountPerSec
+uid_package_name (	RuidPackageName
 Ó
 3protos/perfetto/metrics/android/trace_quality.protoperfetto.protos"Š
 AndroidTraceQualityMetricN
