@@ -2224,7 +2224,6 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
     ],
 )
 
