@@ -12,50 +12,28 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from 'src/base/disposable';
 
 import {
   TrackControllerFactory,
   trackControllerRegistry,
 } from '../controller/track_controller';
-import {Store} from '../frontend/store';
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
 import {
+  Command,
   EngineProxy,
   PluginContext,
   PluginInfo,
+  Store,
+  TracePlugin,
+  TracePluginFactory,
   TrackInfo,
   TrackProvider,
 } from '../public';
 
-import {Command} from './commands';
 import {Engine} from './engine';
 import {Registry} from './registry';
 import {State} from './state';
-
-// All trace plugins must implement this interface.
-export interface TracePlugin extends Disposable {
-  commands(): Command[];
-}
-
-// This interface defines what a plugin factory should look like.
-// This can be defined in the plugin class definition by defining a constructor
-// and the relevant static methods:
-// E.g.
-// class MyPlugin implements TracePlugin<MyState> {
-//   static migrate(initialState: unknown): MyState {...}
-//   constructor(store: Store<MyState>, engine: EngineProxy) {...}
-//   ... methods from the TracePlugin interface go here ...
-// }
-// ... which can then be passed around by class i.e. MyPlugin
-export interface TracePluginFactory<StateT> {
-  // Function to migrate the persistent state. Called before new().
-  migrate(initialState: unknown): StateT;
-
-  // Instantiate the plugin.
-  new(store: Store<StateT>, engine: EngineProxy): TracePlugin;
-}
 
 interface TracePluginContext {
   plugin: TracePlugin;
@@ -106,7 +84,7 @@ export class PluginContextImpl implements PluginContext {
     const TracePluginClass = this.tracePluginFactory;
     if (TracePluginClass) {
       // Make an engine proxy for this plugin.
-      const engineProxy = engine.getProxy(this.pluginId);
+      const engineProxy: EngineProxy = engine.getProxy(this.pluginId);
 
       // Extract the initial state and pass to the plugin factory for migration.
       const initialState = store.state.plugins[this.pluginId];
