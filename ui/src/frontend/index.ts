@@ -367,6 +367,8 @@ function onCssLoaded() {
       ts: route.args.ts,
       tid: route.args.tid,
       dur: route.args.dur,
+      pid: route.args.dur,
+      query: route.args.query,
     }));
 
     if (!globals.embeddedMode) {
