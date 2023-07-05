@@ -16,9 +16,12 @@
  */
 
 #include "src/trace_processor/db/storage/numeric_storage.h"
+#include <string>
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -159,102 +162,93 @@ uint32_t UpperBoundExtrinsic(const void* data,
       val);
 }
 
-template <typename T, typename Comparator>
+template <typename T>
 void TypedLinearSearch(T typed_val,
                        const T* start,
-                       Comparator comparator,
+                       FilterOp op,
                        BitVector::Builder& builder) {
-  // Slow path: we compare <64 elements and append to get us to a word
-  // boundary.
-  const T* ptr = start;
-  uint32_t front_elements = builder.BitsUntilWordBoundaryOrFull();
-  for (uint32_t i = 0; i < front_elements; ++i) {
-    builder.Append(comparator(ptr[i], typed_val));
-  }
-  ptr += front_elements;
-
-  // Fast path: we compare as many groups of 64 elements as we can.
-  // This should be very easy for the compiler to auto-vectorize.
-  uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-  for (uint32_t i = 0; i < fast_path_elements; i += BitVector::kBitsInWord) {
-    uint64_t word = 0;
-    // This part should be optimised by SIMD and is expected to be fast.
-    for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k) {
-      bool comp_result = comparator(start[i + k], typed_val);
-      word |= static_cast<uint64_t>(comp_result) << k;
-    }
-    builder.AppendWord(word);
-  }
-  ptr += fast_path_elements;
-
-  // Slow path: we compare <64 elements and append to fill the Builder.
-  uint32_t back_elements = builder.BitsUntilFull();
-  for (uint32_t i = 0; i < back_elements; ++i) {
-    builder.Append(comparator(ptr[i], typed_val));
-  }
-}
-
-template <typename T, typename Comparator>
-void TypedIndexSearch(T typed_val,
-                      const T* start,
-                      uint32_t* indices,
-                      Comparator comparator,
-                      BitVector::Builder& builder) {
-  // Slow path: we compare <64 elements and append to get us to a word
-  // boundary.
-  const T* ptr = start;
-  uint32_t front_elements = builder.BitsUntilWordBoundaryOrFull();
-  for (uint32_t i = 0; i < front_elements; ++i) {
-    builder.Append(comparator(ptr[indices[i]], typed_val));
-  }
-  ptr += front_elements;
-
-  // Fast path: we compare as many groups of 64 elements as we can.
-  // This should be very easy for the compiler to auto-vectorize.
-  uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-  for (uint32_t i = 0; i < fast_path_elements; i += BitVector::kBitsInWord) {
-    uint64_t word = 0;
-    // This part should be optimised by SIMD and is expected to be fast.
-    for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k) {
-      bool comp_result = comparator(start[indices[i + k]], typed_val);
-      word |= static_cast<uint64_t>(comp_result) << k;
-    }
-    builder.AppendWord(word);
-  }
-  ptr += fast_path_elements;
-
-  // Slow path: we compare <64 elements and append to fill the Builder.
-  uint32_t back_elements = builder.BitsUntilFull();
-  for (uint32_t i = 0; i < back_elements; ++i) {
-    builder.Append(comparator(ptr[indices[i]], typed_val));
+  switch (op) {
+    case FilterOp::kEq:
+      return utils::LinearSearchWithComparator(typed_val, start,
+                                               std::equal_to<T>(), builder);
+    case FilterOp::kNe:
+      return utils::LinearSearchWithComparator(typed_val, start,
+                                               std::not_equal_to<T>(), builder);
+    case FilterOp::kLe:
+      return utils::LinearSearchWithComparator(typed_val, start,
+                                               std::less_equal<T>(), builder);
+    case FilterOp::kLt:
+      return utils::LinearSearchWithComparator(typed_val, start, std::less<T>(),
+                                               builder);
+    case FilterOp::kGt:
+      return utils::LinearSearchWithComparator(typed_val, start,
+                                               std::greater<T>(), builder);
+    case FilterOp::kGe:
+      return utils::LinearSearchWithComparator(
+          typed_val, start, std::greater_equal<T>(), builder);
+    case FilterOp::kGlob:
+    case FilterOp::kIsNotNull:
+    case FilterOp::kIsNull:
+      PERFETTO_DFATAL("Illegal argument");
   }
 }
 
 }  // namespace
 
+RangeOrBitVector NumericStorage::Search(FilterOp op,
+                                        SqlValue value,
+                                        RowMap::Range range) const {
+  if (is_sorted_)
+    return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+  return RangeOrBitVector(LinearSearch(op, value, range));
+}
+
+RangeOrBitVector NumericStorage::IndexSearch(FilterOp op,
+                                             SqlValue value,
+                                             uint32_t* indices,
+                                             uint32_t indices_count,
+                                             bool sorted) const {
+  if (sorted) {
+    return RangeOrBitVector(
+        BinarySearchExtrinsic(op, value, indices, indices_count));
+  }
+  return RangeOrBitVector(IndexSearch(op, value, indices, indices_count));
+}
+
 BitVector NumericStorage::LinearSearch(FilterOp op,
                                        SqlValue sql_val,
                                        RowMap::Range range) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::LinearSearch",
+                    [&range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(range.start));
+                      r->AddArg("End", std::to_string(range.end));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
     return BitVector(size(), true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector();
+    return BitVector(size(), false);
 
-  BitVector::Builder builder(range.end);
-  builder.Skip(range.start);
-  std::visit(
-      [this, range, op, &builder](auto val) {
-        using T = decltype(val);
-        auto* start = static_cast<const T*>(data_) + range.start;
-        std::visit(
-            [start, val, &builder](auto comparator) {
-              TypedLinearSearch(val, start, comparator, builder);
-            },
-            GetFilterOpVariant<T>(op));
-      },
-      *val);
+  BitVector::Builder builder(range.end, range.start);
+  if (const auto* u32 = std::get_if<uint32_t>(&*val)) {
+    auto* start = static_cast<const uint32_t*>(data_) + range.start;
+    TypedLinearSearch(*u32, start, op, builder);
+  } else if (const auto* i64 = std::get_if<int64_t>(&*val)) {
+    auto* start = static_cast<const int64_t*>(data_) + range.start;
+    TypedLinearSearch(*i64, start, op, builder);
+  } else if (const auto* i32 = std::get_if<int32_t>(&*val)) {
+    auto* start = static_cast<const int32_t*>(data_) + range.start;
+    TypedLinearSearch(*i32, start, op, builder);
+  } else if (const auto* db = std::get_if<double>(&*val)) {
+    auto* start = static_cast<const double*>(data_) + range.start;
+    TypedLinearSearch(*db, start, op, builder);
+  } else {
+    PERFETTO_DFATAL("Invalid");
+  }
   return std::move(builder).Build();
 }
 
@@ -262,12 +256,19 @@ BitVector NumericStorage::IndexSearch(FilterOp op,
                                       SqlValue sql_val,
                                       uint32_t* indices,
                                       uint32_t indices_count) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
+                    [indices_count, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_count));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
-    return BitVector(size(), true);
+    return BitVector(indices_count, true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector();
+    return BitVector(indices_count, false);
 
   BitVector::Builder builder(indices_count);
   std::visit(
@@ -276,7 +277,8 @@ BitVector NumericStorage::IndexSearch(FilterOp op,
         auto* start = static_cast<const T*>(data_);
         std::visit(
             [start, indices, val, &builder](auto comparator) {
-              TypedIndexSearch(val, start, indices, comparator, builder);
+              utils::IndexSearchWithComparator(val, start, indices, comparator,
+                                               builder);
             },
             GetFilterOpVariant<T>(op));
       },
@@ -290,7 +292,7 @@ RowMap::Range NumericStorage::BinarySearchIntrinsic(
     RowMap::Range search_range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
-    return RowMap::Range(0, size());
+    return search_range;
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
     return RowMap::Range();
@@ -299,16 +301,19 @@ RowMap::Range NumericStorage::BinarySearchIntrinsic(
     case FilterOp::kEq:
       return RowMap::Range(LowerBoundIntrinsic(data_, *val, search_range),
                            UpperBoundIntrinsic(data_, *val, search_range));
-    case FilterOp::kLe:
-      return RowMap::Range(0, UpperBoundIntrinsic(data_, *val, search_range));
+    case FilterOp::kLe: {
+      return RowMap::Range(search_range.start,
+                           UpperBoundIntrinsic(data_, *val, search_range));
+    }
     case FilterOp::kLt:
-      return RowMap::Range(0, LowerBoundIntrinsic(data_, *val, search_range));
+      return RowMap::Range(search_range.start,
+                           LowerBoundIntrinsic(data_, *val, search_range));
     case FilterOp::kGe:
       return RowMap::Range(LowerBoundIntrinsic(data_, *val, search_range),
-                           size_);
+                           search_range.end);
     case FilterOp::kGt:
       return RowMap::Range(UpperBoundIntrinsic(data_, *val, search_range),
-                           size_);
+                           search_range.end);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:

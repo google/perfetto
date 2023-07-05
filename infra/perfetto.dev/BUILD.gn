@@ -258,12 +258,12 @@ stdlib_docs_md = "${target_gen_dir}/stdlib_docs.md"
 action("gen_stdlib_docs_md") {
   script = "src/gen_stdlib_docs_md.py"
   label_info = get_label_info(
-          "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs",
+          "../../src/trace_processor/perfetto_sql/stdlib:stdlib_json_docs",
           "target_gen_dir")
   absolute_input_path = label_info + "/stdlib_docs.json"
   deps = [
     "../../python:trace_processor_stdlib_docs",
-    "../../src/trace_processor/stdlib:gen_amalgamated_stdlib_json_docs",
+    "../../src/trace_processor/perfetto_sql/stdlib:stdlib_json_docs",
   ]
   outputs = [ stdlib_docs_md ]
   args = [

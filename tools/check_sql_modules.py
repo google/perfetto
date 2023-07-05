@@ -16,6 +16,7 @@
 # This tool checks that every SQL object created without prefix
 # 'internal_' is documented with proper schema.
 
+import argparse
 import os
 import sys
 
@@ -26,9 +27,13 @@ from python.generators.stdlib_docs.parse import parse_file_to_dict
 
 
 def main():
+  parser = argparse.ArgumentParser()
+  parser.add_argument(
+      '--stdlib-sources',
+      default=os.path.join(ROOT_DIR, "src", "trace_processor", "stdlib"))
+  args = parser.parse_args()
   errors = []
-  metrics_sources = os.path.join(ROOT_DIR, "src", "trace_processor", "stdlib")
-  for root, _, files in os.walk(metrics_sources, topdown=True):
+  for root, _, files in os.walk(args.stdlib_sources, topdown=True):
     for f in files:
       path = os.path.join(root, f)
       if not path.endswith(".sql"):
@@ -38,6 +43,28 @@ def main():
 
       res = parse_file_to_dict(path, sql)
       errors += res if isinstance(res, list) else []
+
+      # Ban the use of LIKE in non-comment lines.
+      lines = [l.strip() for l in sql.split('\n')]
+      for line in lines:
+        if line.startswith('--'):
+          continue
+
+        if 'like' in line.casefold():
+          errors.append('LIKE is banned in trace processor metrics. '
+                        'Prefer GLOB instead.')
+          errors.append('Offending file: %s' % path)
+
+      # Ban the use of CREATE_FUNCTION.
+      for line in lines:
+        if line.startswith('--'):
+          continue
+
+        if 'create_function' in line.casefold():
+          errors.append('CREATE_FUNCTION is deprecated in trace processor. '
+                        'Prefer CREATE PERFETTO FUNCTION instead.')
+          errors.append('Offending file: %s' % path)
+
   sys.stderr.write("\n".join(errors))
   sys.stderr.write("\n")
   return 0 if not errors else 1

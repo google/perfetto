@@ -47,8 +47,6 @@ class BreakpadSymbolizer : public Symbolizer {
     file_path_for_testing_ = path;
   }
 
-  bool BuildIdNeedsHexConversion() override { return false; }
-
  private:
   std::string symbol_dir_path_;
   std::string file_path_for_testing_;

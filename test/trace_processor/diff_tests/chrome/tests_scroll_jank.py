@@ -65,6 +65,33 @@ class ChromeScrollJank(TestSuite):
         """,
         out=Path('event_latency_to_breakdowns.out'))
 
+  def test_chrome_frames_with_missed_vsyncs(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+
+        SELECT
+          cause_of_jank,
+          sub_cause_of_jank,
+          delay_since_last_frame,
+          vsync_interval
+        FROM chrome_janky_frames;
+        """,
+        out=Path('scroll_jank_v3.out'))
+
+  def test_chrome_frames_with_missed_vsyncs_percentage(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query="""
+        SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+
+        SELECT
+          delayed_frame_percentage
+        FROM chrome_janky_frames_percentage;
+        """,
+        out=Path('scroll_jank_v3_percentage.out'))
+
   def test_event_latency_scroll_jank(self):
     return DiffTestBlueprint(
         trace=DataPath('event_latency_with_args.perfetto-trace'),
@@ -538,10 +565,31 @@ class ChromeScrollJank(TestSuite):
         "id","ts","dur","scroll_start_ts","scroll_end_ts"
         5678,0,55000000,0,45000000
         5679,60000000,40000000,60000000,90000000
-        5680,120000000,70000000,120000000,-1
+        5680,80000000,30000000,80000000,100000000
+        5681,120000000,70000000,120000000,-1
         """))
 
-  def test_chrome_scroll_jank_v2(self):
+  def test_chrome_scroll_intervals(self):
+    return DiffTestBlueprint(
+        trace=Path('chrome_scroll_check.py'),
+        query="""
+        SELECT IMPORT('chrome.chrome_scrolls');
+
+        SELECT
+          id,
+          ts,
+          dur
+        FROM chrome_scrolling_intervals
+        ORDER by id;
+        """,
+        out=Csv("""
+        "id","ts","dur"
+        1,0,55000000
+        2,60000000,50000000
+        3,120000000,70000000
+        """))
+
+  def test_chrome_scroll_jank_v2_with_sub_cause(self):
     return DiffTestBlueprint(
         trace=DataPath('event_latency_with_args.perfetto-trace'),
         query=Metric('chrome_scroll_jank_v2'),
@@ -553,19 +601,60 @@ class ChromeScrollJank(TestSuite):
           num_scroll_janks: 4
           scroll_jank_causes_and_durations {
             cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            sub_cause: "BufferReadyToLatch"
             duration_ms: 39.44
           }
           scroll_jank_causes_and_durations {
             cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            sub_cause: "BufferReadyToLatch"
             duration_ms: 35.485
           }
           scroll_jank_causes_and_durations {
             cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            sub_cause: "BufferReadyToLatch"
             duration_ms: 43.838
           }
           scroll_jank_causes_and_durations {
             cause: "SubmitCompositorFrameToPresentationCompositorFrame"
+            sub_cause: "StartDrawToSwapStart"
             duration_ms: 35.454
+          }
+        }
+        """))
+
+  def test_chrome_scroll_jank_v2_without_sub_cause(self):
+    return DiffTestBlueprint(
+        trace=DataPath('chrome_input_with_frame_view.pftrace'),
+        query=Metric('chrome_scroll_jank_v2'),
+        out=TextProto(r"""
+        [perfetto.protos.chrome_scroll_jank_v2] {
+          scroll_processing_ms: 14434.053
+          scroll_jank_processing_ms: 550.359
+          scroll_jank_percentage: 3.8129207368159173
+          num_scroll_janks: 6
+          scroll_jank_causes_and_durations {
+            cause: "BrowserMainToRendererCompositor"
+            duration_ms: 60.05
+          }
+          scroll_jank_causes_and_durations {
+            cause: "RendererCompositorFinishedToBeginImplFrame"
+            duration_ms: 131.289
+          }
+          scroll_jank_causes_and_durations {
+            cause: "RendererCompositorFinishedToBeginImplFrame"
+            duration_ms: 115.174
+          }
+          scroll_jank_causes_and_durations {
+            cause: "RendererCompositorFinishedToBeginImplFrame"
+            duration_ms: 99.18
+          }
+          scroll_jank_causes_and_durations {
+            cause: "RendererCompositorFinishedToBeginImplFrame"
+            duration_ms: 83.038
+          }
+          scroll_jank_causes_and_durations {
+            cause: "RendererCompositorFinishedToBeginImplFrame"
+            duration_ms: 61.628
           }
         }
         """))

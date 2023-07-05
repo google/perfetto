@@ -107,7 +107,7 @@ cmake --build build
 3. Upload the new release for review.
 
 ```bash
-git cl upload --no-squash
+git cl upload --no-squash --bypass-hooks -o banned-words~skip
 ```
 
 If you get an error about a missing Change-Id field (`remote: ERROR: commit

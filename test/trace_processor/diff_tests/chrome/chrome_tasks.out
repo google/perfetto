@@ -7,7 +7,7 @@
 "VSync","other",624
 "viz.mojom.BeginFrameObserver message (hash=2365631060)","mojo",344
 "RunTask(posted_from=base/tracing/perfetto_task_runner.cc:PostDelayedTask)","scheduler",342
-"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:Notify)","mojo",269
+"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:Notify)","scheduler",269
 "RunTask(posted_from=ipc/ipc_mojo_bootstrap.cc:SendMessage)","scheduler",262
 "RunTask(posted_from=base/task/thread_pool/delayed_task_manager.cc:ScheduleProcessRipeTasksOnServiceThread)","scheduler",218
 "RunTask(posted_from=base/task/sequence_manager/task_queue_impl.cc:PushOntoDelayedIncomingQueue)","scheduler",210
@@ -24,7 +24,7 @@
 "blink.mojom.WidgetInputHandler reply (hash=3392143105)","mojo",97
 "tracing.mojom.ProducerHost message (hash=3013694824)","mojo",82
 "RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:WriteDataInternal)","scheduler",81
-"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify)","mojo",74
+"RunTask(posted_from=mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify)","scheduler",74
 "RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:CloseInternal)","scheduler",73
 "RunTask(posted_from=base/android/task_scheduler/task_runner_android.cc:PostDelayedTask)","scheduler",63
 "RunTask(posted_from=base/android/application_status_listener.cc:NotifyApplicationStateChange)","scheduler",54
@@ -134,7 +134,7 @@
 "RunTask(posted_from=chrome/browser/data_saver/data_saver.cc:FetchDataSaverOSSettingAsynchronously)","scheduler",8
 "RunTask(posted_from=gpu/command_buffer/service/gr_cache_controller.cc:ScheduleGrContextCleanup)","scheduler",8
 "RunTask(posted_from=ipc/ipc_channel_proxy.cc:AddFilter)","scheduler",8
-"RunTask(posted_from=mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe)","mojo",8
+"RunTask(posted_from=mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe)","scheduler",8
 "RunTask(posted_from=mojo/public/cpp/bindings/lib/connector.cc:StartReceiving)","scheduler",8
 "RunTask(posted_from=net/cert/multi_threaded_cert_verifier.cc:Start)","scheduler",8
 "RunTask(posted_from=net/disk_cache/simple/simple_entry_impl.cc:PostClientCallback)","scheduler",8

@@ -114,13 +114,13 @@ void DecreaseIndents(std::string* out) {
   out->erase(out->size() - 2);
 }
 
-void PrintUnknownVarIntField(uint16_t id, int64_t value, std::string* out) {
+void PrintUnknownVarIntField(uint32_t id, int64_t value, std::string* out) {
   StrAppend(out, std::to_string(id), ": ", std::to_string(value));
 }
 
 void PrintEnumField(const FieldDescriptor& fd,
                     const DescriptorPool& pool,
-                    uint16_t id,
+                    uint32_t id,
                     int32_t enum_value,
                     std::string* out) {
   auto opt_enum_descriptor_idx =

@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include <memory>
+#include <numeric>
 #include <optional>
 #include <variant>
 #include <vector>
@@ -90,6 +91,9 @@ class RowMap {
     uint32_t size() const {
       PERFETTO_DCHECK(end >= start);
       return end - start;
+    }
+    inline bool Contains(uint32_t val) const {
+      return val >= start && val < end;
     }
   };
 
@@ -242,6 +246,29 @@ class RowMap {
     }
     NoVariantMatched();
   }
+
+  // Returns the vector of all indices in the RowMap.
+  std::vector<OutputIndex> GetAllIndices() const {
+    if (auto* range = std::get_if<Range>(&data_)) {
+      std::vector<uint32_t> res(range->size());
+      std::iota(res.begin(), res.end(), range->start);
+      return res;
+    }
+    if (auto* bv = std::get_if<BitVector>(&data_)) {
+      std::vector<uint32_t> res;
+      for (auto it = bv->IterateSetBits(); it; it.Next()) {
+        res.push_back(it.index());
+      }
+      return res;
+    }
+    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+      return *vec;
+    }
+    NoVariantMatched();
+  }
+
+  // Returns maximum size of the output. Ie range.end or size of the BV.
+  OutputIndex Max() const;
 
   // Returns whether the RowMap contains the given index.
   bool Contains(OutputIndex index) const {
@@ -427,6 +454,39 @@ class RowMap {
       return;
     }
     NoVariantMatched();
+  }
+
+  // Converts this RowMap to an index vector in the most efficient way
+  // possible.
+  std::vector<uint32_t> TakeAsIndexVector() const&& {
+    if (auto* range = std::get_if<Range>(&data_)) {
+      std::vector<uint32_t> rm(range->size());
+      std::iota(rm.begin(), rm.end(), range->start);
+      return rm;
+    }
+    if (auto* bv = std::get_if<BitVector>(&data_)) {
+      std::vector<uint32_t> rm(bv->CountSetBits());
+      for (auto it = bv->IterateSetBits(); it; it.Next()) {
+        rm[it.ordinal()] = it.index();
+      }
+      return rm;
+    }
+    if (auto* vec = std::get_if<IndexVector>(&data_)) {
+      return std::move(*vec);
+    }
+    NoVariantMatched();
+  }
+
+  // Returns the data in RowMap BitVector, nullptr if RowMap is in a different
+  // mode.
+  const BitVector* GetIfBitVector() const {
+    return std::get_if<BitVector>(&data_);
+  }
+
+  // Returns the data in RowMap IndexVector, nullptr if RowMap is in a different
+  // mode.
+  const std::vector<uint32_t>* GetIfIndexVector() const {
+    return std::get_if<IndexVector>(&data_);
   }
 
   // Returns the iterator over the rows in this RowMap.

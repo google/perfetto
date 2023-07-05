@@ -18,8 +18,6 @@ import {assertFalse} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
-import {HighPrecisionTimeSpan} from '../../common/high_precision_time';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
 import {TPDuration, TPTime} from '../../common/time';
@@ -28,6 +26,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
@@ -180,7 +179,7 @@ class ThreadStateTrack extends Track<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {
       visibleTimeScale: timeScale,
-      visibleWindowTime,
+      visibleTimeSpan,
       windowSpan,
     } = globals.frontendLocalState;
     const data = this.data();
@@ -216,8 +215,7 @@ class ThreadStateTrack extends Track<Config, Data> {
       const tStart = data.starts[i];
       const tEnd = data.ends[i];
       const state = data.strings[data.state[i]];
-      const timeSpan = HighPrecisionTimeSpan.fromTpTime(tStart, tEnd);
-      if (!visibleWindowTime.intersects(timeSpan)) {
+      if (!visibleTimeSpan.intersects(tStart, tEnd)) {
         continue;
       }
 

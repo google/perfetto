@@ -72,6 +72,10 @@ std::string OpToDebugString(int op) {
       return "is null";
     case SQLITE_INDEX_CONSTRAINT_ISNOTNULL:
       return "is not null";
+    case SQLITE_INDEX_CONSTRAINT_IS:
+      return "is";
+    case SQLITE_INDEX_CONSTRAINT_ISNOT:
+      return "is not";
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return "glob";
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
@@ -285,7 +289,9 @@ base::Status TypedSqliteTableBase::DeclareAndAssignVtab(
 }
 
 int TypedSqliteTableBase::xDestroy(sqlite3_vtab* t) {
-  delete static_cast<SqliteTable*>(t);
+  auto* table = static_cast<SqliteTable*>(t);
+  table->engine_->OnSqliteTableDestroyed(table->name_);
+  delete table;
   return SQLITE_OK;
 }
 

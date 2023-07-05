@@ -23,16 +23,20 @@ import {
 import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
 import {
+  Span,
   TPDuration,
   tpDurationFromNanos,
   TPTime,
   tpTimeFromNanos,
 } from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
+import {constraintsToQuerySuffix} from './sql_utils';
+import {PxSpan, TimeScale} from './time_scale';
 import {NewTrackArgs, SliceRect, Track} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
@@ -68,8 +72,8 @@ function filterVisibleSlices<S extends Slice>(
 
   // We do not need to handle non-ending slices (where dur = -1
   // but the slice is drawn as 'infinite' length) as this is handled
-  // by a special code path.
-  // TODO(hjd): Implement special code path.
+  // by a special code path. See 'incomplete' in the INITIALIZING
+  // code of maybeRequestData.
 
   // While the slices are guaranteed to be ordered by timestamp we must
   // consider async slices (which are not perfectly nested). This is to
@@ -186,8 +190,20 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private cache: TrackCache<Array<CastInternal<T['slice']>>> =
       new TrackCache(5);
 
+  // Incomplete slices (dur = -1). Rather than adding a lot of logic to
+  // the SQL queries to handle this case we materialise them one off
+  // then unconditionally render them. This should be efficient since
+  // there are at most |depth| slices.
+  private incomplete = new Array<CastInternal<T['slice']>>();
+
+  // The currently selected slice.
+  // TODO(hjd): We should fetch this from the underlying data rather
+  // than just remembering it when we see it.
+  private selectedSlice?: CastInternal<T['slice']>;
+
   protected readonly tableName: string;
   private maxDurNs: TPDuration = 0n;
+
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
@@ -262,6 +278,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   onFullRedraw(): void {
     // Give a chance to the embedder to change colors and other stuff.
     this.onUpdatedSlices(this.slices);
+    this.onUpdatedSlices(this.incomplete);
+    if (this.selectedSlice !== undefined) {
+      this.onUpdatedSlices([this.selectedSlice]);
+    }
   }
 
   protected isSelectionHandled(selection: Selection): boolean {
@@ -272,6 +292,16 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // others (e.g. THREAD_SLICE) have their own ID namespace so we need this.
     const supportedSelectionKinds: SelectionKind[] = ['SLICE', 'CHROME_SLICE'];
     return supportedSelectionKinds.includes(selection.kind);
+  }
+
+  private getTitleFont(): string {
+    const size = this.sliceLayout.titleSizePx ?? 12;
+    return `${size}px Roboto Condensed`;
+  }
+
+  private getSubtitleFont(): string {
+    const size = this.sliceLayout.subtitleSizePx ?? 8;
+    return `${size}px Roboto Condensed`;
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -298,7 +328,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     let charWidth = this.charWidth;
     if (charWidth < 0) {
       // TODO(hjd): Centralize font measurement/invalidation.
-      ctx.font = '12px Roboto Condensed';
+      ctx.font = this.getTitleFont();
       charWidth = this.charWidth = ctx.measureText('dbpqaouk').width / 8;
     }
 
@@ -309,22 +339,21 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         vizTime.start.toTPTime('floor'), vizTime.end.toTPTime('ceil'));
 
     let selection = globals.state.currentSelection;
-
     if (!selection || !this.isSelectionHandled(selection)) {
       selection = null;
     }
+    const selectedId = selection ? (selection as {id: number}).id : undefined;
+    let discoveredSelection: CastInternal<T['slice']>|undefined;
 
     // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
     // everything in one go. The key is that state changes operations on the
     // canvas (e.g., color, fonts) dominate any number crunching we do in JS.
 
-    this.updateSliceAndTrackHeight();
     const sliceHeight = this.computedSliceHeight;
     const padding = this.sliceLayout.padding;
     const rowSpacing = this.computedRowSpacing;
 
     // First pass: compute geometry of slices.
-    let selSlice: CastInternal<T['slice']>|undefined;
 
     // pxEnd is the last visible pixel in the visible viewport. Drawing
     // anything < 0 or > pxEnd doesn't produce any visible effect as it goes
@@ -343,6 +372,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         // bounding box that will contain the chevron.
         slice.x -= CHEVRON_WIDTH_PX / 2;
         slice.w = CHEVRON_WIDTH_PX;
+      } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
+        slice.x = Math.max(slice.x, 0);
+        slice.w = pxEnd - slice.x;
       } else {
         // If the slice is an actual slice, intersect the slice geometry with
         // the visible viewport (this affects only the first and last slice).
@@ -358,13 +390,12 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         slice.w = sliceVizLimit - slice.x;
       }
 
-      if (selection && (selection as {id: number}).id === slice.id) {
-        selSlice = slice;
+      if (selectedId === slice.id) {
+        discoveredSelection = slice;
       }
     }
 
     // Second pass: fill slices by color.
-    // The .slice() turned out to be an unintended pun.
     const vizSlicesByColor = vizSlices.slice();
     vizSlicesByColor.sort((a, b) => colorCompare(a.color, b.color));
     let lastColor = undefined;
@@ -388,7 +419,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // Third pass, draw the titles (e.g., process name for sched slices).
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
-    ctx.font = '12px Roboto Condensed';
+    ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
     for (const slice of vizSlices) {
       if ((slice.flags & SLICE_FLAGS_INSTANT) || !slice.title ||
@@ -400,13 +431,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       const rectXCenter = slice.x + slice.w / 2;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       const yDiv = slice.subTitle ? 3 : 2;
-      const yMidPoint = Math.floor(y + sliceHeight / yDiv) - 0.5;
+      const yMidPoint = Math.floor(y + sliceHeight / yDiv) + 0.5;
       ctx.fillText(title, rectXCenter, yMidPoint);
     }
 
     // Fourth pass, draw the subtitles (e.g., thread name for sched slices).
     ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = '10px Roboto Condensed';
+    ctx.font = this.getSubtitleFont();
     for (const slice of vizSlices) {
       if (slice.w < SLICE_MIN_WIDTH_FOR_TEXT_PX || !slice.subTitle ||
           (slice.flags & SLICE_FLAGS_INSTANT)) {
@@ -419,16 +450,24 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
 
+    // Update the selectedSlice if required.
+    if (discoveredSelection !== undefined) {
+      this.selectedSlice = discoveredSelection;
+    } else if (selectedId === undefined) {
+      this.selectedSlice = undefined;
+    }
+
     // Draw a thicker border around the selected slice (or chevron).
-    if (selSlice !== undefined) {
-      const color = selSlice.color;
-      const y = padding + selSlice.depth * (sliceHeight + rowSpacing);
+    if (this.selectedSlice !== undefined) {
+      const slice = this.selectedSlice;
+      const color = slice.color;
+      const y = padding + slice.depth * (sliceHeight + rowSpacing);
       ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
       ctx.strokeRect(
-          selSlice.x, y - THICKNESS / 2, selSlice.w, sliceHeight + THICKNESS);
+          slice.x, y - THICKNESS / 2, slice.w, sliceHeight + THICKNESS);
       ctx.closePath();
     }
 
@@ -446,7 +485,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // The only thing this does is drawing the sched latency arrow. We should
     // have some abstraction for that arrow (ideally the same we'd use for
     // flows).
-    this.drawSchedLatencyArrow(ctx, selSlice);
+    this.drawSchedLatencyArrow(ctx, this.selectedSlice);
 
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
@@ -488,6 +527,49 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
           from ${this.tableName}`);
       const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
+
+      // One off materialise the incomplete slices. The number of
+      // incomplete slices is smaller than the depth of the track and
+      // both are expected to be small.
+      if (this.isDestroyed) {
+        return;
+      }
+      {
+        // TODO(hjd): Consider case below:
+        // raw:
+        // 0123456789
+        //   [A     did not end)
+        //     [B ]
+        //
+        //
+        // quantised:
+        // 0123456789
+        //   [A     did not end)
+        // [     B  ]
+        // Does it lead to odd results?
+        const extraCols = this.extraSqlColumns.join(',');
+        const queryRes = await this.engine.query(`
+          select
+            ts as tsq,
+            ts as tsqEnd,
+            ts,
+            -1 as dur,
+            id,
+            ${this.depthColumn()}
+            ${extraCols ? ',' + extraCols : ''}
+          from ${this.tableName}
+          where dur = -1;
+        `);
+        const incomplete =
+            new Array<CastInternal<T['slice']>>(queryRes.numRows());
+        const it = queryRes.iter(this.getRowSpec());
+        for (let i = 0; it.valid(); it.next(), ++i) {
+          incomplete[i] = this.rowToSliceInternal(it);
+        }
+        this.onUpdatedSlices(incomplete);
+        this.incomplete = incomplete;
+      }
+
       this.sqlState = 'QUERY_DONE';
     } else if (
         this.sqlState === 'INITIALIZING' || this.sqlState === 'QUERY_PENDING') {
@@ -529,24 +611,24 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }
 
     const extraCols = this.extraSqlColumns.join(',');
-    let depthCol = 'depth';
-    let maybeGroupByDepth = 'depth, ';
-    const layout = this.sliceLayout;
-    const isFlat = (layout.maxDepth - layout.minDepth) <= 1;
-    // maxDepth === minDepth only makes sense if track is empty which on the
-    // one hand isn't very useful (and so maybe should be an error) on the
-    // other hand I can see it happening if someone does:
-    // minDepth = min(slices.depth); maxDepth = max(slices.depth);
-    // and slices is empty, so we treat that as flat.
-    if (isFlat) {
-      depthCol = `${this.sliceLayout.minDepth} as depth`;
-      maybeGroupByDepth = '';
-    }
+    const maybeDepth = this.isFlat() ? undefined : 'depth';
 
-    // TODO(hjd): Re-reason and improve this query:
-    // - Materialize the unfinished slices one off.
-    // - Avoid the union if we know we don't have any -1 slices.
-    // - Maybe we don't need the union at all and can deal in TS?
+    const constraint = constraintsToQuerySuffix({
+      filters: [
+        `ts >= ${slicesKey.start - this.maxDurNs}`,
+        `ts <= ${slicesKey.end}`,
+        `dur != -1`,
+      ],
+      groupBy: [
+        maybeDepth,
+        'tsq',
+      ],
+      orderBy: [
+        maybeDepth,
+        'tsq',
+      ],
+    });
+
     if (this.isDestroyed) {
       this.sqlState = 'QUERY_DONE';
       return;
@@ -554,38 +636,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // TODO(hjd): Count and expose the number of slices summarized in
     // each bucket?
     const queryRes = await this.engine.query(`
-    with q1 as (
-      select
-        ${queryTsq} as tsq,
-        ${queryTsqEnd} as tsqEnd,
+      SELECT
+        ${queryTsq} AS tsq,
+        ${queryTsqEnd} AS tsqEnd,
         ts,
-        max(dur) as dur,
+        MAX(dur) AS dur,
         id,
-        ${depthCol}
+        ${this.depthColumn()}
         ${extraCols ? ',' + extraCols : ''}
-      from ${this.tableName}
-      where
-        ts >= ${slicesKey.start - this.maxDurNs /* - durNs */} and
-        ts <= ${slicesKey.end /* + durNs */}
-      group by ${maybeGroupByDepth} tsq
-      order by tsq),
-    q2 as (
-      select
-        ${queryTsq} as tsq,
-        ${queryTsqEnd} as tsqEnd,
-        ts,
-        -1 as dur,
-        id,
-        ${depthCol}
-        ${extraCols ? ',' + extraCols : ''}
-      from ${this.tableName}
-      where dur = -1
-      group by ${maybeGroupByDepth} tsq
-      )
-      select min(dur) as _unused, * from
-      (select * from q1 union all select * from q2)
-      group by ${maybeGroupByDepth} tsq
-      order by tsq
+      FROM ${this.tableName} ${constraint}
     `);
 
     // Here convert each row to a Slice. We do what we can do
@@ -609,7 +668,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     this.slices = slices;
 
     this.sqlState = 'QUERY_DONE';
-    globals.rafScheduler.scheduleRedraw();
+    raf.scheduleRedraw();
   }
 
   private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {
@@ -657,8 +716,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       return undefined;
     }
 
+    const depth = Math.floor((y - padding) / (sliceHeight + rowSpacing));
+
     if (y >= padding && y <= trackHeight - padding) {
-      const depth = Math.floor((y - padding) / (sliceHeight + rowSpacing));
       for (const slice of this.slices) {
         if (slice.depth === depth && slice.x <= x && x <= slice.x + slice.w) {
           return slice;
@@ -666,7 +726,26 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       }
     }
 
+    for (const slice of this.incomplete) {
+      if (slice.depth === depth && slice.x <= x) {
+        return slice;
+      }
+    }
+
     return undefined;
+  }
+
+  private isFlat(): boolean {
+    // maxDepth and minDepth are a half open range so in the normal flat
+    // case maxDepth = 1 and minDepth = 0. In the non flat case:
+    // maxDepth = 42 and minDepth = 0. maxDepth === minDepth should not
+    // occur but is could happen if there are zero slices I guess so
+    // treat this as flat also.
+    return (this.sliceLayout.maxDepth - this.sliceLayout.minDepth) <= 1;
+  }
+
+  private depthColumn(): string {
+    return this.isFlat() ? `${this.sliceLayout.minDepth} as depth` : 'depth';
   }
 
   onMouseMove(position: {x: number, y: number}): void {
@@ -711,8 +790,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   private getVisibleSlicesInternal(start: TPTime, end: TPTime):
       Array<CastInternal<T['slice']>> {
-    return filterVisibleSlices<CastInternal<T['slice']>>(
-        this.slices, start, end);
+    let slices =
+        filterVisibleSlices<CastInternal<T['slice']>>(this.slices, start, end);
+    slices = slices.concat(this.incomplete);
+    // The selected slice is always visible:
+    if (this.selectedSlice && !this.slices.includes(this.selectedSlice)) {
+      slices.push(this.selectedSlice);
+    }
+    return slices;
   }
 
   private updateSliceAndTrackHeight() {
@@ -793,8 +878,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     return this.computedTrackHeight;
   }
 
-  getSliceRect(_tStart: TPTime, _tEnd: TPTime, _depth: number): SliceRect
-      |undefined {
+  getSliceRect(
+      _visibleTimeScale: TimeScale, _visibleWindow: Span<TPTime, TPDuration>,
+      _windowSpan: PxSpan, _tStart: TPTime, _tEnd: TPTime,
+      _depth: number): SliceRect|undefined {
     // TODO(hjd): Implement this as part of updating flow events.
     return undefined;
   }

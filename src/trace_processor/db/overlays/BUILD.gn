@@ -17,6 +17,8 @@ import("../../../../gn/test.gni")
 
 source_set("overlays") {
   sources = [
+    "arrangement_overlay.cc",
+    "arrangement_overlay.h",
     "null_overlay.cc",
     "null_overlay.h",
     "selector_overlay.cc",
@@ -29,12 +31,14 @@ source_set("overlays") {
     "../../../../gn:default_deps",
     "../../../base",
     "../../containers",
+    "../storage",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
+    "arrangement_overlay_unittest.cc",
     "null_overlay_unittest.cc",
     "selector_overlay_unittest.cc",
   ]

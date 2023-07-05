@@ -16,8 +16,8 @@ import m from 'mithril';
 
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
 import {featureFlags, Flag, OverrideState} from '../common/feature_flags';
+import {raf} from '../core/raf_scheduler';
 
-import {globals} from './globals';
 import {createPage} from './pages';
 
 const RELEASE_PROCESS_URL =
@@ -48,7 +48,7 @@ class SelectWidget implements m.ClassComponent<SelectWidgetAttrs> {
               onchange: (e: InputEvent) => {
                 const value = (e.target as HTMLSelectElement).value;
                 attrs.onSelect(value);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             attrs.options.map((o) => {
@@ -131,7 +131,7 @@ export const FlagsPage = createPage({
               {
                 onclick: () => {
                   featureFlags.resetAll();
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 },
               },
               'Reset all below'),

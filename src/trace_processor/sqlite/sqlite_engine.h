@@ -21,18 +21,20 @@
 #include <stdint.h>
 #include <functional>
 #include <memory>
+#include <optional>
+#include <string>
 #include <type_traits>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/hash.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/prelude/functions/sql_function.h"
-#include "src/trace_processor/prelude/table_functions/table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -50,8 +52,34 @@ class SqliteEngine {
   using Fn = void(sqlite3_context* ctx, int argc, sqlite3_value** argv);
   using FnCtxDestructor = void(void*);
 
+  // Wrapper class for SQLite's |sqlite3_stmt| struct and associated functions.
+  struct PreparedStatement {
+   public:
+    bool Step();
+    bool IsDone() const;
+
+    const char* sql() const;
+    const char* expanded_sql();
+
+    const base::Status& status() const { return status_; }
+    sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
+
+   private:
+    friend class SqliteEngine;
+
+    explicit PreparedStatement(ScopedStmt, SqlSource);
+
+    ScopedStmt stmt_;
+    SqlSource sql_source_;
+    ScopedSqliteString expanded_sql_;
+    base::Status status_;
+  };
+
   SqliteEngine();
   ~SqliteEngine();
+
+  // Prepares a SQLite statement for the given SQL.
+  base::StatusOr<PreparedStatement> PrepareStatement(SqlSource);
 
   // Registers a C++ function to be runnable from SQL.
   base::Status RegisterFunction(const char* name,
@@ -82,6 +110,12 @@ class SqliteEngine {
   // Gets the context for a registered SQL function.
   void* GetFunctionContext(const std::string& name, int argc);
 
+  // Should be called when a SqliteTable instance is created.
+  void OnSqliteTableCreated(const std::string& name, SqliteTable::TableType);
+
+  // Should be called when a SqliteTable instance is destroyed.
+  void OnSqliteTableDestroyed(const std::string& name);
+
   sqlite3* db() const { return db_.get(); }
 
  private:
@@ -94,6 +128,12 @@ class SqliteEngine {
     }
   };
 
+  std::optional<uint32_t> GetErrorOffset() const;
+
+  SqliteEngine(SqliteEngine&&) noexcept = delete;
+  SqliteEngine& operator=(SqliteEngine&&) = delete;
+
+  base::FlatHashMap<std::string, SqliteTable::TableType> sqlite_tables_;
   base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 

@@ -396,6 +396,12 @@ class Android(TestSuite):
         """,
         out=Path('android_slice_standardization.out'))
 
+  def test_android_sysui_notifications_blocking_calls(self):
+    return DiffTestBlueprint(
+        trace=Path('android_sysui_notifications_blocking_calls_metric.py'),
+        query=Metric('android_sysui_notifications_blocking_calls_metric'),
+        out=Path('android_sysui_notifications_blocking_calls_metric.out'))
+
   def test_monitor_contention_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),

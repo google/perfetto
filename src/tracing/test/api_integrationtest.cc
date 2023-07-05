@@ -3092,13 +3092,15 @@ TEST_P(PerfettoApiTest, InlineTypedExtensionField) {
     TRACE_EVENT(
         "test", "TestEventWithExtensionArgs",
         perfetto::protos::pbzero::TestExtension::kIntExtensionForTesting,
-        std::vector<int>{42});
+        std::vector<int>{42},
+        perfetto::protos::pbzero::TestExtension::kUintExtensionForTesting, 42u);
   }
 
   std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
   EXPECT_GE(raw_trace.size(), 0u);
 
-  bool found_extension = false;
+  bool found_int_extension = false;
+  bool found_uint_extension = false;
   perfetto::protos::pbzero::Trace_Decoder trace(
       reinterpret_cast<uint8_t*>(raw_trace.data()), raw_trace.size());
 
@@ -3116,12 +3118,17 @@ TEST_P(PerfettoApiTest, InlineTypedExtensionField) {
          f = decoder.ReadField()) {
       if (f.id() == perfetto::protos::pbzero::TestExtension::
                         FieldMetadata_IntExtensionForTesting::kFieldId) {
-        found_extension = true;
+        found_int_extension = true;
+      } else if (f.id() ==
+                 perfetto::protos::pbzero::TestExtension::
+                     FieldMetadata_UintExtensionForTesting::kFieldId) {
+        found_uint_extension = true;
       }
     }
   }
 
-  EXPECT_TRUE(found_extension);
+  EXPECT_TRUE(found_int_extension);
+  EXPECT_TRUE(found_uint_extension);
 }
 
 TEST_P(PerfettoApiTest, TrackEventInstant) {
@@ -6010,6 +6017,80 @@ TEST_P(PerfettoStartupTracingApiTest, NonBlockingAPI) {
   // Both events should be retained.
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   EXPECT_THAT(slices, ElementsAre("B:test.Event", "E"));
+}
+
+// Test that a startup tracing session will be adopted even when the config
+// is not exactly identical (but still compatible).
+TEST_P(PerfettoStartupTracingApiTest, CompatibleConfig) {
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("foo");
+  te_cfg.add_enabled_categories("bar");
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  SetupStartupTracingOpts opts;
+  opts.backend = GetParam();
+  session_ = perfetto::Tracing::SetupStartupTracing(cfg, std::move(opts));
+  // We need perfetto::test::SyncProducers() to Round-trip to ensure that the
+  // muxer has enabled startup tracing.
+  perfetto::test::SyncProducers();
+
+  TRACE_EVENT_BEGIN("foo", "Event");
+
+  // Note the different order of categories. The config is essentially the same,
+  // but is not byte-by-byte identical.
+  auto* tracing_session = NewTraceWithCategories({"bar", "foo"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("foo");
+
+  // Both events should be retained.
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices, ElementsAre("B:foo.Event", "E"));
+}
+
+// Test that a startup tracing session won't be adopted when the config is not
+// compatible (in this case, the privacy setting is different).
+TEST_P(PerfettoStartupTracingApiTest, IncompatibleConfig) {
+  perfetto::TraceConfig cfg;
+  cfg.set_duration_ms(500);
+  cfg.add_buffers()->set_size_kb(1024);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("track_event");
+
+  perfetto::protos::gen::TrackEventConfig te_cfg;
+  te_cfg.add_disabled_categories("*");
+  te_cfg.add_enabled_categories("foo");
+  te_cfg.set_filter_debug_annotations(true);
+  ds_cfg->set_track_event_config_raw(te_cfg.SerializeAsString());
+
+  SetupStartupTracingOpts opts;
+  opts.backend = GetParam();
+  session_ = perfetto::Tracing::SetupStartupTracing(cfg, std::move(opts));
+  // We need perfetto::test::SyncProducers() to Round-trip to ensure that the
+  // muxer has enabled startup tracing.
+  perfetto::test::SyncProducers();
+
+  TRACE_EVENT_BEGIN("foo", "Event");
+
+  // This config will have |filter_debug_annotations| set to false.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  // Emit another event after starting.
+  TRACE_EVENT_END("foo");
+
+  // The startup session should not be adopted, so we should only see the end
+  // event.
+  auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
+  EXPECT_THAT(slices, ElementsAre("E"));
 }
 
 TEST_P(PerfettoStartupTracingApiTest, WithExistingSmb) {

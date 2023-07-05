@@ -54,12 +54,12 @@ class BitVector {
   class Builder {
    public:
     // Creates a Builder for building a BitVector of |size| bits.
-    explicit Builder(uint32_t size) : words_(WordCount(size)), size_(size) {}
-
-    // Skips forward |n| bits leaving them as zeroed.
-    void Skip(uint32_t n) {
-      PERFETTO_DCHECK(global_bit_offset_ + n <= size_);
-      global_bit_offset_ += n;
+    explicit Builder(uint32_t size, uint32_t skip = 0)
+        : words_(BlockCount(size) * Block::kWords),
+          global_bit_offset_(skip),
+          size_(size),
+          skipped_blocks_(skip / Block::kBits) {
+      PERFETTO_CHECK(global_bit_offset_ <= size_);
     }
 
     // Appends a single bit to the builder.
@@ -78,22 +78,23 @@ class BitVector {
     void AppendWord(uint64_t word) {
       PERFETTO_DCHECK(global_bit_offset_ % BitWord::kBits == 0);
       PERFETTO_DCHECK(global_bit_offset_ + BitWord::kBits <= size_);
+
       words_[global_bit_offset_ / BitWord::kBits] = word;
       global_bit_offset_ += BitWord::kBits;
     }
 
     // Creates a BitVector from this Builder.
     BitVector Build() && {
-      Address addr = IndexToAddress(size_ - 1);
-      uint32_t no_blocks = addr.block_idx + 1;
-      std::vector<uint32_t> counts(no_blocks);
+      if (size_ == 0)
+        return BitVector();
 
-      // Calculate counts only for full blocks.
-      for (uint32_t i = 1; i < no_blocks; ++i) {
+      std::vector<uint32_t> counts(BlockCount(size_));
+      PERFETTO_CHECK(skipped_blocks_ < counts.size());
+      for (uint32_t i = skipped_blocks_ + 1; i < counts.size(); ++i) {
         counts[i] = counts[i - 1] +
                     ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
       }
-      return BitVector{std::move(words_), std::move(counts), size_};
+      return BitVector(std::move(words_), std::move(counts), size_);
     }
 
     // Returns the number of bits which are in complete words which can be
@@ -128,6 +129,7 @@ class BitVector {
     std::vector<uint64_t> words_;
     uint32_t global_bit_offset_ = 0;
     uint32_t size_ = 0;
+    uint32_t skipped_blocks_ = 0;
   };
 
   // Creates an empty bitvector.
@@ -145,8 +147,14 @@ class BitVector {
   // Create a copy of the bitvector.
   BitVector Copy() const;
 
-  // Create a bitwise Not copy of the bitvector.
-  BitVector Not() const;
+  // Bitwise Not of the bitvector.
+  void Not();
+
+  // Bitwise Or of the bitvector.
+  void Or(const BitVector&);
+
+  // Bitwise Or of the bitvector.
+  void And(const BitVector&);
 
   // Returns the size of the bitvector.
   uint32_t size() const { return static_cast<uint32_t>(size_); }
@@ -418,6 +426,12 @@ class BitVector {
     // Bitwise ors the given |mask| to the current value.
     void Or(uint64_t mask) { *word_ |= mask; }
 
+    // Bitwise ands the given |mask| to the current value.
+    void And(uint64_t mask) { *word_ &= mask; }
+
+    // Bitwise not.
+    void Not() { *word_ = ~(*word_); }
+
     // Sets the bit at the given index to true.
     void Set(uint32_t idx) {
       PERFETTO_DCHECK(idx < kBits);
@@ -503,9 +517,6 @@ class BitVector {
       PERFETTO_DCHECK(idx < kBits);
       return (*word_ >> idx) & 1ull;
     }
-
-    // Bitwise not.
-    uint64_t Not() const { return ~(*word_); }
 
     // Returns the index of the nth set bit.
     // Undefined if |n| >= |CountSetBits()|.
@@ -664,6 +675,12 @@ class BitVector {
 
       // Finally, we set the word block from the start to the end offset.
       BitWord(&start_word_[end.word_idx]).Set(0, end.bit_idx);
+    }
+
+    void Or(Block& sec) {
+      for (uint32_t i = 0; i < kWords; ++i) {
+        BitWord(&start_word_[i]).Or(sec.start_word_[i]);
+      }
     }
 
     template <typename Filler>

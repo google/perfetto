@@ -28,6 +28,8 @@ sys.path.append(TRACE_PROCESSOR_TEST_DIR)
 from diff_tests.android.tests import Android
 from diff_tests.android.tests_bugreport import AndroidBugreport
 from diff_tests.android.tests_games import AndroidGames
+from diff_tests.android.tests_surfaceflinger_layers import SurfaceFlingerLayers
+from diff_tests.android.tests_surfaceflinger_transactions import SurfaceFlingerTransactions
 from diff_tests.atrace.tests import Atrace
 from diff_tests.atrace.tests_error_handling import AtraceErrorHandling
 from diff_tests.camera.tests import Camera
@@ -69,6 +71,7 @@ from diff_tests.profiling.tests_heap_profiling import ProfilingHeapProfiling
 from diff_tests.profiling.tests_llvm_symbolizer import ProfilingLlvmSymbolizer
 from diff_tests.profiling.tests_metrics import ProfilingMetrics
 from diff_tests.scheduler.tests import Scheduler
+from diff_tests.slices.tests import Slices
 from diff_tests.smoke.tests import Smoke
 from diff_tests.smoke.tests_compute_metrics import SmokeComputeMetrics
 from diff_tests.smoke.tests_json import SmokeJson
@@ -149,12 +152,13 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ProfilingLlvmSymbolizer(index_path, 'profiling',
                                'ProfilingLlvmSymbolizer').fetch(),
       *Scheduler(index_path, 'scheduler', 'Scheduler').fetch(),
+      *Slices(index_path, 'slices', 'Slices').fetch(),
       *Smoke(index_path, 'smoke', 'Smoke').fetch(),
+      *SmokeComputeMetrics(index_path, 'smoke', 'SmokeComputeMetrics').fetch(),
       *SmokeJson(index_path, 'smoke', 'SmokeJson').fetch(),
       *SmokeSchedEvents(index_path, 'smoke', 'SmokeSchedEvents').fetch(),
-      *SmokeComputeMetrics(index_path, 'smoke', 'SmokeComputeMetrics').fetch(),
-      *SpanJoinOuterJoin(index_path, 'span_join', 'SpanJoinOuterJoin').fetch(),
       *SpanJoinLeftJoin(index_path, 'span_join', 'SpanJoinLeftJoin').fetch(),
+      *SpanJoinOuterJoin(index_path, 'span_join', 'SpanJoinOuterJoin').fetch(),
       *SpanJoinSmoke(index_path, 'span_join', 'SpanJoinSmoke').fetch(),
       *SpanJoinRegression(index_path, 'span_join',
                           'SpanJoinRegression').fetch(),
@@ -163,6 +167,10 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *StartupMetrics(index_path, 'startup', 'StartupMetrics').fetch(),
       *StartupLockContention(index_path, 'startup',
                              'StartupLockContention').fetch(),
+      *SurfaceFlingerLayers(index_path, 'android',
+                            'SurfaceFlingerLayers').fetch(),
+      *SurfaceFlingerTransactions(index_path, 'android',
+                                  'SurfaceFlingerTransactions').fetch(),
       *Tables(index_path, 'tables', 'Tables').fetch(),
       *TablesCounters(index_path, 'tables', 'TablesCounters').fetch(),
       *TablesSched(index_path, 'tables', 'TablesSched').fetch(),

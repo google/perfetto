@@ -61,6 +61,17 @@ def check(path):
       sys.stderr.write('Offending file: %s\n' % path)
       errors += 1
 
+  # Ban the use of CREATE_FUNCTION.
+  for line in lines:
+    if line.startswith('--'):
+      continue
+
+    if 'create_function' in line.casefold():
+      sys.stderr.write('CREATE_FUNCTION is deprecated in trace processor. '
+                       'Prefer CREATE PERFETTO FUNCTION instead.\n')
+      sys.stderr.write('Offending file: %s\n' % path)
+      errors += 1
+
   return errors
 
 

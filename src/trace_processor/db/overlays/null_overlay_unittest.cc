@@ -25,7 +25,7 @@ namespace {
 TEST(NullOverlay, MapToStorageRangeOutsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
   NullOverlay overlay(&bv);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(1, 6)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(1, 6));
 
   ASSERT_EQ(r.range.start, 0u);
   ASSERT_EQ(r.range.end, 2u);
@@ -34,10 +34,29 @@ TEST(NullOverlay, MapToStorageRangeOutsideBoundary) {
 TEST(NullOverlay, MapToStorageRangeOnBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
   NullOverlay overlay(&bv);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(3, 8)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(3, 8));
 
   ASSERT_EQ(r.range.start, 1u);
   ASSERT_EQ(r.range.end, 4u);
+}
+
+TEST(NullOverlay, MapToTableRangeOutsideBoundary) {
+  BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
+  NullOverlay overlay(&bv);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(1, 3), OverlayOp::kOther);
+
+  // All set bits between |bv| index 3 and 6.
+  ASSERT_EQ(std::move(r).TakeIfBitVector().CountSetBits(), 2u);
+}
+
+TEST(NullOverlay, MapToTableRangeOnBoundary) {
+  BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
+  NullOverlay overlay(&bv);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(0, 5), OverlayOp::kOther);
+
+  ASSERT_EQ(std::move(r).TakeIfBitVector().CountSetBits(), 5u);
 }
 
 TEST(NullOverlay, MapToTableBitVector) {
@@ -46,11 +65,27 @@ TEST(NullOverlay, MapToTableBitVector) {
 
   BitVector storage_bv{0, 1, 0, 1};
   TableBitVector table_bv =
-      overlay.MapToTableBitVector({std::move(storage_bv)});
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kOther);
 
   ASSERT_EQ(table_bv.bv.CountSetBits(), 2u);
   ASSERT_TRUE(table_bv.bv.IsSet(2));
   ASSERT_TRUE(table_bv.bv.IsSet(6));
+}
+
+TEST(NullOverlay, MapToTableBitVectorIsNull) {
+  BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
+  NullOverlay overlay(&bv);
+
+  BitVector storage_bv{0, 1, 0, 1};
+  TableBitVector table_bv =
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kIsNull);
+
+  // Result is all of the zeroes from |bv| and set bits from |storage_bv|
+  // 1, 0, 1, 1, 1, 0, 1, 1
+
+  ASSERT_EQ(table_bv.bv.CountSetBits(), 6u);
+  ASSERT_FALSE(table_bv.bv.IsSet(1));
+  ASSERT_FALSE(table_bv.bv.IsSet(5));
 }
 
 TEST(NullOverlay, IsStorageLookupRequiredNullOp) {
@@ -61,7 +96,7 @@ TEST(NullOverlay, IsStorageLookupRequiredNullOp) {
   BitVector lookup_bv =
       overlay.IsStorageLookupRequired(OverlayOp::kIsNull, {table_idx});
 
-  ASSERT_EQ(lookup_bv.size(), 0u);
+  ASSERT_EQ(lookup_bv.CountSetBits(), 0u);
 }
 
 TEST(NullOverlay, IsStorageLookupRequiredOtherOp) {
@@ -96,7 +131,7 @@ TEST(NullOverlay, IndexSearchOtherOp) {
   std::vector<uint32_t> table_idx{0, 3, 4};
   BitVector idx_search_bv = overlay.IndexSearch(OverlayOp::kOther, {table_idx});
 
-  ASSERT_EQ(idx_search_bv.size(), 0u);
+  ASSERT_EQ(idx_search_bv.CountSetBits(), 0u);
 }
 
 TEST(NullOverlay, IndexSearchIsNullOp) {

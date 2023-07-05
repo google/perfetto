@@ -92,6 +92,7 @@ class TrackEventParser {
   const StringId log_message_source_location_function_name_key_id_;
   const StringId log_message_source_location_file_name_key_id_;
   const StringId log_message_source_location_line_number_key_id_;
+  const StringId log_message_priority_id_;
   const StringId source_location_function_name_key_id_;
   const StringId source_location_file_name_key_id_;
   const StringId source_location_line_number_key_id_;
@@ -129,7 +130,7 @@ class TrackEventParser {
   ChromeStringLookup chrome_string_lookup_;
   std::array<StringId, 4> counter_unit_ids_;
 
-  std::vector<uint16_t> reflect_fields_;
+  std::vector<uint32_t> reflect_fields_;
 
   ActiveChromeProcessesTracker active_chrome_processes_tracker_;
 };

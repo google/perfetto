@@ -1,8 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    * Compression has been moved from perfetto_cmd to traced. Now compression is
-      supported even with write_into_file. The `compress_from_cli` config option
-      can be used to restore the old behavior.
+    *
   Trace Processor:
     *
   UI:
@@ -10,14 +8,30 @@ Unreleased:
   SDK:
     *
 
+v35.0 - 2023-06-07:
+  Tracing service and probes:
+    * Compression has been moved from perfetto_cmd to traced. Now compression is
+      supported even with write_into_file. The `compress_from_cli` config option
+      can be used to restore the old behavior.
+    * Changed the android.statsd datasource to batch multiple atoms into
+      a single trace packet. This improves performance and information
+      density.
+  Trace Processor:
+    * Fixed protozero parsing code to support field ids larger than
+      2^16 - 1. protozero now supports field ids up to 1,000,000
+      See https://github.com/google/perfetto/issues/510.
+  UI:
+    * Add support for deep links into the UI via query parameters.
+    * Fixed multiple issues around the display of track event log
+      messages See https://github.com/google/perfetto/issues/507.
+
+
 v34.0 - 2023-05-02:
   Tracing service and probes:
     * --continuous-dump in tools/java_heap_dump now keeps recording until it
       receives CTRL+C.
     * Add CLONE_SNAPSHOT triggers for non-destructive snapshots of the trace
       buffer without tracing interruption.
-  Trace Processor:
-    *
   UI:
     * Add support for parsing large integers from Trace Processor into
       bigint. This is the default behaviour for unknown fields and can

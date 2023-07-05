@@ -32,11 +32,11 @@ class PkvmHypervisorCpuTracker {
  public:
   explicit PkvmHypervisorCpuTracker(TraceProcessorContext*);
 
-  static bool IsPkvmHypervisorEvent(uint16_t);
+  static bool IsPkvmHypervisorEvent(uint32_t /*event_id*/);
 
   void ParseHypEvent(uint32_t cput,
                      int64_t timestamp,
-                     uint16_t event_id,
+                     uint32_t event_id,
                      protozero::ConstBytes blob);
 
  private:

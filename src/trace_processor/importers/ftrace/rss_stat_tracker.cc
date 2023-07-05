@@ -42,7 +42,7 @@ RssStatTracker::RssStatTracker(TraceProcessorContext* context)
 }
 
 void RssStatTracker::ParseRssStat(int64_t ts,
-                                  int32_t field_id,
+                                  uint32_t field_id,
                                   uint32_t pid,
                                   ConstBytes blob) {
   uint32_t member;

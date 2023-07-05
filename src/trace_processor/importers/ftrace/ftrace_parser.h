@@ -72,6 +72,9 @@ class FtraceParser {
   void ParseCpuIdle(int64_t timestamp, protozero::ConstBytes);
   void ParsePrint(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
   void ParseZero(int64_t timestamp, uint32_t pid, protozero::ConstBytes);
+  void ParseMdssTracingMarkWrite(int64_t timestamp,
+                                 uint32_t pid,
+                                 protozero::ConstBytes);
   void ParseSdeTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);

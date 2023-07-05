@@ -36,16 +36,29 @@ interface AddDebugTrackMenuAttrs {
 
 export class AddDebugTrackMenu implements
     m.ClassComponent<AddDebugTrackMenuAttrs> {
+  readonly columns: string[];
+
   name: string = '';
   sliceColumns: SliceColumns;
+  arrangeBy?: {
+    type: 'thread'|'process',
+    column: string,
+  };
 
   constructor(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
+    this.columns = [...vnode.attrs.columns];
+
     const chooseDefaultOption = (name: string) => {
       for (const column of vnode.attrs.columns) {
         if (column === name) return column;
       }
       for (const column of vnode.attrs.columns) {
         if (column.endsWith(`_${name}`)) return column;
+      }
+      // Debug tracks support data without dur, in which case it's treated as
+      // 0.
+      if (name === 'dur') {
+        return '0';
       }
       return vnode.attrs.columns[0];
     };
@@ -67,6 +80,12 @@ export class AddDebugTrackMenu implements
                 selected: this.sliceColumns[name] === column ? true : undefined,
               },
               column));
+      }
+      if (name === 'dur') {
+        options.push(
+            m('option',
+              {selected: this.sliceColumns[name] === '0' ? true : undefined},
+              m('i', '0')));
       }
       return [
         m(FormLabel,

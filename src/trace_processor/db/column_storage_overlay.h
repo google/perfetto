@@ -199,6 +199,8 @@ class ColumnStorageOverlay {
   // Returns the iterator over the rows in this ColumnStorageOverlay.
   Iterator IterateRows() const { return Iterator(row_map_.IterateRows()); }
 
+  const RowMap& row_map() const { return row_map_; }
+
  private:
   explicit ColumnStorageOverlay(RowMap rm) : row_map_(std::move(rm)) {}
 

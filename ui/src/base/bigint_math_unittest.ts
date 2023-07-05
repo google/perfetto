@@ -221,4 +221,21 @@ describe('BigIntMath', () => {
           .toBeCloseTo(0.125, 3);
     });
   });
+
+  describe('abs', () => {
+    test('should return the absolute value of a positive BigInt', () => {
+      const result = BIM.abs(12345678901234567890n);
+      expect(result).toEqual(12345678901234567890n);
+    });
+
+    test('should return the absolute value of a negative BigInt', () => {
+      const result = BIM.abs(-12345678901234567890n);
+      expect(result).toEqual(12345678901234567890n);
+    });
+
+    test('should return the absolute value of zero', () => {
+      const result = BIM.abs(0n);
+      expect(result).toEqual(0n);
+    });
+  });
 });

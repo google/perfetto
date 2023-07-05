@@ -209,9 +209,9 @@ HeapprofdProducer::HeapprofdProducer(HeapprofdMode mode,
     : task_runner_(task_runner),
       mode_(mode),
       exit_when_done_(exit_when_done),
-      unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)),
       socket_delegate_(this),
-      weak_factory_(this) {
+      weak_factory_(this),
+      unwinding_workers_(MakeUnwindingWorkers(this, kUnwinderThreads)) {
   CheckDataSourceCpuTask();
   CheckDataSourceMemoryTask();
 }

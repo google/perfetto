@@ -28,9 +28,9 @@ class TraceProcessorContext;
 class MaliGpuEventTracker {
  public:
   explicit MaliGpuEventTracker(TraceProcessorContext*);
-  void ParseMaliGpuEvent(int64_t timestamp, int32_t field_id, uint32_t pid);
+  void ParseMaliGpuEvent(int64_t timestamp, uint32_t field_id, uint32_t pid);
   void ParseMaliGpuIrqEvent(int64_t timestamp,
-                            int32_t field_id,
+                            uint32_t field_id,
                             uint32_t cpu,
                             protozero::ConstBytes blob);
 

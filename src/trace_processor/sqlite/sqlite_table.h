@@ -252,6 +252,7 @@ class TypedSqliteTableBase : public SqliteTable {
   struct BaseModuleArg {
     sqlite3_module module;
     SqliteEngine* engine;
+    TableType table_type;
   };
 
   ~TypedSqliteTableBase() override;
@@ -290,7 +291,7 @@ class TypedSqliteTableBase : public SqliteTable {
 template <typename SubTable, typename Context>
 class TypedSqliteTable : public TypedSqliteTableBase {
  public:
-  struct ModuleArg : BaseModuleArg {
+  struct ModuleArg : public BaseModuleArg {
     Context context;
   };
 
@@ -301,6 +302,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
     auto arg = std::make_unique<ModuleArg>();
     arg->module = CreateModule(table_type, updatable);
     arg->engine = engine;
+    arg->table_type = table_type;
     arg->context = std::move(ctx);
     return arg;
   }
@@ -357,6 +359,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
     auto* xdesc = static_cast<ModuleArg*>(arg);
     std::unique_ptr<SubTable> table(
         new SubTable(xdb, std::move(xdesc->context)));
+    SubTable* table_ptr = table.get();
     base::Status status = table->InitInternal(xdesc->engine, argc, argv);
     if (!status.ok()) {
       *pzErr = sqlite3_mprintf("%s", status.c_message());
@@ -367,6 +370,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
       *pzErr = sqlite3_mprintf("%s", status.c_message());
       return SQLITE_ERROR;
     }
+    xdesc->engine->OnSqliteTableCreated(table_ptr->name(), xdesc->table_type);
     return SQLITE_OK;
   }
   static int xClose(sqlite3_vtab_cursor* c) {

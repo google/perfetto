@@ -55,7 +55,7 @@ GROUP BY trace_id;
 --------------------------------------------------------------------------------
 
 -- Keeping only the GestureScrollUpdates join the maximum flows on the browser
--- thread. 
+-- thread.
 DROP VIEW IF EXISTS scroll_with_browser_flows;
 CREATE VIEW scroll_with_browser_flows AS
 SELECT

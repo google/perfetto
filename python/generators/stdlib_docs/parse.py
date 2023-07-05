@@ -20,7 +20,7 @@ import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from python.generators.stdlib_docs.extractor import DocsExtractor
-from python.generators.stdlib_docs.types import ObjKind
+from python.generators.stdlib_docs.utils import ObjKind
 from python.generators.stdlib_docs.utils import ARG_ANNOTATION_PATTERN
 from python.generators.stdlib_docs.utils import NAME_AND_TYPE_PATTERN
 from python.generators.stdlib_docs.utils import FUNCTION_RETURN_PATTERN

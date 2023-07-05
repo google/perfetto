@@ -13,12 +13,19 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {BigintMath} from '../base/bigint_math';
 
-import {Span, tpTimeToString} from '../common/time';
+import {BigintMath} from '../base/bigint_math';
 import {
+  formatDurationShort,
+  Span,
+  Timecode,
+  TimestampFormat,
+  timestampFormat,
+  timestampOffset,
+  toDomainTime,
   TPTime,
   TPTimeSpan,
+  tpTimeToSeconds,
 } from '../common/time';
 
 import {
@@ -141,12 +148,14 @@ export class TimeSelectionPanel extends Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.frontendLocalState.visibleWindow.timestampSpan;
+    const span = globals.frontendLocalState.visibleTimeSpan;
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-      for (const {type, time} of new TickGenerator(
-               span, maxMajorTicks, globals.state.traceTime.start)) {
+
+      const offset = timestampOffset();
+      const tickGen = new TickGenerator(span, maxMajorTicks, offset);
+      for (const {type, time} of tickGen) {
         const px = Math.floor(map.tpTimeToPx(time));
         if (type === TickType.MAJOR) {
           ctx.fillRect(px, 0, 1, size.height);
@@ -188,9 +197,8 @@ export class TimeSelectionPanel extends Panel {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xPos =
         TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.tpTimeToPx(ts));
-    const offsetTime = tpTimeToString(ts - globals.state.traceTime.start);
-    const timeFromStart = tpTimeToString(ts);
-    const label = `${offsetTime} (${timeFromStart})`;
+    const domainTime = toDomainTime(ts);
+    const label = stringifyTimestamp(domainTime);
     drawIBar(ctx, xPos, this.bounds(size), label);
   }
 
@@ -199,7 +207,7 @@ export class TimeSelectionPanel extends Panel {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xLeft = visibleTimeScale.tpTimeToPx(span.start);
     const xRight = visibleTimeScale.tpTimeToPx(span.end);
-    const label = tpTimeToString(span.duration);
+    const label = formatDurationShort(span.duration);
     drawHBar(
         ctx,
         {
@@ -219,5 +227,23 @@ export class TimeSelectionPanel extends Panel {
       width: size.width - TRACK_SHELL_WIDTH,
       height: size.height,
     };
+  }
+}
+
+function stringifyTimestamp(time: TPTime): string {
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+      const THIN_SPACE = '\u2009';
+      return new Timecode(time).toString(THIN_SPACE);
+    case TimestampFormat.Raw:
+      return time.toString();
+    case TimestampFormat.RawLocale:
+      return time.toLocaleString();
+    case TimestampFormat.Seconds:
+      return tpTimeToSeconds(time).toString() + ' s';
+    default:
+      const z: never = fmt;
+      throw new Error(`Invalid timestamp ${z}`);
   }
 }

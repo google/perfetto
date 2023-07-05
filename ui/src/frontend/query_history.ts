@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {globals} from './globals';
 import {STAR} from './icons';
 
 import {
@@ -27,18 +26,24 @@ import {
 } from '../controller/validators';
 import {assertTrue} from '../base/logging';
 import {Icon} from './widgets/icon';
-import {runAnalyzeQuery} from './analyze_page';
+import {raf} from '../core/raf_scheduler';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
 
-export class QueryHistoryComponent implements m.ClassComponent {
-  view(): m.Child {
+export interface QueryHistoryComponentAttrs {
+  runQuery: (query: string) => void;
+}
+
+export class QueryHistoryComponent implements
+    m.ClassComponent<QueryHistoryComponentAttrs> {
+  view({attrs}: m.CVnode<QueryHistoryComponentAttrs>): m.Child {
+    const runQuery = attrs.runQuery;
     const unstarred: HistoryItemComponentAttrs[] = [];
     const starred: HistoryItemComponentAttrs[] = [];
     for (let i = queryHistoryStorage.data.length - 1; i >= 0; i--) {
       const entry = queryHistoryStorage.data[i];
       const arr = entry.starred ? starred : unstarred;
-      arr.push({index: i, entry});
+      arr.push({index: i, entry, runQuery});
     }
     return m(
         '.query-history',
@@ -52,6 +57,7 @@ export class QueryHistoryComponent implements m.ClassComponent {
 export interface HistoryItemComponentAttrs {
   index: number;
   entry: QueryHistoryEntry;
+  runQuery: (query: string) => void;
 }
 
 export class HistoryItemComponent implements
@@ -67,21 +73,21 @@ export class HistoryItemComponent implements
                 onclick: () => {
                   queryHistoryStorage.setStarred(
                       vnode.attrs.index, !vnode.attrs.entry.starred);
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 },
               },
               m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
               ),
           m('button',
             {
-              onclick: () => runAnalyzeQuery(query),
+              onclick: () => vnode.attrs.runQuery(query),
             },
             m(Icon, {icon: 'play_arrow'})),
           m('button',
             {
               onclick: () => {
                 queryHistoryStorage.remove(vnode.attrs.index);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             m(Icon, {icon: 'delete'}))),

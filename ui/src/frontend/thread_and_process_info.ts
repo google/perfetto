@@ -34,7 +34,7 @@ export interface ProcessInfo {
   versionCode?: number;
 }
 
-async function getProcessInfo(
+export async function getProcessInfo(
     engine: EngineProxy, upid: Upid): Promise<ProcessInfo> {
   const it = (await engine.query(`
               SELECT pid, name, uid FROM process WHERE upid = ${upid};
@@ -118,4 +118,12 @@ export async function getThreadInfo(
 
 export function getThreadName(info?: ThreadInfo): string|undefined {
   return getDisplayName(info?.name, info?.tid);
+}
+
+// Return the full thread name, including the process name.
+export function getFullThreadName(info?: ThreadInfo): string|undefined {
+  if (info?.process === undefined) {
+    return getThreadName(info);
+  }
+  return `${getThreadName(info)} ${getProcessName(info.process)}`;
 }

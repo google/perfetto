@@ -1172,3 +1172,46 @@ class Parsing(TestSuite):
         "waker_utid"
         1
         """))
+
+  # Parsing of mdss/tracing_mark_write events
+  def test_slice_mdss_tracing_mark_write(self):
+    # Note that tracing_mark_write below is an ftrace event from the mdss
+    # group (see mdss.proto and aosp/2622569). Events with the same name
+    # from other groups (e.g. sde) listed after mdss in ftrace_proto_gen
+    # are prefixed with the group name to avoid conflicts.
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          ftrace_events {
+            cpu: 0
+            event {
+              timestamp: 100
+              pid: 584
+              tracing_mark_write {
+                pid: 584
+                trace_name: "test_event"
+                trace_begin: 1
+              }
+            }
+            event {
+              timestamp: 200
+              pid: 584
+              tracing_mark_write {
+                pid: 584
+                trace_name: "test_event"
+                trace_begin: 0
+              }
+            }
+          }
+        }
+        """),
+        query="""
+        SELECT s.name, dur, tid
+        FROM slice s
+        JOIN thread_track t ON s.track_id = t.id
+        JOIN thread USING(utid)
+        """,
+        out=Csv("""
+        "name","dur","tid"
+        "test_event",100,584
+        """))

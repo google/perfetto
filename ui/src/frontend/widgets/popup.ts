@@ -15,11 +15,11 @@
 import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
 import type {StrictModifiers} from '@popperjs/core';
 import m from 'mithril';
-import {globals} from '../globals';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../classnames';
-import {findRef, isOrContains, toHTMLElement} from './utils';
+import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
+import {raf} from '../../core/raf_scheduler';
 
 // Note: We could just use the Placement type from popper.js instead, which is a
 // union of string literals corresponding to the values in this enum, but having
@@ -278,13 +278,13 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     if (this.isOpen) {
       this.isOpen = false;
       this.onChange(this.isOpen);
-      globals.rafScheduler.scheduleFullRedraw();
+      raf.scheduleFullRedraw();
     }
   }
 
   private togglePopup() {
     this.isOpen = !this.isOpen;
     this.onChange(this.isOpen);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 }

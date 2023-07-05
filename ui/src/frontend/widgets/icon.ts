@@ -23,14 +23,16 @@ export interface IconAttrs {
   filled?: boolean;
   // List of space separated class names forwarded to the icon.
   className?: string;
+  [htmlAttrs: string]: any;
 }
 
 export class Icon implements m.ClassComponent<IconAttrs> {
-  view(vnode: m.Vnode<IconAttrs>): m.Child {
-    const classes = classNames(vnode.attrs.className);
+  view({attrs}: m.Vnode<IconAttrs>): m.Child {
+    const {icon, filled, className, ...htmlAttrs} = attrs;
+    const classes = classNames(className);
     return m(
-        vnode.attrs.filled ? 'i.material-icons-filled' : 'i.material-icons',
-        {class: classes},
-        vnode.attrs.icon);
+        filled ? 'i.material-icons-filled' : 'i.material-icons',
+        {class: classes, ...htmlAttrs},
+        icon);
   }
 }

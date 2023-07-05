@@ -42,8 +42,13 @@ import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
 import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {
-  decideTracks as scrollJankDecideTracks,
+  ENABLE_SCROLL_JANK_PLUGIN_V2,
+  getScrollJankTracks,
+  INPUT_LATENCY_TRACK,
 } from '../tracks/chrome_scroll_jank';
+import {
+  decideTracks as scrollJankDecideTracks,
+} from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND, CounterScaleOptions} from '../tracks/counter';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
@@ -62,13 +67,8 @@ import {
   PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
-import {
-  ENABLE_SCROLL_JANK_PLUGIN_V2,
-  INPUT_LATENCY_TRACK,
-} from '../tracks/scroll_jank';
-import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
-import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {THREAD_STATE_TRACK_V2_KIND} from '../tracks/thread_state_v2';
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
@@ -76,6 +76,22 @@ const TRACKS_V2_FLAG = featureFlags.register({
   description: 'Show tracks built on top of the Track V2 API.',
   defaultValue: false,
 });
+
+const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
+  id: 'tracksV2Compare',
+  name: 'Tracks V2: Also show V1 tracks',
+  description:
+      'Show V1 tracks side by side with V2 tracks. Does nothing if TracksV2 is not enabled.',
+  defaultValue: false,
+});
+
+function showV2(): boolean {
+  return TRACKS_V2_FLAG.get();
+}
+
+function showV1(): boolean {
+  return !showV2() || (showV2() && TRACKS_V2_COMPARE_FLAG.get());
+}
 
 const MEM_DMA_COUNTER_NAME = 'mem.dma_heap';
 const MEM_DMA = 'mem.dma_buffer';
@@ -243,21 +259,14 @@ class TrackDecider {
   }
 
   async addScrollJankTracks(engine: Engine): Promise<void> {
-    const topLevelScrolls = addTopLevelScrollTrack(engine);
-    const topLevelScrollsResult = await topLevelScrolls;
-    let originalLength = this.tracksToAdd.length;
-    this.tracksToAdd.length += topLevelScrollsResult.tracksToAdd.length;
-    for (let i = 0; i < topLevelScrollsResult.tracksToAdd.length; ++i) {
-      this.tracksToAdd[i + originalLength] =
-          topLevelScrollsResult.tracksToAdd[i];
-    }
+    const scrollJankTracks = getScrollJankTracks(engine);
+    const scrollJankTracksResult = await scrollJankTracks;
+    const originalLength = this.tracksToAdd.length;
+    this.tracksToAdd.length += scrollJankTracksResult.tracksToAdd.length;
 
-    originalLength = this.tracksToAdd.length;
-    const eventLatencies = addLatenciesTrack(engine);
-    const eventLatencyResult = await eventLatencies;
-    this.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
-    for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
-      this.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+    for (let i = 0; i < scrollJankTracksResult.tracksToAdd.length; ++i) {
+      this.tracksToAdd[i + originalLength] =
+          scrollJankTracksResult.tracksToAdd[i];
     }
   }
 
@@ -359,7 +368,7 @@ class TrackDecider {
       parentName: STR_NULL,
       parentId: NUM_NULL,
       trackIds: STR,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
 
     const parentIdToGroupId = new Map<number, string>();
@@ -375,6 +384,11 @@ class TrackDecider {
       const parentTrackId = it.parentId;
       const maxDepth = it.maxDepth;
       let trackGroup = SCROLLING_TRACK_GROUP;
+
+      // If there are no slices in this track, skip it.
+      if (maxDepth === null) {
+        continue;
+      }
 
       if (parentTrackId !== null) {
         const groupId = parentIdToGroupId.get(parentTrackId);
@@ -744,9 +758,7 @@ class TrackDecider {
   }
 
   async addFtraceTrack(engine: EngineProxy): Promise<void> {
-    const query = `select distinct cpu
-          from ftrace_event
-          where cpu + 1 > 1 or utid + 1 > 1`;
+    const query = 'select distinct cpu from ftrace_event';
 
     const result = await engine.query(query);
     const it = result.iter({cpu: NUM});
@@ -942,18 +954,38 @@ class TrackDecider {
         // the track creation as well.
         continue;
       }
-      const kind = THREAD_STATE_TRACK_KIND;
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind,
-        name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority: InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK,
-        },
-        config: {utid, tid},
-      });
+
+      const priority = InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK;
+
+      if (showV1()) {
+        const kind = THREAD_STATE_TRACK_KIND;
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind: THREAD_STATE_TRACK_KIND,
+          name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority,
+          },
+          config: {utid, tid},
+        });
+      }
+
+      if (showV2()) {
+        const kind = THREAD_STATE_TRACK_V2_KIND;
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind,
+          name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority,
+          },
+          config: {utid, tid},
+        });
+      }
     }
   }
 
@@ -1089,7 +1121,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -1099,6 +1131,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1148,7 +1185,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
     for (; it.valid(); it.next()) {
       const upid = it.upid;
@@ -1158,6 +1195,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1207,7 +1249,7 @@ class TrackDecider {
       trackIds: STR,
       processName: STR_NULL,
       pid: NUM_NULL,
-      maxDepth: NUM,
+      maxDepth: NUM_NULL,
     });
 
     for (; it.valid(); it.next()) {
@@ -1218,6 +1260,11 @@ class TrackDecider {
       const processName = it.processName;
       const pid = it.pid;
       const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
 
       const uuid = this.getUuid(0, upid);
 
@@ -1283,25 +1330,27 @@ class TrackDecider {
       const kind = SLICE_TRACK_KIND;
       const name = TrackDecider.getTrackName(
           {name: trackName, utid, tid, threadName, kind});
-      this.tracksToAdd.push({
-        engineId: this.engineId,
-        kind,
-        name,
-        trackGroup: uuid,
-        trackSortKey: {
-          utid,
-          priority: isDefaultTrackForScope ?
-              InThreadTrackSortKey.DEFAULT_TRACK :
-              InThreadTrackSortKey.ORDINARY,
-        },
-        config: {
-          trackId,
-          maxDepth,
-          tid,
-        },
-      });
+      if (showV1()) {
+        this.tracksToAdd.push({
+          engineId: this.engineId,
+          kind,
+          name,
+          trackGroup: uuid,
+          trackSortKey: {
+            utid,
+            priority: isDefaultTrackForScope ?
+                InThreadTrackSortKey.DEFAULT_TRACK :
+                InThreadTrackSortKey.ORDINARY,
+          },
+          config: {
+            trackId,
+            maxDepth,
+            tid,
+          },
+        });
+      }
 
-      if (TRACKS_V2_FLAG.get()) {
+      if (showV2()) {
         this.tracksToAdd.push({
           engineId: this.engineId,
           kind: 'GenericSliceTrack',
@@ -1719,7 +1768,7 @@ class TrackDecider {
         'max_layout_depth(track_count INT, track_ids STRING)',
         'INT',
         '
-          select ifnull(iif(
+          select iif(
             $track_count = 1,
             (
               select max(depth)
@@ -1730,7 +1779,7 @@ class TrackDecider {
               select max(layout_depth)
               from experimental_slice_layout($track_ids)
             )
-          ), 0);
+          );
         '
       );
     `);

@@ -24,8 +24,8 @@ source_set("db") {
     "column_storage.h",
     "column_storage_overlay.h",
     "compare.h",
-    "null_overlay.cc",
-    "null_overlay.h",
+    "query_executor.cc",
+    "query_executor.h",
     "table.cc",
     "table.h",
     "typed_column.h",
@@ -54,6 +54,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
+    "query_executor_unittest.cc",
     "view_unittest.cc",
   ]
   deps = [
@@ -64,6 +65,8 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../tables",
     "../views",
+    "overlays",
+    "storage",
   ]
 }
 
@@ -74,7 +77,14 @@ if (enable_perfetto_benchmarks) {
       ":db",
       "../../../gn:benchmark",
       "../../../gn:default_deps",
+      "../../../include/perfetto/base",
+      "../../../include/perfetto/ext/base",
+      "../../base:test_support",
+      "../tables:tables_python",
     ]
-    sources = [ "column_storage_overlay_benchmark.cc" ]
+    sources = [
+      "column_storage_overlay_benchmark.cc",
+      "query_executor_benchmark.cc",
+    ]
   }
 }

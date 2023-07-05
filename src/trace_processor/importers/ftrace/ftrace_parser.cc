@@ -60,6 +60,7 @@
 #include "protos/perfetto/trace/ftrace/lowmemorykiller.pbzero.h"
 #include "protos/perfetto/trace/ftrace/lwis.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mali.pbzero.h"
+#include "protos/perfetto/trace/ftrace/mdss.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mm_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/net.pbzero.h"
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
@@ -1029,6 +1030,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
                                                      fld_bytes);
         break;
       }
+      case FtraceEvent::kTracingMarkWriteFieldNumber: {
+        ParseMdssTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
 
       default:
         break;
@@ -1161,10 +1166,10 @@ void FtraceParser::ParseTypedFtraceToRaw(
   auto inserter = context_->args_tracker->AddArgsTo(id);
 
   for (auto fld = decoder.ReadField(); fld.valid(); fld = decoder.ReadField()) {
-    uint16_t field_id = fld.id();
+    uint32_t field_id = fld.id();
     if (PERFETTO_UNLIKELY(field_id >= kMaxFtraceEventFields)) {
       PERFETTO_DLOG(
-          "Skipping ftrace arg - proto field id is too large (%" PRIu16 ")",
+          "Skipping ftrace arg - proto field id is too large (%" PRIu32 ")",
           field_id);
       continue;
     }
@@ -1337,6 +1342,21 @@ void FtraceParser::ParseZero(int64_t timestamp, uint32_t pid, ConstBytes blob) {
   uint32_t tgid = static_cast<uint32_t>(evt.pid());
   SystraceParser::GetOrCreate(context_)->ParseZeroEvent(
       timestamp, pid, evt.flag(), evt.name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseMdssTracingMarkWrite(int64_t timestamp,
+                                             uint32_t pid,
+                                             ConstBytes blob) {
+  protos::pbzero::TracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                           blob.size);
+  if (!evt.has_trace_begin()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, 0, evt.trace_begin(), evt.trace_name(), tgid, 0);
 }
 
 void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,

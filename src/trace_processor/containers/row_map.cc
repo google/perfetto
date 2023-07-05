@@ -150,10 +150,7 @@ RowMap Select(const std::vector<uint32_t>& iv,
 }
 
 Variant IntersectInternal(BitVector& first, const BitVector& second) {
-  for (auto set_bit = first.IterateSetBits(); set_bit; set_bit.Next()) {
-    if (!second.IsSet(set_bit.index()))
-      set_bit.Clear();
-  }
+  first.And(second);
   return std::move(first);
 }
 
@@ -242,6 +239,19 @@ RowMap RowMap::Copy() const {
   }
   if (auto* vec = std::get_if<IndexVector>(&data_)) {
     return RowMap(*vec);
+  }
+  NoVariantMatched();
+}
+
+OutputIndex RowMap::Max() const {
+  if (auto* range = std::get_if<Range>(&data_)) {
+    return range->end;
+  }
+  if (auto* bv = std::get_if<BitVector>(&data_)) {
+    return bv->size();
+  }
+  if (auto* vec = std::get_if<IndexVector>(&data_)) {
+    return vec->empty() ? 0 : *std::max_element(vec->begin(), vec->end()) + 1;
   }
   NoVariantMatched();
 }

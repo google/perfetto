@@ -16,16 +16,20 @@ import m from 'mithril';
 
 import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
-import {Selection} from '../../common/state';
-import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
 import {
-  NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {
+  CustomSqlDetailsPanelConfig,
+  CustomSqlTableDefConfig,
+  CustomSqlTableSliceTrack,
+} from '../custom_sql_table_slices';
+
 import {ARG_PREFIX} from './add_debug_track_menu';
+import {DebugSliceDetailsTab} from './details_tab';
 
 // Names of the columns of the underlying view to be used as ts / dur / name.
 export interface SliceColumns {
@@ -43,7 +47,7 @@ interface DebugTrackV2Types extends NamedSliceTrackTypes {
   config: DebugTrackV2Config;
 }
 
-export class DebugTrackV2 extends NamedSliceTrack<DebugTrackV2Types> {
+export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
   static readonly kind = DEBUG_SLICE_TRACK_KIND;
 
   static create(args: NewTrackArgs) {
@@ -54,34 +58,24 @@ export class DebugTrackV2 extends NamedSliceTrack<DebugTrackV2Types> {
     super(args);
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    await this.engine.query(`
-      create view ${tableName} as
-      select
-        id,
-        ts,
-        dur,
-        name,
-        depth
-      from ${this.config.sqlTableName}
-    `);
-  }
-
-  isSelectionHandled(selection: Selection) {
-    if (selection.kind !== 'DEBUG_SLICE') {
-      return false;
-    }
-    return selection.sqlTableName === this.config.sqlTableName;
-  }
-
-  onSliceClick(args: OnSliceClickArgs<DebugTrackV2Types['slice']>) {
-    globals.dispatch(Actions.selectDebugSlice({
-      id: args.slice.id,
+  getSqlDataSource(): CustomSqlTableDefConfig {
+    return {
       sqlTableName: this.config.sqlTableName,
-      start: args.slice.start,
-      duration: args.slice.duration,
-      trackId: this.trackId,
-    }));
+    };
+  }
+
+  getDetailsPanel(): CustomSqlDetailsPanelConfig {
+    return {
+      kind: DebugSliceDetailsTab.kind,
+      config: {
+        sqlTableName: this.config.sqlTableName,
+        title: 'Debug Slice',
+      },
+    };
+  }
+
+  async initSqlTable(tableName: string): Promise<void> {
+    super.initSqlTable(tableName);
   }
 
   getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
@@ -109,24 +103,21 @@ export async function addDebugTrack(
   const debugTrackId = ++debugTrackCount;
   const sqlTableName = `materialized_${debugTrackId}_${sqlViewName}`;
   // TODO(altimin): Support removing this table when the track is closed.
+  const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
   await engine.query(`
       create table ${sqlTableName} as
       with prepared_data as (
         select
           row_number() over () as id,
           ${sliceColumns.ts} as ts,
-          cast(${sliceColumns.dur} as int) as dur,
+          ifnull(cast(${dur} as int), -1) as dur,
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
-          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',')}
+          ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
         from ${sqlViewName}
       )
       select
-        *,
-        internal_layout(ts, dur) over (
-          order by ${sliceColumns.ts}
-          rows between unbounded preceding and current row
-        ) as depth
+        *
       from prepared_data
       order by ts;`);
 

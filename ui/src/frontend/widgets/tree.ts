@@ -1,34 +1,31 @@
+// Copyright (C) 2023 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 import m from 'mithril';
 
+import {hasChildren} from '../../base/mithril_utils';
+import {raf} from '../../core/raf_scheduler';
 import {classNames} from '../classnames';
-import {globals} from '../globals';
 
-import {Button} from './button';
-import {Spinner} from './spinner';
-import {hasChildren} from './utils';
-
-export enum TreeLayout {
-  // Classic heirachical tree layout with no columnar alignment.
-  // Example:
-  // foo: bar
-  //  ├ baz: qux
-  //  └ quux: corge
-  // grault: garply
-  Tree = 'tree',
-
-  // Heirachical tree layout but right values are horizontally aligned.
-  // Example:
-  // foo     bar
-  //  ├ baz  qux
-  //  └ quux corge
-  // grault  garply
-  Grid = 'grid',
-}
+// Heirachical tree layout but right values are horizontally aligned.
+// Example:
+// foo     bar
+//  ├ baz  qux
+//  └ quux corge
+// grault  garply
 
 interface TreeAttrs {
-  // The style of layout.
-  // Defaults to grid.
-  layout?: TreeLayout;
   // Space delimited class list applied to our tree element.
   className?: string;
 }
@@ -36,17 +33,14 @@ interface TreeAttrs {
 export class Tree implements m.ClassComponent<TreeAttrs> {
   view({attrs, children}: m.Vnode<TreeAttrs>): m.Children {
     const {
-      layout: style = TreeLayout.Grid,
       className = '',
     } = attrs;
 
-    if (style === TreeLayout.Grid) {
-      return m('.pf-ptree-grid', {class: className}, children);
-    } else if (style === TreeLayout.Tree) {
-      return m('.pf-ptree', {class: className}, children);
-    } else {
-      return null;
-    }
+    const classes = classNames(
+        className,
+    );
+
+    return m('.pf-tree', {class: classes}, children);
   }
 }
 
@@ -64,6 +58,11 @@ interface TreeNodeAttrs {
   // Whether this node is collapsed or not.
   // If omitted, collapsed state 'uncontrolled' - i.e. controlled internally.
   collapsed?: boolean;
+  loading?: boolean;
+  showCaret?: boolean;
+  // Optional icon to show to the left of the text.
+  // If this node contains children, this icon is ignored.
+  icon?: string;
   // Called when the collapsed state is changed, mainly used in controlled mode.
   onCollapseChanged?: (collapsed: boolean, attrs: TreeNodeAttrs) => void;
 }
@@ -71,26 +70,49 @@ interface TreeNodeAttrs {
 export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
   private collapsed = false;
   view(vnode: m.CVnode<TreeNodeAttrs>): m.Children {
-    return [
-      m(
-          '.pf-tree-node',
-          this.renderLeft(vnode),
-          this.renderRight(vnode),
-          ),
-      hasChildren(vnode) && this.renderChildren(vnode),
-    ];
+    const {children, attrs, attrs: {left, onCollapseChanged = () => {}}} =
+        vnode;
+    return m(
+        '.pf-tree-node',
+        {
+          class: classNames(this.getClassNameForNode(vnode)),
+        },
+        m('span.pf-tree-gutter', {
+          onclick: () => {
+            this.collapsed = !this.isCollapsed(vnode);
+            onCollapseChanged(this.collapsed, attrs);
+            raf.scheduleFullRedraw();
+          },
+        }),
+        m(
+            '.pf-tree-content',
+            m('.pf-tree-left', left),
+            this.renderRight(vnode),
+            ),
+        hasChildren(vnode) &&
+            [
+              m('span.pf-tree-indent-gutter'),
+              m('.pf-tree-children', children),
+            ],
+    );
   }
 
-  private renderLeft(vnode: m.CVnode<TreeNodeAttrs>) {
+  private getClassNameForNode(vnode: m.CVnode<TreeNodeAttrs>) {
     const {
-      attrs: {left},
-    } = vnode;
-
-    return m(
-        '.pf-tree-left',
-        left,
-        hasChildren(vnode) && this.renderCollapseButton(vnode),
-    );
+      loading = false,
+      showCaret = false,
+    } = vnode.attrs;
+    if (loading) {
+      return 'pf-loading';
+    } else if (hasChildren(vnode) || showCaret) {
+      if (this.isCollapsed(vnode)) {
+        return 'pf-collapsed';
+      } else {
+        return 'pf-expanded';
+      }
+    } else {
+      return undefined;
+    }
   }
 
   private renderRight(vnode: m.CVnode<TreeNodeAttrs>) {
@@ -100,33 +122,6 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
     } else {
       return m('.pf-tree-right', right);
     }
-  }
-
-  private renderChildren(vnode: m.CVnode<TreeNodeAttrs>) {
-    const {children} = vnode;
-
-    return m(
-        '.pf-tree-children',
-        {
-          class: classNames(this.isCollapsed(vnode) && 'pf-pgrid-hidden'),
-        },
-        children,
-    );
-  }
-
-  private renderCollapseButton(vnode: m.Vnode<TreeNodeAttrs>) {
-    const {attrs, attrs: {onCollapseChanged = () => {}}} = vnode;
-
-    return m(Button, {
-      icon: this.isCollapsed(vnode) ? 'chevron_right' : 'expand_more',
-      minimal: true,
-      compact: true,
-      onclick: () => {
-        this.collapsed = !this.isCollapsed(vnode);
-        onCollapseChanged(this.collapsed, attrs);
-        globals.rafScheduler.scheduleFullRedraw();
-      },
-    });
   }
 
   private isCollapsed({attrs}: m.Vnode<TreeNodeAttrs>): boolean {
@@ -139,7 +134,7 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
   }
 }
 
-export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
+export function dictToTreeNodes(dict: {[key: string]: m.Child}): m.Child[] {
   const children: m.Child[] = [];
   for (const key of Object.keys(dict)) {
     children.push(m(TreeNode, {
@@ -147,14 +142,20 @@ export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
       right: dict[key],
     }));
   }
-  return m(Tree, children);
+  return children;
 }
 
+// Create a flat tree from a POJO
+export function dictToTree(dict: {[key: string]: m.Child}): m.Children {
+  return m(Tree, dictToTreeNodes(dict));
+}
 interface LazyTreeNodeAttrs {
   // Same as TreeNode (see above).
   left?: m.Children;
   // Same as TreeNode (see above).
   right?: m.Children;
+  // Same as TreeNode (see above).
+  icon?: string;
   // Same as TreeNode (see above).
   summary?: m.Children;
   // A callback to be called when the TreeNode is expanded, in order to fetch
@@ -164,9 +165,9 @@ interface LazyTreeNodeAttrs {
   // children is to avoid storing vnodes between render cycles, which is a bug
   // in Mithril.
   fetchData: () => Promise<() => m.Children>;
-  // Whether to keep child nodes in memory after the node has been collapsed.
-  // Defaults to true
-  hoardData?: boolean;
+  // Whether to unload children on collapse.
+  // Defaults to false, data will be kept in memory until the node is destroyed.
+  unloadOnCollapse?: boolean;
 }
 
 // This component is a TreeNode which only loads child nodes when it's expanded.
@@ -174,19 +175,17 @@ interface LazyTreeNodeAttrs {
 // up front, and even allows us to represent infinite or recursive trees.
 export class LazyTreeNode implements m.ClassComponent<LazyTreeNodeAttrs> {
   private collapsed: boolean = true;
-  private renderChildren = this.renderSpinner;
-
-  private renderSpinner(): m.Children {
-    return m(TreeNode, {left: m(Spinner)});
-  }
+  private loading: boolean = false;
+  private renderChildren?: () => m.Children;
 
   view({attrs}: m.CVnode<LazyTreeNodeAttrs>): m.Children {
     const {
       left,
       right,
+      icon,
       summary,
       fetchData,
-      hoardData = true,
+      unloadOnCollapse = false,
     } = attrs;
 
     return m(
@@ -194,25 +193,35 @@ export class LazyTreeNode implements m.ClassComponent<LazyTreeNodeAttrs> {
         {
           left,
           right,
+          icon,
           summary,
+          showCaret: true,
+          loading: this.loading,
           collapsed: this.collapsed,
           onCollapseChanged: (collapsed) => {
             if (collapsed) {
-              if (!hoardData) {
-                this.renderChildren = this.renderSpinner;
+              if (unloadOnCollapse) {
+                this.renderChildren = undefined;
               }
             } else {
-              fetchData().then((result) => {
-                if (!this.collapsed) {
+              // Expanding
+              if (this.renderChildren) {
+                this.collapsed = false;
+                raf.scheduleFullRedraw();
+              } else {
+                this.loading = true;
+                fetchData().then((result) => {
+                  this.loading = false;
+                  this.collapsed = false;
                   this.renderChildren = result;
-                  globals.rafScheduler.scheduleFullRedraw();
-                }
-              });
+                  raf.scheduleFullRedraw();
+                });
+              }
             }
             this.collapsed = collapsed;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         },
-        this.renderChildren());
+        this.renderChildren && this.renderChildren());
   }
 }

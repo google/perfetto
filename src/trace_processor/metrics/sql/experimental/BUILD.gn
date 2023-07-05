@@ -19,7 +19,6 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_sql_source_set("experimental") {
   sources = [
-    "blink_gc_metric.sql",
     "chrome_dropped_frames.sql",
     "chrome_long_latency.sql",
     "frame_times.sql",

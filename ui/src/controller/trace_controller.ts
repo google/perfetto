@@ -30,6 +30,7 @@ import {
   getEnabledMetatracingCategories,
   isMetatracingEnabled,
 } from '../common/metatracing';
+import {pluginManager} from '../common/plugins';
 import {
   LONG,
   NUM,
@@ -45,11 +46,7 @@ import {
   PendingDeeplinkState,
   ProfileType,
 } from '../common/state';
-import {Span} from '../common/time';
-import {
-  TPTime,
-  TPTimeSpan,
-} from '../common/time';
+import {Span, TPTime, TPTimeSpan} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
@@ -66,6 +63,7 @@ import {
   publishOverviewData,
   publishThreads,
 } from '../frontend/publish';
+import {runQueryInNewTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
 
 import {
@@ -137,7 +135,8 @@ const METRICS = [
   'android_batt',
   'android_other_traces',
   'chrome_dropped_frames',
-  'chrome_long_latency',
+  // TODO(289365196): Reenable:
+  // 'chrome_long_latency',
   'trace_metadata',
   'android_trusty_workqueues',
 ];
@@ -342,6 +341,7 @@ export class TraceController extends Controller<States> {
   }
 
   onDestroy() {
+    pluginManager.onTraceClose();
     globals.engines.delete(this.engineId);
   }
 
@@ -532,13 +532,16 @@ export class TraceController extends Controller<States> {
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
       await this.selectPendingDeeplink(pendingDeeplink);
+      if (pendingDeeplink.query !== undefined) {
+        runQueryInNewTab(pendingDeeplink.query, 'Deeplink Query');
+      }
     }
 
     // If the trace was shared via a permalink, it might already have a
     // selection. Emit onSelectionChanged to ensure that the components (like
     // current selection details) react to it.
     if (globals.state.currentSelection !== null) {
-      onSelectionChanged(globals.state.currentSelection, undefined);
+      onSelectionChanged(globals.state.currentSelection, true);
     }
 
     globals.dispatch(Actions.maybeExpandOnlyTrackGroup({}));
@@ -555,6 +558,8 @@ export class TraceController extends Controller<States> {
         }));
       }
     }
+
+    pluginManager.onTraceLoad(globals.store, engine);
 
     return engineMode;
   }

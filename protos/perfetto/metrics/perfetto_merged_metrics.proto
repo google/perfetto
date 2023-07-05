@@ -50,6 +50,29 @@ message AndroidProcessMetadata {
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
 
+// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
+
+// Blocking call on the main thread.
+message AndroidBlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
+    // Total duration within the CUJ in nanoseconds
+    optional int64 total_dur_ns = 6;
+    // Maximal duration within the CUJ in nanoseconds
+    optional int64 max_dur_ns = 7;
+    // Minimal duration within the CUJ in nanoseconds
+    optional int64 min_dur_ns = 8;
+}
+// End of protos/perfetto/metrics/android/android_blocking_call.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
 // Blocking calls inside Android CUJs. Shows count and total duration for each.
@@ -75,21 +98,7 @@ message AndroidBlockingCallsCujMetric {
     optional int64 dur = 5;
 
     // List of blocking calls on the process main thread.
-    repeated BlockingCall blocking_calls = 6;
-  }
-
-  // Blocking call on the main thread.
-  message BlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
+    repeated AndroidBlockingCall blocking_calls = 6;
   }
 }
 
@@ -98,6 +107,32 @@ message AndroidBlockingCallsCujMetric {
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
 message AndroidFrameTimelineMetric {
+  message JankTypeMetric {
+    // The jank type
+    optional string type = 1;
+
+    // The count of frames with this jank type
+    optional int64 total_count = 2;
+
+    // The count of frames with this jank type and present type = PRESENT_UNSPECIFIED
+    optional int64 present_unspecified_count = 3;
+
+    // The count of frames with this jank type and present type = PRESENT_ON_TIME
+    optional int64 present_on_time_count = 4;
+
+    // The count of frames with this jank type and present type = PRESENT_LATE
+    optional int64 present_late_count = 5;
+
+    // The count of frames with this jank type and present type = PRESENT_EARLY
+    optional int64 present_early_count = 6;
+
+    // The count of frames with this jank type and present type = PRESENT_DROPPED
+    optional int64 present_dropped_count = 7;
+
+    // The count of frames with this jank type and present type = PRESENT_UNKNOWN
+    optional int64 present_unknown_count = 8;
+  }
+
   message ProcessBreakdown {
     optional AndroidProcessMetadata process = 3;
 
@@ -118,6 +153,9 @@ message AndroidFrameTimelineMetric {
     optional double frame_dur_ms_p99 = 17;
     optional int64 dropped_frames = 18;
 
+    // Metrics for each jank type in this process
+    repeated JankTypeMetric jank_types = 19;
+
     reserved 1, 2;
   }
 
@@ -127,11 +165,23 @@ message AndroidFrameTimelineMetric {
 
   repeated ProcessBreakdown process = 2;
 
+  // Metrics for each jank type globally
+  repeated JankTypeMetric jank_types = 7;
+
   reserved 1;
 }
 
 
 // End of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
+
+// Begin of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
+
+// Blocking calls inside System UI Notifications. Shows count and total duration for each.
+message AndroidSysUINotificationsBlockingCallsMetric {
+  repeated AndroidBlockingCall blocking_calls = 1;
+}
+
+// End of protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto
 
 // Begin of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
@@ -1737,6 +1787,7 @@ message AndroidStartupMetric {
     optional string compilation_filter = 2;
     optional string compilation_reason = 3;
     optional string location = 4;
+    optional string summary = 5;
   }
 
   // Contains the name and duration of class verification occurred during
@@ -2042,7 +2093,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 50
+// Next id: 52
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2178,6 +2229,8 @@ message TraceMetrics {
   optional AndroidBlockingCallsCujMetric android_blocking_calls_cuj_metric = 49;
 
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
+
+  optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
 
   // Demo extensions.
   extensions 450 to 499;

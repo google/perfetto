@@ -239,7 +239,7 @@ class TestCaseRunner:
                       stderr.decode('utf8'), tp.returncode, perf_lines)
 
   # Run a query based Diff Test.
-  def __run_query_test(self, trace_path: str) -> TestResult:
+  def __run_query_test(self, trace_path: str, keep_query: bool) -> TestResult:
     # Fetch expected text.
     if self.test.expected_path:
       with open(self.test.expected_path, 'r') as expected_file:
@@ -274,7 +274,7 @@ class TestCaseRunner:
         env=get_env(ROOT_DIR))
     (stdout, stderr) = tp.communicate()
 
-    if not self.test.blueprint.is_query_file():
+    if not self.test.blueprint.is_query_file() and not keep_query:
       tmp_query_file.close()
       os.remove(tmp_query_file.name)
     perf_lines = [line.decode('utf8') for line in tmp_perf_file.readlines()]
@@ -330,7 +330,7 @@ class TestCaseRunner:
     str = f"{self.colors.yellow('[ RUN      ]')} {self.test.name}\n"
 
     if self.test.type == TestType.QUERY:
-      result = self.__run_query_test(trace_path)
+      result = self.__run_query_test(trace_path, keep_input)
     elif self.test.type == TestType.METRIC:
       result = self.__run_metrics_test(
           trace_path,
@@ -348,7 +348,8 @@ class TestCaseRunner:
 
     def write_cmdlines():
       res = ""
-      if not gen_trace_file:
+      if self.test.trace_path and (self.test.trace_path.endswith('.textproto')
+                                   or self.test.trace_path.endswith('.py')):
         res += 'Command to generate trace:\n'
         res += 'tools/serialize_test_trace.py '
         res += '--descriptor {} {} > {}\n'.format(

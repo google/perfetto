@@ -80,7 +80,7 @@ class PERFETTO_EXPORT_COMPONENT Status {
   // Gets the payload for the given |type_url| if one exists.
   //
   // Will always return std::nullopt if |ok()|.
-  std::optional<std::string_view> GetPayload(std::string_view type_url);
+  std::optional<std::string_view> GetPayload(std::string_view type_url) const;
 
   // Sets the payload for the given key. The key should
   //

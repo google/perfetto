@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/overlays/selector_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -25,7 +26,7 @@ namespace {
 TEST(SelectorOverlay, MapToStorageRangeFirst) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   SelectorOverlay overlay(&selector);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(1, 4)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(1, 4));
 
   ASSERT_EQ(r.range.start, 4u);
   ASSERT_EQ(r.range.end, 8u);
@@ -34,10 +35,32 @@ TEST(SelectorOverlay, MapToStorageRangeFirst) {
 TEST(SelectorOverlay, MapToStorageRangeSecond) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 1, 0};
   SelectorOverlay overlay(&selector);
-  StorageRange r = overlay.MapToStorageRange({RowMap::Range(1, 3)});
+  StorageRange r = overlay.MapToStorageRange(TableRange(1, 3));
 
   ASSERT_EQ(r.range.start, 4u);
   ASSERT_EQ(r.range.end, 7u);
+}
+
+TEST(SelectorOverlay, MapToTableRangeFirst) {
+  BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1};
+  SelectorOverlay overlay(&selector);
+  auto r =
+      overlay.MapToTableRangeOrBitVector(StorageRange(2, 5), OverlayOp::kOther);
+
+  Range range = std::move(r).TakeIfRange();
+  ASSERT_EQ(range.start, 1u);
+  ASSERT_EQ(range.end, 3u);
+}
+
+TEST(SelectorOverlay, MapToTableRangeSecond) {
+  BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 0};
+  SelectorOverlay overlay(&selector);
+  auto r = overlay.MapToTableRangeOrBitVector(StorageRange(0, 10),
+                                              OverlayOp::kOther);
+
+  Range range = std::move(r).TakeIfRange();
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 6u);
 }
 
 TEST(SelectorOverlay, MapToTableBitVector) {
@@ -46,7 +69,7 @@ TEST(SelectorOverlay, MapToTableBitVector) {
 
   BitVector storage_bv{1, 0, 1, 0, 1, 0, 1, 0};
   TableBitVector table_bv =
-      overlay.MapToTableBitVector({std::move(storage_bv)});
+      overlay.MapToTableBitVector({std::move(storage_bv)}, OverlayOp::kOther);
 
   ASSERT_EQ(table_bv.bv.size(), 4u);
   ASSERT_EQ(table_bv.bv.CountSetBits(), 2u);

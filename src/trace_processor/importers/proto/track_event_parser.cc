@@ -38,6 +38,7 @@
 #include "src/trace_processor/util/proto_to_args_parser.h"
 #include "src/trace_processor/util/status_macros.h"
 
+#include "protos/perfetto/common/android_log_constants.pbzero.h"
 #include "protos/perfetto/trace/extension_descriptor.pbzero.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/track_event/chrome_active_processes.pbzero.h"
@@ -227,6 +228,29 @@ std::optional<base::Status> MaybeParseSourceLocation(
   }
 
   return base::OkStatus();
+}
+
+protos::pbzero::AndroidLogPriority ToAndroidLogPriority(
+    protos::pbzero::LogMessage::Priority prio) {
+  switch (prio) {
+    case protos::pbzero::LogMessage::Priority::PRIO_UNSPECIFIED:
+      return protos::pbzero::AndroidLogPriority::PRIO_UNSPECIFIED;
+    case protos::pbzero::LogMessage::Priority::PRIO_UNUSED:
+      return protos::pbzero::AndroidLogPriority::PRIO_UNUSED;
+    case protos::pbzero::LogMessage::Priority::PRIO_VERBOSE:
+      return protos::pbzero::AndroidLogPriority::PRIO_VERBOSE;
+    case protos::pbzero::LogMessage::Priority::PRIO_DEBUG:
+      return protos::pbzero::AndroidLogPriority::PRIO_DEBUG;
+    case protos::pbzero::LogMessage::Priority::PRIO_INFO:
+      return protos::pbzero::AndroidLogPriority::PRIO_INFO;
+    case protos::pbzero::LogMessage::Priority::PRIO_WARN:
+      return protos::pbzero::AndroidLogPriority::PRIO_WARN;
+    case protos::pbzero::LogMessage::Priority::PRIO_ERROR:
+      return protos::pbzero::AndroidLogPriority::PRIO_ERROR;
+    case protos::pbzero::LogMessage::Priority::PRIO_FATAL:
+      return protos::pbzero::AndroidLogPriority::PRIO_FATAL;
+  }
+  return protos::pbzero::AndroidLogPriority::PRIO_UNSPECIFIED;
 }
 
 }  // namespace
@@ -1327,9 +1351,20 @@ class TrackEventParser::EventImporter {
           Variadic::Integer(source_location_decoder->line_number()));
     }
 
+    // The track event log message doesn't specify any priority. UI never
+    // displays priorities < 2 (VERBOSE in android). Let's make all the track
+    // event logs show up as INFO.
+    int32_t priority = protos::pbzero::AndroidLogPriority::PRIO_INFO;
+    if (message.has_prio()) {
+      priority = ToAndroidLogPriority(
+          static_cast<protos::pbzero::LogMessage::Priority>(message.prio()));
+      inserter->AddArg(parser_->log_message_priority_id_,
+                       Variadic::Integer(priority));
+    }
+
     storage_->mutable_android_log_table()->Insert(
         {ts_, *utid_,
-         /*priority*/ 0,
+         /*priority*/ static_cast<uint32_t>(priority),
          /*tag_id*/ source_location_id, log_message_id});
 
     return util::OkStatus();
@@ -1426,6 +1461,8 @@ TrackEventParser::TrackEventParser(TraceProcessorContext* context,
       log_message_source_location_line_number_key_id_(
           context->storage->InternString(
               "track_event.log_message.line_number")),
+      log_message_priority_id_(
+          context->storage->InternString("track_event.priority")),
       source_location_function_name_key_id_(
           context->storage->InternString("source.function_name")),
       source_location_file_name_key_id_(

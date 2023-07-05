@@ -32,12 +32,7 @@ namespace perfetto {
 namespace {
 
 std::string RunClangFmt(const std::string& input) {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_MAC)
-  const std::string platform = "mac";
-#else
-  const std::string platform = "linux64";
-#endif
-  base::Subprocess clang_fmt({"buildtools/" + platform + "/clang-format"});
+  base::Subprocess clang_fmt({"third_party/clang-format/clang-format"});
   clang_fmt.args.stdout_mode = base::Subprocess::OutputMode::kBuffer;
   clang_fmt.args.stderr_mode = base::Subprocess::OutputMode::kInherit;
   clang_fmt.args.input = input;

@@ -25,6 +25,7 @@
 
 #include "src/protozero/filtering/filter_bytecode_parser.h"
 #include "src/protozero/filtering/message_tokenizer.h"
+#include "src/protozero/filtering/string_filter.h"
 
 namespace protozero {
 
@@ -117,6 +118,9 @@ class MessageFilter {
   // Exposed only for DCHECKS in TracingServiceImpl.
   uint32_t root_msg_index() { return root_msg_index_; }
 
+  // Retuns the helper class used to perform string filtering.
+  StringFilter& string_filter() { return string_filter_; }
+
  private:
   // This is called by FilterMessageFragments().
   // Inlining allows the compiler turn the per-byte call/return into a for loop,
@@ -181,11 +185,20 @@ class MessageFilter {
     uint8_t* size_field = nullptr;
     uint32_t size_field_len = 0;
 
-    // When true the next |eat_next_bytes| are copied as-is in output.
-    // It seems that keeping this field at the end rather than next to
-    // |eat_next_bytes| makes the filter a little (but measurably) faster.
-    // (likely something related with struct layout vs cache sizes).
-    bool passthrough_eaten_bytes = false;
+    // The pointer to the start of the string to update the string if it is
+    // filtered.
+    uint8_t* filter_string_ptr = nullptr;
+
+    // How |eat_next_bytes| should be handled. It seems that keeping this field
+    // at the end rather than next to |eat_next_bytes| makes the filter a little
+    // (but measurably) faster. (likely something related with struct layout vs
+    // cache sizes).
+    enum FilterAction {
+      kDrop,
+      kPassthrough,
+      kFilterString,
+    };
+    FilterAction action = FilterAction::kDrop;
   };
 
   uint32_t out_written() { return static_cast<uint32_t>(out_ - &out_buf_[0]); }
@@ -197,6 +210,7 @@ class MessageFilter {
 
   FilterBytecodeParser filter_;
   MessageTokenizer tokenizer_;
+  StringFilter string_filter_;
   std::vector<StackState> stack_;
 
   bool error_ = false;

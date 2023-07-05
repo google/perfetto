@@ -15,7 +15,7 @@
 from __future__ import print_function
 import time
 import subprocess
-from os.path import relpath
+from os.path import relpath, dirname, join
 
 
 USE_PYTHON3 = True
@@ -36,6 +36,7 @@ def RunAndReportIfLong(func, *args, **kargs):
 def CheckChange(input, output):
   results = []
   results += RunAndReportIfLong(CheckEslint, input, output)
+  results += RunAndReportIfLong(CheckImports, input, output)
   return results
 
 
@@ -50,10 +51,10 @@ def CheckChangeOnCommit(input_api, output_api):
 def CheckEslint(input_api, output_api):
   path = input_api.os_path
   ui_path = input_api.PresubmitLocalPath()
-  node = path.join(ui_path, 'node')
-  lint_path = path.join(ui_path, 'node_modules', '.bin', 'eslint')
+  module_path = path.join(ui_path, 'node_modules', '.bin', 'eslint')
+  lint_path = path.join(ui_path, 'eslint')
 
-  if not path.exists(lint_path):
+  if not path.exists(module_path):
     repo_root = input_api.change.RepositoryRoot()
     install_path = path.join(repo_root, 'tools', 'install-build-deps')
     return [
@@ -71,8 +72,27 @@ def CheckEslint(input_api, output_api):
     return []
   paths = [f.AbsoluteLocalPath() for f in files]
 
-  cmd = [node, lint_path] + paths
+  cmd = [lint_path] + paths
   if subprocess.call(cmd):
     s = ' '.join(cmd)
     return [output_api.PresubmitError(f"eslint errors. Run: $ {s}")]
+  return []
+
+
+def CheckImports(input_api, output_api):
+  path = input_api.os_path
+  ui_path = input_api.PresubmitLocalPath()
+  check_imports_path = join(dirname(ui_path), 'tools', 'check_imports')
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(
+        x, files_to_check=[r'.*\.ts$', r'.*\.js$'])
+
+  files = input_api.AffectedSourceFiles(file_filter)
+
+  if not files:
+    return []
+
+  if subprocess.call([check_imports_path]):
+    return [output_api.PresubmitError(f"")]
   return []

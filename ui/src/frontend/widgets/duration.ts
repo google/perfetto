@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {TPDuration, tpTimeToCode} from '../../common/time';
+import {formatDuration, TPDuration} from '../../common/time';
 
 interface DurationAttrs {
   dur: TPDuration;
@@ -22,6 +22,6 @@ interface DurationAttrs {
 
 export class Duration implements m.ClassComponent<DurationAttrs> {
   view(vnode: m.Vnode<DurationAttrs>) {
-    return tpTimeToCode(vnode.attrs.dur);
+    return formatDuration(vnode.attrs.dur);
   }
 }

@@ -14,27 +14,224 @@
 
 import m from 'mithril';
 
+import {raf} from '../core/raf_scheduler';
+
 import {Anchor} from './anchor';
 import {classNames} from './classnames';
-import {globals} from './globals';
 import {LIBRARY_ADD_CHECK} from './icons';
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
+import {Icons} from './semantic_icons';
 import {TableShowcase} from './tables/table_showcase';
 import {Button} from './widgets/button';
+import {Callout} from './widgets/callout';
 import {Checkbox} from './widgets/checkbox';
+import {Editor} from './widgets/editor';
 import {EmptyState} from './widgets/empty_state';
 import {Form, FormButtonBar, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
-import {MultiSelect, MultiSelectDiff} from './widgets/multiselect';
+import {
+  MultiSelect,
+  MultiSelectDiff,
+  PopupMultiSelect,
+} from './widgets/multiselect';
 import {Popup, PopupPosition} from './widgets/popup';
 import {Portal} from './widgets/portal';
-import {Select} from './widgets/select';
+import {FilterableSelect, Select} from './widgets/select';
 import {Spinner} from './widgets/spinner';
 import {Switch} from './widgets/switch';
 import {TextInput} from './widgets/text_input';
-import {LazyTreeNode, Tree, TreeLayout, TreeNode} from './widgets/tree';
+import {LazyTreeNode, Tree, TreeNode} from './widgets/tree';
+import {VegaView} from './widgets/vega_view';
+
+const DATA_ENGLISH_LETTER_FREQUENCY = {
+  table: [
+    {category: 'a', amount: 8.167}, {category: 'b', amount: 1.492},
+    {category: 'c', amount: 2.782}, {category: 'd', amount: 4.253},
+    {category: 'e', amount: 12.70}, {category: 'f', amount: 2.228},
+    {category: 'g', amount: 2.015}, {category: 'h', amount: 6.094},
+    {category: 'i', amount: 6.966}, {category: 'j', amount: 0.253},
+    {category: 'k', amount: 1.772}, {category: 'l', amount: 4.025},
+    {category: 'm', amount: 2.406}, {category: 'n', amount: 6.749},
+    {category: 'o', amount: 7.507}, {category: 'p', amount: 1.929},
+    {category: 'q', amount: 0.095}, {category: 'r', amount: 5.987},
+    {category: 's', amount: 6.327}, {category: 't', amount: 9.056},
+    {category: 'u', amount: 2.758}, {category: 'v', amount: 0.978},
+    {category: 'w', amount: 2.360}, {category: 'x', amount: 0.250},
+    {category: 'y', amount: 1.974}, {category: 'z', amount: 0.074},
+  ],
+};
+
+const DATA_POLISH_LETTER_FREQUENCY = {
+  table: [
+    {category: 'a', amount: 8.965}, {category: 'b', amount: 1.482},
+    {category: 'c', amount: 3.988}, {category: 'd', amount: 3.293},
+    {category: 'e', amount: 7.921}, {category: 'f', amount: 0.312},
+    {category: 'g', amount: 1.377}, {category: 'h', amount: 1.072},
+    {category: 'i', amount: 8.286}, {category: 'j', amount: 2.343},
+    {category: 'k', amount: 3.411}, {category: 'l', amount: 2.136},
+    {category: 'm', amount: 2.911}, {category: 'n', amount: 5.600},
+    {category: 'o', amount: 7.590}, {category: 'p', amount: 3.101},
+    {category: 'q', amount: 0.003}, {category: 'r', amount: 4.571},
+    {category: 's', amount: 4.263}, {category: 't', amount: 3.966},
+    {category: 'u', amount: 2.347}, {category: 'v', amount: 0.034},
+    {category: 'w', amount: 4.549}, {category: 'x', amount: 0.019},
+    {category: 'y', amount: 3.857}, {category: 'z', amount: 5.620},
+  ],
+};
+
+const DATA_EMPTY = {};
+
+const SPEC_BAR_CHART = `
+{
+  "$schema": "https://vega.github.io/schema/vega/v5.json",
+  "description": "A basic bar chart example, with value labels shown upon mouse hover.",
+  "width": 400,
+  "height": 200,
+  "padding": 5,
+
+  "data": [
+    {
+      "name": "table"
+    }
+  ],
+
+  "signals": [
+    {
+      "name": "tooltip",
+      "value": {},
+      "on": [
+        {"events": "rect:mouseover", "update": "datum"},
+        {"events": "rect:mouseout",  "update": "{}"}
+      ]
+    }
+  ],
+
+  "scales": [
+    {
+      "name": "xscale",
+      "type": "band",
+      "domain": {"data": "table", "field": "category"},
+      "range": "width",
+      "padding": 0.05,
+      "round": true
+    },
+    {
+      "name": "yscale",
+      "domain": {"data": "table", "field": "amount"},
+      "nice": true,
+      "range": "height"
+    }
+  ],
+
+  "axes": [
+    { "orient": "bottom", "scale": "xscale" },
+    { "orient": "left", "scale": "yscale" }
+  ],
+
+  "marks": [
+    {
+      "type": "rect",
+      "from": {"data":"table"},
+      "encode": {
+        "enter": {
+          "x": {"scale": "xscale", "field": "category"},
+          "width": {"scale": "xscale", "band": 1},
+          "y": {"scale": "yscale", "field": "amount"},
+          "y2": {"scale": "yscale", "value": 0}
+        },
+        "update": {
+          "fill": {"value": "steelblue"}
+        },
+        "hover": {
+          "fill": {"value": "red"}
+        }
+      }
+    },
+    {
+      "type": "text",
+      "encode": {
+        "enter": {
+          "align": {"value": "center"},
+          "baseline": {"value": "bottom"},
+          "fill": {"value": "#333"}
+        },
+        "update": {
+          "x": {"scale": "xscale", "signal": "tooltip.category", "band": 0.5},
+          "y": {"scale": "yscale", "signal": "tooltip.amount", "offset": -2},
+          "text": {"signal": "tooltip.amount"},
+          "fillOpacity": [
+            {"test": "datum === tooltip", "value": 0},
+            {"value": 1}
+          ]
+        }
+      }
+    }
+  ]
+}
+`;
+
+const SPEC_BAR_CHART_LITE = `
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "description": "A simple bar chart with embedded data.",
+  "data": {
+    "name": "table"
+  },
+  "mark": "bar",
+  "encoding": {
+    "x": {"field": "category", "type": "nominal", "axis": {"labelAngle": 0}},
+    "y": {"field": "amount", "type": "quantitative"}
+  }
+}
+`;
+
+const SPEC_BROKEN = `{
+  "description": 123
+}
+`;
+
+enum SpecExample {
+  BarChart = 'Barchart',
+  BarChartLite = 'Barchart (Lite)',
+  Broken = 'Broken',
+}
+
+enum DataExample {
+  English = 'English',
+  Polish = 'Polish',
+  Empty = 'Empty',
+}
+
+function getExampleSpec(example: SpecExample): string {
+  switch (example) {
+    case SpecExample.BarChart:
+      return SPEC_BAR_CHART;
+    case SpecExample.BarChartLite:
+      return SPEC_BAR_CHART_LITE;
+    case SpecExample.Broken:
+      return SPEC_BROKEN;
+    default:
+      const exhaustiveCheck: never = example;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+  }
+}
+
+function getExampleData(example: DataExample) {
+  switch (example) {
+    case DataExample.English:
+      return DATA_ENGLISH_LETTER_FREQUENCY;
+    case DataExample.Polish:
+      return DATA_POLISH_LETTER_FREQUENCY;
+    case DataExample.Empty:
+      return DATA_EMPTY;
+    default:
+      const exhaustiveCheck: never = example;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+  }
+}
+
 
 const options: {[key: string]: boolean} = {
   foobar: false,
@@ -68,7 +265,7 @@ function PortalButton() {
           label: 'Toggle Portal',
           onclick: () => {
             portalOpen = !portalOpen;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         }),
         portalOpen &&
@@ -100,7 +297,6 @@ function lorem() {
   return m('', {style: {width: '200px'}}, text);
 }
 
-
 function ControlledPopup() {
   let popupOpen = false;
 
@@ -118,7 +314,7 @@ function ControlledPopup() {
             label: 'Close Popup',
             onclick: () => {
               popupOpen = !popupOpen;
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           }),
       );
@@ -220,7 +416,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !this.optValues[key];
-        globals.rafScheduler.scheduleFullRedraw();
+        raf.scheduleFullRedraw();
       },
     });
   }
@@ -236,24 +432,11 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
           onchange: (e: Event) => {
             const el = e.target as HTMLSelectElement;
             this.optValues[key] = el.value;
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         },
         optionElements);
   }
-}
-
-function recursiveLazyTreeNode(
-    left: string, summary: string, hoardData: boolean): m.Children {
-  return m(LazyTreeNode, {
-    left,
-    summary,
-    hoardData,
-    fetchData: async () => {
-      await new Promise((r) => setTimeout(r, 200));
-      return () => recursiveLazyTreeNode(left, summary, hoardData);
-    },
-  });
 }
 
 export const WidgetsPage = createPage({
@@ -319,6 +502,14 @@ export const WidgetsPage = createPage({
           initialOpts: {
             disabled: false,
           },
+        }),
+        m('h2', 'Filterable Select'),
+        m(WidgetShowcase, {
+          renderWidget: () =>
+              m(FilterableSelect, {
+                values: ['foo', 'bar', 'baz'],
+                onSelected: () => {},
+              }),
         }),
         m('h2', 'Empty State'),
         m(WidgetShowcase, {
@@ -402,9 +593,32 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
           initialOpts: {filled: false},
         }),
-        m('h2', 'MultiSelect'),
+        m('h2', 'MultiSelect panel'),
         m(WidgetShowcase, {
-          renderWidget: ({icon, ...rest}) => m(MultiSelect, {
+          renderWidget: ({...rest}) => m(MultiSelect, {
+            options: Object.entries(options).map(([key, value]) => {
+              return {
+                id: key,
+                name: key,
+                checked: value,
+              };
+            }),
+            onChange: (diffs: MultiSelectDiff[]) => {
+              diffs.forEach(({id, checked}) => {
+                options[id] = checked;
+              });
+              raf.scheduleFullRedraw();
+            },
+            ...rest,
+          }),
+          initialOpts: {
+            repeatCheckedItemsAtTop: false,
+            fixedSize: false,
+          },
+        }),
+        m('h2', 'Popup with MultiSelect'),
+        m(WidgetShowcase, {
+          renderWidget: ({icon, ...rest}) => m(PopupMultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
                 id: key,
@@ -419,7 +633,7 @@ export const WidgetsPage = createPage({
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
               });
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
             ...rest,
           }),
@@ -490,7 +704,10 @@ export const WidgetsPage = createPage({
           renderWidget: (opts) => m(
               PopupMenu2,
               {
-                trigger: m(Button, {label: 'Menu', icon: 'arrow_drop_down'}),
+                trigger: m(Button, {
+                  label: 'Menu',
+                  rightIcon: Icons.ContextMenu,
+                }),
                 ...opts,
               },
               m(MenuItem, {label: 'New', icon: 'add'}),
@@ -543,63 +760,79 @@ export const WidgetsPage = createPage({
         m('h2', 'Tree'),
         m(WidgetShowcase, {
           renderWidget: (opts) => m(
-              Tree,
-              opts,
-              m(TreeNode, {left: 'Name', right: 'my_event'}),
-              m(TreeNode, {left: 'CPU', right: '2'}),
-              m(TreeNode, {
-                left: 'SQL',
-                right: m(
-                    PopupMenu2,
-                    {
-                      trigger: m(Anchor, {
-                        text: 'SELECT * FROM ftrace_event WHERE id = 123',
-                        icon: 'unfold_more',
-                      }),
-                    },
-                    m(MenuItem, {
-                      label: 'Copy SQL Query',
-                      icon: 'content_copy',
-                    }),
-                    m(MenuItem, {
-                      label: 'Execute Query in new tab',
-                      icon: 'open_in_new',
-                    }),
-                    ),
-              }),
-              m(TreeNode, {
-                left: 'Thread',
-                right: m(Anchor, {text: 'my_thread[456]', icon: 'open_in_new'}),
-              }),
-              m(TreeNode, {
-                left: 'Process',
-                right: m(Anchor, {text: '/bin/foo[789]', icon: 'open_in_new'}),
-              }),
-              recursiveLazyTreeNode('Lazy', '(hoarding)', true),
-              recursiveLazyTreeNode('Lazy', '(non-hoarding)', false),
-              m(
-                  TreeNode,
-                  {
-                    left: 'Args',
-                    summary: 'foo: string, baz: string, quux: string[4]',
-                  },
-                  m(TreeNode, {left: 'foo', right: 'bar'}),
-                  m(TreeNode, {left: 'baz', right: 'qux'}),
-                  m(
-                      TreeNode,
-                      {left: 'quux'},
-                      m(TreeNode, {left: '[0]', right: 'corge'}),
-                      m(TreeNode, {left: '[1]', right: 'grault'}),
-                      m(TreeNode, {left: '[2]', right: 'garply'}),
-                      m(TreeNode, {left: '[3]', right: 'waldo'}),
-                      ),
-                  ),
-              ),
-          initialOpts: {
-            layout: new EnumOption(
-                TreeLayout.Grid,
-                Object.values(TreeLayout),
+            Tree,
+            opts,
+            m(TreeNode, {left: 'Name', right: 'my_event', icon: 'badge'}),
+            m(TreeNode, {left: 'CPU', right: '2', icon: 'memory'}),
+            m(TreeNode,
+              {left: 'Start time', right: '1s 435ms', icon: 'schedule'}),
+            m(TreeNode, {left: 'Duration', right: '86ms', icon: 'timer'}),
+            m(TreeNode, {
+              left: 'SQL',
+              right: m(
+                PopupMenu2,
+                {
+                  popupPosition: PopupPosition.RightStart,
+                  trigger: m(Anchor, {
+                    icon: Icons.ContextMenu,
+                  }, 'SELECT * FROM raw WHERE id = 123'),
+                },
+                m(MenuItem, {
+                  label: 'Copy SQL Query',
+                  icon: 'content_copy',
+                }),
+                m(MenuItem, {
+                  label: 'Execute Query in new tab',
+                  icon: 'open_in_new',
+                }),
                 ),
+            }),
+            m(TreeNode, {
+              icon: 'account_tree',
+              left: 'Process',
+              right: m(Anchor, {icon: 'open_in_new'}, '/bin/foo[789]'),
+            }),
+            m(TreeNode, {
+              left: 'Thread',
+              right: m(Anchor, {icon: 'open_in_new'}, 'my_thread[456]'),
+            }),
+            m(
+              TreeNode,
+              {
+                left: 'Args',
+                summary: 'foo: string, baz: string, quux: string[4]',
+              },
+              m(TreeNode, {left: 'foo', right: 'bar'}),
+              m(TreeNode, {left: 'baz', right: 'qux'}),
+              m(
+                TreeNode,
+                {left: 'quux', summary: 'string[4]'},
+                m(TreeNode, {left: '[0]', right: 'corge'}),
+                m(TreeNode, {left: '[1]', right: 'grault'}),
+                m(TreeNode, {left: '[2]', right: 'garply'}),
+                m(TreeNode, {left: '[3]', right: 'waldo'}),
+                ),
+              ),
+            m(LazyTreeNode, {
+              left: 'Lazy',
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
+            m(LazyTreeNode, {
+              left: 'Dynamic',
+              unloadOnCollapse: true,
+              icon: 'bedtime',
+              fetchData: async () => {
+                await new Promise((r) => setTimeout(r, 1000));
+                return () => m(TreeNode, {left: 'foo'});
+              },
+            }),
+            ),
+          initialOpts: {
+            hideControls: false,
           },
           wide: true,
         }),
@@ -641,6 +874,42 @@ export const WidgetsPage = createPage({
                 dismissPopup: true,
               }),
             ),
+          }),
+          m('h2', 'Callout'),
+          m(
+            WidgetShowcase, {
+              renderWidget: () => m(
+                Callout,
+                {
+                  icon: 'info',
+                },
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit. ' +
+                'Nulla rhoncus tempor neque, sed malesuada eros dapibus vel. ' +
+                'Aliquam in ligula vitae tortor porttitor laoreet iaculis ' +
+                'finibus est.',
+              ),
+            }),
+          m('h2', 'Editor'),
+          m(WidgetShowcase, {
+            renderWidget: () => m(Editor),
+          }),
+          m('h2', 'VegaView'),
+          m(WidgetShowcase, {
+            renderWidget: (opt) => m(VegaView, {
+              spec: getExampleSpec(opt.exampleSpec),
+              data: getExampleData(opt.exampleData),
+            }),
+            initialOpts: {
+              exampleSpec: new EnumOption(
+                SpecExample.BarChart,
+                Object.values(SpecExample),
+              ),
+              exampleData: new EnumOption(
+                DataExample.English,
+                Object.values(DataExample),
+              ),
+
+            },
           }),
     );
   },

@@ -15,6 +15,8 @@
  */
 
 #include "src/trace_processor/db/overlays/selector_overlay.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,13 +31,26 @@ StorageRange SelectorOverlay::MapToStorageRange(TableRange t_range) const {
             selected_->IndexOfNthSet(t_range.range.end - 1) + 1)};
 }
 
-TableBitVector SelectorOverlay::MapToTableBitVector(
-    StorageBitVector s_bv) const {
-  PERFETTO_DCHECK(s_bv.bv.size() == selected_->size());
+TableRangeOrBitVector SelectorOverlay::MapToTableRangeOrBitVector(
+    StorageRange s_range,
+    OverlayOp) const {
+  if (s_range.range.size() == 0)
+    return TableRangeOrBitVector(Range());
+
+  uint32_t start = selected_->CountSetBits(s_range.range.start);
+  uint32_t end = selected_->CountSetBits(s_range.range.end);
+
+  return TableRangeOrBitVector(Range(start, end));
+}
+
+TableBitVector SelectorOverlay::MapToTableBitVector(StorageBitVector s_bv,
+                                                    OverlayOp) const {
+  PERFETTO_DCHECK(s_bv.bv.size() <= selected_->size());
   BitVector res(selected_->CountSetBits());
   // TODO(b/283763282): Implement this variation of |UpdateSetBits| in
   // BitVector.
-  for (auto it = selected_->IterateSetBits(); it; it.Next()) {
+  for (auto it = selected_->IterateSetBits(); it && it.index() < s_bv.bv.size();
+       it.Next()) {
     if (s_bv.bv.IsSet(it.index()))
       res.Set(it.ordinal());
   }
@@ -50,6 +65,9 @@ BitVector SelectorOverlay::IsStorageLookupRequired(
 
 StorageIndexVector SelectorOverlay::MapToStorageIndexVector(
     TableIndexVector t_iv) const {
+  PERFETTO_DCHECK(t_iv.indices.empty() ||
+                  *std::max_element(t_iv.indices.begin(), t_iv.indices.end()) <=
+                      selected_->size());
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
   std::vector<uint32_t> s_iv;

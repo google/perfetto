@@ -36,6 +36,7 @@ import {
   createEmptyRecordConfig,
   RecordConfig,
 } from '../controller/record_config_types';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 import {createPage, PageAttrs} from './pages';
@@ -151,7 +152,7 @@ function onTargetChange(target: string) {
 
   globals.dispatch(Actions.setRecordingTarget({target: recordingTarget}));
   recordTargetStore.save(target);
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
 }
 
 function Instructions(cssClass: string) {
@@ -191,7 +192,7 @@ export function loadConfigButton(
         disabled: loadedConfigEqual(configType, globals.state.lastLoadedConfig),
         onclick: () => {
           globals.dispatch(Actions.setRecordConfig({config, configType}));
-          globals.rafScheduler.scheduleFullRedraw();
+          raf.scheduleFullRedraw();
         },
       },
       m('i.material-icons', 'file_upload'));
@@ -222,7 +223,7 @@ export function displayRecordConfigs() {
                 config: item.config,
                 configType: {type: 'NAMED', name: item.title},
               }));
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             }
           },
         },
@@ -233,7 +234,7 @@ export function displayRecordConfigs() {
           title: 'Remove configuration',
           onclick: () => {
             recordConfigStore.delete(item.key);
-            globals.rafScheduler.scheduleFullRedraw();
+            raf.scheduleFullRedraw();
           },
         },
         m('i.material-icons', 'delete')),
@@ -284,7 +285,7 @@ export function Configurations(cssClass: string) {
             placeholder: 'Title for config',
             oninput() {
               ConfigTitleState.setTitle(this.value);
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           }),
           m('button',
@@ -296,7 +297,7 @@ export function Configurations(cssClass: string) {
               onclick: () => {
                 recordConfigStore.save(
                     globals.state.recordConfig, ConfigTitleState.getTitle());
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
                 ConfigTitleState.clearTitle();
               },
             },
@@ -313,7 +314,7 @@ export function Configurations(cssClass: string) {
                     config: createEmptyRecordConfig(),
                     configType: {type: 'NONE'},
                   }));
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 }
               },
             },
@@ -520,7 +521,7 @@ function StopCancelButtons() {
 
 function onStartRecordingPressed() {
   location.href = '#!/record/instructions';
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
   autosaveConfigStore.save(globals.state.recordConfig);
 
   const target = globals.state.recordingTarget;
@@ -573,6 +574,18 @@ async function addAndroidDevice() {
   await updateAvailableAdbDevices(device.serialNumber);
 }
 
+// We really should be getting the API version from the adb target, but
+// currently its too complicated to do that (== most likely, we need to finish
+// recordingV2 migration). For now, add an escape hatch to use Android S as a
+// default, given that the main features we want are gated by API level 31 and S
+// is old enough to be the default most of the time.
+const USE_ANDROID_S_AS_DEFAULT_FLAG = featureFlags.register({
+  id: 'recordingPageUseSAsDefault',
+  name: 'Use Android S as a default recording target',
+  description: 'Use Android S as a default recording target instead of Q',
+  defaultValue: false,
+});
+
 export async function updateAvailableAdbDevices(
     preferredDeviceSerial?: string) {
   const devices = await new AdbOverWebUsb().getPairedDevices();
@@ -586,8 +599,11 @@ export async function updateAvailableAdbDevices(
       // assume it is 'Q'. This can create problems with devices with an old
       // version of perfetto. The os detection should be done after the adb
       // connection, from adb_record_controller
-      availableAdbDevices.push(
-          {name: d.productName, serial: d.serialNumber, os: 'Q'});
+      availableAdbDevices.push({
+        name: d.productName,
+        serial: d.serialNumber,
+        os: USE_ANDROID_S_AS_DEFAULT_FLAG.get() ? 'S' : 'Q',
+      });
       if (preferredDeviceSerial && preferredDeviceSerial === d.serialNumber) {
         recordingTarget = availableAdbDevices[availableAdbDevices.length - 1];
       }
@@ -597,7 +613,7 @@ export async function updateAvailableAdbDevices(
   globals.dispatch(
       Actions.setAvailableAdbDevices({devices: availableAdbDevices}));
   selectAndroidDeviceIfAvailable(availableAdbDevices, recordingTarget);
-  globals.rafScheduler.scheduleFullRedraw();
+  raf.scheduleFullRedraw();
   return availableAdbDevices;
 }
 
@@ -700,7 +716,7 @@ function recordMenu(routePage: string) {
       '.record-menu',
       {
         class: recInProgress ? 'disabled' : '',
-        onclick: () => globals.rafScheduler.scheduleFullRedraw(),
+        onclick: () => raf.scheduleFullRedraw(),
       },
       m('header', 'Trace config'),
       m('ul',
@@ -765,6 +781,10 @@ export const RecordPage = createPage({
         dataSources: [],
         cssClass: maybeGetActiveCss(routePage, section),
       } as RecordingSectionAttrs));
+    }
+
+    if (isChromeTarget(globals.state.recordingTarget)) {
+      globals.dispatch(Actions.setFetchChromeCategories({fetch: true}));
     }
 
     return m(

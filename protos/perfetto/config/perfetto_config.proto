@@ -470,6 +470,44 @@ message PackagesListConfig {
 
 // End of protos/perfetto/config/android/packages_list_config.proto
 
+// Begin of protos/perfetto/config/android/surfaceflinger_layers_config.proto
+
+// Custom configuration for the "android.surfaceflinger.layers" data source.
+message SurfaceFlingerLayersConfig {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+
+    // Trace layers snapshots. A snapshot is taken every time a layers change
+    // occurs.
+    MODE_ACTIVE = 1;
+
+    // Generate layers snapshots from the transactions kept in the
+    // SurfaceFlinger's internal ring buffer.
+    // The layers snapshots generation occurs when this data source is stopped.
+    MODE_GENERATED = 2;
+
+    // Trace a single layers snapshot.
+    MODE_DUMP = 3;
+  }
+  optional Mode mode = 1;
+
+  enum TraceFlag {
+    TRACE_FLAG_UNSPECIFIED = 0;
+    TRACE_FLAG_INPUT = 0x02;
+    TRACE_FLAG_COMPOSITION = 0x04;
+    TRACE_FLAG_EXTRA = 0x08;
+    TRACE_FLAG_HWC = 0x10;
+    TRACE_FLAG_BUFFERS = 0x20;
+    TRACE_FLAG_VIRTUAL_DISPLAYS = 0x40;
+
+    // INPUT | COMPOSITION | EXTRA
+    TRACE_FLAG_ALL = 0x0e;
+  }
+  repeated TraceFlag trace_flags = 2;
+}
+
+// End of protos/perfetto/config/android/surfaceflinger_layers_config.proto
+
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
 message ChromeConfig {
@@ -2680,6 +2718,10 @@ message DataSourceConfig {
   optional NetworkPacketTraceConfig network_packet_trace_config = 120
       [lazy = true];
 
+  // Data source name: android.surfaceflinger.layers
+  optional SurfaceFlingerLayersConfig surfaceflinger_layers_config = 121
+      [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -2935,13 +2977,18 @@ message TraceConfig {
   // trace ends to notify it about the trace readiness.
   optional bool notify_traceur = 16;
 
+  // This field was introduced in Android S.
   // Android-only. If set to a value > 0, marks the trace session as a candidate
   // for being attached to a bugreport. This field effectively acts as a z-index
   // for bugreports. When Android's dumpstate runs perfetto
   // --save-for-bugreport, traced will pick the tracing session with the highest
-  // score (score <= 0 is ignored), will steal its contents, save the trace into
-  // a known path and stop prematurely.
-  // This field was introduced in Android S.
+  // score (score <= 0 is ignored) and:
+  // On Android S, T:  will steal its contents, save the trace into
+  //     a known path and stop prematurely.
+  // On Android U+: will create a read-only snapshot and save that into a known
+  //     path, without stoppin the original tracing session.
+  // When this field is set the tracing session becomes eligible to be cloned
+  // by other UIDs.
   optional int32 bugreport_score = 30;
 
   // Triggers allow producers to start or stop the tracing session when an event
@@ -3165,9 +3212,86 @@ message TraceConfig {
   // design.
   //
   // Introduced in Android S, but it was broken (b/195065199). Reintroduced in
-  // Android T with a different field number.
+  // Android T with a different field number. Updated in Android U with a new
+  // bytecode version which supports string filtering.
   message TraceFilter {
+    // =========================
+    // Filter bytecode.
+    // =========================
+
+    // The bytecode as implemented in Android T.
     optional bytes bytecode = 1;
+
+    // The bytecode as implemented in Android U. Adds support for string
+    // filtering.
+    optional bytes bytecode_v2 = 2;
+
+    // =========================
+    // String filtering
+    // =========================
+
+    // The principles and terminology of string filtering is heavily inspired by
+    // iptables. A "rule" decide how strings should be filtered. Each rule
+    // contains a "policy" which indicates the algorithm to use for filtering.
+    // A "chain" is a list of rules which will be sequentially checked against
+    // each string.
+    //
+    // The first rule which applies to the string terminates filtering for that
+    // string. If no rules apply, the string is left unchanged.
+
+    // A policy specifies which algorithm should be used for filtering the
+    // string.
+    enum StringFilterPolicy {
+      SFP_UNSPECIFIED = 0;
+
+      // Tries to match the string field against |regex_pattern|. If it
+      // matches, all matching groups are "redacted" (i.e. replaced with a
+      // constant string) and filtering is terminated (i.e. no further rules are
+      // checked). If it doesn't match, the string is left unchanged and the
+      // next rule in chain is considered.
+      SFP_MATCH_REDACT_GROUPS = 1;
+
+      // Like |SFP_MATCH_REDACT_GROUPS| but tries to do some pre-work before
+      // checking the regex. Specifically, it tries to parse the string field as
+      // an atrace tracepoint and checks if the post-tgid field starts with
+      // |atrace_post_tgid_starts_with|. The regex matching is only performed if
+      // this check succeeds.
+      SFP_ATRACE_MATCH_REDACT_GROUPS = 2;
+
+      // Tries to match the string field against |regex_pattern|. If it
+      // matches, filtering is terminated (i.e. no further rules are checked).
+      // If it doesn't match, the string is left unchanged and the next rule in
+      // chain is considered.
+      SFP_MATCH_BREAK = 3;
+
+      // Like |SFP_MATCH_BREAK| but tries to do some pre-work before checking
+      // the regex. Specifically, it tries to parse the string field as an
+      // atrace tracepoint and checks if the post-tgid field starts with
+      // |atrace_post_tgid_starts_with|. The regex matching is only performed if
+      // this check succeeds.
+      SFP_ATRACE_MATCH_BREAK = 4;
+    }
+
+    // A rule specifies how strings should be filtered.
+    message StringFilterRule {
+      // The policy (i.e. algorithm) dictating how strings matching this rule
+      // should be handled.
+      optional StringFilterPolicy policy = 1;
+
+      // The regex pattern used to match against each string.
+      optional string regex_pattern = 2;
+
+      // The string which should appear after the tgid in atrace tracepoint
+      // strings.
+      optional string atrace_payload_starts_with = 3;
+    }
+
+    // A chain is a list of rules which string will be sequentially checked
+    // against.
+    message StringFilterChain {
+      repeated StringFilterRule rules = 1;
+    }
+    optional StringFilterChain string_filter_chain = 3;
   }
   // old field number for trace_filter
   reserved 32;

@@ -178,6 +178,7 @@ source_set("full") {
     "../common:parser_types",
     "../ftrace:full",
     "../syscalls:full",
+    "winscope:full",
   ]
 }
 

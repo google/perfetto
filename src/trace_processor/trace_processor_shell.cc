@@ -271,7 +271,7 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
   base::Status status = attach_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   // Export real and virtual tables.
   auto tables_it = g_tp->ExecuteQuery(
@@ -289,11 +289,11 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
     status = export_it.Status();
     if (!status.ok())
-      return base::ErrStatus("SQLite error: %s", status.c_message());
+      return base::ErrStatus("%s", status.c_message());
   }
   status = tables_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   // Export views.
   auto views_it =
@@ -313,18 +313,18 @@ base::Status ExportTraceToDatabase(const std::string& output_name) {
 
     status = export_it.Status();
     if (!status.ok())
-      return base::ErrStatus("SQLite error: %s", status.c_message());
+      return base::ErrStatus("%s", status.c_message());
   }
   status = views_it.Status();
   if (!status.ok())
-    return base::ErrStatus("SQLite error: %s", status.c_message());
+    return base::ErrStatus("%s", status.c_message());
 
   auto detach_it = g_tp->ExecuteQuery("DETACH DATABASE perfetto_export");
   bool detach_has_more = attach_it.Next();
   PERFETTO_DCHECK(!detach_has_more);
   status = detach_it.Status();
   return status.ok() ? base::OkStatus()
-                     : base::ErrStatus("SQLite error: %s", status.c_message());
+                     : base::ErrStatus("%s", status.c_message());
 }
 
 class ErrorPrinter : public google::protobuf::io::ErrorCollector {
@@ -413,8 +413,7 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
     base::Status status =
         g_tp->ComputeMetricText(metric_names, TraceProcessor::kProtoText, &out);
     if (!status.ok()) {
-      return base::ErrStatus("Error when computing metrics: %s",
-                             status.c_message());
+      return status;
     }
     out += '\n';
     fwrite(out.c_str(), sizeof(char), out.size(), stdout);
@@ -422,12 +421,7 @@ base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
   }
 
   std::vector<uint8_t> metric_result;
-  base::Status status = g_tp->ComputeMetric(metric_names, &metric_result);
-  if (!status.ok()) {
-    return base::ErrStatus("Error when computing metrics: %s",
-                           status.c_message());
-  }
-
+  RETURN_IF_ERROR(g_tp->ComputeMetric(metric_names, &metric_result));
   switch (format) {
     case OutputFormat::kJson: {
       // TODO(b/182165266): Handle this using ComputeMetricText.
@@ -517,7 +511,7 @@ void PrintQueryResultInteractively(Iterator* it,
 
   base::Status status = it->Status();
   if (!status.ok()) {
-    PERFETTO_ELOG("SQLite error: %s", status.c_message());
+    fprintf(stderr, "%s\n", status.c_message());
   }
   printf("\nQuery executed in %.3f ms\n\n",
          static_cast<double>((t_end - t_start).count()) / 1E6);
@@ -572,7 +566,7 @@ base::Status RunQueriesWithoutOutput(const std::string& sql_query) {
 
 base::Status RunQueriesAndPrintResult(const std::string& sql_query,
                                       FILE* output) {
-  PERFETTO_ILOG("Executing query: %s", sql_query.c_str());
+  PERFETTO_DLOG("Executing query: %s", sql_query.c_str());
   auto query_start = std::chrono::steady_clock::now();
 
   auto it = g_tp->ExecuteQuery(sql_query);
@@ -676,6 +670,8 @@ metatrace::MetatraceCategories ParseMetatraceCategories(std::string s) {
       result = static_cast<Cat>(result | Cat::FUNCTION);
     } else if (cur == "query") {
       result = static_cast<Cat>(result | Cat::QUERY);
+    } else if (cur == "db") {
+      result = static_cast<Cat>(result | Cat::DB);
     } else {
       PERFETTO_ELOG("Unknown metatrace category %s", cur.data());
       exit(1);
@@ -704,17 +700,18 @@ struct CommandLineOptions {
   std::string metatrace_path;
   size_t metatrace_buffer_capacity = 0;
   metatrace::MetatraceCategories metatrace_categories =
-      metatrace::MetatraceCategories::ALL;
+      metatrace::MetatraceCategories::TOPLEVEL;
   bool dev = false;
   bool no_ftrace_raw = false;
   bool analyze_trace_proto_content = false;
   bool crop_track_events = false;
+  std::vector<std::string> dev_flags;
 };
 
 void PrintUsage(char** argv) {
   PERFETTO_ELOG(R"(
 Interactive trace processor shell.
-Usage: %s [OPTIONS] trace_file.pb
+Usage: %s [FLAGS] trace_file.pb
 
 Options:
  -h, --help                           Prints this guide.
@@ -739,12 +736,8 @@ Options:
  -e, --export FILE                    Export the contents of trace processor
                                       into an SQLite database after running any
                                       metrics or queries specified.
- -m, --metatrace FILE                 Enables metatracing of trace processor
-                                      writing the resulting trace into FILE.
- --metatrace-buffer-capacity N        Sets metatrace event buffer to capture
-                                      last N events.
- --metatrace-categories CATEGORIES    A comma-separated list of metatrace
-                                      categories to enable.
+
+Feature flags:
  --full-sort                          Forces the trace processor into performing
                                       a full sort ignoring any windowing
                                       logic.
@@ -762,6 +755,9 @@ Options:
                                       *should not* be enabled on production
                                       builds. The features behind this flag can
                                       break at any time without any warning.
+ --dev-flag KEY=VALUE                 Set a development flag to the given value.
+                                      Does not have any affect unless --dev is
+                                      specified.
 
 Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
@@ -794,7 +790,15 @@ Metrics:
                                       Loads metric proto and sql files from
                                       DISK_PATH/protos and DISK_PATH/sql
                                       respectively, and mounts them onto
-                                      VIRTUAL_PATH.)",
+                                      VIRTUAL_PATH.
+
+Metatracing:
+ -m, --metatrace FILE                 Enables metatracing of trace processor
+                                      writing the resulting trace into FILE.
+ --metatrace-buffer-capacity N        Sets metatrace event buffer to capture
+                                      last N events.
+ --metatrace-categories CATEGORIES    A comma-separated list of metatrace
+                                      categories to enable.)",
                 argv[0]);
 }
 
@@ -816,6 +820,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     OPT_METATRACE_CATEGORIES,
     OPT_ANALYZE_TRACE_PROTO_CONTENT,
     OPT_CROP_TRACK_EVENTS,
+    OPT_DEV_FLAG,
   };
 
   static const option long_options[] = {
@@ -848,6 +853,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       {"pre-metrics", required_argument, nullptr, OPT_PRE_METRICS},
       {"metrics-output", required_argument, nullptr, OPT_METRICS_OUTPUT},
       {"metric-extension", required_argument, nullptr, OPT_METRIC_EXTENSION},
+      {"dev-flag", required_argument, nullptr, OPT_DEV_FLAG},
       {nullptr, 0, nullptr, 0}};
 
   bool explicit_interactive = false;
@@ -986,6 +992,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
       continue;
     }
 
+    if (option == OPT_DEV_FLAG) {
+      command_line_options.dev_flags.push_back(optarg);
+      continue;
+    }
+
     PrintUsage(argv);
     exit(option == 'h' ? 0 : 1);
   }
@@ -1082,7 +1093,9 @@ base::Status LoadTrace(const std::string& trace_file_path, double* size_mb) {
 base::Status RunQueries(const std::string& query_file_path,
                         bool expect_output) {
   std::string queries;
-  base::ReadFile(query_file_path.c_str(), &queries);
+  if (!base::ReadFile(query_file_path.c_str(), &queries)) {
+    return base::ErrStatus("Unable to read file %s", query_file_path.c_str());
+  }
 
   base::Status status;
   if (expect_output) {
@@ -1091,8 +1104,7 @@ base::Status RunQueries(const std::string& query_file_path,
     status = RunQueriesWithoutOutput(queries);
   }
   if (!status.ok()) {
-    return base::ErrStatus("Encountered error while running queries: %s",
-                           status.c_message());
+    return base::ErrStatus("%s", status.c_message());
   }
   return base::OkStatus();
 }
@@ -1486,7 +1498,7 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
         base::Status status =
             RunMetrics(options.metrics, options.metric_format, *options.pool);
         if (!status.ok()) {
-          PERFETTO_ELOG("%s", status.c_message());
+          fprintf(stderr, "%s\n", status.c_message());
         }
       } else {
         PrintShellUsage();
@@ -1573,6 +1585,14 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   if (options.dev) {
     config.enable_dev_features = true;
+    for (const auto& flag_pair : options.dev_flags) {
+      auto kv = base::SplitString(flag_pair, "=");
+      if (kv.size() != 2) {
+        PERFETTO_ELOG("Ignoring unknown dev flag format %s", flag_pair.c_str());
+        continue;
+      }
+      config.dev_flags.emplace(kv[0], kv[1]);
+    }
   }
 
   std::unique_ptr<TraceProcessor> tp = TraceProcessor::CreateInstance(config);
@@ -1633,7 +1653,6 @@ base::Status TraceProcessorMain(int argc, char** argv) {
   if (!options.pre_metrics_path.empty()) {
     RETURN_IF_ERROR(RunQueries(options.pre_metrics_path, false));
   }
-
 
   std::vector<MetricNameAndPath> metrics;
   if (!options.metric_names.empty()) {
@@ -1702,7 +1721,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 int main(int argc, char** argv) {
   auto status = perfetto::trace_processor::TraceProcessorMain(argc, argv);
   if (!status.ok()) {
-    PERFETTO_ELOG("%s", status.c_message());
+    fprintf(stderr, "%s\n", status.c_message());
     return 1;
   }
   return 0;

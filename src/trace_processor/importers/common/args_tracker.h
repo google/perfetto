@@ -124,6 +124,21 @@ class ArgsTracker {
                      id);
   }
 
+  BoundInserter AddArgsTo(tables::SurfaceFlingerLayersSnapshotTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_surfaceflinger_layers_snapshot_table(), id);
+  }
+
+  BoundInserter AddArgsTo(tables::SurfaceFlingerLayerTable::Id id) {
+    return AddArgsTo(context_->storage->mutable_surfaceflinger_layer_table(),
+                     id);
+  }
+
+  BoundInserter AddArgsTo(tables::SurfaceFlingerTransactionsTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_surfaceflinger_transactions_table(), id);
+  }
+
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = *table->id().IndexOf(id);
