@@ -64,8 +64,9 @@ WITH frames AS (
       OR jank_type GLOB '*Display HAL*'
       OR jank_type GLOB '*Dropped Frame*' AS missed_frame,
     jank_type GLOB '*Dropped Frame*' AS dropped_frame,
-    dur,
-    dur / 1e6 AS dur_ms
+    -- discard dropped frame duration as it is not a meaningful value
+    IIF(jank_type GLOB '*Dropped Frame*', NULL, dur) AS dur,
+    IIF(jank_type GLOB '*Dropped Frame*', NULL, dur / 1e6) AS dur_ms
   FROM actual_frame_timeline_slice timeline
   JOIN process USING (upid))
 SELECT

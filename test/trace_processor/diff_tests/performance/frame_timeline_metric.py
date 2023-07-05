@@ -138,9 +138,10 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_SF_CPU_DEADLINE_MISSED,
     prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=95000000, cookie=15)
 trace.add_actual_surface_frame_start_event(
     ts=90000000,
-    cookie=15,
+    cookie=16,
     token=100302,
     display_frame_token=100312,
     pid=1003,
@@ -150,7 +151,7 @@ trace.add_actual_surface_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_DROPPED,
     prediction_type=PredictionType.PREDICTION_VALID)
-trace.add_frame_end_event(ts=95000000, cookie=15)
+trace.add_frame_end_event(ts=96000000, cookie=16)
 
 trace.add_actual_surface_frame_start_event(
     ts=10000000,
