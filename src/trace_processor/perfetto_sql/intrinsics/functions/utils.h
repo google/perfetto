@@ -20,14 +20,18 @@
 #include <sqlite3.h>
 #include <unordered_map>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/file_utils.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
@@ -110,10 +114,10 @@ struct Reverse : public SqlFunction {
 };
 
 base::Status Reverse::Run(void*,
-                       size_t argc,
-                       sqlite3_value** argv,
-                       SqlValue& out,
-                       Destructors& destructors) {
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors) {
   if (argc != 1) {
     return base::ErrStatus("REVERSE: expected one arg but got %zu", argc);
   }
@@ -357,6 +361,30 @@ struct Glob : public SqlFunction {
       out = SqlValue::Long(sqlite3_strglob(pattern, text) == 0);
     }
     return base::OkStatus();
+  }
+};
+
+struct Regex : public SqlFunction {
+  static base::Status Run(void*,
+                          size_t,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&) {
+    if constexpr (regex::IsRegexSupported()) {
+      const char* pattern_str =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
+      const char* text =
+          reinterpret_cast<const char*>(sqlite3_value_text(argv[1]));
+      if (pattern_str && text) {
+        auto regex = regex::Regex::Create(pattern_str);
+        if (!regex.status().ok()) {
+          return regex.status();
+        }
+        out = SqlValue::Long(regex->Search(text));
+      }
+      return base::OkStatus();
+    }
+    PERFETTO_FATAL("Regex not supported");
   }
 };
 

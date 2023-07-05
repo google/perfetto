@@ -93,7 +93,8 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
   if (op == FilterOp::kIsNotNull)
     return RangeOrBitVector(BitVector(indices_size, true));
 
-  if (op == FilterOp::kIsNull || op == FilterOp::kGlob || sql_val.is_null() ||
+  if (op == FilterOp::kIsNull || op == FilterOp::kGlob ||
+      op == FilterOp::kRegex || sql_val.is_null() ||
       sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
       sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
     return RangeOrBitVector(BitVector(indices_size, false));
@@ -120,6 +121,7 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
       return IndexSearchWithComparator(val, indices, indices_size,
                                        std::greater_equal<uint32_t>());
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
       PERFETTO_FATAL("Illegal argument");
@@ -165,6 +167,7 @@ RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
       return RowMap::Range();
   }
   return RowMap::Range();

@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
+#include <optional>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/small_vector.h"
@@ -23,6 +24,7 @@
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
 #include "src/trace_processor/tp_metatrace.h"
+#include "src/trace_processor/util/regex.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -49,6 +51,11 @@ std::optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
       return FilterOp::kIsNotNull;
     case SQLITE_INDEX_CONSTRAINT_GLOB:
       return FilterOp::kGlob;
+    case SQLITE_INDEX_CONSTRAINT_REGEXP:
+      if constexpr (regex::IsRegexSupported()) {
+        return FilterOp::kRegex;
+      }
+      return std::nullopt;
     case SQLITE_INDEX_CONSTRAINT_LIKE:
     // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
@@ -452,6 +459,16 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       continue;
 
     SqlValue value = SqliteValueToSqlValue(argv[i]);
+    if constexpr (regex::IsRegexSupported()) {
+      if (*opt_op == FilterOp::kRegex) {
+        if (value.type != SqlValue::kString)
+          return base::ErrStatus("Value has to be a string");
+
+        if (auto regex_status = regex::Regex::Create(value.AsString());
+            !regex_status.ok())
+          return regex_status.status();
+      }
+    }
     constraints_[constraints_pos++] = Constraint{col, *opt_op, value};
   }
   constraints_.resize(constraints_pos);
@@ -536,6 +553,9 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
               break;
             case FilterOp::kGlob:
               writer.AppendString("GLOB");
+              break;
+            case FilterOp::kRegex:
+              writer.AppendString("REGEXP");
               break;
           }
           writer.AppendString(" ");

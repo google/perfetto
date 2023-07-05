@@ -87,6 +87,7 @@
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -432,6 +433,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
           context_.storage.get(), SystraceSerializer(&context_)}));
 
+  if constexpr (regex::IsRegexSupported()) {
+    RegisterFunction<Regex>(&engine_, "regexp", 2);
+  }
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
