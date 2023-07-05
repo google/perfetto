@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- TODO(b/286187288): Move this dependency to stdlib.
-SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+SELECT RUN_METRIC('chrome/chrome_scroll_jank_v3.sql');
 SELECT IMPORT('common.slices');
 
 -- Selects EventLatency slices that correspond with janks in a scroll. This is
