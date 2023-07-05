@@ -108,7 +108,8 @@ export const MAX_TIME = 180;
 // 31. Convert all timestamps to bigints.
 // 32. Add pendingDeeplink.
 // 33. Add plugins state.
-export const STATE_VERSION = 33;
+// 34. Add additional pendingDeeplink fields (query, pid).
+export const STATE_VERSION = 34;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -525,6 +526,8 @@ export interface PendingDeeplinkState {
   ts?: string;
   dur?: string;
   tid?: string;
+  pid?: string;
+  query?: string;
 }
 
 export interface State {
