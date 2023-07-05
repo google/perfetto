@@ -15,22 +15,32 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {Command} from '../common/commands';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 
+import {classNames} from './classnames';
 import {globals} from './globals';
 import {runQueryInNewTab} from './query_result_tab';
 import {executeSearch} from './search_handler';
 import {taskTracker} from './task_tracker';
+import {EmptyState} from './widgets/empty_state';
+import {Icon} from './widgets/icon';
+import {Popup} from './widgets/popup';
 
 const SEARCH = Symbol('search');
+const QUERY = Symbol('query');
 const COMMAND = Symbol('command');
-type Mode = typeof SEARCH|typeof COMMAND;
+type Mode = typeof SEARCH|typeof QUERY|typeof COMMAND;
+let highlightedCommandIndex = 0;
 
 const PLACEHOLDER = {
   [SEARCH]: 'Search',
-  [COMMAND]: 'e.g. select * from sched left join thread using(utid) limit 10',
+  [QUERY]: 'e.g. select * from sched left join thread using(utid) limit 10',
+  [COMMAND]: 'Start typing a command..',
 };
+
+let matchingCommands: Command[] = [];
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
@@ -47,22 +57,55 @@ function onKeyDown(e: Event) {
 
   if (mode === SEARCH && txt.value === '' && key === ':') {
     e.preventDefault();
+    mode = QUERY;
+    raf.scheduleFullRedraw();
+    return;
+  }
+
+  if (mode === SEARCH && txt.value === '' && key === '>') {
+    e.preventDefault();
     mode = COMMAND;
     raf.scheduleFullRedraw();
     return;
   }
 
-  if (mode === COMMAND && txt.value === '' && key === 'Backspace') {
+  if (mode !== SEARCH && txt.value === '' && key === 'Backspace') {
     mode = SEARCH;
     raf.scheduleFullRedraw();
     return;
+  }
+
+  if (mode === COMMAND) {
+    if (key === 'ArrowDown') {
+      highlightedCommandIndex++;
+      highlightedCommandIndex =
+          Math.min(matchingCommands.length - 1, highlightedCommandIndex);
+      raf.scheduleFullRedraw();
+    } else if (key === 'ArrowUp') {
+      highlightedCommandIndex--;
+      highlightedCommandIndex = Math.max(0, highlightedCommandIndex);
+      raf.scheduleFullRedraw();
+    } else if (key === 'Enter') {
+      const cmd = matchingCommands[highlightedCommandIndex];
+      if (cmd) {
+        globals.commandManager.runCommand(cmd.id);
+      }
+      highlightedCommandIndex = 0;
+      mode = SEARCH;
+      globals.dispatch(Actions.setOmnibox({
+        omnibox: '',
+        mode: 'SEARCH',
+      }));
+    } else {
+      highlightedCommandIndex = 0;
+    }
   }
 
   if (mode === SEARCH && key === 'Enter') {
     txt.blur();
   }
 
-  if (mode === COMMAND && key === 'Enter') {
+  if (mode === QUERY && key === 'Enter') {
     const openInPinnedTab = event.metaKey || event.ctrlKey;
     runQueryInNewTab(
         txt.value,
@@ -87,13 +130,31 @@ function onKeyUp(e: Event) {
   }
 }
 
-class Omnibox implements m.ClassComponent {
-  oncreate(vnode: m.VnodeDOM) {
-    const txt = vnode.dom.querySelector('input') as HTMLInputElement;
-    txt.addEventListener('keydown', onKeyDown);
-    txt.addEventListener('keyup', onKeyUp);
-  }
+interface CmdAttrs {
+  title: string;
+  subtitle: string;
+  highlighted?: boolean;
+  icon?: string;
+  [htmlAttrs: string]: any;
+}
 
+class Cmd implements m.ClassComponent<CmdAttrs> {
+  view({attrs}: m.Vnode<CmdAttrs, this>): void|m.Children {
+    const {title, subtitle, icon, highlighted = false, ...htmlAttrs} = attrs;
+    return m(
+        'section.pf-cmd',
+        {
+          class: classNames(highlighted && 'pf-highlighted'),
+          ...htmlAttrs,
+        },
+        m('h1', title),
+        m('h2', subtitle),
+        m(Icon, {className: 'pf-right-icon', icon: icon ?? 'play_arrow'}),
+    );
+  }
+}
+
+class Omnibox implements m.ClassComponent {
   view() {
     const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
     const engineIsBusy =
@@ -107,17 +168,69 @@ class Omnibox implements m.ClassComponent {
             value: '',
           }));
     }
-
-    const commandMode = mode === COMMAND;
     return m(
-        `.omnibox${commandMode ? '.command-mode' : ''}`,
+        Popup,
+        {
+          isOpen: mode === COMMAND,
+          trigger: this.renderOmnibox(),
+          className: 'pf-popup-padded',
+        },
+        m(
+            '.pf-cmd-container',
+            this.renderCommandDropdown(),
+            ),
+    );
+  }
+
+  private renderCommandDropdown(): m.Children {
+    if (mode === COMMAND) {
+      const searchTerm = globals.state.omniboxState.omnibox;
+      matchingCommands = globals.commandManager.fuzzyFilterCommands(searchTerm);
+      if (matchingCommands.length === 0) {
+        return m(EmptyState, {header: 'No matching commands'});
+      } else {
+        return matchingCommands.map((cmd, index) => {
+          return m(Cmd, {
+            title: cmd.name,
+            subtitle: cmd.id,
+            highlighted: index === highlightedCommandIndex,
+            onclick: () => {
+              globals.commandManager.runCommand(cmd.id);
+              mode = SEARCH;
+              globals.dispatch(Actions.setOmnibox({
+                omnibox: '',
+                mode: 'SEARCH',
+              }));
+              highlightedCommandIndex = 0;
+            },
+          });
+        });
+      }
+    } else {
+      return null;
+    }
+  }
+
+  private renderOmnibox() {
+    const queryMode = mode === QUERY;
+    const classes = classNames(
+        mode === QUERY && 'query-mode',
+        mode === COMMAND && 'command-mode',
+    );
+    return m(
+        `.omnibox`,
+        {
+          class: classes,
+        },
         m('input', {
           placeholder: PLACEHOLDER[mode],
+          onkeydown: (e: Event) => onKeyDown(e),
+          onkeyup: (e: Event) => onKeyUp(e),
           oninput: (e: InputEvent) => {
             const value = (e.target as HTMLInputElement).value;
             globals.dispatch(Actions.setOmnibox({
               omnibox: value,
-              mode: commandMode ? 'COMMAND' : 'SEARCH',
+              mode: queryMode ? 'COMMAND' : 'SEARCH',
             }));
             if (mode === SEARCH) {
               displayStepThrough = value.length >= 4;
@@ -127,29 +240,27 @@ class Omnibox implements m.ClassComponent {
           value: globals.state.omniboxState.omnibox,
         }),
         displayStepThrough ?
-            m(
-                '.stepthrough',
-                m('.current',
-                  `${
-                      globals.currentSearchResults.totalResults === 0 ?
-                          '0 / 0' :
-                          `${globals.state.searchIndex + 1} / ${
-                              globals.currentSearchResults.totalResults}`}`),
-                m('button',
-                  {
-                    onclick: () => {
-                      executeSearch(true /* reverse direction */);
-                    },
+            m('.stepthrough',
+              m('.current',
+                `${
+                    globals.currentSearchResults.totalResults === 0 ?
+                        '0 / 0' :
+                        `${globals.state.searchIndex + 1} / ${
+                            globals.currentSearchResults.totalResults}`}`),
+              m('button',
+                {
+                  onclick: () => {
+                    executeSearch(true /* reverse direction */);
                   },
-                  m('i.material-icons.left', 'keyboard_arrow_left')),
-                m('button',
-                  {
-                    onclick: () => {
-                      executeSearch();
-                    },
+                },
+                m('i.material-icons.left', 'keyboard_arrow_left')),
+              m('button',
+                {
+                  onclick: () => {
+                    executeSearch();
                   },
-                  m('i.material-icons.right', 'keyboard_arrow_right')),
-                ) :
+                },
+                m('i.material-icons.right', 'keyboard_arrow_right'))) :
             '');
   }
 }
@@ -239,7 +350,7 @@ class TraceErrorIcon implements m.ClassComponent {
     if (globals.embeddedMode) return;
 
     const errors = globals.traceErrors;
-    if (!errors && !globals.metricError || mode === COMMAND) return;
+    if (!errors && !globals.metricError || mode === QUERY) return;
     const message = errors ? `${errors} import or data loss errors detected.` :
                              `Metric error detected.`;
     return m(
