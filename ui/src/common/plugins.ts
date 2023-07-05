@@ -29,16 +29,14 @@ import {
   TrackProvider,
 } from '../public';
 
+import {Command} from './commands';
 import {Engine} from './engine';
 import {Registry} from './registry';
 import {State} from './state';
 
 // All trace plugins must implement this interface.
 export interface TracePlugin extends Disposable {
-  // This is where we would add potential extension points that plugins can
-  // override.
-  // E.g. commands(): Command[];
-  // For now, plugins don't do anything so this interface is empty.
+  commands(): Command[];
 }
 
 // This interface defines what a plugin factory should look like.
@@ -147,7 +145,7 @@ export class PluginContextImpl implements PluginContext {
   revoke() {
     // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
     // etc.
-    // TODO(stevegolton): Close the trace plugin.
+    // TODO(stevegolton): Dispose the trace plugin.
   }
   // ==================================================================
 }
@@ -215,6 +213,17 @@ export class PluginManager {
     for (const context of this.contexts.values()) {
       context.onTraceClosed();
     }
+  }
+
+  commands(): Command[] {
+    return Array.from(this.contexts.values()).flatMap((ctx) => {
+      const tracePlugin = ctx.tracePlugin;
+      if (tracePlugin && tracePlugin.commands) {
+        return tracePlugin.commands();
+      } else {
+        return [];
+      }
+    });
   }
 }
 
