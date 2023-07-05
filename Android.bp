@@ -10508,7 +10508,6 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk33.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/startups.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/statsd.sql",
-        "src/trace_processor/perfetto_sql/stdlib/android/thread.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scroll_janks.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scrolls.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/cpu_powerups.sql",

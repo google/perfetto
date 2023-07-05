@@ -477,38 +477,3 @@ class Android(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query=Metric('android_monitor_contention'),
         out=Path('android_monitor_contention.out'))
-
-  def test_thread_creation_spam(self):
-    return DiffTestBlueprint(
-        trace=DataPath('android_monitor_contention_trace.atr'),
-        query="""
-      SELECT IMPORT('android.thread');
-      SELECT * FROM ANDROID_THREAD_CREATION_SPAM(1e9, 1e9);
-      """,
-        out=Csv("""
-      "process_name","pid","thread_name_prefix","max_count_per_sec"
-      "com.android.providers.media.module",3487,"SharedPreferenc",3
-      "com.android.providers.media.module",3487,"MediaCodec",2
-      "/apex/com.android.adbd/bin/adbd",527,"shell",1
-      "media.swcodec",563,"id.hevc.decoder",1
-      "system_server",642,"Thread",1
-      "sh",3474,"sh",1
-      "sh",3476,"sh",1
-      "sh",3478,"sh",1
-      "am",3480,"am",1
-      "cmd",3482,"binder",1
-      "cmd",3482,"cmd",1
-      "com.android.providers.media.module",3487,"CodecLooper",1
-      "sh",3517,"sh",1
-      "sgdisk",3521,"sgdisk",1
-      "blkid",3523,"blkid",1
-      "binder:243_4",3524,"binder",1
-      "fsck_msdos",3525,"fsck",1
-      "binder:243_4",3526,"binder",1
-      "sh",3532,"sh",1
-      "cut",3534,"cut",1
-      "sh",3536,"sh",1
-      "sh",3544,"sh",1
-      "sh",3546,"sh",1
-      "sh",3564,"sh",1
-      """))
