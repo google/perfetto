@@ -63,6 +63,7 @@ import {
   publishOverviewData,
   publishThreads,
 } from '../frontend/publish';
+import {runQueryInNewTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
 
 import {
@@ -531,6 +532,9 @@ export class TraceController extends Controller<States> {
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
       await this.selectPendingDeeplink(pendingDeeplink);
+      if (pendingDeeplink.query !== undefined) {
+        runQueryInNewTab(pendingDeeplink.query, 'Deeplink Query');
+      }
     }
 
     // If the trace was shared via a permalink, it might already have a
