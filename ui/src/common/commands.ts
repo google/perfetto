@@ -12,11 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Command {
-  id: string;
-  name: string;
-  callback: (...args: any[]) => void;
-}
+import {Command} from '../public';
 
 export interface CommandSource {
   commands(): Command[];
