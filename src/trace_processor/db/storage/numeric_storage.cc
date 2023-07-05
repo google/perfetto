@@ -91,6 +91,7 @@ inline FilterOpVariant<T> GetFilterOpVariant(FilterOp op) {
     case FilterOp::kLt:
       return FilterOpVariant<T>(std::less<T>());
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
       PERFETTO_FATAL("Not a valid operation on numeric type.");
@@ -187,6 +188,7 @@ void TypedLinearSearch(T typed_val,
       return utils::LinearSearchWithComparator(
           typed_val, start, std::greater_equal<T>(), builder);
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
     case FilterOp::kIsNotNull:
     case FilterOp::kIsNull:
       PERFETTO_DFATAL("Illegal argument");
@@ -318,6 +320,7 @@ RowMap::Range NumericStorage::BinarySearchIntrinsic(
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
       return RowMap::Range();
   }
   return RowMap::Range();
@@ -357,6 +360,7 @@ RowMap::Range NumericStorage::BinarySearchExtrinsic(
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
       return RowMap::Range();
   }
   return RowMap::Range();

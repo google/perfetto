@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 #include "src/trace_processor/db/column.h"
 
+#include "perfetto/base/logging.h"
 #include "src/trace_processor/db/compare.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/util/glob.h"
+#include "src/trace_processor/util/regex.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -281,6 +283,7 @@ void Column::FilterIntoNumericWithComparatorSlow(FilterOp op,
     case FilterOp::kGlob:
       rm->Clear();
       break;
+    case FilterOp::kRegex:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -359,6 +362,22 @@ void Column::FilterIntoStringSlow(FilterOp op,
       });
       break;
     }
+    case FilterOp::kRegex: {
+      if constexpr (regex::IsRegexSupported()) {
+        auto regex = regex::Regex::Create(str_value.c_str());
+        if (!regex.status().ok()) {
+          rm->Clear();
+          break;
+        }
+        overlay().FilterInto(rm, [this, &regex](uint32_t idx) {
+          auto v = GetStringPoolStringAtIdx(idx);
+          return v.data() != nullptr && regex->Search(v.c_str());
+        });
+      } else {
+        PERFETTO_FATAL("Regex not supported");
+      }
+      break;
+    }
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
       PERFETTO_FATAL("Should be handled above");
@@ -415,6 +434,7 @@ void Column::FilterIntoIdSlow(FilterOp op, SqlValue value, RowMap* rm) const {
       });
       break;
     case FilterOp::kGlob:
+    case FilterOp::kRegex:
       rm->Clear();
       break;
     case FilterOp::kIsNull:
