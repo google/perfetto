@@ -197,7 +197,7 @@ export class PivotTableController extends Controller<{}> {
     }
 
     // ES6 Set does not have .every method, only Array does.
-    for (const track in tracks) {
+    for (const track of tracks) {
       if (!this.lastQueryAreaTracks.has(track)) {
         return false;
       }
