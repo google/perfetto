@@ -85,6 +85,15 @@ trace.add_atrace_begin(
     ts=5, pid=APP_PID, tid=APP_TID, buf='OpenDexFilesFromOat(nothing)')
 trace.add_atrace_end(ts=35, pid=APP_PID, tid=APP_TID)
 
+# dlopen slices within the startup.
+trace.add_atrace_begin(
+    ts=166, pid=APP_PID, tid=APP_TID, buf='dlopen: libandroid.so')
+trace.add_atrace_end(ts=167, pid=APP_PID, tid=APP_TID)
+
+trace.add_atrace_begin(
+    ts=168, pid=APP_PID, tid=APP_TID, buf='dlopen: libandroid2.so')
+trace.add_atrace_end(ts=169, pid=APP_PID, tid=APP_TID)
+
 trace.add_atrace_async_end(
     ts=LAUNCH_END_TS,
     tid=SYSTEM_SERVER_TID,

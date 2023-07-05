@@ -22,6 +22,7 @@ import {
 } from '../common/aggregation_data';
 import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
+import {tpTimeToMillis} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
@@ -111,7 +112,8 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     const selection = globals.state.currentSelection;
     if (selection === null || selection.kind !== 'AREA') return undefined;
     const selectedArea = globals.state.areas[selection.areaId];
-    const rangeDurationMs = (selectedArea.endSec - selectedArea.startSec) * 1e3;
+    const rangeDurationMs =
+        tpTimeToMillis(selectedArea.end - selectedArea.start);
     return m('.time-range', `Selected range: ${rangeDurationMs.toFixed(6)} ms`);
   }
 

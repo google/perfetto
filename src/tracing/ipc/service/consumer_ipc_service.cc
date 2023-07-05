@@ -480,14 +480,15 @@ void ConsumerIPCService::RemoteConsumer::CloseObserveEventsResponseStream() {
 }
 
 void ConsumerIPCService::RemoteConsumer::OnSessionCloned(
-    bool success,
-    const std::string& error) {
+    const OnSessionClonedArgs& args) {
   if (!clone_session_response.IsBound())
     return;
 
   auto resp = ipc::AsyncResult<protos::gen::CloneSessionResponse>::Create();
-  resp->set_success(success);
-  resp->set_error(error);
+  resp->set_success(args.success);
+  resp->set_error(args.error);
+  resp->set_uuid_msb(args.uuid.msb());
+  resp->set_uuid_lsb(args.uuid.lsb());
   std::move(clone_session_response).Resolve(std::move(resp));
 }
 

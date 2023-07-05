@@ -103,6 +103,8 @@ target_host_supported = [
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
+    '//src/traced/probes:traced_probes',
+    '//src/traced/service:traced',
 ]
 
 target_vendor_available = [

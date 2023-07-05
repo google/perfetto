@@ -43,7 +43,7 @@ class ChromeSystemProbesParser {
   // Maps a proto field number for memcounters in ProcessStats::Process to
   // their StringId. Keep kProcStatsProcessSize equal to 1 + max proto field
   // id of ProcessStats::Process. Also update SystemProbesParser.
-  static constexpr size_t kProcStatsProcessSize = 15;
+  static constexpr size_t kProcStatsProcessSize = 21;
   std::array<StringId, kProcStatsProcessSize> proc_stats_process_names_{};
 };
 

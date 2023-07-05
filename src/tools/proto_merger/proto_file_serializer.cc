@@ -70,8 +70,11 @@ std::string SerializeOptions(const std::vector<ProtoFile::Option>& options) {
 
   std::string output;
   output += " [";
-  for (const auto& option : options) {
-    output += option.key + " = " + option.value;
+  size_t n = options.size();
+  for (size_t i = 0; i < n; i++) {
+    output += options[i].key + " = " + options[i].value;
+    if (i != n - 1)
+      output += ", ";
   }
   output += "]";
   return output;

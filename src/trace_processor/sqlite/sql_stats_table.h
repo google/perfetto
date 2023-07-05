@@ -31,7 +31,8 @@ class TraceStorage;
 
 // A virtual table that allows to introspect performances of the SQL engine
 // for the kMaxLogEntries queries.
-class SqlStatsTable : public SqliteTable {
+class SqlStatsTable final
+    : public TypedSqliteTable<SqlStatsTable, const TraceStorage*> {
  public:
   enum Column {
     kQuery = 0,
@@ -41,18 +42,18 @@ class SqlStatsTable : public SqliteTable {
   };
 
   // Implementation of the SQLite cursor interface.
-  class Cursor : public SqliteTable::Cursor {
+  class Cursor final : public SqliteTable::BaseCursor {
    public:
     explicit Cursor(SqlStatsTable* storage);
-    ~Cursor() override;
+    ~Cursor() final;
 
     // Implementation of SqliteTable::Cursor.
     base::Status Filter(const QueryConstraints&,
                         sqlite3_value**,
-                        FilterHistory) override;
-    base::Status Next() override;
-    bool Eof() override;
-    base::Status Column(sqlite3_context*, int N) override;
+                        FilterHistory);
+    base::Status Next();
+    bool Eof();
+    base::Status Column(sqlite3_context*, int N);
 
    private:
     Cursor(Cursor&) = delete;
@@ -68,13 +69,12 @@ class SqlStatsTable : public SqliteTable {
   };
 
   SqlStatsTable(sqlite3*, const TraceStorage* storage);
-
-  static void RegisterTable(sqlite3* db, const TraceStorage* storage);
+  ~SqlStatsTable() final;
 
   // Table implementation.
-  base::Status Init(int, const char* const*, Schema*) override;
-  std::unique_ptr<SqliteTable::Cursor> CreateCursor() override;
-  int BestIndex(const QueryConstraints&, BestIndexInfo*) override;
+  base::Status Init(int, const char* const*, Schema*) final;
+  std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
+  int BestIndex(const QueryConstraints&, BestIndexInfo*) final;
 
  private:
   const TraceStorage* const storage_;

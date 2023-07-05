@@ -289,4 +289,8 @@ message CloneSessionResponse {
   // the details about the failure.
   optional bool success = 1;
   optional string error = 2;
+
+  // The UUID of the cloned session.
+  optional int64 uuid_msb = 3;
+  optional int64 uuid_lsb = 4;
 }

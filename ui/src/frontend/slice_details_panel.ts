@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {translateState} from '../common/thread_state';
-import {timeToCode, toNs} from '../common/time';
+import {tpTimeToCode} from '../common/time';
 import {globals, SliceDetails, ThreadDesc} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
@@ -60,9 +60,8 @@ export class SliceDetailsPanel extends SlicePanel {
     if (!threadInfo) {
       return null;
     }
-    const timestamp = timeToCode(
-        sliceInfo.wakeupTs! - globals.state.traceTime.startSec,
-    );
+    const timestamp =
+        tpTimeToCode(sliceInfo.wakeupTs! - globals.state.traceTime.start);
     return m(
         '.slice-details-wakeup-text',
         m('', `Wakeup @ ${timestamp} on CPU ${sliceInfo.wakerCpu} by`),
@@ -76,9 +75,7 @@ export class SliceDetailsPanel extends SlicePanel {
       return null;
     }
 
-    const latency = timeToCode(
-        sliceInfo.ts - (sliceInfo.wakeupTs - globals.state.traceTime.startSec),
-    );
+    const latency = tpTimeToCode(sliceInfo.ts - sliceInfo.wakeupTs);
     return m(
         '.slice-details-latency-text',
         m('', `Scheduling latency: ${latency}`),
@@ -111,7 +108,10 @@ export class SliceDetailsPanel extends SlicePanel {
               {onclick: () => this.goToThread(), title: 'Go to thread'},
               'call_made'))),
         m('tr', m('th', `Cmdline`), m('td', threadInfo.cmdline)),
-        m('tr', m('th', `Start time`), m('td', `${timeToCode(sliceInfo.ts)}`)),
+        m('tr',
+          m('th', `Start time`),
+          m('td',
+            `${tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start)}`)),
         m('tr',
           m('th', `Duration`),
           m('td', this.computeDuration(sliceInfo.ts, sliceInfo.dur))),
@@ -172,8 +172,7 @@ export class SliceDetailsPanel extends SlicePanel {
         trackId: trackId.toString(),
       }));
 
-      scrollToTrackAndTs(
-          trackId, toNs(sliceInfo.ts + globals.state.traceTime.startSec), true);
+      scrollToTrackAndTs(trackId, sliceInfo.ts, true);
     }
   }
 

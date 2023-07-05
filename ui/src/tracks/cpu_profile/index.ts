@@ -17,8 +17,8 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM} from '../../common/query_result';
-import {fromNs, toNs} from '../../common/time';
+import {LONG, NUM} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -36,7 +36,7 @@ export const CPU_PROFILE_TRACK_KIND = 'CpuProfileTrack';
 
 export interface Data extends TrackData {
   ids: Float64Array;
-  tsStarts: Float64Array;
+  tsStarts: BigInt64Array;
   callsiteId: Uint32Array;
 }
 
@@ -46,7 +46,7 @@ export interface Config {
 
 class CpuProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
     const query = `select
         id,
@@ -64,11 +64,11 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
       resolution,
       length: numRows,
       ids: new Float64Array(numRows),
-      tsStarts: new Float64Array(numRows),
+      tsStarts: new BigInt64Array(numRows),
       callsiteId: new Uint32Array(numRows),
     };
 
-    const it = result.iter({id: NUM, ts: NUM, callsiteId: NUM});
+    const it = result.iter({id: NUM, ts: LONG, callsiteId: NUM});
     for (let row = 0; it.valid(); it.next(), ++row) {
       data.ids[row] = it.id;
       data.tsStarts[row] = it.ts;
@@ -93,7 +93,7 @@ class CpuProfileTrack extends Track<Config, Data> {
 
   private centerY = this.getHeight() / 2 + BAR_HEIGHT;
   private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
-  private hoveredTs: number|undefined = undefined;
+  private hoveredTs: TPTime|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -105,7 +105,7 @@ class CpuProfileTrack extends Track<Config, Data> {
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     const {
-      timeScale,
+      visibleTimeScale: timeScale,
     } = globals.frontendLocalState;
     const data = this.data();
 
@@ -120,7 +120,7 @@ class CpuProfileTrack extends Track<Config, Data> {
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          timeScale.timeToPx(fromNs(centerX)),
+          timeScale.tpTimeToPx(centerX),
           this.centerY,
           isHovered,
           strokeWidth,
@@ -146,8 +146,8 @@ class CpuProfileTrack extends Track<Config, Data> {
       if (clusterStartIndex !== clusterEndIndex) {
         const startX = data.tsStarts[clusterStartIndex];
         const endX = data.tsStarts[clusterEndIndex];
-        const leftPx = timeScale.timeToPx(fromNs(startX)) - this.markerWidth;
-        const rightPx = timeScale.timeToPx(fromNs(endX)) + this.markerWidth;
+        const leftPx = timeScale.tpTimeToPx(startX) - this.markerWidth;
+        const rightPx = timeScale.tpTimeToPx(endX) + this.markerWidth;
         const width = rightPx - leftPx;
         ctx.fillStyle = colorForSample(callsiteId, false);
         ctx.fillRect(leftPx, MARGIN_TOP, width, BAR_HEIGHT);
@@ -179,9 +179,11 @@ class CpuProfileTrack extends Track<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    const {timeScale} = globals.frontendLocalState;
-    const time = toNs(timeScale.pxToTime(x));
-    const [left, right] = searchSegment(data.tsStarts, time);
+    const {
+      visibleTimeScale: timeScale,
+    } = globals.frontendLocalState;
+    const time = timeScale.pxToHpTime(x);
+    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
     this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
   }
@@ -193,10 +195,12 @@ class CpuProfileTrack extends Track<Config, Data> {
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {timeScale} = globals.frontendLocalState;
+    const {
+      visibleTimeScale: timeScale,
+    } = globals.frontendLocalState;
 
-    const time = toNs(timeScale.pxToTime(x));
-    const [left, right] = searchSegment(data.tsStarts, time);
+    const time = timeScale.pxToHpTime(x);
+    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
 
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
 
@@ -217,13 +221,13 @@ class CpuProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[left]));
+      const centerX = timeScale.tpTimeToPx(data.tsStarts[left]);
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.timeToPx(fromNs(data.tsStarts[right]));
+      const centerX = timeScale.tpTimeToPx(data.tsStarts[right]);
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }

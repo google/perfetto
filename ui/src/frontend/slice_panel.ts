@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {timeToCode, toNs} from '../common/time';
+import {TPDuration, TPTime, tpTimeToCode} from '../common/time';
 
 import {globals, SliceDetails} from './globals';
 import {Panel} from './panel';
@@ -34,10 +34,9 @@ function getDisplayName(name: string|undefined, id: number|undefined): string|
 }
 
 export abstract class SlicePanel extends Panel {
-  protected computeDuration(ts: number, dur: number): string {
-    return toNs(dur) === -1 ?
-        `${globals.state.traceTime.endSec - ts} (Did not end)` :
-        timeToCode(dur);
+  protected computeDuration(ts: TPTime, dur: TPDuration): string {
+    return dur === -1n ? `${globals.state.traceTime.end - ts} (Did not end)` :
+                         tpTimeToCode(dur);
   }
 
   protected getProcessThreadDetails(sliceInfo: SliceDetails) {

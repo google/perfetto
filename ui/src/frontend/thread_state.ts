@@ -16,7 +16,11 @@ import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
-import {fromNs, timeToCode} from '../common/time';
+import {
+  TPDuration,
+  TPTime,
+  tpTimeToCode,
+} from '../common/time';
 
 import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
@@ -26,9 +30,6 @@ import {
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
-  timestampFromNanos,
-  toTraceTime,
-  TPTimestamp,
 } from './sql_types';
 import {
   constraintsToQueryFragment,
@@ -50,10 +51,10 @@ export interface ThreadState {
   threadStateSqlId: ThreadStateSqlId;
   // Id of the corresponding entry in the |sched| table.
   schedSqlId?: SchedSqlId;
-  // Timestamp of the beginning of this thread state in nanoseconds.
-  ts: TPTimestamp;
+  // Timestamp of the the beginning of this thread state in nanoseconds.
+  ts: TPTime;
   // Duration of this thread state in nanoseconds.
-  dur: number;
+  dur: TPDuration;
   // CPU id if this thread state corresponds to a thread running on the CPU.
   cpu?: number;
   // Human-readable name of this thread state.
@@ -90,7 +91,7 @@ export async function getThreadStateFromConstraints(
     threadStateSqlId: NUM,
     schedSqlId: NUM_NULL,
     ts: LONG,
-    dur: NUM,
+    dur: LONG,
     cpu: NUM_NULL,
     state: STR_NULL,
     blockedFunction: STR_NULL,
@@ -110,7 +111,7 @@ export async function getThreadStateFromConstraints(
     result.push({
       threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
       schedSqlId: fromNumNull(it.schedSqlId) as (SchedSqlId | undefined),
-      ts: timestampFromNanos(it.ts),
+      ts: it.ts,
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
       state: translateState(it.state || undefined, ioWait),
@@ -137,7 +138,7 @@ export async function getThreadState(
   return result[0];
 }
 
-export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTimestamp) {
+export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTime) {
   let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
     if (track.kind === 'CpuSliceTrack' &&
@@ -149,15 +150,12 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTimestamp) {
     return;
   }
   globals.makeSelection(Actions.selectSlice({id, trackId}));
-  // TODO(stevegolton): scrollToTrackAndTs() should take a TPTimestamp
-  scrollToTrackAndTs(trackId, Number(ts));
+  scrollToTrackAndTs(trackId, ts);
 }
 
 function stateToValue(
-    state: string,
-    cpu: number|undefined,
-    id: SchedSqlId|undefined,
-    ts: TPTimestamp): Value|null {
+    state: string, cpu: number|undefined, id: SchedSqlId|undefined, ts: TPTime):
+    Value|null {
   if (!state) {
     return null;
   }
@@ -177,8 +175,9 @@ function stateToValue(
 export function threadStateToDict(state: ThreadState): Dict {
   const result: {[name: string]: Value|null} = {};
 
-  result['Start time'] = value(timeToCode(toTraceTime(state.ts)));
-  result['Duration'] = value(timeToCode(fromNs(state.dur)));
+  result['Start time'] =
+      value(tpTimeToCode(state.ts - globals.state.traceTime.start));
+  result['Duration'] = value(tpTimeToCode(state.dur));
   result['State'] =
       stateToValue(state.state, state.cpu, state.schedSqlId, state.ts);
   result['Blocked function'] = maybeValue(state.blockedFunction);

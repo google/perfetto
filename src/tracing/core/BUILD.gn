@@ -83,6 +83,21 @@ source_set("service") {
   }
 }
 
+if (enable_perfetto_zlib) {
+  source_set("zlib_compressor") {
+    deps = [
+      ":core",
+      "../../../gn:default_deps",
+      "../../../gn:zlib",
+      "../../../include/perfetto/tracing",
+    ]
+    sources = [
+      "zlib_compressor.cc",
+      "zlib_compressor.h",
+    ]
+  }
+}
+
 perfetto_unittest_source_set("unittests") {
   testonly = true
   deps = [
@@ -99,6 +114,14 @@ perfetto_unittest_source_set("unittests") {
     "../../base:test_support",
     "../test:test_support",
   ]
+
+  if (enable_perfetto_zlib) {
+    deps += [
+      ":zlib_compressor",
+      "../../../gn:zlib",
+    ]
+  }
+
   sources = [
     "histogram_unittest.cc",
     "id_allocator_unittest.cc",
@@ -109,6 +132,10 @@ perfetto_unittest_source_set("unittests") {
     "trace_buffer_unittest.cc",
     "trace_packet_unittest.cc",
   ]
+
+  if (enable_perfetto_zlib) {
+    sources += [ "zlib_compressor_unittest.cc" ]
+  }
 
   # These tests rely on test_task_runner.h which
   # has no Windows implementation.

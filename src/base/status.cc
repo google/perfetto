@@ -17,6 +17,7 @@
 #include "perfetto/base/status.h"
 
 #include <stdarg.h>
+#include <algorithm>
 
 namespace perfetto {
 namespace base {
@@ -29,6 +30,43 @@ Status ErrStatus(const char* format, ...) {
   va_end(ap);
   Status status(buffer);
   return status;
+}
+
+std::optional<std::string_view> Status::GetPayload(std::string_view type_url) {
+  if (ok()) {
+    return std::nullopt;
+  }
+  for (const auto& kv : payloads_) {
+    if (kv.type_url == type_url) {
+      return kv.payload;
+    }
+  }
+  return std::nullopt;
+}
+
+void Status::SetPayload(std::string_view type_url, std::string value) {
+  if (ok()) {
+    return;
+  }
+  for (auto& kv : payloads_) {
+    if (kv.type_url == type_url) {
+      kv.payload = value;
+      return;
+    }
+  }
+  payloads_.push_back(Payload{std::string(type_url), std::move(value)});
+}
+
+bool Status::ErasePayload(std::string_view type_url) {
+  if (ok()) {
+    return false;
+  }
+  auto it = std::remove_if(
+      payloads_.begin(), payloads_.end(),
+      [type_url](const Payload& p) { return p.type_url == type_url; });
+  bool erased = it != payloads_.end();
+  payloads_.erase(it, payloads_.end());
+  return erased;
 }
 
 }  // namespace base

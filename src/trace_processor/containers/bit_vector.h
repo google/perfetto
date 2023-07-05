@@ -89,17 +89,10 @@ class BitVector {
       std::vector<uint32_t> counts(no_blocks);
 
       // Calculate counts only for full blocks.
-      for (uint32_t i = 1; i < no_blocks - 1; ++i) {
-        counts[i] +=
-            counts[i - 1] +
-            ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
+      for (uint32_t i = 1; i < no_blocks; ++i) {
+        counts[i] = counts[i - 1] +
+                    ConstBlock(&words_[Block::kWords * (i - 1)]).CountSetBits();
       }
-      if (size_ % Block::kBits == 0) {
-        counts[no_blocks - 1] +=
-            counts[no_blocks - 2] +
-            ConstBlock(&words_[Block::kWords * (no_blocks - 2)]).CountSetBits();
-      }
-
       return BitVector{std::move(words_), std::move(counts), size_};
     }
 

@@ -16,8 +16,9 @@ import {Vnode} from 'mithril';
 
 import {colorForString} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {NUM, STR} from '../../common/query_result';
-import {fromNs, toNsCeil, toNsFloor} from '../../common/time';
+import {LONG, STR} from '../../common/query_result';
+import {TPDuration} from '../../common/time';
+import {TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -29,7 +30,7 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 
 
 export interface Data extends TrackData {
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
   names: string[];
 }
 
@@ -46,14 +47,8 @@ const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
 class FtraceRawTrackController extends TrackController<Config, Data> {
   static readonly kind = FTRACE_RAW_TRACK_KIND;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNsFloor(start);
-    const endNs = toNsCeil(end);
-
-    // |resolution| is in s/px the frontend wants.
-    const quantNs = toNsCeil(resolution);
-
     const excludeList = Array.from(globals.state.ftraceFilter.excludedNames);
     const excludeListSql = excludeList.map((s) => `'${s}'`).join(',');
     const cpuFilter =
@@ -61,13 +56,13 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
 
     const queryRes = await this.query(`
       select
-        cast(ts / ${quantNs} as integer) * ${quantNs} as tsQuant,
+        cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
         type,
         name
       from ftrace_event
       where
         name not in (${excludeListSql}) and
-        ts >= ${startNs} and ts <= ${endNs} ${cpuFilter}
+        ts >= ${start} and ts <= ${end} ${cpuFilter}
       group by tsQuant
       order by tsQuant limit ${LIMIT};`);
 
@@ -77,15 +72,15 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
       end,
       resolution,
       length: rowCount,
-      timestamps: new Float64Array(rowCount),
+      timestamps: new BigInt64Array(rowCount),
       names: [],
     };
 
     const it = queryRes.iter(
-        {tsQuant: NUM, type: STR, name: STR},
+        {tsQuant: LONG, type: STR, name: STR},
     );
     for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = fromNs(it.tsQuant);
+      result.timestamps[row] = it.tsQuant;
       result.names[row] = it.name;
     }
     return result;
@@ -107,16 +102,19 @@ export class FtraceRawTrack extends Track<Config, Data> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {
+      visibleTimeScale,
+      windowSpan,
+    } = globals.frontendLocalState;
 
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    const dataStartPx = timeScale.timeToPx(data.start);
-    const dataEndPx = timeScale.timeToPx(data.end);
-    const visibleStartPx = timeScale.timeToPx(visibleWindowTime.start);
-    const visibleEndPx = timeScale.timeToPx(visibleWindowTime.end);
+    const dataStartPx = visibleTimeScale.tpTimeToPx(data.start);
+    const dataEndPx = visibleTimeScale.tpTimeToPx(data.end);
+    const visibleStartPx = windowSpan.start;
+    const visibleEndPx = windowSpan.end;
 
     checkerboardExcept(
         ctx,
@@ -137,7 +135,7 @@ export class FtraceRawTrack extends Track<Config, Data> {
         ${Math.min(color.l + 10, 60)}%
       )`;
       ctx.fillStyle = hsl;
-      const xPos = Math.floor(timeScale.timeToPx(data.timestamps[i]));
+      const xPos = Math.floor(visibleTimeScale.tpTimeToPx(data.timestamps[i]));
 
       // Draw a diamond over the event
       ctx.save();

@@ -15,8 +15,13 @@
  */
 
 #include "src/trace_processor/sqlite/sqlite_engine.h"
+
+#include <utility>
+
+#include "perfetto/base/status.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
+#include "src/trace_processor/sqlite/sqlite_table.h"
 
 // In Android and Chromium tree builds, we don't have the percentile module.
 // Just don't include it.
@@ -58,7 +63,7 @@ void InitializeSqlite(sqlite3* db) {
 
 }  // namespace
 
-SqliteEngine::SqliteEngine() : query_cache_(new QueryCache()) {
+SqliteEngine::SqliteEngine() {
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
   PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
@@ -66,12 +71,69 @@ SqliteEngine::SqliteEngine() : query_cache_(new QueryCache()) {
   db_.reset(std::move(db));
 }
 
-void SqliteEngine::RegisterTable(const Table& table, const std::string& name) {
-  DbSqliteTable::RegisterTable(*db_, query_cache_.get(), &table, name);
+SqliteEngine::~SqliteEngine() {
+  // It is important to unregister any functions that have been registered with
+  // the database before destroying it. This is because functions can hold onto
+  // prepared statements, which must be finalized before database destruction.
+  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
+    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
+                                         it.key().second, SQLITE_UTF8, nullptr,
+                                         nullptr, nullptr, nullptr, nullptr);
+    PERFETTO_CHECK(ret == 0);
+  }
+  fn_ctx_.Clear();
 }
 
-void SqliteEngine::RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
-  DbSqliteTable::RegisterTable(*db_, query_cache_.get(), std::move(fn));
+base::Status SqliteEngine::RegisterFunction(const char* name,
+                                            int argc,
+                                            Fn* fn,
+                                            void* ctx,
+                                            FnCtxDestructor* destructor,
+                                            bool deterministic) {
+  int flags = SQLITE_UTF8 | (deterministic ? SQLITE_DETERMINISTIC : 0);
+  int ret =
+      sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc), flags,
+                                 ctx, fn, nullptr, nullptr, destructor);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to register function with name %s", name);
+  }
+  *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
+  return base::OkStatus();
+}
+
+base::Status SqliteEngine::DeclareVirtualTable(const std::string& create_stmt) {
+  int res = sqlite3_declare_vtab(db_.get(), create_stmt.c_str());
+  if (res != SQLITE_OK) {
+    return base::ErrStatus("Declare vtab failed: %s",
+                           sqlite3_errmsg(db_.get()));
+  }
+  return base::OkStatus();
+}
+
+base::Status SqliteEngine::SaveSqliteTable(const std::string& table_name,
+                                           std::unique_ptr<SqliteTable> table) {
+  auto res = saved_tables_.Insert(table_name, {});
+  if (!res.second) {
+    return base::ErrStatus("Table with name %s already is saved",
+                           table_name.c_str());
+  }
+  *res.first = std::move(table);
+  return base::OkStatus();
+}
+
+base::StatusOr<std::unique_ptr<SqliteTable>> SqliteEngine::RestoreSqliteTable(
+    const std::string& table_name) {
+  auto* res = saved_tables_.Find(table_name);
+  if (!res) {
+    return base::ErrStatus("Table with name %s does not exist in saved state",
+                           table_name.c_str());
+  }
+  return std::move(*res);
+}
+
+void* SqliteEngine::GetFunctionContext(const std::string& name, int argc) {
+  auto* res = fn_ctx_.Find(std::make_pair(name, argc));
+  return res ? *res : nullptr;
 }
 
 }  // namespace trace_processor

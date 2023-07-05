@@ -119,11 +119,6 @@ PERFETTO_SYMBOLIZER_MODE=index PERFETTO_BINARY_PATH=path/to/directory/with/symbo
 
 ## View profile
 
-Visualizing callstacks in the Perfetto UI is currently disabled behind a
-flag. Please enable it before proceeding further:
-
-![Enable flame graph flag](/docs/images/enable-profile-flame-graph.png)
-
 Upload the `raw-trace` or `symbolized-trace` file from the output directory to
 the [Perfetto UI](https://ui.perfetto.dev) and click and drag over one or more
 of the diamond markers in the UI track named "Perf Samples" for the processes

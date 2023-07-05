@@ -763,7 +763,7 @@ Options:
                                       builds. The features behind this flag can
                                       break at any time without any warning.
 
-Standard library: 
+Standard library:
  --add-sql-module MODULE_PATH         Files from the directory will be treated
                                       as a new SQL module and can be used for
                                       IMPORT. The name of the directory is the
@@ -1016,10 +1016,11 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
   return command_line_options;
 }
 
-void ExtendPoolWithBinaryDescriptor(google::protobuf::DescriptorPool& pool,
-                                    const void* data,
-                                    int size,
-                                    std::vector<std::string>& skip_prefixes) {
+void ExtendPoolWithBinaryDescriptor(
+    google::protobuf::DescriptorPool& pool,
+    const void* data,
+    int size,
+    const std::vector<std::string>& skip_prefixes) {
   google::protobuf::FileDescriptorSet desc_set;
   PERFETTO_CHECK(desc_set.ParseFromArray(data, size));
   for (const auto& file_desc : desc_set.file()) {
@@ -1237,7 +1238,8 @@ base::Status LoadOverridenStdlib(std::string root) {
 }
 
 base::Status LoadMetricExtensionProtos(const std::string& proto_root,
-                                       const std::string& mount_path) {
+                                       const std::string& mount_path,
+                                       google::protobuf::DescriptorPool& pool) {
   if (!base::FileExists(proto_root)) {
     return base::ErrStatus(
         "Directory %s does not exist. Metric extension directory must contain "
@@ -1262,6 +1264,11 @@ base::Status LoadMetricExtensionProtos(const std::string& proto_root,
       serialized_filedescset.data(),
       static_cast<int>(serialized_filedescset.size()));
 
+  // Extend the pool for any subsequent reflection-based operations
+  // (e.g. output json)
+  ExtendPoolWithBinaryDescriptor(
+      pool, serialized_filedescset.data(),
+      static_cast<int>(serialized_filedescset.size()), {});
   RETURN_IF_ERROR(g_tp->ExtendMetricsProto(serialized_filedescset.data(),
                                            serialized_filedescset.size()));
 
@@ -1293,7 +1300,8 @@ base::Status LoadMetricExtensionSql(const std::string& sql_root,
   return base::OkStatus();
 }
 
-base::Status LoadMetricExtension(const MetricExtension& extension) {
+base::Status LoadMetricExtension(const MetricExtension& extension,
+                                 google::protobuf::DescriptorPool& pool) {
   const std::string& disk_path = extension.disk_path();
   const std::string& virtual_path = extension.virtual_path();
 
@@ -1305,8 +1313,8 @@ base::Status LoadMetricExtension(const MetricExtension& extension) {
   // Note: Proto files must be loaded first, because we determine whether an SQL
   // file is a metric or not by checking if the name matches a field of the root
   // TraceMetrics proto.
-  RETURN_IF_ERROR(LoadMetricExtensionProtos(disk_path + "protos/",
-                                            kMetricProtoRoot + virtual_path));
+  RETURN_IF_ERROR(LoadMetricExtensionProtos(
+      disk_path + "protos/", kMetricProtoRoot + virtual_path, pool));
   RETURN_IF_ERROR(LoadMetricExtensionSql(disk_path + "sql/", virtual_path));
 
   return base::OkStatus();
@@ -1585,11 +1593,21 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     tp->EnableMetatrace(metatrace_config);
   }
 
+  // Descriptor pool used for printing output as textproto. Building on top of
+  // generated pool so default protos in google.protobuf.descriptor.proto are
+  // available.
+  // For some insane reason, the descriptor pool is not movable so we need to
+  // create it here so we can create references and pass it everywhere.
+  google::protobuf::DescriptorPool pool(
+      google::protobuf::DescriptorPool::generated_pool());
+  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
+
   // We load all the metric extensions even when --run-metrics arg is not there,
   // because we want the metrics to be available in interactive mode or when
   // used in UI using httpd.
+  // Metric extensions are also used to populate the descriptor pool.
   for (const auto& extension : metric_extensions) {
-    RETURN_IF_ERROR(LoadMetricExtension(extension));
+    RETURN_IF_ERROR(LoadMetricExtension(extension, pool));
   }
 
   base::TimeNanos t_load{};
@@ -1616,14 +1634,6 @@ base::Status TraceProcessorMain(int argc, char** argv) {
     RETURN_IF_ERROR(RunQueries(options.pre_metrics_path, false));
   }
 
-  // Descriptor pool used for printing output as textproto. Building on top of
-  // generated pool so default protos in google.protobuf.descriptor.proto are
-  // available.
-  // For some insane reason, the descriptor pool is not movable so we need to
-  // create it here so we can create references and pass it everywhere.
-  google::protobuf::DescriptorPool pool(
-      google::protobuf::DescriptorPool::generated_pool());
-  RETURN_IF_ERROR(PopulateDescriptorPool(pool, metric_extensions));
 
   std::vector<MetricNameAndPath> metrics;
   if (!options.metric_names.empty()) {

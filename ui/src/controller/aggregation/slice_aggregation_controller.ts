@@ -15,7 +15,6 @@
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
-import {toNs} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {
   ASYNC_SLICE_TRACK_KIND,
@@ -64,8 +63,8 @@ export class SliceAggregationController extends AggregationController {
         count(1) as occurrences
         FROM slices
         WHERE track_id IN (${selectedTrackIds}) AND
-        ts + dur > ${toNs(area.startSec)} AND
-        ts < ${toNs(area.endSec)} group by name`;
+        ts + dur > ${area.start} AND
+        ts < ${area.end} group by name`;
 
     await engine.query(query);
     return true;

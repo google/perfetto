@@ -13,49 +13,91 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {roundDownNearest} from '../base/math_utils';
+import {Span, tpDurationToSeconds} from '../common/time';
+import {TPDuration, TPTime, TPTimeSpan} from '../common/time';
+
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {TimeScale} from './time_scale';
 
-// Returns the optimal step size (in seconds) and tick pattern of ticks within
-// the step. The returned step size has two properties: (1) It is 1, 2, or 5,
-// multiplied by some integer power of 10. (2) It is maximised given the
-// constraint: |range| / stepSize <= |maxNumberOfSteps|.
-export function getStepSize(
-    range: number, maxNumberOfSteps: number): [number, string] {
-  // First, get the largest possible power of 10 that is smaller than the
-  // desired step size, and use it as our initial step size.
-  // For example, if the range is 2345ms and the desired steps is 10, then the
-  // minimum step size is 234.5ms so the step size will initialise to 100.
-  const minStepSize = range / maxNumberOfSteps;
-  const zeros = Math.floor(Math.log10(minStepSize));
-  const initialStepSize = Math.pow(10, zeros);
+const micros = 1000n;
+const millis = 1000n * micros;
+const seconds = 1000n * millis;
+const minutes = 60n * seconds;
+const hours = 60n * minutes;
+const days = 24n * hours;
 
-  // We know that |initialStepSize| is a power of 10, and
-  // initialStepSize <= desiredStepSize <= 10 * initialStepSize. There are four
-  // possible candidates for final step size: 1, 2, 5 or 10 * initialStepSize.
-  // For our example above, this would result in a step size of 500ms, as both
-  // 100ms and 200ms are smaller than the minimum step size of 234.5ms.
-  // We pick the candidate that minimizes the step size without letting the
-  // number of steps exceed |maxNumberOfSteps|. The factor we pick to also
-  // determines the pattern of ticks. This pattern is represented using a string
-  // where:
-  //  | = Major tick
-  //  : = Medium tick
-  //  . = Minor tick
-  const stepSizeMultipliers: [number, string][] =
-      [[1, '|....:....'], [2, '|.:.'], [5, '|....'], [10, '|....:....']];
+// These patterns cover the entire range of 0 - 2^63-1 nanoseconds
+const patterns: [bigint, string][] = [
+  [1n, '|'],
+  [2n, '|:'],
+  [5n, '|....'],
+  [10n, '|....:....'],
+  [20n, '|.:.'],
+  [50n, '|....'],
+  [100n, '|....:....'],
+  [200n, '|.:.'],
+  [500n, '|....'],
+  [1n * micros, '|....:....'],
+  [2n * micros, '|.:.'],
+  [5n * micros, '|....'],
+  [10n * micros, '|....:....'],
+  [20n * micros, '|.:.'],
+  [50n * micros, '|....'],
+  [100n * micros, '|....:....'],
+  [200n * micros, '|.:.'],
+  [500n * micros, '|....'],
+  [1n * millis, '|....:....'],
+  [2n * millis, '|.:.'],
+  [5n * millis, '|....'],
+  [10n * millis, '|....:....'],
+  [20n * millis, '|.:.'],
+  [50n * millis, '|....'],
+  [100n * millis, '|....:....'],
+  [200n * millis, '|.:.'],
+  [500n * millis, '|....'],
+  [1n * seconds, '|....:....'],
+  [2n * seconds, '|.:.'],
+  [5n * seconds, '|....'],
+  [10n * seconds, '|....:....'],
+  [30n * seconds, '|.:.:.'],
+  [1n * minutes, '|.....'],
+  [2n * minutes, '|.:.'],
+  [5n * minutes, '|.....'],
+  [10n * minutes, '|....:....'],
+  [30n * minutes, '|.:.:.'],
+  [1n * hours, '|.....'],
+  [2n * hours, '|.:.'],
+  [6n * hours, '|.....'],
+  [12n * hours, '|.....:.....'],
+  [1n * days, '|.:.'],
+  [2n * days, '|.:.'],
+  [5n * days, '|....'],
+  [10n * days, '|....:....'],
+  [20n * days, '|.:.'],
+  [50n * days, '|....'],
+  [100n * days, '|....:....'],
+  [200n * days, '|.:.'],
+  [500n * days, '|....'],
+  [1000n * days, '|....:....'],
+  [2000n * days, '|.:.'],
+  [5000n * days, '|....'],
+  [10000n * days, '|....:....'],
+  [20000n * days, '|.:.'],
+  [50000n * days, '|....'],
+  [100000n * days, '|....:....'],
+  [200000n * days, '|.:.'],
+];
 
-  for (const [multiplier, pattern] of stepSizeMultipliers) {
-    const newStepSize = multiplier * initialStepSize;
-    const numberOfNewSteps = range / newStepSize;
-    if (numberOfNewSteps <= maxNumberOfSteps) {
-      return [newStepSize, pattern];
+// Returns the optimal step size and pattern of ticks within the step.
+export function getPattern(minPatternSize: bigint): [TPDuration, string] {
+  for (const [size, pattern] of patterns) {
+    if (size >= minPatternSize) {
+      return [size, pattern];
     }
   }
 
-  throw new Error('Something has gone horribly wrong with maths');
+  throw new Error('Pattern not defined for this minsize');
 }
 
 function tickPatternToArray(pattern: string): TickType[] {
@@ -75,21 +117,23 @@ function tickPatternToArray(pattern: string): TickType[] {
   });
 }
 
-// Assuming a number only has one non-zero decimal digit, find the number of
-// decimal places required to accurately print that number. I.e. the parameter
-// we should pass to number.toFixed(x). To account for floating point
-// innaccuracies when representing numbers in base-10, we only take the first
-// nonzero fractional digit into account. E.g.
+// Get the number of decimal places we would have to print a time to for a given
+// min step size. For example, if we know the min step size is 0.1 and all
+// values are going to be aligned to integral multiples of 0.1, there's no
+// point printing these values with more than 1 decimal place.
+// Note: It's assumed that stepSize only has one significant figure.
+// E.g. 0.3 and 0.00002 are fine, but 0.123 will be treated as if it were 0.1.
+// Some examples: (seconds -> decimal places)
 //  1.0 -> 0
 //  0.5 -> 1
 //  0.009 -> 3
 //  0.00007 -> 5
 //  30000 -> 0
 //  0.30000000000000004 -> 1
-export function guessDecimalPlaces(val: number): number {
-  const neglog10 = -Math.floor(Math.log10(val));
-  const clamped = Math.max(0, neglog10);
-  return clamped;
+export function guessDecimalPlaces(stepSize: TPDuration): number {
+  const stepSizeSeconds = tpDurationToSeconds(stepSize);
+  const decimalPlaces = -Math.floor(Math.log10(stepSizeSeconds));
+  return Math.max(0, decimalPlaces);
 }
 
 export enum TickType {
@@ -100,55 +144,58 @@ export enum TickType {
 
 export interface Tick {
   type: TickType;
-  time: number;
-  position: number;
+  time: TPTime;
 }
 
 const MIN_PX_PER_STEP = 80;
+export function getMaxMajorTicks(width: number) {
+  return Math.max(1, Math.floor(width / MIN_PX_PER_STEP));
+}
+
+function roundDownNearest(time: TPTime, stepSize: TPDuration): TPTime {
+  return stepSize * (time / stepSize);
+}
 
 // An iterable which generates a series of ticks for a given timescale.
 export class TickGenerator implements Iterable<Tick> {
   private _tickPattern: TickType[];
-  private _patternSize: number;
+  private _patternSize: TPDuration;
+  private _timeSpan: Span<TPTime>;
+  private _offset: TPTime;
 
-  constructor(private scale: TimeScale, {minLabelPx = MIN_PX_PER_STEP} = {}) {
-    assertTrue(minLabelPx > 0, 'minLabelPx cannot be lte 0');
-    assertTrue(scale.widthPx > 0, 'widthPx cannot be lte 0');
-    assertTrue(
-        scale.timeSpan.duration > 0, 'timeSpan.duration cannot be lte 0');
+  constructor(
+      timeSpan: Span<TPTime>, maxMajorTicks: number, offset: TPTime = 0n) {
+    assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
+    assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
-    const desiredSteps = scale.widthPx / minLabelPx;
-    const [size, pattern] = getStepSize(scale.timeSpan.duration, desiredSteps);
+    this._timeSpan = timeSpan.add(-offset);
+    this._offset = offset;
+    const minStepSize =
+        BigInt(Math.floor(Number(timeSpan.duration) / maxMajorTicks));
+    const [size, pattern] = getPattern(minStepSize);
     this._patternSize = size;
     this._tickPattern = tickPatternToArray(pattern);
   }
 
   // Returns an iterable, so this object can be iterated over directly using the
   // `for x of y` notation. The use of a generator here is just to make things
-  // more elegant than creating an array of ticks and building an iterator for
-  // it.
+  // more elegant compared to creating an array of ticks and building an
+  // iterator for it.
   * [Symbol.iterator](): Generator<Tick> {
-    const span = this.scale.timeSpan;
-    const stepSize = this._patternSize / this._tickPattern.length;
-    const start = roundDownNearest(span.start, this._patternSize);
-    const timeAtStep = (i: number) => start + (i * stepSize);
+    const stepSize = this._patternSize / BigInt(this._tickPattern.length);
+    const start = roundDownNearest(this._timeSpan.start, this._patternSize);
+    const end = this._timeSpan.end;
+    let patternIndex = 0;
 
-    // Iterating using steps instead of
-    // for (let s = start; s < span.end; s += stepSize) because if start is much
-    // larger than stepSize we can enter an infinite loop due to floating
-    // point precision errors.
-    for (let i = 0; timeAtStep(i) < span.end; i++) {
-      const time = timeAtStep(i);
-      if (time >= span.start) {
-        const position = Math.floor(this.scale.timeToPx(time));
-        const type = this._tickPattern[i % this._tickPattern.length];
-        yield {type, time, position};
+    for (let time = start; time < end; time += stepSize, patternIndex++) {
+      if (time >= this._timeSpan.start) {
+        patternIndex = patternIndex % this._tickPattern.length;
+        const type = this._tickPattern[patternIndex];
+        yield {type, time: time + this._offset};
       }
     }
   }
 
-  // The number of decimal places labels should be printed with, assuming labels
-  // are only printed on major ticks.
   get digits(): number {
     return guessDecimalPlaces(this._patternSize);
   }
@@ -157,9 +204,7 @@ export class TickGenerator implements Iterable<Tick> {
 // Gets the timescale associated with the current visible window.
 export function timeScaleForVisibleWindow(
     startPx: number, endPx: number): TimeScale {
-  const span = globals.frontendLocalState.visibleWindowTime;
-  const spanRelative = span.add(-globals.state.traceTime.startSec);
-  return new TimeScale(spanRelative, [startPx, endPx]);
+  return globals.frontendLocalState.getTimeScale(startPx, endPx);
 }
 
 export function drawGridLines(
@@ -169,13 +214,18 @@ export function drawGridLines(
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 
-  const timeScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-  if (timeScale.timeSpan.duration > 0 && timeScale.widthPx > 0) {
-    for (const {type, position} of new TickGenerator(timeScale)) {
+  const {earliest, latest} = globals.frontendLocalState.visibleWindow;
+  const span = new TPTimeSpan(earliest, latest);
+  if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
+    const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
+    const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
+    for (const {type, time} of new TickGenerator(
+             span, maxMajorTicks, globals.state.traceTime.start)) {
+      const px = Math.floor(map.tpTimeToPx(time));
       if (type === TickType.MAJOR) {
         ctx.beginPath();
-        ctx.moveTo(position + 0.5, 0);
-        ctx.lineTo(position + 0.5, height);
+        ctx.moveTo(px + 0.5, 0);
+        ctx.lineTo(px + 0.5, height);
         ctx.stroke();
       }
     }

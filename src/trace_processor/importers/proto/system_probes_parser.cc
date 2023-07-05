@@ -153,6 +153,16 @@ SystemProbesParser::SystemProbesParser(TraceProcessorContext* context)
       context->storage->InternString("mem.rss.watermark");
   proc_stats_process_names_[ProcessStats::Process::kOomScoreAdjFieldNumber] =
       oom_score_adj_id_;
+  proc_stats_process_names_[ProcessStats::Process::kSmrRssKbFieldNumber] =
+      context->storage->InternString("mem.smaps.rss");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssAnonKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.anon");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssFileKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.file");
+  proc_stats_process_names_[ProcessStats::Process::kSmrPssShmemKbFieldNumber] =
+      context->storage->InternString("mem.smaps.pss.shmem");
 }
 
 void SystemProbesParser::ParseDiskStats(int64_t ts, ConstBytes blob) {

@@ -43,7 +43,7 @@ export async function queryResponseToClipboard(resp: QueryResponse):
     const line = [];
     for (const col of resp.columns) {
       const value = row[col];
-      line.push(value === null ? 'NULL' : value.toString());
+      line.push(value === null ? 'NULL' : `${value}`);
     }
     lines.push(line);
   }

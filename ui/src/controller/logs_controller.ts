@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
 import {Engine} from '../common/engine';
 import {
   LogBounds,
@@ -20,62 +21,61 @@ import {
   LogEntriesKey,
   LogExistsKey,
 } from '../common/logs';
-import {NUM, STR} from '../common/query_result';
+import {LONG, LONG_NULL, NUM, STR} from '../common/query_result';
 import {escapeGlob, escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
-import {fromNs, TimeSpan, toNsCeil, toNsFloor} from '../common/time';
+import {Span} from '../common/time';
+import {
+  TPTime,
+  TPTimeSpan,
+} from '../common/time';
 import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
 
 import {Controller} from './controller';
 
 async function updateLogBounds(
-    engine: Engine, span: TimeSpan): Promise<LogBounds> {
-  const vizStartNs = toNsFloor(span.start);
-  const vizEndNs = toNsCeil(span.end);
+    engine: Engine, span: Span<TPTime>): Promise<LogBounds> {
+  const vizStartNs = span.start;
+  const vizEndNs = span.end;
 
-  const countResult = await engine.query(`select
-      ifnull(min(ts), 0) as minTs,
-      ifnull(max(ts), 0) as maxTs,
-      count(ts) as countTs
-     from filtered_logs
-        where ts >= ${vizStartNs}
-        and ts <= ${vizEndNs}`);
+  const vizFilter = `ts between ${vizStartNs} and ${vizEndNs}`;
 
-  const countRow = countResult.firstRow({minTs: NUM, maxTs: NUM, countTs: NUM});
+  const result = await engine.query(`select
+      min(ts) as minTs,
+      max(ts) as maxTs,
+      min(case when ${vizFilter} then ts end) as minVizTs,
+      max(case when ${vizFilter} then ts end) as maxVizTs,
+      count(case when ${vizFilter} then ts end) as countTs
+    from filtered_logs`);
 
-  const firstRowNs = countRow.minTs;
-  const lastRowNs = countRow.maxTs;
-  const total = countRow.countTs;
+  const data = result.firstRow({
+    minTs: LONG_NULL,
+    maxTs: LONG_NULL,
+    minVizTs: LONG_NULL,
+    maxVizTs: LONG_NULL,
+    countTs: NUM,
+  });
 
-  const minResult = await engine.query(`
-     select ifnull(max(ts), 0) as maxTs from filtered_logs where ts < ${
-      vizStartNs}`);
-  const startNs = minResult.firstRow({maxTs: NUM}).maxTs;
+  const firstLogTs = data.minTs ?? 0n;
+  const lastLogTs = data.maxTs ?? BigintMath.INT64_MAX;
 
-  const maxResult = await engine.query(`
-     select ifnull(min(ts), 0) as minTs from filtered_logs where ts > ${
-      vizEndNs}`);
-  const endNs = maxResult.firstRow({minTs: NUM}).minTs;
-
-  const startTs = startNs ? fromNs(startNs) : 0;
-  const endTs = endNs ? fromNs(endNs) : Number.MAX_SAFE_INTEGER;
-  const firstRowTs = firstRowNs ? fromNs(firstRowNs) : endTs;
-  const lastRowTs = lastRowNs ? fromNs(lastRowNs) : startTs;
-  return {
-    startTs,
-    endTs,
-    firstRowTs,
-    lastRowTs,
-    total,
+  const bounds: LogBounds = {
+    firstLogTs,
+    lastLogTs,
+    firstVisibleLogTs: data.minVizTs ?? firstLogTs,
+    lastVisibleLogTs: data.maxVizTs ?? lastLogTs,
+    totalVisibleLogs: data.countTs,
   };
+
+  return bounds;
 }
 
 async function updateLogEntries(
-    engine: Engine, span: TimeSpan, pagination: Pagination):
+    engine: Engine, span: Span<TPTime>, pagination: Pagination):
     Promise<LogEntries> {
-  const vizStartNs = toNsFloor(span.start);
-  const vizEndNs = toNsCeil(span.end);
+  const vizStartNs = span.start;
+  const vizEndNs = span.end;
   const vizSqlBounds = `ts >= ${vizStartNs} and ts <= ${vizEndNs}`;
 
   const rowsResult = await engine.query(`
@@ -101,7 +101,7 @@ async function updateLogEntries(
   const processName = [];
 
   const it = rowsResult.iter({
-    ts: NUM,
+    ts: LONG,
     prio: NUM,
     tag: STR,
     msg: STR,
@@ -179,7 +179,7 @@ export interface LogsControllerArgs {
  */
 export class LogsController extends Controller<'main'> {
   private engine: Engine;
-  private span: TimeSpan;
+  private span: Span<TPTime>;
   private pagination: Pagination;
   private hasLogs = false;
   private logFilteringCriteria?: LogFilteringCriteria;
@@ -189,7 +189,7 @@ export class LogsController extends Controller<'main'> {
   constructor(args: LogsControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.span = new TimeSpan(0, 10);
+    this.span = new TPTimeSpan(0n, BigInt(10e9));
     this.pagination = new Pagination(0, 0);
     this.hasAnyLogs().then((exists) => {
       this.hasLogs = exists;
@@ -226,8 +226,7 @@ export class LogsController extends Controller<'main'> {
   }
 
   private async updateLogTracks() {
-    const traceTime = globals.state.frontendLocalState.visibleState;
-    const newSpan = new TimeSpan(traceTime.startSec, traceTime.endSec);
+    const newSpan = globals.stateVisibleTime();
     const oldSpan = this.span;
 
     const pagination = globals.state.logsPagination;

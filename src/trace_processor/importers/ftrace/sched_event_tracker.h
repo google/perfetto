@@ -73,9 +73,10 @@ class SchedEventTracker : public Destructible {
   void PushSchedWakingCompact(uint32_t cpu,
                               int64_t ts,
                               uint32_t wakee_pid,
-                              int32_t target_cpu,
-                              int32_t prio,
-                              StringId comm_id);
+                              uint16_t target_cpu,
+                              uint16_t prio,
+                              StringId comm_id,
+                              uint16_t common_flags);
 
  private:
   // Information retained from the preceding sched_switch seen on a given cpu.

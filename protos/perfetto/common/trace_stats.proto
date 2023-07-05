@@ -20,7 +20,7 @@ package perfetto.protos;
 
 // Statistics for the internals of the tracing service.
 //
-// Next id: 17.
+// Next id: 19.
 message TraceStats {
   // From TraceBuffer::Stats.
   //

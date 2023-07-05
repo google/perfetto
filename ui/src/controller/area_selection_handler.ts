@@ -36,10 +36,10 @@ export class AreaSelectionHandler {
       // where `a ||= b` is formatted to `a || = b`, by inserting a space which
       // breaks the operator.
       // Therefore, we are using the pattern `a = a || b` instead.
-      hasAreaChanged = hasAreaChanged ||
-          selectedArea.startSec !== this.previousArea.startSec;
       hasAreaChanged =
-          hasAreaChanged || selectedArea.endSec !== this.previousArea.endSec;
+          hasAreaChanged || selectedArea.start !== this.previousArea.start;
+      hasAreaChanged =
+          hasAreaChanged || selectedArea.end !== this.previousArea.end;
       hasAreaChanged = hasAreaChanged ||
           selectedArea.tracks.length !== this.previousArea.tracks.length;
       for (let i = 0; i < selectedArea.tracks.length; ++i) {

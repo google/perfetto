@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {PluginContext} from '../../common/plugin_api';
-import {NUM} from '../../common/query_result';
-import {fromNs, toNsCeil, toNsFloor} from '../../common/time';
+import {LONG, NUM} from '../../common/query_result';
+import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {LIMIT} from '../../common/track_data';
 import {
@@ -31,8 +31,7 @@ export interface Data extends TrackData {
   numEvents: number;
 
   // Below: data quantized by resolution and aggregated by event priority.
-
-  timestamps: Float64Array;
+  timestamps: BigInt64Array;
 
   // Each Uint8 value has the i-th bit is set if there is at least one log
   // event at the i-th priority level at the corresponding time in |timestamps|.
@@ -61,21 +60,15 @@ const EVT_PX = 2;  // Width of an event tick in pixels.
 class AndroidLogTrackController extends TrackController<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
 
-  async onBoundsChange(start: number, end: number, resolution: number):
+  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
       Promise<Data> {
-    const startNs = toNsFloor(start);
-    const endNs = toNsCeil(end);
-
-    // |resolution| is in s/px the frontend wants.
-    const quantNs = toNsCeil(resolution);
-
     const queryRes = await this.query(`
       select
-        cast(ts / ${quantNs} as integer) * ${quantNs} as tsQuant,
+        cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
         prio,
         count(prio) as numEvents
       from android_logs
-      where ts >= ${startNs} and ts <= ${endNs}
+      where ts >= ${start} and ts <= ${end}
       group by tsQuant, prio
       order by tsQuant, prio limit ${LIMIT};`);
 
@@ -86,14 +79,13 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
       resolution,
       length: rowCount,
       numEvents: 0,
-      timestamps: new Float64Array(rowCount),
+      timestamps: new BigInt64Array(rowCount),
       priorities: new Uint8Array(rowCount),
     };
 
-
-    const it = queryRes.iter({tsQuant: NUM, prio: NUM, numEvents: NUM});
+    const it = queryRes.iter({tsQuant: LONG, prio: NUM, numEvents: NUM});
     for (let row = 0; it.valid(); it.next(), row++) {
-      result.timestamps[row] = fromNs(it.tsQuant);
+      result.timestamps[row] = it.tsQuant;
       const prio = Math.min(it.prio, 7);
       result.priorities[row] |= (1 << prio);
       result.numEvents += it.numEvents;
@@ -113,16 +105,16 @@ class AndroidLogTrack extends Track<Config, Data> {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {visibleTimeScale, windowSpan} = globals.frontendLocalState;
 
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    const dataStartPx = timeScale.timeToPx(data.start);
-    const dataEndPx = timeScale.timeToPx(data.end);
-    const visibleStartPx = timeScale.timeToPx(visibleWindowTime.start);
-    const visibleEndPx = timeScale.timeToPx(visibleWindowTime.end);
+    const dataStartPx = visibleTimeScale.tpTimeToPx(data.start);
+    const dataEndPx = visibleTimeScale.tpTimeToPx(data.end);
+    const visibleStartPx = windowSpan.start;
+    const visibleEndPx = windowSpan.end;
 
     checkerboardExcept(
         ctx,
@@ -133,7 +125,7 @@ class AndroidLogTrack extends Track<Config, Data> {
         dataEndPx);
 
     const quantWidth =
-        Math.max(EVT_PX, timeScale.deltaTimeToPx(data.resolution));
+        Math.max(EVT_PX, visibleTimeScale.durationToPx(data.resolution));
     const blockH = RECT_HEIGHT / LEVELS.length;
     for (let i = 0; i < data.timestamps.length; i++) {
       for (let lev = 0; lev < LEVELS.length; lev++) {
@@ -143,7 +135,7 @@ class AndroidLogTrack extends Track<Config, Data> {
         }
         if (!hasEventsForCurColor) continue;
         ctx.fillStyle = LEVELS[lev].color;
-        const px = Math.floor(timeScale.timeToPx(data.timestamps[i]));
+        const px = Math.floor(visibleTimeScale.tpTimeToPx(data.timestamps[i]));
         ctx.fillRect(px, MARGIN_TOP + blockH * lev, quantWidth, blockH);
       }  // for(lev)
     }    // for (timestamps)

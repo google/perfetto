@@ -55,9 +55,16 @@
 #define PERFETTO_M_PURGE -101
 #endif  // M_PURGE
 
+#ifdef M_PURGE_ALL
+#define PERFETTO_M_PURGE_ALL M_PURGE_ALL
+#else
+// Only available in in-tree builds and on newer SDKs.
+#define PERFETTO_M_PURGE_ALL -104
+#endif  // M_PURGE
+
 namespace {
 extern "C" {
-using MalloptType = void (*)(int, int);
+using MalloptType = int (*)(int, int);
 }
 }  // namespace
 #endif  // OS_ANDROID
@@ -140,7 +147,9 @@ void MaybeReleaseAllocatorMemToOS() {
       reinterpret_cast<MalloptType>(dlsym(RTLD_DEFAULT, "mallopt"));
   if (!mallopt_fn)
     return;
-  mallopt_fn(PERFETTO_M_PURGE, 0);
+  if (mallopt_fn(PERFETTO_M_PURGE_ALL, 0) == 0) {
+    mallopt_fn(PERFETTO_M_PURGE, 0);
+  }
 #endif
 }
 

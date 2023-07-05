@@ -54,6 +54,11 @@ export function publishOverviewData(
   globals.rafScheduler.scheduleRedraw();
 }
 
+export function clearOverviewData() {
+  globals.overviewStore.clear();
+  globals.rafScheduler.scheduleRedraw();
+}
+
 export function publishTrackData(args: {id: string, data: {}}) {
   globals.setTrackData(args.id, args.data);
   if ([LogExistsKey, LogBoundsKey, LogEntriesKey].includes(args.id)) {

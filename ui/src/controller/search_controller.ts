@@ -12,13 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
-import {NUM, STR} from '../common/query_result';
+import {LONG, NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {TimeSpan} from '../common/time';
-import {toNs} from '../common/time';
+import {Span} from '../common/time';
+import {
+  TPDuration,
+  TPTime,
+  TPTimeSpan,
+} from '../common/time';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 
@@ -30,8 +35,8 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: TimeSpan;
-  private previousResolution: number;
+  private previousSpan: Span<TPTime>;
+  private previousResolution: TPDuration;
   private previousSearch: string;
   private updateInProgress: boolean;
   private setupInProgress: boolean;
@@ -39,11 +44,11 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TimeSpan(0, 1);
+    this.previousSpan = new TPTimeSpan(0n, 1n);
     this.previousSearch = '';
     this.updateInProgress = false;
     this.setupInProgress = true;
-    this.previousResolution = 1;
+    this.previousResolution = 1n;
     this.setup().finally(() => {
       this.setupInProgress = false;
       this.run();
@@ -70,9 +75,9 @@ export class SearchController extends Controller<'main'> {
         omniboxState.mode === 'COMMAND') {
       return;
     }
-    const newSpan = new TimeSpan(visibleState.startSec, visibleState.endSec);
+    const newSpan = globals.stateVisibleTime();
     const newSearch = omniboxState.omnibox;
-    let newResolution = visibleState.resolution;
+    const newResolution = visibleState.resolution;
     if (this.previousSpan.contains(newSpan) &&
         this.previousResolution === newResolution &&
         newSearch === this.previousSearch) {
@@ -83,20 +88,19 @@ export class SearchController extends Controller<'main'> {
     // TODO(hjd): We should restrict this to the start of the trace but
     // that is not easily available here.
     // N.B. Timestamps can be negative.
-    const start = newSpan.start - newSpan.duration;
-    const end = newSpan.end + newSpan.duration;
-    this.previousSpan = new TimeSpan(start, end);
+    const {start, end} = newSpan.pad(newSpan.duration);
+    this.previousSpan = new TPTimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
       publishSearch({
-        tsStarts: new Float64Array(0),
-        tsEnds: new Float64Array(0),
+        tsStarts: new BigInt64Array(0),
+        tsEnds: new BigInt64Array(0),
         count: new Uint8Array(0),
       });
       publishSearchResult({
         sliceIds: new Float64Array(0),
-        tsStarts: new Float64Array(0),
+        tsStarts: new BigInt64Array(0),
         utids: new Float64Array(0),
         sources: [],
         trackIds: [],
@@ -105,25 +109,12 @@ export class SearchController extends Controller<'main'> {
       return;
     }
 
-    let startNs = toNs(newSpan.start);
-    let endNs = toNs(newSpan.end);
-
-    // TODO(hjd): We shouldn't need to be so defensive here:
-    if (!Number.isFinite(startNs)) {
-      startNs = 0;
-    }
-    if (!Number.isFinite(endNs)) {
-      endNs = 1;
-    }
-    if (!Number.isFinite(newResolution)) {
-      newResolution = 1;
-    }
-
     this.updateInProgress = true;
-    const computeSummary = this.update(newSearch, startNs, endNs, newResolution)
-                               .then((summary) => {
-                                 publishSearch(summary);
-                               });
+    const computeSummary =
+        this.update(newSearch, newSpan.start, newSpan.end, newResolution)
+            .then((summary) => {
+              publishSearch(summary);
+            });
 
     const computeResults =
         this.specificSearch(newSearch).then((searchResults) => {
@@ -140,15 +131,14 @@ export class SearchController extends Controller<'main'> {
   onDestroy() {}
 
   private async update(
-      search: string, startNs: number, endNs: number,
-      resolution: number): Promise<SearchSummary> {
-    const quantumNs = Math.round(resolution * 10 * 1e9);
-
+      search: string, startNs: TPTime, endNs: TPTime,
+      resolution: TPDuration): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
-    startNs = Math.floor(startNs / quantumNs) * quantumNs;
+    const quantumNs = resolution * 10n;
+    startNs = BigintMath.quantFloor(startNs, quantumNs);
 
-    const windowDur = Math.max(endNs - startNs, 1);
+    const windowDur = BigintMath.max(endNs - startNs, 1n);
     await this.query(`update search_summary_window set
       window_start=${startNs},
       window_dur=${windowDur},
@@ -169,8 +159,8 @@ export class SearchController extends Controller<'main'> {
 
     const res = await this.query(`
         select
-          (quantum_ts * ${quantumNs} + ${startNs})/1e9 as tsStart,
-          ((quantum_ts+1) * ${quantumNs} + ${startNs})/1e9 as tsEnd,
+          (quantum_ts * ${quantumNs} + ${startNs}) as tsStart,
+          ((quantum_ts+1) * ${quantumNs} + ${startNs}) as tsEnd,
           min(count(*), 255) as count
           from (
               select
@@ -187,13 +177,13 @@ export class SearchController extends Controller<'main'> {
           order by quantum_ts;`);
 
     const numRows = res.numRows();
-    const summary = {
-      tsStarts: new Float64Array(numRows),
-      tsEnds: new Float64Array(numRows),
+    const summary: SearchSummary = {
+      tsStarts: new BigInt64Array(numRows),
+      tsEnds: new BigInt64Array(numRows),
       count: new Uint8Array(numRows),
     };
 
-    const it = res.iter({tsStart: NUM, tsEnd: NUM, count: NUM});
+    const it = res.iter({tsStart: LONG, tsEnd: LONG, count: NUM});
     for (let row = 0; it.valid(); it.next(), ++row) {
       summary.tsStarts[row] = it.tsStart;
       summary.tsEnds[row] = it.tsEnd;
@@ -269,7 +259,7 @@ export class SearchController extends Controller<'main'> {
     const rows = queryRes.numRows();
     const searchResults: CurrentSearchResults = {
       sliceIds: new Float64Array(rows),
-      tsStarts: new Float64Array(rows),
+      tsStarts: new BigInt64Array(rows),
       utids: new Float64Array(rows),
       trackIds: [],
       sources: [],
@@ -277,7 +267,7 @@ export class SearchController extends Controller<'main'> {
     };
 
     const it = queryRes.iter(
-        {sliceId: NUM, ts: NUM, source: STR, sourceId: NUM, utid: NUM});
+        {sliceId: NUM, ts: LONG, source: STR, sourceId: NUM, utid: NUM});
     for (; it.valid(); it.next()) {
       let trackId = undefined;
       if (it.source === 'cpu') {

@@ -24,19 +24,14 @@ namespace {
 
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
-  switch (categories) {
-    case MetatraceCategories::TOPLEVEL:
-      return ProtoEnum::TOPLEVEL;
-    case MetatraceCategories::FUNCTION:
-      return ProtoEnum::FUNCTION;
-    case MetatraceCategories::QUERY:
-      return ProtoEnum::QUERY;
-    case MetatraceCategories::ALL:
-      return ProtoEnum::ALL;
-    case MetatraceCategories::NONE:
-      return ProtoEnum::NONE;
-  }
-  return ProtoEnum::NONE;
+  ProtoEnum result = ProtoEnum::NONE;
+  if (categories & MetatraceCategories::TOPLEVEL)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::TOPLEVEL);
+  if (categories & MetatraceCategories::FUNCTION)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::FUNCTION);
+  if (categories & MetatraceCategories::QUERY)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::QUERY);
+  return result;
 }
 
 }  // namespace

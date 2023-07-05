@@ -12,21 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {search, searchEq, searchRange, searchSegment} from './binary_search';
+import {
+  search,
+  searchEq,
+  searchRange,
+  searchSegment,
+} from './binary_search';
 
 test('binarySearch', () => {
-  expect(search(Float64Array.of(), 100)).toEqual(-1);
-  expect(search(Float64Array.of(42), 42)).toEqual(0);
-  expect(search(Float64Array.of(42), 43)).toEqual(0);
-  expect(search(Float64Array.of(42), 41)).toEqual(-1);
-  expect(search(Float64Array.of(42, 43), 42)).toEqual(0);
-  expect(search(Float64Array.of(42, 43), 43)).toEqual(1);
-  expect(search(Float64Array.of(42, 43), 44)).toEqual(1);
-  expect(search(Float64Array.of(42, 43, 44), 41)).toEqual(-1);
-  expect(search(Float64Array.of(42, 43, 44), 42)).toEqual(0);
-  expect(search(Float64Array.of(42, 43, 44), 43)).toEqual(1);
-  expect(search(Float64Array.of(42, 43, 44), 44)).toEqual(2);
-  expect(search(Float64Array.of(42, 43, 44), 45)).toEqual(2);
+  expect(search([], 100)).toEqual(-1);
+  expect(search([42], 42)).toEqual(0);
+  expect(search([42], 43)).toEqual(0);
+  expect(search([42], 41)).toEqual(-1);
+  expect(search([42, 43], 42)).toEqual(0);
+  expect(search([42, 43], 43)).toEqual(1);
+  expect(search([42, 43], 44)).toEqual(1);
+  expect(search([42, 43, 44], 41)).toEqual(-1);
+  expect(search([42, 43, 44], 42)).toEqual(0);
+  expect(search([42, 43, 44], 43)).toEqual(1);
+  expect(search([42, 43, 44], 44)).toEqual(2);
+  expect(search([42, 43, 44], 45)).toEqual(2);
 });
 
 test('searchEq', () => {
@@ -58,8 +63,9 @@ test('searchRange', () => {
 
 test('searchSegment', () => {
   expect(searchSegment(Float64Array.of(), 100)).toEqual([-1, -1]);
-  expect(searchSegment(Float64Array.of(42), 41)).toEqual([-1, 0]);
-  expect(searchSegment(Float64Array.of(42), 42)).toEqual([0, -1]);
-  expect(searchSegment(Float64Array.of(42), 43)).toEqual([0, -1]);
-  expect(searchSegment(Float64Array.of(42, 44), 42)).toEqual([0, 1]);
+  expect(searchSegment([42], 41)).toEqual([-1, 0]);
+  expect(searchSegment([42], 42)).toEqual([0, -1]);
+  expect(searchSegment([42], 43)).toEqual([0, -1]);
+  expect(searchSegment([42, 44], 42)).toEqual([0, 1]);
+  expect(searchSegment([1, 2, 2, 3], 2)).toEqual([2, 3]);
 });

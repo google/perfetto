@@ -21,7 +21,7 @@ packet {
       pid: 2
       rss_anon_kb: 1000
       vm_swap_kb: 0
-      oom_score_adj: 0
+      oom_score_adj: -800
     }
   }
 }

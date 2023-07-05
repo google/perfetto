@@ -33,8 +33,6 @@ export class DragGestureHandler {
     document.body.addEventListener('mousemove', this.boundOnMouseMove);
     document.body.addEventListener('mouseup', this.boundOnMouseUp);
     this.pendingMouseDownEvent = e;
-    // Prevent interactions with other DragGestureHandlers and event listeners
-    e.stopPropagation();
   }
 
   // We don't start the drag gesture on mouse down, instead we wait until
@@ -60,17 +58,15 @@ export class DragGestureHandler {
       this.onDrag(
           e.clientX - this.clientRect!.left, e.clientY - this.clientRect!.top);
     }
-    e.stopPropagation();
   }
 
-  private onMouseUp(e: MouseEvent) {
+  private onMouseUp(_e: MouseEvent) {
     this._isDragging = false;
     document.body.removeEventListener('mousemove', this.boundOnMouseMove);
     document.body.removeEventListener('mouseup', this.boundOnMouseUp);
     if (!this.pendingMouseDownEvent) {
       this.onDragFinished();
     }
-    e.stopPropagation();
   }
 
   get isDragging() {

@@ -17,7 +17,9 @@ import m from 'mithril';
 import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {Arg, ArgsTree, isArgTreeArray, isArgTreeMap} from '../common/arg_types';
-import {timeToCode} from '../common/time';
+import {EngineProxy} from '../common/engine';
+import {runQuery} from '../common/queries';
+import {TPDuration, tpDurationToSeconds, tpTimeToCode} from '../common/time';
 
 import {FlowPoint, globals, SliceDetails} from './globals';
 import {PanelSize} from './panel';
@@ -52,6 +54,29 @@ const ITEMS: ContextMenuItem[] = [
          ORDER BY client_dur DESC`,
         'Binder by TXN',
         ),
+  },
+  {
+    name: 'Binder call names',
+    shouldDisplay: () => true,
+    getAction: (slice: SliceDetails) => {
+      const engine = getEngine();
+      if (engine === undefined) return;
+      runQuery(`SELECT IMPORT('android.binder');`, engine)
+          .then(
+              () => runQueryInNewTab(
+                  `
+                SELECT s.ts, s.dur, tx.aidl_name AS name, s.id
+                FROM android_sync_binder_metrics_by_txn tx
+                  JOIN slice s ON tx.binder_txn_id = s.id
+                  JOIN thread_track ON s.track_id = thread_track.id
+                  JOIN thread USING (utid)
+                  JOIN process USING (upid)
+                WHERE aidl_name IS NOT NULL
+                  AND pid = ${slice.pid}
+                  AND tid = ${slice.tid}`,
+                  `Binder names (${slice.processName}:${slice.tid})`,
+                  ));
+    },
   },
   {
     name: 'Lock graph',
@@ -108,6 +133,15 @@ function getSliceContextMenuItems(slice: SliceDetails): PopupMenuItem[] {
       callback: () => item.getAction(slice),
     };
   });
+}
+
+function getEngine(): EngineProxy|undefined {
+  const engineId = globals.getCurrentEngine()?.id;
+  if (engineId === undefined) {
+    return undefined;
+  }
+  const engine = globals.engines.get(engineId)?.getProxy('SlicePanel');
+  return engine;
 }
 
 // Table row contents is one of two things:
@@ -261,7 +295,9 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           !sliceInfo.category || sliceInfo.category === '[NULL]' ?
               'N/A' :
               sliceInfo.category);
-      defaultBuilder.add('Start time', timeToCode(sliceInfo.ts));
+      defaultBuilder.add(
+          'Start time',
+          tpTimeToCode(sliceInfo.ts - globals.state.traceTime.start));
       if (sliceInfo.absTime !== undefined) {
         defaultBuilder.add('Absolute Time', sliceInfo.absTime);
       }
@@ -271,9 +307,11 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
           sliceInfo.threadDur !== undefined) {
         // If we have valid thread duration, also display a percentage of
         // |threadDur| compared to |dur|.
-        const threadDurFractionSuffix = sliceInfo.threadDur === -1 ?
+        const ratio = tpDurationToSeconds(sliceInfo.threadDur) /
+            tpDurationToSeconds(sliceInfo.dur);
+        const threadDurFractionSuffix = sliceInfo.threadDur === -1n ?
             '' :
-            ` (${(sliceInfo.threadDur / sliceInfo.dur * 100).toFixed(2)}%)`;
+            ` (${(ratio * 100).toFixed(2)}%)`;
         defaultBuilder.add(
             'Thread duration',
             this.computeDuration(sliceInfo.threadTs, sliceInfo.threadDur) +
@@ -313,7 +351,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
   }
 
   private fillFlowPanel(
-      name: string, flows: {flow: FlowPoint, dur: number}[],
+      name: string, flows: {flow: FlowPoint, dur: TPDuration}[],
       includeProcessName: boolean, result: Map<string, TableBuilder>) {
     if (flows.length === 0) return;
 
@@ -327,7 +365,7 @@ export class ChromeSliceDetailsPanel extends SlicePanel {
             flow.sliceName :
             flow.sliceChromeCustomName,
       });
-      builder.add('Delay', timeToCode(dur));
+      builder.add('Delay', tpTimeToCode(dur));
       builder.add(
           'Thread',
           includeProcessName ? `${flow.threadName} (${flow.processName})` :

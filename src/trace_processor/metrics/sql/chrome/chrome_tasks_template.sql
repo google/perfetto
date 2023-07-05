@@ -427,6 +427,7 @@ scheduler_tasks_with_mojo AS (
   WHERE
     s1.posted_from IN (
       "mojo/public/cpp/system/simple_watcher.cc:Notify",
+      "mojo/public/cpp/system/simple_watcher.cc:ArmOrNotify",
       "mojo/public/cpp/bindings/lib/connector.cc:PostDispatchNextMessageFromPipe",
       "ipc/ipc_mojo_bootstrap.cc:Accept")
 ),

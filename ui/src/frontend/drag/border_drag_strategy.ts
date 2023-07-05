@@ -12,28 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 import {TimeScale} from '../time_scale';
-
 import {DragStrategy} from './drag_strategy';
 
 export class BorderDragStrategy extends DragStrategy {
   private moveStart = false;
 
-  constructor(timeScale: TimeScale, private pixelBounds: [number, number]) {
-    super(timeScale);
+  constructor(map: TimeScale, private pixelBounds: [number, number]) {
+    super(map);
   }
 
   onDrag(x: number) {
-    let tStart =
-        this.timeScale.pxToTime(this.moveStart ? x : this.pixelBounds[0]);
-    let tEnd =
-        this.timeScale.pxToTime(!this.moveStart ? x : this.pixelBounds[1]);
-    if (tStart > tEnd) {
+    let tStart = this.map.pxToHpTime(this.moveStart ? x : this.pixelBounds[0]);
+    let tEnd = this.map.pxToHpTime(!this.moveStart ? x : this.pixelBounds[1]);
+    if (tStart.gt(tEnd)) {
       this.moveStart = !this.moveStart;
       [tEnd, tStart] = [tStart, tEnd];
     }
     super.updateGlobals(tStart, tEnd);
-    this.pixelBounds =
-        [this.timeScale.timeToPx(tStart), this.timeScale.timeToPx(tEnd)];
+    this.pixelBounds = [
+      this.map.hpTimeToPx(tStart),
+      this.map.hpTimeToPx(tEnd),
+    ];
   }
 
   onDragStart(x: number) {

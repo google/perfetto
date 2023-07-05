@@ -15,19 +15,21 @@
 import m from 'mithril';
 
 import {ColumnType} from '../../common/query_result';
+import {tpDurationFromSql, tpTimeFromSql} from '../../common/time';
 import {
   BottomTab,
   bottomTabRegistry,
   NewBottomTabArgs,
 } from '../../frontend/bottom_tab';
 import {globals} from '../../frontend/globals';
-import {timestampFromSqlNanos} from '../../frontend/sql_types';
+import {asTPTimestamp} from '../../frontend/sql_types';
 import {Duration} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {Tree, TreeNode} from '../../frontend/widgets/tree';
+import {dictToTree} from '../../frontend/widgets/tree';
+
 import {ARG_PREFIX} from './add_debug_track_menu';
 
-interface DebugSliceDetalsTabConfig {
+interface DebugSliceDetailsTabConfig {
   sqlTableName: string;
   id: number;
 }
@@ -42,18 +44,8 @@ function SqlValueToString(val: ColumnType) {
   return val.toString();
 }
 
-function dictToTree(dict: {[key: string]: m.Child}): m.Children {
-  const children: m.Child[] = [];
-  for (const key of Object.keys(dict)) {
-    children.push(m(TreeNode, {
-      left: key,
-      right: dict[key],
-    }));
-  }
-  return m(Tree, children);
-}
-
-export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
+export class DebugSliceDetailsTab extends
+    BottomTab<DebugSliceDetailsTabConfig> {
   static readonly kind = 'org.perfetto.DebugSliceDetailsTab';
 
   data: {[key: string]: ColumnType}|undefined;
@@ -78,12 +70,11 @@ export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
     if (this.data === undefined) {
       return m('h2', 'Loading');
     }
-    // TODO(stevegolton): These type assertions are dangerous, but no more
-    // dangerous than they used to be before this change.
     const left = dictToTree({
       'Name': this.data['name'] as string,
-      'Start time': m(Timestamp, {ts: timestampFromSqlNanos(this.data['ts'])}),
-      'Duration': m(Duration, {dur: Number(this.data['dur'])}),
+      'Start time':
+          m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data['ts']))}),
+      'Duration': m(Duration, {dur: tpDurationFromSql(this.data['dur'])}),
       'Debug slice id': `${this.config.sqlTableName}[${this.config.id}]`,
     });
     const args: {[key: string]: m.Child} = {};
@@ -93,7 +84,7 @@ export class DebugSliceDetailsTab extends BottomTab<DebugSliceDetalsTabConfig> {
       }
     }
     return m(
-        'div.details-panel',
+        '.details-panel',
         m('header.overview', m('span', 'Debug Slice')),
         m('.details-table-multicolumn',
           {

@@ -76,6 +76,13 @@ message ProcessStats {
     optional uint32 chrome_peak_resident_set_kb = 14;
 
     repeated FDInfo fds = 15;
+
+    // These fields are set only when scan_smaps_rollup=true
+    optional uint64 smr_rss_kb = 16;
+    optional uint64 smr_pss_kb = 17;
+    optional uint64 smr_pss_anon_kb = 18;
+    optional uint64 smr_pss_file_kb = 19;
+    optional uint64 smr_pss_shmem_kb = 20;
   }
   repeated Process processes = 1;
 

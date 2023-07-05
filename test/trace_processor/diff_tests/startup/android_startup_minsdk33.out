@@ -63,6 +63,7 @@ android_startup {
         apk_version_code: 123
         debuggable: true
       }
+      pid: 3
     }
     event_timestamps {
       intent_received: 220

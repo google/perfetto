@@ -20,9 +20,14 @@ import {
   colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
-import {NUM} from '../common/query_result';
+import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
-import {fromNs, toNs} from '../common/time';
+import {
+  TPDuration,
+  tpDurationFromNanos,
+  TPTime,
+  tpTimeFromNanos,
+} from '../common/time';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
@@ -45,7 +50,7 @@ const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK_COLOR;
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
 function filterVisibleSlices<S extends Slice>(
-    slices: S[], startS: number, endS: number): S[] {
+    slices: S[], start: TPTime, end: TPTime): S[] {
   // Here we aim to reduce the number of slices we have to draw
   // by ignoring those that are not visible. A slice is visible iff:
   //   slice.start + slice.duration >= start && slice.start <= end
@@ -89,7 +94,7 @@ function filterVisibleSlices<S extends Slice>(
   // For all slice in slices: slice.startS > endS (e.g. all slices are to the
   // right). Since the slices are sorted by startS we can check this easily:
   const maybeFirstSlice: S|undefined = slices[0];
-  if (maybeFirstSlice && maybeFirstSlice.startS > endS) {
+  if (maybeFirstSlice && maybeFirstSlice.start > end) {
     return [];
   }
   // It's not possible to easily check the analogous edge case where all slices
@@ -108,15 +113,15 @@ function filterVisibleSlices<S extends Slice>(
   let endIdx = slices.length;
   for (; startIdx < endIdx; ++startIdx) {
     const slice = slices[startIdx];
-    const sliceEndS = slice.startS + slice.durationS;
-    if (sliceEndS >= startS && slice.startS <= endS) {
+    const sliceEndS = slice.start + slice.duration;
+    if (sliceEndS >= start && slice.start <= end) {
       break;
     }
   }
   for (; startIdx < endIdx; --endIdx) {
     const slice = slices[endIdx - 1];
-    const sliceEndS = slice.startS + slice.durationS;
-    if (sliceEndS >= startS && slice.startS <= endS) {
+    const sliceEndS = slice.start + slice.duration;
+    if (sliceEndS >= start && slice.start <= end) {
       break;
     }
   }
@@ -181,8 +186,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   private cache: TrackCache<Array<CastInternal<T['slice']>>> =
       new TrackCache(5);
 
-  private readonly tableName: string;
-  private maxDurNs = 0;
+  protected readonly tableName: string;
+  private maxDurNs: TPDuration = 0n;
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
       'QUERY_DONE' = 'UNINITIALIZED';
   private extraSqlColumns: string[];
@@ -272,13 +277,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   renderCanvas(ctx: CanvasRenderingContext2D): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
-    const timeScale = globals.frontendLocalState.timeScale;
-    const vizTime = globals.frontendLocalState.visibleWindowTime;
+    const {
+      visibleTimeScale: timeScale,
+      visibleWindowTime: vizTime,
+    } = globals.frontendLocalState;
 
     {
-      const windowSizePx = Math.max(1, timeScale.endPx - timeScale.startPx);
-      const rawStartNs = toNs(vizTime.start);
-      const rawEndNs = toNs(vizTime.end);
+      const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
+      const rawStartNs = vizTime.start.toTPTime();
+      const rawEndNs = vizTime.end.toTPTime();
       const rawSlicesKey = CacheKey.create(rawStartNs, rawEndNs, windowSizePx);
 
       // If the visible time range is outside the cached area, requests
@@ -298,7 +305,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // Filter only the visible slices. |this.slices| will have more slices than
     // needed because maybeRequestData() over-fetches to handle small pan/zooms.
     // We don't want to waste time drawing slices that are off screen.
-    const vizSlices = this.getVisibleSlicesInternal(vizTime.start, vizTime.end);
+    const vizSlices = this.getVisibleSlicesInternal(
+        vizTime.start.toTPTime('floor'), vizTime.end.toTPTime('ceil'));
 
     let selection = globals.state.currentSelection;
 
@@ -321,15 +329,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     // pxEnd is the last visible pixel in the visible viewport. Drawing
     // anything < 0 or > pxEnd doesn't produce any visible effect as it goes
     // beyond the visible portion of the canvas.
-    const pxEnd = Math.floor(timeScale.timeToPx(vizTime.end));
+    const pxEnd = Math.floor(timeScale.hpTimeToPx(vizTime.end));
 
     for (const slice of vizSlices) {
       // Compute the basic geometry for any visible slice, even if only
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timeScale.timeToPx(slice.startS);
-      slice.w = timeScale.deltaTimeToPx(slice.durationS);
+      slice.x = timeScale.tpTimeToPx(slice.start);
+      slice.w = timeScale.durationToPx(slice.duration);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
         // bounding box that will contain the chevron.
@@ -429,10 +437,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.timeToPx(vizTime.start),
-        timeScale.timeToPx(vizTime.end),
-        timeScale.timeToPx(fromNs(this.slicesKey.startNs)),
-        timeScale.timeToPx(fromNs(this.slicesKey.endNs)));
+        timeScale.hpTimeToPx(vizTime.start),
+        timeScale.hpTimeToPx(vizTime.end),
+        timeScale.tpTimeToPx(this.slicesKey.start),
+        timeScale.tpTimeToPx(this.slicesKey.end));
 
     // TODO(hjd): Remove this.
     // The only thing this does is drawing the sched latency arrow. We should
@@ -478,7 +486,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
           from ${this.tableName}`);
-      const row = queryRes.firstRow({maxDur: NUM, rowCount: NUM});
+      const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
       this.sqlState = 'QUERY_DONE';
     } else if (
@@ -506,18 +514,18 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }
 
     this.sqlState = 'QUERY_PENDING';
-    const bucketNs = slicesKey.bucketNs;
+    const bucketNs = slicesKey.bucketSize;
     let queryTsq;
     let queryTsqEnd;
     // When we're zoomed into the level of single ns there is no point
     // doing quantization (indeed it causes bad artifacts) so instead
     // we use ts / ts+dur directly.
-    if (bucketNs === 1) {
+    if (bucketNs === 1n) {
       queryTsq = 'ts';
       queryTsqEnd = 'ts + dur';
     } else {
-      queryTsq = `(ts + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
-      queryTsqEnd = `(ts + dur + ${bucketNs / 2}) / ${bucketNs} * ${bucketNs}`;
+      queryTsq = `(ts + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs}`;
+      queryTsqEnd = `(ts + dur + ${bucketNs / 2n}) / ${bucketNs} * ${bucketNs}`;
     }
 
     const extraCols = this.extraSqlColumns.join(',');
@@ -557,8 +565,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         ${extraCols ? ',' + extraCols : ''}
       from ${this.tableName}
       where
-        ts >= ${slicesKey.startNs - this.maxDurNs /* - durNs */} and
-        ts <= ${slicesKey.endNs /* + durNs */}
+        ts >= ${slicesKey.start - this.maxDurNs /* - durNs */} and
+        ts <= ${slicesKey.end /* + durNs */}
       group by ${maybeGroupByDepth} tsq
       order by tsq),
     q2 as (
@@ -623,8 +631,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     return {
       id: row.id,
-      startS: fromNs(startNsQ),
-      durationS: fromNs(endNsQ - startNsQ),
+      start: tpTimeFromNanos(startNsQ),
+      duration: tpDurationFromNanos(endNsQ - startNsQ),
       flags,
       depth: row.depth,
       title: '',
@@ -701,10 +709,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     return true;
   }
 
-  private getVisibleSlicesInternal(startS: number, endS: number):
+  private getVisibleSlicesInternal(start: TPTime, end: TPTime):
       Array<CastInternal<T['slice']>> {
     return filterVisibleSlices<CastInternal<T['slice']>>(
-        this.slices, startS, endS);
+        this.slices, start, end);
   }
 
   private updateSliceAndTrackHeight() {
@@ -785,7 +793,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     return this.computedTrackHeight;
   }
 
-  getSliceRect(_tStart: number, _tEnd: number, _depth: number): SliceRect
+  getSliceRect(_tStart: TPTime, _tEnd: TPTime, _depth: number): SliceRect
       |undefined {
     // TODO(hjd): Implement this as part of updating flow events.
     return undefined;

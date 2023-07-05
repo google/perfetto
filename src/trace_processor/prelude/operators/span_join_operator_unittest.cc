@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/prelude/operators/span_join_operator.h"
 
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -25,19 +26,19 @@ namespace {
 class SpanJoinOperatorTableTest : public ::testing::Test {
  public:
   SpanJoinOperatorTableTest() {
-    sqlite3* db = nullptr;
-    PERFETTO_CHECK(sqlite3_initialize() == SQLITE_OK);
-    PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
-    db_.reset(db);
-
-    SpanJoinOperatorTable::RegisterTable(db_.get(), nullptr);
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorTable>(
+        "span_join", nullptr, SqliteTable::TableType::kExplicitCreate, false);
+    engine_.RegisterVirtualTableModule<SpanJoinOperatorTable>(
+        "span_left_join", nullptr, SqliteTable::TableType::kExplicitCreate,
+        false);
   }
 
   void PrepareValidStatement(const std::string& sql) {
     int size = static_cast<int>(sql.size());
     sqlite3_stmt* stmt;
-    ASSERT_EQ(sqlite3_prepare_v2(*db_, sql.c_str(), size, &stmt, nullptr),
-              SQLITE_OK);
+    ASSERT_EQ(
+        sqlite3_prepare_v2(engine_.db(), sql.c_str(), size, &stmt, nullptr),
+        SQLITE_OK);
     stmt_.reset(stmt);
   }
 
@@ -55,7 +56,7 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
   }
 
  protected:
-  ScopedDb db_;
+  SqliteEngine engine_;
   ScopedStmt stmt_;
 };
 

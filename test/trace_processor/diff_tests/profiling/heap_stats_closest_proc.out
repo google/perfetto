@@ -4,6 +4,7 @@ java_heap_stats {
     process {
       name: "proc1"
       uid: 1000
+      pid: 2
     }
     samples {
       ts: 200000000
@@ -28,6 +29,7 @@ java_heap_stats {
     process {
       name: "proc2"
       uid: 1000
+      pid: 3
     }
     samples {
       ts: 1500000000

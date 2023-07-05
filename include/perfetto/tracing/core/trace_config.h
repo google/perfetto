@@ -25,4 +25,16 @@
 
 #include "protos/perfetto/config/trace_config.gen.h"
 
+namespace perfetto {
+
+inline TraceConfig::TriggerConfig::TriggerMode GetTriggerMode(
+    const TraceConfig& cfg) {
+  auto mode = cfg.trigger_config().trigger_mode();
+  if (cfg.trigger_config().use_clone_snapshot_if_available())
+    mode = TraceConfig::TriggerConfig::CLONE_SNAPSHOT;
+  return mode;
+}
+
+}  // namespace perfetto
+
 #endif  // INCLUDE_PERFETTO_TRACING_CORE_TRACE_CONFIG_H_

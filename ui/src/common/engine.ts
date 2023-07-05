@@ -24,18 +24,20 @@ import {
   QueryArgs,
   ResetTraceProcessorArgs,
 } from './protos';
-import {NUM, NUM_NULL, STR} from './query_result';
+import {LONG, LONG_NULL, NUM, STR} from './query_result';
 import {
   createQueryResult,
   QueryError,
   QueryResult,
   WritableQueryResult,
 } from './query_result';
-import {TimeSpan} from './time';
+import {TPTime, TPTimeSpan} from './time';
 
 import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
 import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;
 import TPM = perfetto.protos.TraceProcessorRpc.TraceProcessorMethod;
+import {Span} from '../common/time';
+import {BigintMath} from '../base/bigint_math';
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -410,38 +412,38 @@ export abstract class Engine {
     return result.firstRow({cnt: NUM}).cnt;
   }
 
-  async getTraceTimeBounds(): Promise<TimeSpan> {
+  async getTraceTimeBounds(): Promise<Span<TPTime>> {
     const result = await this.query(
         `select start_ts as startTs, end_ts as endTs from trace_bounds`);
     const bounds = result.firstRow({
-      startTs: NUM,
-      endTs: NUM,
+      startTs: LONG,
+      endTs: LONG,
     });
-    return new TimeSpan(bounds.startTs / 1e9, bounds.endTs / 1e9);
+    return new TPTimeSpan(bounds.startTs, bounds.endTs);
   }
 
-  async getTracingMetadataTimeBounds(): Promise<TimeSpan> {
+  async getTracingMetadataTimeBounds(): Promise<Span<TPTime>> {
     const queryRes = await this.query(`select
          name,
          int_value as intValue
          from metadata
          where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
          or name = 'all_data_source_started_ns'`);
-    let startBound = -Infinity;
-    let endBound = Infinity;
-    const it = queryRes.iter({'name': STR, 'intValue': NUM_NULL});
+    let startBound = 0n;
+    let endBound = BigintMath.INT64_MAX;
+    const it = queryRes.iter({'name': STR, 'intValue': LONG_NULL});
     for (; it.valid(); it.next()) {
       const columnName = it.name;
       const timestamp = it.intValue;
       if (timestamp === null) continue;
       if (columnName === 'tracing_disabled_ns') {
-        endBound = Math.min(endBound, timestamp / 1e9);
+        endBound = BigintMath.min(endBound, timestamp);
       } else {
-        startBound = Math.max(startBound, timestamp / 1e9);
+        startBound = BigintMath.max(startBound, timestamp);
       }
     }
 
-    return new TimeSpan(startBound, endBound);
+    return new TPTimeSpan(startBound, endBound);
   }
 
   getProxy(tag: string): EngineProxy {

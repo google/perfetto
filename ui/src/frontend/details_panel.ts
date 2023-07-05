@@ -17,9 +17,12 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
+import {pluginManager} from '../common/plugins';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
 import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
+import {SCROLL_JANK_PLUGIN_ID} from '../tracks/scroll_jank';
+import {TOP_LEVEL_SCROLL_KIND} from '../tracks/scroll_jank/scroll_track';
 
 import {AggregationPanel} from './aggregation_panel';
 import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
@@ -36,7 +39,7 @@ import {FtracePanel} from './ftrace_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
-import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {AnyAttrsVnode} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
@@ -44,6 +47,8 @@ import {ThreadStateTab} from './thread_state_tab';
 const UP_ICON = 'keyboard_arrow_up';
 const DOWN_ICON = 'keyboard_arrow_down';
 const DRAG_HANDLE_HEIGHT_PX = 28;
+
+export const CURRENT_SELECTION_TAG = 'current_selection';
 
 function getDetailsHeight() {
   // This needs to be a function instead of a const to ensure the CSS constants
@@ -147,7 +152,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onclick: () => {
                 this.isClosed = false;
                 this.isFullscreen = true;
-                this.resize(this.fullscreenHeight);
+                this.resize(this.fullscreenHeight - DRAG_HANDLE_HEIGHT_PX);
                 globals.rafScheduler.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
@@ -167,7 +172,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                   this.isFullscreen = false;
                   this.isClosed = true;
                   this.previousHeight = this.height;
-                  this.resize(DRAG_HANDLE_HEIGHT_PX);
+                  this.resize(0);
                 }
                 globals.rafScheduler.scheduleFullRedraw();
               },
@@ -178,7 +183,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
 }
 
 function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
-  const currentSelectionTag = 'current_selection';
+  const currentSelectionTag = CURRENT_SELECTION_TAG;
   const bottomTabList = globals.bottomTabList;
   if (!bottomTabList) return;
   if (newSelection === undefined) {
@@ -224,6 +229,10 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
           id: newSelection.id,
         },
       });
+      break;
+    case TOP_LEVEL_SCROLL_KIND:
+      pluginManager.onDetailsPanelSelectionChange(
+          SCROLL_JANK_PLUGIN_ID, newSelection);
       break;
     default:
       bottomTabList.closeTabByTag(currentSelectionTag);
@@ -381,27 +390,27 @@ export class DetailsPanel implements m.ClassComponent {
     }
 
     const panel = currentTabDetails?.vnode;
-    const panels = panel ? [panel] : [];
 
-    return m(
-        '.details-content',
-        {
-          style: {
-            height: `${this.detailsHeight}px`,
-            display: detailsPanels.length > 0 ? null : 'none',
-          },
+    if (!panel) {
+      return null;
+    }
+
+    return [
+      m(DragHandle, {
+        resize: (height: number) => {
+          this.detailsHeight = Math.max(height, 0);
         },
-        m(DragHandle, {
-          resize: (height: number) => {
-            this.detailsHeight = Math.max(height, DRAG_HANDLE_HEIGHT_PX);
-          },
-          height: this.detailsHeight,
-          tabs: detailsPanels.map((tab) => {
-            return {key: tab.key, name: tab.name};
-          }),
-          currentTabKey: currentTabDetails?.key,
+        height: this.detailsHeight,
+        tabs: detailsPanels.map((tab) => {
+          return {key: tab.key, name: tab.name};
         }),
-        m('.details-panel-container.x-scrollable',
-          m(PanelContainer, {doesScroll: true, panels, kind: 'DETAILS'})));
+        currentTabKey: currentTabDetails?.key,
+      }),
+      m('.details-panel-container',
+        {
+          style: {height: `${this.detailsHeight}px`},
+        },
+        panel),
+    ];
   }
 }

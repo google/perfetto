@@ -479,10 +479,11 @@ void ConsumerIPCClientImpl::CloneSession(TracingSessionID tsid) {
           // If the IPC fails, we are talking to an older version of the service
           // that didn't support CloneSession at all.
           weak_this->consumer_->OnSessionCloned(
-              false, "CloneSession IPC not supported");
+              {false, "CloneSession IPC not supported", {}});
         } else {
-          weak_this->consumer_->OnSessionCloned(response->success(),
-                                                response->error());
+          base::Uuid uuid(response->uuid_lsb(), response->uuid_msb());
+          weak_this->consumer_->OnSessionCloned(
+              {response->success(), response->error(), uuid});
         }
       });
   consumer_port_.CloneSession(req, std::move(async_response));

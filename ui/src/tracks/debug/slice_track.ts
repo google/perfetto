@@ -78,8 +78,8 @@ export class DebugTrackV2 extends NamedSliceTrack<DebugTrackV2Types> {
     globals.dispatch(Actions.selectDebugSlice({
       id: args.slice.id,
       sqlTableName: this.config.sqlTableName,
-      startS: args.slice.startS,
-      durationS: args.slice.durationS,
+      start: args.slice.start,
+      duration: args.slice.duration,
       trackId: this.trackId,
     }));
   }

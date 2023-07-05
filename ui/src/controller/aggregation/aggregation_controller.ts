@@ -149,7 +149,12 @@ export abstract class AggregationController extends Controller<'main'> {
         } else if (item instanceof Uint8Array) {
           column.data[i] = internString('<Binary blob>');
         } else if (typeof item === 'bigint') {
-          // TODO(stevegolton) Handle potential loss of precision
+          // TODO(stevegolton) It would be nice to keep bigints as bigints for
+          // the purposes of aggregation, however the aggregation infrastructure
+          // is likely to be significantly reworked when we introduce EventSet,
+          // and the complexity of supporting bigints throughout the aggregation
+          // panels in it's current form is not worth it. Thus, we simply
+          // convert bigints to numbers.
           column.data[i] = Number(item);
         } else {
           column.data[i] = item;

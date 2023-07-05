@@ -19,6 +19,7 @@
 
 #include <cinttypes>
 #include <string>
+#include <vector>
 
 #include "perfetto/tracing/core/forward_decls.h"
 

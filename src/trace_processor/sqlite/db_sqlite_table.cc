@@ -135,32 +135,6 @@ DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
       generator_(std::move(context.generator)) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
-void DbSqliteTable::RegisterTable(sqlite3* db,
-                                  QueryCache* cache,
-                                  const Table* table,
-                                  const std::string& name) {
-  Context context{cache, TableComputation::kStatic, table, nullptr};
-  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context), name,
-                                                RegistrationFlags{});
-}
-
-void DbSqliteTable::RegisterTable(sqlite3* db,
-                                  QueryCache* cache,
-                                  std::unique_ptr<TableFunction> generator) {
-  // Figure out if the table needs explicit args (in the form of constraints
-  // on hidden columns) passed to it in order to make the query valid.
-  base::Status status = generator->ValidateConstraints(
-      QueryConstraints(std::numeric_limits<uint64_t>::max()));
-
-  std::string table_name = generator->TableName();
-  Context context{cache, TableComputation::kDynamic, nullptr,
-                  std::move(generator)};
-  RegistrationFlags flags;
-  flags.requires_hidden_constraints = !status.ok();
-  SqliteTable::Register<DbSqliteTable, Context>(db, std::move(context),
-                                                table_name, flags);
-}
-
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   switch (computation_) {
     case TableComputation::kStatic:
@@ -395,14 +369,15 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
   return QueryCost{final_cost, current_row_count};
 }
 
-std::unique_ptr<SqliteTable::Cursor> DbSqliteTable::CreateCursor() {
+std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
   return std::unique_ptr<Cursor>(new Cursor(this, cache_));
 }
 
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
-    : SqliteTable::Cursor(sqlite_table),
+    : SqliteTable::BaseCursor(sqlite_table),
       db_sqlite_table_(sqlite_table),
       cache_(cache) {}
+DbSqliteTable::Cursor::~Cursor() = default;
 
 void DbSqliteTable::Cursor::TryCacheCreateSortedTable(
     const QueryConstraints& qc,

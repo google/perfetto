@@ -20,7 +20,6 @@ import {
   PivotTableQuery,
   PivotTableState,
 } from '../common/state';
-import {toNs} from '../common/time';
 import {
   getSelectedTrackIds,
 } from '../controller/aggregation/slice_aggregation_controller';
@@ -100,8 +99,8 @@ function aggregationAlias(aggregationIndex: number): string {
 
 export function areaFilter(area: Area): string {
   return `
-    ts + dur > ${toNs(area.startSec)}
-    and ts < ${toNs(area.endSec)}
+    ts + dur > ${area.start}
+    and ts < ${area.end}
     and track_id in (${getSelectedTrackIds(area).join(', ')})
   `;
 }

@@ -14,11 +14,12 @@
 
 import m from 'mithril';
 
-import {fromNs} from '../common/time';
+import {TPTimeSpan} from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {
+  getMaxMajorTicks,
   TickGenerator,
   TickType,
   timeScaleForVisibleWindow,
@@ -32,14 +33,26 @@ export class TickmarkPanel extends Panel {
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {timeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.frontendLocalState;
 
     ctx.fillStyle = '#999';
     ctx.fillRect(TRACK_SHELL_WIDTH - 2, 0, 2, size.height);
-    const relScale = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-    if (relScale.timeSpan.duration > 0 && relScale.widthPx > 0) {
-      for (const {type, position} of new TickGenerator(relScale)) {
-        if (type === TickType.MAJOR) ctx.fillRect(position, 0, 1, size.height);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
+    ctx.clip();
+
+    const visibleSpan = globals.frontendLocalState.visibleWindow.timestampSpan;
+    if (size.width > TRACK_SHELL_WIDTH && visibleSpan.duration > 0n) {
+      const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
+      const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
+      for (const {type, time} of new TickGenerator(
+               visibleSpan, maxMajorTicks, globals.state.traceTime.start)) {
+        const px = Math.floor(map.tpTimeToPx(time));
+        if (type === TickType.MAJOR) {
+          ctx.fillRect(px, 0, 1, size.height);
+        }
       }
     }
 
@@ -47,12 +60,13 @@ export class TickmarkPanel extends Panel {
     for (let i = 0; i < data.tsStarts.length; i++) {
       const tStart = data.tsStarts[i];
       const tEnd = data.tsEnds[i];
-      if (tEnd <= visibleWindowTime.start || tStart >= visibleWindowTime.end) {
+      const segmentSpan = new TPTimeSpan(tStart, tEnd);
+      if (!visibleSpan.intersects(segmentSpan)) {
         continue;
       }
       const rectStart =
-          Math.max(timeScale.timeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
-      const rectEnd = timeScale.timeToPx(tEnd) + TRACK_SHELL_WIDTH;
+          Math.max(visibleTimeScale.tpTimeToPx(tStart), 0) + TRACK_SHELL_WIDTH;
+      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd) + TRACK_SHELL_WIDTH;
       ctx.fillStyle = '#ffe263';
       ctx.fillRect(
           Math.floor(rectStart),
@@ -61,16 +75,20 @@ export class TickmarkPanel extends Panel {
           size.height);
     }
     const index = globals.state.searchIndex;
-    const startSec = fromNs(globals.currentSearchResults.tsStarts[index]);
-    const triangleStart =
-        Math.max(timeScale.timeToPx(startSec), 0) + TRACK_SHELL_WIDTH;
-    ctx.fillStyle = '#000';
-    ctx.beginPath();
-    ctx.moveTo(triangleStart, size.height);
-    ctx.lineTo(triangleStart - 3, 0);
-    ctx.lineTo(triangleStart + 3, 0);
-    ctx.lineTo(triangleStart, size.height);
-    ctx.fill();
-    ctx.closePath();
+    if (index !== -1 && index <= globals.currentSearchResults.tsStarts.length) {
+      const start = globals.currentSearchResults.tsStarts[index];
+      const triangleStart =
+          Math.max(visibleTimeScale.tpTimeToPx(start), 0) + TRACK_SHELL_WIDTH;
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(triangleStart, size.height);
+      ctx.lineTo(triangleStart - 3, 0);
+      ctx.lineTo(triangleStart + 3, 0);
+      ctx.lineTo(triangleStart, size.height);
+      ctx.fill();
+      ctx.closePath();
+    }
+
+    ctx.restore();
   }
 }

@@ -159,7 +159,7 @@ export class QueryError extends Error {
 
 // One row extracted from an SQL result:
 export interface Row {
-  [key: string]: ColumnType;
+  [key: string]: ColumnType|undefined;
 }
 
 // The methods that any iterator has to implement.

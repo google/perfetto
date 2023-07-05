@@ -15,6 +15,7 @@ android_blocking_calls_cuj_metric {
         apk_version_code: 1
         debuggable: false
       }
+      pid: 1000
     }
     ts: 0
     dur: 115000000
@@ -42,6 +43,7 @@ android_blocking_calls_cuj_metric {
         apk_version_code: 1
         debuggable: false
       }
+      pid: 1000
     }
     ts: 0
     dur: 802000000

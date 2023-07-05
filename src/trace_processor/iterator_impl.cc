@@ -18,6 +18,7 @@
 
 #include "perfetto/base/time.h"
 #include "perfetto/trace_processor/trace_processor_storage.h"
+#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/trace_processor_impl.h"
@@ -25,17 +26,12 @@
 namespace perfetto {
 namespace trace_processor {
 
-IteratorImpl::IteratorImpl(TraceProcessorImpl* trace_processor,
-                           sqlite3* db,
-                           base::Status status,
-                           ScopedStmt stmt,
-                           StmtMetadata metadata,
-                           uint32_t sql_stats_row)
+IteratorImpl::IteratorImpl(
+    TraceProcessorImpl* trace_processor,
+    base::StatusOr<PerfettoSqlEngine::ExecutionResult> result,
+    uint32_t sql_stats_row)
     : trace_processor_(trace_processor),
-      db_(db),
-      status_(std::move(status)),
-      stmt_(std::move(stmt)),
-      stmt_metadata_(std::move(metadata)),
+      result_(std::move(result)),
       sql_stats_row_(sql_stats_row) {}
 
 IteratorImpl::~IteratorImpl() {

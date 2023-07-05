@@ -72,8 +72,6 @@ WorkerImpl::TracePoolShardSetTraces(
     // pools.
     auto tp = std::make_unique<TraceProcessorWrapper>(
         trace, thread_pool_, TraceProcessorWrapper::Statefulness::kStateless);
-    shard->tps.emplace_back(std::move(tp));
-
     auto load_trace_future =
         tp->LoadTrace(environment_->ReadFile(trace))
             .ContinueWith(
@@ -84,6 +82,7 @@ WorkerImpl::TracePoolShardSetTraces(
                   return resp;
                 });
     streams.emplace_back(base::StreamFromFuture(std::move(load_trace_future)));
+    shard->tps.emplace_back(std::move(tp));
   }
   return base::FlattenStreams(std::move(streams));
 }

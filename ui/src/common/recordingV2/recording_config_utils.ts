@@ -79,9 +79,8 @@ export class RecordingConfigUtils {
 
 export function genTraceConfig(
     uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
-  const androidApiLevel = (targetInfo.targetType === 'ANDROID') ?
-      targetInfo.androidApiLevel :
-      undefined;
+  const isAndroid = targetInfo.targetType === 'ANDROID';
+  const androidApiLevel = isAndroid ? targetInfo.androidApiLevel : undefined;
   const protoCfg = new TraceConfig();
   protoCfg.durationMs = uiCfg.durationMs;
 
@@ -96,8 +95,8 @@ export function genTraceConfig(
 
   protoCfg.buffers.push(new BufferConfig());
   protoCfg.buffers.push(new BufferConfig());
-  protoCfg.buffers[1].sizeKb = slowBufSizeKb;
   protoCfg.buffers[0].sizeKb = fastBufSizeKb;
+  protoCfg.buffers[1].sizeKb = slowBufSizeKb;
 
   if (uiCfg.mode === 'STOP_WHEN_FULL') {
     protoCfg.buffers[0].fillPolicy = BufferConfig.FillPolicy.DISCARD;
@@ -130,6 +129,14 @@ export function genTraceConfig(
   let procThreadAssociationPolling = false;
   let procThreadAssociationFtrace = false;
   let trackInitialOomScore = false;
+
+  if (isAndroid) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.targetBuffer = 1;
+    ds.config.name = 'android.packages_list';
+    protoCfg.dataSources.push(ds);
+  }
 
   if (uiCfg.cpuSched) {
     procThreadAssociationPolling = true;

@@ -27,54 +27,11 @@
 #include "src/trace_processor/db/column_storage.h"
 #include "src/trace_processor/db/column_storage_overlay.h"
 #include "src/trace_processor/db/compare.h"
+#include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/typed_column_internal.h"
 
 namespace perfetto {
 namespace trace_processor {
-
-// Represents the possible filter operations on a column.
-enum class FilterOp {
-  kEq,
-  kNe,
-  kGt,
-  kLt,
-  kGe,
-  kLe,
-  kIsNull,
-  kIsNotNull,
-  kGlob,
-};
-
-// Represents a constraint on a column.
-struct Constraint {
-  uint32_t col_idx;
-  FilterOp op;
-  SqlValue value;
-};
-
-// Represents an order by operation on a column.
-struct Order {
-  uint32_t col_idx;
-  bool desc;
-};
-
-// The enum type of the column.
-// Public only to stop GCC complaining about templates being defined in a
-// non-namespace scope (see ColumnTypeHelper below).
-enum class ColumnType {
-  // Standard primitive types.
-  kInt32,
-  kUint32,
-  kInt64,
-  kDouble,
-  kString,
-
-  // Types generated on the fly.
-  kId,
-
-  // Types which don't have any data backing them.
-  kDummy,
-};
 
 // Helper class for converting a type to a ColumnType.
 template <typename T>

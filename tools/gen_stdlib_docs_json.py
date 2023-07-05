@@ -23,7 +23,7 @@ from typing import Dict
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.stdlib_docs.stdlib import *
+from python.generators.stdlib_docs.parse import parse_file_to_dict
 
 
 def main():
@@ -70,7 +70,8 @@ def main():
     module_name = path.split("/")[0]
     import_key = path.split(".sql")[0].replace("/", ".")
 
-    docs = parse_file_to_dict(path, sql)[0]
+    docs = parse_file_to_dict(path, sql)
+    assert isinstance(docs, dict)
     if not any(docs.values()):
       continue
     file_dict = {'import_key': import_key, **docs}

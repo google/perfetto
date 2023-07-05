@@ -27,7 +27,7 @@
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
 #include "src/trace_processor/util/descriptors.h"
 
 #include "protos/perfetto/trace_processor/metrics_impl.pbzero.h"

@@ -20,14 +20,14 @@ from __future__ import print_function
 import argparse
 import sys
 import json
-from typing import List, Dict
+from typing import Any, List, Dict
 
 
 # Responsible for module level markdown generation.
 class ModuleMd:
 
-  def __init__(self, module_name: str,
-               module_files: List[Dict[str, any]]) -> None:
+  def __init__(self, module_name: str, module_files: List[Dict[str,
+                                                               Any]]) -> None:
     self.module_name = module_name
     self.files_md = [
         FileMd(module_name, file_dict) for file_dict in module_files

@@ -35,10 +35,12 @@ struct alignas(8) InlineSchedSwitch {
 
 struct alignas(8) InlineSchedWaking {
   int32_t pid;
-  int32_t target_cpu;
-  int32_t prio;
+  uint16_t target_cpu;
+  uint16_t prio;
   StringPool::Id comm;
+  uint16_t common_flags;
 };
+static_assert(sizeof(InlineSchedWaking) == 16);
 
 struct alignas(8) JsonEvent {
   std::string value;

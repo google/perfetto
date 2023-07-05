@@ -181,7 +181,9 @@ ModuleResult AndroidProbesModule::TokenizePacket(
             : packet_timestamp;
 
     protozero::HeapBuffered<protos::pbzero::TracePacket> data_packet;
-    data_packet->set_timestamp(static_cast<uint64_t>(actual_ts));
+    // Keep the original timestamp to later extract as an arg; the sorter does
+    // not read this.
+    data_packet->set_timestamp(static_cast<uint64_t>(packet_timestamp));
 
     auto* energy = data_packet->set_power_rails()->add_energy_data();
     energy->set_energy(data.energy());
@@ -207,7 +209,7 @@ void AndroidProbesModule::ParseTracePacketData(
       parser_.ParseBatteryCounters(ts, decoder.battery());
       return;
     case TracePacket::kPowerRailsFieldNumber:
-      parser_.ParsePowerRails(ts, decoder.power_rails());
+      parser_.ParsePowerRails(ts, decoder.timestamp(), decoder.power_rails());
       return;
     case TracePacket::kAndroidEnergyEstimationBreakdownFieldNumber:
       parser_.ParseEnergyBreakdown(

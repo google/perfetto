@@ -14,8 +14,7 @@
 
 import m from 'mithril';
 
-import {fromNs, timeToCode} from '../common/time';
-
+import {tpTimeToCode} from '../common/time';
 import {globals} from './globals';
 import {Panel} from './panel';
 
@@ -37,7 +36,11 @@ export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
                    m('tr', m('th', `Name`), m('td', `${counterInfo.name}`)),
                    m('tr',
                      m('th', `Start time`),
-                     m('td', `${timeToCode(counterInfo.startTime)}`)),
+                     m('td',
+                       `${
+                           tpTimeToCode(
+                               counterInfo.startTime -
+                               globals.state.traceTime.start)}`)),
                    m('tr',
                      m('th', `Value`),
                      m('td', `${counterInfo.value.toLocaleString()}`)),
@@ -46,7 +49,7 @@ export class CounterDetailsPanel extends Panel<CounterDetailsPanelAttrs> {
                      m('td', `${counterInfo.delta.toLocaleString()}`)),
                    m('tr',
                      m('th', `Duration`),
-                     m('td', `${timeToCode(fromNs(counterInfo.duration))}`)),
+                     m('td', `${tpTimeToCode(counterInfo.duration)}`)),
                  ])],
               ));
     } else {

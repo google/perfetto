@@ -110,7 +110,7 @@ export function createEmptyState(): State {
       visibleState: {
         ...defaultTraceTime,
         lastUpdate: 0,
-        resolution: 0,
+        resolution: 0n,
       },
     },
 
@@ -142,8 +142,8 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoverCursorTimestamp: -1,
-    hoveredNoteTimestamp: -1,
+    hoverCursorTimestamp: -1n,
+    hoveredNoteTimestamp: -1n,
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,
     focusedFlowIdRight: -1,

@@ -12,18 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TPTime} from '../common/time';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {TimeScale} from './time_scale';
 
-export function drawVerticalLineAtTime(ctx: CanvasRenderingContext2D,
-                                       timeScale: TimeScale,
-                                       time: number,
-                                       height: number,
-                                       color: string,
-                                       lineWidth = 2) {
-    const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.timeToPx(time));
-    drawVerticalLine(ctx, xPos, height, color, lineWidth);
-  }
+export function drawVerticalLineAtTime(
+    ctx: CanvasRenderingContext2D,
+    timeScale: TimeScale,
+    time: TPTime,
+    height: number,
+    color: string,
+    lineWidth = 2) {
+  const xPos = TRACK_SHELL_WIDTH + Math.floor(timeScale.tpTimeToPx(time));
+  drawVerticalLine(ctx, xPos, height, color, lineWidth);
+}
 
 function drawVerticalLine(ctx: CanvasRenderingContext2D,
                           xPos: number,

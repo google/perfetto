@@ -12,66 +12,62 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TimeSpan} from '../common/time';
+import {HighPrecisionTime} from '../common/high_precision_time';
 
-import {computeZoom, TimeScale} from './time_scale';
+import {PxSpan, TimeScale} from './time_scale';
 
-test('time scale to work', () => {
-  const scale = new TimeScale(new TimeSpan(0, 100), [200, 1000]);
+describe('TimeScale', () => {
+  const ts =
+      new TimeScale(new HighPrecisionTime(40n), 100, new PxSpan(200, 1000));
 
-  expect(scale.timeToPx(0)).toEqual(200);
-  expect(scale.timeToPx(100)).toEqual(1000);
-  expect(scale.timeToPx(50)).toEqual(600);
+  it('converts timescales to pixels', () => {
+    expect(ts.tpTimeToPx(40n)).toEqual(200);
+    expect(ts.tpTimeToPx(140n)).toEqual(1000);
+    expect(ts.tpTimeToPx(90n)).toEqual(600);
 
-  expect(scale.pxToTime(200)).toEqual(0);
-  expect(scale.pxToTime(1000)).toEqual(100);
-  expect(scale.pxToTime(600)).toEqual(50);
+    expect(ts.tpTimeToPx(240n)).toEqual(1800);
+    expect(ts.tpTimeToPx(-60n)).toEqual(-600);
+  });
 
-  expect(scale.deltaPxToDuration(400)).toEqual(50);
+  it('converts pixels to HPTime objects', () => {
+    let result = ts.pxToHpTime(200);
+    expect(result.base).toEqual(40n);
+    expect(result.offset).toBeCloseTo(0);
 
-  expect(scale.timeInBounds(50)).toEqual(true);
-  expect(scale.timeInBounds(0)).toEqual(true);
-  expect(scale.timeInBounds(100)).toEqual(true);
-  expect(scale.timeInBounds(-1)).toEqual(false);
-  expect(scale.timeInBounds(101)).toEqual(false);
-});
+    result = ts.pxToHpTime(1000);
+    expect(result.base).toEqual(140n);
+    expect(result.offset).toBeCloseTo(0);
 
+    result = ts.pxToHpTime(600);
+    expect(result.base).toEqual(90n);
+    expect(result.offset).toBeCloseTo(0);
 
-test('time scale to be updatable', () => {
-  const scale = new TimeScale(new TimeSpan(0, 100), [100, 1000]);
+    result = ts.pxToHpTime(1800);
+    expect(result.base).toEqual(240n);
+    expect(result.offset).toBeCloseTo(0);
 
-  expect(scale.timeToPx(0)).toEqual(100);
+    result = ts.pxToHpTime(-600);
+    expect(result.base).toEqual(-60n);
+    expect(result.offset).toBeCloseTo(0);
+  });
 
-  scale.setLimitsPx(200, 1000);
-  expect(scale.timeToPx(0)).toEqual(200);
-  expect(scale.timeToPx(100)).toEqual(1000);
+  it('converts durations to pixels', () => {
+    expect(ts.durationToPx(0n)).toEqual(0);
+    expect(ts.durationToPx(1n)).toEqual(8);
+    expect(ts.durationToPx(1000n)).toEqual(8000);
+  });
 
-  scale.setTimeBounds(new TimeSpan(0, 200));
-  expect(scale.timeToPx(0)).toEqual(200);
-  expect(scale.timeToPx(100)).toEqual(600);
-  expect(scale.timeToPx(200)).toEqual(1000);
-});
+  it('converts pxDeltaToDurations to HPTime durations', () => {
+    let result = ts.pxDeltaToDuration(0);
+    expect(result.base).toEqual(0n);
+    expect(result.offset).toBeCloseTo(0);
 
-test('it zooms', () => {
-  const span = new TimeSpan(0, 20);
-  const scale = new TimeScale(span, [0, 100]);
-  const newSpan = computeZoom(scale, span, 0.5, 50);
-  expect(newSpan.start).toEqual(5);
-  expect(newSpan.end).toEqual(15);
-});
+    result = ts.pxDeltaToDuration(1);
+    expect(result.base).toEqual(0n);
+    expect(result.offset).toBeCloseTo(0.125);
 
-test('it zooms an offset scale and span', () => {
-  const span = new TimeSpan(1000, 1020);
-  const scale = new TimeScale(span, [200, 300]);
-  const newSpan = computeZoom(scale, span, 0.5, 250);
-  expect(newSpan.start).toEqual(1005);
-  expect(newSpan.end).toEqual(1015);
-});
-
-test('it clamps zoom in', () => {
-  const span = new TimeSpan(1000, 1040);
-  const scale = new TimeScale(span, [200, 300]);
-  const newSpan = computeZoom(scale, span, 0.0000000001, 225);
-  expect((newSpan.end - newSpan.start) / 2 + newSpan.start).toBeCloseTo(1010);
-  expect(newSpan.end - newSpan.start).toBeCloseTo(1e-8);
+    result = ts.pxDeltaToDuration(100);
+    expect(result.base).toEqual(12n);
+    expect(result.offset).toBeCloseTo(0.5);
+  });
 });

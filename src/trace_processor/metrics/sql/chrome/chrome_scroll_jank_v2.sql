@@ -18,6 +18,59 @@
 
 SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
 
+DROP VIEW IF EXISTS __chrome_scroll_jank_v2_scroll_processing;
+
+CREATE VIEW __chrome_scroll_jank_v2_scroll_processing
+AS
+SELECT COALESCE(SUM(jank.dur), 0) / 1.0e6 AS scroll_processing_ms
+FROM
+  scroll_event_latency_jank AS jank
+LEFT JOIN
+  event_latency_scroll_jank_cause AS cause
+  ON
+    jank.id = cause.slice_id;
+
+DROP VIEW IF EXISTS __chrome_scroll_jank_v2_causes_and_durations;
+
+CREATE VIEW __chrome_scroll_jank_v2_causes_and_durations
+AS
+SELECT
+  COALESCE(SUM(jank.dur), 0) / 1.0e6 AS scroll_jank_processing_ms,
+  COUNT(*) AS num_scroll_janks,
+  RepeatedField(
+    ChromeScrollJankV2_ScrollJankCauseAndDuration(
+      'cause', cause.cause_of_jank, 'duration_ms', jank.dur / 1.0e6))
+    AS scroll_jank_causes_and_durations
+FROM
+  scroll_event_latency_jank AS jank
+LEFT JOIN
+  event_latency_scroll_jank_cause AS cause
+  ON
+    jank.id = cause.slice_id
+WHERE
+  jank.jank AND cause.cause_of_jank != 'RendererCompositorQueueingDelay';
+
+DROP VIEW IF EXISTS __chrome_scroll_jank_v2;
+
+CREATE VIEW __chrome_scroll_jank_v2
+AS
+SELECT
+  100.0 * scroll_jank_processing_ms / scroll_processing_ms
+    AS scroll_jank_percentage,
+  *
+FROM
+  (
+    SELECT
+      total_scroll_processing.scroll_processing_ms,
+      causes_and_durations.scroll_jank_processing_ms,
+      causes_and_durations.num_scroll_janks,
+      causes_and_durations.scroll_jank_causes_and_durations
+    FROM
+      __chrome_scroll_jank_v2_scroll_processing
+        AS total_scroll_processing,
+      __chrome_scroll_jank_v2_causes_and_durations AS causes_and_durations
+  );
+
 DROP VIEW IF EXISTS chrome_scroll_jank_v2_output;
 
 CREATE VIEW chrome_scroll_jank_v2_output
@@ -29,33 +82,10 @@ SELECT
     'scroll_jank_processing_ms',
     scroll_jank_processing_ms,
     'scroll_jank_percentage',
-    scroll_jank_percentage)
+    scroll_jank_percentage,
+    'num_scroll_janks',
+    num_scroll_janks,
+    'scroll_jank_causes_and_durations',
+    scroll_jank_causes_and_durations)
 FROM
-  (
-    SELECT
-      100.0 * scroll_jank_processing_ms / scroll_processing_ms
-        AS scroll_jank_percentage,
-      *
-    FROM
-      (
-        SELECT
-          COALESCE(SUM(jank.dur), 0) / 1.0e6 AS scroll_processing_ms,
-          COALESCE(
-            SUM(
-              CASE
-                WHEN
-                  jank.jank
-                  AND cause.cause_of_jank != 'RendererCompositorQueueingDelay'
-                  THEN jank.dur
-                ELSE 0
-                END),
-            0)
-            / 1.0e6 AS scroll_jank_processing_ms
-        FROM
-          scroll_event_latency_jank AS jank
-        LEFT JOIN
-          event_latency_scroll_jank_cause AS cause
-          ON
-            jank.id = cause.slice_id
-      )
-  );
+  __chrome_scroll_jank_v2;

@@ -1,5 +1,9 @@
 Unreleased:
   Tracing service and probes:
+    * Compression has been moved from perfetto_cmd to traced. Now compression is
+      supported even with write_into_file. The `compress_from_cli` config option
+      can be used to restore the old behavior.
+  Trace Processor:
     *
   UI:
     *
@@ -10,6 +14,8 @@ v34.0 - 2023-05-02:
   Tracing service and probes:
     * --continuous-dump in tools/java_heap_dump now keeps recording until it
       receives CTRL+C.
+    * Add CLONE_SNAPSHOT triggers for non-destructive snapshots of the trace
+      buffer without tracing interruption.
   Trace Processor:
     *
   UI:

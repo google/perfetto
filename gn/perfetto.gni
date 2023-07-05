@@ -296,8 +296,9 @@ declare_args() {
       enable_perfetto_trace_processor &&
       (perfetto_build_standalone || perfetto_build_with_android)
 
-  # Enables Zlib support. This is used both by the "perfetto" cmdline client
-  # (for compressing traces) and by trace processor (for compressed traces).
+  # Enables Zlib support. This is used to compress traces (by the tracing
+  # service and by the "perfetto" cmdline client) and to decompress traces (by
+  # trace_processor).
   enable_perfetto_zlib =
       (enable_perfetto_trace_processor && !build_with_chromium) ||
       enable_perfetto_platform_services

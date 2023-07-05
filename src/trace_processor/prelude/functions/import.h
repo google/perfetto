@@ -23,7 +23,7 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
 #include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto {

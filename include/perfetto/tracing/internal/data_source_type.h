@@ -167,8 +167,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   InstancesIterator BeginIteration(
       uint32_t cached_instances,
       DataSourceThreadLocalState* tls_state,
-      typename TracePointTraits::TracePointData trace_point_data)
-      PERFETTO_ALWAYS_INLINE {
+      typename TracePointTraits::TracePointData trace_point_data) {
     InstancesIterator it{};
     it.cached_instances = cached_instances;
     FirstActiveInstance<TracePointTraits>(&it, tls_state, trace_point_data);
@@ -185,8 +184,7 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   template <typename TracePointTraits>
   void NextIteration(InstancesIterator* iterator,
                      DataSourceThreadLocalState* tls_state,
-                     typename TracePointTraits::TracePointData trace_point_data)
-      PERFETTO_ALWAYS_INLINE {
+                     typename TracePointTraits::TracePointData trace_point_data) {
     iterator->i++;
     FirstActiveInstance<TracePointTraits>(iterator, tls_state,
                                           trace_point_data);

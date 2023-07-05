@@ -3472,7 +3472,8 @@ TEST_P(PerfettoApiTest, TrackEventEventNameDynamicString) {
       "foo", perfetto::DynamicString{std::string("Event5")},
       ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
   PERFETTO_INTERNAL_TRACK_EVENT(
-      "foo", "Event6", ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
+      "foo", perfetto::StaticString{"Event6"},
+      ::perfetto::protos::pbzero::TrackEvent::TYPE_SLICE_END);
 
   auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
   ASSERT_EQ(6u, slices.size());

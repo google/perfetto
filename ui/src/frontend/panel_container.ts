@@ -135,11 +135,13 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       return;
     }
 
+    const {visibleTimeScale} = globals.frontendLocalState;
+
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
-        globals.frontendLocalState.timeScale.timeToPx(area.startSec),
-        globals.frontendLocalState.timeScale.timeToPx(area.endSec),
+        visibleTimeScale.tpTimeToPx(area.start),
+        visibleTimeScale.tpTimeToPx(area.end),
         globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT,
         globals.frontendLocalState.areaY.end + TOPBAR_HEIGHT);
     // Get the track ids from the panels.
@@ -160,7 +162,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
         }
       }
     }
-    globals.frontendLocalState.selectArea(area.startSec, area.endSec, tracks);
+    globals.frontendLocalState.selectArea(area.start, area.end, tracks);
   }
 
   constructor(vnode: m.CVnode<Attrs>) {
@@ -449,8 +451,9 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
       return;
     }
 
-    const startX = globals.frontendLocalState.timeScale.timeToPx(area.startSec);
-    const endX = globals.frontendLocalState.timeScale.timeToPx(area.endSec);
+    const {visibleTimeScale} = globals.frontendLocalState;
+    const startX = visibleTimeScale.tpTimeToPx(area.start);
+    const endX = visibleTimeScale.tpTimeToPx(area.end);
     // To align with where to draw on the canvas subtract the first panel Y.
     selectedTracksMinY -= this.panelContainerTop;
     selectedTracksMaxY -= this.panelContainerTop;

@@ -13,23 +13,28 @@
 // limitations under the License.
 
 import {Actions} from '../common/actions';
+import {
+  HighPrecisionTime,
+  HighPrecisionTimeSpan,
+} from '../common/high_precision_time';
 import {getContainingTrackId} from '../common/state';
-import {fromNs, TimeSpan, toNs} from '../common/time';
+import {TPTime} from '../common/time';
 
 import {globals} from './globals';
 
-const INCOMPLETE_SLICE_TIME_S = 0.00003;
 
 // Given a timestamp, if |ts| is not currently in view move the view to
 // center |ts|, keeping the same zoom level.
-export function horizontalScrollToTs(ts: number) {
-  const startNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
-  const endNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
-  const currentViewNs = endNs - startNs;
-  if (ts < startNs || ts > endNs) {
+export function horizontalScrollToTs(ts: TPTime) {
+  const time = HighPrecisionTime.fromTPTime(ts);
+  const visibleWindow = globals.frontendLocalState.visibleWindowTime;
+  if (!visibleWindow.contains(time)) {
     // TODO(hjd): This is an ugly jump, we should do a smooth pan instead.
-    globals.frontendLocalState.updateVisibleTime(new TimeSpan(
-        fromNs(ts - currentViewNs / 2), fromNs(ts + currentViewNs / 2)));
+    const halfDuration = visibleWindow.duration.divide(2);
+    const newStart = time.sub(halfDuration);
+    const newWindow = new HighPrecisionTimeSpan(
+        newStart, newStart.add(visibleWindow.duration));
+    globals.frontendLocalState.updateVisibleTime(newWindow);
   }
 }
 
@@ -46,16 +51,11 @@ export function horizontalScrollToTs(ts: number) {
 //   to cover 1/5 of the viewport.
 // - Otherwise, preserve the zoom range.
 export function focusHorizontalRange(
-    startTs: number, endTs: number, viewPercentage?: number) {
-  const visibleDur = globals.frontendLocalState.visibleWindowTime.end -
-      globals.frontendLocalState.visibleWindowTime.start;
-  let selectDur = endTs - startTs;
-  // TODO(altimin): We go from `ts` and `dur` to `startTs` and `endTs` and back
-  // to `dur`. We should fix that.
-  if (toNs(selectDur) === -1) {  // Unfinished slice
-    selectDur = INCOMPLETE_SLICE_TIME_S;
-    endTs = startTs;
-  }
+    start: TPTime, end: TPTime, viewPercentage?: number) {
+  console.log('focusHorizontalRange', start, end);
+  const visible = globals.frontendLocalState.visibleWindowTime;
+  const trace = globals.stateTraceTime();
+  const select = HighPrecisionTimeSpan.fromTpTime(start, end);
 
   if (viewPercentage !== undefined) {
     if (viewPercentage <= 0.0 || viewPercentage > 1.0) {
@@ -67,51 +67,43 @@ export function focusHorizontalRange(
       viewPercentage = 0.5;
     }
     const paddingPercentage = 1.0 - viewPercentage;
-    const paddingTime = selectDur * paddingPercentage;
-    const halfPaddingTime = paddingTime / 2;
-    globals.frontendLocalState.updateVisibleTime(
-        new TimeSpan(startTs - halfPaddingTime, endTs + halfPaddingTime));
+    const paddingTime = select.duration.multiply(paddingPercentage);
+    const halfPaddingTime = paddingTime.divide(2);
+    globals.frontendLocalState.updateVisibleTime(select.pad(halfPaddingTime));
     return;
   }
-
   // If the range is too large to fit on the current zoom level, resize.
-  if (selectDur > 0.5 * visibleDur) {
-    globals.frontendLocalState.updateVisibleTime(
-        new TimeSpan(startTs - (selectDur * 2), endTs + (selectDur * 2)));
+  if (select.duration.gt(visible.duration.multiply(0.5))) {
+    const paddedRange = select.pad(select.duration.multiply(2));
+    globals.frontendLocalState.updateVisibleTime(paddedRange);
     return;
   }
-  const midpointTs = (endTs + startTs) / 2;
   // Calculate the new visible window preserving the zoom level.
-  let newStartTs = midpointTs - visibleDur / 2;
-  let newEndTs = midpointTs + visibleDur / 2;
+  let newStart = select.midpoint.sub(visible.duration.divide(2));
+  let newEnd = select.midpoint.add(visible.duration.divide(2));
 
   // Adjust the new visible window if it intersects with the trace boundaries.
   // It's needed to make the "update the zoom level if visible window doesn't
   // change" logic reliable.
-  if (newEndTs > globals.state.traceTime.endSec) {
-    newStartTs = globals.state.traceTime.endSec - visibleDur;
-    newEndTs = globals.state.traceTime.endSec;
+  if (newEnd.gt(trace.end)) {
+    newStart = trace.end.sub(visible.duration);
+    newEnd = trace.end;
   }
-  if (newStartTs < globals.state.traceTime.startSec) {
-    newStartTs = globals.state.traceTime.startSec;
-    newEndTs = globals.state.traceTime.startSec + visibleDur;
+  if (newStart.lt(trace.start)) {
+    newStart = trace.start;
+    newEnd = trace.start.add(visible.duration);
   }
 
-  const newStartNs = toNs(newStartTs);
-  const newEndNs = toNs(newEndTs);
-
-  const viewStartNs = toNs(globals.frontendLocalState.visibleWindowTime.start);
-  const viewEndNs = toNs(globals.frontendLocalState.visibleWindowTime.end);
+  const view = new HighPrecisionTimeSpan(newStart, newEnd);
 
   // If preserving the zoom doesn't change the visible window, update the zoom
   // level.
-  if (newStartNs === viewStartNs && newEndNs === viewEndNs) {
-    globals.frontendLocalState.updateVisibleTime(
-        new TimeSpan(startTs - (selectDur * 2), endTs + (selectDur * 2)));
-    return;
+  if (view.start.eq(visible.start) && view.end.eq(visible.end)) {
+    const padded = select.pad(select.duration.multiply(2));
+    globals.frontendLocalState.updateVisibleTime(padded);
+  } else {
+    globals.frontendLocalState.updateVisibleTime(view);
   }
-  globals.frontendLocalState.updateVisibleTime(
-      new TimeSpan(newStartTs, newEndTs));
 }
 
 // Given a track id, find a track with that id and scroll it into view. If the
@@ -155,9 +147,16 @@ export function verticalScrollToTrack(
 
 // Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
 export function scrollToTrackAndTs(
-    trackId: string|number|undefined, ts: number, openGroup = false) {
+    trackId: string|number|undefined, ts: TPTime, openGroup = false) {
   if (trackId !== undefined) {
     verticalScrollToTrack(trackId, openGroup);
   }
   horizontalScrollToTs(ts);
+}
+
+// Scroll vertically and horizontally to a track and time range
+export function reveal(
+    trackId: string|number, start: TPTime, end: TPTime, openGroup = false) {
+  verticalScrollToTrack(trackId, openGroup);
+  focusHorizontalRange(start, end);
 }

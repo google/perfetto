@@ -42,7 +42,9 @@ enum TraceProcessorApiVersion {
   // every time a new feature that the UI depends on is being introduced (e.g.
   // new tables, new SQL operators, metrics that are required by the UI).
   // See also StatusResult.api_version (below).
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 6;
+  // Changes:
+  // 7. Introduce GUESS_CPU_SIZE
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 7;
 }
 
 // At lowest level, the wire-format of the RPC procol is a linear sequence of

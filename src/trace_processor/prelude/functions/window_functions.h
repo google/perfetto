@@ -28,7 +28,7 @@
 #include "src/trace_processor/prelude/functions/create_function_internal.h"
 #include "src/trace_processor/util/status_macros.h"
 
-#include "src/trace_processor/prelude/functions/register_function.h"
+#include "src/trace_processor/prelude/functions/sql_function.h"
 
 namespace perfetto {
 namespace trace_processor {

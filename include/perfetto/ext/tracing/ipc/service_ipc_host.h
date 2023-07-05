@@ -23,6 +23,7 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 
 namespace perfetto {
 namespace base {
@@ -33,8 +34,6 @@ namespace ipc {
 class Host;
 }  // namespace ipc
 
-class TracingService;
-
 // Creates an instance of the service (business logic + UNIX socket transport).
 // Exposed to:
 //   The code in the tracing client that will host the service e.g., traced.
@@ -42,7 +41,9 @@ class TracingService;
 //   src/tracing/ipc/service/service_ipc_host_impl.cc
 class PERFETTO_EXPORT_COMPONENT ServiceIPCHost {
  public:
-  static std::unique_ptr<ServiceIPCHost> CreateInstance(base::TaskRunner*);
+  static std::unique_ptr<ServiceIPCHost> CreateInstance(
+      base::TaskRunner*,
+      TracingService::InitOpts = {});
   virtual ~ServiceIPCHost();
 
   // Start listening on the Producer & Consumer ports. Returns false in case of

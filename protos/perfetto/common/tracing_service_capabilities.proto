@@ -35,4 +35,7 @@ message TracingServiceCapabilities {
   // Whether the service supports TraceConfig.output_path (for asking traced to
   // create the output file instead of passing a file descriptor).
   optional bool has_trace_config_output_path = 3;
+
+  // Whether the service supports CloneSession and CLONE_SNAPSHOT triggers.
+  optional bool has_clone_session = 4;
 }

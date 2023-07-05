@@ -24,6 +24,7 @@ from test import resolver_unittest
 from test import stdlib_unittest
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT_DIR))
 
 
 def main():

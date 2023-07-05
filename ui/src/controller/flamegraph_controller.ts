@@ -27,7 +27,7 @@ import {
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
-import {toNs} from '../common/time';
+import {tpDurationToSeconds, TPTime} from '../common/time';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {
@@ -145,8 +145,8 @@ export class FlamegraphController extends Controller<'main'> {
       }
       globals.dispatch(Actions.openFlamegraph({
         upids,
-        startNs: toNs(area.startSec),
-        endNs: toNs(area.endSec),
+        start: area.start,
+        end: area.end,
         type: ProfileType.PERF_SAMPLE,
         viewingOption: PERF_SAMPLES_KEY,
       }));
@@ -169,8 +169,8 @@ export class FlamegraphController extends Controller<'main'> {
     const selectedFlamegraphState = {...selection};
     const flamegraphMetadata = await this.getFlamegraphMetadata(
         selection.type,
-        selectedFlamegraphState.startNs,
-        selectedFlamegraphState.endNs,
+        selectedFlamegraphState.start,
+        selectedFlamegraphState.end,
         selectedFlamegraphState.upids);
     if (flamegraphMetadata !== undefined) {
       Object.assign(this.flamegraphDetails, flamegraphMetadata);
@@ -192,7 +192,7 @@ export class FlamegraphController extends Controller<'main'> {
         selectedFlamegraphState.expandedCallsite.totalSize;
 
     const key = `${selectedFlamegraphState.upids};${
-        selectedFlamegraphState.startNs};${selectedFlamegraphState.endNs}`;
+        selectedFlamegraphState.start};${selectedFlamegraphState.end}`;
 
     try {
       const flamegraphData = await this.getFlamegraphData(
@@ -200,15 +200,15 @@ export class FlamegraphController extends Controller<'main'> {
           selectedFlamegraphState.viewingOption ?
               selectedFlamegraphState.viewingOption :
               DEFAULT_VIEWING_OPTION,
-          selection.startNs,
-          selection.endNs,
+          selection.start,
+          selection.end,
           selectedFlamegraphState.upids,
           selectedFlamegraphState.type,
           selectedFlamegraphState.focusRegex);
       if (flamegraphData !== undefined && selection &&
           selection.kind === selectedFlamegraphState.kind &&
-          selection.startNs === selectedFlamegraphState.startNs &&
-          selection.endNs === selectedFlamegraphState.endNs) {
+          selection.start === selectedFlamegraphState.start &&
+          selection.end === selectedFlamegraphState.end) {
         const expandedFlamegraphData =
             expandCallsites(flamegraphData, expandedId);
         this.prepareAndMergeCallsites(
@@ -230,8 +230,8 @@ export class FlamegraphController extends Controller<'main'> {
   private shouldRequestData(selection: FlamegraphState) {
     return selection.kind === 'FLAMEGRAPH_STATE' &&
         (this.lastSelectedFlamegraphState === undefined ||
-         (this.lastSelectedFlamegraphState.startNs !== selection.startNs ||
-          this.lastSelectedFlamegraphState.endNs !== selection.endNs ||
+         (this.lastSelectedFlamegraphState.start !== selection.start ||
+          this.lastSelectedFlamegraphState.end !== selection.end ||
           this.lastSelectedFlamegraphState.type !== selection.type ||
           !FlamegraphController.areArraysEqual(
               this.lastSelectedFlamegraphState.upids, selection.upids) ||
@@ -267,7 +267,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphData(
-      baseKey: string, viewingOption: string, startNs: number, endNs: number,
+      baseKey: string, viewingOption: string, start: TPTime, end: TPTime,
       upids: number[], type: ProfileType,
       focusRegex: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
@@ -280,8 +280,8 @@ export class FlamegraphController extends Controller<'main'> {
       // Collecting data for drawing flamegraph for selected profile.
       // Data needs to be in following format:
       // id, name, parent_id, depth, total_size
-      const tableName = await this.prepareViewsAndTables(
-          startNs, endNs, upids, type, focusRegex);
+      const tableName =
+          await this.prepareViewsAndTables(start, end, upids, type, focusRegex);
       currentData = await this.getFlamegraphDataFromTables(
           tableName, viewingOption, focusRegex);
       this.flamegraphDatasets.set(key, currentData);
@@ -413,7 +413,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async prepareViewsAndTables(
-      startNs: number, endNs: number, upids: number[], type: ProfileType,
+      start: TPTime, end: TPTime, upids: number[], type: ProfileType,
       focusRegex: string): Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
@@ -437,8 +437,8 @@ export class FlamegraphController extends Controller<'main'> {
           cumulative_alloc_size, cumulative_count, cumulative_alloc_count,
           size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph
-          where profile_type = '${flamegraphType}' and ${startNs} <= ts and
-              ts <= ${endNs} and ${upidConditional}
+          where profile_type = '${flamegraphType}' and ${start} <= ts and
+              ts <= ${end} and ${upidConditional}
           ${focusRegexConditional}`);
     }
     return this.cache.getTableName(
@@ -447,7 +447,7 @@ export class FlamegraphController extends Controller<'main'> {
           size, alloc_size, count, alloc_count, source_file, line_number
           from experimental_flamegraph
           where profile_type = '${flamegraphType}'
-            and ts = ${endNs}
+            and ts = ${end}
             and upid = ${upids[0]}
             ${focusRegexConditional}`);
   }
@@ -455,7 +455,8 @@ export class FlamegraphController extends Controller<'main'> {
   getMinSizeDisplayed(flamegraphData: CallsiteInfo[], rootSize?: number):
       number {
     const timeState = globals.state.frontendLocalState.visibleState;
-    let width = (timeState.endSec - timeState.startSec) / timeState.resolution;
+    const dur = globals.stateVisibleTime().duration;
+    let width = tpDurationToSeconds(dur / timeState.resolution);
     // TODO(168048193): Remove screen size hack:
     width = Math.max(width, 800);
     if (rootSize === undefined) {
@@ -465,11 +466,12 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphMetadata(
-      type: ProfileType, startNs: number, endNs: number, upids: number[]) {
+      type: ProfileType, start: TPTime, end: TPTime,
+      upids: number[]): Promise<FlamegraphDetails|undefined> {
     // Don't do anything if selection of the marker stayed the same.
     if ((this.lastSelectedFlamegraphState !== undefined &&
-         ((this.lastSelectedFlamegraphState.startNs === startNs &&
-           this.lastSelectedFlamegraphState.endNs === endNs &&
+         ((this.lastSelectedFlamegraphState.start === start &&
+           this.lastSelectedFlamegraphState.end === end &&
            FlamegraphController.areArraysEqual(
                this.lastSelectedFlamegraphState.upids, upids))))) {
       return undefined;
@@ -486,7 +488,7 @@ export class FlamegraphController extends Controller<'main'> {
     for (let i = 0; it.valid(); ++i, it.next()) {
       pids.push(it.pid);
     }
-    return {startNs, durNs: endNs - startNs, pids, upids, type};
+    return {start, dur: end - start, pids, upids, type};
   }
 
   private static areArraysEqual(a: number[], b: number[]) {

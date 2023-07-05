@@ -40,8 +40,11 @@ perfetto_unittest_source_set("unittests") {
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
   ]
-  sources = [
-    "http_server_unittest.cc",
-    "sha1_unittest.cc",
-  ]
+  sources = [ "sha1_unittest.cc" ]
+
+  # The HTTP server unittests cannot be run in parallel. Chromium runs tests
+  # in parallel on some bots so exclude all of these ones.
+  if (!build_with_chromium) {
+    sources += [ "http_server_unittest.cc" ]
+  }
 }

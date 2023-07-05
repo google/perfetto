@@ -572,6 +572,22 @@ TEST(BitVectorUnittest, Builder) {
   ASSERT_FALSE(bv.IsSet(2));
 }
 
+TEST(BitVectorUnittest, BuilderCountSetBits) {
+  // 16 words and 1 bit
+  BitVector::Builder builder(1025);
+
+  // 100100011010001010110011110001001 as a hex literal, with 15 set bits.
+  uint64_t word = 0x123456789;
+  for (uint32_t i = 0; i < 16; ++i) {
+    builder.AppendWord(word);
+  }
+  builder.Append(1);
+  BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.CountSetBits(500), 120u);
+  ASSERT_EQ(bv.CountSetBits(), 16 * 15 + 1u);
+}
+
 TEST(BitVectorUnittest, BuilderStressTest) {
   // Space for 128 words and 1 bit
   uint32_t size = 8 * 1024 + 1;
@@ -590,7 +606,7 @@ TEST(BitVectorUnittest, BuilderStressTest) {
   ASSERT_EQ(builder.BitsUntilFull(), size - 1024);
   ASSERT_EQ(builder.BitsUntilWordBoundaryOrFull(), 0u);
 
-  // 100100011010001010110011110001001 as a hex literal.
+  // 100100011010001010110011110001001 as a hex literal, with 15 set bits.
   uint64_t word = 0x123456789;
 
   // Add all of the remaining words.
@@ -607,6 +623,8 @@ TEST(BitVectorUnittest, BuilderStressTest) {
   builder.Append(1);
 
   BitVector bv = std::move(builder).Build();
+
+  ASSERT_EQ(bv.CountSetBits(), 2681u);
   ASSERT_EQ(bv.size(), 8u * 1024u + 1u);
 
   ASSERT_TRUE(bv.IsSet(0));

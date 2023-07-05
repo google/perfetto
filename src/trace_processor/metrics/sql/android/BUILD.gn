@@ -82,6 +82,7 @@ perfetto_sql_source_set("android") {
     "java_heap_histogram.sql",
     "java_heap_stats.sql",
     "mem_stats_priority_breakdown.sql",
+    "network_activity_template.sql",
     "p_state.sql",
     "power_drain_in_watts.sql",
     "power_profile_data.sql",

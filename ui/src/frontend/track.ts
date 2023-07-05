@@ -17,6 +17,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Engine} from '../common/engine';
 import {TrackState} from '../common/state';
+import {TPTime} from '../common/time';
 import {TrackData} from '../common/track_data';
 
 import {checkerboard} from './checkerboard';
@@ -130,9 +131,11 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   render(ctx: CanvasRenderingContext2D) {
     globals.frontendLocalState.addVisibleTrack(this.trackState.id);
     if (this.data() === undefined && !this.frontendOnly) {
-      const {visibleWindowTime, timeScale} = globals.frontendLocalState;
-      const startPx = Math.floor(timeScale.timeToPx(visibleWindowTime.start));
-      const endPx = Math.ceil(timeScale.timeToPx(visibleWindowTime.end));
+      const {visibleWindowTime, visibleTimeScale} = globals.frontendLocalState;
+      const startPx =
+          Math.floor(visibleTimeScale.hpTimeToPx(visibleWindowTime.start));
+      const endPx =
+          Math.ceil(visibleTimeScale.hpTimeToPx(visibleWindowTime.end));
       checkerboard(ctx, this.getHeight(), startPx, endPx);
     } else {
       this.renderCanvas(ctx);
@@ -175,7 +178,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     y -= 10;
 
     // Ensure the box is on screen:
-    const endPx = globals.frontendLocalState.timeScale.endPx;
+    const endPx = globals.frontendLocalState.visibleTimeScale.pxSpan.end;
     if (x + width > endPx) {
       x -= x + width - endPx;
     }
@@ -205,7 +208,7 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // only for track types that support slices e.g. chrome_slice, async_slices
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
-  getSliceRect(_tStart: number, _tEnd: number, _depth: number): SliceRect
+  getSliceRect(_tStart: TPTime, _tEnd: TPTime, _depth: number): SliceRect
       |undefined {
     return undefined;
   }

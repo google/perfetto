@@ -56,6 +56,9 @@ message AndroidBinderMetric {
 
     optional uint32 client_tid = 15;
     optional uint32 server_tid = 16;
+
+    optional uint32 client_pid = 17;
+    optional uint32 server_pid = 18;
   }
 
   message ThreadStateBreakdown {
