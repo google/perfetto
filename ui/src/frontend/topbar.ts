@@ -15,9 +15,9 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {Command} from '../common/commands';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
+import {Command} from '../public';
 
 import {classNames} from './classnames';
 import {globals} from './globals';
