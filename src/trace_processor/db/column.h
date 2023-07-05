@@ -388,6 +388,10 @@ class Column {
     return Constraint{index_in_table_, FilterOp::kGlob, value};
   }
 
+  Constraint regex_value(SqlValue value) const {
+    return Constraint{index_in_table_, FilterOp::kRegex, value};
+  }
+
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{index_in_table_, false}; }
   Order descending() const { return Order{index_in_table_, true}; }
@@ -541,6 +545,7 @@ class Column {
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
       case FilterOp::kGlob:
+      case FilterOp::kRegex:
         break;
     }
     return false;

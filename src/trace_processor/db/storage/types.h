@@ -57,6 +57,7 @@ enum class FilterOp {
   kIsNull,
   kIsNotNull,
   kGlob,
+  kRegex,
 };
 
 // Represents a constraint on a column.
