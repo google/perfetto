@@ -15,6 +15,7 @@
 --
 
 SELECT RUN_METRIC('android/process_metadata.sql');
+SELECT IMPORT('android.thread');
 
 DROP VIEW IF EXISTS android_task_names_output;
 CREATE VIEW android_task_names_output AS
@@ -43,7 +44,19 @@ SELECT AndroidTaskNames(
       'process_name', p.name,
       'thread_name', threads_by_upid.thread_names,
       'uid', p.uid,
-      'uid_package_name', upid_packages.packages
+      'uid_package_name', upid_packages.packages,
+      'short_lived_tasks', (
+        SELECT AndroidTaskNames_Process_TaskCreationSpam(
+        'thread_name_prefix', s.thread_name_prefix,
+        'max_count_per_sec', s.max_count_per_sec
+        ) FROM ANDROID_THREAD_CREATION_SPAM(1e9, 1e9) s WHERE s.pid = p.pid
+      ),
+      'long_lived_tasks', (
+        SELECT AndroidTaskNames_Process_TaskCreationSpam(
+        'thread_name_prefix', s.thread_name_prefix,
+        'max_count_per_sec', s.max_count_per_sec
+        ) FROM ANDROID_THREAD_CREATION_SPAM(NULL, 1e9) s WHERE s.pid = p.pid
+      )
     )
   )
 )
