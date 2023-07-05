@@ -18,6 +18,8 @@ import {featureFlags} from '../../common/feature_flags';
 import {
   PluginContext,
 } from '../../public';
+import {ObjectById} from '../../common/state';
+import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
@@ -49,6 +51,51 @@ export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
 export type ScrollJankTracks = {
   tracksToAdd: AddTrackArgs[],
 };
+
+export interface ScrollJankTrackSpec {
+  id: string;
+  sqlTableName: string;
+  detailsPanelConfig: CustomSqlDetailsPanelConfig;
+}
+
+// Global state for the scroll jank plugin.
+export class ScrollJankPluginState {
+  private static instance: ScrollJankPluginState;
+  private tracks: ObjectById<ScrollJankTrackSpec>;
+
+  private constructor() {
+    this.tracks = {};
+  }
+
+  public static getInstance(): ScrollJankPluginState {
+    if (!ScrollJankPluginState.instance) {
+      ScrollJankPluginState.instance = new ScrollJankPluginState();
+    }
+
+    return ScrollJankPluginState.instance;
+  }
+
+  public registerTrack(args: {
+    kind: string,
+    trackId: string,
+    tableName: string,
+    detailsPanelConfig: CustomSqlDetailsPanelConfig,
+  }): void {
+    this.tracks[args.kind] = {
+      id: args.trackId,
+      sqlTableName: args.tableName,
+      detailsPanelConfig: args.detailsPanelConfig,
+    };
+  }
+
+  public unregisterTrack(kind: string): void {
+    delete this.tracks[kind];
+  }
+
+  public getTrack(kind: string): ScrollJankTrackSpec|undefined {
+    return this.tracks[kind];
+  }
+}
 
 export async function getScrollJankTracks(engine: Engine):
     Promise<ScrollJankTracks> {

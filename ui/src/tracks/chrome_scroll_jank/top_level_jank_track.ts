@@ -27,6 +27,7 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
+import {ScrollJankPluginState} from './index';
 
 import {ScrollJankTracks as DecideTracksResult} from './index';
 
@@ -45,6 +46,13 @@ export class TopLevelJankTrack extends
 
   constructor(args: NewTrackArgs) {
     super(args);
+
+    ScrollJankPluginState.getInstance().registerTrack({
+      kind: TopLevelJankTrack.kind,
+      trackId: this.trackId,
+      tableName: this.tableName,
+      detailsPanelConfig: this.getDetailsPanel(),
+    });
 
     this.displayColumns['name'] = {};
     this.displayColumns['id'] = {displayName: 'Interval ID'};
@@ -69,8 +77,9 @@ export class TopLevelJankTrack extends
     };
   }
 
-  async initSqlTable(tableName: string) {
-    await super.initSqlTable(tableName);
+  onDestroy() {
+    super.onDestroy();
+    ScrollJankPluginState.getInstance().unregisterTrack(TopLevelJankTrack.kind);
   }
 }
 
@@ -91,7 +100,7 @@ export async function addTopLevelJankTrack(engine: Engine):
       FROM chrome_scrolling_intervals
       UNION ALL
       SELECT
-        "Janky Scrolling Time" AS name,
+        "Janky Frame Visible" AS name,
         ts,
         dur
       FROM chrome_scroll_jank_intervals_v3
