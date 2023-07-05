@@ -12,10 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Command} from '../../common/commands';
-import {TracePlugin} from '../../common/plugins';
-import {Store} from '../../frontend/store';
-import {EngineProxy, PluginContext} from '../../public';
+import {
+  Command,
+  EngineProxy,
+  PluginContext,
+  Store,
+  TracePlugin,
+} from '../../public';
 
 interface ExampleState {
   counter: number;
