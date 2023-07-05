@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Command} from '../../common/commands';
 import {TracePlugin} from '../../common/plugins';
 import {Store} from '../../frontend/store';
 import {EngineProxy, PluginContext} from '../../public';
@@ -32,6 +33,18 @@ class ExamplePlugin implements TracePlugin {
 
   dispose(): void {
     // No-op
+  }
+
+  commands(): Command[] {
+    // Example return value:
+    // return [
+    //   {
+    //     id: 'dev.perfetto.ExampleCommand',
+    //     name: 'Example Command',
+    //     callback: () => console.log('Hello from example command'),
+    //   },
+    // ];
+    return [];
   }
 }
 

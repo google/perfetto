@@ -17,6 +17,7 @@ import {assertExists} from '../base/logging';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args} from '../common/arg_types';
+import {CommandManager} from '../common/commands';
 import {
   ConversionJobName,
   ConversionJobStatus,
@@ -251,6 +252,7 @@ class Globals {
   private _hideSidebar?: boolean = undefined;
   private _ftraceCounters?: FtraceStat[] = undefined;
   private _ftracePanelData?: FtracePanelData = undefined;
+  private _cmdManager?: CommandManager = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -271,10 +273,13 @@ class Globals {
 
   engines = new Map<string, Engine>();
 
-  initialize(dispatch: Dispatch, router: Router, initialState: State) {
+  initialize(
+      dispatch: Dispatch, router: Router, initialState: State,
+      cmdManager: CommandManager) {
     this._dispatch = dispatch;
     this._router = router;
     this._store = createStore(initialState);
+    this._cmdManager = cmdManager;
     this._frontendLocalState = new FrontendLocalState();
 
     setPerfHooks(
@@ -699,6 +704,10 @@ class Globals {
       // Default to 1px per quanta if not defined
       return 1;
     }
+  }
+
+  get commandManager(): CommandManager {
+    return assertExists(this._cmdManager);
   }
 }
 
