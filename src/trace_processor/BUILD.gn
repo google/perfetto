@@ -182,6 +182,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "util",
       "util:gzip",
       "util:protozero_to_text",
+      "util:regex",
       "util:stdlib",
       "views",
     ]

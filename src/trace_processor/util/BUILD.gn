@@ -167,6 +167,14 @@ source_set("glob") {
   ]
 }
 
+source_set("regex") {
+  sources = [ "regex.h" ]
+  deps = [
+    "../../../gn:default_deps",
+    "../../base",
+  ]
+}
+
 source_set("sql_argument") {
   sources = [
     "sql_argument.cc",
