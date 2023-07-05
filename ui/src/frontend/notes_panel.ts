@@ -37,6 +37,7 @@ import {
 } from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {isTraceLoaded} from './sidebar';
+import { customButtonRegistry } from './button_registry';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -108,29 +109,35 @@ export class NotesPanel extends Panel {
                 m('i.material-icons',
                   {title: 'Clear all pinned tracks'},
                   'clear_all')),
-              m('button',
-                {
-                  onclick: (e: Event) => {
-                    e.preventDefault();
-                    globals.emitter.emit('filter');
-                  },
-                },
-                m('i.material-icons',
-                  {title: 'Add in Filtered Tracks'},
-                  'list')),
-              m('button',
-                {
-                  onclick: (e: Event) => {
-                    e.preventDefault();
-                    globals.emitter.emit('create_track');
-                  },
-                },
-                m('i.material-icons',
-                  {title: 'Create a Custom Track'},
-                  'add')),
+              this.renderCustomButtons()
             ] :
             '');
-  }
+    }
+
+    private renderCustomButtons(): m.Vnode<any, any>[] {
+      const mithrilButtons: m.Vnode<any, any>[] = [];
+      const values = customButtonRegistry.values();
+      let result = values.next();
+      while(!result.done){
+        if(!result.value){
+          break;
+        }
+        let savedValue = result.value;
+        const htmlButton = m(
+          'button',
+          {
+              onclick: (e: Event) => {
+                  e.preventDefault();
+                  savedValue.callback();
+              }
+          },
+          m('i.material-icons', { title: result.value.title }, result.value.icon)
+        );
+        mithrilButtons.push(htmlButton);
+        result =values.next();
+      }
+      return mithrilButtons;
+    }
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     let aNoteIsHovered = false;

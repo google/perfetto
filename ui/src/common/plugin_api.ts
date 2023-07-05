@@ -17,6 +17,7 @@ import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
 import {Selection} from './state';
+import { CustomButtonArgs } from '../frontend/button_registry';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -88,6 +89,8 @@ export interface PluginContext {
   // selection is invoked.
   registerOnDetailsPanelSelectionChange(
       onDetailsPanelSelectionChange: (newSelection?: Selection) => void): void;
+  // Register a custom button on the timeline
+  registerCustomButton(button: CustomButtonArgs): void;
 }
 
 export interface PluginInfo {

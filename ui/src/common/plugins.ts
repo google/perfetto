@@ -29,6 +29,7 @@ import {
 } from './plugin_api';
 import {Registry} from './registry';
 import {Selection} from './state';
+import { CustomButton, CustomButtonArgs, customButtonRegistry } from '../frontend/button_registry';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -62,8 +63,12 @@ export class PluginContextImpl implements PluginContext {
   }
 
   registerOnDetailsPanelSelectionChange(
-      onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
-    this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
+    onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
+  this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
+  }
+
+  registerCustomButton(button: CustomButtonArgs): void {
+    customButtonRegistry.register(new CustomButton(button));
   }
   // ==================================================================
 
