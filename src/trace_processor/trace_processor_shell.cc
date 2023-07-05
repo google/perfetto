@@ -691,7 +691,7 @@ struct CommandLineOptions {
   std::string trace_file_path;
   std::string port_number;
   std::string override_stdlib_path;
-  std::string override_sql_module_path;
+  std::vector<std::string> override_sql_module_paths;
   std::vector<std::string> raw_metric_extensions;
   bool launch_shell = false;
   bool enable_httpd = false;
@@ -766,8 +766,7 @@ Standard library:
                                       module name.
  --override-sql-module MODULE_PATH    Will override trace processor module with
                                       passed contents. The outer directory will
-                                      specify the module name. Only allowed when
-                                      --dev is specified.
+                                      specify the module name.
  --override-stdlib=[path_to_stdlib]   Will override trace_processor/stdlib with
                                       passed contents. The outer directory will
                                       be ignored. Only allowed when --dev is
@@ -963,7 +962,7 @@ CommandLineOptions ParseCommandLineOptions(int argc, char** argv) {
     }
 
     if (option == OPT_OVERRIDE_SQL_MODULE) {
-      command_line_options.override_sql_module_path = optarg;
+      command_line_options.override_sql_module_paths.push_back(optarg);
       continue;
     }
 
@@ -1543,14 +1542,14 @@ base::Status MaybeUpdateSqlModules(const CommandLineOptions& options) {
                              status.c_message());
   }
 
-  if (!options.override_sql_module_path.empty()) {
-    if (!options.dev)
-      return base::ErrStatus("Overriding stdlib modules requires --dev flag");
-
-    auto status = IncludeSqlModule(options.override_sql_module_path, true);
-    if (!status.ok())
-      return base::ErrStatus("Couldn't override stdlib module: %s",
-                             status.c_message());
+  if (!options.override_sql_module_paths.empty()) {
+    for (const auto& override_sql_module_path :
+         options.override_sql_module_paths) {
+      auto status = IncludeSqlModule(override_sql_module_path, true);
+      if (!status.ok())
+        return base::ErrStatus("Couldn't override stdlib module: %s",
+                               status.c_message());
+    }
   }
 
   if (!options.sql_module_path.empty()) {
