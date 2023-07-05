@@ -31,8 +31,10 @@ source_set("storage") {
     "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
+    "../../../base",
     "../../containers",
     "../../util:glob",
+    "../../util:regex",
   ]
 }
 
