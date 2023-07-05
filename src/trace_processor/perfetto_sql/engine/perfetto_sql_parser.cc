@@ -202,7 +202,8 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
   for (; !TokenIsTerminal(token); token = tokenizer_.Next()) {
   }
   uint32_t offset = static_cast<uint32_t>(first.str.data() - sql_.sql().data());
-  uint32_t len = static_cast<uint32_t>(token.str.end() - sql_.sql().data());
+  uint32_t len = static_cast<uint32_t>((token.str.data() + token.str.size()) -
+                                       sql_.sql().data());
 
   statement_ = CreateFunction{std::move(prototype), std::string(ret_token.str),
                               sql_.Substr(offset, len)};
