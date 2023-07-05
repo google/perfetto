@@ -22,10 +22,12 @@ import m from 'mithril';
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
+import {CommandManager} from '../common/commands';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
+import {setTimestampFormat, TimestampFormat} from '../common/time';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {initController, runControllers} from '../controller';
 import {
@@ -33,6 +35,7 @@ import {
 } from '../controller/chrome_proxy_record_controller';
 import {raf} from '../core/raf_scheduler';
 
+import {addTab} from './bottom_tab';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -49,6 +52,8 @@ import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {SqlTableTab} from './sql_table/tab';
+import {SqlTables} from './sql_table/well_known_tables';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
@@ -211,7 +216,64 @@ function main() {
   globals.embeddedMode = route.args.mode === 'embedded';
   globals.hideSidebar = route.args.hideSidebar === true;
 
-  globals.initialize(dispatch, router, createEmptyState());
+  const cmdManager = new CommandManager();
+
+  // Register some "core" commands.
+  // TODO(stevegolton): Find a better place to put this.
+  cmdManager.registerCommandSource({
+    commands() {
+      return [
+        {
+          id: 'dev.perfetto.SetTimestampFormatTimecodes',
+          name: 'Set timestamp format: Timecode',
+          callback: () => {
+            setTimestampFormat(TimestampFormat.Timecode);
+            raf.scheduleFullRedraw();
+          },
+        },
+        {
+          id: 'dev.perfetto.SetTimestampFormatSeconds',
+          name: 'Set timestamp format: Seconds',
+          callback: () => {
+            setTimestampFormat(TimestampFormat.Seconds);
+            raf.scheduleFullRedraw();
+          },
+        },
+        {
+          id: 'dev.perfetto.SetTimestampFormatRaw',
+          name: 'Set timestamp format: Raw',
+          callback: () => {
+            setTimestampFormat(TimestampFormat.Raw);
+            raf.scheduleFullRedraw();
+          },
+        },
+        {
+          id: 'dev.perfetto.SetTimestampFormatLocaleRaw',
+          name: 'Set timestamp format: Raw (formatted)',
+          callback: () => {
+            setTimestampFormat(TimestampFormat.RawLocale);
+            raf.scheduleFullRedraw();
+          },
+        },
+        {
+          id: 'dev.perfetto.ShowSliceTabe',
+          name: 'Show slice table',
+          callback: () => {
+            addTab({
+              kind: SqlTableTab.kind,
+              config: {
+                table: SqlTables.slice,
+                displayName: 'slice',
+              },
+            });
+          },
+        },
+      ];
+    },
+  });
+
+  globals.initialize(dispatch, router, createEmptyState(), cmdManager);
+
   globals.serviceWorkerController.install();
 
   const frontendApi = new FrontendApi();
@@ -264,6 +326,8 @@ function main() {
   for (const plugin of pluginRegistry.values()) {
     pluginManager.activatePlugin(plugin.pluginId);
   }
+
+  cmdManager.registerCommandSource(pluginManager);
 }
 
 function onCssLoaded() {
