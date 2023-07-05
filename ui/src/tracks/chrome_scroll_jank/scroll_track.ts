@@ -30,6 +30,7 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
+import {ScrollJankPluginState} from './index';
 
 import {ScrollJankTracks as DecideTracksResult} from './index';
 
@@ -65,13 +66,22 @@ export class TopLevelScrollTrack extends
   constructor(args: NewTrackArgs) {
     super(args);
 
+    ScrollJankPluginState.getInstance().registerTrack({
+      kind: TopLevelScrollTrack.kind,
+      trackId: this.trackId,
+      tableName: this.tableName,
+      detailsPanelConfig: this.getDetailsPanel(),
+    });
+
     this.displayColumns['id'] = {displayName: 'Scroll Id (gesture_scroll_id)'};
     this.displayColumns['ts'] = {displayName: 'Start time'};
     this.displayColumns['dur'] = {displayName: 'Duration'};
   }
 
-  async initSqlTable(tableName: string) {
-    await super.initSqlTable(tableName);
+  onDestroy() {
+    super.onDestroy();
+    ScrollJankPluginState.getInstance().unregisterTrack(
+        TopLevelScrollTrack.kind);
   }
 }
 
