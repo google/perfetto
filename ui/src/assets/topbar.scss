@@ -64,7 +64,7 @@
         font-weight: 400;
       }
     }
-    &.command-mode {
+    &.query-mode {
       background-color: #111;
       border-radius: 0;
       width: 100%;
@@ -82,6 +82,14 @@
         color: #9ddc67;
         font-size: 26px;
         padding-top: 5px;
+      }
+    }
+    &.command-mode {
+      &:before {
+        @include material-icon("chevron_right");
+        margin: 5px;
+        color: #aaa;
+        grid-area: icon;
       }
     }
     &.message-mode {
@@ -230,7 +238,41 @@
 }
 
 .hide-sidebar {
-  .command-mode {
+  .query-mode {
     padding-left: 48px;
+  }
+}
+
+.pf-cmd-container {
+  margin: 2px;
+}
+
+.pf-cmd {
+  font-family: $pf-font;
+  cursor: pointer;
+  display: grid;
+  width: 400px;
+  grid-template-columns: [titles]1fr [icon]auto;
+  padding: 4px;
+  border-radius: $pf-border-radius;
+  align-items: center;
+  &:hover {
+    background-color: $pf-minimal-background-hover;
+  }
+  &.pf-highlighted {
+    background-color: $pf-primary-background;
+    color: white;
+  }
+  i {
+    grid-column: icon;
+    grid-row: 1 / span 2;
+  }
+  h1 {
+    grid-column: titles;
+    font-size: larger;
+  }
+  h2 {
+    grid-column: titles;
+    font-size: smaller;
   }
 }
