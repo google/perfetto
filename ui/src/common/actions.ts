@@ -56,6 +56,7 @@ import {
   NewEngineMode,
   OmniboxState,
   Pagination,
+  PendingDeeplinkState,
   PivotTableResult,
   PrimaryTrackSortKey,
   ProfileType,
@@ -479,8 +480,7 @@ export const StateActions = {
     }
   },
 
-  maybeSetPendingDeeplink(
-      state: StateDraft, args: {ts?: string, dur?: string, tid?: string}) {
+  maybeSetPendingDeeplink(state: StateDraft, args: PendingDeeplinkState) {
     state.pendingDeeplink = args;
   },
 
