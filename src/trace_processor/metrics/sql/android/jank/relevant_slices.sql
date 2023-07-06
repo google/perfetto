@@ -181,7 +181,7 @@ JOIN android_jank_cuj_sf_process sf_process
 GROUP BY cuj_id, app_upid, app_vsync, sf_upid, sf_vsync;
 
 SELECT CREATE_VIEW_FUNCTION(
-  'ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE(slice_name_glob STRING)',
+  'FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE(slice_name_glob STRING)',
   'cuj_id INT, utid INT, vsync INT, id INT, name STRING, ts LONG, dur LONG, ts_end LONG',
   '
   WITH sf_vsync AS (
@@ -207,16 +207,16 @@ SELECT CREATE_VIEW_FUNCTION(
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_commit_slice;
 CREATE TABLE android_jank_cuj_sf_commit_slice AS
-SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
+SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_composite_slice;
 CREATE TABLE android_jank_cuj_sf_composite_slice AS
-SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
+SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
 
 -- Older builds do not have the commit/composite but onMessageInvalidate instead
 DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
 CREATE TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
-SELECT * FROM ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
+SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_root_slice;
 CREATE VIEW android_jank_cuj_sf_root_slice AS
