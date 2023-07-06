@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_REGEX_H_
 
 #include <optional>
+#include "perfetto/base/compiler.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_or.h"
 
@@ -69,6 +70,7 @@ class Regex {
     }
     return Regex(std::move(regex));
 #else
+    base::ignore_result(pattern);
     PERFETTO_FATAL("Windows regex is not supported.");
 #endif
   }
@@ -79,6 +81,7 @@ class Regex {
     PERFETTO_CHECK(regex_);
     return regexec(&regex_.value(), s, 0, nullptr, 0) == 0;
 #else
+    base::ignore_result(s);
     PERFETTO_FATAL("Windows regex is not supported.");
 #endif
   }
