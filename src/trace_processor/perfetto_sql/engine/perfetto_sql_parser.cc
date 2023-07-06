@@ -20,9 +20,11 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
+#include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -34,6 +36,9 @@ using Statement = PerfettoSqlParser::Statement;
 enum class State {
   kStmtStart,
   kCreate,
+  kCreateOr,
+  kCreateOrReplace,
+  kCreateOrReplacePerfetto,
   kCreatePerfetto,
   kPassthrough,
 };
@@ -117,12 +122,28 @@ bool PerfettoSqlParser::Next() {
               "Creating triggers are not supported by trace processor.");
           return ErrorAtToken(token, err.c_str());
         }
-        state = TokenIsCustomKeyword("perfetto", token) ? State::kCreatePerfetto
-                                                        : State::kPassthrough;
+        if (TokenIsCustomKeyword("perfetto", token)) {
+          state = State::kCreatePerfetto;
+        } else if (TokenIsSqliteKeyword("or", token)) {
+          state = State::kCreateOr;
+        } else {
+          state = State::kPassthrough;
+        }
         break;
+      case State::kCreateOr:
+        state = TokenIsSqliteKeyword("replace", token) ? State::kCreateOrReplace
+                                                       : State::kPassthrough;
+        break;
+      case State::kCreateOrReplace:
+        state = TokenIsCustomKeyword("perfetto", token)
+                    ? State::kCreateOrReplacePerfetto
+                    : State::kPassthrough;
+        break;
+      case State::kCreateOrReplacePerfetto:
       case State::kCreatePerfetto:
         if (TokenIsCustomKeyword("function", token)) {
-          return ParseCreatePerfettoFunction();
+          return ParseCreatePerfettoFunction(state ==
+                                             State::kCreateOrReplacePerfetto);
         }
         base::StackString<1024> err(
             "Expected 'table' after 'create perfetto', received "
@@ -133,7 +154,7 @@ bool PerfettoSqlParser::Next() {
   }
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
+bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
   std::string prototype;
   Token function_name = tokenizer_.NextNonWhitespace();
   if (function_name.token_type != SqliteTokenType::TK_ID) {
@@ -146,38 +167,17 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
   prototype.append(function_name.str);
 
   // TK_LP == '(' (i.e. left parenthesis).
-  Token lp = tokenizer_.NextNonWhitespace();
-  if (lp.token_type != SqliteTokenType::TK_LP) {
+  if (Token lp = tokenizer_.NextNonWhitespace();
+      lp.token_type != SqliteTokenType::TK_LP) {
     // TODO(lalitm): add a link to create function documentation.
     return ErrorAtToken(lp, "Malformed function prototype: '(' expected");
   }
-  prototype.append(lp.str);
 
-  for (Token tok = tokenizer_.Next();; tok = tokenizer_.Next()) {
-    if (tok.token_type == SqliteTokenType::TK_SPACE) {
-      prototype.append(" ");
-      continue;
-    }
-    prototype.append(tok.str);
-    if (tok.token_type == SqliteTokenType::TK_ID ||
-        tok.token_type == SqliteTokenType::TK_COMMA) {
-      continue;
-    }
-    if (tok.token_type == SqliteTokenType::TK_RP) {
-      break;
-    }
-    if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
-      base::StackString<1024> err(
-          "Malformed function prototype: %.*s is a SQL keyword so cannot "
-          "appear in a function prototype",
-          static_cast<int>(tok.str.size()), tok.str.data());
-      return ErrorAtToken(tok, err.c_str());
-    }
-
-    // TODO(lalitm): add a link to create function documentation.
-    return ErrorAtToken(
-        tok, "Malformed function prototype: ')', ',', name or type expected");
+  prototype.push_back('(');
+  if (!ParseArgumentDefinitions(&prototype)) {
+    return false;
   }
+  prototype.push_back(')');
 
   if (Token returns = tokenizer_.NextNonWhitespace();
       !TokenIsCustomKeyword("returns", returns)) {
@@ -186,9 +186,24 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
   }
 
   Token ret_token = tokenizer_.NextNonWhitespace();
-  if (ret_token.token_type != SqliteTokenType::TK_ID) {
+  std::string ret;
+  bool table_return = TokenIsSqliteKeyword("table", ret_token);
+  if (table_return) {
+    if (Token lp = tokenizer_.NextNonWhitespace();
+        lp.token_type != SqliteTokenType::TK_LP) {
+      // TODO(lalitm): add a link to create function documentation.
+      return ErrorAtToken(lp, "Malformed table return: '(' expected");
+    }
+    // Table function return.
+    if (!ParseArgumentDefinitions(&ret)) {
+      return false;
+    }
+  } else if (ret_token.token_type != SqliteTokenType::TK_ID) {
     // TODO(lalitm): add a link to create function documentation.
     return ErrorAtToken(ret_token, "Invalid return type");
+  } else {
+    // Scalar function return.
+    ret = ret_token.str;
   }
 
   if (Token as_token = tokenizer_.NextNonWhitespace();
@@ -205,9 +220,34 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction() {
   uint32_t len = static_cast<uint32_t>((token.str.data() + token.str.size()) -
                                        sql_.sql().data());
 
-  statement_ = CreateFunction{std::move(prototype), std::string(ret_token.str),
-                              sql_.Substr(offset, len)};
+  statement_ = CreateFunction{replace, std::move(prototype), std::move(ret),
+                              sql_.Substr(offset, len), table_return};
   return true;
+}
+
+bool PerfettoSqlParser::ParseArgumentDefinitions(std::string* str) {
+  for (Token tok = tokenizer_.Next();; tok = tokenizer_.Next()) {
+    if (tok.token_type == SqliteTokenType::TK_RP) {
+      return true;
+    }
+    if (tok.token_type == SqliteTokenType::TK_SPACE) {
+      str->append(" ");
+      continue;
+    }
+    if (tok.token_type != SqliteTokenType::TK_ID &&
+        tok.token_type != SqliteTokenType::TK_COMMA) {
+      if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
+        base::StackString<1024> err(
+            "Malformed function prototype: %.*s is a SQL keyword so cannot "
+            "appear in a function prototype",
+            static_cast<int>(tok.str.size()), tok.str.data());
+        return ErrorAtToken(tok, err.c_str());
+      }
+      // TODO(lalitm): add a link to create function documentation.
+      return ErrorAtToken(tok, "')', ',', name or type expected");
+    }
+    str->append(tok.str);
+  }
 }
 
 bool PerfettoSqlParser::ErrorAtToken(const SqliteTokenizer::Token& token,

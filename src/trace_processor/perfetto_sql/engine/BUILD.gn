@@ -20,6 +20,8 @@ source_set("engine") {
   sources = [
     "created_function.cc",
     "created_function.h",
+    "created_table_function.cc",
+    "created_table_function.h",
     "function_util.cc",
     "function_util.h",
     "perfetto_sql_engine.cc",
