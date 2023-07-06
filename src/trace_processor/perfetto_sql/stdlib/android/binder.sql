@@ -38,26 +38,7 @@ GROUP BY
   process_name,
   slice_name;
 
--- Breakdown synchronous binder transactions per txn.
--- It returns data about the client and server ends of every binder transaction.
---
--- @column aidl_name name of the binder interface if existing
--- @column binder_txn_id slice id of the binder txn
--- @column client_process name of the client process
--- @column client_thread name of the client thread
--- @column client_upid name of the client upid
--- @column client_utid name of the client utid
--- @column client_ts timestamp of the client txn
--- @column client_dur dur of the client txn
--- @column is_main_thread Whether the txn was initiated from the main thread of the client process
--- @column binder_reply_id slice id of the binder reply
--- @column server_process name of the server process
--- @column server_thread  name of the server thread
--- @column server_upid name of the server upid
--- @column server_utid name of the server utid
--- @column server_ts timestamp of the server txn
--- @column server_dur dur of the server txn
-CREATE VIEW android_sync_binder_metrics_by_txn AS
+CREATE TABLE internal_binder_txn_merged AS
 WITH
   -- Fetch the broken binder txns first, i.e, the txns that have children slices
   -- They are definietly broken because synchronous txns are blocked sleeping while
@@ -156,6 +137,52 @@ GROUP BY
   thread_name,
   binder_txn_id,
   binder_reply_id;
+
+CREATE TABLE internal_oom_score AS
+  SELECT
+    process.upid,
+    CAST(c.value AS INT) AS value,
+    c.ts,
+    IFNULL(LEAD(ts) OVER (PARTITION BY upid ORDER BY ts), trace_bounds.end_ts) AS end_ts
+    FROM counter c, trace_bounds
+         JOIN process_counter_track t ON c.track_id = t.id
+         JOIN process USING (upid)
+   WHERE t.name = 'oom_score_adj';
+
+CREATE INDEX internal_oom_score_idx ON internal_oom_score(upid, ts);
+
+-- Breakdown synchronous binder transactions per txn.
+-- It returns data about the client and server ends of every binder transaction.
+--
+-- @column aidl_name name of the binder interface if existing.
+-- @column binder_txn_id slice id of the binder txn.
+-- @column client_process name of the client process.
+-- @column client_thread name of the client thread.
+-- @column client_upid name of the client upid.
+-- @column client_utid name of the client utid.
+-- @column client_ts timestamp of the client txn.
+-- @column client_dur dur of the client txn.
+-- @column client_oom_score oom score of the client process at the start of the txn.
+-- @column is_main_thread Whether the txn was initiated from the main thread of the client process.
+-- @column binder_reply_id slice id of the binder reply.
+-- @column server_process name of the server process.
+-- @column server_thread  name of the server thread.
+-- @column server_upid name of the server upid.
+-- @column server_utid name of the server utid.
+-- @column server_ts timestamp of the server txn.
+-- @column server_dur dur of the server txn.
+-- @column server_oom_score oom score of the server process at the start of the reply.
+CREATE VIEW android_sync_binder_metrics_by_txn AS
+SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
+FROM internal_binder_txn_merged binder
+LEFT JOIN internal_oom_score client_oom
+  ON
+    binder.client_upid = client_oom.upid
+    AND binder.client_ts BETWEEN client_oom.ts AND client_oom.end_ts
+LEFT JOIN internal_oom_score server_oom
+  ON
+    binder.server_upid = server_oom.upid
+    AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
 
 CREATE VIEW internal_binder_txn
 AS
