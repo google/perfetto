@@ -101,7 +101,7 @@ Recipe for building Perfetto.
 
 &mdash; **def [GnArgs](/infra/luci/recipes/perfetto.py#73)(platform):**
 
-&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#156)(api, repository):**
+&mdash; **def [RunSteps](/infra/luci/recipes/perfetto.py#157)(api, repository):**
 
 &mdash; **def [UploadArtifact](/infra/luci/recipes/perfetto.py#82)(api, ctx, platform, out_dir, artifact):**
 ### *recipes* / [windows\_sdk:examples/full](/infra/luci/recipe_modules/windows_sdk/examples/full.py)

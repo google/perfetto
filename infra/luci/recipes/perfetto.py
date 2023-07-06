@@ -142,6 +142,7 @@ def BuildForPlatform(api, ctx, platform):
     args = GnArgs(platform)
     api.step('gn gen',
              ['python3', 'tools/gn', 'gen', out_dir, '--args={}'.format(args)])
+    api.step('gn clean', ['python3', 'tools/gn', 'clean', out_dir])
     api.step('ninja', ['python3', 'tools/ninja', '-C', out_dir] + targets)
 
   # Upload stripped artifacts using gsutil if we're on the official builder.
