@@ -66,7 +66,7 @@ TEST_F(ClockConverterTest, TrivialToAbsTime) {
   row.clock_id = kReal;
   row.clock_value = 20;
   context_.storage->mutable_clock_snapshot_table()->Insert(row);
-
+  cc_.SetTimezoneOffsetForTesting(0);
   EXPECT_TRUE(cc_.ToAbsTime(10).ok());
   EXPECT_EQ(cc_.ToAbsTime(10).value(), "1970-01-01T00:00:00.000000020");
 }
@@ -131,10 +131,14 @@ TEST_F(ClockConverterTest, AbsTime) {
     rows.clock_value = 1652904000000000000 - 5;
     context_.storage->mutable_clock_snapshot_table()->Insert(rows);
   }
-
+  cc_.SetTimezoneOffsetForTesting(0);
   EXPECT_EQ(cc_.ToAbsTime(15).value(), "1970-01-01T00:00:00.000000005");
-  EXPECT_EQ(cc_.ToAbsTime(25).value(), "2022-05-18T19:59:59.999999995");
-  EXPECT_EQ(cc_.ToAbsTime(35).value(), "2022-05-18T20:00:00.000000000");
+  // GMT+2
+  cc_.SetTimezoneOffsetForTesting(2 * 3600);
+  EXPECT_EQ(cc_.ToAbsTime(25).value(), "2022-05-18T21:59:59.999999995");
+  // GMT+8
+  cc_.SetTimezoneOffsetForTesting(8 * 3600);
+  EXPECT_EQ(cc_.ToAbsTime(35).value(), "2022-05-19T04:00:00.000000000");
 }
 
 }  // namespace
