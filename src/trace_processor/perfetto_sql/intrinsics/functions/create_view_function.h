@@ -42,8 +42,6 @@ struct CreateViewFunction : public SqlFunction {
                           Destructors&);
 };
 
-void RegisterCreateViewFunctionModule(PerfettoSqlEngine*);
-
 }  // namespace trace_processor
 }  // namespace perfetto
 

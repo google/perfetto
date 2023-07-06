@@ -678,13 +678,14 @@ base::Status CreatedFunction::VerifyPostConditions(
 }
 
 base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
+                                                bool replace,
                                                 Prototype prototype,
                                                 std::string prototype_str,
                                                 sql_argument::Type return_type,
                                                 std::string return_type_str,
                                                 SqlSource source) {
   State* state = static_cast<State*>(ctx);
-  if (state->is_valid()) {
+  if (state->is_valid() && !replace) {
     // If the function already exists, just verify that the prototype, return
     // type and SQL matches exactly with what we already had registered. By
     // doing this, we can avoid the problem plaguing C++ macros where macro
