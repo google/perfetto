@@ -477,7 +477,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
       "window", storage, SqliteTable::TableType::kExplicitCreate, true);
-  RegisterCreateViewFunctionModule(&engine_);
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(engine_.sqlite_engine()->db());
