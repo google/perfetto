@@ -33,6 +33,7 @@ import {
 import {pluginManager} from '../common/plugins';
 import {
   LONG,
+  LONG_NULL,
   NUM,
   NUM_NULL,
   QueryError,
@@ -970,6 +971,17 @@ export class TraceController extends Controller<States> {
   }
 }
 
+async function computeFtraceBounds(engine: Engine): Promise<TPTimeSpan|null> {
+  const result = await engine.query(`
+    SELECT min(ts) as start, max(ts) as end FROM ftrace_event;
+  `);
+  const {start, end} = result.firstRow({start: LONG_NULL, end: LONG_NULL});
+  if (start !== null && end !== null) {
+    return new TPTimeSpan(start, end);
+  }
+  return null;
+}
+
 async function computeTraceReliableRangeStart(engine: Engine): Promise<TPTime> {
   const result =
     await engine.query(`SELECT RUN_METRIC('chrome/chrome_reliable_range.sql');
@@ -1011,6 +1023,11 @@ async function computeVisibleTime(
   if (!isJsonTrace && ENABLE_CHROME_RELIABLE_RANGE_ZOOM_FLAG.get()) {
     const reliableRangeStart = await computeTraceReliableRangeStart(engine);
     visibleStartSec = BigintMath.max(visibleStartSec, reliableRangeStart);
+  }
+
+  const ftraceBounds = await computeFtraceBounds(engine);
+  if (ftraceBounds !== null) {
+    visibleStartSec = ftraceBounds.start;
   }
 
   return HighPrecisionTimeSpan.fromTpTime(visibleStartSec, visibleEndSec);
