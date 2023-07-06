@@ -8,6 +8,10 @@ Unreleased:
   SDK:
     *
 
+v36.1 - 2023-07-06:
+  Trace Processor:
+    * Fix compile on Windows.
+
 v36.0 - 2023-07-05:
   Tracing service and probes:
     * Fixed unnecessary reads of thread files /proc when scraping process names.
