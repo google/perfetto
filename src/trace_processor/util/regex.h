@@ -37,12 +37,11 @@ constexpr bool IsRegexSupported() {
 #endif
 }
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
 // Implements regex parsing and regex search based on C library `regex.h`.
 // Doesn't work on Windows.
 class Regex {
  public:
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
   ~Regex() {
     if (regex_) {
       regfree(&regex_.value());
@@ -59,29 +58,38 @@ class Regex {
     return *this;
   }
   Regex& operator=(const Regex&) = delete;
+#endif
 
   // Parse regex pattern. Returns error if regex pattern is invalid.
   static base::StatusOr<Regex> Create(const char* pattern) {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     regex_t regex;
     if (regcomp(&regex, pattern, 0)) {
       return base::ErrStatus("Regex pattern '%s' is malformed.", pattern);
     }
     return Regex(std::move(regex));
+#else
+    PERFETTO_FATAL("Windows regex is not supported.");
+#endif
   }
 
   // Returns true if string matches the regex.
   bool Search(const char* s) const {
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
     PERFETTO_CHECK(regex_);
     return regexec(&regex_.value(), s, 0, nullptr, 0) == 0;
+#else
+    PERFETTO_FATAL("Windows regex is not supported.");
+#endif
   }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
  private:
   explicit Regex(regex_t regex) : regex_(std::move(regex)) {}
 
   std::optional<regex_t> regex_;
-};
-
 #endif
+};
 }  // namespace regex
 
 }  // namespace trace_processor
