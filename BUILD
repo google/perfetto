@@ -2071,6 +2071,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
+        "src/trace_processor/perfetto_sql/engine/created_table_function.cc",
+        "src/trace_processor/perfetto_sql/engine/created_table_function.h",
         "src/trace_processor/perfetto_sql/engine/function_util.cc",
         "src/trace_processor/perfetto_sql/engine/function_util.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
