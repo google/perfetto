@@ -15,16 +15,19 @@
 import {AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
+import {ObjectById} from '../../common/state';
 import {
   PluginContext,
 } from '../../public';
-import {ObjectById} from '../../common/state';
 import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
-import {TopLevelScrollTrack} from './scroll_track';
-import {addTopLevelJankTrack, TopLevelJankTrack} from './top_level_jank_track';
+import {
+  addScrollJankV3ScrollTrack,
+  ScrollJankV3Track,
+} from './scroll_jank_v3_track';
+import {addTopLevelScrollTrack, TopLevelScrollTrack} from './scroll_track';
 import {
   addJankyLatenciesTrack,
   TopLevelEventLatencyTrack,
@@ -103,12 +106,20 @@ export async function getScrollJankTracks(engine: Engine):
     tracksToAdd: [],
   };
 
-  const topLevelJanks = addTopLevelJankTrack(engine);
-  const topLevelJanksResult = await topLevelJanks;
+  const scrolls = addTopLevelScrollTrack(engine);
+  const scrollsResult = await scrolls;
   let originalLength = result.tracksToAdd.length;
-  result.tracksToAdd.length += topLevelJanksResult.tracksToAdd.length;
-  for (let i = 0; i < topLevelJanksResult.tracksToAdd.length; ++i) {
-    result.tracksToAdd[i + originalLength] = topLevelJanksResult.tracksToAdd[i];
+  result.tracksToAdd.length += scrollsResult.tracksToAdd.length;
+  for (let i = 0; i < scrollsResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] = scrollsResult.tracksToAdd[i];
+  }
+
+  const janks = addScrollJankV3ScrollTrack(engine);
+  const janksResult = await janks;
+  originalLength = result.tracksToAdd.length;
+  result.tracksToAdd.length += janksResult.tracksToAdd.length;
+  for (let i = 0; i < janksResult.tracksToAdd.length; ++i) {
+    result.tracksToAdd[i + originalLength] = janksResult.tracksToAdd[i];
   }
 
   // TODO(b/278844325): Top Level event latency summary is already rendered in
@@ -136,10 +147,10 @@ export async function getScrollJankTracks(engine: Engine):
 
 function activate(ctx: PluginContext) {
   ctx.registerTrack(ChromeTasksScrollJankTrack);
-  ctx.registerTrack(TopLevelJankTrack);
+  ctx.registerTrack(EventLatencyTrack);
+  ctx.registerTrack(ScrollJankV3Track);
   ctx.registerTrack(TopLevelScrollTrack);
   ctx.registerTrack(TopLevelEventLatencyTrack);
-  ctx.registerTrack(EventLatencyTrack);
 }
 
 export const plugin = {

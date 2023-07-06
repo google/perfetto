@@ -26,70 +26,76 @@ import {
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
-import {ScrollJankPluginState} from './index';
 
-import {ScrollJankTracks as DecideTracksResult} from './index';
-import {ScrollDetailsPanel} from './scroll_details_panel';
+import {
+  ScrollJankPluginState,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
+import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 
 export {Data} from '../chrome_slices';
 
-export class TopLevelScrollTrack extends
+export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
+  static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelScrollTrack(args);
-  }
-
-  getSqlDataSource(): CustomSqlTableDefConfig {
-    return {
-      columns: [`printf("Scroll %s", CAST(id AS STRING)) AS name`, '*'],
-      sqlTableName: 'chrome_scrolls',
-    };
-  }
-
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: ScrollDetailsPanel.kind,
-      config: {
-        sqlTableName: this.tableName,
-        title: 'Chrome Top Level Scrolls',
-      },
-    };
+    return new ScrollJankV3Track(args);
   }
 
   constructor(args: NewTrackArgs) {
     super(args);
 
     ScrollJankPluginState.getInstance().registerTrack({
-      kind: TopLevelScrollTrack.kind,
+      kind: ScrollJankV3Track.kind,
       trackId: this.trackId,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });
   }
 
+  getSqlDataSource(): CustomSqlTableDefConfig {
+    return {
+      columns: [
+        '"Jank" AS name',
+        'id',
+        'ts',
+        'dur',
+      ],
+      sqlTableName: 'chrome_janky_frame_presentation_intervals',
+    };
+  }
+
+  getDetailsPanel(): CustomSqlDetailsPanelConfig {
+    return {
+      kind: ScrollJankV3DetailsPanel.kind,
+      config: {
+        sqlTableName: 'chrome_janky_frame_presentation_intervals',
+        title: 'Chrome Scroll Janks',
+      },
+    };
+  }
+
   onDestroy() {
     super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(
-        TopLevelScrollTrack.kind);
+    ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 }
 
-export async function addTopLevelScrollTrack(engine: Engine):
+export async function addScrollJankV3ScrollTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelScrollTrack.kind,
+    kind: ScrollJankV3Track.kind,
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Chrome Scrolls',
+    name: 'Chrome Scroll Frame Presentation Janks',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
