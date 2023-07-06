@@ -293,6 +293,7 @@ class Android(TestSuite):
           is_main_thread,
           client_ts,
           client_dur,
+          client_oom_score,
           binder_reply_id,
           server_process,
           server_thread,
@@ -300,15 +301,16 @@ class Android(TestSuite):
           server_utid,
           server_tid,
           server_ts,
-          server_dur
+          server_dur,
+          server_oom_score
         FROM android_sync_binder_metrics_by_txn
         WHERE binder_txn_id = 34382
         ORDER BY client_ts
         LIMIT 1;
       """,
         out=Csv("""
-        "aidl_name","binder_txn_id","client_process","client_thread","client_upid","client_utid","client_tid","is_main_thread","client_ts","client_dur","binder_reply_id","server_process","server_thread","server_upid","server_utid","server_tid","server_ts","server_dur"
-        "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server",34382,"/system/bin/audioserver","audioserver",281,281,492,1,25505818197,3125407,34383,"system_server","binder:641_4",311,539,1596,25505891588,3000749
+        "aidl_name","binder_txn_id","client_process","client_thread","client_upid","client_utid","client_tid","is_main_thread","client_ts","client_dur","client_oom_score","binder_reply_id","server_process","server_thread","server_upid","server_utid","server_tid","server_ts","server_dur","server_oom_score"
+        "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server",34382,"/system/bin/audioserver","audioserver",281,281,492,1,25505818197,3125407,-1000,34383,"system_server","binder:641_4",311,539,1596,25505891588,3000749,-900
       """))
 
   def test_binder_sync_binder_thread_state(self):
