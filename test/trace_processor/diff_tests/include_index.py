@@ -40,6 +40,7 @@ from diff_tests.chrome.tests_processes import ChromeProcesses
 from diff_tests.chrome.tests_rail_modes import ChromeRailModes
 from diff_tests.chrome.tests_scroll_jank import ChromeScrollJank
 from diff_tests.chrome.tests_touch_gesture import ChromeTouchGesture
+from diff_tests.codecs.tests import Codecs
 from diff_tests.cros.tests import Cros
 from diff_tests.dynamic.tests import Dynamic
 from diff_tests.fs.tests import Fs
@@ -111,6 +112,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ChromeProcesses(index_path, 'chrome', 'ChromeProcesses').fetch(),
       *ChromeArgs(index_path, 'chrome', 'ChromeArgs').fetch(),
       *Chrome(index_path, 'chrome', 'Chrome').fetch(),
+      *Codecs(index_path, 'codecs', 'Codecs').fetch(),
       *Cros(index_path, 'cros', 'Cros').fetch(),
       *Dynamic(index_path, 'dynamic', 'Dynamic').fetch(),
       *EntityStateResidency(index_path, 'power',
