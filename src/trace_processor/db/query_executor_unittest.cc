@@ -445,6 +445,7 @@ TEST(QueryExecutor, StringBinarySearchIsNull) {
   ASSERT_EQ(res.Get(0), 2u);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(QueryExecutor, StringBinarySearchRegex) {
   StringPool pool;
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
@@ -502,6 +503,7 @@ TEST(QueryExecutor, StringBinarySearchRegexWithNum) {
 
   ASSERT_EQ(res.size(), 0u);
 }
+#endif
 
 }  // namespace
 }  // namespace trace_processor

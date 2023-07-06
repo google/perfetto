@@ -95,8 +95,6 @@ struct GlobFullStringPool {
   std::vector<uint8_t> matches_;
 };
 
-#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-
 struct Regex {
   bool operator()(StringPool::Id rhs, regex::Regex& pattern) const {
     return rhs != StringPool::Id::Null() &&
@@ -121,8 +119,6 @@ struct RegexFullStringPool {
   StringPool* pool_;
   std::vector<uint8_t> matches_;
 };
-
-#endif
 
 struct IsNull {
   bool operator()(StringPool::Id rhs, StringPool::Id) const {
@@ -216,31 +212,25 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
           GlobFullStringPool{string_pool_, matcher}, builder);
       break;
     }
-    case FilterOp::kRegex:
-      if constexpr (regex::IsRegexSupported()) {
-        base::StatusOr<regex::Regex> regex =
-            regex::Regex::Create(sql_val.AsString());
-        if (!regex.status().ok()) {
-          break;
-        }
+    case FilterOp::kRegex: {
+      // Caller should ensure that the regex is valid.
+      base::StatusOr<regex::Regex> regex =
+          regex::Regex::Create(sql_val.AsString());
+      PERFETTO_CHECK(regex.status().ok());
 
-        // For very big string pools (or small ranges) or pools with large
-        // strings run a standard regex function.
-        if (range.size() < string_pool_->size() ||
-            string_pool_->HasLargeString()) {
-          utils::LinearSearchWithComparator(std::move(regex.value()), start,
-                                            Regex{string_pool_}, builder);
-          break;
-        }
-
-        utils::LinearSearchWithComparator(
-            StringPool::Id::Null(), start,
-            RegexFullStringPool{string_pool_, regex.value()}, builder);
+      // For very big string pools (or small ranges) or pools with large
+      // strings run a standard regex function.
+      if (range.size() < string_pool_->size() ||
+          string_pool_->HasLargeString()) {
+        utils::LinearSearchWithComparator(std::move(regex.value()), start,
+                                          Regex{string_pool_}, builder);
         break;
-      } else {
-        PERFETTO_DFATAL("Regex not supported");
       }
-
+      utils::LinearSearchWithComparator(
+          StringPool::Id::Null(), start,
+          RegexFullStringPool{string_pool_, regex.value()}, builder);
+      break;
+    }
     case FilterOp::kIsNull:
       utils::LinearSearchWithComparator(val, start, IsNull(), builder);
       break;
@@ -312,15 +302,13 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
                                        Glob{string_pool_}, builder);
       break;
     }
-    case FilterOp::kRegex:
-      PERFETTO_CHECK(regex::IsRegexSupported());
-      if constexpr (regex::IsRegexSupported()) {
-        base::StatusOr<regex::Regex> regex =
-            regex::Regex::Create(sql_val.AsString());
-        utils::IndexSearchWithComparator(std::move(regex.value()), start,
-                                         indices, Regex{string_pool_}, builder);
-      }
+    case FilterOp::kRegex: {
+      base::StatusOr<regex::Regex> regex =
+          regex::Regex::Create(sql_val.AsString());
+      utils::IndexSearchWithComparator(std::move(regex.value()), start, indices,
+                                       Regex{string_pool_}, builder);
       break;
+    }
     case FilterOp::kIsNull:
       utils::IndexSearchWithComparator(val, start, indices, IsNull(), builder);
       break;
