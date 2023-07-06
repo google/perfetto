@@ -194,6 +194,7 @@ TEST(StringStorageUnittest, LinearSearchGlob) {
   ASSERT_EQ(bv.CountSetBits(), 3u);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(StringStorageUnittest, LinearSearchRegex) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
@@ -229,6 +230,7 @@ TEST(StringStorageUnittest, LinearSearchRegexMalformed) {
 
   ASSERT_EQ(bv.CountSetBits(), 0u);
 }
+#endif
 
 TEST(StringStorageUnittest, IndexSearchEq) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
