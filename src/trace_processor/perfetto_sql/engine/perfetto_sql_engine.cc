@@ -21,9 +21,11 @@
 #include <variant>
 
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
+#include "src/trace_processor/perfetto_sql/engine/created_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
@@ -167,11 +169,9 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     std::optional<SqlSource> source;
     if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
             &parser.statement())) {
-      RETURN_IF_ERROR(AddTracebackIfNeeded(
-          RegisterSqlFunction(cf->prototype, cf->returns, cf->sql), copy));
-      // Since the rest of the code requires a statement, just use a no-value
-      // dummy statement.
-      source = SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
+      auto source_or = ExecuteCreateFunction(*cf);
+      RETURN_IF_ERROR(AddTracebackIfNeeded(source_or.status(), copy));
+      source = std::move(source_or.value());
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -239,7 +239,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   return ExecutionResult{std::move(*res), stats};
 }
 
-base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
+base::Status PerfettoSqlEngine::RegisterSqlFunction(bool replace,
+                                                    std::string prototype_str,
                                                     std::string return_type_str,
                                                     SqlSource sql) {
   // Parse all the arguments into a more friendly form.
@@ -247,7 +248,7 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
   base::Status status =
       ParsePrototype(base::StringView(prototype_str), prototype);
   if (!status.ok()) {
-    return base::ErrStatus("CREATE_FUNCTION[prototype=%s]: %s",
+    return base::ErrStatus("CREATE PERFETTO FUNCTION[prototype=%s]: %s",
                            prototype_str.c_str(), status.c_message());
   }
 
@@ -256,8 +257,8 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
       sql_argument::ParseType(base::StringView(return_type_str));
   if (!opt_return_type) {
     return base::ErrStatus(
-        "CREATE_FUNCTION[prototype=%s, return=%s]: unknown return type "
-        "specified",
+        "CREATE PERFETTO FUNCTION[prototype=%s, return=%s]: unknown return "
+        "type specified",
         prototype_str.c_str(), return_type_str.c_str());
   }
 
@@ -277,7 +278,7 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(std::string prototype_str,
         std::move(created_fn_ctx)));
   }
   return CreatedFunction::ValidateOrPrepare(
-      ctx, std::move(prototype), std::move(prototype_str),
+      ctx, replace, std::move(prototype), std::move(prototype_str),
       std::move(*opt_return_type), std::move(return_type_str), std::move(sql));
 }
 
@@ -291,6 +292,146 @@ base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
         "EXPERIMENTAL_MEMOIZE: Function %s(INT) does not exist", name.c_str());
   }
   return CreatedFunction::EnableMemoization(ctx);
+}
+
+// Takes the prepared statement for the given SQL table function.
+std::optional<SqliteEngine::PreparedStatement>
+PerfettoSqlEngine::TakeSqlTableFunctionStatement(const std::string& name) {
+  auto* ptr = sql_table_function_statements_.Find(base::ToLower(name));
+  PERFETTO_CHECK(ptr);
+  std::optional<SqliteEngine::PreparedStatement> res = std::move(*ptr);
+  *ptr = std::nullopt;
+  return res;
+}
+
+// Returns the prepared statement for the given SQL table function for future
+// use.
+void PerfettoSqlEngine::ReturnSqlTableFunctionStatementForReuse(
+    const std::string& name,
+    SqliteEngine::PreparedStatement stmt) {
+  auto* ptr = sql_table_function_statements_.Find(base::ToLower(name));
+  PERFETTO_CHECK(ptr);
+  *ptr = std::move(stmt);
+}
+
+base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
+    const PerfettoSqlParser::CreateFunction& cf) {
+  if (!cf.is_table) {
+    RETURN_IF_ERROR(
+        RegisterSqlFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
+
+    // Since the rest of the code requires a statement, just use a no-value
+    // dummy statement.
+    return SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
+  }
+
+  CreatedTableFunctionContext context;
+  context.engine = this;
+  context.prototype_str = cf.prototype;
+  context.sql_defn_str = cf.sql.sql();
+
+  base::StringView function_name;
+  RETURN_IF_ERROR(
+      ParseFunctionName(context.prototype_str.c_str(), function_name));
+
+  // Parse all the arguments into a more friendly form.
+  base::Status status =
+      ParsePrototype(context.prototype_str.c_str(), context.prototype);
+  if (!status.ok()) {
+    return base::ErrStatus("CREATE PERFETTO FUNCTION[prototype=%s]: %s",
+                           context.prototype_str.c_str(), status.c_message());
+  }
+
+  // Parse the return type into a enum format.
+  status =
+      sql_argument::ParseArgumentDefinitions(cf.returns, context.return_values);
+  if (!status.ok()) {
+    return base::ErrStatus(
+        "CREATE PERFETTO FUNCTION[prototype=%s, return=%s]: unknown return "
+        "type specified",
+        context.prototype_str.c_str(), cf.returns.c_str());
+  }
+
+  // Verify that the provided SQL prepares to a statement correctly.
+  auto stmt = sqlite_engine()->PrepareStatement(cf.sql);
+  RETURN_IF_ERROR(stmt.status());
+
+  // Verify that every argument name in the function appears in the
+  // argument list.
+  //
+  // We intentionally loop from 1 to |used_param_count| because SQL
+  // parameters are 1-indexed *not* 0-indexed.
+  int used_param_count = sqlite3_bind_parameter_count(stmt->sqlite_stmt());
+  for (int i = 1; i <= used_param_count; ++i) {
+    const char* name = sqlite3_bind_parameter_name(stmt->sqlite_stmt(), i);
+
+    if (!name) {
+      return base::ErrStatus(
+          "%s: \"Nameless\" SQL parameters cannot be used in the SQL "
+          "statements of view functions.",
+          context.prototype.function_name.c_str());
+    }
+
+    if (!base::StringView(name).StartsWith("$")) {
+      return base::ErrStatus(
+          "%s: invalid parameter name %s used in the SQL definition of "
+          "the view function: all parameters must be prefixed with '$' not ':' "
+          "or '@'.",
+          context.prototype.function_name.c_str(), name);
+    }
+
+    auto it = std::find_if(context.prototype.arguments.begin(),
+                           context.prototype.arguments.end(),
+                           [name](const sql_argument::ArgumentDefinition& arg) {
+                             return arg.dollar_name() == name;
+                           });
+    if (it == context.prototype.arguments.end()) {
+      return base::ErrStatus(
+          "%s: parameter %s does not appear in the list of arguments in the "
+          "prototype of the view function.",
+          context.prototype.function_name.c_str(), name);
+    }
+  }
+
+  // Verify that the prepared statement column count matches the return
+  // count.
+  uint32_t col_count =
+      static_cast<uint32_t>(sqlite3_column_count(stmt->sqlite_stmt()));
+  if (col_count != context.return_values.size()) {
+    return base::ErrStatus(
+        "%s: number of return values %u does not match SQL statement column "
+        "count %zu.",
+        context.prototype.function_name.c_str(), col_count,
+        context.return_values.size());
+  }
+
+  // Verify that the return names matches the prepared statment column names.
+  for (uint32_t i = 0; i < col_count; ++i) {
+    const char* name =
+        sqlite3_column_name(stmt->sqlite_stmt(), static_cast<int>(i));
+    if (name != context.return_values[i].name()) {
+      return base::ErrStatus(
+          "%s: column %s at index %u does not match return value name %s.",
+          context.prototype.function_name.c_str(), name, i,
+          context.return_values[i].name().c_str());
+    }
+  }
+
+  std::string name = context.prototype.function_name;
+  auto it_and_inserted =
+      sql_table_function_statements_.Insert(base::ToLower(name), std::nullopt);
+  if (!cf.replace && !it_and_inserted.second) {
+    return base::ErrStatus("Table function named %s already exists",
+                           name.c_str());
+  }
+  *it_and_inserted.first = std::move(stmt.value());
+
+  engine_.RegisterVirtualTableModule<CreatedTableFunction>(
+      name, std::move(context), SqliteTable::TableType::kEponymousOnly, false);
+
+  // Since the rest of the code requires a statement, just use a no-value
+  // dummy statement.
+  return SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
 }
 
 }  // namespace trace_processor
