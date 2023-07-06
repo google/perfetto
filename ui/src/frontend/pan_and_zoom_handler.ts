@@ -106,6 +106,7 @@ export class PanAndZoomHandler {
   private zoomAnimation = new Animation(this.onZoomAnimationStep.bind(this));
 
   private element: HTMLElement;
+  private page?: HTMLElement;
   private contentOffsetX: number;
   private onPanned: (movedPx: number) => void;
   private onZoomed: (zoomPositionPx: number, zoomRatio: number) => void;
@@ -117,6 +118,7 @@ export class PanAndZoomHandler {
 
   constructor({
     element,
+    page,
     contentOffsetX,
     onPanned,
     onZoomed,
@@ -125,6 +127,7 @@ export class PanAndZoomHandler {
     endSelection,
   }: {
     element: HTMLElement,
+    page?: HTMLElement, // Optional scope in which to handle key events
     contentOffsetX: number,
     onPanned: (movedPx: number) => void,
     onZoomed: (zoomPositionPx: number, zoomRatio: number) => void,
@@ -141,6 +144,10 @@ export class PanAndZoomHandler {
     this.editSelection = editSelection;
     this.onSelection = onSelection;
     this.endSelection = endSelection;
+    
+    this.page = page;
+    // Make it focusable and also tabbable for keyboard accessibility
+    page?.setAttribute('tabindex', '0');
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
@@ -264,6 +271,9 @@ export class PanAndZoomHandler {
   private onKeyDown(e: KeyboardEvent) {
     this.updateShift(e.shiftKey);
 
+    // Handle key events that are not for us
+    if (!this.shouldHandlekey(e)) return;
+
     // Handle key events that are not pan or zoom.
     if (handleKey(e, true)) return;
 
@@ -291,6 +301,9 @@ export class PanAndZoomHandler {
   private onKeyUp(e: KeyboardEvent) {
     this.updateShift(e.shiftKey);
 
+    // Handle key events that are not for us
+    if (!this.shouldHandlekey(e)) return;
+
     // Handle key events that are not pan or zoom.
     if (handleKey(e, false)) return;
 
@@ -311,5 +324,10 @@ export class PanAndZoomHandler {
     } else if (this.mousePositionX) {
       this.element.style.cursor = DRAG_CURSOR;
     }
+  }
+
+  protected shouldHandlekey(_e: KeyboardEvent) {
+    // If no page, then scope is document-wide by default
+    return !this.page || this.page.contains(document.activeElement);
   }
 }
