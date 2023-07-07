@@ -6,7 +6,7 @@ export function onEngineReady() {
   }
 }
 
-export function addEngineReadyObserver(observer: ()=>void):
+export function addEngineReadyObserver(observer: () => void):
     void {
         engineReadyObservers.push(observer);
 }
