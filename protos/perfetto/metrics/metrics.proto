@@ -22,6 +22,7 @@ import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
 import "protos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.proto";
 import "protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto";
+import "protos/perfetto/metrics/android/codec_metrics.proto";
 import "protos/perfetto/metrics/android/cpu_metric.proto";
 import "protos/perfetto/metrics/android/camera_metric.proto";
 import "protos/perfetto/metrics/android/camera_unagg_metric.proto";
@@ -241,6 +242,9 @@ message TraceMetrics {
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
+
+  // Metrics to track codec framework.
+  optional AndroidCodecMetrics codec_metrics = 52;
 
   // Demo extensions.
   extensions 450 to 499;
