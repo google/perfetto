@@ -1,4 +1,4 @@
-const engineReadyObservers: (()=>void)[] = [];
+const engineReadyObservers: (() => void)[] = [];
 
 export function onEngineReady() {
   for (const observer of engineReadyObservers) {
