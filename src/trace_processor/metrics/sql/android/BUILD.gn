@@ -62,6 +62,7 @@ perfetto_sql_source_set("android") {
     "composition_layers.sql",
     "counter_span_view_merged.sql",
     "cpu_info.sql",
+    "codec_metrics.sql",
     "display_metrics.sql",
     "frame_missed.sql",
     "g2d.sql",
