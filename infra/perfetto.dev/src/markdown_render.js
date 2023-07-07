@@ -20,7 +20,7 @@ const path = require('path');
 const hljs = require('highlight.js');
 
 const CS_BASE_URL =
-    'https://cs.android.com/android/platform/superproject/+/master:external/perfetto';
+    'https://cs.android.com/android/platform/superproject/+/main:external/perfetto';
 
 const ROOT_DIR = path.dirname(path.dirname(path.dirname(__dirname)));
 

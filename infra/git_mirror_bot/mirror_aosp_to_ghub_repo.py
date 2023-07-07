@@ -94,7 +94,7 @@ def Sync(args):
   for line in all_refs.splitlines():
     ref_sha1, ref = line.split()
 
-    FILTER_REGEX = r'(heads/master|heads/releases/.*|tags/v\d+\.\d+)$'
+    FILTER_REGEX = r'(heads/main|heads/releases/.*|tags/v\d+\.\d+)$'
     m = re.match('refs/' + FILTER_REGEX, ref)
     if m is not None:
       branch = m.group(1)

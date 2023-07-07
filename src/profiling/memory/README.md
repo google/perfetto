@@ -21,10 +21,10 @@ noop: ignores all calls to the client API. This can be used as a stand-in when
 
 ### Interceptors
 bionic: uses bionic [malloc dispatch](
-https://cs.android.com/android/platform/superproject/+/master:bionic/libc/private/bionic_malloc_dispatch.h)
+https://cs.android.com/android/platform/superproject/+/main:bionic/libc/private/bionic_malloc_dispatch.h)
 to intercept allocation functions on Android. This works by placing a library
 on a pre-defined path, which gets [loaded by Bionic](
-https://cs.android.com/android/platform/superproject/+/master:bionic/libc/bionic/malloc_heapprofd.cpp).
+https://cs.android.com/android/platform/superproject/+/main:bionic/libc/bionic/malloc_heapprofd.cpp).
 
 glibc: generates a library exposing the allocation functions. This library
        should be used for `LD_PRELOAD` and uses the glibc specific symbols
