@@ -22,7 +22,7 @@
 -- @column counter_dur    Duration between the first and last counter value for the counter name.
 -- @column counter_count  Count of all the counter values for the counter name.
 -- @column counter_avg    Avergate of all the counter values for the counter name.
-CREATE VIEW f2fs_counter_stats AS
+CREATE VIEW android_io_f2fs_counter_stats AS
 SELECT
   STR_SPLIT(counter_track.name, '].', 1) AS counter_name,
   SUM(counter.value) AS counter_sum,
@@ -49,7 +49,7 @@ ORDER BY counter_sum DESC;
 -- @column dev           Device node number of the file being written.
 -- @column bytes         Total number of bytes written on this file by the |utid|.
 -- @column write_count   Total count of write requests for this file.
-CREATE VIEW f2fs_write_stats AS
+CREATE VIEW android_io_f2fs_write_stats AS
 WITH
   f2fs_write_end AS (
     SELECT
