@@ -61,11 +61,6 @@ class ClockConverter {
     return FromTraceTime(kMonoClock, ts);
   }
 
-  // Only for tests.
-  void SetTimezoneOffsetForTesting(int offsite_s) {
-    timezone_offset_s_ = offsite_s;
-  }
-
  private:
   static constexpr int64_t kRealClock =
       protos::pbzero::ClockSnapshot::Clock::REALTIME;
@@ -88,9 +83,6 @@ class ClockConverter {
   TraceProcessorContext* context_;
   bool is_initialized = false;
   base::FlatHashMap<ClockId, Timeline> timelines_;
-
-  // Indicates the time offset of the current time zone relative to UTC (GMT).
-  std::optional<int32_t> timezone_offset_s_;
 };
 
 }  // namespace trace_processor
