@@ -562,7 +562,7 @@ class AdbMsg {
   }
 
   // A brief description of the message can be found here:
-  // https://android.googlesource.com/platform/system/core/+/master/adb/protocol.txt
+  // https://android.googlesource.com/platform/system/core/+/main/adb/protocol.txt
   //
   // struct amessage {
   //     uint32_t command;    // command identifier constant

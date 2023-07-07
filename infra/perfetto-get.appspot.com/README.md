@@ -7,7 +7,7 @@ https://get.perfetto.dev/XXX
 
 to the raw content of the files hosted on AOSP Gerrit, e.g.:
 
-https://android.googlesource.com/platform/external/perfetto/+/master/XXX
+https://android.googlesource.com/platform/external/perfetto/+/main/XXX
 
 See main.py for the dictionary that maps /XXX into the actual path in the
 perfetto repository.

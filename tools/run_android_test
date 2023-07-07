@@ -160,7 +160,7 @@ def Main():
   # namespace applied, which we need in order to link libdexfile.so.
   # This gets linked into our tests via libundwindstack.so.
   #
-  # See https://android.googlesource.com/platform/system/core/+/master/rootdir/etc/ld.config.txt.
+  # See https://android.googlesource.com/platform/system/core/+/main/rootdir/etc/ld.config.txt.
   AdbPush(test_bin, "/data/nativetest")
 
   # These two binaries are required to run perfetto_integrationtests.
