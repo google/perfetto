@@ -49,12 +49,6 @@ void ClockConverter::MaybeInitialize() {
     if (it.clock_id() == kRealClock || it.clock_id() == kMonoClock)
       timelines_.Find(it.clock_id())->emplace(it.ts(), it.clock_value());
   }
-
-  if (!timezone_offset_s_.has_value()) {
-    time_t now = time(nullptr);
-    tm *local_time = localtime(&now);
-    timezone_offset_s_ = static_cast<int32_t>(local_time->tm_gmtoff);
-  }
 }
 
 base::StatusOr<ClockConverter::Timestamp> ClockConverter::FromTraceTime(
@@ -100,7 +94,7 @@ base::StatusOr<ClockConverter::Timestamp> ClockConverter::FromTraceTime(
 
 std::string ClockConverter::TimeToStr(Timestamp ts) {
   constexpr int64_t one_second_in_ns = 1LL * 1000LL * 1000LL * 1000LL;
-  int64_t s = ts / one_second_in_ns + timezone_offset_s_.value();
+  int64_t s = ts / one_second_in_ns;
   int64_t ns = ts % one_second_in_ns;
 
   time_t time_s = static_cast<time_t>(s);
