@@ -13,7 +13,7 @@
 # limitations under the License.
 cron:
 - description: "Run postsubmits"
-  url: /controller/queue_postsubmit_jobs?branch=master
+  url: /controller/queue_postsubmit_jobs?branch=main
   schedule: every 1 hours
   target: controller
 
