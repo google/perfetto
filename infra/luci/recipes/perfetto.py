@@ -169,7 +169,7 @@ def RunSteps(api, repository):
       build_input = api.buildbucket.build_input
       ref = (
           build_input.gitiles_commit.ref
-          if build_input.gitiles_commit else 'refs/heads/master')
+          if build_input.gitiles_commit else 'refs/heads/main')
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])
