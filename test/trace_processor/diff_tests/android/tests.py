@@ -512,3 +512,88 @@ class Android(TestSuite):
       "sh",3546,"sh",1
       "sh",3564,"sh",1
       """))
+
+  def test_f2fs_counter_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.io');
+      SELECT * FROM f2fs_counter_stats;
+      """,
+        out=Csv("""
+        "counter_name","counter_sum","counter_max","counter_min","counter_dur","counter_count","counter_avg"
+        "read_app_total",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
+        "read_app_buffered",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
+        "write_cp_node",94208.000000,94208.000000,0.000000,2515275969,2,47104.000000
+        "write_app_mapped",65536.000000,65536.000000,0.000000,2515275969,2,32768.000000
+        "write_fs_data",28672.000000,28672.000000,0.000000,2515275969,2,14336.000000
+        "write_cp_meta",28672.000000,28672.000000,0.000000,2515275969,2,14336.000000
+        "write_app_total",20616.000000,20616.000000,0.000000,2515275969,2,10308.000000
+        "write_app_buffered",20616.000000,20616.000000,0.000000,2515275969,2,10308.000000
+        "write_fs_node",8192.000000,8192.000000,0.000000,2515275969,2,4096.000000
+        "write_sync_meta_peak",8.000000,8.000000,0.000000,2515276848,2,4.000000
+        "write_sync_meta_cnt",5.000000,5.000000,0.000000,2515276848,2,2.500000
+        "write_sync_node_peak",4.000000,4.000000,0.000000,2515276848,2,2.000000
+        "write_sync_node_cnt",3.000000,3.000000,0.000000,2515276848,2,1.500000
+        "write_sync_data_cnt",3.000000,3.000000,0.000000,2515276848,2,1.500000
+        "write_sync_node_avg",1.000000,1.000000,0.000000,2515276848,2,0.500000
+        "write_sync_meta_avg",1.000000,1.000000,0.000000,2515276848,2,0.500000
+        "write_sync_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_sync_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_gc_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_gc_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_cp_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_async_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_fs_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_gdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_cdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_app_mapped",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "other_fs_discard",0.000000,0.000000,0.000000,2515275969,2,0.000000
+      """))
+
+  def test_f2fs_write_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.io');
+      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM f2fs_write_stats;
+      """,
+        out=Csv("""
+        "tid","thread_name","pid","process_name","ino","dev","bytes","write_count"
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2636,65077,135168,33
+        3516,"fg",3487,"com.android.providers.media.module",2409,65077,98304,24
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2642,65077,78280,57
+        3516,"fg",3487,"com.android.providers.media.module",2424,65077,37112,28
+        3487,"rs.media.module",3487,"com.android.providers.media.module",2366,65077,16480,12
+        3515,"ackgroundThread",3487,"com.android.providers.media.module",2642,65077,8272,7
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",4,65077,432,6
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",5,65077,432,6
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",3145,65077,233,2
+        743,"StorageManagerS",642,"system_server",3144,65077,227,1
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",6,65077,216,3
+        3487,"rs.media.module",3487,"com.android.providers.media.module",2367,65077,8,8
+        3516,"fg",3487,"com.android.providers.media.module",2425,65077,8,8
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2643,65077,8,8
+      """))
