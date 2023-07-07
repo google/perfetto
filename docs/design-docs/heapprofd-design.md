@@ -39,7 +39,7 @@ These are the properties that must be fulfilled by a heap profiler for Android:
 ### Enabling profiling
 
 #### Use case 1: profiling future allocations from a running process
-One of the real-time signals ([`BIONIC_SIGNAL_PROFILER`](https://cs.android.com/android/platform/superproject/+/master:bionic/libc/platform/bionic/reserved_signals.h?q=symbol:BIONIC_SIGNAL_PROFILER)) is reserved in libc as a triggering mechanism. In this scenario:
+One of the real-time signals ([`BIONIC_SIGNAL_PROFILER`](https://cs.android.com/android/platform/superproject/+/main:bionic/libc/platform/bionic/reserved_signals.h?q=symbol:BIONIC_SIGNAL_PROFILER)) is reserved in libc as a triggering mechanism. In this scenario:
 
 *   heapprofd sends a RT signal to the target process
 *   Upon receipt of the signal, bionic reacts by installing a temporary malloc hook, which in turn spawns a thread to dynamically load libheapprofd.so in the process context. This means heapprofd will not work for statically linked binaries, as they lack the ability to `dlopen`. We can not spawn the thread directly from the signal handler, as `pthread_create` is not async-safe.
@@ -109,7 +109,7 @@ This allows unwinding to work both for native code and all three execution modes
 
 Remote unwinding also enables us to use _global caching_ (`Elf::SetCachingEnabled(true)`) in libunwindstack. This prevents debug information being used by different processes to be loaded and decompressed multiple times.
 
-We add an `FDMaps` objects to parse maps from `/proc/self/maps` sent by the target process. We keep `FDMaps` object cached per process that is being profiled. This both saves the overhead of text-parsing `/proc/[pid]/maps` as well as keeps various objects needed for unwinding (e.g. decompressed minidebuginfo). In case an unwind fails with `ERROR_INVALID_MAP` we reparse the maps object. We will  do changes to libunwindstack to create a more general version of [`LocalUpdatableMaps`](https://cs.android.com/android/platform/superproject/+/master:system/unwinding/libunwindstack/Maps.cpp?q=symbol:LocalUpdatableMaps) that is also applicable for remote processes.
+We add an `FDMaps` objects to parse maps from `/proc/self/maps` sent by the target process. We keep `FDMaps` object cached per process that is being profiled. This both saves the overhead of text-parsing `/proc/[pid]/maps` as well as keeps various objects needed for unwinding (e.g. decompressed minidebuginfo). In case an unwind fails with `ERROR_INVALID_MAP` we reparse the maps object. We will  do changes to libunwindstack to create a more general version of [`LocalUpdatableMaps`](https://cs.android.com/android/platform/superproject/+/main:system/unwinding/libunwindstack/Maps.cpp?q=symbol:LocalUpdatableMaps) that is also applicable for remote processes.
 
 
 #### Advantages of remote unwinding
@@ -221,7 +221,7 @@ Stack unwinding is the process of determining the chain of return addresses from
 
 The most efficient way of stack unwinding is using frame pointers. This is unreliable on Android as we do not control build parameters for vendor libraries or OEM builds and due to issues on ARM32. Thus, our stack unwinding relies on libunwindstack which uses DWARF information from the library ELF files to determine return addresses. This can significantly slower, with unwinding of a stack taking between 100μs and ~100 ms ([data from simpleperf](https://gist.github.com/fmayer/a3a5a352196f9037f34241f8fb09004d)).
 
-[libunwindstack](https://cs.android.com/android/platform/superproject/+/master:system/unwinding/libunwindstack/) is Android's replacement for [libunwind](https://www.nongnu.org/libunwind/). It has a modern C++ object-oriented API surface and support for Android specific features allowing it to unwind mixed native and Java applications using information emitted by ART depending on execution mode. It also supports symbolization for native code and all three execution modes or ART.
+[libunwindstack](https://cs.android.com/android/platform/superproject/+/main:system/unwinding/libunwindstack/) is Android's replacement for [libunwind](https://www.nongnu.org/libunwind/). It has a modern C++ object-oriented API surface and support for Android specific features allowing it to unwind mixed native and Java applications using information emitted by ART depending on execution mode. It also supports symbolization for native code and all three execution modes or ART.
 
 ### Symbolization
 Symbolization is the process of determining function name and line number from a code address. For builds by Google, we can get symbolized binaries (i.e. binaries with an ELF section that can be used for symbolization) from go/ab or https://ci.android.com (e.g. https://ci.android.com/builds/submitted/6410994/aosp_cf_x86_phone-userdebug/latest/aosp_cf_x86_phone-symbols-6410994.zip).
@@ -235,11 +235,11 @@ For other builds, symbolization requires debug info contained within the binary.
 ## Related Work
 
 ### simpleperf
-Even though [simpleperf](https://cs.android.com/android/platform/superproject/+/master:system/extras/simpleperf/doc/README.md) is a CPU rather than memory profiler, it is similar in nature to the work proposed here in that it supports offline unwinding. The kernel is asked to provide copies of stack traces at regular intervals, which are dumped onto disk. The dumped information is then used to unwind the stacks after the profiling is complete.
+Even though [simpleperf](https://cs.android.com/android/platform/superproject/+/main:system/extras/simpleperf/doc/README.md) is a CPU rather than memory profiler, it is similar in nature to the work proposed here in that it supports offline unwinding. The kernel is asked to provide copies of stack traces at regular intervals, which are dumped onto disk. The dumped information is then used to unwind the stacks after the profiling is complete.
 
 
 ### malloc-debug
-[malloc-debug](https://cs.android.com/android/platform/superproject/+/master:bionic/libc/malloc_debug/) instruments bionic's allocation functions to detect common memory problems like buffer overflows, double frees, etc. This is similar to the project described in this document as it uses the same mechanism to instrument the libc allocation functions. Unlike heapprofd, it does not provide the user with heap dumps.
+[malloc-debug](https://cs.android.com/android/platform/superproject/+/main:bionic/libc/malloc_debug/) instruments bionic's allocation functions to detect common memory problems like buffer overflows, double frees, etc. This is similar to the project described in this document as it uses the same mechanism to instrument the libc allocation functions. Unlike heapprofd, it does not provide the user with heap dumps.
 
 
 ### Feature Matrix
@@ -259,9 +259,9 @@ If we want to enable profiling for the newly forked process, we need to establis
 
 For non-zygote processes, we could use [`pthread_atfork(3)`](http://man7.org/linux/man-pages/man3/pthread_atfork.3.html) to establish new connections.
 
-For zygote processes, [`FileDescriptorInfo::ReopenOrDetach`](https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/fd_utils.cpp?q=%22void%20FileDescriptorInfo::ReopenOrDetach%22), which is called after `fork(2)`– and thus after the `pthread_atfork` handlers – detaches all sockets, i.e. replaces them with file descriptors to `/dev/null`. If the socket is not contained within [`kPathWhiteList`](https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/fd_utils.cpp?q=symbol:kPathWhitelist), zygote crashes instead. Thus using only a `pthread_atfork` handler is not feasible, as the connections established within will immediately get disconnected in zygote children.
+For zygote processes, [`FileDescriptorInfo::ReopenOrDetach`](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/jni/fd_utils.cpp?q=%22void%20FileDescriptorInfo::ReopenOrDetach%22), which is called after `fork(2)`– and thus after the `pthread_atfork` handlers – detaches all sockets, i.e. replaces them with file descriptors to `/dev/null`. If the socket is not contained within [`kPathWhiteList`](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/jni/fd_utils.cpp?q=symbol:kPathWhitelist), zygote crashes instead. Thus using only a `pthread_atfork` handler is not feasible, as the connections established within will immediately get disconnected in zygote children.
 
-After forking, zygote calls [`PreApplicationInit`](https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/com_android_internal_os_Zygote.cpp?q=symbol:PreApplicationInit), which is currently used by malloc\_debug to detect whether it is in the root zygote or in a child process by setting `gMallocLeakZygoteChild`. It also calls [Java callbacks](https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/jni/com_android_internal_os_Zygote.cpp?q=CallStaticVoidMethod.*gCallPostForkChildHooks), but there does not seem to currently exist a way to dynamically register native callbacks.
+After forking, zygote calls [`PreApplicationInit`](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/jni/com_android_internal_os_Zygote.cpp?q=symbol:PreApplicationInit), which is currently used by malloc\_debug to detect whether it is in the root zygote or in a child process by setting `gMallocLeakZygoteChild`. It also calls [Java callbacks](https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/jni/com_android_internal_os_Zygote.cpp?q=CallStaticVoidMethod.*gCallPostForkChildHooks), but there does not seem to currently exist a way to dynamically register native callbacks.
 
 Naive lazy initialization (i.e. closing the socket in the atfork handler, and then reconnecting on the first call to malloc) is problematic, as the code in zygote between fork and `ReopenOrDetach` might call `malloc`, thus leading to the connection to be established, which then gets closed by `ReopenOrDetach` again.
 
