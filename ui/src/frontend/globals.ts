@@ -46,7 +46,7 @@ import { Router } from './router';
 import {ServiceWorkerController} from './service_worker_controller';
 import {PxSpan, TimeScale} from './time_scale';
 import { maybeShowErrorDialog } from './error_dialog';
-import EventEmitter = require('events');
+import { onEngineReady } from '../common/engine_ready_observer';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
@@ -276,8 +276,6 @@ class Globals {
 
   // Init from session storage since correct value may be required very early on
   private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
-  // Events Emitted: ready, filter, create_track
-  _emitter?: EventEmitter = undefined;
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -320,7 +318,6 @@ class Globals {
     this._threadStateDetails = {};
     this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
-    this._emitter = new EventEmitter();
     this.engines.clear();
   }
 
@@ -345,12 +342,8 @@ class Globals {
     let readyStateSet = state.engine?.ready && !this._state?.engine?.ready;
     this._state = assertExists(state);
     if (readyStateSet) {
-      this.emitter.emit('ready');
+      onEngineReady();
     }
-  }
-
-  get emitter(): EventEmitter{
-    return assertExists(this._emitter);
   }
 
   get dispatch(): Dispatch {
