@@ -63,8 +63,8 @@ export class PluginContextImpl implements PluginContext {
   }
 
   registerOnDetailsPanelSelectionChange(
-    onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
-  this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
+      onDetailsPanelSelectionChange: (newSelection?: Selection) => void) {
+    this.onDetailsPanelSelectionChange = onDetailsPanelSelectionChange;
   }
 
   registerCustomButton(button: CustomButtonArgs): void {
