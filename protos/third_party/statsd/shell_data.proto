@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.proto;
 
 // This is a manual import of ShellData:
-// https://cs.android.com/android/platform/superproject/+/master:packages/modules/StatsD/statsd/src/shell/shell_data.proto;l=27;drc=d2e51ecdf08753688fb889b657dcba60adb994f3
+// https://cs.android.com/android/platform/superproject/+/main:packages/modules/StatsD/statsd/src/shell/shell_data.proto;l=27;drc=d2e51ecdf08753688fb889b657dcba60adb994f3
 // This must exactly match perfetto.protos.StatsdAtom.
 message ShellData {
   repeated bytes atom = 1;

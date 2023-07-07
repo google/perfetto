@@ -32,7 +32,7 @@
 // Spec
 // http://hg.openjdk.java.net/jdk6/jdk6/jdk/raw-file/tip/src/share/demo/jvmti/hprof/manual.html#Basic_Type
 // Parser
-// https://cs.android.com/android/platform/superproject/+/master:art/tools/ahat/src/main/com/android/ahat/heapdump/Parser.java
+// https://cs.android.com/android/platform/superproject/+/main:art/tools/ahat/src/main/com/android/ahat/heapdump/Parser.java
 
 namespace perfetto {
 namespace trace_to_text {

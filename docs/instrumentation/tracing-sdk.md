@@ -319,7 +319,7 @@ side-channel attacks.
 * On Linux and MacOS and Windows `traced` must be built and run separately. See
   the [Linux quickstart](/docs/quickstart/linux-tracing.md) for instructions.
 * On Windows the tracing protocol works over TCP/IP (
-  [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/+/master:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
+  [127.0.0.1:32278](https://cs.android.com/android/platform/superproject/+/main:external/perfetto/src/tracing/ipc/default_socket.cc;l=75;drc=4f88a2fdfd3801c109d5e927b8206f9756288b12)
   ) + named shmem.
 
 ## {#recording} Recording traces through the API

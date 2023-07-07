@@ -45,7 +45,7 @@ git config user.email "ci-bot@perfetto.dev"
 git config user.name "Perfetto CI"
 git fetch -q origin "$PERFETTO_TEST_GIT_REF"
 
-# We really want to test the result of the merge of the CL in ToT master. Don't
+# We really want to test the result of the merge of the CL in ToT main. Don't
 # really care about whether the CL passes the test at the time it was written.
 git merge -q FETCH_HEAD -m merge
 fi
