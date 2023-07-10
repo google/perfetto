@@ -57,7 +57,7 @@ const state = {
   // Maps 'worker id' -> DB wokrker object, as per /ci/workers.
   dbWorker: {},
 
-  // Maps 'main-YYMMDD' -> DB branch object, as perf /ci/branches/xxx.
+  // Maps 'main-YYMMDD' -> DB branch object, as per /ci/branches/xxx.
   dbBranches: {},
   getBranchKeys: () => Object.keys(state.dbBranches).sort().reverse(),
 
@@ -652,7 +652,11 @@ function fetchCIStatusForJob(jobId) {
 function fetchCIStatusForBranch(branch) {
   if (branch in state.branchRefs) return;  // Already have a listener.
   const db = firebase.database();
-  const ref = db.ref('/ci/branches').orderByKey().limitToLast(20);
+  const ref = db.ref('/ci/branches')
+                  .orderByKey()
+                  .startAt('main')
+                  .endAt('maio')
+                  .limitToLast(20);
   state.branchRefs[branch] = ref;
   ref.on('value', (e) => {
     const resp = e.val();
