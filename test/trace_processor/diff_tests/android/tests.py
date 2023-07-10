@@ -520,7 +520,7 @@ class Android(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       SELECT IMPORT('android.io');
-      SELECT * FROM f2fs_counter_stats;
+      SELECT * FROM android_io_f2fs_counter_stats;
       """,
         out=Csv("""
         "counter_name","counter_sum","counter_max","counter_min","counter_dur","counter_count","counter_avg"
@@ -580,7 +580,7 @@ class Android(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
       SELECT IMPORT('android.io');
-      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM f2fs_write_stats;
+      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM android_io_f2fs_write_stats;
       """,
         out=Csv("""
         "tid","thread_name","pid","process_name","ino","dev","bytes","write_count"
