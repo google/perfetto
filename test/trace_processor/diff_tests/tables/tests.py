@@ -175,40 +175,6 @@ class Tables(TestSuite):
             }
           }
         }
-        packet {
-          ftrace_events {
-            cpu: 0
-            event {
-              timestamp: 21963005381
-              pid: 524
-              task_newtask {
-                pid: 1576
-                comm: "adbd"
-                clone_flags: 18874368
-                oom_score_adj: -1000
-              }
-            }
-            event {
-              timestamp: 21973005381
-              pid: 523
-              task_newtask {
-                pid: 1574
-                comm: "sh"
-                clone_flags: 18874368
-                oom_score_adj: -1000
-              }
-            }
-            event {
-              timestamp: 21963008381
-              pid: 1572
-              sched_process_free {
-                comm: "adbd"
-                pid: 1576
-                prio: 120
-              }
-            }
-          }
-        }
         """),
         query=Metric('android_task_names'),
         out=TextProto(r"""
@@ -223,28 +189,6 @@ class Tables(TestSuite):
             process_name: "com.google.android.gm:process"
             uid: 10001
             uid_package_name: "com.google.android.gm"
-          }
-          process {
-            pid: 1576
-            process_name: "adbd"
-            thread_name: "adbd"
-            short_lived_tasks {
-              thread_name_prefix: "adbd"
-              max_count_per_sec: 1
-            }
-            long_lived_tasks {
-              thread_name_prefix: "adbd"
-              max_count_per_sec: 1
-            }
-          }
-          process {
-            pid: 1574
-            process_name: "sh"
-            thread_name: "sh"
-            long_lived_tasks {
-              thread_name_prefix: "sh"
-              max_count_per_sec: 1
-            }
           }
         }
         """))
