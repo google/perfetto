@@ -51,7 +51,7 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 
 interface PathItem {
   tree: PivotTree;
@@ -198,7 +198,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
     if (column.kind === 'regular' &&
         (column.column === 'dur' || column.column === 'thread_dur')) {
       if (typeof value === 'bigint') {
-        return m(Duration, {dur: value});
+        return m(DurationWidget, {dur: value});
       }
     }
     return `${value}`;

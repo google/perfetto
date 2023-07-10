@@ -17,7 +17,7 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
 import {LONG, NUM} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -46,7 +46,7 @@ export interface Config {
 
 class CpuProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const query = `select
         id,
@@ -93,7 +93,7 @@ class CpuProfileTrack extends Track<Config, Data> {
 
   private centerY = this.getHeight() / 2 + BAR_HEIGHT;
   private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
-  private hoveredTs: TPTime|undefined = undefined;
+  private hoveredTs: time|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -112,7 +112,7 @@ class CpuProfileTrack extends Track<Config, Data> {
     if (data === undefined) return;
 
     for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = data.tsStarts[i];
+      const centerX = Time.fromRaw(data.tsStarts[i]);
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
@@ -120,7 +120,7 @@ class CpuProfileTrack extends Track<Config, Data> {
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          timeScale.tpTimeToPx(centerX),
+          timeScale.timeToPx(centerX),
           this.centerY,
           isHovered,
           strokeWidth,
@@ -144,10 +144,10 @@ class CpuProfileTrack extends Track<Config, Data> {
 
       // If there are multiple CPU samples in the cluster, draw a line.
       if (clusterStartIndex !== clusterEndIndex) {
-        const startX = data.tsStarts[clusterStartIndex];
-        const endX = data.tsStarts[clusterEndIndex];
-        const leftPx = timeScale.tpTimeToPx(startX) - this.markerWidth;
-        const rightPx = timeScale.tpTimeToPx(endX) + this.markerWidth;
+        const startX = Time.fromRaw(data.tsStarts[clusterStartIndex]);
+        const endX = Time.fromRaw(data.tsStarts[clusterEndIndex]);
+        const leftPx = timeScale.timeToPx(startX) - this.markerWidth;
+        const rightPx = timeScale.timeToPx(endX) + this.markerWidth;
         const width = rightPx - leftPx;
         ctx.fillStyle = colorForSample(callsiteId, false);
         ctx.fillRect(leftPx, MARGIN_TOP, width, BAR_HEIGHT);
@@ -183,9 +183,10 @@ class CpuProfileTrack extends Track<Config, Data> {
       visibleTimeScale: timeScale,
     } = globals.frontendLocalState;
     const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
-    this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
+    this.hoveredTs =
+        index === -1 ? undefined : Time.fromRaw(data.tsStarts[index]);
   }
 
   onMouseOut() {
@@ -200,13 +201,13 @@ class CpuProfileTrack extends Track<Config, Data> {
     } = globals.frontendLocalState;
 
     const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
 
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
 
     if (index !== -1) {
       const id = data.ids[index];
-      const ts = data.tsStarts[index];
+      const ts = Time.fromRaw(data.tsStarts[index]);
 
       globals.makeSelection(
           Actions.selectCpuProfileSample({id, utid: this.config.utid, ts}));
@@ -221,13 +222,15 @@ class CpuProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[left]);
+      const start = Time.fromRaw(data.tsStarts[left]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[right]);
+      const start = Time.fromRaw(data.tsStarts[right]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }

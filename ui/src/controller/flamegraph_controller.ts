@@ -27,7 +27,7 @@ import {
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
-import {tpDurationToSeconds, TPTime} from '../common/time';
+import {Duration, time} from '../common/time';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {
@@ -267,7 +267,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphData(
-      baseKey: string, viewingOption: string, start: TPTime, end: TPTime,
+      baseKey: string, viewingOption: string, start: time, end: time,
       upids: number[], type: ProfileType,
       focusRegex: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
@@ -413,7 +413,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   private async prepareViewsAndTables(
-      start: TPTime, end: TPTime, upids: number[], type: ProfileType,
+      start: time, end: time, upids: number[], type: ProfileType,
       focusRegex: string): Promise<string> {
     // Creating unique names for views so we can reuse and not delete them
     // for each marker.
@@ -456,7 +456,8 @@ export class FlamegraphController extends Controller<'main'> {
       number {
     const timeState = globals.state.frontendLocalState.visibleState;
     const dur = globals.stateVisibleTime().duration;
-    let width = tpDurationToSeconds(dur / timeState.resolution);
+    // TODO(stevegolton): Does this actually do what we want???
+    let width = Duration.toSeconds(dur / timeState.resolution);
     // TODO(168048193): Remove screen size hack:
     width = Math.max(width, 800);
     if (rootSize === undefined) {
@@ -466,7 +467,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphMetadata(
-      type: ProfileType, start: TPTime, end: TPTime,
+      type: ProfileType, start: time, end: time,
       upids: number[]): Promise<FlamegraphDetails|undefined> {
     // Don't do anything if selection of the marker stayed the same.
     if ((this.lastSelectedFlamegraphState !== undefined &&

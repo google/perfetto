@@ -18,7 +18,7 @@ import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
 import {LONG, NUM, QueryResult} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -90,7 +90,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     this.cachedBucketSize = bucketSize;
   }
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     assertTrue(this.config.upid !== null);
 
@@ -121,23 +121,23 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     });
 
     for (let row = 0; it.valid(); it.next(), row++) {
-      const startQ = it.tsq;
-      const start = it.ts;
+      const startQ = Time.fromRaw(it.tsq);
+      const start = Time.fromRaw(it.ts);
       const dur = it.dur;
-      const end = start + dur;
-      const minEnd = startQ + resolution;
-      const endQ = BIMath.max(BIMath.quant(end, resolution), minEnd);
+      const end = Time.add(start, dur);
+      const minEnd = Time.add(startQ, resolution);
+      const endQ = Time.max(Time.quant(end, resolution), minEnd);
 
       slices.starts[row] = startQ;
       slices.ends[row] = endQ;
       slices.cpus[row] = it.cpu;
       slices.utids[row] = it.utid;
-      slices.end = BIMath.max(slices.ends[row], slices.end);
+      slices.end = Time.max(endQ, slices.end);
     }
     return slices;
   }
 
-  private queryData(start: TPTime, end: TPTime, bucketSize: TPDuration):
+  private queryData(start: time, end: time, bucketSize: duration):
       Promise<QueryResult> {
     const isCached = this.cachedBucketSize <= bucketSize;
     const tsq = isCached ?
@@ -214,31 +214,31 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
         this.getHeight(),
         visibleTimeScale.hpTimeToPx(visibleWindowTime.start),
         visibleTimeScale.hpTimeToPx(visibleWindowTime.end),
-        visibleTimeScale.tpTimeToPx(data.start),
-        visibleTimeScale.tpTimeToPx(data.end));
+        visibleTimeScale.timeToPx(data.start),
+        visibleTimeScale.timeToPx(data.end));
 
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const startTime = visibleWindowTime.start.toTPTime('floor');
+    const startTime = visibleWindowTime.start.toTime('floor');
     const rawStartIdx = data.ends.findIndex((end) => end >= startTime);
     const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
 
 
-    const endTime = visibleWindowTime.end.toTPTime('ceil');
+    const endTime = visibleWindowTime.end.toTime('ceil');
     const [, rawEndIdx] = searchSegment(data.starts, endTime);
     const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
 
     for (let i = startIdx; i < endIdx; i++) {
-      const tStart = data.starts[i];
-      const tEnd = data.ends[i];
+      const tStart = Time.fromRaw(data.starts[i]);
+      const tEnd = Time.fromRaw(data.ends[i]);
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
-      const rectStart = visibleTimeScale.tpTimeToPx(tStart);
-      const rectEnd = visibleTimeScale.tpTimeToPx(tEnd);
+      const rectStart = visibleTimeScale.timeToPx(tStart);
+      const rectEnd = visibleTimeScale.timeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
       if (rectWidth < 0.3) continue;
 
@@ -291,7 +291,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
     const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
     const {visibleTimeScale} = globals.frontendLocalState;
-    const t = visibleTimeScale.pxToHpTime(pos.x).toTPTime('floor');
+    const t = visibleTimeScale.pxToHpTime(pos.x).toTime('floor');
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));
     if (i === j || i >= data.starts.length || t > data.ends[i]) {
