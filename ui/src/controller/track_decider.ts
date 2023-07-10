@@ -1786,7 +1786,7 @@ class TrackDecider {
   }
 
   async addPluginTracks(): Promise<void> {
-    const promises = pluginManager.findPotentialTracks(this.engine);
+    const promises = pluginManager.findPotentialTracks();
     const groups = await Promise.all(promises);
     for (const infos of groups) {
       for (const info of infos) {
