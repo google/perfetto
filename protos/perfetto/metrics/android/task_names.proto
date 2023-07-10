@@ -18,12 +18,6 @@ package perfetto.protos;
 
 message AndroidTaskNames {
   message Process {
-    // Identifies processes creating and destroying threads very quickly.
-    message TaskCreationSpam {
-      optional string thread_name_prefix = 1;
-      optional uint32 max_count_per_sec = 2;
-    }
-
     optional int64 pid = 1;
 
     // Process name.
@@ -38,11 +32,11 @@ message AndroidTaskNames {
     // Packages matching the process uid.
     repeated string uid_package_name = 5;
 
-    // Tasks created and destroyed within a second.
-    optional TaskCreationSpam short_lived_tasks = 6;
+    // Removed, was short_lived_tasks.
+    reserved 6;
 
-    // Tasks created and not necessarily destroyed.
-    optional TaskCreationSpam long_lived_tasks = 7;
+    // Removed, was long_lived_tasks.
+    reserved 7;
   }
 
   repeated Process process = 1;
