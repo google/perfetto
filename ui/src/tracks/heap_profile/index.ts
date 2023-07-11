@@ -16,7 +16,7 @@ import {searchSegment} from '../../base/binary_search';
 import {Actions} from '../../common/actions';
 import {LONG, STR} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {profileType} from '../../controller/flamegraph_controller';
 import {TrackController} from '../../controller/track_controller';
@@ -39,7 +39,7 @@ export interface Config {
 
 class HeapProfileTrackController extends TrackController<Config, Data> {
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (this.config.upid === undefined) {
       return {
@@ -115,7 +115,7 @@ class HeapProfileTrack extends Track<Config, Data> {
     if (data === undefined) return;
 
     for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = data.tsStarts[i];
+      const centerX = Time.fromRaw(data.tsStarts[i]);
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
@@ -123,7 +123,7 @@ class HeapProfileTrack extends Track<Config, Data> {
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          timeScale.tpTimeToPx(centerX),
+          timeScale.timeToPx(centerX),
           this.centerY,
           isHovered,
           strokeWidth);
@@ -156,7 +156,7 @@ class HeapProfileTrack extends Track<Config, Data> {
       visibleTimeScale: timeScale,
     } = globals.frontendLocalState;
     const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
     this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
   }
@@ -173,12 +173,12 @@ class HeapProfileTrack extends Track<Config, Data> {
     } = globals.frontendLocalState;
 
     const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
 
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
 
     if (index !== -1) {
-      const ts = data.tsStarts[index];
+      const ts = Time.fromRaw(data.tsStarts[index]);
       const type = data.types[index];
       globals.makeSelection(Actions.selectHeapProfile(
           {id: index, upid: this.config.upid, ts, type}));
@@ -193,13 +193,15 @@ class HeapProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[left]);
+      const start = Time.fromRaw(data.tsStarts[left]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[right]);
+      const start = Time.fromRaw(data.tsStarts[right]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }

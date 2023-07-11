@@ -14,12 +14,12 @@
 
 import m from 'mithril';
 
-import {formatDurationShort, TPTime} from '../common/time';
+import {Duration, time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
-import {asTPTimestamp, SchedSqlId, ThreadStateSqlId} from './sql_types';
+import {SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
   getFullThreadName,
   getProcessName,
@@ -34,7 +34,7 @@ import {
   ThreadStateRef,
 } from './thread_state';
 import {DetailsShell} from './widgets/details_shell';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 import {GridLayout} from './widgets/grid_layout';
 import {Section} from './widgets/section';
 import {SqlRef} from './widgets/sql_ref';
@@ -157,11 +157,11 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
         Tree,
         m(TreeNode, {
           left: 'Start time',
-          right: m(Timestamp, {ts: asTPTimestamp(state.ts)}),
+          right: m(Timestamp, {ts: state.ts}),
         }),
         m(TreeNode, {
           left: 'Duration',
-          right: m(Duration, {dur: state.dur}),
+          right: m(DurationWidget, {dur: state.dur}),
         }),
         m(TreeNode, {
           left: 'State',
@@ -187,7 +187,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
 
   private renderState(
       state: string, cpu: number|undefined, id: SchedSqlId|undefined,
-      ts: TPTime): m.Children {
+      ts: time): m.Children {
     if (!state) {
       return null;
     }
@@ -228,7 +228,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     });
 
     const nameForNextOrPrev = (state: ThreadState) =>
-        `${state.state} for ${formatDurationShort(state.dur)}`;
+        `${state.state} for ${Duration.humanise(state.dur)}`;
     return m(
         Tree,
         this.relatedStates.waker && m(TreeNode, {
@@ -255,16 +255,15 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                 left: 'Woken threads',
               },
               this.relatedStates.wakee.map(
-                  (state) =>
-                      m(TreeNode, ({
-                          left: m(Timestamp, {
-                            ts: state.ts,
-                            display: `Start+${
-                                formatDurationShort(state.ts - startTs)}`,
-                          }),
-                          right:
-                              renderRef(state, getFullThreadName(state.thread)),
-                        })))),
+                  (state) => m(TreeNode, ({
+                                 left: m(Timestamp, {
+                                   ts: state.ts,
+                                   display: `Start+${
+                                       Duration.humanise(state.ts - startTs)}`,
+                                 }),
+                                 right: renderRef(
+                                     state, getFullThreadName(state.thread)),
+                               })))),
     );
   }
 

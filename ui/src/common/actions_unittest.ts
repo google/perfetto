@@ -33,6 +33,7 @@ import {
   TraceUrlSource,
   TrackSortKey,
 } from './state';
+import {Time} from './time';
 
 function fakeTrack(state: State, args: {
   id: string,
@@ -449,8 +450,8 @@ test('perf samples open flamegraph', () => {
     StateActions.selectPerfSamples(draft, {
       id: 0,
       upid: 0,
-      leftTs: 0n,
-      rightTs: 0n,
+      leftTs: Time.fromRaw(0n),
+      rightTs: Time.fromRaw(0n),
       type: ProfileType.PERF_SAMPLE,
     });
   });
@@ -463,8 +464,12 @@ test('heap profile opens flamegraph', () => {
   const state = createEmptyState();
 
   const afterSelectingPerf = produce(state, (draft) => {
-    StateActions.selectHeapProfile(
-        draft, {id: 0, upid: 0, ts: 0n, type: ProfileType.JAVA_HEAP_GRAPH});
+    StateActions.selectHeapProfile(draft, {
+      id: 0,
+      upid: 0,
+      ts: Time.fromRaw(0n),
+      type: ProfileType.JAVA_HEAP_GRAPH,
+    });
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)

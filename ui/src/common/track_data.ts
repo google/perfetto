@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TPDuration, TPTime} from './time';
+import {duration, time} from './time';
 
 // TODO(hjd): Refactor into method on TrackController
 export const LIMIT = 10000;
 
 export interface TrackData {
-  start: TPTime;
-  end: TPTime;
-  resolution: TPDuration;
+  start: time;
+  end: time;
+  resolution: duration;
   length: number;
 }

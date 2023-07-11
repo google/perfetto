@@ -15,7 +15,7 @@
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
-import {tpDurationToSeconds} from '../../common/time';
+import {Duration} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter';
 
@@ -39,7 +39,7 @@ export class CounterAggregationController extends AggregationController {
     }
     if (ids.length === 0) return false;
     const duration = area.end - area.start;
-    const durationSec = tpDurationToSeconds(duration);
+    const durationSec = Duration.toSeconds(duration);
 
     const query = `create view ${this.kind} as select
     name,

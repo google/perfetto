@@ -17,12 +17,8 @@ import m from 'mithril';
 import {exists} from '../../base/utils';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM, STR, STR_NULL} from '../../common/query_result';
-import {
-  TPDuration,
-  tpDurationFromSql,
-  TPTime,
-  tpTimeFromSql,
-} from '../../common/time';
+import {duration, time} from '../../common/time';
+import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
   bottomTabRegistry,
@@ -32,10 +28,10 @@ import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails, sliceRef} from '../../frontend/sql/slice';
-import {asSliceSqlId, asTPTimestamp} from '../../frontend/sql_types';
+import {asSliceSqlId} from '../../frontend/sql_types';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {Duration} from '../../frontend/widgets/duration';
+import {DurationWidget} from '../../frontend/widgets/duration';
 import {GridLayout} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {SqlRef} from '../../frontend/widgets/sql_ref';
@@ -52,7 +48,6 @@ import {ScrollJankPluginState} from './index';
 import {
   TopLevelEventLatencyTrack,
 } from './top_level_janky_event_latencies_track';
-import {raf} from '../../core/raf_scheduler';
 
 interface Data {
   id: number;
@@ -65,9 +60,9 @@ interface Data {
   // The slice type - e.g. EventLatency
   type: string;
   // Timestamp of the beginning of this slice in nanoseconds.
-  ts: TPTime;
+  ts: time;
   // Duration of this slice in nanoseconds.
-  dur: TPDuration;
+  dur: duration;
 }
 
 async function getSliceDetails(
@@ -188,10 +183,8 @@ export class JankyEventLatenciesDetailsPanel extends
           sqlValueToString(this.data.jankSubcause);
     }
 
-    detailsDict['Start time'] =
-        m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data.ts))});
-    detailsDict['Duration'] =
-        m(Duration, {dur: tpDurationFromSql(this.data.dur)});
+    detailsDict['Start time'] = m(Timestamp, {ts: this.data.ts});
+    detailsDict['Duration'] = m(DurationWidget, {dur: this.data.dur});
     detailsDict['Slice Type'] = sqlValueToString(this.data.type as string);
 
     const details = dictToTreeNodes(detailsDict);
