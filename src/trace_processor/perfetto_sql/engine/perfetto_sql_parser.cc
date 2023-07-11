@@ -218,7 +218,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
   }
   uint32_t offset = static_cast<uint32_t>(first.str.data() - sql_.sql().data());
   uint32_t len = static_cast<uint32_t>((token.str.data() + token.str.size()) -
-                                       sql_.sql().data());
+                                       first.str.data());
 
   statement_ = CreateFunction{replace, std::move(prototype), std::move(ret),
                               sql_.Substr(offset, len), table_return};
