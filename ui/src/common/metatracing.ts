@@ -16,7 +16,6 @@ import {PerfettoMetatrace, Trace, TracePacket} from '../common/protos';
 import {perfetto} from '../gen/protos';
 
 import {featureFlags} from './feature_flags';
-import {toNs} from './time';
 
 const METATRACING_BUFFER_SIZE = 100000;
 
@@ -122,8 +121,12 @@ export type TraceEventScope = {
 
 const correctedTimeOrigin = new Date().getTime() - performance.now();
 
+function msToNs(ms: number) {
+  return Math.round(ms * 1e6);
+}
+
 function now(): number {
-  return toNs((correctedTimeOrigin + performance.now()) / 1000);
+  return msToNs((correctedTimeOrigin + performance.now()));
 }
 
 export function traceEvent<T>(

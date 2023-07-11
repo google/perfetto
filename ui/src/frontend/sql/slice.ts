@@ -25,7 +25,7 @@ import {
   STR,
   STR_NULL,
 } from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {Anchor} from '../anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
@@ -33,11 +33,9 @@ import {Icons} from '../semantic_icons';
 import {
   asArgSetId,
   asSliceSqlId,
-  asTPTimestamp,
   asUpid,
   asUtid,
   SliceSqlId,
-  TPTimestamp,
   Upid,
   Utid,
 } from '../sql_types';
@@ -54,14 +52,14 @@ import {Arg, getArgs} from './args';
 export interface SliceDetails {
   id: SliceSqlId;
   name: string;
-  ts: TPTimestamp;
+  ts: time;
   absTime?: string;
-  dur: TPDuration;
+  dur: duration;
   sqlTrackId: number;
   thread?: ThreadInfo;
   process?: ProcessInfo;
-  threadTs?: TPTime;
-  threadDur?: TPDuration;
+  threadTs?: time;
+  threadDur?: duration;
   category?: string;
   args?: Arg[];
 }
@@ -150,13 +148,13 @@ async function getSliceFromConstraints(
     result.push({
       id: asSliceSqlId(it.id),
       name: it.name,
-      ts: asTPTimestamp(it.ts),
+      ts: Time.fromRaw(it.ts),
       dur: it.dur,
       sqlTrackId: it.trackId,
       thread,
       process,
       threadDur: it.threadDur ?? undefined,
-      threadTs: exists(it.threadTs) ? it.threadTs : undefined,
+      threadTs: exists(it.threadTs) ? Time.fromRaw(it.threadTs) : undefined,
       category: it.category ?? undefined,
       args: await getArgs(engine, asArgSetId(it.argSetId)),
       absTime: it.absTime ?? undefined,
@@ -182,8 +180,8 @@ export async function getSlice(
 interface SliceRefAttrs {
   readonly id: SliceSqlId;
   readonly name: string;
-  readonly ts: TPTimestamp;
-  readonly dur: TPDuration;
+  readonly ts: time;
+  readonly dur: duration;
   readonly sqlTrackId: number;
 
   // Whether clicking on the reference should change the current tab
@@ -206,7 +204,8 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
             verticalScrollToTrack(uiTrackId, true);
             // Clamp duration to 1 - i.e. for instant events
             const dur = BigintMath.max(1n, vnode.attrs.dur);
-            focusHorizontalRange(vnode.attrs.ts, vnode.attrs.ts + dur);
+            focusHorizontalRange(
+                vnode.attrs.ts, Time.fromRaw(vnode.attrs.ts + dur));
             globals.makeSelection(
                 Actions.selectChromeSlice(
                     {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}),

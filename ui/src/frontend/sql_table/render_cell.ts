@@ -16,12 +16,12 @@ import m from 'mithril';
 
 import {sqliteString} from '../../base/string_utils';
 import {Row, SqlValue} from '../../common/query_result';
-import {formatDuration, TPTime} from '../../common/time';
+import {duration, Duration, Time} from '../../common/time';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
 import {Icons} from '../semantic_icons';
 import {SliceRef} from '../sql/slice';
-import {asSliceSqlId, asTPTimestamp} from '../sql_types';
+import {asSliceSqlId} from '../sql_types';
 import {sqlValueToString} from '../sql_utils';
 import {Err} from '../widgets/error';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -83,11 +83,11 @@ function displayValue(value: SqlValue): m.Child {
   return sqlValueToString(value);
 }
 
-function displayDuration(value: TPTime): string;
+function displayDuration(value: duration): string;
 function displayDuration(value: SqlValue): m.Children;
 function displayDuration(value: SqlValue): m.Children {
   if (typeof value !== 'bigint') return displayValue(value);
-  return formatDuration(value);
+  return Duration.format(value);
 }
 
 function display(column: Column, row: Row): m.Children {
@@ -159,7 +159,7 @@ function renderTimestampColumn(
   }
 
   return m(Timestamp, {
-    ts: asTPTimestamp(value),
+    ts: Time.fromRaw(value),
     extraMenuItems: getContextMenuItems(column, row, state),
   });
 }
@@ -195,7 +195,7 @@ function renderSliceIdColumn(
   return m(SliceRef, {
     id: asSliceSqlId(Number(id)),
     name: `${id}`,
-    ts: asTPTimestamp(ts as bigint),
+    ts: Time.fromRaw(ts),
     dur: dur,
     sqlTrackId: Number(trackId),
     switchToCurrentSelectionTab: false,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TPTime} from './time';
+import {time} from './time';
 
 export const LogExistsKey = 'log-exists';
 export const LogBoundsKey = 'log-bounds';
@@ -21,16 +21,16 @@ export const LogEntriesKey = 'log-entries';
 export interface LogExists { exists: boolean; }
 
 export interface LogBounds {
-  firstLogTs: TPTime;
-  lastLogTs: TPTime;
-  firstVisibleLogTs: TPTime;
-  lastVisibleLogTs: TPTime;
+  firstLogTs: time;
+  lastLogTs: time;
+  firstVisibleLogTs: time;
+  lastVisibleLogTs: time;
   totalVisibleLogs: number;
 }
 
 export interface LogEntries {
   offset: number;
-  timestamps: TPTime[];
+  timestamps: time[];
   priorities: number[];
   tags: string[];
   messages: string[];

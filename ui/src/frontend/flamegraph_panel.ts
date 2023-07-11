@@ -29,6 +29,7 @@ import {
   FlamegraphStateViewingOption,
   ProfileType,
 } from '../common/state';
+import {Time} from '../common/time';
 import {profileType} from '../controller/flamegraph_controller';
 import {raf} from '../core/raf_scheduler';
 
@@ -41,7 +42,7 @@ import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
 import {Button} from './widgets/button';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 
 interface FlamegraphDetailsPanelAttrs {}
 
@@ -65,7 +66,7 @@ const RENDER_OBJ_COUNT: NodeRendering = {
 
 export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
   private profileType?: ProfileType = undefined;
-  private ts = 0n;
+  private ts = Time.ZERO;
   private pids: number[] = [];
   private flamegraph: Flamegraph = new Flamegraph([]);
   private focusRegex = '';
@@ -82,7 +83,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
         flamegraphDetails.pids !== undefined &&
         flamegraphDetails.upids !== undefined) {
       this.profileType = profileType(flamegraphDetails.type);
-      this.ts = flamegraphDetails.start + flamegraphDetails.dur;
+      this.ts = Time.add(flamegraphDetails.start, flamegraphDetails.dur);
       this.pids = flamegraphDetails.pids;
       if (flamegraphDetails.flamegraph) {
         this.flamegraph.updateDataIfChanged(
@@ -110,7 +111,7 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
                             flamegraphDetails.expandedCallsite)}`),
                   m('div.time',
                     `Snapshot time: `,
-                    m(Duration, {dur: flamegraphDetails.dur})),
+                    m(DurationWidget, {dur: flamegraphDetails.dur})),
                   m('input[type=text][placeholder=Focus]', {
                     oninput: (e: Event) => {
                       const target = (e.target as HTMLInputElement);
