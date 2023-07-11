@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TPTime} from '../common/time';
 import {Brand} from './brand';
 
 // Type-safe aliases for various flavours of ints Trace Processor exposes
@@ -22,18 +21,6 @@ import {Brand} from './brand';
 // These rely on TypeScript's type branding: extending a number with additional
 // compile-time-only type information, which prevents "implicit" conversions
 // between different ids.
-
-// Timestamp (in nanoseconds) in the same time domain as Trace Processor is
-// exposing.
-export type TPTimestamp = TPTime&{
-  __type: 'TPTimestamp'
-}
-
-export function asTPTimestamp(v: bigint): TPTimestamp;
-export function asTPTimestamp(v?: bigint): TPTimestamp|undefined;
-export function asTPTimestamp(v?: bigint): TPTimestamp|undefined {
-  return v as (TPTimestamp | undefined);
-}
 
 // Unique id for a process, id into |process| table.
 export type Upid = number&{
