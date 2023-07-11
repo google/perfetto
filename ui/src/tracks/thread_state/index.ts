@@ -20,7 +20,7 @@ import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -47,7 +47,7 @@ export interface Config {
 class ThreadStateTrackController extends TrackController<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
 
-  private maxDurNs: TPDuration = 0n;
+  private maxDurNs: duration = 0n;
 
   async onSetup() {
     await this.query(`
@@ -70,7 +70,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     this.maxDurNs = queryRes.firstRow({maxDur: LONG}).maxDur;
   }
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const query = `
       select
@@ -196,8 +196,8 @@ class ThreadStateTrack extends Track<Config, Data> {
         this.getHeight(),
         windowSpan.start,
         windowSpan.end,
-        timeScale.tpTimeToPx(data.start),
-        timeScale.tpTimeToPx(data.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end),
     );
 
     ctx.textAlign = 'center';
@@ -212,8 +212,8 @@ class ThreadStateTrack extends Track<Config, Data> {
       // we get a more accurate representation of the trace and prevent weird
       // artifacts when zooming.
       // See b/201793731 for an example of why we do this.
-      const tStart = data.starts[i];
-      const tEnd = data.ends[i];
+      const tStart = Time.fromRaw(data.starts[i]);
+      const tEnd = Time.fromRaw(data.ends[i]);
       const state = data.strings[data.state[i]];
       if (!visibleTimeSpan.intersects(tStart, tEnd)) {
         continue;
@@ -221,8 +221,8 @@ class ThreadStateTrack extends Track<Config, Data> {
 
       // Don't display a slice for Task Dead.
       if (state === 'x') continue;
-      const rectStart = timeScale.tpTimeToPx(tStart);
-      const rectEnd = timeScale.tpTimeToPx(tEnd);
+      const rectStart = timeScale.timeToPx(tStart);
+      const rectEnd = timeScale.timeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
 
       const currentSelection = globals.state.currentSelection;
@@ -250,9 +250,9 @@ class ThreadStateTrack extends Track<Config, Data> {
       if (isSelected) {
         drawRectOnSelected = () => {
           const rectStart =
-              Math.max(0 - EXCESS_WIDTH, timeScale.tpTimeToPx(tStart));
-          const rectEnd = Math.min(
-              windowSpan.end + EXCESS_WIDTH, timeScale.tpTimeToPx(tEnd));
+              Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
+          const rectEnd =
+              Math.min(windowSpan.end + EXCESS_WIDTH, timeScale.timeToPx(tEnd));
           const color = colorForState(state);
           ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
           ctx.beginPath();
@@ -274,7 +274,7 @@ class ThreadStateTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const index = search(data.starts, time.toTPTime());
+    const index = search(data.starts, time.toTime());
     if (index === -1) return false;
     const id = data.ids[index];
     globals.makeSelection(

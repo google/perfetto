@@ -12,17 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
 import {Engine} from '../common/engine';
 import {LONG, NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {Span} from '../common/time';
 import {
-  TPDuration,
-  TPTime,
-  TPTimeSpan,
+  Duration,
+  duration,
+  Span,
+  time,
+  Time,
+  TimeSpan,
 } from '../common/time';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
@@ -35,8 +36,8 @@ export interface SearchControllerArgs {
 
 export class SearchController extends Controller<'main'> {
   private engine: Engine;
-  private previousSpan: Span<TPTime>;
-  private previousResolution: TPDuration;
+  private previousSpan: Span<time, duration>;
+  private previousResolution: duration;
   private previousSearch: string;
   private updateInProgress: boolean;
   private setupInProgress: boolean;
@@ -44,7 +45,7 @@ export class SearchController extends Controller<'main'> {
   constructor(args: SearchControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.previousSpan = new TPTimeSpan(0n, 1n);
+    this.previousSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
     this.previousSearch = '';
     this.updateInProgress = false;
     this.setupInProgress = true;
@@ -89,7 +90,7 @@ export class SearchController extends Controller<'main'> {
     // that is not easily available here.
     // N.B. Timestamps can be negative.
     const {start, end} = newSpan.pad(newSpan.duration);
-    this.previousSpan = new TPTimeSpan(start, end);
+    this.previousSpan = new TimeSpan(start, end);
     this.previousResolution = newResolution;
     this.previousSearch = newSearch;
     if (newSearch === '' || newSearch.length < 4) {
@@ -131,18 +132,18 @@ export class SearchController extends Controller<'main'> {
   onDestroy() {}
 
   private async update(
-      search: string, startNs: TPTime, endNs: TPTime,
-      resolution: TPDuration): Promise<SearchSummary> {
+      search: string, start: time, end: time,
+      resolution: duration): Promise<SearchSummary> {
     const searchLiteral = escapeSearchQuery(search);
 
-    const quantumNs = resolution * 10n;
-    startNs = BigintMath.quantFloor(startNs, quantumNs);
+    const quantum = resolution * 10n;
+    start = Time.quantFloor(start, quantum);
 
-    const windowDur = BigintMath.max(endNs - startNs, 1n);
+    const windowDur = Duration.max(Time.diff(end, start), 1n);
     await this.query(`update search_summary_window set
-      window_start=${startNs},
+      window_start=${start},
       window_dur=${windowDur},
-      quantum=${quantumNs}
+      quantum=${quantum}
       where rowid = 0;`);
 
     const utidRes = await this.query(`select utid from thread join process
@@ -159,8 +160,8 @@ export class SearchController extends Controller<'main'> {
 
     const res = await this.query(`
         select
-          (quantum_ts * ${quantumNs} + ${startNs}) as tsStart,
-          ((quantum_ts+1) * ${quantumNs} + ${startNs}) as tsEnd,
+          (quantum_ts * ${quantum} + ${start}) as tsStart,
+          ((quantum_ts+1) * ${quantum} + ${start}) as tsEnd,
           min(count(*), 255) as count
           from (
               select

@@ -22,14 +22,13 @@ import {
   LogEntries,
   LogEntriesKey,
 } from '../common/logs';
-import {TPTime} from '../common/time';
+import {time, Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
-import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {Timestamp} from './widgets/timestamp';
 import {VirtualScrollContainer} from './widgets/virtual_scroll_container';
@@ -77,12 +76,12 @@ export class LogPanel extends Panel<{}> {
     raf.scheduleFullRedraw();
   };
 
-  onRowOver(ts: TPTime) {
+  onRowOver(ts: time) {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
   }
 
   onRowOut() {
-    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
   }
 
   private totalRows():
@@ -149,7 +148,7 @@ export class LogPanel extends Panel<{}> {
                 'onmouseover': this.onRowOver.bind(this, ts),
                 'onmouseout': this.onRowOut.bind(this),
               },
-              m('.cell', m(Timestamp, {ts: asTPTimestamp(ts)})),
+              m('.cell', m(Timestamp, {ts})),
               m('.cell', priorityLetter || '?'),
               m('.cell', tags[i]),
               hasProcessNames ? m('.cell.with-process', processNames[i]) :

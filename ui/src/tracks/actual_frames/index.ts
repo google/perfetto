@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {NewTrackArgs, Track} from '../../frontend/track';
@@ -52,7 +52,7 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
   private maxDur = 0n;
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (this.maxDur === 0n) {
       const maxDurResult = await this.query(`

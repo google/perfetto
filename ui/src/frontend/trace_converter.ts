@@ -17,7 +17,7 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import {TPTime} from '../common/time';
+import {time} from '../common/time';
 
 import {download} from './clipboard';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -107,7 +107,7 @@ export function convertToJson(trace: Blob, truncate?: 'start'|'end') {
 }
 
 export function convertTraceToPprofAndDownload(
-    trace: Blob, pid: number, ts: TPTime) {
+    trace: Blob, pid: number, ts: time) {
   makeWorkerAndPost({
     kind: 'ConvertTraceToPprof',
     trace,
