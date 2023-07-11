@@ -17,7 +17,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {EngineProxy} from '../common/engine';
 import {TrackState} from '../common/state';
-import {Span, TPDuration, TPTime} from '../common/time';
+import {duration, Span, time} from '../common/time';
 import {TrackData} from '../common/track_data';
 
 import {checkerboard} from './checkerboard';
@@ -210,8 +210,8 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
   getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<TPTime, TPDuration>,
-      _windowSpan: PxSpan, _tStart: TPTime, _tEnd: TPTime,
+      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
+      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
       _depth: number): SliceRect|undefined {
     return undefined;
   }

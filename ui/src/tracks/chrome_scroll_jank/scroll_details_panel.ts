@@ -16,12 +16,7 @@ import m from 'mithril';
 
 import {exists} from '../../base/utils';
 import {LONG, NUM} from '../../common/query_result';
-import {
-  TPDuration,
-  tpDurationFromSql,
-  TPTime,
-  tpTimeFromSql,
-} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -31,10 +26,9 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
-import {asTPTimestamp} from '../../frontend/sql_types';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {Duration} from '../../frontend/widgets/duration';
+import {DurationWidget} from '../../frontend/widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {SqlRef} from '../../frontend/widgets/sql_ref';
@@ -45,9 +39,9 @@ interface Data {
   // Scroll ID.
   id: number;
   // Timestamp of the beginning of this slice in nanoseconds.
-  ts: TPTime;
-  // Duration of this slice in nanoseconds.
-  dur: TPDuration;
+  ts: time;
+  // DurationWidget of this slice in nanoseconds.
+  dur: duration;
 }
 
 interface Metrics {
@@ -97,7 +91,7 @@ export class ScrollDetailsPanel extends
     });
     this.data = {
       id: iter.id,
-      ts: iter.ts,
+      ts: Time.fromRaw(iter.ts),
       dur: iter.dur,
     };
 
@@ -162,9 +156,8 @@ export class ScrollDetailsPanel extends
 
     const details = dictToTreeNodes({
       'Scroll ID': sqlValueToString(this.data.id),
-      'Start time':
-          m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data.ts))}),
-      'Duration': m(Duration, {dur: tpDurationFromSql(this.data.dur)}),
+      'Start time': m(Timestamp, {ts: this.data.ts}),
+      'DurationWidget': m(DurationWidget, {dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.config.id}),
     });
 

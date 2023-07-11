@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -44,9 +44,9 @@ export interface Data extends TrackData {
 
 class AsyncSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ASYNC_SLICE_TRACK_KIND;
-  private maxDurNs: TPDuration = 0n;
+  private maxDurNs: duration = 0n;
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (this.maxDurNs === 0n) {
       const maxDurResult = await this.query(`

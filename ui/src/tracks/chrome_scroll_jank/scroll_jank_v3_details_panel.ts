@@ -16,12 +16,7 @@ import m from 'mithril';
 
 import {exists} from '../../base/utils';
 import {LONG, NUM, STR} from '../../common/query_result';
-import {
-  TPDuration,
-  tpDurationFromSql,
-  TPTime,
-  tpTimeFromSql,
-} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -31,10 +26,9 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
-import {asTPTimestamp} from '../../frontend/sql_types';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {Duration} from '../../frontend/widgets/duration';
+import {DurationWidget} from '../../frontend/widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {SqlRef} from '../../frontend/widgets/sql_ref';
@@ -46,9 +40,9 @@ interface Data {
   // Jank ID.
   id: number;
   // Timestamp of the beginning of this slice in nanoseconds.
-  ts: TPTime;
+  ts: time;
   // Duration of this slice in nanoseconds.
-  dur: TPDuration;
+  dur: duration;
   // The number of frames that were delayed due to the jank.
   delayedFrameCount: number;
   // Slice ID of the corresponding EventLatency slice.
@@ -92,7 +86,7 @@ export class ScrollJankV3DetailsPanel extends
     this.data = {
       name: iter.name,
       id: iter.id,
-      ts: iter.ts,
+      ts: Time.fromRaw(iter.ts),
       dur: iter.dur,
       delayedFrameCount: iter.delayedFrameCount,
       eventLatencyId: iter.eventLatencyId,
@@ -106,12 +100,11 @@ export class ScrollJankV3DetailsPanel extends
     if (exists(this.data)) {
       details['Name'] = sqlValueToString(this.data.name);
       details['Expected Frame Presentation Timestamp'] =
-          m(Timestamp, {ts: asTPTimestamp(tpTimeFromSql(this.data.ts))});
+          m(Timestamp, {ts: this.data.ts});
       details['Actual Frame Presentation Timestamp'] =
-          m(Timestamp,
-            {ts: asTPTimestamp(tpTimeFromSql(this.data.ts + this.data.dur))});
+          m(Timestamp, {ts: Time.add(this.data.ts, this.data.dur)});
       details['Frame Presentation Delay'] =
-          m(Duration, {dur: tpDurationFromSql(this.data.dur)});
+          m(DurationWidget, {dur: this.data.dur});
       details['Frames Delayed'] = this.data.delayedFrameCount;
       details['Original Event Latency'] = this.data.eventLatencyId;
       details['SQL ID'] = m(SqlRef, {
