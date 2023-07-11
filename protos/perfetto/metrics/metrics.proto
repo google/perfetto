@@ -34,6 +34,8 @@ import "protos/perfetto/metrics/android/g2d_metric.proto";
 import "protos/perfetto/metrics/android/gpu_metric.proto";
 import "protos/perfetto/metrics/android/hwcomposer.proto";
 import "protos/perfetto/metrics/android/hwui_metric.proto";
+import "protos/perfetto/metrics/android/io_metric.proto";
+import "protos/perfetto/metrics/android/io_unagg_metric.proto";
 import "protos/perfetto/metrics/android/ion_metric.proto";
 import "protos/perfetto/metrics/android/irq_runtime_metric.proto";
 import "protos/perfetto/metrics/android/jank_cuj_metric.proto";
@@ -104,7 +106,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 52
+// Next id: 55
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -245,6 +247,14 @@ message TraceMetrics {
 
   // Metrics to track codec framework.
   optional AndroidCodecMetrics codec_metrics = 52;
+
+  // Metric to track Android IO.
+  optional AndroidIo android_io = 53;
+
+  // IO metrics on Android in unaggregated form.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidIoUnaggregated android_io_unagg = 54;
 
   // Demo extensions.
   extensions 450 to 499;
