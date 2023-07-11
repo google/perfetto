@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
 import {Engine} from '../common/engine';
 import {
   LogBounds,
@@ -24,10 +23,12 @@ import {
 import {LONG, LONG_NULL, NUM, STR} from '../common/query_result';
 import {escapeGlob, escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
-import {Span} from '../common/time';
 import {
-  TPTime,
-  TPTimeSpan,
+  duration,
+  Span,
+  time,
+  Time,
+  TimeSpan,
 } from '../common/time';
 import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
@@ -35,7 +36,7 @@ import {publishTrackData} from '../frontend/publish';
 import {Controller} from './controller';
 
 async function updateLogBounds(
-    engine: Engine, span: Span<TPTime>): Promise<LogBounds> {
+    engine: Engine, span: Span<time, duration>): Promise<LogBounds> {
   const vizStartNs = span.start;
   const vizEndNs = span.end;
 
@@ -57,14 +58,14 @@ async function updateLogBounds(
     countTs: NUM,
   });
 
-  const firstLogTs = data.minTs ?? 0n;
-  const lastLogTs = data.maxTs ?? BigintMath.INT64_MAX;
+  const firstLogTs = Time.fromRaw(data.minTs ?? 0n);
+  const lastLogTs = Time.fromRaw(data.maxTs ?? Time.MAX);
 
   const bounds: LogBounds = {
     firstLogTs,
     lastLogTs,
-    firstVisibleLogTs: data.minVizTs ?? firstLogTs,
-    lastVisibleLogTs: data.maxVizTs ?? lastLogTs,
+    firstVisibleLogTs: Time.fromRaw(data.minVizTs ?? firstLogTs),
+    lastVisibleLogTs: Time.fromRaw(data.maxVizTs ?? lastLogTs),
     totalVisibleLogs: data.countTs,
   };
 
@@ -72,7 +73,7 @@ async function updateLogBounds(
 }
 
 async function updateLogEntries(
-    engine: Engine, span: Span<TPTime>, pagination: Pagination):
+    engine: Engine, span: Span<time, duration>, pagination: Pagination):
     Promise<LogEntries> {
   const vizStartNs = span.start;
   const vizEndNs = span.end;
@@ -93,7 +94,7 @@ async function updateLogEntries(
         limit ${pagination.start}, ${pagination.count}
     `);
 
-  const timestamps = [];
+  const timestamps: time[] = [];
   const priorities = [];
   const tags = [];
   const messages = [];
@@ -110,7 +111,7 @@ async function updateLogEntries(
     processName: STR,
   });
   for (; it.valid(); it.next()) {
-    timestamps.push(it.ts);
+    timestamps.push(Time.fromRaw(it.ts));
     priorities.push(it.prio);
     tags.push(it.tag);
     messages.push(it.msg);
@@ -179,7 +180,7 @@ export interface LogsControllerArgs {
  */
 export class LogsController extends Controller<'main'> {
   private engine: Engine;
-  private span: Span<TPTime>;
+  private span: Span<time, duration>;
   private pagination: Pagination;
   private hasLogs = false;
   private logFilteringCriteria?: LogFilteringCriteria;
@@ -189,7 +190,7 @@ export class LogsController extends Controller<'main'> {
   constructor(args: LogsControllerArgs) {
     super('main');
     this.engine = args.engine;
-    this.span = new TPTimeSpan(0n, BigInt(10e9));
+    this.span = new TimeSpan(Time.ZERO, Time.fromSeconds(10));
     this.pagination = new Pagination(0, 0);
     this.hasAnyLogs().then((exists) => {
       this.hasLogs = exists;

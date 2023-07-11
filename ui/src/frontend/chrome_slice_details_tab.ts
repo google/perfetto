@@ -21,11 +21,7 @@ import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
-import {
-  formatDuration,
-  TPDuration,
-  TPTime,
-} from '../common/time';
+import {Duration, duration, Time, time} from '../common/time';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
 
 import {Anchor} from './anchor';
@@ -43,11 +39,11 @@ import {Arg} from './sql/args';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
-import {asSliceSqlId, asTPTimestamp} from './sql_types';
+import {asSliceSqlId} from './sql_types';
 import {getProcessName, getThreadName} from './thread_and_process_info';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 import {GridLayout, GridLayoutColumn} from './widgets/grid_layout';
 import {MenuItem, PopupMenu2} from './widgets/menu';
 import {Section} from './widgets/section';
@@ -274,12 +270,12 @@ function renderArgTreeNodes(
   });
 }
 
-function computeDuration(ts: TPTime, dur: TPDuration): m.Children {
+function computeDuration(ts: time, dur: duration): m.Children {
   if (dur === -1n) {
     const minDuration = globals.state.traceTime.end - ts;
-    return `${formatDuration(minDuration)} (Did not end)`;
+    return `${Duration.format(minDuration)} (Did not end)`;
   } else {
-    return m(Duration, {dur});
+    return m(DurationWidget, {dur});
   }
 }
 
@@ -312,7 +308,7 @@ async function getAnnotationSlice(
   return {
     id: asSliceSqlId(it.id),
     name: it.name ?? 'null',
-    ts: asTPTimestamp(it.ts),
+    ts: Time.fromRaw(it.ts),
     dur: it.dur,
     sqlTrackId: it.trackId,
     threadDur: it.threadDur ?? undefined,
@@ -439,7 +435,7 @@ export class ChromeSliceDetailsTab extends
             }),
             m(TreeNode, {
               left: 'Start time',
-              right: m(Timestamp, {ts: asTPTimestamp(slice.ts)}),
+              right: m(Timestamp, {ts: slice.ts}),
             }),
             exists(slice.absTime) &&
                 m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
@@ -537,8 +533,7 @@ export class ChromeSliceDetailsTab extends
   }
 
   private renderFlow(
-      flow: FlowPoint, dur: TPDuration,
-      includeProcessName: boolean): m.Children {
+      flow: FlowPoint, dur: duration, includeProcessName: boolean): m.Children {
     const description = flow.sliceChromeCustomName === undefined ?
         flow.sliceName :
         flow.sliceChromeCustomName;
@@ -559,7 +554,7 @@ export class ChromeSliceDetailsTab extends
             sqlTrackId: flow.trackId,
           }),
         }),
-        m(TreeNode, {left: 'Delay', right: m(Duration, {dur})}),
+        m(TreeNode, {left: 'Delay', right: m(DurationWidget, {dur})}),
         m(TreeNode, {left: 'Thread', right: threadName}),
     );
   }
