@@ -53,6 +53,7 @@ import {AndroidSettings} from './recording/android_settings';
 import {ChromeSettings} from './recording/chrome_settings';
 import {CpuSettings} from './recording/cpu_settings';
 import {GpuSettings} from './recording/gpu_settings';
+import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
@@ -75,6 +76,7 @@ export const RECORDING_SECTIONS = [
   'memory',
   'android',
   'chrome',
+  'tracePerf',
   'advanced',
 ];
 
@@ -694,6 +696,12 @@ function recordMenu(routePage: string) {
           m('i.material-icons', 'settings'),
           m('.title', 'Advanced settings'),
           m('.sub', 'Complicated stuff for wizards')));
+  const tracePerfProbe =
+      m('a[href="#!/record/tracePerf"]',
+        m(`li${routePage === 'tracePerf' ? '.active' : ''}`,
+          m('i.material-icons', 'full_stacked_bar_chart'),
+          m('.title', 'Stack Samples'),
+          m('.sub', 'Lightweight stack polling')));
   const recInProgress = globals.state.recordingInProgress;
 
   const probes = [];
@@ -709,6 +717,7 @@ function recordMenu(routePage: string) {
         memoryProbe,
         androidProbe,
         chromeProbe,
+        tracePerfProbe,
         advancedProbe);
   }
 
@@ -774,6 +783,7 @@ export const RecordPage = createPage({
       ['memory', MemorySettings],
       ['android', AndroidSettings],
       ['chrome', ChromeSettings],
+      ['tracePerf', LinuxPerfSettings],
       ['advanced', AdvancedSettings],
     ]);
     for (const [section, component] of settingsSections.entries()) {
