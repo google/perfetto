@@ -27,12 +27,6 @@
 #include <cinttypes>
 #include <new>
 
-#include <unwindstack/MachineArm.h>
-#include <unwindstack/MachineArm64.h>
-#include <unwindstack/MachineMips.h>
-#include <unwindstack/MachineMips64.h>
-#include <unwindstack/MachineX86.h>
-#include <unwindstack/MachineX86_64.h>
 #include <unwindstack/Regs.h>
 #include <unwindstack/RegsGetLocal.h>
 
