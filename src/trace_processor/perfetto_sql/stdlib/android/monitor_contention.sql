@@ -190,9 +190,40 @@ WHERE slice.name GLOB 'monitor contention*'
   AND short_blocked_method IS NOT NULL
 GROUP BY slice.id;
 
+CREATE INDEX internal_android_monitor_contention_idx
+  ON android_monitor_contention (blocking_utid, ts);
+
+-- Monitor contention slices that are blocked by another monitor contention slice.
+-- They will have a |parent_id| field which is the id of the slice they are blocked by.
+CREATE TABLE internal_children AS
+SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
+JOIN android_monitor_contention parent ON parent.blocked_utid = child.blocking_utid
+AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
+
+-- Monitor contention slices that are blocking another monitor contention slice.
+-- They will have a |child_id| field which is the id of the slice they are blocking.
+CREATE TABLE internal_parents AS
+SELECT parent.*, child.id AS child_id FROM android_monitor_contention parent
+JOIN android_monitor_contention child ON parent.blocked_utid = child.blocking_utid
+AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
+
+-- Monitor contention slices that are neither blocking nor blocked by another monitor contention
+-- slice. They neither have |parent_id| nor |child_id| fields.
+CREATE TABLE internal_isolated
+AS
+WITH
+  x AS (
+    SELECT id FROM android_monitor_contention
+    EXCEPT
+    SELECT id FROM internal_children
+    UNION ALL
+    SELECT id FROM internal_parents
+  )
+SELECT * FROM android_monitor_contention JOIN x USING (id);
+
 -- Contains parsed monitor contention slices with the parent-child relationships.
 --
--- @column parent_id Id of slice blocking the blocking_thread.
+-- @column parent_id Id of monitor contention slice blocked by this contention.
 -- @column blocking_method Name of the method holding the lock.
 -- @column blocked_methhod Name of the method trying to acquire the lock.
 -- @column short_blocking_method Blocking_method without arguments and return types.
@@ -213,11 +244,16 @@ GROUP BY slice.id;
 -- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
 -- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
 -- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
+-- @column child_id Id of monitor contention slice blocking this contention.
 CREATE TABLE android_monitor_contention_chain
-AS
-SELECT parent.id AS parent_id, child.* FROM android_monitor_contention child
-LEFT JOIN android_monitor_contention parent ON child.blocked_utid = parent.blocking_utid
-    AND parent.ts BETWEEN child.ts AND child.ts + child.dur;
+  AS
+SELECT NULL AS parent_id, *, NULL AS child_id FROM internal_isolated
+UNION ALL
+SELECT c.*, p.child_id FROM internal_children c
+LEFT JOIN internal_parents p USING(id)
+UNION
+SELECT c.parent_id, p.* FROM internal_parents p
+LEFT JOIN internal_children c USING(id);
 
 CREATE INDEX internal_android_monitor_contention_chain_idx
   ON android_monitor_contention_chain (blocking_method, blocking_utid, ts);
