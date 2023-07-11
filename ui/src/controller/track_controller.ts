@@ -16,19 +16,19 @@ import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
 import {Engine} from '../common/engine';
 import {Registry} from '../common/registry';
-import {TraceTime, TrackState} from '../common/state';
+import {RESOLUTION_DEFAULT, TraceTime, TrackState} from '../common/state';
 import {
-  TPDuration,
-  TPTime,
-  tpTimeFromSeconds,
-  TPTimeSpan,
+  Duration,
+  duration,
+  time,
+  Time,
+  TimeSpan,
 } from '../common/time';
 import {LIMIT, TrackData} from '../common/track_data';
 import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
 
-import {Controller} from './controller';
-import {ControllerFactory} from './controller';
+import {Controller, ControllerFactory} from './controller';
 
 interface TrackConfig {}
 
@@ -68,7 +68,7 @@ export abstract class TrackController<
   // Must be overridden by the track implementation. Is invoked when the track
   // frontend runs out of cached data. The derived track controller is expected
   // to publish new track data in response to this call.
-  abstract onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
 
   get trackState(): TrackState {
@@ -127,7 +127,7 @@ export abstract class TrackController<
   }
 
   shouldRequestData(traceTime: TraceTime): boolean {
-    const tspan = new TPTimeSpan(traceTime.start, traceTime.end);
+    const tspan = new TimeSpan(traceTime.start, traceTime.end);
     if (this.data === undefined) return true;
     if (this.shouldReload()) return true;
 
@@ -154,7 +154,7 @@ export abstract class TrackController<
   // data. Returns the bucket size (in ns) if caching should happen and
   // undefined otherwise.
   // Subclasses should call this in their setup function
-  calcCachedBucketSize(numRows: number): TPDuration|undefined {
+  calcCachedBucketSize(numRows: number): duration|undefined {
     // Ensure that we're not caching when the table size isn't even that big.
     if (numRows < TrackController.MIN_TABLE_SIZE_TO_CACHE) {
       return undefined;
@@ -208,7 +208,7 @@ export abstract class TrackController<
     // resolution levels we want to go down, bail out because this cached
     // table is really not going to be used enough.
     if (outermostResolutionLevel < resolutionLevelsCovered) {
-      return BigintMath.INT64_MAX;
+      return Duration.MAX;
     }
 
     // Another way to look at moving down resolution levels is to consider how
@@ -247,13 +247,14 @@ export abstract class TrackController<
               this.isSetup = true;
               let resolution = visibleState.resolution;
 
+              // If resolution is not a power of 2, reset to the default value
               if (BigintMath.popcount(resolution) !== 1) {
-                resolution = BigintMath.bitFloor(tpTimeFromSeconds(1000));
+                resolution = RESOLUTION_DEFAULT;
               }
 
               return this.onBoundsChange(
-                  visibleTimeSpan.start - dur,
-                  visibleTimeSpan.end + dur,
+                  Time.sub(visibleTimeSpan.start, dur),
+                  Time.add(visibleTimeSpan.end, dur),
                   resolution);
             })
             .then((data) => {

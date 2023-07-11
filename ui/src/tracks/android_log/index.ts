@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {LONG, NUM} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -59,7 +59,7 @@ const EVT_PX = 2;  // Width of an event tick in pixels.
 class AndroidLogTrackController extends TrackController<Config, Data> {
   static readonly kind = ANDROID_LOGS_TRACK_KIND;
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const queryRes = await this.query(`
       select
@@ -110,8 +110,8 @@ class AndroidLogTrack extends Track<Config, Data> {
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    const dataStartPx = visibleTimeScale.tpTimeToPx(data.start);
-    const dataEndPx = visibleTimeScale.tpTimeToPx(data.end);
+    const dataStartPx = visibleTimeScale.timeToPx(data.start);
+    const dataEndPx = visibleTimeScale.timeToPx(data.end);
     const visibleStartPx = windowSpan.start;
     const visibleEndPx = windowSpan.end;
 
@@ -134,7 +134,8 @@ class AndroidLogTrack extends Track<Config, Data> {
         }
         if (!hasEventsForCurColor) continue;
         ctx.fillStyle = LEVELS[lev].color;
-        const px = Math.floor(visibleTimeScale.tpTimeToPx(data.timestamps[i]));
+        const timestamp = Time.fromRaw(data.timestamps[i]);
+        const px = Math.floor(visibleTimeScale.timeToPx(timestamp));
         ctx.fillRect(px, MARGIN_TOP + blockH * lev, quantWidth, blockH);
       }  // for(lev)
     }    // for (timestamps)

@@ -16,18 +16,16 @@ import m from 'mithril';
 
 import {Actions} from '../../common/actions';
 import {
-  Timecode,
+  time,
+  Time,
   TimestampFormat,
   timestampFormat,
   toDomainTime,
-  TPTime,
-  tpTimeToSeconds,
 } from '../../common/time';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
 import {globals} from '../globals';
 import {Icons} from '../semantic_icons';
-import {TPTimestamp} from '../sql_types';
 
 import {MenuItem, PopupMenu2} from './menu';
 
@@ -36,7 +34,7 @@ import {MenuItem, PopupMenu2} from './menu';
 interface TimestampAttrs {
   // The timestamp to print, this should be the absolute, raw timestamp as
   // found in trace processor.
-  ts: TPTimestamp;
+  ts: time;
   // Custom text value to show instead of the default HH:MM:SS.mmm uuu nnn
   // formatting.
   display?: m.Children;
@@ -49,17 +47,18 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
     return m(
         PopupMenu2,
         {
-          trigger: m(
-              Anchor,
-              {
-                onmouseover: () => {
-                  globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
+          trigger:
+              m(Anchor,
+                {
+                  onmouseover: () => {
+                    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
+                  },
+                  onmouseout: () => {
+                    globals.dispatch(
+                        Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
+                  },
                 },
-                onmouseout: () => {
-                  globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
-                },
-              },
-              attrs.display ?? renderTimestamp(ts)),
+                attrs.display ?? renderTimestamp(ts)),
         },
         m(MenuItem, {
           icon: Icons.Copy,
@@ -73,7 +72,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
   }
 }
 
-function renderTimestamp(time: TPTime): m.Children {
+function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
   const domainTime = toDomainTime(time);
   switch (fmt) {
@@ -84,15 +83,15 @@ function renderTimestamp(time: TPTime): m.Children {
     case TimestampFormat.RawLocale:
       return domainTime.toLocaleString();
     case TimestampFormat.Seconds:
-      return tpTimeToSeconds(domainTime).toString() + ' s';
+      return Time.formatSeconds(domainTime);
     default:
       const x: never = fmt;
       throw new Error(`Invalid timestamp ${x}`);
   }
 }
 
-export function renderTimecode(time: TPTime): m.Children {
-  const {dhhmmss, millis, micros, nanos} = new Timecode(time);
+export function renderTimecode(time: time): m.Children {
+  const {dhhmmss, millis, micros, nanos} = Time.toTimecode(time);
   return m(
       'span.pf-timecode',
       m('span.pf-timecode-hms', dhhmmss),
