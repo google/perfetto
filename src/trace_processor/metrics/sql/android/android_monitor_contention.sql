@@ -23,6 +23,7 @@ SELECT AndroidMonitorContentionMetric(
     SELECT RepeatedField(
       AndroidMonitorContentionMetric_Node(
         'node_parent_id', parent_id,
+        'node_child_id', child_id,
         'node_id', id,
         'ts', ts,
         'dur', dur,
