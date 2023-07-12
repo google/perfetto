@@ -19,8 +19,6 @@ import {
   time,
   TimestampFormat,
   timestampFormat,
-  timestampOffset,
-  toDomainTime,
 } from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -44,7 +42,7 @@ export class TimeAxisPanel extends Panel {
     ctx.textAlign = 'left';
     ctx.font = '11px Roboto Condensed';
 
-    const offset = timestampOffset();
+    const offset = globals.timestampOffset();
     // If our timecode domain has an offset, print this offset
     if (offset != 0n) {
       const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
@@ -62,13 +60,13 @@ export class TimeAxisPanel extends Panel {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
 
-      const offset = timestampOffset();
+      const offset = globals.timestampOffset();
       const tickGen = new TickGenerator(span, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         if (type === TickType.MAJOR) {
           const position = Math.floor(map.timeToPx(time));
           ctx.fillRect(position, 0, 1, size.height);
-          const domainTime = toDomainTime(time);
+          const domainTime = globals.toDomainTime(time);
           renderTimestamp(ctx, domainTime, position + 5, 10, MIN_PX_PER_STEP);
         }
       }
