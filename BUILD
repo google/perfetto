@@ -128,6 +128,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
+        ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
@@ -2503,6 +2504,15 @@ perfetto_filegroup(
         "src/trace_processor/util/debug_annotation_parser.h",
         "src/trace_processor/util/proto_to_args_parser.cc",
         "src/trace_processor/util/proto_to_args_parser.h",
+    ],
+)
+
+# GN target: //src/trace_processor/util:protozero_to_json
+perfetto_filegroup(
+    name = "src_trace_processor_util_protozero_to_json",
+    srcs = [
+        "src/trace_processor/util/protozero_to_json.cc",
+        "src/trace_processor/util/protozero_to_json.h",
     ],
 )
 
@@ -5201,6 +5211,7 @@ perfetto_cc_library(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
+        ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
@@ -5365,6 +5376,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
+        ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",
@@ -5584,6 +5596,7 @@ perfetto_cc_binary(
         ":src_trace_processor_util_profile_builder",
         ":src_trace_processor_util_proto_profiler",
         ":src_trace_processor_util_proto_to_args_parser",
+        ":src_trace_processor_util_protozero_to_json",
         ":src_trace_processor_util_protozero_to_text",
         ":src_trace_processor_util_regex",
         ":src_trace_processor_util_sql_argument",

@@ -88,6 +88,22 @@ source_set("protozero_to_text") {
   ]
 }
 
+source_set("protozero_to_json") {
+  sources = [
+    "protozero_to_json.cc",
+    "protozero_to_json.h",
+  ]
+  deps = [
+    ":descriptors",
+    "../../../gn:default_deps",
+    "../../../protos/perfetto/common:zero",
+    "../../../protos/perfetto/trace/track_event:zero",
+    "../../base",
+    "../../protozero",
+    "../importers/proto:gen_cc_track_event_descriptor",
+  ]
+}
+
 source_set("interned_message_view") {
   sources = [ "interned_message_view.h" ]
   public_deps = [ "../../../include/perfetto/trace_processor" ]
@@ -232,6 +248,7 @@ source_set("unittests") {
     "glob_unittest.cc",
     "proto_profiler_unittest.cc",
     "proto_to_args_parser_unittest.cc",
+    "protozero_to_json_unittests.cc",
     "protozero_to_text_unittests.cc",
     "sql_argument_unittest.cc",
     "streaming_line_reader_unittest.cc",
@@ -245,6 +262,7 @@ source_set("unittests") {
     ":gzip",
     ":proto_profiler",
     ":proto_to_args_parser",
+    ":protozero_to_json",
     ":protozero_to_text",
     ":sql_argument",
     ":zip_reader",
