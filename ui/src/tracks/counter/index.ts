@@ -31,7 +31,9 @@ import {
   LONG_NULL,
   NUM,
   PluginContext,
+  Store,
   STR,
+  TracePlugin,
   TrackInfo,
 } from '../../public';
 
@@ -526,8 +528,22 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
-  const result = await engine.query(`
+// This is just an example plugin, used to prove that the plugin system works.
+class CounterTrackPlugin implements TracePlugin {
+  static migrate(_initialState: unknown): {} {
+    return {};
+  }
+
+  constructor(_store: Store<{}>, private engine: EngineProxy) {
+    // No-op
+  }
+
+  dispose(): void {
+    // No-op
+  }
+
+  async tracks(): Promise<TrackInfo[]> {
+    const result = await this.engine.query(`
     select name, id
     from (
       select name, id
@@ -541,32 +557,33 @@ async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
     order by name
   `);
 
-  // Add global or GPU counter tracks that are not bound to any pid/tid.
-  const it = result.iter({
-    name: STR,
-    id: NUM,
-  });
-
-  const tracks: TrackInfo[] = [];
-  for (; it.valid(); it.next()) {
-    const name = it.name;
-    const trackId = it.id;
-    tracks.push({
-      trackKind: COUNTER_TRACK_KIND,
-      name,
-      config: {
-        name,
-        trackId,
-      },
+    // Add global or GPU counter tracks that are not bound to any pid/tid.
+    const it = result.iter({
+      name: STR,
+      id: NUM,
     });
+
+    const tracks: TrackInfo[] = [];
+    for (; it.valid(); it.next()) {
+      const name = it.name;
+      const trackId = it.id;
+      tracks.push({
+        trackKind: COUNTER_TRACK_KIND,
+        name,
+        config: {
+          name,
+          trackId,
+        },
+      });
+    }
+    return tracks;
   }
-  return tracks;
 }
 
 export function activate(ctx: PluginContext) {
   ctx.registerTrackController(CounterTrackController);
   ctx.registerTrack(CounterTrack);
-  ctx.registerTrackProvider(globalTrackProvider);
+  ctx.registerTracePluginFactory(CounterTrackPlugin);
 }
 
 export const plugin = {
