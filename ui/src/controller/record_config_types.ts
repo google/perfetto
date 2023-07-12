@@ -105,6 +105,11 @@ export const recordConfigValidator = record({
   navigationAndLoading: bool(),
 
   symbolizeKsyms: bool(),
+
+  // Enabling stack sampling
+  tracePerf: bool(),
+  timebaseFrequency: num(100),
+  targetCmdLine: arrayOf(str()),
 });
 export const namedRecordConfigValidator = record(
     {title: requiredStr, key: requiredStr, config: recordConfigValidator});
