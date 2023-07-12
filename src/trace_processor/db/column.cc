@@ -89,8 +89,12 @@ Column Column::DummyColumn(const char* name,
                 nullptr);
 }
 
-Column Column::IdColumn(Table* table, uint32_t col_idx, uint32_t overlay_idx) {
-  return Column("id", ColumnType::kId, kIdFlags, table, col_idx, overlay_idx,
+Column Column::IdColumn(Table* table,
+                        uint32_t col_idx,
+                        uint32_t overlay_idx,
+                        const char* name,
+                        uint32_t flags) {
+  return Column(name, ColumnType::kId, flags, table, col_idx, overlay_idx,
                 nullptr);
 }
 
@@ -190,8 +194,8 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     } else {
       auto fn = [double_value](T v) {
         // We static cast here as this code will be compiled even when T ==
-        // double as we don't have if constexpr in C++11. In reality the cast is
-        // a noop but we cannot statically verify that for the compiler.
+        // double as we don't have if constexpr in C++11. In reality the cast
+        // is a noop but we cannot statically verify that for the compiler.
         return compare::LongToDouble(static_cast<int64_t>(v), double_value);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
@@ -200,18 +204,18 @@ void Column::FilterIntoNumericSlow(FilterOp op,
     int64_t long_value = value.long_value;
     if (std::is_same<T, double>::value) {
       auto fn = [long_value](T v) {
-        // We negate the return value as the long is always the first parameter
-        // for this function even though the LHS of the comparator should
-        // actually be |v|. This saves us having a duplicate implementation of
-        // the comparision function.
+        // We negate the return value as the long is always the first
+        // parameter for this function even though the LHS of the comparator
+        // should actually be |v|. This saves us having a duplicate
+        // implementation of the comparision function.
         return -compare::LongToDouble(long_value, static_cast<double>(v));
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
     } else {
       auto fn = [long_value](T v) {
         // We static cast here as this code will be compiled even when T ==
-        // double as we don't have if constexpr in C++11. In reality the cast is
-        // a noop but we cannot statically verify that for the compiler.
+        // double as we don't have if constexpr in C++11. In reality the cast
+        // is a noop but we cannot statically verify that for the compiler.
         return compare::Numeric(static_cast<int64_t>(v), long_value);
       };
       FilterIntoNumericWithComparatorSlow<T, is_nullable>(op, rm, fn);
