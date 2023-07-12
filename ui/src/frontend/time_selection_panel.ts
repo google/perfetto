@@ -23,8 +23,6 @@ import {
   TimeSpan,
   TimestampFormat,
   timestampFormat,
-  timestampOffset,
-  toDomainTime,
 } from '../common/time';
 
 import {
@@ -152,7 +150,7 @@ export class TimeSelectionPanel extends Panel {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
 
-      const offset = timestampOffset();
+      const offset = globals.timestampOffset();
       const tickGen = new TickGenerator(span, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(map.timeToPx(time));
@@ -195,7 +193,7 @@ export class TimeSelectionPanel extends Panel {
   renderHover(ctx: CanvasRenderingContext2D, size: PanelSize, ts: time) {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xPos = TRACK_SHELL_WIDTH + Math.floor(visibleTimeScale.timeToPx(ts));
-    const domainTime = toDomainTime(ts);
+    const domainTime = globals.toDomainTime(ts);
     const label = stringifyTimestamp(domainTime);
     drawIBar(ctx, xPos, this.bounds(size), label);
   }

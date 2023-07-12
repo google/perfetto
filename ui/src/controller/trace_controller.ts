@@ -48,7 +48,6 @@ import {
   ProfileType,
 } from '../common/state';
 import {
-
   Duration,
   duration,
   Span,

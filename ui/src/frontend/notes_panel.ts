@@ -17,7 +17,7 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
-import {Time, timestampOffset} from '../common/time';
+import {Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {
@@ -130,7 +130,7 @@ export class NotesPanel extends Panel {
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
-      const offset = timestampOffset();
+      const offset = globals.timestampOffset();
       const tickGen = new TickGenerator(span, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         const px = Math.floor(map.timeToPx(time));
