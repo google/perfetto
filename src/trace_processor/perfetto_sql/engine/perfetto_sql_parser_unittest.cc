@@ -113,6 +113,15 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
   ASSERT_FALSE(Parse(res).status().ok());
 }
 
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo() returns INT as select 1; select foo()");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(
+                               CreateFn{false, "foo()", "INT",
+                                        FindSubstr(res, "select 1;"), false},
+                               SqliteSql{FindSubstr(res, "select foo()")}));
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
