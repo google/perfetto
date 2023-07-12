@@ -41,13 +41,18 @@ class JsonBuilder {
   JsonBuilder(int flags) : flags_(flags) {}
 
   void OpenObject() {
+    if (is_array_scope() && !is_empty_scope()) {
+      Append(",");
+      MaybeAppendNewline();
+      MaybeAppendIndent();
+    }
     Append("{");
     stack_.push_back(Scope{ScopeContext::kObject});
   }
 
   void CloseObject() {
     // If we're closing the root object add errors if requested:
-    if (stack_.size() == 1 && is_inline_errors() && !errors_.empty()) {
+    if (is_root_scope() && is_inline_errors() && !errors_.empty()) {
       Key("__error");
       StringValue(base::StringView(base::Join(errors_, "\n")));
     }
@@ -58,6 +63,8 @@ class JsonBuilder {
       MaybeAppendNewline();
       MaybeAppendIndent();
     }
+
+    MarkScopeAsNonEmpty();
     Append("}");
   }
 
@@ -88,7 +95,7 @@ class JsonBuilder {
     Append(EscapeString(base::StringView(key)));
     Append(":");
     MaybeAppendSpace();
-    stack_.back().is_empty = false;
+    MarkScopeAsNonEmpty();
   }
 
   template <typename T>
@@ -128,11 +135,25 @@ class JsonBuilder {
   std::vector<Scope> stack_;
   std::vector<std::string> errors_;
 
-  bool is_object_scope() { return stack_.back().ctx == ScopeContext::kObject; }
+  bool is_object_scope() {
+    return stack_.size() > 0 && stack_.back().ctx == ScopeContext::kObject;
+  }
 
-  bool is_array_scope() { return stack_.back().ctx == ScopeContext::kArray; }
+  bool is_array_scope() {
+    return stack_.size() > 0 && stack_.back().ctx == ScopeContext::kArray;
+  }
 
-  bool is_empty_scope() { return stack_.back().is_empty; }
+  bool is_empty_scope() {
+    return stack_.size() > 0 && stack_.back().is_empty;
+  }
+
+  bool is_root_scope() { return stack_.size() == 1; }
+
+  void MarkScopeAsNonEmpty() {
+    if (stack_.size() > 0) {
+      stack_.back().is_empty = false;
+    }
+  }
 
   void MaybeAppendSpace() {
     if (is_pretty()) {
@@ -161,7 +182,7 @@ class JsonBuilder {
       MaybeAppendIndent();
     }
     Append(s);
-    stack_.back().is_empty = false;
+    MarkScopeAsNonEmpty();
   }
 
   void Append(const std::string& s) { parts_.push_back(s); }
