@@ -28,4 +28,5 @@ jobs:
             ui/wasm/
             ui/css/
             ui/out/tsc/
+            ui/src/gen/protos.*
             !ui/out/tsc/node_modules/**
