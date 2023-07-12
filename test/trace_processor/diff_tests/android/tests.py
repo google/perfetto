@@ -599,3 +599,75 @@ class Android(TestSuite):
         3516,"fg",3487,"com.android.providers.media.module",2425,65077,8,8
         3548,"AsyncTask #1",3487,"com.android.providers.media.module",2643,65077,8,8
       """))
+
+  def test_binder_async_txns(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT
+          aidl_name,
+          client_process,
+          server_process,
+          client_thread,
+          client_tid,
+          server_tid,
+          is_main_thread,
+          client_oom_score,
+          server_oom_score,
+          client_ts,
+          server_ts
+        FROM android_async_binder_metrics_by_txn
+        WHERE aidl_name IS NOT NULL
+        ORDER BY client_ts
+        LIMIT 10;
+      """,
+        out=Csv("""
+        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts"
+        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474
+        "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer","/system/bin/audioserver","media.metrics","audioserver",492,1262,1,-1000,-1000,25512325446,25512488255
+        "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer","/system/bin/audioserver","media.metrics","audioserver",492,1262,1,-1000,-1000,25512842465,25522410505
+        "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer","/vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu","/system/bin/surfaceflinger","binder:446_1",553,522,0,-1000,-1000,25847718645,25847734867
+        "AIDL::cpp::ITunnelModeEnabledListener::onTunnelModeEnabledChanged::cppServer","/system/bin/surfaceflinger","system_server","binder:496_2",522,1600,0,-1000,-900,25854181504,25854195485
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25855697394,25855710732
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25873210999,25873224961
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25951278287,25952242397
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,1575,0,-900,-1000,25965452828,25965590137
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,1575,0,-900,-1000,26046376252,26046544680
+      """))
+
+  def test_binder_txns(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT
+          aidl_name,
+          client_process,
+          server_process,
+          client_thread,
+          client_tid,
+          server_tid,
+          is_main_thread,
+          client_oom_score,
+          server_oom_score,
+          client_ts,
+          server_ts
+        FROM android_binder_txns
+        WHERE aidl_name IS NOT NULL
+        ORDER BY client_ts
+        LIMIT 10;
+      """,
+        out=Csv("""
+        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts"
+        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474
+        "AIDL::cpp::IInstalld::rmdex::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25230101202,25230125660
+        "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25243511980,25243544499
+        "AIDL::cpp::IInstalld::createAppDataBatched::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25244949065,25244971300
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25279371214,25279387389
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25279567724,25279592927
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280736368,25280756522
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280932813,25280946041
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273
+      """))
