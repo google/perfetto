@@ -86,6 +86,7 @@
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
 #include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
@@ -888,8 +889,10 @@ base::Status TraceProcessorImpl::ComputeMetricText(
           protozero_to_text::kIncludeNewLines);
       break;
     case TraceProcessor::MetricResultFormat::kJson:
-      // TODO(dproy): Implement this.
-      PERFETTO_FATAL("Json formatted metrics not supported yet.");
+      *metrics_string = protozero_to_json::ProtozeroToJson(
+          pool_, ".perfetto.protos.TraceMetrics",
+          protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
+          protozero_to_json::kPretty | protozero_to_json::kInlineErrors);
       break;
   }
   return status;
