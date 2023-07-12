@@ -20,7 +20,6 @@ import {
   Time,
   TimestampFormat,
   timestampFormat,
-  toDomainTime,
 } from '../../common/time';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
@@ -74,7 +73,7 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
 
 function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
-  const domainTime = toDomainTime(time);
+  const domainTime = globals.toDomainTime(time);
   switch (fmt) {
     case TimestampFormat.Timecode:
       return renderTimecode(domainTime);

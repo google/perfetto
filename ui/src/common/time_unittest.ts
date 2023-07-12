@@ -43,12 +43,12 @@ test('Duration.format', () => {
   expect(Duration.format(3_000n)).toEqual('3us');
   expect(Duration.format(1_000_001_000n)).toEqual('1s 1us');
   expect(Duration.format(200_000_000_030n)).toEqual('3m 20s 30ns');
-  expect(Duration.format(3_600_000_000_000n)).toEqual('60m');
-  expect(Duration.format(3_600_000_000_001n)).toEqual('60m 1ns');
-  expect(Duration.format(86_400_000_000_000n)).toEqual('1,440m');
-  expect(Duration.format(86_400_000_000_001n)).toEqual('1,440m 1ns');
-  expect(Duration.format(31_536_000_000_000_000n)).toEqual('525,600m');
-  expect(Duration.format(31_536_000_000_000_001n)).toEqual('525,600m 1ns');
+  expect(Duration.format(3_600_000_000_000n)).toEqual('1h');
+  expect(Duration.format(3_600_000_000_001n)).toEqual('1h 1ns');
+  expect(Duration.format(86_400_000_000_000n)).toEqual('24h');
+  expect(Duration.format(86_400_000_000_001n)).toEqual('24h 1ns');
+  expect(Duration.format(31_536_000_000_000_000n)).toEqual('8,760h');
+  expect(Duration.format(31_536_000_000_000_001n)).toEqual('8,760h 1ns');
 });
 
 test('Duration.humanise', () => {
@@ -70,6 +70,12 @@ test('Duration.humanise', () => {
   expect(Duration.humanise(3_600_000_000_000n)).toEqual('3600s');
   expect(Duration.humanise(86_400_000_000_000n)).toEqual('86400s');
   expect(Duration.humanise(31_536_000_000_000_000n)).toEqual('31536000s');
+});
+
+test('Duration.fromMillis', () => {
+  expect(Duration.fromMillis(123.456789)).toEqual(123456789n);
+  expect(Duration.fromMillis(123.4567895)).toEqual(123456789n);
+  expect(Duration.fromMillis(0.0000001)).toEqual(0n);
 });
 
 test('timecode', () => {

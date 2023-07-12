@@ -40,8 +40,11 @@ import {
 import {
   duration,
   Span,
+  Time,
   time,
   TimeSpan,
+  TimestampFormat,
+  timestampFormat,
 } from '../common/time';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
@@ -713,6 +716,27 @@ class Globals {
 
   get commandManager(): CommandManager {
     return assertExists(this._cmdManager);
+  }
+
+  // Offset between t=0 and the configured time domain.
+  timestampOffset(): time {
+    const fmt = timestampFormat();
+    switch (fmt) {
+      case TimestampFormat.Timecode:
+      case TimestampFormat.Seconds:
+        return globals.state.traceTime.start;
+      case TimestampFormat.Raw:
+      case TimestampFormat.RawLocale:
+        return Time.ZERO;
+      default:
+        const x: never = fmt;
+        throw new Error(`Unsupported format ${x}`);
+    }
+  }
+
+  // Convert absolute time to domain time.
+  toDomainTime(ts: time): time {
+    return Time.sub(ts, this.timestampOffset());
   }
 }
 
