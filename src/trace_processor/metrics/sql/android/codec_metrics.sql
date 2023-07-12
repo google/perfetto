@@ -81,17 +81,16 @@ JOIN codec_per_thread_cpu_use using(process_name);
 -- are mapped to actual names of slices and then combined with other tables to
 -- give out the total_cpu and cpu_running time.
 
--- Utility functions to trim codec trace string
-SELECT CREATE_FUNCTION(
-  -- extract the string demilited by the limiter
-  'EXTRACT_CODEC_STRING(slice_name STRING, limiter STRING)',
-   -- output the result string
-  'STRING',
-   -- delimit with the first occurrence
-  'select case when instr($slice_name, $limiter) > 0 then
-    substr($slice_name, 1, instr($slice_name, $limiter) - 1) else
-    $slice_name end'
-);
+-- Utility function to trim codec trace string: extract the string demilited
+-- by the limiter.
+CREATE PERFETTO FUNCTION EXTRACT_CODEC_STRING(slice_name STRING, limiter STRING)
+RETURNS STRING AS
+SELECT CASE
+  -- Delimit with the first occurrence
+  WHEN instr($slice_name, $limiter) > 0
+  THEN substr($slice_name, 1, instr($slice_name, $limiter) - 1)
+  ELSE $slice_name
+END;
 
 -- traits strings from codec framework
 DROP TABLE IF EXISTS trace_trait_table;
