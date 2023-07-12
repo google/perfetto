@@ -89,8 +89,6 @@ SELECT DISTINCT
     tx.client_upid as upid
 FROM android_sync_binder_metrics_by_txn AS tx
          JOIN slice AS s ON s.id = tx.binder_txn_id
-        -- Keeps only slices in cuj processes.
-         JOIN android_cujs ON tx.client_upid = android_cujs.upid
 WHERE is_main_thread AND aidl_name IS NOT NULL;
 
 
@@ -110,7 +108,6 @@ WITH all_main_thread_relevant_slices AS (
         JOIN thread_track ON s.track_id = thread_track.id
         JOIN thread USING (utid)
         JOIN process USING (upid)
-        JOIN android_cujs USING (upid) -- Keeps only slices in cuj processes.
     WHERE
         thread.is_main_thread AND (
                s.name = 'measure'
