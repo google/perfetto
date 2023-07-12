@@ -735,7 +735,7 @@ util::Status SpanJoinOperatorTable::Query::Rewind() {
       SqlSource::FromSpanJoin(sql_query_, table_->name()));
   cursor_eof_ = false;
   RETURN_IF_ERROR(res.status());
-  stmt_ = std::move(res.value());
+  stmt_ = std::move(res);
 
   RETURN_IF_ERROR(CursorNext());
 

@@ -185,9 +185,9 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     std::optional<SqliteEngine::PreparedStatement> cur_stmt;
     {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
-      auto stmt_or = engine_.PrepareStatement(std::move(*source));
-      RETURN_IF_ERROR(stmt_or.status());
-      cur_stmt = std::move(stmt_or.value());
+      auto stmt = engine_.PrepareStatement(std::move(*source));
+      RETURN_IF_ERROR(stmt.status());
+      cur_stmt = std::move(stmt);
     }
 
     // The only situation where we'd have an ok status but also no prepared
@@ -361,9 +361,9 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
   //
   // We intentionally loop from 1 to |used_param_count| because SQL
   // parameters are 1-indexed *not* 0-indexed.
-  int used_param_count = sqlite3_bind_parameter_count(stmt->sqlite_stmt());
+  int used_param_count = sqlite3_bind_parameter_count(stmt.sqlite_stmt());
   for (int i = 1; i <= used_param_count; ++i) {
-    const char* name = sqlite3_bind_parameter_name(stmt->sqlite_stmt(), i);
+    const char* name = sqlite3_bind_parameter_name(stmt.sqlite_stmt(), i);
 
     if (!name) {
       return base::ErrStatus(
@@ -396,7 +396,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
   // Verify that the prepared statement column count matches the return
   // count.
   uint32_t col_count =
-      static_cast<uint32_t>(sqlite3_column_count(stmt->sqlite_stmt()));
+      static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
   if (col_count != context.return_values.size()) {
     return base::ErrStatus(
         "%s: number of return values %u does not match SQL statement column "
@@ -408,7 +408,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
   // Verify that the return names matches the prepared statment column names.
   for (uint32_t i = 0; i < col_count; ++i) {
     const char* name =
-        sqlite3_column_name(stmt->sqlite_stmt(), static_cast<int>(i));
+        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
     if (name != context.return_values[i].name()) {
       return base::ErrStatus(
           "%s: column %s at index %u does not match return value name %s.",
@@ -424,7 +424,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
     return base::ErrStatus("Table function named %s already exists",
                            name.c_str());
   }
-  *it_and_inserted.first = std::move(stmt.value());
+  *it_and_inserted.first = std::move(stmt);
 
   engine_.RegisterVirtualTableModule<CreatedTableFunction>(
       name, std::move(context), SqliteTable::TableType::kEponymousOnly, false);
