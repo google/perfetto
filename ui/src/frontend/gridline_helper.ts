@@ -19,7 +19,6 @@ import {
   Span,
   time,
   Time,
-  timestampOffset,
 } from '../common/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
@@ -199,7 +198,7 @@ export function drawGridLines(
   if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
     const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-    const offset = timestampOffset();
+    const offset = globals.timestampOffset();
     for (const {type, time} of new TickGenerator(span, maxMajorTicks, offset)) {
       const px = Math.floor(map.timeToPx(time));
       if (type === TickType.MAJOR) {
