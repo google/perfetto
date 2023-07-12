@@ -88,7 +88,8 @@ std::vector<std::string> ReadCSV(benchmark::State& state,
   return base::SplitString(table_csv, "\n");
 }
 
-SliceTable::Row GetSliceTableRow(std::string string_row, StringPool& pool) {
+SliceTable::Row GetSliceTableRow(const std::string& string_row,
+                                 StringPool& pool) {
   std::vector<std::string> row_vec = SplitCSVLine(string_row);
   SliceTable::Row row;
   PERFETTO_CHECK(row_vec.size() >= 12);
