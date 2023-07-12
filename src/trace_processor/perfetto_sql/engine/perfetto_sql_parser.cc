@@ -146,7 +146,7 @@ bool PerfettoSqlParser::Next() {
                                              State::kCreateOrReplacePerfetto);
         }
         base::StackString<1024> err(
-            "Expected 'table' after 'create perfetto', received "
+            "Expected 'function' after 'create perfetto', received "
             "%*s.",
             static_cast<int>(token.str.size()), token.str.data());
         return ErrorAtToken(token, err.c_str());
