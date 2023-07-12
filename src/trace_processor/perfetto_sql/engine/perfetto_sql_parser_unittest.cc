@@ -32,6 +32,7 @@ namespace {
 using Result = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
+using CreateTable = PerfettoSqlParser::CreateTable;
 
 SqlSource FindSubstr(const SqlSource& source, const std::string& needle) {
   size_t off = source.sql().find(needle);

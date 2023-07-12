@@ -57,7 +57,8 @@ class SpanJoinOperatorTableTest : public ::testing::Test {
   }
 
  protected:
-  PerfettoSqlEngine engine_;
+  StringPool pool_;
+  PerfettoSqlEngine engine_{&pool_};
   ScopedStmt stmt_;
 };
 
