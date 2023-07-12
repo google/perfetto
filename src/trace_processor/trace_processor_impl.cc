@@ -364,7 +364,8 @@ void TraceProcessorImpl::RegisterView(const View& view) {
 }
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg) {
+    : TraceProcessorStorageImpl(cfg),
+      engine_(context_.storage->mutable_string_pool()) {
   context_.fuchsia_trace_tokenizer.reset(new FuchsiaTraceTokenizer(&context_));
   context_.fuchsia_trace_parser.reset(new FuchsiaTraceParser(&context_));
 

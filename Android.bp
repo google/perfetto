@@ -9510,6 +9510,7 @@ filegroup {
         "src/trace_processor/db/column.cc",
         "src/trace_processor/db/column_storage.cc",
         "src/trace_processor/db/query_executor.cc",
+        "src/trace_processor/db/runtime_table.cc",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/view.cc",
     ],
