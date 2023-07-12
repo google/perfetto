@@ -32,8 +32,6 @@ class StringFilter {
     kAtraceMatchBreak = 4,
   };
 
-  StringFilter() = default;
-
   // Adds a new rule for filtering strings.
   void AddRule(Policy policy,
                std::string_view pattern,
@@ -55,13 +53,7 @@ class StringFilter {
     std::string atrace_payload_starts_with;
   };
 
-  StringFilter(StringFilter&&) noexcept = delete;
-  StringFilter& operator=(StringFilter&&) noexcept = delete;
-
   bool MaybeFilterInternal(char* ptr, size_t len);
-
-  StringFilter(const StringFilter&) = delete;
-  StringFilter& operator=(const StringFilter&) = delete;
 
   std::vector<Rule> rules_;
 };

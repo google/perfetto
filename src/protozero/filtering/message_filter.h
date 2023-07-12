@@ -203,6 +203,7 @@ class MessageFilter {
 
   uint32_t out_written() { return static_cast<uint32_t>(out_ - &out_buf_[0]); }
 
+  // WARNING: Some of these fields should be in the copy constructor.
   std::unique_ptr<uint8_t[]> out_buf_;
   uint8_t* out_ = nullptr;
   uint8_t* out_end_ = nullptr;
