@@ -28,7 +28,6 @@ import {
   TracePlugin,
   TracePluginFactory,
   TrackInfo,
-  TrackProvider,
 } from '../public';
 
 import {Engine} from './engine';
@@ -45,13 +44,11 @@ interface TracePluginContext {
 // plugins.
 export class PluginContextImpl implements PluginContext {
   readonly pluginId: string;
-  private trackProviders: TrackProvider[];
   private tracePluginFactory?: TracePluginFactory<any>;
   private _tracePluginCtx?: TracePluginContext;
 
   constructor(pluginId: string) {
     this.pluginId = pluginId;
-    this.trackProviders = [];
   }
 
   // ==================================================================
@@ -64,10 +61,6 @@ export class PluginContextImpl implements PluginContext {
     trackRegistry.register(track);
   }
 
-  registerTrackProvider(provider: TrackProvider) {
-    this.trackProviders.push(provider);
-  }
-
   registerTracePluginFactory<T>(pluginFactory: TracePluginFactory<T>): void {
     this.tracePluginFactory = pluginFactory;
   }
@@ -75,9 +68,13 @@ export class PluginContextImpl implements PluginContext {
 
   // ==================================================================
   // Internal facing API:
-  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
-    const proxy = engine.getProxy(this.pluginId);
-    return this.trackProviders.map((f) => f(proxy));
+  findPotentialTracks(): Promise<TrackInfo[]>[] {
+    const tracePlugin = this.tracePlugin;
+    if (tracePlugin && tracePlugin.tracks) {
+      return [tracePlugin.tracks()];
+    } else {
+      return [];
+    }
   }
 
   onTraceLoad(store: Store<State>, engine: Engine): void {
@@ -171,10 +168,10 @@ export class PluginManager {
     return this.contexts.get(pluginId);
   }
 
-  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
+  findPotentialTracks(): Promise<TrackInfo[]>[] {
     const promises = [];
     for (const context of this.contexts.values()) {
-      for (const promise of context.findPotentialTracks(engine)) {
+      for (const promise of context.findPotentialTracks()) {
         promises.push(promise);
       }
     }
