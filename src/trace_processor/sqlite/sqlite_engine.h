@@ -72,14 +72,14 @@ class SqliteEngine {
     ScopedStmt stmt_;
     SqlSource sql_source_;
     ScopedSqliteString expanded_sql_;
-    base::Status status_;
+    base::Status status_ = base::OkStatus();
   };
 
   SqliteEngine();
   ~SqliteEngine();
 
   // Prepares a SQLite statement for the given SQL.
-  base::StatusOr<PreparedStatement> PrepareStatement(SqlSource);
+  PreparedStatement PrepareStatement(SqlSource);
 
   // Registers a C++ function to be runnable from SQL.
   base::Status RegisterFunction(const char* name,
