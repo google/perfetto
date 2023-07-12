@@ -2102,6 +2102,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
+        ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -10842,6 +10843,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/util:protozero_to_json
+filegroup {
+    name: "perfetto_src_trace_processor_util_protozero_to_json",
+    srcs: [
+        "src/trace_processor/util/protozero_to_json.cc",
+    ],
+}
+
 // GN: //src/trace_processor/util:protozero_to_text
 filegroup {
     name: "perfetto_src_trace_processor_util_protozero_to_text",
@@ -10886,6 +10895,7 @@ filegroup {
         "src/trace_processor/util/gzip_utils_unittest.cc",
         "src/trace_processor/util/proto_profiler_unittest.cc",
         "src/trace_processor/util/proto_to_args_parser_unittest.cc",
+        "src/trace_processor/util/protozero_to_json_unittests.cc",
         "src/trace_processor/util/protozero_to_text_unittests.cc",
         "src/trace_processor/util/sql_argument_unittest.cc",
         "src/trace_processor/util/streaming_line_reader_unittest.cc",
@@ -12326,6 +12336,7 @@ cc_test {
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
+        ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -13011,6 +13022,7 @@ cc_binary {
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
+        ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
@@ -13240,6 +13252,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_util_profile_builder",
         ":perfetto_src_trace_processor_util_proto_profiler",
         ":perfetto_src_trace_processor_util_proto_to_args_parser",
+        ":perfetto_src_trace_processor_util_protozero_to_json",
         ":perfetto_src_trace_processor_util_protozero_to_text",
         ":perfetto_src_trace_processor_util_regex",
         ":perfetto_src_trace_processor_util_sql_argument",
