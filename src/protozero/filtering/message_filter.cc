@@ -87,11 +87,9 @@ bool MessageFilter::LoadFilterBytecode(const void* filter_data, size_t len) {
   return filter_.Load(filter_data, len);
 }
 
-bool MessageFilter::SetFilterRoot(const uint32_t* field_ids,
-                                  size_t num_fields) {
+bool MessageFilter::SetFilterRoot(std::initializer_list<uint32_t> field_ids) {
   uint32_t root_msg_idx = 0;
-  for (const uint32_t* it = field_ids; it < field_ids + num_fields; ++it) {
-    uint32_t field_id = *it;
+  for (uint32_t field_id : field_ids) {
     auto res = filter_.Query(root_msg_idx, field_id);
     if (!res.allowed || !res.nested_msg_field())
       return false;

@@ -843,8 +843,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     // for pre-pending the packet preamble (See GetProtoPreamble() calls), but
     // the preamble is not there at ReadBuffer time. Hence we change the root of
     // the filtering to start at the Trace.packet level.
-    uint32_t packet_field_id = TracePacket::kPacketFieldNumber;
-    if (!trace_filter->SetFilterRoot(&packet_field_id, 1)) {
+    if (!trace_filter->SetFilterRoot({TracePacket::kPacketFieldNumber})) {
       MaybeLogUploadEvent(
           cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
       return PERFETTO_SVC_ERR("Failed to set filter root.");

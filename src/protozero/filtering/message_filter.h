@@ -88,7 +88,7 @@ class MessageFilter {
   // will identify the sub-message for the field "root.1.2.3" and use that.
   // In order for this to succeed all the fields in the path must be allowed
   // in the filter and must be a nested message type.
-  bool SetFilterRoot(const uint32_t* field_ids, size_t num_fields);
+  bool SetFilterRoot(std::initializer_list<uint32_t> field_ids);
 
   // Takes an input message, fragmented in arbitrary slices, and returns a
   // filtered message in output.
