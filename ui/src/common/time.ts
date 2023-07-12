@@ -15,7 +15,6 @@
 import {BigintMath} from '../base/bigint_math';
 import {assertTrue} from '../base/logging';
 import {Brand} from '../frontend/brand';
-import {globals} from '../frontend/globals';
 
 import {ColumnType} from './query_result';
 
@@ -146,7 +145,7 @@ export class Duration {
   }
 
   static fromMillis(millis: number) {
-    return BigInt((millis / 1e3) * TIME_UNITS_PER_SEC);
+    return BigInt(Math.floor((millis / 1e3) * TIME_UNITS_PER_SEC));
   }
 
   // Throws if the value cannot be reasonably converted to a bigint.
@@ -266,26 +265,6 @@ export class Timecode {
   }
 }
 
-// Offset between t=0 and the configured time domain.
-export function timestampOffset(): time {
-  const fmt = timestampFormat();
-  switch (fmt) {
-    case TimestampFormat.Timecode:
-    case TimestampFormat.Seconds:
-      return globals.state.traceTime.start;
-    case TimestampFormat.Raw:
-    case TimestampFormat.RawLocale:
-      return Time.ZERO;
-    default:
-      const x: never = fmt;
-      throw new Error(`Unsupported format ${x}`);
-  }
-}
-
-// Convert absolute timestamp to domain time.
-export function toDomainTime(ts: time): time {
-  return Time.sub(ts, timestampOffset());
-}
 
 export function currentDateHourAndMinute(): string {
   const date = new Date();
