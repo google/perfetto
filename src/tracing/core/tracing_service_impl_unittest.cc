@@ -4764,4 +4764,91 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
                                                   Eq("B|1023|payP6ad1P")))));
 }
 
+TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt;
+  // Message 0: root Trace proto.
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+  auto* rule = chain->add_rules();
+  rule->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS);
+  rule->set_atrace_payload_starts_with("payload");
+  rule->set_regex_pattern(R"(B\|\d+\|pay(lo)ad(\d*))");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("B|1023|payload");
+  }
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs&) {
+        clone_done();
+      }));
+  consumer2->CloneSession(1);
+  // CloneSession() will implicitly issue a flush. Linearize with that.
+  producer->WaitForFlush(std::vector<TraceWriter*>{writer.get()});
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6ad")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             Eq("B|1023|payload"))))));
+
+  auto cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(cloned_packets,
+              Contains(Property(&protos::gen::TracePacket::for_testing,
+                                Property(&protos::gen::TestEvent::str,
+                                         Eq("B|1023|payP6ad")))));
+  EXPECT_THAT(cloned_packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             Eq("B|1023|payload"))))));
+}
+
 }  // namespace perfetto

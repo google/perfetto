@@ -75,7 +75,9 @@ MessageFilter::MessageFilter() {
 }
 
 MessageFilter::MessageFilter(const MessageFilter& other)
-    : root_msg_index_(other.root_msg_index_), filter_(other.filter_) {
+    : root_msg_index_(other.root_msg_index_),
+      filter_(other.filter_),
+      string_filter_(other.string_filter_) {
   stack_.emplace_back();
 }
 
