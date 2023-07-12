@@ -84,6 +84,11 @@ class SqliteTokenizer {
     bool operator==(const Token& o) const {
       return str == o.str && token_type == o.token_type;
     }
+
+    // Returns if the token is empty or semicolon.
+    bool IsTerminal() {
+      return token_type == SqliteTokenType::TK_SEMI || str.empty();
+    }
   };
 
   explicit SqliteTokenizer(const char* sql);
@@ -93,6 +98,9 @@ class SqliteTokenizer {
 
   // Returns the next SQL token which is not of type TK_SPACE.
   Token NextNonWhitespace();
+
+  // Returns the next SQL token which is terminal.
+  Token NextTerminal();
 
   // Returns the pointer to the start of the next token which will be returned.
   const char* ptr() const { return ptr_; }
