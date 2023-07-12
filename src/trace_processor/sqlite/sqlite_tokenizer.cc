@@ -444,5 +444,13 @@ SqliteTokenizer::Token SqliteTokenizer::NextNonWhitespace() {
   return t;
 }
 
+SqliteTokenizer::Token SqliteTokenizer::NextTerminal() {
+  Token tok = Next();
+  while (!tok.IsTerminal()) {
+    tok = Next();
+  }
+  return tok;
+}
+
 }  // namespace trace_processor
 }  // namespace perfetto

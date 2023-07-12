@@ -139,6 +139,7 @@ DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
     : cache_(context.cache),
       computation_(context.computation),
       static_table_(context.static_table),
+      sql_table_(std::move(context.sql_table)),
       generator_(std::move(context.generator)) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
@@ -147,7 +148,11 @@ base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
     case TableComputation::kStatic:
       schema_ = static_table_->ComputeSchema();
       break;
-    case TableComputation::kDynamic:
+    case TableComputation::kRuntime:
+      PERFETTO_CHECK(!sql_table_->columns().empty());
+      schema_ = sql_table_->ComputeSchema();
+      break;
+    case TableComputation::kTableFunction:
       schema_ = generator_->CreateSchema();
       break;
   }
@@ -163,15 +168,12 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
     schema_cols.emplace_back(i, col.name, col.type, col.is_hidden);
   }
 
-  // TODO(lalitm): this is hardcoded to be the id column but change this to be
-  // more generic in the future.
-  auto it = std::find_if(
-      schema.columns.begin(), schema.columns.end(),
-      [](const Table::Schema::Column& c) { return c.name == "id"; });
+  auto it =
+      std::find_if(schema.columns.begin(), schema.columns.end(),
+                   [](const Table::Schema::Column& c) { return c.is_id; });
   if (it == schema.columns.end()) {
     PERFETTO_FATAL(
-        "id column not found in %s. Currently all db Tables need to contain an "
-        "id column; this constraint will be relaxed in the future.",
+        "id column not found in %s. All tables need to contain an id column;",
         table_name);
   }
 
@@ -185,7 +187,10 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
     case TableComputation::kStatic:
       BestIndex(schema_, static_table_->row_count(), qc, info);
       break;
-    case TableComputation::kDynamic:
+    case TableComputation::kRuntime:
+      BestIndex(schema_, sql_table_->row_count(), qc, info);
+      break;
+    case TableComputation::kTableFunction:
       base::Status status = generator_->ValidateConstraints(qc);
       if (!status.ok())
         return SQLITE_CONSTRAINT;
@@ -492,7 +497,14 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       // filters below.
       TryCacheCreateSortedTable(qc, history);
       break;
-    case TableComputation::kDynamic: {
+    case TableComputation::kRuntime:
+      upstream_table_ = db_sqlite_table_->sql_table_.get();
+
+      // Tries to create a sorted cached table which can be used to speed up
+      // filters below.
+      TryCacheCreateSortedTable(qc, history);
+      break;
+    case TableComputation::kTableFunction: {
       PERFETTO_TP_TRACE(metatrace::Category::QUERY, "DYNAMIC_TABLE_GENERATE",
                         [this](metatrace::Record* r) {
                           r->AddArg("Table", db_sqlite_table_->name());
