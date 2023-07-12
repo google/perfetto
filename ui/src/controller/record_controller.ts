@@ -129,7 +129,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
         value.startsWith('STAT_') || value.startsWith('LID_') ||
         value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
         value === 'RING_BUFFER' || value === 'BACKGROUND' ||
-        value === 'USER_INITIATED';
+        value === 'USER_INITIATED' || value.startsWith('PERF_CLOCK_');
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -144,6 +144,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       'samplingIntervalBytes',
       'shmemSizeBytes',
       'timestampUnitMultiplier',
+      'frequency',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {

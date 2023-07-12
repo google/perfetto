@@ -55,6 +55,7 @@ import {AndroidSettings} from './recording/android_settings';
 import {ChromeSettings} from './recording/chrome_settings';
 import {CpuSettings} from './recording/cpu_settings';
 import {GpuSettings} from './recording/gpu_settings';
+import {LinuxPerfSettings} from './recording/linux_perf_settings';
 import {MemorySettings} from './recording/memory_settings';
 import {PowerSettings} from './recording/power_settings';
 import {RecordingSectionAttrs} from './recording/recording_sections';
@@ -430,6 +431,12 @@ function recordMenu(routePage: string) {
           m('i.material-icons', 'settings'),
           m('.title', 'Advanced settings'),
           m('.sub', 'Complicated stuff for wizards')));
+  const tracePerfProbe =
+      m('a[href="#!/record/tracePerf"]',
+        m(`li${routePage === 'tracePerf' ? '.active' : ''}`,
+          m('i.material-icons', 'full_stacked_bar_chart'),
+          m('.title', 'Stack Samples'),
+          m('.sub', 'Lightweight stack polling')));
 
   // We only display the probes when we have a valid target, so it's not
   // possible for the target to be undefined here.
@@ -447,6 +454,7 @@ function recordMenu(routePage: string) {
         memoryProbe,
         androidProbe,
         chromeProbe,
+        tracePerfProbe,
         advancedProbe);
   }
 
@@ -531,6 +539,7 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
     ['memory', MemorySettings],
     ['android', AndroidSettings],
     ['chrome', ChromeSettings],
+    ['tracePerf', LinuxPerfSettings],
     ['advanced', AdvancedSettings],
   ]);
   for (const [section, component] of settingsSections.entries()) {
