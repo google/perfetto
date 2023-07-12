@@ -1348,6 +1348,8 @@ perfetto_filegroup(
         "src/trace_processor/db/compare.h",
         "src/trace_processor/db/query_executor.cc",
         "src/trace_processor/db/query_executor.h",
+        "src/trace_processor/db/runtime_table.cc",
+        "src/trace_processor/db/runtime_table.h",
         "src/trace_processor/db/table.cc",
         "src/trace_processor/db/table.h",
         "src/trace_processor/db/typed_column.h",

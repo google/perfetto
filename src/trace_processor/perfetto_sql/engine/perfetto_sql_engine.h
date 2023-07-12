@@ -47,7 +47,7 @@ class PerfettoSqlEngine {
     ExecutionStats stats;
   };
 
-  PerfettoSqlEngine();
+  explicit PerfettoSqlEngine(StringPool* pool);
 
   // Executes all the statements in |sql| and returns a |ExecutionResult|
   // object. The metadata will reference all the statements executed and the
@@ -129,7 +129,11 @@ class PerfettoSqlEngine {
   base::StatusOr<SqlSource> ExecuteCreateFunction(
       const PerfettoSqlParser::CreateFunction&);
 
+  // Registers a SQL-defined trace processor C++ table with SQLite.
+  base::Status RegisterSqlTable(std::string name, SqlSource sql);
+
   std::unique_ptr<QueryCache> query_cache_;
+  StringPool* pool_ = nullptr;
   SqliteEngine engine_;
   base::FlatHashMap<std::string, std::optional<SqliteEngine::PreparedStatement>>
       sql_table_function_statements_;
