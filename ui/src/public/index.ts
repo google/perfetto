@@ -40,7 +40,12 @@ export interface Command {
 
 // All trace plugins must implement this interface.
 export interface TracePlugin extends Disposable {
-  commands(): Command[];
+  commands?: () => Command[];
+
+  // Called any time a trace is loaded. Plugins should return all
+  // potential tracks. Zero or more of the provided tracks may be
+  // instantiated depending on the users choices.
+  tracks?: () => Promise<TrackInfo[]>;
 }
 
 // This interface defines what a plugin factory should look like.
@@ -74,10 +79,6 @@ export interface TrackInfo {
   config: {};
 }
 
-// Called any time a trace is loaded. Plugins should return all
-// potential tracks. Zero or more of the provided tracks may be
-// instantiated depending on the users choices.
-export type TrackProvider = (engine: EngineProxy) => Promise<TrackInfo[]>;
 
 // The public API plugins use to extend the UI. This is passed to each
 // plugin via the exposed 'activate' function.
@@ -87,12 +88,6 @@ export interface PluginContext {
   // the functionality of |TrackController| has been merged into Track so
   // |TrackController|s are not necessary in new code.
   registerTrackController(track: TrackControllerFactory): void;
-
-  // Register a |TrackProvider|. |TrackProvider|s return |TrackInfo| for
-  // all potential tracks in a trace. The core UI selects some of these
-  // |TrackInfo|s and constructs concrete Track instances using the
-  // registered |TrackCreator|s.
-  registerTrackProvider(provider: TrackProvider): void;
 
   // Register a track factory. The core UI invokes |TrackCreator| to
   // construct tracks discovered by invoking |TrackProvider|s.
