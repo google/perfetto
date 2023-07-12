@@ -59,10 +59,6 @@ bool TokenIsCustomKeyword(std::string_view keyword, SqliteTokenizer::Token t) {
   return t.token_type == SqliteTokenType::TK_ID && KeywordEqual(keyword, t.str);
 }
 
-bool TokenIsTerminal(Token t) {
-  return t.token_type == SqliteTokenType::TK_SEMI || t.str.empty();
-}
-
 }  // namespace
 
 PerfettoSqlParser::PerfettoSqlParser(SqlSource sql)
@@ -80,7 +76,7 @@ bool PerfettoSqlParser::Next() {
       continue;
     }
 
-    if (TokenIsTerminal(token)) {
+    if (token.IsTerminal()) {
       // If we have a non-space character we've seen, just return all the stuff
       // after that point.
       if (non_space_ptr) {
@@ -145,13 +141,47 @@ bool PerfettoSqlParser::Next() {
           return ParseCreatePerfettoFunction(state ==
                                              State::kCreateOrReplacePerfetto);
         }
+        if (TokenIsSqliteKeyword("table", token)) {
+          return ParseCreatePerfettoTable();
+        }
         base::StackString<1024> err(
-            "Expected 'function' after 'create perfetto', received "
-            "%*s.",
+            "Expected 'FUNCTION' or 'TABLE' after 'CREATE PERFETTO', received "
+            "'%*s'.",
             static_cast<int>(token.str.size()), token.str.data());
         return ErrorAtToken(token, err.c_str());
     }
   }
+}
+
+bool PerfettoSqlParser::ParseCreatePerfettoTable() {
+  Token table_name = tokenizer_.NextNonWhitespace();
+  if (table_name.token_type != SqliteTokenType::TK_ID) {
+    base::StackString<1024> err("Invalid table name %.*s",
+                                static_cast<int>(table_name.str.size()),
+                                table_name.str.data());
+    return ErrorAtToken(table_name, err.c_str());
+  }
+  std::string name(table_name.str);
+
+  auto token = tokenizer_.NextNonWhitespace();
+  if (!TokenIsSqliteKeyword("as", token)) {
+    base::StackString<1024> err(
+        "Expected 'AS' after table_name, received "
+        "%*s.",
+        static_cast<int>(token.str.size()), token.str.data());
+    return ErrorAtToken(token, err.c_str());
+  }
+
+  Token tok = tokenizer_.NextNonWhitespace();
+  Token first = tok;
+
+  tok = tokenizer_.NextTerminal();
+
+  uint32_t offset = static_cast<uint32_t>(first.str.data() - sql_.sql().data());
+  uint32_t len = static_cast<uint32_t>(tok.str.end() - sql_.sql().data());
+
+  statement_ = CreateTable{std::move(name), sql_.Substr(offset, len)};
+  return true;
 }
 
 bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
@@ -214,8 +244,8 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
 
   Token first = tokenizer_.NextNonWhitespace();
   Token token = first;
-  for (; !TokenIsTerminal(token); token = tokenizer_.Next()) {
-  }
+  token = tokenizer_.NextTerminal();
+
   uint32_t offset = static_cast<uint32_t>(first.str.data() - sql_.sql().data());
   uint32_t len = static_cast<uint32_t>((token.str.data() + token.str.size()) -
                                        first.str.data());

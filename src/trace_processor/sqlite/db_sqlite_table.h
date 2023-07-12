@@ -19,6 +19,7 @@
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
@@ -33,7 +34,10 @@ enum class DbSqliteTableComputation {
   kStatic,
 
   // Mode when table is dynamically computed at filter time.
-  kDynamic,
+  kTableFunction,
+
+  // Mode when table is dynamically computer at SQL runtime.
+  kRuntime
 };
 
 struct DbSqliteTableContext {
@@ -42,6 +46,9 @@ struct DbSqliteTableContext {
 
   // Only valid when computation == TableComputation::kStatic.
   const Table* static_table;
+
+  // Only valid when computation == TableComputation::kSql.
+  std::unique_ptr<RuntimeTable> sql_table;
 
   // Only valid when computation == TableComputation::kDynamic.
   std::unique_ptr<TableFunction> generator;
@@ -160,6 +167,9 @@ class DbSqliteTable final
 
   // Only valid when computation_ == TableComputation::kStatic.
   const Table* static_table_ = nullptr;
+
+  // Only valid when computation_ == TableComputation::kSql.
+  std::unique_ptr<RuntimeTable> sql_table_;
 
   // Only valid when computation_ == TableComputation::kDynamic.
   std::unique_ptr<TableFunction> generator_;
