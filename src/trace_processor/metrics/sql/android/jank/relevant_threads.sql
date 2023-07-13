@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread;
-CREATE TABLE android_jank_cuj_main_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_main_thread AS
 SELECT cuj_id, cuj.upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
 JOIN android_jank_cuj cuj USING (upid)
@@ -43,25 +43,25 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 DROP TABLE IF EXISTS android_jank_cuj_render_thread;
-CREATE TABLE android_jank_cuj_render_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_render_thread AS
 SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('RenderThread');
 
 DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_thread;
-CREATE TABLE android_jank_cuj_gpu_completion_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_gpu_completion_thread AS
 SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('GPU completion');
 
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_thread;
-CREATE TABLE android_jank_cuj_hwc_release_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_hwc_release_thread AS
 SELECT * FROM ANDROID_JANK_CUJ_APP_THREAD('HWC release');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_process;
-CREATE TABLE android_jank_cuj_sf_process AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_process AS
 SELECT * FROM process
 WHERE process.name = '/system/bin/surfaceflinger'
 LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread;
-CREATE TABLE android_jank_cuj_sf_main_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread AS
 SELECT upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
 JOIN android_jank_cuj_sf_process sf_process USING (upid)
@@ -81,9 +81,9 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
-CREATE TABLE android_jank_cuj_sf_gpu_completion_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
 SELECT * FROM ANDROID_JANK_CUJ_SF_THREAD('GPU completion');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_thread;
-CREATE TABLE android_jank_cuj_sf_render_engine_thread AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_thread AS
 SELECT * FROM ANDROID_JANK_CUJ_SF_THREAD('RenderEngine');
