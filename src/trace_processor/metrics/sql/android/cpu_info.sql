@@ -17,7 +17,7 @@
 SELECT RUN_METRIC('android/power_profile_data.sql');
 
 DROP TABLE IF EXISTS cluster_core_type;
-CREATE TABLE cluster_core_type AS
+CREATE PERFETTO TABLE cluster_core_type AS
 SELECT 0 AS cluster, 'little' AS core_type
 UNION ALL
 SELECT 1, 'big'

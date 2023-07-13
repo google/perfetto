@@ -21,7 +21,7 @@ CREATE VIEW battery_view AS
 SELECT * FROM android_battery_charge;
 
 DROP TABLE IF EXISTS android_batt_wakelocks_merged;
-CREATE TABLE android_batt_wakelocks_merged AS
+CREATE PERFETTO TABLE android_batt_wakelocks_merged AS
 SELECT
   MIN(ts) AS ts,
   MAX(ts_end) AS ts_end
@@ -57,7 +57,7 @@ FROM track t JOIN slice s ON s.track_id = t.id
 WHERE t.name = 'Suspend/Resume Minimal';
 
 DROP TABLE IF EXISTS suspend_slice_;
-CREATE TABLE suspend_slice_ AS
+CREATE PERFETTO TABLE suspend_slice_ AS
 SELECT ts, dur FROM suspend_slice_from_minimal
 UNION ALL
 SELECT
