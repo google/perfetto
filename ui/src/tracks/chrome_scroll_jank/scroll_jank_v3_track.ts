@@ -57,7 +57,11 @@ export class ScrollJankV3Track extends
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
       columns: [
-        '"Jank" AS name',
+        `IIF(
+          cause_of_jank IS NOT NULL,
+          cause_of_jank || IIF(
+            sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
+            ), "Unknown") || " Jank" AS name`,
         'id',
         'ts',
         'dur',
@@ -95,7 +99,7 @@ export async function addScrollJankV3ScrollTrack(engine: Engine):
     engineId: engine.id,
     kind: ScrollJankV3Track.kind,
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Chrome Scroll Frame Presentation Janks',
+    name: 'Chrome Scroll Janks',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });
