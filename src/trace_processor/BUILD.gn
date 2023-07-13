@@ -181,6 +181,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "types",
       "util",
       "util:gzip",
+      "util:protozero_to_json",
       "util:protozero_to_text",
       "util:regex",
       "util:stdlib",
