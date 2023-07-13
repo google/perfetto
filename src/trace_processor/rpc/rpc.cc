@@ -437,6 +437,18 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
       }
       break;
     }
+    case protos::pbzero::ComputeMetricArgs::JSON: {
+      std::string metrics_string;
+      util::Status status = trace_processor_->ComputeMetricText(
+          metric_names, TraceProcessor::MetricResultFormat::kJson,
+          &metrics_string);
+      if (status.ok()) {
+        result->set_metrics_as_json(metrics_string);
+      } else {
+        result->set_error(status.message());
+      }
+      break;
+    }
   }
 }
 
