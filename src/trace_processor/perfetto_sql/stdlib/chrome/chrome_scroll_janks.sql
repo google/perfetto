@@ -58,6 +58,10 @@ JOIN chrome_janky_frames e
 -- @column dur INT                    The duration of the slice.
 -- @column delayed_frame_count INT    How many vsyncs this frame missed its
 --                                    deadline by.
+-- @column cause_of_jank STRING       The stage of EventLatency that the caused
+--                                    the jank.
+-- @column sub_cause_of_jank STRING   The stage of cause_of_jank that caused the
+--                                    jank.
 -- @column event_latency_id STRING    The id of the associated event latency in
 --                                    the slice table.
 CREATE VIEW chrome_janky_frame_presentation_intervals AS
@@ -66,6 +70,8 @@ SELECT
     frame_jank_ts AS ts,
     frame_jank_dur AS dur,
     delayed_frame_count,
+    cause_of_jank,
+    sub_cause_of_jank,
     id AS event_latency_id
 FROM chrome_janky_event_latencies_v3;
 
