@@ -865,7 +865,7 @@ export class TraceController extends Controller<States> {
       try {
         // We don't care about the actual result of metric here as we are just
         // interested in the annotation tracks.
-        await engine.computeMetric([metric]);
+        await engine.computeMetric([metric], 'proto');
       } catch (e) {
         if (e instanceof QueryError) {
           publishMetricError('MetricError: ' + e.message);
