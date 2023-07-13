@@ -56,7 +56,7 @@ JOIN process USING (upid)
 WHERE thread.name = 'HWC release';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_main_thread_slices;
-CREATE TABLE {{table_name_prefix}}_main_thread_slices AS
+CREATE PERFETTO TABLE {{table_name_prefix}}_main_thread_slices AS
 SELECT
   process_name,
   thread.utid,
@@ -76,7 +76,7 @@ FROM {{table_name_prefix}}_main_thread_slices
 WHERE name GLOB 'Choreographer#doFrame*';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_render_thread_slices;
-CREATE TABLE {{table_name_prefix}}_render_thread_slices AS
+CREATE PERFETTO TABLE {{table_name_prefix}}_render_thread_slices AS
 SELECT
   process_name,
   thread.utid,

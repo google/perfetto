@@ -14,14 +14,14 @@
 -- limitations under the License.
 
 
-CREATE TABLE internal_cpu_sizes AS
+CREATE PERFETTO TABLE internal_cpu_sizes AS
 SELECT 0 AS n, 'little' AS size
 UNION
 SELECT 1 AS n, 'mid' AS size
 UNION
 SELECT 2 AS n, 'big' AS size;
 
-CREATE TABLE internal_ranked_cpus AS
+CREATE PERFETTO TABLE internal_ranked_cpus AS
 SELECT
  (DENSE_RANK() OVER win) - 1 AS n,
  cpu
