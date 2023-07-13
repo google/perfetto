@@ -174,7 +174,7 @@ ORDER BY flow.{{id_field}} ASC, flow.trace_id ASC, flow.ts ASC;
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
 DROP TABLE IF EXISTS {{prefix}}_latency_info_flow_null_step_removed;
-CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
+CREATE PERFETTO TABLE {{prefix}}_latency_info_flow_null_step_removed AS
 SELECT
   ROW_NUMBER() OVER (ORDER BY
       curr.{{id_field}} ASC, curr.trace_id ASC, curr.ts ASC

@@ -73,7 +73,7 @@ WHERE
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
 DROP TABLE IF EXISTS scroll_event_latency_begins;
-CREATE TABLE scroll_event_latency_begins
+CREATE PERFETTO TABLE scroll_event_latency_begins
 AS
 SELECT
   *,
@@ -134,7 +134,7 @@ FROM scroll_event_latency_updates LEFT JOIN scroll_event_latency_updates_ends
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
 DROP TABLE IF EXISTS scroll_event_latency_with_neighbours;
-CREATE TABLE scroll_event_latency_with_neighbours
+CREATE PERFETTO TABLE scroll_event_latency_with_neighbours
 AS
 SELECT
   *,
