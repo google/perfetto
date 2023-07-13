@@ -25,6 +25,10 @@ SELECT
       SELECT RepeatedField(
           AndroidCameraUnaggregatedMetric_Value(
             'ts', ts,
+            'gca_rss_val', CAST(gca_rss_val AS real),
+            'hal_rss_val', CAST(hal_rss_val AS real),
+            'cameraserver_rss_val', CAST(cameraserver_rss_val AS real),
+            'dma_val', CAST(dma_val AS real),
             'value', CAST(rss_and_dma_val AS real)
           )
       )

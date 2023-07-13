@@ -172,13 +172,17 @@ numThreadsK
 min (Rmin
 max (Rmax
 avg (Ravg
-ü
-9protos/perfetto/metrics/android/camera_unagg_metric.protoperfetto.protos"­
+ˆ
+9protos/perfetto/metrics/android/camera_unagg_metric.protoperfetto.protos"¹
 AndroidCameraUnaggregatedMetric[
-gc_rss_and_dma (26.perfetto.protos.AndroidCameraUnaggregatedMetric.ValueRgcRssAndDma-
+gc_rss_and_dma (26.perfetto.protos.AndroidCameraUnaggregatedMetric.ValueRgcRssAndDma¸
 Value
-ts (Rts
-value (Rvalue
+ts (Rts
+gca_rss_val (R	gcaRssVal
+hal_rss_val (R	halRssVal0
+cameraserver_rss_val (RcameraserverRssVal
+dma_val (RdmaVal
+value (Rvalue
 í
 5protos/perfetto/metrics/android/display_metrics.protoperfetto.protos"¢
 AndroidDisplayMetrics4

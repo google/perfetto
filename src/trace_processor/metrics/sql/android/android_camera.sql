@@ -78,6 +78,10 @@ CREATE VIEW rss_and_dma_all_camera_span AS
 SELECT
   ts,
   dur,
+  IFNULL(gca_rss_val, 0) as gca_rss_val,
+  IFNULL(hal_rss_val, 0) as hal_rss_val,
+  IFNULL(cameraserver_rss_val, 0) as cameraserver_rss_val,
+  IFNULL(dma_val, 0) as dma_val,
   CAST(
     IFNULL(gca_rss_val, 0)
     + IFNULL(hal_rss_val, 0)
