@@ -17,7 +17,7 @@
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP TABLE IF EXISTS android_special_classes;
-CREATE TABLE android_special_classes AS
+CREATE PERFETTO TABLE android_special_classes AS
 WITH RECURSIVE cls_visitor(cls_id, category) AS (
   SELECT id, name FROM heap_graph_class WHERE name IN (
     'android.view.View',
@@ -36,7 +36,7 @@ WITH RECURSIVE cls_visitor(cls_id, category) AS (
 SELECT * FROM cls_visitor;
 
 DROP TABLE IF EXISTS heap_obj_histograms;
-CREATE TABLE heap_obj_histograms AS
+CREATE PERFETTO TABLE heap_obj_histograms AS
 SELECT
   o.upid,
   o.graph_sample_ts,

@@ -55,7 +55,7 @@ SELECT $dur >= 4 * 1e6;
 -- Note that not all slices will be mojo slices; filter on interface_name IS
 -- NOT NULL for mojo slices specifically.
 DROP TABLE IF EXISTS long_tasks_extracted_slices;
-CREATE TABLE long_tasks_extracted_slices AS
+CREATE PERFETTO TABLE long_tasks_extracted_slices AS
 SELECT * FROM SELECT_LONG_TASK_SLICES(/*name*/'LongTaskTracker');
 
 -- Create |long_tasks_internal_tbl| table, which gathers all of the
@@ -64,7 +64,7 @@ SELECT * FROM SELECT_LONG_TASK_SLICES(/*name*/'LongTaskTracker');
 -- have nested descendants, LongTaskTracker slices will store all of
 -- the relevant information within the single slice.
 DROP TABLE IF EXISTS long_tasks_internal_tbl;
-CREATE TABLE long_tasks_internal_tbl AS
+CREATE PERFETTO TABLE long_tasks_internal_tbl AS
 WITH
   raw_extracted_values AS (
     SELECT
