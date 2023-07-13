@@ -44,7 +44,8 @@ enum TraceProcessorApiVersion {
   // See also StatusResult.api_version (below).
   // Changes:
   // 7. Introduce GUESS_CPU_SIZE
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 7;
+  // 8. Add 'json' option to ComputeMetricArgs
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 8;
 }
 
 // At lowest level, the wire-format of the RPC procol is a linear sequence of
@@ -239,6 +240,7 @@ message ComputeMetricArgs {
   enum ResultFormat {
     BINARY_PROTOBUF = 0;
     TEXTPROTO = 1;
+    JSON = 2;
   }
   repeated string metric_names = 1;
   optional ResultFormat format = 2;
@@ -256,6 +258,9 @@ message ComputeMetricResult {
 
     // A perfetto.protos.TraceMetrics formatted as prototext.
     string metrics_as_prototext = 3;
+
+    // A perfetto.protos.TraceMetrics formatted as json.
+    string metrics_as_json = 4;
   }
 
   optional string error = 2;
