@@ -75,19 +75,19 @@ MessageFilter::MessageFilter() {
 }
 
 MessageFilter::MessageFilter(const MessageFilter& other)
-    : root_msg_index_(other.root_msg_index_),
-      filter_(other.filter_),
-      string_filter_(other.string_filter_) {
+    : config_(other.config_) {
   stack_.emplace_back();
 }
 
 MessageFilter::~MessageFilter() = default;
 
-bool MessageFilter::LoadFilterBytecode(const void* filter_data, size_t len) {
+bool MessageFilter::Config::LoadFilterBytecode(const void* filter_data,
+                                               size_t len) {
   return filter_.Load(filter_data, len);
 }
 
-bool MessageFilter::SetFilterRoot(std::initializer_list<uint32_t> field_ids) {
+bool MessageFilter::Config::SetFilterRoot(
+    std::initializer_list<uint32_t> field_ids) {
   uint32_t root_msg_idx = 0;
   for (uint32_t field_id : field_ids) {
     auto res = filter_.Query(root_msg_idx, field_id);
@@ -123,7 +123,7 @@ MessageFilter::FilteredMessage MessageFilter::FilterMessageFragments(
   stack_[0].eat_next_bytes = UINT32_MAX;
   // stack_[1] is the actual root message.
   stack_[1].in_bytes_limit = total_len;
-  stack_[1].msg_index = root_msg_index_;
+  stack_[1].msg_index = config_.root_msg_index();
 
   // Process the input data and write the output.
   for (size_t slice_idx = 0; slice_idx < num_slices; ++slice_idx) {
@@ -163,7 +163,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
     } else if (state->action == StackState::kFilterString) {
       *(out_++) = octet;
       if (state->eat_next_bytes == 0) {
-        string_filter_.MaybeFilter(
+        config_.string_filter().MaybeFilter(
             reinterpret_cast<char*>(state->filter_string_ptr),
             static_cast<size_t>(out_ - state->filter_string_ptr));
       }
@@ -174,7 +174,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
     // a varint field, only the last byte yields a token, all the other bytes
     // return an invalid token, they just update the internal tokenizer state.
     if (token.valid()) {
-      auto filter = filter_.Query(state->msg_index, token.field_id);
+      auto filter = config_.filter().Query(state->msg_index, token.field_id);
       switch (token.type) {
         case proto_utils::ProtoWireType::kVarInt:
           if (filter.allowed && filter.simple_field())
