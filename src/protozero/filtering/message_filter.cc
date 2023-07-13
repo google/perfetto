@@ -69,15 +69,12 @@ inline std::pair<uint8_t*, uint32_t> AppendLenDelim(uint32_t field_id,
 }
 }  // namespace
 
-MessageFilter::MessageFilter() {
+MessageFilter::MessageFilter(Config config) : config_(std::move(config)) {
   // Push a state on the stack for the implicit root message.
   stack_.emplace_back();
 }
 
-MessageFilter::MessageFilter(const MessageFilter& other)
-    : config_(other.config_) {
-  stack_.emplace_back();
-}
+MessageFilter::MessageFilter() : MessageFilter(Config()) {}
 
 MessageFilter::~MessageFilter() = default;
 

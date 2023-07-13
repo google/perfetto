@@ -68,8 +68,9 @@ class MessageFilter {
     StringFilter string_filter_;
     uint32_t root_msg_index_ = 0;
   };
+
   MessageFilter();
-  explicit MessageFilter(const MessageFilter&);
+  explicit MessageFilter(Config);
   ~MessageFilter();
 
   struct InputSlice {
@@ -221,7 +222,6 @@ class MessageFilter {
 
   uint32_t out_written() { return static_cast<uint32_t>(out_ - &out_buf_[0]); }
 
-  // WARNING: Some of these fields should be in the copy constructor.
   Config config_;
 
   std::unique_ptr<uint8_t[]> out_buf_;

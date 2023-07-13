@@ -2400,7 +2400,7 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
     return;
   }
   protozero::MessageFilter& trace_filter = *tracing_session->trace_filter;
-  // The filter root shoud be reset from protos.Trace to protos.TracePacket
+  // The filter root should be reset from protos.Trace to protos.TracePacket
   // by the earlier call to SetFilterRoot() in EnableTracing().
   PERFETTO_DCHECK(trace_filter.config().root_msg_index() != 0);
   std::vector<protozero::MessageFilter::InputSlice> filter_input;
@@ -3695,7 +3695,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   if (src->trace_filter) {
     // Copy the trace filter.
     cloned_session->trace_filter.reset(
-        new protozero::MessageFilter(*src->trace_filter));
+        new protozero::MessageFilter(src->trace_filter->config()));
   }
 
   SnapshotLifecyleEvent(
