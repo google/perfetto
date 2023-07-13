@@ -88,7 +88,7 @@ export abstract class Engine {
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
-  private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
+  private pendingComputeMetrics = new Array<Deferred<string|Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
 
@@ -209,7 +209,9 @@ export abstract class Engine {
               });
           pendingComputeMetric.reject(error);
         } else {
-          pendingComputeMetric.resolve(metricRes);
+          const result = metricRes.metricsAsPrototext ||
+              metricRes.metricsAsJson || metricRes.metrics || '';
+          pendingComputeMetric.resolve(result);
         }
         break;
       case TPM.TPM_DISABLE_AND_READ_METATRACE:
@@ -290,14 +292,23 @@ export abstract class Engine {
   }
 
   // Shorthand for sending a compute metrics request to the engine.
-  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
-    const asyncRes = defer<ComputeMetricResult>();
+  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
+      Promise<string|Uint8Array> {
+    const asyncRes = defer<string|Uint8Array>();
     this.pendingComputeMetrics.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_COMPUTE_METRIC;
     const args = rpc.computeMetricArgs = new ComputeMetricArgs();
     args.metricNames = metrics;
-    args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+    if (format === 'json') {
+      args.format = ComputeMetricArgs.ResultFormat.JSON;
+    } else if (format === 'prototext') {
+      args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+    } else if (format === 'proto') {
+      args.format = ComputeMetricArgs.ResultFormat.BINARY_PROTOBUF;
+    } else {
+      throw new Error(`Unknown compute metric format ${format}`);
+    }
     this.rpcSendRequest(rpc);
     return asyncRes;
   }
@@ -467,6 +478,11 @@ export class EngineProxy {
 
   query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
     return this.engine.query(sqlQuery, tag || this.tag);
+  }
+
+  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
+      Promise<string|Uint8Array> {
+    return this.engine.computeMetric(metrics, format);
   }
 
   get engineId(): string {
