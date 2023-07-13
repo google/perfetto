@@ -28,7 +28,7 @@ CREATE VIRTUAL TABLE gc_slices_by_state
 USING SPAN_JOIN(gc_slices PARTITIONED utid, thread_state_extended PARTITIONED utid);
 
 DROP TABLE IF EXISTS running_gc_slices_materialized;
-CREATE TABLE running_gc_slices_materialized AS
+CREATE PERFETTO TABLE running_gc_slices_materialized AS
 SELECT launch_id, SUM(dur) AS sum_dur
 FROM gc_slices_by_state
 WHERE state = 'Running'

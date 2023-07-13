@@ -114,7 +114,7 @@ CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
-CREATE TABLE internal_broken_android_monitor_contention AS
+CREATE PERFETTO TABLE internal_broken_android_monitor_contention AS
 SELECT ancestor.parent_id AS id FROM slice
     JOIN slice ancestor ON ancestor.id = slice.parent_id
     WHERE ancestor.name GLOB 'Lock contention on a monitor lock*'

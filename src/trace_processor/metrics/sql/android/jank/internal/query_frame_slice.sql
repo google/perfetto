@@ -60,7 +60,7 @@
 -- Using TABLE and not VIEW as this gives better, localized error messages in cases
 -- `relevant_slice_table_name` is not correct (e.g. missing cuj_id).
 DROP TABLE IF EXISTS {{table_name_prefix}}_query_slice;
-CREATE TABLE {{table_name_prefix}}_query_slice AS
+CREATE PERFETTO TABLE {{table_name_prefix}}_query_slice AS
 SELECT DISTINCT
   slice.cuj_id,
   slice.utid,

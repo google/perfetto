@@ -43,7 +43,7 @@ USING SPAN_JOIN(
 
 -- Materialized to avoid span-joining once per core type.
 DROP TABLE IF EXISTS mcycles_per_core_type_per_launch;
-CREATE TABLE mcycles_per_core_type_per_launch AS
+CREATE PERFETTO TABLE mcycles_per_core_type_per_launch AS
 SELECT
   startup_id,
   IFNULL(core_type_per_cpu.core_type, 'unknown') AS core_type,
@@ -65,7 +65,7 @@ WHERE m.startup_id = $startup_id AND m.core_type = $core_type;
 -- *excluding the process being started*.
 -- Materialized to avoid span-joining once per launch.
 DROP TABLE IF EXISTS top_mcyles_process_excluding_started_per_launch;
-CREATE TABLE top_mcyles_process_excluding_started_per_launch AS
+CREATE PERFETTO TABLE top_mcyles_process_excluding_started_per_launch AS
 WITH mcycles_per_launch_and_process AS MATERIALIZED (
   SELECT
     startup_id,
