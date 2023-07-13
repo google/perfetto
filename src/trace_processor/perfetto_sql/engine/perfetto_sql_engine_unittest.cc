@@ -71,6 +71,23 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableStringSmoke) {
   ASSERT_TRUE(res.ok());
 }
 
+TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 1 AS x"));
+  ASSERT_TRUE(res.ok());
+
+  res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 1 AS x"));
+  ASSERT_FALSE(res.ok());
+
+  res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 2 AS x"));
+  ASSERT_TRUE(res.ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

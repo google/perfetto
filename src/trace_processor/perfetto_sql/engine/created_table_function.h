@@ -17,29 +17,55 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CREATED_TABLE_FUNCTION_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CREATED_TABLE_FUNCTION_H_
 
+#include <optional>
+
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
-#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/sqlite/sqlite_engine.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-struct CreatedTableFunctionContext {
-  PerfettoSqlEngine* engine = nullptr;
+class PerfettoSqlEngine;
 
-  Prototype prototype;
-  std::vector<sql_argument::ArgumentDefinition> return_values;
-
-  std::string prototype_str;
-  std::string sql_defn_str;
-};
-
+// The implementation of the SqliteTable interface for table functions defined
+// at runtime using SQL.
 class CreatedTableFunction final
-    : public TypedSqliteTable<CreatedTableFunction,
-                              CreatedTableFunctionContext> {
+    : public TypedSqliteTable<CreatedTableFunction, PerfettoSqlEngine*> {
  public:
+  struct State {
+    std::string prototype_str;
+    std::string sql_defn_str;
+
+    Prototype prototype;
+    std::vector<sql_argument::ArgumentDefinition> return_values;
+
+    std::optional<SqliteEngine::PreparedStatement> reusable_stmt;
+
+    bool IsReturnValueColumn(size_t i) const {
+      PERFETTO_DCHECK(i < TotalColumnCount());
+      return i < return_values.size();
+    }
+
+    bool IsArgumentColumn(size_t i) const {
+      PERFETTO_DCHECK(i < TotalColumnCount());
+      return i >= return_values.size() &&
+             (i - return_values.size()) < prototype.arguments.size();
+    }
+
+    bool IsPrimaryKeyColumn(size_t i) const {
+      PERFETTO_DCHECK(i < TotalColumnCount());
+      return i == (return_values.size() + prototype.arguments.size());
+    }
+
+    size_t TotalColumnCount() const {
+      static constexpr uint32_t kPrimaryKeyColumns = 1;
+      return prototype.arguments.size() + return_values.size() +
+             kPrimaryKeyColumns;
+    }
+  };
   class Cursor final : public SqliteTable::BaseCursor {
    public:
-    explicit Cursor(CreatedTableFunction* table);
+    explicit Cursor(CreatedTableFunction* table, State* state);
     ~Cursor() final;
 
     base::Status Filter(const QueryConstraints& qc,
@@ -50,44 +76,28 @@ class CreatedTableFunction final
     base::Status Column(sqlite3_context* context, int N);
 
    private:
-    std::optional<SqliteEngine::PreparedStatement> stmt_;
     CreatedTableFunction* table_ = nullptr;
+    State* state_ = nullptr;
+
+    std::optional<SqliteEngine::PreparedStatement> stmt_;
+    bool return_stmt_to_state_ = false;
+
     bool is_eof_ = false;
     int next_call_count_ = 0;
   };
 
-  CreatedTableFunction(sqlite3*, CreatedTableFunctionContext);
+  CreatedTableFunction(sqlite3*, PerfettoSqlEngine*);
   ~CreatedTableFunction() final;
 
   base::Status Init(int argc, const char* const* argv, Schema*) final;
   std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
   int BestIndex(const QueryConstraints& qc, BestIndexInfo* info) final;
 
-  base::StatusOr<SqliteEngine::PreparedStatement> GetOrCreateStatement();
-  void ReturnStatementForReuse(SqliteEngine::PreparedStatement stmt);
-
  private:
   Schema CreateSchema();
 
-  bool IsReturnValueColumn(size_t i) const {
-    PERFETTO_DCHECK(i < schema().columns().size());
-    return i < context_.return_values.size();
-  }
-
-  bool IsArgumentColumn(size_t i) const {
-    PERFETTO_DCHECK(i < schema().columns().size());
-    return i >= context_.return_values.size() &&
-           (i - context_.return_values.size()) <
-               context_.prototype.arguments.size();
-  }
-
-  bool IsPrimaryKeyColumn(size_t i) const {
-    PERFETTO_DCHECK(i < schema().columns().size());
-    return i == (context_.return_values.size() +
-                 context_.prototype.arguments.size());
-  }
-
-  CreatedTableFunctionContext context_;
+  PerfettoSqlEngine* engine_ = nullptr;
+  State* state_ = nullptr;
 };
 
 }  // namespace trace_processor
