@@ -45,7 +45,7 @@ VALUES ('RAIL_MODE_IDLE', 0, 'background'),
 
 -- Find the max ts + dur for every process
 DROP TABLE IF EXISTS max_ts_per_process;
-CREATE TABLE max_ts_per_process AS
+CREATE PERFETTO TABLE max_ts_per_process AS
 -- MAX(dur, 0) means unclosed slices just contribute their start time.
 SELECT upid,
   MAX(ts + MAX(dur, 0)) AS ts
@@ -148,7 +148,7 @@ GROUP BY s.ts;
 -- Contains the same data as overall_rail_mode_slices except adjacent slices
 -- with the same RAIL mode are combined.
 DROP TABLE IF EXISTS combined_overall_rail_slices;
-CREATE TABLE combined_overall_rail_slices AS
+CREATE PERFETTO TABLE combined_overall_rail_slices AS
 SELECT ROW_NUMBER() OVER () AS id,
   ts,
   end_ts - ts AS dur,
@@ -508,7 +508,7 @@ WHERE (
 -- together, this instead looks for all the transitions and uses this to
 -- reconstruct the slices that should occur between them.
 DROP TABLE IF EXISTS modified_rail_slices;
-CREATE TABLE modified_rail_slices AS
+CREATE PERFETTO TABLE modified_rail_slices AS
 WITH const (end_ts) AS (SELECT ts + dur
   FROM unmerged_modified_rail_slices
   ORDER BY ts DESC

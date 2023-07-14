@@ -35,7 +35,7 @@ USING SPAN_JOIN(
 
 -- Materialized to avoid repeatedly span joining per each thread state.
 DROP TABLE IF EXISTS launch_thread_state_io_wait_dur_sum;
-CREATE TABLE launch_thread_state_io_wait_dur_sum AS
+CREATE PERFETTO TABLE launch_thread_state_io_wait_dur_sum AS
 SELECT startup_id, state, is_main_thread, thread_name, io_wait, SUM(dur) AS dur
 FROM launch_threads_by_thread_state l
 JOIN android_startup_processes p USING (startup_id)

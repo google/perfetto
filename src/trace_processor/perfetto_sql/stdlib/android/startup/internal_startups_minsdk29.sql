@@ -22,7 +22,7 @@ WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 -- We partition the trace into spans based on posted activity intents.
 -- We will refine these progressively in the next steps to only encompass
 -- activity starts.
-CREATE TABLE internal_activity_intent_recv_spans AS
+CREATE PERFETTO TABLE internal_activity_intent_recv_spans AS
 SELECT
   ROW_NUMBER()
   OVER(ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS startup_id,

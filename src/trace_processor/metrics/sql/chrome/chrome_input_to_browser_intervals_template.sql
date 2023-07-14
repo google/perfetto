@@ -29,7 +29,7 @@ SELECT RUN_METRIC(
 );
 
 DROP TABLE IF EXISTS chrome_input_to_browser_intervals;
-CREATE TABLE chrome_input_to_browser_intervals
+CREATE PERFETTO TABLE chrome_input_to_browser_intervals
 AS
 SELECT
   (SELECT ts FROM {{slice_table_name}} WHERE id = window_start_id) AS window_start_ts,
