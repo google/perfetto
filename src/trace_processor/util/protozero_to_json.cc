@@ -143,9 +143,7 @@ class JsonBuilder {
     return stack_.size() > 0 && stack_.back().ctx == ScopeContext::kArray;
   }
 
-  bool is_empty_scope() {
-    return stack_.size() > 0 && stack_.back().is_empty;
-  }
+  bool is_empty_scope() { return stack_.size() > 0 && stack_.back().is_empty; }
 
   bool is_root_scope() { return stack_.size() == 1; }
 
