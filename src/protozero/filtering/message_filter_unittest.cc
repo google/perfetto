@@ -247,12 +247,11 @@ TEST(MessageFilterTest, ChangeRoot) {
 
   MessageFilter flt;
   ASSERT_TRUE(flt.LoadFilterBytecode(bytecode.data(), bytecode.size()));
-  uint32_t roots[2]{2, 4};
 
   // First set the root to field id ".2" (.b). The fliter should happen treating
   // |Nested| as rot, so allowing only field 3 and 4 (Nested2) through.
   {
-    flt.SetFilterRoot(roots, 1);
+    flt.SetFilterRoot({2});
     auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
     ASSERT_LT(filtered.size, encoded.size());
     ProtoDecoder dec(filtered.data.get(), filtered.size);
@@ -267,7 +266,7 @@ TEST(MessageFilterTest, ChangeRoot) {
   // Now set the root to ".2.4" (.b.d). This should allow only the field "e"
   // to pass through.
   {
-    flt.SetFilterRoot(roots, 2);
+    flt.SetFilterRoot({2, 4});
     auto filtered = flt.FilterMessage(encoded.data(), encoded.size());
     ASSERT_LT(filtered.size, encoded.size());
     ProtoDecoder dec(filtered.data.get(), filtered.size);
