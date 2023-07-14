@@ -16,7 +16,7 @@
 
 DROP TABLE IF EXISTS {{table_name}}_unagg_values;
 
-CREATE PERFETTO TABLE {{table_name}}_unagg_values AS
+CREATE TABLE {{table_name}}_unagg_values AS
 SELECT
   upid,
   RepeatedField(

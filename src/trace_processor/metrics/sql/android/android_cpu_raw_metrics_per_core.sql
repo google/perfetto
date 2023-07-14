@@ -16,7 +16,7 @@
 SELECT RUN_METRIC('android/cpu_info.sql');
 
 DROP TABLE IF EXISTS {{output_table}};
-CREATE PERFETTO TABLE {{output_table}} AS
+CREATE TABLE {{output_table}} AS
 SELECT
   utid,
   cpu,
