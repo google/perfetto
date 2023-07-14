@@ -227,7 +227,7 @@ FROM internal_wakeup
 JOIN internal_wakeup_root_id
   ON internal_wakeup_root_id.id = internal_wakeup.start_id;
 
-CREATE PERFETTO TABLE internal_wakeup_leaf AS
+CREATE TABLE internal_wakeup_leaf AS
 WITH
   internal_wakeup_leaf_id AS (
     SELECT DISTINCT start_id AS id FROM internal_wakeup_chain
@@ -241,7 +241,7 @@ JOIN internal_wakeup_leaf_id
 
 --
 -- Merges the roots and the rest of the chain.
-CREATE PERFETTO TABLE internal_wakeup_graph
+CREATE TABLE internal_wakeup_graph
 AS
 SELECT internal_wakeup_chain.*, 0 AS is_root, (internal_wakeup_leaf.start_id IS NOT NULL) AS is_leaf
 FROM internal_wakeup_chain
