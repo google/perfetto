@@ -17,6 +17,7 @@ import {Engine} from '../common/engine';
 import {LONG, NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {OmniboxState} from '../common/state';
 import {
   Duration,
   duration,
@@ -38,7 +39,7 @@ export class SearchController extends Controller<'main'> {
   private engine: Engine;
   private previousSpan: Span<time, duration>;
   private previousResolution: duration;
-  private previousSearch: string;
+  private previousOmniboxState?: OmniboxState;
   private updateInProgress: boolean;
   private setupInProgress: boolean;
 
@@ -46,7 +47,6 @@ export class SearchController extends Controller<'main'> {
     super('main');
     this.engine = args.engine;
     this.previousSpan = new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n));
-    this.previousSearch = '';
     this.updateInProgress = false;
     this.setupInProgress = true;
     this.previousResolution = 1n;
@@ -77,11 +77,11 @@ export class SearchController extends Controller<'main'> {
       return;
     }
     const newSpan = globals.stateVisibleTime();
-    const newSearch = omniboxState.omnibox;
+    const newOmniboxState = omniboxState;
     const newResolution = visibleState.resolution;
     if (this.previousSpan.contains(newSpan) &&
         this.previousResolution === newResolution &&
-        newSearch === this.previousSearch) {
+        this.previousOmniboxState === newOmniboxState) {
       return;
     }
 
@@ -92,8 +92,9 @@ export class SearchController extends Controller<'main'> {
     const {start, end} = newSpan.pad(newSpan.duration);
     this.previousSpan = new TimeSpan(start, end);
     this.previousResolution = newResolution;
-    this.previousSearch = newSearch;
-    if (newSearch === '' || newSearch.length < 4) {
+    this.previousOmniboxState = newOmniboxState;
+    const search = newOmniboxState.omnibox;
+    if (search === '' || (search.length < 4 && !newOmniboxState.force)) {
       publishSearch({
         tsStarts: new BigInt64Array(0),
         tsEnds: new BigInt64Array(0),
@@ -112,15 +113,14 @@ export class SearchController extends Controller<'main'> {
 
     this.updateInProgress = true;
     const computeSummary =
-        this.update(newSearch, newSpan.start, newSpan.end, newResolution)
+        this.update(search, newSpan.start, newSpan.end, newResolution)
             .then((summary) => {
               publishSearch(summary);
             });
 
-    const computeResults =
-        this.specificSearch(newSearch).then((searchResults) => {
-          publishSearchResult(searchResults);
-        });
+    const computeResults = this.specificSearch(search).then((searchResults) => {
+      publishSearchResult(searchResults);
+    });
 
     Promise.all([computeSummary, computeResults])
         .finally(() => {
