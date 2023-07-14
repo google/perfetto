@@ -58,6 +58,14 @@ perfetto_go_proto_library(
     ],
 )
 
+perfetto_jspb_proto_library(
+    name = "perfetto_trace_jspb_proto",
+    visibility = PERFETTO_CONFIG.public_visibility,
+    deps = [
+        ":trace_proto",
+    ],
+)
+
 # This is overridden in google internal builds via
 # PERFETTO_CONFIG.deps.version_header (see perfetto_cfg.bzl).
 perfetto_cc_library(
