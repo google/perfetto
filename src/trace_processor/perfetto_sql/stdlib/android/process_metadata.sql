@@ -15,7 +15,7 @@
 --
 
 -- Count packages by package UID.
-CREATE PERFETTO TABLE internal_uid_package_count AS
+CREATE TABLE internal_uid_package_count AS
 SELECT uid, COUNT(1) AS cnt
 FROM package_list
 GROUP BY 1;
@@ -27,7 +27,7 @@ GROUP BY 1;
 -- @column package_name Name of the packages running in this process.
 -- @column version_code Package version code.
 -- @column debuggable   Whether package is debuggable.
-CREATE PERFETTO TABLE android_process_metadata AS
+CREATE TABLE android_process_metadata AS
 SELECT
   process.upid,
   -- workaround for b/169226092: the bug has been fixed it Android T, but
