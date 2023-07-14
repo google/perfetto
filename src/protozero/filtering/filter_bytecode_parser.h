@@ -79,7 +79,7 @@ class FilterBytecodeParser {
   // Checks wheter a given field is allowed or not.
   // msg_index = 0 is the index of the root message, where all queries should
   // start from (typically perfetto.protos.Trace).
-  QueryResult Query(uint32_t msg_index, uint32_t field_id);
+  QueryResult Query(uint32_t msg_index, uint32_t field_id) const;
 
   void Reset();
   void set_suppress_logs_for_fuzzer(bool x) { suppress_logs_for_fuzzer_ = x; }
