@@ -706,6 +706,19 @@ TEST_F(ProtozeroToJsonTestMessageTest, FieldLengthLimitedPackedVarIntGarbage) {
       R"({"field_int32":[42,105],"__error":"Decoding failure for field 'field_int32'"})");
 }
 
+TEST_F(ProtozeroToJsonTestMessageTest, NestedBackToBack) {
+  protozero::HeapBuffered<EveryField> msg;
+  EveryField* nestedA = msg->add_field_nested();
+  nestedA->set_field_string("Hello, ");
+  EveryField* nestedB = msg->add_field_nested();
+  nestedB->set_field_string("world!");
+
+  EXPECT_EQ(
+      ProtozeroToJson(pool_, ".protozero.test.protos.EveryField",
+                      msg.SerializeAsArray(), kInlineErrors),
+      R"({"field_nested":[{"field_string":"Hello, "},{"field_string":"world!"}]})");
+}
+
 TEST_F(ProtozeroToJsonTestMessageTest, ExtraBytes) {
   protozero::HeapBuffered<EveryField> msg;
   EveryField* nested = msg->add_field_nested();
