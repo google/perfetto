@@ -115,9 +115,9 @@ RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
 CREATE PERFETTO TABLE internal_broken_android_monitor_contention AS
-SELECT ancestor.parent_id AS id FROM slice
+SELECT ancestor.id AS id FROM slice
     JOIN slice ancestor ON ancestor.id = slice.parent_id
-    WHERE ancestor.name GLOB 'Lock contention on a monitor lock*'
+    WHERE ancestor.name GLOB 'monitor contention*' AND slice.name NOT GLOB 'Lock contention*'
     GROUP BY ancestor.id;
 
 -- Contains parsed monitor contention slices.
