@@ -322,12 +322,15 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         };
       }
 
-      ctx.fillStyle = lightness > 65 ? '#404040' : 'white';
-      const displayText = cropText(title, charWidth, rect.width);
-      const rectXCenter = rect.left + rect.width / 2;
-      ctx.textBaseline = 'middle';
-      ctx.font = this.getFont();
-      ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
+      // Don't render text when we have less than 5px to play with.
+      if (rect.width >= 5) {
+        ctx.fillStyle = lightness > 65 ? '#404040' : 'white';
+        const displayText = cropText(title, charWidth, rect.width);
+        const rectXCenter = rect.left + rect.width / 2;
+        ctx.textBaseline = 'middle';
+        ctx.font = this.getFont();
+        ctx.fillText(displayText, rectXCenter, rect.top + SLICE_HEIGHT / 2);
+      }
     }
     drawRectOnSelected();
   }
