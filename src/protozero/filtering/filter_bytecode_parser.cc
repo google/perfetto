@@ -200,7 +200,7 @@ bool FilterBytecodeParser::LoadInternal(const uint8_t* bytecode_data,
 
 FilterBytecodeParser::QueryResult FilterBytecodeParser::Query(
     uint32_t msg_index,
-    uint32_t field_id) {
+    uint32_t field_id) const {
   FilterBytecodeParser::QueryResult res{false, 0u};
   if (static_cast<uint64_t>(msg_index) + 1 >=
       static_cast<uint64_t>(message_offset_.size())) {
