@@ -843,8 +843,7 @@ base::Status TracingServiceImpl::EnableTracing(ConsumerEndpointImpl* consumer,
     // for pre-pending the packet preamble (See GetProtoPreamble() calls), but
     // the preamble is not there at ReadBuffer time. Hence we change the root of
     // the filtering to start at the Trace.packet level.
-    uint32_t packet_field_id = TracePacket::kPacketFieldNumber;
-    if (!trace_filter->SetFilterRoot(&packet_field_id, 1)) {
+    if (!trace_filter->SetFilterRoot({TracePacket::kPacketFieldNumber})) {
       MaybeLogUploadEvent(
           cfg, uuid, PerfettoStatsdAtom::kTracedEnableTracingInvalidFilter);
       return PERFETTO_SVC_ERR("Failed to set filter root.");
@@ -2401,9 +2400,9 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
     return;
   }
   protozero::MessageFilter& trace_filter = *tracing_session->trace_filter;
-  // The filter root shoud be reset from protos.Trace to protos.TracePacket
+  // The filter root should be reset from protos.Trace to protos.TracePacket
   // by the earlier call to SetFilterRoot() in EnableTracing().
-  PERFETTO_DCHECK(trace_filter.root_msg_index() != 0);
+  PERFETTO_DCHECK(trace_filter.config().root_msg_index() != 0);
   std::vector<protozero::MessageFilter::InputSlice> filter_input;
   auto start = base::GetWallTimeNs();
   for (TracePacket& packet : *packets) {
@@ -3696,7 +3695,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   if (src->trace_filter) {
     // Copy the trace filter.
     cloned_session->trace_filter.reset(
-        new protozero::MessageFilter(*src->trace_filter));
+        new protozero::MessageFilter(src->trace_filter->config()));
   }
 
   SnapshotLifecyleEvent(

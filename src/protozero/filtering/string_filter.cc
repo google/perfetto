@@ -102,7 +102,7 @@ void StringFilter::AddRule(Policy policy,
       std::move(atrace_payload_starts_with)});
 }
 
-bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) {
+bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) const {
   std::match_results<char*> matches;
   bool atrace_find_tried = false;
   const char* atrace_payload_ptr = nullptr;
