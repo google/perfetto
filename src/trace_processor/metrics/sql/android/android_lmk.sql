@@ -18,7 +18,7 @@ SELECT RUN_METRIC('android/process_oom_score.sql');
 
 -- All LMK events ordered by timestamp
 DROP TABLE IF EXISTS lmk_events;
-CREATE PERFETTO TABLE lmk_events AS
+CREATE TABLE lmk_events AS
 WITH raw_events AS (
   SELECT upid, MAX(ts) AS ts
   FROM instant

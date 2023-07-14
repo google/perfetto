@@ -14,8 +14,17 @@
 -- limitations under the License.
 --
 
+DROP TABLE IF EXISTS {{table_name}}_stats;
+CREATE TABLE {{table_name}}_stats (
+  process_name TEXT PRIMARY KEY,
+  min_value REAL,
+  max_value REAL,
+  avg_value REAL,
+  max_delta_value REAL
+);
+
 DROP TABLE IF EXISTS {{table_name}}_delta;
-CREATE PERFETTO TABLE {{table_name}}_delta AS
+CREATE TABLE {{table_name}}_delta AS
 WITH rolling_delta AS (
   -- emits one row per ts point
   SELECT
@@ -35,8 +44,7 @@ SELECT
 FROM rolling_delta
 GROUP BY 1;
 
-DROP TABLE IF EXISTS {{table_name}}_stats;
-CREATE PERFETTO TABLE {{table_name}}_stats AS
+INSERT INTO {{table_name}}_stats
 SELECT
   process.name AS process_name,
   MIN(span.{{table_name}}_val) AS min_value,

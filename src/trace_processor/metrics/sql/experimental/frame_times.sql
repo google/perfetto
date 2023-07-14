@@ -146,7 +146,7 @@ CREATE VIEW RefreshPeriodDefault AS
 SELECT 1000.0 / 60 AS interval_ms;
 
 DROP TABLE IF EXISTS RefreshPeriod;
-CREATE PERFETTO TABLE RefreshPeriod AS
+CREATE TABLE RefreshPeriod AS
 SELECT COALESCE(
   (SELECT interval_ms FROM RefreshPeriodAndroid),
   (SELECT interval_ms FROM RefreshPeriodNonAndroid),
