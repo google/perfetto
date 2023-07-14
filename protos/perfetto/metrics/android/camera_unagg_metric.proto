@@ -21,7 +21,11 @@ package perfetto.protos;
 message AndroidCameraUnaggregatedMetric {
   message Value {
     optional int64 ts = 1;
-    optional double value = 2;
+    optional double gca_rss_val = 2;
+    optional double hal_rss_val = 3;
+    optional double cameraserver_rss_val = 4;
+    optional double dma_val = 5;
+    optional double value = 6;
   }
 
   // Timeseries for the sum of DMA and RSS across GCA, cameraserver
