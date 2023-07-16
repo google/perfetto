@@ -81,6 +81,10 @@ export class OverviewTimelinePanel extends Panel {
   }
 
   onremove({dom}: m.CVnodeDOM) {
+    if (this.gesture) {
+      this.gesture.dispose();
+      this.gesture = undefined;
+    }
     (dom as HTMLElement)
         .removeEventListener('mousemove', this.boundOnMouseMove);
   }
