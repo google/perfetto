@@ -48,7 +48,7 @@ export type AnyAttrsVnode = m.Vnode<any, any>;
 export interface Attrs {
   panels: AnyAttrsVnode[];
   doesScroll: boolean;
-  kind: 'TRACKS'|'OVERVIEW'|'DETAILS';
+  kind: 'TRACKS'|'OVERVIEW';
 }
 
 interface PanelInfo {
