@@ -226,7 +226,7 @@ class TraceViewer implements m.ClassComponent {
 
   onremove() {
     window.removeEventListener('resize', this.onResize);
-    if (this.zoomContent) this.zoomContent.shutdown();
+    if (this.zoomContent) this.zoomContent.dispose();
   }
 
   view() {
