@@ -102,6 +102,11 @@ function onKeyDown(e: Event) {
   }
 
   if (mode === SEARCH && key === 'Enter') {
+    globals.dispatch(Actions.setOmnibox({
+      omnibox: txt.value,
+      mode: 'SEARCH',
+      force: true,
+    }));
     txt.blur();
   }
 
@@ -233,7 +238,7 @@ class Omnibox implements m.ClassComponent {
               mode: queryMode ? 'COMMAND' : 'SEARCH',
             }));
             if (mode === SEARCH) {
-              displayStepThrough = value.length >= 4;
+              displayStepThrough = value.length > 0;
               globals.dispatch(Actions.setSearchIndex({index: -1}));
             }
           },
