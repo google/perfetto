@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Disposable, Trash} from '../base/disposable';
+import {elementIsEditable} from '../base/dom_utils';
 import {raf} from '../core/raf_scheduler';
 
 import {Animation} from './animation';
@@ -266,6 +267,8 @@ export class PanAndZoomHandler implements Disposable {
   }
 
   private onKeyDown(e: KeyboardEvent) {
+    if (elementIsEditable(e.target)) return;
+
     this.updateShift(e.shiftKey);
 
     // Handle key events that are not pan or zoom.
@@ -293,6 +296,8 @@ export class PanAndZoomHandler implements Disposable {
   }
 
   private onKeyUp(e: KeyboardEvent) {
+    if (elementIsEditable(e.target)) return;
+
     this.updateShift(e.shiftKey);
 
     // Handle key events that are not pan or zoom.

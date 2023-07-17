@@ -12,7 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
+import {
+  elementIsEditable,
+  findRef,
+  isOrContains,
+  toHTMLElement,
+} from './dom_utils';
 
 describe('isOrContains', () => {
   const parent = document.createElement('div');
@@ -69,5 +74,48 @@ describe('toHTMLElement', () => {
     const svgElement =
         document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     expect(() => toHTMLElement(svgElement)).toThrow(Error);
+  });
+});
+
+describe('elementIsEditable', () => {
+  test('text input', () => {
+    const el = document.createElement('input');
+    el.setAttribute('type', 'text');
+    expect(elementIsEditable(el)).toBeTruthy();
+  });
+
+  test('radio input', () => {
+    const el = document.createElement('input');
+    el.setAttribute('type', 'radio');
+    expect(elementIsEditable(el)).toBeFalsy();
+  });
+
+  test('checkbox input', () => {
+    const el = document.createElement('input');
+    el.setAttribute('type', 'checkbox');
+    expect(elementIsEditable(el)).toBeFalsy();
+  });
+
+  test('button input', () => {
+    const el = document.createElement('input');
+    el.setAttribute('type', 'button');
+    expect(elementIsEditable(el)).toBeFalsy();
+  });
+
+  test('div', () => {
+    const el = document.createElement('div');
+    expect(elementIsEditable(el)).toBeFalsy();
+  });
+
+  test('textarea', () => {
+    const el = document.createElement('textarea');
+    expect(elementIsEditable(el)).toBeTruthy();
+  });
+
+  test('nested', () => {
+    const el = document.createElement('textarea');
+    const nested = document.createElement('div');
+    el.appendChild(nested);
+    expect(elementIsEditable(nested)).toBeTruthy();
   });
 });
