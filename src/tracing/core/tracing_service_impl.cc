@@ -2229,6 +2229,19 @@ bool TracingServiceImpl::IsWaitingForTrigger(TracingSession* tracing_session) {
         "ReadBuffers(): tracing session has not received a trigger yet.");
     return true;
   }
+
+  // Traces with CLONE_SNAPSHOT triggers are a special case of the above. They
+  // can be read only via a CloneSession() request. This is to keep the
+  // behavior consistent with the STOP_TRACING+triggers case and avoid periodic
+  // finalizations and uploads of the main CLONE_SNAPSHOT triggers.
+  if (GetTriggerMode(tracing_session->config) ==
+      TraceConfig::TriggerConfig::CLONE_SNAPSHOT) {
+    PERFETTO_DLOG(
+        "ReadBuffers(): skipping because the tracing session has "
+        "CLONE_SNAPSHOT triggers defined");
+    return true;
+  }
+
   return false;
 }
 
@@ -3683,7 +3696,15 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
 
   // Copy over relevant state that we want to persist in the cloned session.
   // Mostly stats and metadata that is emitted in the trace file by the service.
-  cloned_session->received_triggers = src->received_triggers;
+  // Also clear the received trigger list in the main tracing session. A
+  // CLONE_SNAPSHOT session can go in ring buffer mode for several hours and get
+  // snapshotted several times. This causes two issues with `received_triggers`:
+  // 1. Adding noise in the cloned trace emitting triggers that happened too
+  //    far back (see b/290799105).
+  // 2. Bloating memory (see b/290798988).
+  cloned_session->received_triggers = std::move(src->received_triggers);
+  src->received_triggers.clear();
+  src->num_triggers_emitted_into_trace = 0;
   cloned_session->lifecycle_events =
       std::vector<TracingSession::LifecycleEvent>(src->lifecycle_events);
   cloned_session->initial_clock_snapshot = src->initial_clock_snapshot;
