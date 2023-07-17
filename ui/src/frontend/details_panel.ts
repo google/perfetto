@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Trash} from '../base/disposable';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
@@ -89,6 +90,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private isFullscreen = false;
   // We can't get real fullscreen height until the pan_and_zoom_handler exists.
   private fullscreenHeight = getDetailsHeight();
+  private trash: Trash = new Trash();
 
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
@@ -96,17 +98,21 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
     this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
-    new DragGestureHandler(
+    this.trash.add(new DragGestureHandler(
         elem,
         this.onDrag.bind(this),
         this.onDragStart.bind(this),
-        this.onDragEnd.bind(this));
+        this.onDragEnd.bind(this)));
   }
 
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
     this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
+  }
+
+  onremove(_: m.CVnodeDOM<DragHandleAttrs>) {
+    this.trash.dispose();
   }
 
   onDrag(_x: number, y: number) {

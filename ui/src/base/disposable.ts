@@ -31,3 +31,53 @@ export function using<T extends Disposable>(x: T, func?: (x: T) => void) {
     x.dispose();
   }
 }
+
+export class DisposableCallback implements Disposable {
+  private callback?: () => void;
+
+  constructor(callback: () => void) {
+    this.callback = callback;
+  }
+
+  static from(callback: () => void): Disposable {
+    return new DisposableCallback(callback);
+  }
+
+  dispose() {
+    if (this.callback) {
+      this.callback();
+      this.callback = undefined;
+    }
+  }
+}
+
+
+// A collection of Disposables.
+// Disposables can be added one by one, (e.g. during the lifecycle of a
+// component) then can all be disposed at once (e.g. when the component
+// is destroyed). Resources are disposed LIFO.
+export class Trash implements Disposable {
+  private resources: Disposable[];
+
+  constructor() {
+    this.resources = [];
+  }
+
+  add(d: Disposable) {
+    this.resources.push(d);
+  }
+
+  addCallback(callback: () => void) {
+    this.add(DisposableCallback.from(callback));
+  }
+
+  dispose() {
+    while (true) {
+      const d = this.resources.pop();
+      if (d === undefined) {
+        break;
+      }
+      d.dispose();
+    }
+  }
+}
