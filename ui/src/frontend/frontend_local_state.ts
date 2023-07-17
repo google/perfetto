@@ -254,7 +254,8 @@ export class FrontendLocalState {
         end >= start,
         `Impossible select area: start [${start}] >= end [${end}]`);
     this.showPanningHint = true;
-    this._selectedArea = {start, end, tracks}, raf.scheduleFullRedraw();
+    this._selectedArea = {start, end, tracks};
+    raf.scheduleFullRedraw();
   }
 
   deselectArea() {
