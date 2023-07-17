@@ -42,6 +42,7 @@ export type OmniboxMode = 'SEARCH'|'COMMAND';
 export interface OmniboxState {
   omnibox: string;
   mode: OmniboxMode;
+  force?: boolean;
 }
 
 // This is simply an arbitrarily large number to default to.
@@ -113,7 +114,8 @@ export const MAX_TIME = 180;
 // 32. Add pendingDeeplink.
 // 33. Add plugins state.
 // 34. Add additional pendingDeeplink fields (query, pid).
-export const STATE_VERSION = 34;
+// 35. Add force to OmniboxState
+export const STATE_VERSION = 35;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
