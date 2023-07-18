@@ -84,8 +84,8 @@ SELECT
   slice.ts AS start_ts,
   slice.id AS event_latency_id,
   slice.dur AS dur,
-  DESCENDANT_SLICE_END(slice.id, "LatchToSwapEnd") AS input_latency_end_ts,
-  DESCENDANT_SLICE_END(slice.id, "SwapEndToPresentationCompositorFrame") AS presentation_timestamp,
+  descendant_slice_end(slice.id, "LatchToSwapEnd") AS input_latency_end_ts,
+  descendant_slice_end(slice.id, "SwapEndToPresentationCompositorFrame") AS presentation_timestamp,
   EXTRACT_ARG(arg_set_id, 'event_latency.event_type') AS event_type
 FROM slice
 WHERE name = "EventLatency"
@@ -93,7 +93,7 @@ WHERE name = "EventLatency"
           "GESTURE_SCROLL_UPDATE",
           "FIRST_GESTURE_SCROLL_UPDATE",
           "INERTIAL_GESTURE_SCROLL_UPDATE")
-      AND HAS_DESCENDANT_SLICE_WITH_NAME(slice.id, "SwapEndToPresentationCompositorFrame");
+      AND has_descendant_slice_with_name(slice.id, "SwapEndToPresentationCompositorFrame");
 
 
 -- Join presented gesture scrolls with their respective event
@@ -221,7 +221,7 @@ SELECT
   delay_since_last_frame,
   event_latency_id,
   (SELECT vsync_interval FROM chrome_vsyncs) AS vsync_interval,
-  CHROME_HARDWARE_CLASS() AS hardware_class,
+  chrome_hardware_class() AS hardware_class,
   scroll_id
 FROM chrome_janky_frame_info_with_delay
 WHERE delay_since_last_frame > (select vsync_interval + vsync_interval / 2 from chrome_vsyncs)

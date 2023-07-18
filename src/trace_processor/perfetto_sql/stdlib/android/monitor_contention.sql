@@ -18,7 +18,7 @@
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_THREAD(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_thread(
   slice_name STRING
 )
 RETURNS STRING AS
@@ -28,7 +28,7 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, "with owner ", 1), " (", 0);
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret INT                 Blocking thread tid
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_tid(
   slice_name STRING
 )
 RETURNS INT AS
@@ -38,7 +38,7 @@ SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT);
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_method(
   slice_name STRING
 )
 RETURNS STRING AS
@@ -52,18 +52,18 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKING_METHOD(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocking_method(
   slice_name STRING
 )
 RETURNS STRING AS
 SELECT
-    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD($slice_name), " ", 1), "(", 0);
+    STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocking_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the monitor contention blocked method from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_method(
   slice_name STRING
 )
 RETURNS STRING AS
@@ -77,18 +77,18 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKED_METHOD(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocked_method(
   slice_name STRING
 )
 RETURNS STRING AS
 SELECT
-    STR_SPLIT(STR_SPLIT(ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD($slice_name), " ", 1), "(", 0);
+    STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocked_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the number of waiters on the monitor from a slice name
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret INT                 Count of waiters on the lock
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_WAITER_COUNT(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_waiter_count(
   slice_name STRING
 )
 RETURNS INT AS
@@ -98,7 +98,7 @@ SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, "waiters=", 1), " ", 0) AS INT);
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_SRC(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_src(
   slice_name STRING
 )
 RETURNS STRING AS
@@ -108,7 +108,7 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 1), ")", 0);
 --
 -- @arg slice_name STRING   Name of slice
 -- @ret STRING              Blocking thread
-CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(
+CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_src(
   slice_name STRING
 )
 RETURNS STRING AS
@@ -145,18 +145,18 @@ SELECT ancestor.id AS id FROM slice
 CREATE TABLE android_monitor_contention
 AS
 SELECT
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_METHOD(slice.name) AS blocking_method,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_METHOD(slice.name)  AS blocked_method,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKING_METHOD(slice.name) AS short_blocking_method,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_SHORT_BLOCKED_METHOD(slice.name)  AS short_blocked_method,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_SRC(slice.name) AS blocking_src,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(slice.name) AS blocked_src,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_WAITER_COUNT(slice.name) AS waiter_count,
+  android_extract_android_monitor_contention_blocking_method(slice.name) AS blocking_method,
+  android_extract_android_monitor_contention_blocked_method(slice.name)  AS blocked_method,
+  android_extract_android_monitor_contention_short_blocking_method(slice.name) AS short_blocking_method,
+  android_extract_android_monitor_contention_short_blocked_method(slice.name)  AS short_blocked_method,
+  android_extract_android_monitor_contention_blocking_src(slice.name) AS blocking_src,
+  android_extract_android_monitor_contention_blocked_src(slice.name) AS blocked_src,
+  android_extract_android_monitor_contention_waiter_count(slice.name) AS waiter_count,
   thread.utid AS blocked_utid,
   thread.name AS blocked_thread_name,
   blocking_thread.utid AS blocking_utid,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_THREAD(slice.name) AS blocking_thread_name,
-  ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKING_TID(slice.name) AS blocking_tid,
+  android_extract_android_monitor_contention_blocking_thread(slice.name) AS blocking_thread_name,
+  android_extract_android_monitor_contention_blocking_tid(slice.name) AS blocking_tid,
   thread.upid AS upid,
   process.name AS process_name,
   slice.id,

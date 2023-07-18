@@ -19,21 +19,21 @@
 
 -- Fetch start of the trace.
 -- @ret LONG  Start of the trace in nanoseconds.
-CREATE PERFETTO FUNCTION TRACE_START()
+CREATE PERFETTO FUNCTION trace_start()
 RETURNS LONG AS
 SELECT start_ts FROM trace_bounds;
 
 -- Fetch end of the trace.
 -- @ret LONG  End of the trace in nanoseconds.
-CREATE PERFETTO FUNCTION TRACE_END()
+CREATE PERFETTO FUNCTION trace_end()
 RETURNS LONG AS
 SELECT end_ts FROM trace_bounds;
 
 -- Fetch duration of the trace.
 -- @ret LONG  Duration of the trace in nanoseconds.
-CREATE PERFETTO FUNCTION TRACE_DUR()
+CREATE PERFETTO FUNCTION trace_dur()
 RETURNS LONG AS
-SELECT TRACE_END() - TRACE_START();
+SELECT trace_end() - trace_start();
 
 -- Checks whether two spans are overlapping.
 --
@@ -42,7 +42,7 @@ SELECT TRACE_END() - TRACE_START();
 -- @arg ts2 LONG      Start of second span.
 -- @arg ts_end2 LONG  End of second span.
 -- @ret BOOL          Whether two spans are overlapping.
-CREATE PERFETTO FUNCTION IS_SPANS_OVERLAPPING(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)
+CREATE PERFETTO FUNCTION is_spans_overlapping(ts1 LONG, ts_end1 LONG, ts2 LONG, ts_end2 LONG)
 RETURNS BOOL AS
 SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
       < IIF($ts_end1 < $ts_end2, $ts_end1, $ts_end2));
@@ -55,7 +55,7 @@ SELECT (IIF($ts1 < $ts2, $ts2, $ts1)
 -- @arg ts2 LONG Timestamp of second slice start.
 -- @arg dur2 LONG Duration of second slice.
 -- @ret INT               Overlapping duration
-CREATE PERFETTO FUNCTION SPANS_OVERLAPPING_DUR(ts1 LONG, dur1 LONG, ts2 LONG, dur2 LONG)
+CREATE PERFETTO FUNCTION spans_overlapping_dur(ts1 LONG, dur1 LONG, ts2 LONG, dur2 LONG)
 RETURNS INT AS
 SELECT
   CASE

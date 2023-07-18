@@ -13,11 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-CREATE PERFETTO FUNCTION VSYNC_FROM_NAME(slice_name STRING)
+CREATE PERFETTO FUNCTION vsync_from_name(slice_name STRING)
 RETURNS STRING AS
 SELECT CAST(STR_SPLIT($slice_name, " ", 1) AS INTEGER);
 
-CREATE PERFETTO FUNCTION GPU_COMPLETION_FENCE_ID_FROM_NAME(slice_name STRING)
+CREATE PERFETTO FUNCTION gpu_completion_fence_id_from_name(slice_name STRING)
 RETURNS STRING AS
 SELECT
   CASE
@@ -55,7 +55,7 @@ SELECT
   main_thread.utid,
   slice.*,
   slice.ts + slice.dur AS ts_end,
-  VSYNC_FROM_NAME(slice.name) AS vsync
+  vsync_from_name(slice.name) AS vsync
 FROM android_jank_cuj cuj
 JOIN slice
   ON slice.ts + slice.dur >= cuj.ts AND slice.ts <= cuj.ts_end
@@ -80,13 +80,13 @@ SELECT
   render_thread.utid,
   slice.*,
   slice.ts + slice.dur AS ts_end,
-  VSYNC_FROM_NAME(slice.name) AS vsync
+  vsync_from_name(slice.name) AS vsync
 FROM android_jank_cuj_do_frame_slice do_frame
 JOIN android_jank_cuj_render_thread render_thread USING (cuj_id)
 JOIN slice
   ON slice.track_id = render_thread.track_id
 WHERE slice.name GLOB 'DrawFrame*'
-  AND VSYNC_FROM_NAME(slice.name) = do_frame.vsync
+  AND vsync_from_name(slice.name) = do_frame.vsync
   AND slice.dur > 0;
 
 -- Find descendants of DrawFrames which contain the GPU completion fence ID that
@@ -97,7 +97,7 @@ SELECT
   cuj_id,
   vsync,
   draw_frame.id AS draw_frame_slice_id,
-  GPU_COMPLETION_FENCE_ID_FROM_NAME(fence.name) AS fence_idx
+  gpu_completion_fence_id_from_name(fence.name) AS fence_idx
 FROM android_jank_cuj_draw_frame_slice draw_frame
 JOIN descendant_slice(draw_frame.id) fence
   ON fence.name GLOB '*GPU completion fence*';
@@ -109,7 +109,7 @@ SELECT
   cuj_id,
   vsync,
   draw_frame.id AS draw_frame_slice_id,
-  GPU_COMPLETION_FENCE_ID_FROM_NAME(fence.name) AS fence_idx
+  gpu_completion_fence_id_from_name(fence.name) AS fence_idx
 FROM android_jank_cuj_draw_frame_slice draw_frame
 JOIN descendant_slice(draw_frame.id) fence
   ON fence.name GLOB '*HWC release fence *';
@@ -128,7 +128,7 @@ FROM android_jank_cuj_hwc_release_thread hwc_release_thread
 JOIN slice USING (track_id)
 JOIN android_jank_cuj_hwc_release_fence fence
   ON fence.cuj_id = hwc_release_thread.cuj_id
-    AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+    AND fence.fence_idx = gpu_completion_fence_id_from_name(slice.name)
 WHERE
   slice.name GLOB 'waiting for HWC release *'
   AND slice.dur > 0;
@@ -147,7 +147,7 @@ FROM android_jank_cuj_gpu_completion_thread gpu_completion_thread
 JOIN slice USING (track_id)
 JOIN android_jank_cuj_gpu_completion_fence fence
   ON fence.cuj_id = gpu_completion_thread.cuj_id
-  AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+  AND fence.fence_idx = gpu_completion_fence_id_from_name(slice.name)
 LEFT JOIN android_jank_cuj_hwc_release_slice hwc_release
   USING (cuj_id, vsync, draw_frame_slice_id)
 WHERE
@@ -199,7 +199,7 @@ SELECT CREATE_VIEW_FUNCTION(
   FROM slice
   JOIN android_jank_cuj_sf_main_thread main_thread USING (track_id)
   JOIN sf_vsync
-    ON VSYNC_FROM_NAME(slice.name) = sf_vsync.vsync
+    ON vsync_from_name(slice.name) = sf_vsync.vsync
   WHERE slice.name GLOB $slice_name_glob AND slice.dur > 0
   ORDER BY cuj_id, vsync;
   '
@@ -234,7 +234,7 @@ SELECT
   cuj_id,
   vsync,
   sf_root_slice.id AS sf_root_slice_id,
-  GPU_COMPLETION_FENCE_ID_FROM_NAME(fence.name) AS fence_idx
+  gpu_completion_fence_id_from_name(fence.name) AS fence_idx
 FROM android_jank_cuj_sf_root_slice sf_root_slice
 JOIN descendant_slice(sf_root_slice.id) fence
   ON fence.name GLOB '*GPU completion fence*';
@@ -252,7 +252,7 @@ FROM android_jank_cuj_sf_gpu_completion_fence fence
 JOIN android_jank_cuj_sf_gpu_completion_thread gpu_completion_thread
 JOIN slice
   ON slice.track_id = gpu_completion_thread.track_id
-    AND fence.fence_idx = GPU_COMPLETION_FENCE_ID_FROM_NAME(slice.name)
+    AND fence.fence_idx = gpu_completion_fence_id_from_name(slice.name)
 WHERE
   slice.name GLOB 'waiting for GPU completion *'
   AND slice.dur > 0;
