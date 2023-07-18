@@ -119,6 +119,8 @@ const POWER_RAILS_REGEX = new RegExp('^power.');
 const FREQUENCY_GROUP = 'Frequency Scaling';
 const TEMPERATURE_REGEX = new RegExp('^.* Temperature$');
 const TEMPERATURE_GROUP = 'Temperature';
+const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
+const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
@@ -1950,6 +1952,7 @@ class TrackDecider {
     await this.groupFrequencyTracks(FREQUENCY_GROUP);
     await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
     await this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+    await this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
     await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
