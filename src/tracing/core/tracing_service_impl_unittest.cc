@@ -1606,6 +1606,62 @@ TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   Mock::VerifyAndClearExpectations(producer3.get());
 }
 
+TEST_F(TracingServiceImplTest, ProducerNameFilterChangeTwoDataSources) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2");
+  producer2->RegisterDataSource("data_source");
+  producer2->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  *data_source->add_producer_name_filter() = "mock_producer_1";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  EXPECT_CALL(*producer1, SetupDataSource(_, _)).Times(1);
+  EXPECT_CALL(*producer1, StartDataSource(_, _)).Times(1);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  // Enable mock_producer_2, both instances of "data_source" should start
+  *data_source->add_producer_name_regex_filter() = ".*_producer_[2]";
+  consumer->ChangeTraceConfig(trace_config);
+
+  producer2->WaitForTracingSetup();
+  EXPECT_CALL(*producer2, SetupDataSource(_, _)).Times(2);
+  EXPECT_CALL(*producer2, StartDataSource(_, _)).Times(2);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+
+  EXPECT_CALL(*producer1, StopDataSource(_)).Times(1);
+  EXPECT_CALL(*producer2, StopDataSource(_)).Times(2);
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+}
+
 TEST_F(TracingServiceImplTest, DisconnectConsumerWhileTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
