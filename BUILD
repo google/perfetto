@@ -309,6 +309,10 @@ perfetto_cc_library(
 perfetto_cc_binary(
     name = "proto_filter",
     srcs = [
+        ":include_perfetto_base_base",
+        ":include_perfetto_public_abi_base",
+        ":include_perfetto_public_base",
+        ":src_perfetto_cmd_pbtxt_to_pb",
         ":src_protozero_filtering_bytecode_common",
         ":src_protozero_filtering_bytecode_generator",
         ":src_protozero_filtering_bytecode_parser",
@@ -318,9 +322,24 @@ perfetto_cc_binary(
         "src/tools/proto_filter/proto_filter.cc",
     ],
     deps = [
+        ":protos_perfetto_common_cpp",
+        ":protos_perfetto_config_android_cpp",
+        ":protos_perfetto_config_cpp",
+        ":protos_perfetto_config_ftrace_cpp",
+        ":protos_perfetto_config_gpu_cpp",
+        ":protos_perfetto_config_inode_file_cpp",
+        ":protos_perfetto_config_interceptors_cpp",
+        ":protos_perfetto_config_power_cpp",
+        ":protos_perfetto_config_process_stats_cpp",
+        ":protos_perfetto_config_profiling_cpp",
+        ":protos_perfetto_config_statsd_cpp",
+        ":protos_perfetto_config_sys_stats_cpp",
+        ":protos_perfetto_config_system_info_cpp",
+        ":protos_perfetto_config_track_event_cpp",
         ":protozero",
         ":src_base_base",
         ":src_base_version",
+        ":src_perfetto_cmd_gen_cc_config_descriptor",
     ] + PERFETTO_CONFIG.deps.protobuf_full,
 )
 
@@ -1142,6 +1161,15 @@ perfetto_cc_proto_descriptor(
     ],
 )
 
+# GN target: //src/perfetto_cmd:pbtxt_to_pb
+perfetto_filegroup(
+    name = "src_perfetto_cmd_pbtxt_to_pb",
+    srcs = [
+        "src/perfetto_cmd/pbtxt_to_pb.cc",
+        "src/perfetto_cmd/pbtxt_to_pb.h",
+    ],
+)
+
 # GN target: //src/perfetto_cmd:perfetto_cmd
 perfetto_filegroup(
     name = "src_perfetto_cmd_perfetto_cmd",
@@ -1150,8 +1178,6 @@ perfetto_filegroup(
         "src/perfetto_cmd/config.h",
         "src/perfetto_cmd/packet_writer.cc",
         "src/perfetto_cmd/packet_writer.h",
-        "src/perfetto_cmd/pbtxt_to_pb.cc",
-        "src/perfetto_cmd/pbtxt_to_pb.h",
         "src/perfetto_cmd/perfetto_cmd.cc",
         "src/perfetto_cmd/perfetto_cmd.h",
         "src/perfetto_cmd/rate_limiter.cc",
@@ -5083,6 +5109,7 @@ perfetto_cc_binary(
         ":src_android_stats_android_stats",
         ":src_android_stats_perfetto_atoms",
         ":src_perfetto_cmd_bugreport_path",
+        ":src_perfetto_cmd_pbtxt_to_pb",
         ":src_perfetto_cmd_perfetto_cmd",
         ":src_perfetto_cmd_trigger_producer",
         ":src_tracing_common",
