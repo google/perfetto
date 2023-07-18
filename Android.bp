@@ -1020,6 +1020,7 @@ cc_binary {
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_perfetto_cmd_bugreport_path",
+        ":perfetto_src_perfetto_cmd_pbtxt_to_pb",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",
         ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
@@ -8771,13 +8772,20 @@ genrule {
     ],
 }
 
+// GN: //src/perfetto_cmd:pbtxt_to_pb
+filegroup {
+    name: "perfetto_src_perfetto_cmd_pbtxt_to_pb",
+    srcs: [
+        "src/perfetto_cmd/pbtxt_to_pb.cc",
+    ],
+}
+
 // GN: //src/perfetto_cmd:perfetto_cmd
 filegroup {
     name: "perfetto_src_perfetto_cmd_perfetto_cmd",
     srcs: [
         "src/perfetto_cmd/config.cc",
         "src/perfetto_cmd/packet_writer.cc",
-        "src/perfetto_cmd/pbtxt_to_pb.cc",
         "src/perfetto_cmd/perfetto_cmd.cc",
         "src/perfetto_cmd/perfetto_cmd_android.cc",
         "src/perfetto_cmd/rate_limiter.cc",
@@ -12214,6 +12222,7 @@ cc_test {
         ":perfetto_src_kallsyms_unittests",
         ":perfetto_src_kernel_utils_syscall_table",
         ":perfetto_src_perfetto_cmd_bugreport_path",
+        ":perfetto_src_perfetto_cmd_pbtxt_to_pb",
         ":perfetto_src_perfetto_cmd_perfetto_cmd",
         ":perfetto_src_perfetto_cmd_protos_cpp_gen",
         ":perfetto_src_perfetto_cmd_trigger_producer",
