@@ -54,14 +54,46 @@ import {Tree, TreeNode} from './widgets/tree';
 interface ContextMenuItem {
   name: string;
   shouldDisplay(slice: SliceDetails): boolean;
-  getAction(slice: SliceDetails): void;
+  run(slice: SliceDetails): void;
+}
+
+function getTidFromSlice(slice: SliceDetails): number|undefined {
+  return slice.thread?.tid;
+}
+
+function getPidFromSlice(slice: SliceDetails): number|undefined {
+  return slice.process?.pid;
+}
+
+function getProcessNameFromSlice(slice: SliceDetails): string|undefined {
+  return slice.process?.name;
+}
+
+function hasName(slice: SliceDetails): boolean {
+  return slice.name !== undefined;
+}
+
+function hasId(slice: SliceDetails): boolean {
+  return slice.id !== undefined;
+}
+
+function hasTid(slice: SliceDetails): boolean {
+  return getTidFromSlice(slice) !== undefined;
+}
+
+function hasPid(slice: SliceDetails): boolean {
+  return getPidFromSlice(slice) !== undefined;
+}
+
+function hasProcessName(slice: SliceDetails): boolean {
+  return getProcessNameFromSlice(slice) !== undefined;
 }
 
 const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration',
-    shouldDisplay: (slice: SliceDetails) => slice.name !== undefined,
-    getAction: (slice: SliceDetails) => runQueryInNewTab(
+    shouldDisplay: (slice: SliceDetails) => hasName(slice),
+    run: (slice: SliceDetails) => runQueryInNewTab(
         `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
         `${slice.name} average dur`,
         ),
@@ -69,7 +101,7 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Binder by TXN',
     shouldDisplay: () => true,
-    getAction: () => runQueryInNewTab(
+    run: () => runQueryInNewTab(
         `SELECT IMPORT('android.binder');
 
          SELECT *
@@ -80,8 +112,9 @@ const ITEMS: ContextMenuItem[] = [
   },
   {
     name: 'Binder call names',
-    shouldDisplay: () => true,
-    getAction: (slice: SliceDetails) => {
+    shouldDisplay: (slice) =>
+        hasProcessName(slice) && hasTid(slice) && hasPid(slice),
+    run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
       runQuery(`SELECT IMPORT('android.binder');`, engine)
@@ -95,16 +128,17 @@ const ITEMS: ContextMenuItem[] = [
                   JOIN thread USING (utid)
                   JOIN process USING (upid)
                 WHERE aidl_name IS NOT NULL
-                  AND pid = ${slice.process?.pid}
-                  AND tid = ${slice.thread?.tid}`,
-                  `Binder names (${slice.process?.name}:${slice.thread?.tid})`,
+                  AND pid = ${getPidFromSlice(slice)}
+                  AND tid = ${getTidFromSlice(slice)}`,
+                  `Binder names (${getProcessNameFromSlice(slice)}:${
+                      getTidFromSlice(slice)})`,
                   ));
     },
   },
   {
     name: 'Lock graph',
-    shouldDisplay: (slice: SliceDetails) => slice.id !== undefined,
-    getAction: (slice: SliceDetails) => runQueryInNewTab(
+    shouldDisplay: (slice: SliceDetails) => hasId(slice),
+    run: (slice: SliceDetails) => runQueryInNewTab(
         `SELECT IMPORT('android.monitor_contention');
          DROP TABLE IF EXISTS FAST;
          CREATE TABLE FAST
@@ -585,8 +619,8 @@ export class ChromeSliceDetailsTab extends
           PopupMenu2,
           {trigger},
           contextMenuItems.map(
-              ({name, getAction}) =>
-                  m(MenuItem, {label: name, onclick: getAction})),
+              ({name, run}) =>
+                  m(MenuItem, {label: name, onclick: () => run(sliceInfo)})),
       );
     } else {
       return undefined;
