@@ -66,7 +66,9 @@ WHERE
   slice.name GLOB 'Choreographer#doFrame*'
 -- Ignore child slice e.g. "Choreographer#doFrame - resynced to 1234 in 20.0ms"
   AND slice.name not GLOB '*resynced*'
-  AND slice.dur > 0;
+  AND slice.dur > 0
+  AND (vsync >= begin_vsync OR begin_vsync is NULL)
+  AND (vsync <= end_vsync OR end_vsync is NULL);
 
 
 -- Store render thread DrawFrames by matching in the vsync IDs extracted from
