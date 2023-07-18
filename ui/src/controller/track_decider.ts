@@ -112,6 +112,14 @@ const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const NETWORK_TRACK_GROUP = 'Networking';
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
 const ENTITY_RESIDENCY_GROUP = 'Entity residency';
+const UCLAMP_REGEX = new RegExp('^UCLAMP_');
+const UCLAMP_GROUP = 'Scheduler Utilization Clamping';
+const POWER_RAILS_GROUP = 'Power Rails';
+const POWER_RAILS_REGEX = new RegExp('^power.');
+const FREQUENCY_GROUP = 'Frequency Scaling';
+const TEMPERATURE_REGEX = new RegExp('^.* Temperature$');
+const TEMPERATURE_GROUP = 'Temperature';
+const MISC_GROUP = 'Misc Global Tracks';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -694,11 +702,116 @@ class TrackDecider {
     }
   }
 
+  async groupFrequencyTracks(groupName: string): Promise<void> {
+    let groupUuid = undefined;
+    for (const track of this.tracksToAdd) {
+      // Group all the frequency tracks together (except the CPU and GPU
+      // frequency ones).
+      if (track.name.endsWith('Frequency') && !track.name.startsWith('Cpu') &&
+          !track.name.startsWith('Gpu')) {
+        if (track.trackGroup !== undefined &&
+            track.trackGroup !== SCROLLING_TRACK_GROUP) {
+          continue;
+        }
+        if (track.kind === NULL_TRACK_KIND) {
+          continue;
+        }
+        if (groupUuid === undefined) {
+          groupUuid = uuidv4();
+        }
+        track.trackGroup = groupUuid;
+      }
+    }
+
+    if (groupUuid !== undefined) {
+      const summaryTrackId = uuidv4();
+      this.tracksToAdd.push({
+        id: summaryTrackId,
+        engineId: this.engineId,
+        kind: NULL_TRACK_KIND,
+        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+        name: groupName,
+        trackGroup: undefined,
+        config: {},
+      });
+
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        summaryTrackId,
+        name: groupName,
+        id: groupUuid,
+        collapsed: true,
+      });
+      this.addTrackGroupActions.push(addGroup);
+    }
+  }
+
+  async groupMiscNonAllowlistedTracks(groupName: string): Promise<void> {
+    // List of allowlisted track names.
+    const ALLOWLIST_REGEXES = [
+      new RegExp('^Cpu .*$'),
+      new RegExp('^Gpu .*$'),
+      new RegExp('^Trace Triggers$'),
+      new RegExp('^Android App Startups$'),
+    ];
+
+    let groupUuid = undefined;
+    for (const track of this.tracksToAdd) {
+      if (track.trackGroup !== undefined &&
+          track.trackGroup !== SCROLLING_TRACK_GROUP) {
+        continue;
+      }
+      if (track.kind === NULL_TRACK_KIND) {
+        continue;
+      }
+      let allowlisted = false;
+      for (const regex of ALLOWLIST_REGEXES) {
+        allowlisted = allowlisted || regex.test(track.name);
+      }
+      if (allowlisted) {
+        continue;
+      }
+      if (groupUuid === undefined) {
+        groupUuid = uuidv4();
+      }
+      track.trackGroup = groupUuid;
+    }
+
+    if (groupUuid !== undefined) {
+      const summaryTrackId = uuidv4();
+      this.tracksToAdd.push({
+        id: summaryTrackId,
+        engineId: this.engineId,
+        kind: NULL_TRACK_KIND,
+        trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+        name: groupName,
+        trackGroup: undefined,
+        config: {},
+      });
+
+      const addGroup = Actions.addTrackGroup({
+        engineId: this.engineId,
+        summaryTrackId,
+        name: groupName,
+        id: groupUuid,
+        collapsed: true,
+      });
+      this.addTrackGroupActions.push(addGroup);
+    }
+  }
+
   async groupTracksByRegex(regex: RegExp, groupName: string): Promise<void> {
     let groupUuid = undefined;
 
     for (const track of this.tracksToAdd) {
       if (regex.test(track.name)) {
+        if (track.trackGroup !== undefined &&
+            track.trackGroup !== SCROLLING_TRACK_GROUP) {
+          continue;
+        }
+        if (track.kind === NULL_TRACK_KIND) {
+          continue;
+        }
         if (groupUuid === undefined) {
           groupUuid = uuidv4();
         }
@@ -1833,6 +1946,11 @@ class TrackDecider {
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
     await this.groupTracksByRegex(
         ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
+    await this.groupTracksByRegex(UCLAMP_REGEX, UCLAMP_GROUP);
+    await this.groupFrequencyTracks(FREQUENCY_GROUP);
+    await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
+    await this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+    await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
