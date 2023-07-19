@@ -118,6 +118,7 @@ CreatedTableFunction::Cursor::Cursor(CreatedTableFunction* table, State* state)
 
 CreatedTableFunction::Cursor::~Cursor() {
   if (return_stmt_to_state_) {
+    ResetStatement(stmt_->sqlite_stmt());
     state_->reusable_stmt = std::move(stmt_);
   }
 }
