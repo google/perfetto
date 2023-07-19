@@ -93,6 +93,10 @@ def CheckChangeOnCommit(input_api, output_api):
 
 
 def CheckBuild(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/gen_bazel'
 
   # If no GN files were modified, bail out.
@@ -111,6 +115,10 @@ def CheckBuild(input_api, output_api):
 
 
 def CheckAndroidBlueprint(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/gen_android_bp'
 
   # If no GN files were modified, bail out.
@@ -129,6 +137,10 @@ def CheckAndroidBlueprint(input_api, output_api):
 
 
 def CheckIncludeGuards(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/fix_include_guards'
 
   def file_filter(x):
@@ -193,6 +205,10 @@ def CheckBannedCpp(input_api, output_api):
 
 
 def CheckIncludeViolations(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/check_include_violations'
 
   def file_filter(x):
@@ -207,6 +223,10 @@ def CheckIncludeViolations(input_api, output_api):
 
 
 def CheckBinaryDescriptors(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/gen_binary_descriptors'
 
   def file_filter(x):
@@ -224,6 +244,10 @@ def CheckBinaryDescriptors(input_api, output_api):
 
 
 def CheckMergedTraceConfigProto(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/gen_merged_protos'
 
   def build_file_filter(x):
@@ -257,6 +281,10 @@ def CheckProtoEventList(input_api, output_api):
 
 
 def CheckProtoComments(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/check_proto_comments'
 
   def file_filter(x):
@@ -271,6 +299,10 @@ def CheckProtoComments(input_api, output_api):
 
 
 def CheckSqlModules(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/check_sql_modules.py'
 
   def file_filter(x):
@@ -285,6 +317,10 @@ def CheckSqlModules(input_api, output_api):
 
 
 def CheckSqlMetrics(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/check_sql_metrics.py'
 
   def file_filter(x):
@@ -299,6 +335,10 @@ def CheckSqlMetrics(input_api, output_api):
 
 
 def CheckTestData(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/test_data'
   if subprocess.call([tool, 'status', '--quiet']):
     return [
@@ -313,6 +353,10 @@ def CheckTestData(input_api, output_api):
 
 
 def CheckAmalgamatedPythonTools(input_api, output_api):
+  # The script invocation doesn't work on Windows.
+  if input_api.is_windows:
+    return []
+
   tool = 'tools/gen_amalgamated_python_tools'
 
   # If no GN files were modified, bail out.
