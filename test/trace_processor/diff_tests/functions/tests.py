@@ -838,3 +838,21 @@ class Functions(TestSuite):
         "a","b","c","d","e","f","g"
         2718,0,1000,"[NULL]","[NULL]","[NULL]","[NULL]"
         """))
+
+  def test_table_function_drop_partial(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+          CREATE TABLE bar AS SELECT 1;
+
+          CREATE OR REPLACE PERFETTO FUNCTION foo()
+          RETURNS TABLE(x INT) AS
+          SELECT 1 AS x
+          UNION
+          SELECT * FROM bar;
+
+          CREATE TABLE res AS SELECT * FROM foo() LIMIT 1;
+
+          DROP TABLE bar;
+        """,
+        out=Csv(""))
