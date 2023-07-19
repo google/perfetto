@@ -223,7 +223,7 @@ SELECT * FROM android_monitor_contention JOIN x USING (id);
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
 --
--- @column parent_id Id of monitor contention slice blocked by this contention.
+-- @column parent_id Id of monitor contention slice blocking this contention.
 -- @column blocking_method Name of the method holding the lock.
 -- @column blocked_methhod Name of the method trying to acquire the lock.
 -- @column short_blocking_method Blocking_method without arguments and return types.
@@ -244,7 +244,7 @@ SELECT * FROM android_monitor_contention JOIN x USING (id);
 -- @column binder_reply_id Slice id of binder reply slice if lock contention was part of a binder txn.
 -- @column binder_reply_ts Timestamp of binder reply slice if lock contention was part of a binder txn.
 -- @column binder_reply_tid Tid of binder reply slice if lock contention was part of a binder txn.
--- @column child_id Id of monitor contention slice blocking this contention.
+-- @column child_id Id of monitor contention slice blocked by this contention.
 CREATE TABLE android_monitor_contention_chain
   AS
 SELECT NULL AS parent_id, *, NULL AS child_id FROM internal_isolated
