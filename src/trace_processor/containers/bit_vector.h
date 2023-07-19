@@ -39,7 +39,7 @@ class SetBitsIterator;
 
 }  // namespace internal
 
-// A bitvector which compactly stores a vector of bools using a single bit
+// A BitVector which compactly stores a vector of bools using a single bit
 // for each bool.
 class BitVector {
  public:
@@ -109,7 +109,7 @@ class BitVector {
 
     // Returns the number of bits which should be appended using |Append| either
     // hitting a word boundary (and thus able to use |AppendWord|) or until the
-    // bitvector is full (i.e. no more Appends should happen), whichever would
+    // BitVector is full (i.e. no more Appends should happen), whichever would
     // happen first.
     uint32_t BitsUntilWordBoundaryOrFull() {
       if (global_bit_offset_ == 0 && size_ < BitWord::kBits) {
@@ -122,7 +122,7 @@ class BitVector {
 
     // Returns the number of bits which should be appended using |Append| before
     // hitting a word boundary (and thus able to use |AppendWord|) or until the
-    // bitvector is full (i.e. no more Appends should happen).
+    // BitVector is full (i.e. no more Appends should happen).
     uint32_t BitsUntilFull() { return size_ - global_bit_offset_; }
 
    private:
@@ -132,31 +132,31 @@ class BitVector {
     uint32_t skipped_blocks_ = 0;
   };
 
-  // Creates an empty bitvector.
+  // Creates an empty BitVector.
   BitVector();
 
   explicit BitVector(std::initializer_list<bool> init);
 
-  // Creates a bitvector of |count| size filled with |value|.
+  // Creates a BitVector of |count| size filled with |value|.
   explicit BitVector(uint32_t count, bool value = false);
 
-  // Enable moving bitvectors as they have no unmovable state.
+  // Enable moving BitVectors as they have no unmovable state.
   BitVector(BitVector&&) noexcept = default;
   BitVector& operator=(BitVector&&) = default;
 
-  // Create a copy of the bitvector.
+  // Create a copy of the BitVector.
   BitVector Copy() const;
 
-  // Bitwise Not of the bitvector.
+  // Bitwise Not of the BitVector.
   void Not();
 
-  // Bitwise Or of the bitvector.
+  // Bitwise Or of the BitVector.
   void Or(const BitVector&);
 
-  // Bitwise Or of the bitvector.
+  // Bitwise And of the BitVector.
   void And(const BitVector&);
 
-  // Returns the size of the bitvector.
+  // Returns the size of the BitVector.
   uint32_t size() const { return static_cast<uint32_t>(size_); }
 
   // Returns whether the bit at |idx| is set.
@@ -167,10 +167,10 @@ class BitVector {
     return ConstBlockFromIndex(addr.block_idx).IsSet(addr.block_offset);
   }
 
-  // Returns the number of set bits in the bitvector.
+  // Returns the number of set bits in the BitVector.
   uint32_t CountSetBits() const { return CountSetBits(size()); }
 
-  // Returns the number of set bits between the start of the bitvector
+  // Returns the number of set bits between the start of the BitVector
   // (inclusive) and the index |end| (exclusive).
   uint32_t CountSetBits(uint32_t end) const {
     if (end == 0)
@@ -257,14 +257,14 @@ class BitVector {
     }
   }
 
-  // Appends true to the bitvector.
+  // Appends true to the BitVector.
   void AppendTrue() {
     AppendFalse();
     Address addr = IndexToAddress(size() - 1);
     BlockFromIndex(addr.block_idx).Set(addr.block_offset);
   }
 
-  // Appends false to the bitvector.
+  // Appends false to the BitVector.
   void AppendFalse() {
     Address addr = IndexToAddress(size_);
     uint32_t old_blocks_size = BlockCount();
@@ -291,11 +291,11 @@ class BitVector {
   // filled by calling the filler function |f(index of bit)|.
   //
   // As an example, suppose Range(3, 7, [](x) { return x < 5 }). This would
-  // result in the following bitvector:
+  // result in the following BitVector:
   // [0 0 0 1 1 0 0]
   template <typename Filler = bool(uint32_t)>
   static BitVector Range(uint32_t start, uint32_t end, Filler f) {
-    // Compute the block index and bitvector index where we start and end
+    // Compute the block index and BitVector index where we start and end
     // working one block at a time.
     uint32_t start_fast_block = BlockCount(start);
     uint32_t start_fast_idx = BlockToIndex(start_fast_block);
@@ -353,7 +353,7 @@ class BitVector {
     counts_.shrink_to_fit();
   }
 
-  // Updates the ith set bit of this bitvector with the value of
+  // Updates the ith set bit of this BitVector with the value of
   // |other.IsSet(i)|.
   //
   // This is the best way to batch update all the bits which are set; for
@@ -384,13 +384,13 @@ class BitVector {
   // }
   SetBitsIterator IterateSetBits() const;
 
-  // Returns the approximate cost (in bytes) of storing a bitvector with size
+  // Returns the approximate cost (in bytes) of storing a BitVector with size
   // |n|. This can be used to make decisions about whether using a BitVector is
   // worthwhile.
   // This cost should not be treated as exact - it just gives an indication of
   // the memory needed.
   static constexpr uint32_t ApproxBytesCost(uint32_t n) {
-    // The two main things making up a bitvector is the cost of the blocks of
+    // The two main things making up a BitVector is the cost of the blocks of
     // bits and the cost of the counts vector.
     return BlockCount(n) * Block::kBits + BlockCount(n) * sizeof(uint32_t);
   }
@@ -406,7 +406,7 @@ class BitVector {
     uint16_t bit_idx;
   };
 
-  // Represents the address of a bit within the bitvector.
+  // Represents the address of a bit within the BitVector.
   struct Address {
     uint32_t block_idx;
     BlockOffset block_offset;
@@ -792,7 +792,7 @@ class BitVector {
   BitVector(const BitVector&) = delete;
   BitVector& operator=(const BitVector&) = delete;
 
-  // Returns the number of 8 elements blocks in the bitvector.
+  // Returns the number of 8 elements blocks in the BitVector.
   uint32_t BlockCount() {
     return static_cast<uint32_t>(words_.size()) / Block::kWords;
   }
