@@ -1120,6 +1120,14 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
     *cfg_data_source.mutable_producer_name_regex_filter() =
         new_producer_name_regex_filter;
 
+    // Get the list of producers that are already set up.
+    std::unordered_set<uint16_t> set_up_producers;
+    auto& ds_instances = tracing_session->data_source_instances;
+    for (auto instance_it = ds_instances.begin();
+         instance_it != ds_instances.end(); ++instance_it) {
+      set_up_producers.insert(instance_it->first);
+    }
+
     // Scan all the registered data sources with a matching name.
     auto range = data_sources_.equal_range(cfg_data_source.config().name());
     for (auto it = range.first; it != range.second; it++) {
@@ -1134,19 +1142,9 @@ void TracingServiceImpl::ChangeTraceConfig(ConsumerEndpointImpl* consumer,
         continue;
       }
 
-      bool already_setup = false;
-      auto& ds_instances = tracing_session->data_source_instances;
-      for (auto instance_it = ds_instances.begin();
-           instance_it != ds_instances.end(); ++instance_it) {
-        if (instance_it->first == it->second.producer_id &&
-            instance_it->second.data_source_name ==
-                cfg_data_source.config().name()) {
-          already_setup = true;
-          break;
-        }
-      }
-
-      if (already_setup)
+      // If this producer is already set up, we assume that all datasources
+      // in it started already.
+      if (set_up_producers.count(it->second.producer_id))
         continue;
 
       // If it wasn't previously setup, set it up now.
