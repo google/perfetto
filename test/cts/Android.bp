@@ -59,6 +59,7 @@ cc_test {
         ":CtsPerfettoProducerApp",
         ":CtsPerfettoReleaseApp",
         ":CtsPerfettoDebuggableApp",
+        "perfetto_device_preparer.sh",
   ],
   stl: "libc++_static",
   // This test is also run via Mainline Testing against the ART Mainline
@@ -66,8 +67,5 @@ cc_test {
   min_sdk_version: "31",
   defaults: [
     "perfetto_defaults",
-  ],
-  data: [
-    "perfetto_device_preparer.sh",
   ],
 }
