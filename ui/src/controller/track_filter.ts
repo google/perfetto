@@ -14,7 +14,7 @@
 
 import { Registry } from "../common/registry";
 import { AddTrackArgs, AddTrackGroupArgs } from "../common/actions";
-import { globals } from "../frontend";
+import { globals } from "../frontend/globals";
 import { assertTrue } from "../base/logging";
 
 export const TRACK_GROUP_KIND = '__track_group__';
