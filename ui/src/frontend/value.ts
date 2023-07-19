@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
+import {Tree, TreeNode} from './widgets/tree';
 
 // This file implements a component for rendering JSON-like values (with
 // customisation options like context menu and action buttons).
@@ -128,62 +129,57 @@ export function isStringValue(value: Value): value is StringValue {
 
 // Recursively render the given value and its children, returning a list of
 // vnodes corresponding to the nodes of the table.
-function*
-    renderValue(name: string, value: Value, depth: number): Generator<m.Child> {
-  const row = [
-    m('th',
-      {
-        style: `padding-left: ${15 * depth}px`,
-      },
-      name,
-      value.contextMenu ? m(PopupMenuButton, {
-        icon: 'arrow_drop_down',
-        items: value.contextMenu,
-      }) :
-                          null),
+function renderValue(name: string, value: Value): m.Children {
+  const left = [
+    name,
+    value.contextMenu ? m(PopupMenuButton, {
+      icon: 'arrow_drop_down',
+      items: value.contextMenu,
+    }) :
+                        null,
   ];
   if (isArray(value)) {
-    yield m('tr', row);
-    for (let i = 0; i < value.items.length; ++i) {
-      yield* renderValue(`[${i}]`, value.items[i], depth + 1);
-    }
-    return;
+    const nodes = value.items.map((value: Value, index: number) => {
+      return renderValue(`[${index}]`, value);
+    });
+    return m(TreeNode, {left, right: `array[${nodes.length}]`}, nodes);
   } else if (isDict(value)) {
-    yield m('tr', row);
+    const nodes: m.Children[] = [];
     for (const key of Object.keys(value.items)) {
-      yield* renderValue(key, value.items[key], depth + 1);
+      nodes.push(renderValue(key, value.items[key]));
     }
-    return;
-  }
-  const renderButton = (button?: ButtonParams) => {
-    if (!button) {
+    return m(TreeNode, {left, right: `dict`}, nodes);
+  } else {
+    const renderButton = (button?: ButtonParams) => {
+      if (!button) {
+        return null;
+      }
+      return m(
+          'i.material-icons.grey',
+          {
+            onclick: button.action,
+            title: button.hoverText,
+          },
+          button.icon ? button.icon : 'call_made');
+    };
+    if (value.kind === 'STRING') {
+      const right = [
+        renderButton(value.leftButton),
+        m('span', value.value),
+        renderButton(value.rightButton),
+      ];
+      return m(TreeNode, {left, right});
+    } else {
       return null;
     }
-    return m(
-        'i.material-icons.grey',
-        {
-          onclick: button.action,
-          title: button.hoverText,
-        },
-        button.icon ? button.icon : 'call_made');
-  };
-  if (value.kind === 'STRING') {
-    row.push(
-        m('td',
-          renderButton(value.leftButton),
-          m('span', value.value),
-          renderButton(value.rightButton)));
   }
-  yield m('tr', row);
 }
 
-// Render a given dictionary into a vnode.
+// Render a given dictionary to a tree.
 export function renderDict(dict: Dict): m.Child {
-  const rows: m.Child[] = [];
+  const rows: m.Children[] = [];
   for (const key of Object.keys(dict.items)) {
-    for (const vnode of renderValue(key, dict.items[key], 0)) {
-      rows.push(vnode);
-    }
+    rows.push(renderValue(key, dict.items[key]));
   }
-  return m('table.auto-layout', rows);
+  return m(Tree, rows);
 }

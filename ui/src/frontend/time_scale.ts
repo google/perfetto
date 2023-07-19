@@ -86,6 +86,8 @@ export class TimeScale {
 }
 
 export class PxSpan {
+  static readonly ZERO = new PxSpan(0, 0);
+
   constructor(private _start: number, private _end: number) {
     assertTrue(_start <= _end, 'PxSpan start > end');
   }

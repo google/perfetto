@@ -408,7 +408,9 @@ TEST(QueryResultSerializerTest, ErrorBeforeStartingQuery) {
   TestDeserializer deser;
   deser.SerializeAndDeserialize(&ser);
   EXPECT_EQ(deser.cells.size(), 0u);
-  EXPECT_EQ(deser.error, "Error: incomplete input (errcode: 1)");
+  EXPECT_EQ(deser.error,
+            "Traceback (most recent call last):\n  File \"stdin\" line 1 col "
+            "1\n    insert into incomplete_input\n    ^\nincomplete input");
   EXPECT_TRUE(deser.eof_reached);
 }
 

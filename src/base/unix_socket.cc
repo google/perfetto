@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "perfetto/base/compiler.h"
+#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 // The include order matters on these three Windows header groups.
@@ -56,6 +57,12 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/utils.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+// Use a local stripped copy of vm_sockets.h from UAPI.
+#include "src/base/vm_sockets.h"
+#endif
+
 namespace perfetto {
 namespace base {
 
@@ -73,6 +80,11 @@ namespace {
 using CBufLenType = size_t;
 #else
 using CBufLenType = socklen_t;
+#endif
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+constexpr char kVsockNamePrefix[] = "vsock://";
 #endif
 
 // A wrapper around variable-size sockaddr structs.
@@ -95,7 +107,7 @@ struct SockaddrAny {
   socklen_t size;
 };
 
-inline int GetSockFamily(SockFamily family) {
+inline int MkSockFamily(SockFamily family) {
   switch (family) {
     case SockFamily::kUnix:
       return AF_UNIX;
@@ -103,11 +115,19 @@ inline int GetSockFamily(SockFamily family) {
       return AF_INET;
     case SockFamily::kInet6:
       return AF_INET6;
+    case SockFamily::kVsock:
+#ifdef AF_VSOCK
+      return AF_VSOCK;
+#else
+      return AF_UNSPEC;  // Return AF_UNSPEC on unsupported platforms.
+#endif
+    case SockFamily::kUnspec:
+      return AF_UNSPEC;
   }
   PERFETTO_CHECK(false);  // For GCC.
 }
 
-inline int GetSockType(SockType type) {
+inline int MkSockType(SockType type) {
 #if defined(SOCK_CLOEXEC)
   constexpr int kSockCloExec = SOCK_CLOEXEC;
 #else
@@ -142,7 +162,7 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
         PERFETTO_ELOG(
             "Abstract AF_UNIX sockets are not supported on Windows, see "
             "https://github.com/microsoft/WSL/issues/4240");
-        return SockaddrAny{};
+        return SockaddrAny();
 #endif
       }
       saddr.sun_family = AF_UNIX;
@@ -189,6 +209,28 @@ SockaddrAny MakeSockAddr(SockFamily family, const std::string& socket_name) {
       freeaddrinfo(addr_info);
       return res;
     }
+    case SockFamily::kVsock: {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+      PERFETTO_CHECK(StartsWith(socket_name, kVsockNamePrefix));
+      auto address_port = StripPrefix(socket_name, kVsockNamePrefix);
+      auto parts = SplitString(address_port, ":");
+      PERFETTO_CHECK(parts.size() == 2);
+      sockaddr_vm addr;
+      memset(&addr, 0, sizeof(addr));
+      addr.svm_family = AF_VSOCK;
+      addr.svm_cid = *base::StringToUInt32(parts[0]);
+      addr.svm_port = *base::StringToUInt32(parts[1]);
+      SockaddrAny res(&addr, sizeof(addr));
+      return res;
+#else
+      errno = ENOTSOCK;
+      return SockaddrAny();
+#endif
+    }
+    case SockFamily::kUnspec:
+      errno = ENOTSOCK;
+      return SockaddrAny();
   }
   PERFETTO_CHECK(false);  // For GCC.
 }
@@ -201,8 +243,7 @@ ScopedSocketHandle CreateSocketHandle(SockFamily family, SockType type) {
   }();
   PERFETTO_CHECK(init_winsock_once);
 #endif
-  return ScopedSocketHandle(
-      socket(GetSockFamily(family), GetSockType(type), 0));
+  return ScopedSocketHandle(socket(MkSockFamily(family), MkSockType(type), 0));
 }
 
 }  // namespace
@@ -212,6 +253,29 @@ int CloseSocket(SocketHandle s) {
   return ::closesocket(s);
 }
 #endif
+
+SockFamily GetSockFamily(const char* addr) {
+  if (strlen(addr) == 0)
+    return SockFamily::kUnspec;
+
+  if (addr[0] == '@')
+    return SockFamily::kUnix;  // Abstract AF_UNIX sockets.
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  // Vsock address starts with vsock://.
+  if (strncmp(addr, kVsockNamePrefix, strlen(kVsockNamePrefix)) == 0)
+    return SockFamily::kVsock;
+#endif
+
+  // If `addr` ends in :NNNN it's either a kInet or kInet6 socket.
+  const char* col = strrchr(addr, ':');
+  if (col && CStringToInt32(col + 1).has_value()) {
+    return addr[0] == '[' ? SockFamily::kInet6 : SockFamily::kInet;
+  }
+
+  return SockFamily::kUnix;  // For anything else assume it's a linked AF_UNIX.
+}
 
 // +-----------------------+
 // | UnixSocketRaw methods |
@@ -245,7 +309,7 @@ std::pair<UnixSocketRaw, UnixSocketRaw> UnixSocketRaw::CreatePairPosix(
     SockFamily family,
     SockType type) {
   int fds[2];
-  if (socketpair(GetSockFamily(family), GetSockType(type), 0, fds) != 0) {
+  if (socketpair(MkSockFamily(family), MkSockType(type), 0, fds) != 0) {
     return std::make_pair(UnixSocketRaw(), UnixSocketRaw());
   }
   return std::make_pair(UnixSocketRaw(ScopedFile(fds[0]), family, type),
@@ -276,14 +340,18 @@ UnixSocketRaw::UnixSocketRaw(ScopedSocketHandle fd,
   setsockopt(*fd_, SOL_SOCKET, SO_NOSIGPIPE, &no_sigpipe, sizeof(no_sigpipe));
 #endif
 
-  if (family == SockFamily::kInet || family == SockFamily::kInet6) {
+  if (family == SockFamily::kInet || family == SockFamily::kInet6 ||
+      family == SockFamily::kVsock) {
     int flag = 1;
     // The reinterpret_cast<const char*> is needed for Windows, where the 4th
     // arg is a const char* (on other POSIX system is a const void*).
     PERFETTO_CHECK(!setsockopt(*fd_, SOL_SOCKET, SO_REUSEADDR,
                                reinterpret_cast<const char*>(&flag),
                                sizeof(flag)));
-    flag = 1;
+  }
+
+  if (family == SockFamily::kInet || family == SockFamily::kInet6) {
+    int flag = 1;
     // Disable Nagle's algorithm, optimize for low-latency.
     // See https://github.com/google/perfetto/issues/70.
     setsockopt(*fd_, IPPROTO_TCP, TCP_NODELAY,

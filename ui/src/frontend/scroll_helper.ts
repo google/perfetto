@@ -52,7 +52,6 @@ export function horizontalScrollToTs(ts: TPTime) {
 // - Otherwise, preserve the zoom range.
 export function focusHorizontalRange(
     start: TPTime, end: TPTime, viewPercentage?: number) {
-  console.log('focusHorizontalRange', start, end);
   const visible = globals.frontendLocalState.visibleWindowTime;
   const trace = globals.stateTraceTime();
   const select = HighPrecisionTimeSpan.fromTpTime(start, end);

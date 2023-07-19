@@ -184,8 +184,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
         // We don't handle tts here as we do in the 'E'
         // case above as it's not well defined for aysnc slices.
       } else {
-        context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id,
-                                        0);
+        context_->slice_tracker->Scoped(timestamp, track_id, cat_id, name_id, 0,
+                                        args_inserter);
         MaybeAddFlow(track_id, value);
       }
       break;

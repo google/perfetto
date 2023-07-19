@@ -15,8 +15,7 @@
 import m from 'mithril';
 
 import {SortDirection} from '../common/state';
-
-import {globals} from './globals';
+import {raf} from '../core/raf_scheduler';
 
 export interface RegularPopupMenuItem {
   itemType: 'regular';
@@ -130,7 +129,7 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
     } else {
       popupHolder.clear();
     }
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   renderItem(item: PopupMenuItem): m.Child {
@@ -158,7 +157,7 @@ export class PopupMenuButton implements m.ClassComponent<PopupMenuButtonAttrs> {
                   } else {
                     this.expandedGroups.add(item.itemId);
                   }
-                  globals.rafScheduler.scheduleFullRedraw();
+                  raf.scheduleFullRedraw();
                 },
               },
               // Show text with up/down arrow, depending on expanded state.

@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_UTIL_GLOB_H_
 
 #include <optional>
+#include <string_view>
 #include <vector>
 
 #include "perfetto/ext/base/small_vector.h"
@@ -69,6 +70,9 @@ namespace util {
 // [1] https://research.swtch.com/glob
 class GlobMatcher {
  public:
+  GlobMatcher(GlobMatcher&&) = default;
+  GlobMatcher& operator=(GlobMatcher&&) = default;
+
   // Creates a glob matcher from a pattern.
   static GlobMatcher FromPattern(base::StringView pattern_str) {
     return GlobMatcher(std::move(pattern_str));
@@ -77,6 +81,11 @@ class GlobMatcher {
   // Checks the provided string against the pattern and returns whether it
   // matches.
   bool Matches(base::StringView input);
+
+  // Returns whether the comparison should really be an equality comparison.
+  bool IsEquality() {
+    return !leading_star_ && !trailing_star_ && segments_.size() <= 1;
+  }
 
  private:
   // Represents a portion of the pattern in between two * characters.
@@ -95,6 +104,9 @@ class GlobMatcher {
   static constexpr uint32_t kMaxSegmentsOnStack = 4;
 
   explicit GlobMatcher(base::StringView pattern);
+
+  GlobMatcher(const GlobMatcher&) = delete;
+  GlobMatcher& operator=(const GlobMatcher&) = delete;
 
   // Returns whether |input| starts with the pattern in |segment| following
   // glob matching rules.

@@ -26,10 +26,17 @@ export interface QueryResponse {
   rows: Row[];
   statementCount: number;
   statementWithOutputCount: number;
+  lastStatementSql: string;
+}
+
+export interface QueryRunParams {
+  // If true, replaces nulls with "NULL" string. Default is true.
+  convertNullsToString?: boolean;
 }
 
 export async function runQuery(
-    sqlQuery: string, engine: EngineProxy): Promise<QueryResponse> {
+    sqlQuery: string, engine: EngineProxy, params?: QueryRunParams):
+    Promise<QueryResponse> {
   const startMs = performance.now();
   const queryRes = engine.query(sqlQuery);
 
@@ -47,6 +54,8 @@ export async function runQuery(
     // errored, the frontend will show a graceful message instead.
   }
 
+  const convertNullsToString = params?.convertNullsToString ?? true;
+
   const durationMs = performance.now() - startMs;
   const rows: Row[] = [];
   const columns = queryRes.columns();
@@ -55,7 +64,7 @@ export async function runQuery(
     const row: Row = {};
     for (const colName of columns) {
       const value = iter.get(colName);
-      row[colName] = value === null ? 'NULL' : value;
+      row[colName] = value === null && convertNullsToString ? 'NULL' : value;
     }
     rows.push(row);
     if (++numRows >= MAX_DISPLAY_ROWS) break;
@@ -70,6 +79,7 @@ export async function runQuery(
     rows,
     statementCount: queryRes.statementCount(),
     statementWithOutputCount: queryRes.statementWithOutputCount(),
+    lastStatementSql: queryRes.lastStatementSql(),
   };
   return result;
 }

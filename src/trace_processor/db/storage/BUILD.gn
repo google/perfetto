@@ -16,22 +16,33 @@ import("../../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
+    "id_storage.cc",
+    "id_storage.h",
     "numeric_storage.cc",
     "numeric_storage.h",
     "storage.cc",
     "storage.h",
+    "string_storage.cc",
+    "string_storage.h",
     "types.h",
+    "utils.h",
   ]
   deps = [
+    "../..:metatrace",
     "../../../../gn:default_deps",
     "../../../../include/perfetto/trace_processor:basic_types",
     "../../containers",
+    "../../util:glob",
   ]
 }
 
 perfetto_unittest_source_set("unittests") {
   testonly = true
-  sources = [ "storage_unittest.cc" ]
+  sources = [
+    "id_storage_unittest.cc",
+    "numeric_storage_unittest.cc",
+    "string_storage_unittest.cc",
+  ]
   deps = [
     ":storage",
     "../../../../gn:default_deps",

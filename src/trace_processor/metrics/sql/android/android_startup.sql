@@ -59,27 +59,23 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 -- Returns the fully drawn slice proto given a launch id.
-SELECT CREATE_FUNCTION(
-  'REPORT_FULLY_DRAWN_FOR_LAUNCH(startup_id INT)',
-  'PROTO',
-  '
-    SELECT
-      STARTUP_SLICE_PROTO(report_fully_drawn_ts - launch_ts)
-    FROM (
-      SELECT
-        launches.ts AS launch_ts,
-        min(slice.ts) AS report_fully_drawn_ts
-      FROM android_startups launches
-      JOIN android_startup_processes ON (launches.startup_id = android_startup_processes.startup_id)
-      JOIN thread USING (upid)
-      JOIN thread_track USING (utid)
-      JOIN slice ON (slice.track_id = thread_track.id)
-      WHERE
-        slice.name GLOB "reportFullyDrawn*" AND
-        slice.ts >= launches.ts AND
-        launches.startup_id = $startup_id
-    )
-  '
+CREATE PERFETTO FUNCTION REPORT_FULLY_DRAWN_FOR_LAUNCH(startup_id INT)
+RETURNS PROTO AS
+SELECT
+  STARTUP_SLICE_PROTO(report_fully_drawn_ts - launch_ts)
+FROM (
+  SELECT
+    launches.ts AS launch_ts,
+    min(slice.ts) AS report_fully_drawn_ts
+  FROM android_startups launches
+  JOIN android_startup_processes ON (launches.startup_id = android_startup_processes.startup_id)
+  JOIN thread USING (upid)
+  JOIN thread_track USING (utid)
+  JOIN slice ON (slice.track_id = thread_track.id)
+  WHERE
+    slice.name GLOB "reportFullyDrawn*" AND
+    slice.ts >= launches.ts AND
+    launches.startup_id = $startup_id
 );
 
 -- Given a launch id and GLOB for a slice name, returns the N longest slice name and duration.
@@ -289,7 +285,13 @@ SELECT
         'location', SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
         'odex_status', STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
         'compilation_filter', STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
-        'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1)
+        'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1),
+        'summary',
+        SUMMARY_FOR_OPTIMIZATION_STATUS(
+          SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
+          STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
+          STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
+          STR_SPLIT(slice_name, ' reason=', 1))
         ))
       FROM (
         SELECT *

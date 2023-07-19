@@ -77,6 +77,14 @@ export class RecordingConfigUtils {
   }
 }
 
+function enableSchedBlockedReason(androidApiLevel?: number): boolean {
+  return androidApiLevel !== undefined && androidApiLevel >= 31;
+}
+
+function enableCompactSched(androidApiLevel?: number): boolean {
+  return androidApiLevel !== undefined && androidApiLevel >= 31;
+}
+
 export function genTraceConfig(
     uiCfg: RecordConfig, targetInfo: TargetInfo): TraceConfig {
   const isAndroid = targetInfo.targetType === 'ANDROID';
@@ -142,7 +150,7 @@ export function genTraceConfig(
     procThreadAssociationPolling = true;
     procThreadAssociationFtrace = true;
     uiCfg.ftrace = true;
-    if (androidApiLevel && androidApiLevel >= 31) {
+    if (enableSchedBlockedReason(androidApiLevel)) {
       uiCfg.symbolizeKsyms = true;
     }
     ftraceEvents.add('sched/sched_switch');
@@ -625,7 +633,7 @@ export function genTraceConfig(
     ds.config.ftraceConfig.atraceCategories = Array.from(atraceCats);
     ds.config.ftraceConfig.atraceApps = Array.from(atraceApps);
 
-    if (androidApiLevel && androidApiLevel >= 31) {
+    if (enableCompactSched(androidApiLevel)) {
       const compact = new FtraceConfig.CompactSchedConfig();
       compact.enabled = true;
       ds.config.ftraceConfig.compactSched = compact;

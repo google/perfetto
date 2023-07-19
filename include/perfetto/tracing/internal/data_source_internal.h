@@ -28,6 +28,7 @@
 
 // No perfetto headers (other than tracing/api and protozero) should be here.
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/data_source_config.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/trace_writer_base.h"
 
@@ -93,16 +94,11 @@ struct DataSourceState {
   // to the startup session's ID.
   uint64_t startup_session_id = 0;
 
-  // A hash of the trace config used by this instance. This is used to
-  // de-duplicate instances for data sources with identical names (e.g., track
-  // event).
-  uint64_t config_hash = 0;
-
-  // Similar to config_hash, but excludes target buffers and service-set fields
-  // for matching of startup-tracing data source instances to sessions later
-  // started by the service.
-  // Learn more: ComputeStartupConfigHash
-  uint64_t startup_config_hash = 0;
+  // The trace config used by this instance. This is used to de-duplicate
+  // instances for data sources with identical names (e.g., track event).
+  // We store it as a pointer to be able to free memory after the datasource
+  // is stopped.
+  std::unique_ptr<DataSourceConfig> config;
 
   // If this data source is being intercepted (see Interceptor), this field
   // contains the non-zero id of a registered interceptor which should receive

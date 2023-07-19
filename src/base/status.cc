@@ -32,7 +32,8 @@ Status ErrStatus(const char* format, ...) {
   return status;
 }
 
-std::optional<std::string_view> Status::GetPayload(std::string_view type_url) {
+std::optional<std::string_view> Status::GetPayload(
+    std::string_view type_url) const {
   if (ok()) {
     return std::nullopt;
   }

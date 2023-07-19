@@ -12,20 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export type Arg = string|
-    {kind: 'SLICE', trackId: string, sliceId: number, description?: string};
-export type Args = Map<string, Arg>;
-
-export type ArgsTree = ArgsTreeMap|ArgsTreeArray|string;
-export type ArgsTreeArray = ArgsTree[];
-export interface ArgsTreeMap {
-  [key: string]: ArgsTree;
-}
-
-export function isArgTreeArray(item: ArgsTree): item is ArgsTreeArray {
-  return typeof item === 'object' && Array.isArray(item);
-}
-
-export function isArgTreeMap(item: ArgsTree): item is ArgsTreeMap {
-  return typeof item === 'object' && !Array.isArray(item);
-}
+export type ArgValue =
+    string|{kind: 'SLICE', trackId: string, sliceId: number, rawValue: string};
+export type Args = Map<string, ArgValue>;

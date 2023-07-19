@@ -16,12 +16,12 @@ import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
-import {Args, ArgsTree} from '../common/arg_types';
+import {Args} from '../common/arg_types';
+import {CommandManager} from '../common/commands';
 import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import {createEmptyState} from '../common/empty_state';
 import {Engine} from '../common/engine';
 import {
   HighPrecisionTime,
@@ -29,20 +29,25 @@ import {
 } from '../common/high_precision_time';
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {onSelectionChanged} from '../common/selection_observer';
 import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
-import {Span, tpTimeFromSeconds} from '../common/time';
 import {
+  Span,
   TPDuration,
   TPTime,
+  tpTimeFromSeconds,
   TPTimeSpan,
 } from '../common/time';
+import {setPerfHooks} from '../core/perf';
+import {raf} from '../core/raf_scheduler';
 
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
-import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
+import {SliceSqlId, TPTimestamp} from './sql_types';
+import {createStore, Store} from './store';
 import {PxSpan, TimeScale} from './time_scale';
 
 type Dispatch = (action: DeferredAction) => void;
@@ -76,7 +81,6 @@ export interface SliceDetails {
   packageName?: string;
   versionCode?: number;
   args?: Args;
-  argsTree?: ArgsTree;
   description?: Description;
 }
 
@@ -85,9 +89,9 @@ export interface FlowPoint {
 
   sliceName: string;
   sliceCategory: string;
-  sliceId: number;
-  sliceStartTs: TPTime;
-  sliceEndTs: TPTime;
+  sliceId: SliceSqlId;
+  sliceStartTs: TPTimestamp;
+  sliceEndTs: TPTimestamp;
   // Thread and process info. Only set in sliceSelected not in areaSelected as
   // the latter doesn't display per-flow info and it'd be a waste to join
   // additional tables for undisplayed info in that case. Nothing precludes
@@ -216,9 +220,8 @@ class Globals {
 
   private _testing = false;
   private _dispatch?: Dispatch = undefined;
-  private _state?: State = undefined;
+  private _store?: Store<State>;
   private _frontendLocalState?: FrontendLocalState = undefined;
-  private _rafScheduler?: RafScheduler = undefined;
   private _serviceWorkerController?: ServiceWorkerController = undefined;
   private _logging?: Analytics = undefined;
   private _isInternalUser: boolean|undefined = undefined;
@@ -249,6 +252,7 @@ class Globals {
   private _hideSidebar?: boolean = undefined;
   private _ftraceCounters?: FtraceStat[] = undefined;
   private _ftracePanelData?: FtracePanelData = undefined;
+  private _cmdManager?: CommandManager = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -269,12 +273,22 @@ class Globals {
 
   engines = new Map<string, Engine>();
 
-  initialize(dispatch: Dispatch, router: Router) {
+  initialize(
+      dispatch: Dispatch, router: Router, initialState: State,
+      cmdManager: CommandManager) {
     this._dispatch = dispatch;
     this._router = router;
-    this._state = createEmptyState();
+    this._store = createStore(initialState);
+    this._cmdManager = cmdManager;
     this._frontendLocalState = new FrontendLocalState();
-    this._rafScheduler = new RafScheduler();
+
+    setPerfHooks(
+        () => this.state.perfDebug,
+        () => this.dispatch(Actions.togglePerfDebug({})));
+
+    raf.beforeRedraw = () => this.frontendLocalState.clearVisibleTracks();
+    raf.afterRedraw = () => this.frontendLocalState.sendVisibleTracks();
+
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
         self.location && self.location.search.indexOf('testing=1') >= 0;
@@ -297,6 +311,11 @@ class Globals {
     this.engines.clear();
   }
 
+  // Only initialises the store - useful for testing.
+  initStore(initialState: State) {
+    this._store = createStore(initialState);
+  }
+
   get router(): Router {
     return assertExists(this._router);
   }
@@ -310,11 +329,11 @@ class Globals {
   }
 
   get state(): State {
-    return assertExists(this._state);
+    return assertExists(this._store).state;
   }
 
-  set state(state: State) {
-    this._state = assertExists(state);
+  get store(): Store<State> {
+    return assertExists(this._store);
   }
 
   get dispatch(): Dispatch {
@@ -330,10 +349,6 @@ class Globals {
 
   get frontendLocalState() {
     return assertExists(this._frontendLocalState);
-  }
-
-  get rafScheduler() {
-    return assertExists(this._rafScheduler);
   }
 
   get logging() {
@@ -576,19 +591,34 @@ class Globals {
     this._ftracePanelData = data;
   }
 
-  makeSelection(action: DeferredAction<{}>, tabToOpen = 'current_selection') {
+  makeSelection(
+      action: DeferredAction<{}>, tab: string|null = 'current_selection') {
+    const previousState = this.state;
     // A new selection should cancel the current search selection.
     globals.dispatch(Actions.setSearchIndex({index: -1}));
-    const tab = action.type === 'deselect' ? undefined : tabToOpen;
-    globals.dispatch(Actions.setCurrentTab({tab}));
+    if (action.type === 'deselect') {
+      globals.dispatch(Actions.setCurrentTab({tab: undefined}));
+    } else if (tab !== null) {
+      globals.dispatch(Actions.setCurrentTab({tab: tab}));
+    }
     globals.dispatch(action);
+
+    // HACK(stevegolton + altimin): This is a workaround to allow passing the
+    // next tab state to the Bottom Tab API
+    if (this.state.currentSelection !== previousState.currentSelection) {
+      // TODO(altimin): Currently we are not triggering this when changing
+      // the set of selected tracks via toggling per-track checkboxes.
+      // Fix that.
+      onSelectionChanged(
+          this.state.currentSelection ?? undefined,
+          tab === 'current_selection');
+    }
   }
 
   resetForTesting() {
     this._dispatch = undefined;
-    this._state = undefined;
+    this._store = undefined;
     this._frontendLocalState = undefined;
-    this._rafScheduler = undefined;
     this._serviceWorkerController = undefined;
 
     // TODO(hjd): Unify trackDataStore, queryResults, overviewStore, threads.
@@ -638,7 +668,7 @@ class Globals {
   // however pending RAFs and workers seem to outlive the |window| and need to
   // be cleaned up explicitly.
   shutdown() {
-    this._rafScheduler!.shutdown();
+    raf.shutdown();
   }
 
   // Get a timescale that covers the entire trace
@@ -674,6 +704,10 @@ class Globals {
       // Default to 1px per quanta if not defined
       return 1;
     }
+  }
+
+  get commandManager(): CommandManager {
+    return assertExists(this._cmdManager);
   }
 }
 

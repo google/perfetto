@@ -258,6 +258,11 @@ config("default") {
       "-mfpu=neon",
       "-mthumb",
     ]
+  } else if (current_cpu == "riscv64") {
+    if (!is_clang) {
+      # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=104338
+      libs += [ "atomic" ]
+    }
   } else if (current_cpu == "x86") {
     asmflags += [ "-m32" ]
     cflags += [
@@ -284,6 +289,14 @@ config("default") {
         "-msse4.2",
       ]
     }
+  }
+
+  if (is_wasm) {
+    # As of writing (2023-06-12) WASM 128bit SIMD is supported on
+    # stable Chrome, Safari, and Firefox. See:
+    # - https://webassembly.org/roadmap/
+    # - https://emscripten.org/docs/porting/simd.html
+    cflags += [ "-msimd128" ]
   }
 
   if (is_linux) {

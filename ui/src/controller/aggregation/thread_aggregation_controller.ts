@@ -55,9 +55,9 @@ export class ThreadAggregationController extends AggregationController {
         sum(dur) AS total_dur,
         sum(dur)/count(1) as avg_dur,
         count(1) as occurrences
-      FROM process
-      JOIN thread USING(upid)
+      FROM thread
       JOIN thread_state USING(utid)
+      LEFT JOIN process USING(upid)
       WHERE utid IN (${this.utids}) AND
       thread_state.ts + thread_state.dur > ${area.start} AND
       thread_state.ts < ${area.end}
@@ -72,12 +72,10 @@ export class ThreadAggregationController extends AggregationController {
     this.setThreadStateUtids(area.tracks);
     if (this.utids === undefined || this.utids.length === 0) return;
 
-    const query =
-        `select state, io_wait as ioWait, sum(dur) as totalDur from process
-      JOIN thread USING(upid)
-      JOIN thread_state USING(utid)
+    const query = `select state, io_wait as ioWait, sum(dur) as totalDur
+      FROM thread JOIN thread_state USING(utid)
       WHERE utid IN (${this.utids}) AND thread_state.ts + thread_state.dur > ${
-            area.start} AND
+        area.start} AND
       thread_state.ts < ${area.end}
       GROUP BY state, io_wait`;
     const result = await engine.query(query);

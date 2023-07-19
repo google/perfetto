@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DB_OVERLAYS_SELECTOR_OVERLAY_H_
 
 #include "src/trace_processor/db/overlays/storage_overlay.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -26,11 +27,15 @@ namespace overlays {
 // Overlay responsible for selecting specific rows from Storage.
 class SelectorOverlay : public StorageOverlay {
  public:
-  explicit SelectorOverlay(BitVector* selected) : selected_(selected) {}
+  explicit SelectorOverlay(const BitVector* selected) : selected_(selected) {}
 
   StorageRange MapToStorageRange(TableRange) const override;
 
-  TableBitVector MapToTableBitVector(StorageBitVector) const override;
+  TableRangeOrBitVector MapToTableRangeOrBitVector(StorageRange,
+                                                   OverlayOp) const override;
+
+  TableBitVector MapToTableBitVector(StorageBitVector,
+                                     OverlayOp) const override;
 
   BitVector IsStorageLookupRequired(OverlayOp,
                                     const TableIndexVector&) const override;
@@ -42,7 +47,7 @@ class SelectorOverlay : public StorageOverlay {
   CostEstimatePerRow EstimateCostPerRow(OverlayOp) const override;
 
  private:
-  BitVector* selected_;
+  const BitVector* selected_;
 };
 
 }  // namespace overlays

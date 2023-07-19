@@ -219,7 +219,8 @@ $bottom-tab-padding: 10px;
   }
 
   td {
-    padding: 2px 1px;
+    padding: 3px 5px;
+    white-space: nowrap;
 
     i.material-icons {
       // Shrink the icons inside the table cells to increase the information
@@ -261,14 +262,22 @@ $bottom-tab-padding: 10px;
   }
 }
 
-.query-table {
-  width: 100%;
+.pf-query-panel {
+  display: contents;
+  .pf-query-warning {
+    padding: 4px;
+    position: sticky;
+    left: 0;
+  }
+}
+
+.pf-query-table {
+  min-width: 100%;
   font-size: 14px;
   border: 0;
   thead td {
-    // TODO(stevegolton): Get sticky working again.
-    // position: sticky;
-    // top: 0;
+    position: sticky;
+    top: 0;
     background-color: hsl(214, 22%, 90%);
     color: #262f3c;
     text-align: center;
@@ -296,6 +305,11 @@ $bottom-tab-padding: 10px;
     }
     &[clickable] {
       cursor: pointer;
+      &:active {
+        background-color: hsl(206, 19%, 75%);
+        box-shadow: inset 1px 1px 4px #00000040;
+        transition: none;
+      }
     }
   }
 }
@@ -303,8 +317,10 @@ $bottom-tab-padding: 10px;
 .query-error {
   padding: 20px 10px;
   color: hsl(-10, 50%, 50%);
-  font-family: "Roboto Condensed", sans-serif;
+  font-family: "Roboto Mono", sans-serif;
+  font-size: 12px;
   font-weight: 300;
+  white-space: pre;
 }
 
 .dropdown {
@@ -457,7 +473,7 @@ $bottom-tab-padding: 10px;
 .scrolling-panel-container {
   position: relative;
   overflow-x: hidden;
-  overflow-y: scroll; // Always show vertical scrollbar
+  overflow-y: auto;
   flex: 1 1 auto;
   will-change: transform; // Force layer creation.
   display: grid;
@@ -527,7 +543,7 @@ canvas.main-canvas {
 }
 
 .time-axis-panel {
-  height: 12px;
+  height: 22px;
 }
 
 .tickbar {

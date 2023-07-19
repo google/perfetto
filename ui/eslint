@@ -15,7 +15,6 @@
 
 set -e -u
 ROOT_DIR="$(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd))"
-NODE_PATH="$ROOT_DIR/ui/node"
 ESLINT_PATH="$ROOT_DIR/ui/node_modules/.bin/eslint"
 
 if [[ ! -x "$ESLINT_PATH" ]]; then
@@ -23,4 +22,8 @@ if [[ ! -x "$ESLINT_PATH" ]]; then
   exit 1
 fi
 
-exec "$NODE_PATH" "$ESLINT_PATH" "$@"
+# Need to add node to the search path.
+TOOLS_PATH="$ROOT_DIR/tools"
+PATH=$TOOLS_PATH:$PATH
+
+exec "$ESLINT_PATH" "$@"

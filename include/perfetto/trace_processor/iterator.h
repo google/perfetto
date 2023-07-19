@@ -83,6 +83,10 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   // This value is guaranteed to be <= |StatementCount()|.
   uint32_t StatementWithOutputCount();
 
+  // Returns the last executed statement SQL (including, potentially, the final
+  // statement which is iterated using this iterator).
+  std::string LastStatementSql();
+
   // Returns the status of the iterator.
   util::Status Status();
 

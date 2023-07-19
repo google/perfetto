@@ -28,5 +28,24 @@ perfetto_proto_library("@TYPE@") {
     "initial_display_state.proto",
     "network_trace.proto",
     "packages_list.proto",
+    "surfaceflinger_common.proto",
+    "surfaceflinger_layers.proto",
+    "surfaceflinger_transactions.proto",
   ]
+}
+
+perfetto_proto_library("winscope_deps") {
+  proto_generators = [ "source_set" ]
+  sources = [
+    "surfaceflinger_common.proto",
+    "surfaceflinger_layers.proto",
+    "surfaceflinger_transactions.proto",
+  ]
+}
+
+perfetto_proto_library("winscope_descriptor") {
+  proto_generators = [ "descriptor" ]
+  generate_descriptor = "winscope.descriptor"
+  deps = [ ":winscope_deps" ]
+  sources = [ "winscope.proto" ]
 }

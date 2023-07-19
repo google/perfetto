@@ -35,7 +35,7 @@ class DrmTracker {
   explicit DrmTracker(TraceProcessorContext*);
 
   void ParseDrm(int64_t timestamp,
-                int32_t field_id,
+                uint32_t field_id,
                 uint32_t pid,
                 protozero::ConstBytes blob);
 

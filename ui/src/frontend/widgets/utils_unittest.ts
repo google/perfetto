@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {findRef, isOrContains, toHTMLElement} from './utils';
+import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
 
 describe('isOrContains', () => {
   const parent = document.createElement('div');

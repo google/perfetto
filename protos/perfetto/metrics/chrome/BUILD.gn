@@ -23,7 +23,6 @@ perfetto_proto_library("@TYPE@") {
   sources = [
     "all_chrome_metrics.proto",
     "args_class_names.proto",
-    "blink_gc_metric.proto",
     "dropped_frames.proto",
     "frame_times.proto",
     "histogram_hashes.proto",

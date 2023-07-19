@@ -47,35 +47,39 @@
 #include "src/trace_processor/importers/proto/content_analyzer.h"
 #include "src/trace_processor/importers/systrace/systrace_trace_parser.h"
 #include "src/trace_processor/iterator_impl.h"
-#include "src/trace_processor/prelude/functions/clock_functions.h"
-#include "src/trace_processor/prelude/functions/create_function.h"
-#include "src/trace_processor/prelude/functions/create_view_function.h"
-#include "src/trace_processor/prelude/functions/import.h"
-#include "src/trace_processor/prelude/functions/layout_functions.h"
-#include "src/trace_processor/prelude/functions/math.h"
-#include "src/trace_processor/prelude/functions/pprof_functions.h"
-#include "src/trace_processor/prelude/functions/sql_function.h"
-#include "src/trace_processor/prelude/functions/sqlite3_str_split.h"
-#include "src/trace_processor/prelude/functions/stack_functions.h"
-#include "src/trace_processor/prelude/functions/to_ftrace.h"
-#include "src/trace_processor/prelude/functions/utils.h"
-#include "src/trace_processor/prelude/functions/window_functions.h"
-#include "src/trace_processor/prelude/operators/span_join_operator.h"
-#include "src/trace_processor/prelude/operators/window_operator.h"
-#include "src/trace_processor/prelude/table_functions/ancestor.h"
-#include "src/trace_processor/prelude/table_functions/connected_flow.h"
-#include "src/trace_processor/prelude/table_functions/descendant.h"
-#include "src/trace_processor/prelude/table_functions/experimental_annotated_stack.h"
-#include "src/trace_processor/prelude/table_functions/experimental_counter_dur.h"
-#include "src/trace_processor/prelude/table_functions/experimental_flamegraph.h"
-#include "src/trace_processor/prelude/table_functions/experimental_flat_slice.h"
-#include "src/trace_processor/prelude/table_functions/experimental_sched_upid.h"
-#include "src/trace_processor/prelude/table_functions/experimental_slice_layout.h"
-#include "src/trace_processor/prelude/table_functions/table_function.h"
-#include "src/trace_processor/prelude/table_functions/view.h"
-#include "src/trace_processor/prelude/tables_views/tables_views.h"
-#include "src/trace_processor/sqlite/perfetto_sql_engine.h"
+#include "src/trace_processor/metrics/metrics.h"
+#include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/clock_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/create_view_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/import.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/layout_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/math.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/pprof_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/sqlite3_str_split.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/stack_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/to_ftrace.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/utils.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/functions/window_functions.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/span_join_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/operators/window_operator.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/ancestor.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/connected_flow.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/descendant.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_annotated_stack.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_counter_dur.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flamegraph.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h"
+#include "src/trace_processor/perfetto_sql/prelude/tables_views.h"
+#include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sql_stats_table.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
@@ -95,9 +99,6 @@
 #include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/metrics/all_webview_metrics.descriptor.h"
 #include "src/trace_processor/metrics/metrics.descriptor.h"
-#include "src/trace_processor/metrics/metrics.h"
-#include "src/trace_processor/metrics/sql/amalgamated_sql_metrics.h"
-#include "src/trace_processor/stdlib/amalgamated_stdlib.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -113,7 +114,7 @@ void RegisterFunction(PerfettoSqlEngine* engine,
                       int argc,
                       Ptr context = nullptr,
                       bool deterministic = true) {
-  auto status = engine->RegisterSqlFunction<SqlFunction>(
+  auto status = engine->RegisterCppFunction<SqlFunction>(
       name, argc, std::move(context), deterministic);
   if (!status.ok())
     PERFETTO_ELOG("%s", status.c_message());
@@ -276,7 +277,7 @@ void SetupMetrics(TraceProcessor* tp,
   RegisterFunction<metrics::RunMetric>(
       engine, "RUN_METRIC", -1,
       std::unique_ptr<metrics::RunMetric::Context>(
-          new metrics::RunMetric::Context{tp, sql_metrics}));
+          new metrics::RunMetric::Context{engine, sql_metrics}));
 
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
@@ -384,6 +385,18 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
     context_.content_analyzer.reset(new ProtoContentAnalyzer(&context_));
   }
 
+  auto v2 = context_.config.dev_flags.find("enable_db2_filtering");
+  if (v2 != context_.config.dev_flags.end()) {
+    if (v2->second == "true") {
+      Table::kUseFilterV2 = true;
+    } else if (v2->second == "false") {
+      Table::kUseFilterV2 = false;
+    } else {
+      PERFETTO_ELOG("Unknown value for enable_db2_filtering %s",
+                    v2->second.c_str());
+    }
+  }
+
   sqlite3_str_split_init(engine_.sqlite_engine()->db());
   RegisterAdditionalModules(&context_);
 
@@ -402,17 +415,18 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                context_.storage.get());
   RegisterFunction<AbsTimeStr>(&engine_, "ABS_TIME_STR", 1,
                                context_.clock_converter.get());
+  RegisterFunction<Reverse>(&engine_, "REVERSE", 1);
   RegisterFunction<ToMonotonic>(&engine_, "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
+  RegisterFunction<ToTimecode>(&engine_, "TO_TIMECODE", 1);
   RegisterFunction<CreateFunction>(&engine_, "CREATE_FUNCTION", 3, &engine_);
-  RegisterFunction<CreateViewFunction>(
-      &engine_, "CREATE_VIEW_FUNCTION", 3,
-      std::unique_ptr<CreateViewFunction::Context>(
-          new CreateViewFunction::Context{engine_.sqlite_engine()->db()}));
-  RegisterFunction<Import>(
-      &engine_, "IMPORT", 1,
-      std::unique_ptr<Import::Context>(new Import::Context{
-          engine_.sqlite_engine()->db(), this, &sql_modules_}));
+  RegisterFunction<CreateViewFunction>(&engine_, "CREATE_VIEW_FUNCTION", 3,
+                                       &engine_);
+  RegisterFunction<ExperimentalMemoize>(&engine_, "EXPERIMENTAL_MEMOIZE", 1,
+                                        &engine_);
+  RegisterFunction<Import>(&engine_, "IMPORT", 1,
+                           std::unique_ptr<Import::Context>(
+                               new Import::Context{&engine_, &sql_modules_}));
   RegisterFunction<ToFtrace>(
       &engine_, "TO_FTRACE", 1,
       std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
@@ -450,16 +464,16 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   // Operator tables.
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_join", storage, SqliteTable::TableType::kExplicitCreate, false);
+      "span_join", &engine_, SqliteTable::TableType::kExplicitCreate, false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_left_join", storage, SqliteTable::TableType::kExplicitCreate,
+      "span_left_join", &engine_, SqliteTable::TableType::kExplicitCreate,
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<SpanJoinOperatorTable>(
-      "span_outer_join", storage, SqliteTable::TableType::kExplicitCreate,
+      "span_outer_join", &engine_, SqliteTable::TableType::kExplicitCreate,
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
       "window", storage, SqliteTable::TableType::kExplicitCreate, true);
-  RegisterCreateViewFunctionModule(engine_.sqlite_engine());
+  RegisterCreateViewFunctionModule(&engine_);
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(engine_.sqlite_engine()->db());
@@ -579,6 +593,10 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
 
   RegisterDbTable(storage->expected_frame_timeline_slice_table());
   RegisterDbTable(storage->actual_frame_timeline_slice_table());
+
+  RegisterDbTable(storage->surfaceflinger_layers_snapshot_table());
+  RegisterDbTable(storage->surfaceflinger_layer_table());
+  RegisterDbTable(storage->surfaceflinger_transactions_table());
 
   RegisterDbTable(storage->metadata_table());
   RegisterDbTable(storage->cpu_table());
@@ -709,7 +727,8 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
           sql, base::GetWallTimeNs().count());
 
   base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
-      engine_.ExecuteUntilLastStatement(sql);
+      engine_.ExecuteUntilLastStatement(
+          SqlSource::FromExecuteQuery(sql.c_str()));
   std::unique_ptr<IteratorImpl> impl(
       new IteratorImpl(this, std::move(result), sql_stats_row));
   return Iterator(std::move(impl));
@@ -758,21 +777,13 @@ base::Status TraceProcessorImpl::RegisterSqlModule(SqlModule sql_module) {
 
 base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
                                                 const std::string& sql) {
-  std::string stripped_sql;
-  for (base::StringSplitter sp(sql, '\n'); sp.Next();) {
-    if (strncmp(sp.cur_token(), "--", 2) != 0) {
-      stripped_sql.append(sp.cur_token());
-      stripped_sql.push_back('\n');
-    }
-  }
-
   // Check if the metric with the given path already exists and if it does,
   // just update the SQL associated with it.
   auto it = std::find_if(
       sql_metrics_.begin(), sql_metrics_.end(),
       [&path](const metrics::SqlMetricFile& m) { return m.path == path; });
   if (it != sql_metrics_.end()) {
-    it->sql = stripped_sql;
+    it->sql = sql;
     return base::OkStatus();
   }
 
@@ -788,7 +799,7 @@ base::Status TraceProcessorImpl::RegisterMetric(const std::string& path,
 
   metrics::SqlMetricFile metric;
   metric.path = path;
-  metric.sql = stripped_sql;
+  metric.sql = sql;
 
   if (IsRootMetricField(no_ext_name)) {
     metric.proto_field_name = no_ext_name;
@@ -854,7 +865,7 @@ base::Status TraceProcessorImpl::ComputeMetric(
     return base::Status("Root metrics proto descriptor not found");
 
   const auto& root_descriptor = pool_.descriptors()[opt_idx.value()];
-  return metrics::ComputeMetrics(this, metric_names, sql_metrics_, pool_,
+  return metrics::ComputeMetrics(&engine_, metric_names, sql_metrics_, pool_,
                                  root_descriptor, metrics_proto);
 }
 

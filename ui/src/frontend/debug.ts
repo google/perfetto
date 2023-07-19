@@ -16,7 +16,9 @@ import {produce} from 'immer';
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
 import {getSchema} from '../common/schema';
+import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
 
@@ -28,6 +30,8 @@ declare global {
     globals: typeof globals;
     Actions: typeof Actions;
     produce: typeof produce;
+    pluginManager: typeof pluginManager
+    raf: typeof raf;
   }
 }
 
@@ -37,4 +41,6 @@ export function registerDebugGlobals() {
   window.globals = globals;
   window.Actions = Actions;
   window.produce = produce;
+  window.pluginManager = pluginManager;
+  window.raf = raf;
 }

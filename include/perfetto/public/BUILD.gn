@@ -24,6 +24,7 @@ source_set("protozero") {
 source_set("public") {
   sources = [
     "data_source.h",
+    "fnv1a.h",
     "pb_decoder.h",
     "pb_macros.h",
     "pb_msg.h",

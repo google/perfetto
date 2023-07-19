@@ -13,21 +13,24 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {StringListPatch} from 'src/common/state';
 
-import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
-import {formatTPTime, TPTime} from '../common/time';
+import {StringListPatch} from '../common/state';
+import {TPTime} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
+import {asTPTimestamp} from './sql_types';
+import {DetailsShell} from './widgets/details_shell';
 import {
-  MultiSelect,
   MultiSelectDiff,
   Option as MultiSelectOption,
+  PopupMultiSelect,
 } from './widgets/multiselect';
 import {PopupPosition} from './widgets/popup';
+import {Timestamp} from './widgets/timestamp';
+import {VirtualScrollContainer} from './widgets/virtual_scroll_container';
 
 const ROW_H = 20;
 const PAGE_SIZE = 250;
@@ -55,32 +58,19 @@ export class FtracePanel extends Panel<{}> {
 
   view(_: m.CVnode<{}>) {
     return m(
-        '.ftrace-panel',
+        DetailsShell,
+        {
+          title: this.renderTitle(),
+          buttons: this.renderFilterPanel(),
+        },
         m(
-            '.sticky',
-            [
-              this.renderRowsLabel(),
-              this.renderFilterPanel(),
-            ],
+            VirtualScrollContainer,
+            {
+              onScroll: this.onScroll,
+            },
+            m('.ftrace-panel', this.renderRows()),
             ),
-        this.renderRows(),
     );
-  }
-
-  private scrollContainer(dom: Element): HTMLElement {
-    const el = dom.parentElement;
-    return assertExists(el);
-  }
-
-  oncreate({dom}: m.CVnodeDOM) {
-    const sc = this.scrollContainer(dom);
-    sc.addEventListener('scroll', this.onScroll);
-    this.recomputeVisibleRowsAndUpdate(sc);
-  }
-
-  onupdate({dom}: m.CVnodeDOM) {
-    const sc = this.scrollContainer(dom);
-    this.recomputeVisibleRowsAndUpdate(sc);
   }
 
   recomputeVisibleRowsAndUpdate(scrollContainer: HTMLElement) {
@@ -102,19 +92,15 @@ export class FtracePanel extends Panel<{}> {
     }
   }
 
-  onremove({dom}: m.CVnodeDOM) {
-    const sc = this.scrollContainer(dom);
-    sc.removeEventListener('scroll', this.onScroll);
-
+  onremove(_: m.CVnodeDOM) {
     globals.dispatch(Actions.updateFtracePagination({
       offset: 0,
       count: 0,
     }));
   }
 
-  onScroll = (e: Event) => {
-    const scrollContainer = e.target as HTMLElement;
-    this.recomputeVisibleRowsAndUpdate(scrollContainer);
+  onScroll = (container: HTMLElement) => {
+    this.recomputeVisibleRowsAndUpdate(container);
   };
 
   onRowOver(ts: TPTime) {
@@ -125,12 +111,12 @@ export class FtracePanel extends Panel<{}> {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
   }
 
-  private renderRowsLabel() {
+  private renderTitle() {
     if (globals.ftracePanelData) {
       const {numEvents} = globals.ftracePanelData;
-      return m('.ftrace-rows-label', `Ftrace Events (${numEvents})`);
+      return `Ftrace Events (${numEvents})`;
     } else {
-      return m('.ftrace-rows-label', 'Ftrace Rows');
+      return 'Ftrace Rows';
     }
   }
 
@@ -150,9 +136,10 @@ export class FtracePanel extends Panel<{}> {
         });
 
     return m(
-        MultiSelect,
+        PopupMultiSelect,
         {
-          label: 'Filter by name',
+          label: 'Filter',
+          minimal: true,
           icon: 'filter_list_alt',
           popupPosition: PopupPosition.Top,
           options,
@@ -188,7 +175,7 @@ export class FtracePanel extends Panel<{}> {
       for (let i = 0; i < events.length; i++) {
         const {ts, name, cpu, process, args} = events[i];
 
-        const timestamp = formatTPTime(ts - globals.state.traceTime.start);
+        const timestamp = m(Timestamp, {ts: asTPTimestamp(ts)});
 
         const rank = i + offset;
 

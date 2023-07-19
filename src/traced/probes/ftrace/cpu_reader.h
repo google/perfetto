@@ -20,29 +20,18 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <array>
-#include <atomic>
-#include <memory>
 #include <optional>
 #include <set>
-#include <thread>
 
-#include "perfetto/ext/base/paged_memory.h"
-#include "perfetto/ext/base/pipe.h"
 #include "perfetto/ext/base/scoped_file.h"
-#include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/traced/data_source_types.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/protozero/message.h"
 #include "perfetto/protozero/message_handle.h"
-#include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
-#include "protos/perfetto/trace/profiling/profile_common.pbzero.h"
-#include "protos/perfetto/trace/trace_packet.pbzero.h"
-#include "src/kallsyms/kernel_symbol_map.h"
-#include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_metadata.h"
-#include "src/traced/probes/ftrace/proto_translation_table.h"
+
+#include "protos/perfetto/trace/trace_packet.pbzero.h"
 
 namespace perfetto {
 
@@ -63,8 +52,6 @@ enum FtraceClock : int32_t;
 // tracing buffers.
 class CpuReader {
  public:
-  using FtraceEventBundle = protos::pbzero::FtraceEventBundle;
-
   // Helper class to generate `TracePacket`s when needed. Public for testing.
   class Bundler {
    public:
@@ -128,10 +115,11 @@ class CpuReader {
   };
 
   CpuReader(size_t cpu,
+            base::ScopedFile trace_fd,
             const ProtoTranslationTable* table,
             LazyKernelSymbolizer* symbolizer,
-            const FtraceClockSnapshot*,
-            base::ScopedFile trace_fd);
+            protos::pbzero::FtraceClock ftrace_clock,
+            const FtraceClockSnapshot* ftrace_clock_snapshot);
   ~CpuReader();
 
   // Reads and parses all ftrace data for this cpu (in batches), until we catch
@@ -327,10 +315,6 @@ class CpuReader {
       const FtraceClockSnapshot*,
       protos::pbzero::FtraceClock);
 
-  void set_ftrace_clock(protos::pbzero::FtraceClock clock) {
-    ftrace_clock_ = clock;
-  }
-
  private:
   CpuReader(const CpuReader&) = delete;
   CpuReader& operator=(const CpuReader&) = delete;
@@ -348,9 +332,9 @@ class CpuReader {
   const size_t cpu_;
   const ProtoTranslationTable* const table_;
   LazyKernelSymbolizer* const symbolizer_;
-  const FtraceClockSnapshot* const ftrace_clock_snapshot_;
   base::ScopedFile trace_fd_;
   protos::pbzero::FtraceClock ftrace_clock_{};
+  const FtraceClockSnapshot* const ftrace_clock_snapshot_;
 };
 
 }  // namespace perfetto

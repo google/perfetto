@@ -35,7 +35,7 @@ class VirtioGpuTracker {
   explicit VirtioGpuTracker(TraceProcessorContext*);
 
   void ParseVirtioGpu(int64_t timestamp,
-                      int32_t field_id,
+                      uint32_t field_id,
                       uint32_t pid,
                       protozero::ConstBytes blob);
 

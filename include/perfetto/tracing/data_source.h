@@ -93,6 +93,9 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
     // be retained.
     const DataSourceConfig* config = nullptr;
 
+    // Backend type.
+    BackendType backend_type = kUnspecifiedBackend;
+
     // The index of this data source instance (0..kMaxDataSourceInstances - 1).
     uint32_t internal_instance_index = 0;
   };
@@ -158,6 +161,11 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
   // to tell other threads to flush their TraceContext for this data source
   // (the library cannot execute code on all the threads on its own).
   virtual void OnFlush(const FlushArgs&);
+
+  // Determines whether a startup session can be adopted by a service-initiated
+  // tracing session (i.e. whether their configs are compatible).
+  virtual bool CanAdoptStartupSession(const DataSourceConfig& startup_config,
+                                      const DataSourceConfig& service_config);
 };
 
 struct DefaultDataSourceTraits {

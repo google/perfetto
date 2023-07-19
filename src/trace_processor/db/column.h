@@ -384,6 +384,9 @@ class Column {
   Constraint is_null() const {
     return Constraint{index_in_table_, FilterOp::kIsNull, SqlValue()};
   }
+  Constraint glob_value(SqlValue value) const {
+    return Constraint{index_in_table_, FilterOp::kGlob, value};
+  }
 
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{index_in_table_, false}; }
@@ -413,6 +416,8 @@ class Column {
     PERFETTO_DCHECK(tc_internal::TypeHandler<T>::is_optional == IsNullable());
     return *static_cast<ColumnStorage<stored_type<T>>*>(storage_);
   }
+
+  const ColumnStorageBase& storage_base() const { return *storage_; }
 
  protected:
   // Returns the backing sparse vector cast to contain data of type T.

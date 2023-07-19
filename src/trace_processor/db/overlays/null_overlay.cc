@@ -16,6 +16,8 @@
 
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -27,12 +29,36 @@ StorageRange NullOverlay::MapToStorageRange(TableRange t_range) const {
   uint32_t start = non_null_->CountSetBits(t_range.range.start);
   uint32_t end = non_null_->CountSetBits(t_range.range.end);
 
-  return StorageRange({Range(start, end)});
+  return StorageRange(start, end);
 }
 
-TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv) const {
+TableRangeOrBitVector NullOverlay::MapToTableRangeOrBitVector(
+    StorageRange s_range,
+    OverlayOp op) const {
+  PERFETTO_DCHECK(s_range.range.end <= non_null_->CountSetBits());
+
+  BitVector range_to_bv(s_range.range.start, false);
+  range_to_bv.Resize(s_range.range.end, true);
+
+  return TableRangeOrBitVector(
+      MapToTableBitVector(StorageBitVector{std::move(range_to_bv)}, op).bv);
+}
+
+TableBitVector NullOverlay::MapToTableBitVector(StorageBitVector s_bv,
+                                                OverlayOp op) const {
   BitVector res = non_null_->Copy();
   res.UpdateSetBits(s_bv.bv);
+
+  if (op != OverlayOp::kIsNull)
+    return {std::move(res)};
+
+  BitVector not_non_null = non_null_->Copy();
+  not_non_null.Not();
+
+  if (res.CountSetBits() == 0)
+    return {std::move(not_non_null)};
+
+  res.Or(not_non_null);
   return {std::move(res)};
 }
 
@@ -42,7 +68,7 @@ BitVector NullOverlay::IsStorageLookupRequired(
   PERFETTO_DCHECK(t_iv.indices.size() <= non_null_->size());
 
   if (op != OverlayOp::kOther)
-    return BitVector();
+    return BitVector(t_iv.size(), false);
 
   BitVector in_storage(static_cast<uint32_t>(t_iv.indices.size()), false);
 
@@ -73,7 +99,7 @@ BitVector NullOverlay::IndexSearch(
     OverlayOp op,
     const TableIndexVector& t_iv_overlay_idx) const {
   if (op == OverlayOp::kOther)
-    return BitVector();
+    return BitVector(t_iv_overlay_idx.size(), false);
 
   BitVector res(static_cast<uint32_t>(t_iv_overlay_idx.indices.size()), false);
   if (op == OverlayOp::kIsNull) {

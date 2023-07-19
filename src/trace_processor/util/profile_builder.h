@@ -19,6 +19,7 @@
 
 #include <optional>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_view.h"
 #include "perfetto/protozero/packed_repeated_fields.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -65,7 +66,7 @@ class GProfileBuilder {
 
   // Returns false if the operation fails (e.g callsite_id was not found)
   bool AddSample(const protos::pbzero::Stack_Decoder& stack,
-                 const protozero::PackedVarInt& values);
+                 const std::vector<int64_t>& values);
 
   // Finalizes the profile and returns the serialized proto. Can be called
   // multiple times but after the first invocation `AddSample` calls will have
@@ -253,6 +254,32 @@ class GProfileBuilder {
     }
   };
 
+  // Aggregates samples with the same location_ids (i.e. stack) by computing the
+  // sum of their values. This helps keep the generated profiles small as it
+  // potentially removes a lot of duplication from having multiple samples with
+  // the same stack.
+  class SampleAggregator {
+   public:
+    bool AddSample(const protozero::PackedVarInt& location_ids,
+                   const std::vector<int64_t>& values);
+
+    void WriteTo(third_party::perftools::profiles::pbzero::Profile& profile);
+
+   private:
+    // Key holds the serialized value of the Sample::location_id proto field
+    // (packed varint).
+    using SerializedLocationId = std::vector<uint8_t>;
+    struct Hasher {
+      size_t operator()(const SerializedLocationId& data) const {
+        base::Hasher hasher;
+        hasher.Update(reinterpret_cast<const char*>(data.data()), data.size());
+        return static_cast<size_t>(hasher.digest());
+      }
+    };
+    base::FlatHashMap<SerializedLocationId, std::vector<int64_t>, Hasher>
+        samples_;
+  };
+
   const protozero::PackedVarInt& GetLocationIdsForCallsite(
       const CallsiteId& callsite_id,
       bool annotated);
@@ -309,9 +336,6 @@ class GProfileBuilder {
   // most likely main binary.
   std::optional<uint64_t> GuessMainBinary() const;
 
-  bool AddSample(const protozero::PackedVarInt& location_ids,
-                 const protozero::PackedVarInt& values);
-
   // Profile proto being serialized.
   protozero::HeapBuffered<third_party::perftools::profiles::pbzero::Profile>
       result_;
@@ -363,6 +387,7 @@ class GProfileBuilder {
   std::unordered_map<Function, uint64_t, Function::Hash> functions_;
   // Staging area for Mappings. mapping_id - 1 = index in the vector.
   std::vector<Mapping> mappings_;
+  SampleAggregator samples_;
 };
 
 }  // namespace trace_processor

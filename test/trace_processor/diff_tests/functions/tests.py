@@ -39,6 +39,265 @@ def PrintProfileProto(profile):
 
 
 class Functions(TestSuite):
+
+  def test_create_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_function('f(x INT)', 'INT', 'SELECT $x + 1');
+
+        SELECT f(5) as result;
+      """,
+        out=Csv("""
+        "result"
+        6
+      """))
+
+  def test_create_function_returns_string(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_function('f(x INT)', 'STRING', 'SELECT "value_" || $x');
+
+        SELECT f(5) as result;
+      """,
+        out=Csv("""
+        "result"
+        "value_5"
+      """))
+
+  def test_create_function_duplicated(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_function('f()', 'INT', 'SELECT 1');
+        SELECT create_function('f()', 'INT', 'SELECT 1');
+
+        SELECT f() as result;
+      """,
+        out=Csv("""
+        "result"
+        1
+      """))
+
+  def test_create_function_recursive(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute factorial.
+        SELECT create_function('f(x INT)', 'INT',
+        '
+          SELECT IIF($x = 0, 1, $x * f($x - 1))
+        ');
+
+        SELECT f(5) as result;
+      """,
+        out=Csv("""
+        "result"
+        120
+      """))
+
+  def test_create_function_recursive_string(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute factorial.
+        SELECT create_function('f(x INT)', 'STRING',
+        '
+          SELECT IIF(
+            $x = 0,
+            "",
+            -- 97 is the ASCII code for "a".
+            f($x - 1) || char(96 + $x) || f($x - 1))
+        ');
+
+        SELECT f(4) as result;
+      """,
+        out=Csv("""
+          "result"
+          "abacabadabacaba"
+      """))
+
+  def test_create_function_recursive_string_memoized(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute factorial.
+        SELECT create_function('f(x INT)', 'STRING',
+        '
+          SELECT IIF(
+            $x = 0,
+            "",
+            -- 97 is the ASCII code for "a".
+            f($x - 1) || char(96 + $x) || f($x - 1))
+        ');
+
+        SELECT experimental_memoize('f');
+
+        SELECT f(4) as result;
+      """,
+        out=Csv("""
+          "result"
+          "abacabadabacaba"
+      """))
+
+  def test_create_function_memoize(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute 2^n inefficiently to test memoization.
+        -- If it times out, memoization is not working.
+        SELECT create_function('f(x INT)', 'INT',
+        '
+          SELECT IIF($x = 0, 1, f($x - 1) + f($x - 1))
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('f');
+
+        -- 2^50 is too expensive to compute, but memoization makes it fast.
+        SELECT f(50) as result;
+      """,
+        out=Csv("""
+        "result"
+        1125899906842624
+      """))
+
+  def test_create_function_memoize_float(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- Compute 2^n inefficiently to test memoization.
+        -- If it times out, memoization is not working.
+        SELECT create_function('f(x INT)', 'FLOAT',
+        '
+          SELECT $x + 0.5
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('f');
+
+        SELECT printf("%.1f", f(1)) as result
+        UNION ALL
+        SELECT printf("%.1f", f(1)) as result
+        UNION ALL
+        SELECT printf("%.1f", f(1)) as result
+      """,
+        out=Csv("""
+        "result"
+        "1.5"
+        "1.5"
+        "1.5"
+      """))
+
+  def test_create_function_memoize_intermittent_memoization(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        -- This function returns NULL for odd numbers and 1 for even numbers.
+        -- As we do not memoize NULL results, we would only memoize the results
+        -- for even numbers.
+        SELECT create_function('f(x INT)', 'INT',
+        '
+          SELECT IIF($x = 0, 1,
+            IIF(f($x - 1) IS NULL, 1, NULL)
+          )
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('f');
+
+        SELECT
+          f(50) as f_50,
+          f(51) as f_51;
+      """,
+        out=Csv("""
+        "f_50","f_51"
+        1,"[NULL]"
+      """))
+
+  def test_create_function_memoize_subtree_size(self):
+    # Tree:
+    #            1
+    #           / \
+    #          /   \
+    #         /     \
+    #        2       3
+    #       / \     / \
+    #      4   5   6   7
+    #     / \  |   |  | \
+    #    8   9 10 11 12 13
+    #    |   |
+    #   14   15
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        CREATE TABLE tree AS
+        WITH data(id, parent_id) as (VALUES
+          (1, NULL),
+          (2, 1),
+          (3, 1),
+          (4, 2),
+          (5, 2),
+          (6, 3),
+          (7, 3),
+          (8, 4),
+          (9, 4),
+          (10, 5),
+          (11, 6),
+          (12, 7),
+          (13, 7),
+          (14, 8),
+          (15, 9)
+        )
+        SELECT * FROM data;
+
+        SELECT create_function('subtree_size(id INT)', 'INT',
+        '
+          SELECT 1 + IFNULL((
+            SELECT
+              SUM(subtree_size(child.id))
+            FROM tree child
+            WHERE child.parent_id = $id
+          ), 0)
+        ');
+
+        SELECT EXPERIMENTAL_MEMOIZE('subtree_size');
+
+        SELECT
+          id, subtree_size(id) as size
+        FROM tree
+        ORDER BY id;
+      """,
+        out=Csv("""
+        "id","size"
+        1,15
+        2,8
+        3,6
+        4,5
+        5,2
+        6,2
+        7,3
+        8,2
+        9,2
+        10,1
+        11,1
+        12,1
+        13,1
+        14,1
+        15,1
+      """))
+
+  def test_create_view_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT create_view_function('f(x INT)', 'result INT', 'SELECT $x + 1 as result');
+
+        SELECT * FROM f(5);
+      """,
+        out=Csv("""
+        "result"
+        6
+      """))
+
   def test_first_non_null_frame(self):
     return DiffTestBlueprint(
         trace=TextProto(r"""
@@ -368,6 +627,47 @@ class Functions(TestSuite):
                 Stack:
                   B (0x0)
                   A (0x0)
+            """))
+
+  def test_profile_aggregates_samples(self):
+    return DiffTestBlueprint(
+        trace=DataPath("perf_sample.pb"),
+        query="""
+        WITH samples(stack, value) AS (
+        VALUES
+          (CAT_STACKS("A", "B"), 4),
+          (CAT_STACKS("A", "B"), 8),
+          (CAT_STACKS("A", "B"), 15),
+          (CAT_STACKS("A", "C"), 16),
+          (CAT_STACKS("C", "B"), 23),
+          (CAT_STACKS("C", "B"), 42)
+        )
+        SELECT HEX(
+          EXPERIMENTAL_PROFILE(
+            stack, "type", "units", value))
+        FROM samples
+        """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+            Sample:
+              Values: 16
+              Stack:
+                C (0x0)
+                A (0x0)
+
+            Sample:
+              Values: 27
+              Stack:
+                B (0x0)
+                A (0x0)
+
+            Sample:
+              Values: 65
+              Stack:
+                B (0x0)
+                C (0x0)
             """))
 
   def test_annotated_callstack(self):

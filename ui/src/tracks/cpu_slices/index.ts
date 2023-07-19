@@ -22,13 +22,8 @@ import {
   drawIncompleteSlice,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
-import {PluginContext} from '../../common/plugin_api';
 import {LONG, NUM} from '../../common/query_result';
-import {
-  TPDuration,
-  TPTime,
-  tpTimeToString,
-} from '../../common/time';
+import {formatDurationShort, TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
@@ -36,6 +31,7 @@ import {
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PluginContext} from '../../public';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -79,7 +75,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     `);
 
     const queryLastSlice = await this.query(`
-    select max(id) as lastSliceId from ${this.tableName('sched')}
+    select ifnull(max(id), -1) as lastSliceId from ${this.tableName('sched')}
     `);
     this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
 
@@ -366,7 +362,7 @@ class CpuSliceTrack extends Track<Config, Data> {
               latencyWidth >= 20);
           // Latency time with a white semi-transparent background.
           const latency = tStart - details.wakeupTs;
-          const displayText = tpTimeToString(latency);
+          const displayText = formatDurationShort(latency);
           const measured = ctx.measureText(displayText);
           if (latencyWidth >= measured.width + 2) {
             ctx.fillStyle = 'rgba(255,255,255,0.7)';

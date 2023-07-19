@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {BigintMath} from '../base/bigint_math';
 import {assertTrue} from '../base/logging';
+import {globals} from '../frontend/globals';
+
 import {ColumnType} from './query_result';
 
-// TODO(hjd): Combine with timeToCode.
-export function timeToString(sec: number) {
+// Print time to a few significant figures.
+// Use this when readability is more desireable than precision.
+// Examples: 1234 -> 1.23ns
+//           123456789 -> 123ms
+//           123,123,123,123,123 -> 34h 12m
+//           1,000,000,023 -> 1 s
+//           1,230,000,023 -> 1.2 s
+export function formatDurationShort(time: TPTime) {
+  const sec = tpTimeToSeconds(time);
   const units = ['s', 'ms', 'us', 'ns'];
   const sign = Math.sign(sec);
   let n = Math.abs(sec);
@@ -25,70 +35,107 @@ export function timeToString(sec: number) {
     n *= 1000;
     u++;
   }
-  return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10} ${units[u]}`;
+  return `${sign < 0 ? '-' : ''}${Math.round(n * 10) / 10}${units[u]}`;
 }
 
-export function tpTimeToString(time: TPTime) {
-  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
-  return timeToString(tpTimeToSeconds(time));
-}
-
-export function fromNs(ns: number) {
-  return ns / 1e9;
-}
-
-export function toNsFloor(seconds: number) {
-  return Math.floor(seconds * 1e9);
-}
-
-export function toNsCeil(seconds: number) {
-  return Math.ceil(seconds * 1e9);
-}
-
-export function toNs(seconds: number) {
-  return Math.round(seconds * 1e9);
-}
-
-// 1000000023ns -> "1.000 000 023"
-export function formatTimestamp(sec: number) {
-  const parts = sec.toFixed(9).split('.');
-  parts[1] = parts[1].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return parts.join('.');
-}
-
-export function formatTPTime(time: TPTime) {
-  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
-  return formatTimestamp(tpTimeToSeconds(time));
-}
-
-// TODO(hjd): Rename to formatTimestampWithUnits
-// 1000000023ns -> "1s 23ns"
-export function timeToCode(sec: number): string {
+// Print time with absolute precision.
+// TODO(stevegolton): Merge this with formatDurationShort
+export function formatDuration(time: TPTime): string {
   let result = '';
-  let ns = Math.round(sec * 1e9);
-  if (ns < 1) return '0s';
-  const unitAndValue = [
-    ['m', 60000000000],
-    ['s', 1000000000],
-    ['ms', 1000000],
-    ['us', 1000],
-    ['ns', 1],
+  if (time < 1) return '0s';
+  const unitAndValue: [string, bigint][] = [
+    ['m', 60000000000n],
+    ['s', 1000000000n],
+    ['ms', 1000000n],
+    ['us', 1000n],
+    ['ns', 1n],
   ];
-  unitAndValue.forEach((pair) => {
-    const unit = pair[0] as string;
-    const val = pair[1] as number;
-    if (ns >= val) {
-      const i = Math.floor(ns / val);
-      ns -= i * val;
-      result += i.toLocaleString() + unit + ' ';
+  unitAndValue.forEach(([unit, unitSize]) => {
+    if (time >= unitSize) {
+      const unitCount = time / unitSize;
+      result += unitCount.toLocaleString() + unit + ' ';
+      time %= unitSize;
     }
   });
   return result.slice(0, -1);
 }
 
-export function tpTimeToCode(time: TPTime) {
-  // TODO(stevegolton): Write a formatter to format bigint timestamps natively.
-  return timeToCode(tpTimeToSeconds(time));
+// This class takes a time and converts it to a set of strings representing a
+// time code where each string represents a group of time units formatted with
+// an appropriate number of leading zeros.
+export class Timecode {
+  public readonly sign: string;
+  public readonly days: string;
+  public readonly hours: string;
+  public readonly minutes: string;
+  public readonly seconds: string;
+  public readonly millis: string;
+  public readonly micros: string;
+  public readonly nanos: string;
+
+  constructor(time: TPTime) {
+    this.sign = time < 0 ? '-' : '';
+
+    const absTime = BigintMath.abs(time);
+
+    const days = (absTime / 86_400_000_000_000n);
+    const hours = (absTime / 3_600_000_000_000n) % 24n;
+    const minutes = (absTime / 60_000_000_000n) % 60n;
+    const seconds = (absTime / 1_000_000_000n) % 60n;
+    const millis = (absTime / 1_000_000n) % 1_000n;
+    const micros = (absTime / 1_000n) % 1_000n;
+    const nanos = absTime % 1_000n;
+
+    this.days = days.toString();
+    this.hours = hours.toString().padStart(2, '0');
+    this.minutes = minutes.toString().padStart(2, '0');
+    this.seconds = seconds.toString().padStart(2, '0');
+    this.millis = millis.toString().padStart(3, '0');
+    this.micros = micros.toString().padStart(3, '0');
+    this.nanos = nanos.toString().padStart(3, '0');
+  }
+
+  // Get the upper part of the timecode formatted as: [-]DdHH:MM:SS.
+  get dhhmmss(): string {
+    const days = this.days === '0' ? '' : `${this.days}d`;
+    return `${this.sign}${days}${this.hours}:${this.minutes}:${this.seconds}`;
+  }
+
+  // Get the subsecond part of the timecode formatted as: mmm uuu nnn.
+  // The "space" char is configurable but defaults to a normal space.
+  subsec(spaceChar: string = ' '): string {
+    return `${this.millis}${spaceChar}${this.micros}${spaceChar}${this.nanos}`;
+  }
+
+  // Formats the entire timecode to a string.
+  toString(spaceChar: string = ' '): string {
+    return `${this.dhhmmss}.${this.subsec(spaceChar)}`;
+  }
+}
+
+// Offset between t=0 and the configured time domain.
+export function timestampOffset() {
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.Timecode:
+    case TimestampFormat.Seconds:
+      return globals.state.traceTime.start;
+    case TimestampFormat.Raw:
+    case TimestampFormat.RawLocale:
+      return 0n;
+    default:
+      const x: never = fmt;
+      throw new Error(`Unsupported format ${x}`);
+  }
+}
+
+// Convert absolute timestamp to domain time.
+export function toDomainTime(ts: TPTime) {
+  return ts - timestampOffset();
+}
+
+export function toNs(seconds: number) {
+  return Math.round(seconds * 1e9);
 }
 
 export function currentDateHourAndMinute(): string {
@@ -162,13 +209,15 @@ export interface Span<Unit, Duration = Unit> {
   get duration(): Duration;
   get midpoint(): Unit;
   contains(span: Unit|Span<Unit, Duration>): boolean;
-  intersects(x: Span<Unit>): boolean;
+  intersectsSpan(span: Span<Unit, Duration>): boolean;
+  intersects(a: Unit, b: Unit): boolean;
   equals(span: Span<Unit, Duration>): boolean;
   add(offset: Duration): Span<Unit, Duration>;
   pad(padding: Duration): Span<Unit, Duration>;
 }
 
 export class TPTimeSpan implements Span<TPTime, TPDuration> {
+  static readonly ZERO = new TPTimeSpan(0n, 0n);
   readonly start: TPTime;
   readonly end: TPTime;
 
@@ -196,8 +245,12 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
     }
   }
 
-  intersects(x: Span<TPTime, TPDuration>): boolean {
-    return !(x.end <= this.start || x.start >= this.end);
+  intersectsSpan(span: Span<TPTime, TPDuration>): boolean {
+    return !(span.end <= this.start || span.start >= this.end);
+  }
+
+  intersects(start: TPTime, end: TPTime): boolean {
+    return !(end <= this.start || start >= this.end);
   }
 
   equals(span: Span<TPTime, TPDuration>): boolean {
@@ -211,4 +264,35 @@ export class TPTimeSpan implements Span<TPTime, TPDuration> {
   pad(padding: TPDuration): Span<TPTime, TPDuration> {
     return new TPTimeSpan(this.start - padding, this.end + padding);
   }
+}
+
+export enum TimestampFormat {
+  Timecode = 'timecode',
+  Raw = 'raw',
+  RawLocale = 'rawLocale',
+  Seconds = 'seconds',
+}
+
+let timestampFormatCached: TimestampFormat|undefined;
+
+const TIMESTAMP_FORMAT_KEY = 'timestampFormat';
+const DEFAULT_TIMESTAMP_FORMAT = TimestampFormat.Timecode;
+
+function isTimestampFormat(value: unknown): value is TimestampFormat {
+  return Object.values(TimestampFormat).includes(value as TimestampFormat);
+}
+
+export function timestampFormat(): TimestampFormat {
+  const storedFormat = localStorage.getItem(TIMESTAMP_FORMAT_KEY);
+  if (storedFormat && isTimestampFormat(storedFormat)) {
+    timestampFormatCached = storedFormat;
+  } else {
+    timestampFormatCached = DEFAULT_TIMESTAMP_FORMAT;
+  }
+  return timestampFormatCached;
+}
+
+export function setTimestampFormat(format: TimestampFormat) {
+  timestampFormatCached = format;
+  localStorage.setItem(TIMESTAMP_FORMAT_KEY, format);
 }

@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/android_blocking_call.proto";
 import "protos/perfetto/metrics/android/process_metadata.proto";
 
 // Blocking calls inside Android CUJs. Shows count and total duration for each.
@@ -43,20 +44,6 @@ message AndroidBlockingCallsCujMetric {
     optional int64 dur = 5;
 
     // List of blocking calls on the process main thread.
-    repeated BlockingCall blocking_calls = 6;
-  }
-
-  // Blocking call on the main thread.
-  message BlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
+    repeated AndroidBlockingCall blocking_calls = 6;
   }
 }

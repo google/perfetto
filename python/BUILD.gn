@@ -26,7 +26,6 @@ perfetto_py_library("trace_processor_stdlib_docs") {
   sources = [
     "generators/stdlib_docs/extractor.py",
     "generators/stdlib_docs/parse.py",
-    "generators/stdlib_docs/types.py",
     "generators/stdlib_docs/utils.py",
   ]
 }

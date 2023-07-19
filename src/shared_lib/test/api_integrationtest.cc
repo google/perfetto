@@ -21,6 +21,7 @@
 #include "perfetto/public/abi/data_source_abi.h"
 #include "perfetto/public/abi/pb_decoder_abi.h"
 #include "perfetto/public/data_source.h"
+#include "perfetto/public/pb_decoder.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"
 #include "perfetto/public/protos/trace/trace.pzc.h"
@@ -41,6 +42,7 @@ using ::perfetto::shlib::test_utils::MsgField;
 using ::perfetto::shlib::test_utils::PbField;
 using ::perfetto::shlib::test_utils::StringField;
 using ::perfetto::shlib::test_utils::TracingSession;
+using ::perfetto::shlib::test_utils::WaitableEvent;
 using ::testing::_;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
@@ -60,58 +62,124 @@ class MockDs2Callbacks : testing::Mock {
  public:
   MOCK_METHOD(void*,
               OnSetup,
-              (PerfettoDsInstanceIndex inst_id,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
                void* ds_config,
                size_t ds_config_size,
                void* user_arg));
   MOCK_METHOD(void,
               OnStart,
-              (PerfettoDsInstanceIndex inst_id,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
                void* user_arg,
                void* inst_ctx));
   MOCK_METHOD(void,
               OnStop,
-              (PerfettoDsInstanceIndex inst_id,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnStopArgs* args));
+  MOCK_METHOD(void,
+              OnFlush,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
+               void* user_arg,
+               void* inst_ctx,
+               struct PerfettoDsOnFlushArgs* args));
   MOCK_METHOD(void*,
               OnCreateTls,
-              (PerfettoDsInstanceIndex inst_id,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
                struct PerfettoDsTracerImpl* tracer,
                void* user_arg));
   MOCK_METHOD(void, OnDeleteTls, (void*));
   MOCK_METHOD(void*,
               OnCreateIncr,
-              (PerfettoDsInstanceIndex inst_id,
+              (struct PerfettoDsImpl*,
+               PerfettoDsInstanceIndex inst_id,
                struct PerfettoDsTracerImpl* tracer,
                void* user_arg));
   MOCK_METHOD(void, OnDeleteIncr, (void*));
 };
 
-class Notification {
- public:
-  Notification() = default;
-  void Notify() {
-    std::unique_lock<std::mutex> lock(m_);
-    notified_ = true;
-    cv_.notify_one();
+TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
+  // # proto-message: perfetto.protos.TestEvent
+  // counter: 5
+  // payload {
+  //   str: "hello"
+  //   single_int: -1
+  // }
+  std::string_view msg =
+      "\x18\x05\x2a\x12\x0a\x05\x68\x65\x6c\x6c\x6f\x28\xff\xff\xff\xff\xff\xff"
+      "\xff\xff\xff\x01";
+  size_t n_counter = 0;
+  size_t n_payload = 0;
+  size_t n_payload_str = 0;
+  size_t n_payload_single_int = 0;
+  for (struct PerfettoPbDecoderIterator it =
+           PerfettoPbDecoderIterateBegin(msg.data(), msg.size());
+       it.field.status != PERFETTO_PB_DECODER_DONE;
+       PerfettoPbDecoderIterateNext(&it)) {
+    if (it.field.status != PERFETTO_PB_DECODER_OK) {
+      ADD_FAILURE() << "Failed to parse main message";
+      break;
+    }
+    switch (it.field.id) {
+      case perfetto_protos_TestEvent_counter_field_number:
+        n_counter++;
+        EXPECT_EQ(it.field.wire_type, PERFETTO_PB_WIRE_TYPE_VARINT);
+        {
+          uint64_t val = 0;
+          EXPECT_TRUE(PerfettoPbDecoderFieldGetUint64(&it.field, &val));
+          EXPECT_EQ(val, 5u);
+        }
+        break;
+      case perfetto_protos_TestEvent_payload_field_number:
+        n_payload++;
+        EXPECT_EQ(it.field.wire_type, PERFETTO_PB_WIRE_TYPE_DELIMITED);
+        for (struct PerfettoPbDecoderIterator it2 =
+                 PerfettoPbDecoderIterateNestedBegin(it.field.value.delimited);
+             it2.field.status != PERFETTO_PB_DECODER_DONE;
+             PerfettoPbDecoderIterateNext(&it2)) {
+          if (it2.field.status != PERFETTO_PB_DECODER_OK) {
+            ADD_FAILURE() << "Failed to parse nested message";
+            break;
+          }
+          switch (it2.field.id) {
+            case perfetto_protos_TestEvent_TestPayload_str_field_number:
+              n_payload_str++;
+              EXPECT_EQ(it2.field.wire_type, PERFETTO_PB_WIRE_TYPE_DELIMITED);
+              EXPECT_EQ(std::string_view(reinterpret_cast<const char*>(
+                                             it2.field.value.delimited.start),
+                                         it2.field.value.delimited.len),
+                        "hello");
+              break;
+            case perfetto_protos_TestEvent_TestPayload_single_int_field_number:
+              EXPECT_EQ(it2.field.wire_type, PERFETTO_PB_WIRE_TYPE_VARINT);
+              n_payload_single_int++;
+              {
+                int32_t val = 0;
+                EXPECT_TRUE(PerfettoPbDecoderFieldGetInt32(&it2.field, &val));
+                EXPECT_EQ(val, -1);
+              }
+              break;
+            default:
+              ADD_FAILURE() << "Unexpected nested field.id";
+              break;
+          }
+        }
+        break;
+      default:
+        ADD_FAILURE() << "Unexpected field.id";
+        break;
+    }
   }
-  bool WaitForNotification() {
-    std::unique_lock<std::mutex> lock(m_);
-    cv_.wait(lock, [this] { return notified_; });
-    return notified_;
-  }
-  bool Notified() {
-    std::unique_lock<std::mutex> lock(m_);
-    return notified_;
-  }
-
- private:
-  std::mutex m_;
-  std::condition_variable cv_;
-  bool notified_ = false;
-};
+  EXPECT_EQ(n_counter, 1u);
+  EXPECT_EQ(n_payload, 1u);
+  EXPECT_EQ(n_payload_str, 1u);
+  EXPECT_EQ(n_payload_single_int, 1u);
+}
 
 class SharedLibDataSourceTest : public testing::Test {
  protected:
@@ -141,32 +209,41 @@ class SharedLibDataSourceTest : public testing::Test {
 
   void RegisterDataSource2() {
     static struct PerfettoDsCallbacks callbacks = {};
-    callbacks.on_setup_cb = [](PerfettoDsInstanceIndex inst_id, void* ds_config,
+    callbacks.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
+                               PerfettoDsInstanceIndex inst_id, void* ds_config,
                                size_t ds_config_size, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
-      return thiz->ds2_callbacks_.OnSetup(inst_id, ds_config, ds_config_size,
-                                          thiz->ds2_user_arg_);
+      return thiz->ds2_callbacks_.OnSetup(ds_impl, inst_id, ds_config,
+                                          ds_config_size, thiz->ds2_user_arg_);
     };
-    callbacks.on_start_cb = [](PerfettoDsInstanceIndex inst_id, void* user_arg,
+    callbacks.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
+                               PerfettoDsInstanceIndex inst_id, void* user_arg,
                                void* inst_ctx) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
-      return thiz->ds2_callbacks_.OnStart(inst_id, thiz->ds2_user_arg_,
+      return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
                                           inst_ctx);
     };
-    callbacks.on_stop_cb = [](PerfettoDsInstanceIndex inst_id, void* user_arg,
-                              void* inst_ctx,
-                              struct PerfettoDsOnStopArgs* args) {
-      auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
-      return thiz->ds2_callbacks_.OnStop(inst_id, thiz->ds2_user_arg_, inst_ctx,
-                                         args);
-    };
-    callbacks.on_create_tls_cb = [](PerfettoDsInstanceIndex inst_id,
-                                    struct PerfettoDsTracerImpl* tracer,
-                                    void* user_arg) -> void* {
+    callbacks.on_stop_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          return thiz->ds2_callbacks_.OnStop(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
+    callbacks.on_flush_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
+          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+          return thiz->ds2_callbacks_.OnFlush(
+              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
+        };
+    callbacks.on_create_tls_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       auto* state = new Ds2CustomState();
       state->thiz = thiz;
-      state->actual = thiz->ds2_callbacks_.OnCreateTls(inst_id, tracer,
+      state->actual = thiz->ds2_callbacks_.OnCreateTls(ds_impl, inst_id, tracer,
                                                        thiz->ds2_user_arg_);
       return state;
     };
@@ -175,14 +252,14 @@ class SharedLibDataSourceTest : public testing::Test {
       state->thiz->ds2_callbacks_.OnDeleteTls(state->actual);
       delete state;
     };
-    callbacks.on_create_incr_cb = [](PerfettoDsInstanceIndex inst_id,
-                                     struct PerfettoDsTracerImpl* tracer,
-                                     void* user_arg) -> void* {
+    callbacks.on_create_incr_cb =
+        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
+           struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       auto* state = new Ds2CustomState();
       state->thiz = thiz;
-      state->actual = thiz->ds2_callbacks_.OnCreateIncr(inst_id, tracer,
-                                                        thiz->ds2_user_arg_);
+      state->actual = thiz->ds2_callbacks_.OnCreateIncr(
+          ds_impl, inst_id, tracer, thiz->ds2_user_arg_);
       return state;
     };
     callbacks.on_delete_incr_cb = [](void* ptr) {
@@ -342,35 +419,36 @@ TEST_F(SharedLibDataSourceTest, Break) {
 TEST_F(SharedLibDataSourceTest, FlushCb) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
-  Notification notification;
+  WaitableEvent notification;
 
   PERFETTO_DS_TRACE(data_source_1, ctx) {
     PerfettoDsTracerFlush(
         &ctx,
         [](void* p_notification) {
-          static_cast<Notification*>(p_notification)->Notify();
+          static_cast<WaitableEvent*>(p_notification)->Notify();
         },
         &notification);
   }
 
   notification.WaitForNotification();
-  EXPECT_TRUE(notification.Notified());
+  EXPECT_TRUE(notification.IsNotified());
 }
 
 TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   void* const kInstancePtr = reinterpret_cast<void*>(0x44);
   testing::InSequence seq;
   PerfettoDsInstanceIndex setup_inst, start_inst, stop_inst;
-  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, kDataSource2UserArg))
-      .WillOnce(DoAll(SaveArg<0>(&setup_inst), Return(kInstancePtr)));
-  EXPECT_CALL(ds2_callbacks_, OnStart(_, kDataSource2UserArg, kInstancePtr))
-      .WillOnce(SaveArg<0>(&start_inst));
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg))
+      .WillOnce(DoAll(SaveArg<1>(&setup_inst), Return(kInstancePtr)));
+  EXPECT_CALL(ds2_callbacks_, OnStart(_, _, kDataSource2UserArg, kInstancePtr))
+      .WillOnce(SaveArg<1>(&start_inst));
 
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
 
-  EXPECT_CALL(ds2_callbacks_, OnStop(_, kDataSource2UserArg, kInstancePtr, _))
-      .WillOnce(SaveArg<0>(&stop_inst));
+  EXPECT_CALL(ds2_callbacks_,
+              OnStop(_, _, kDataSource2UserArg, kInstancePtr, _))
+      .WillOnce(SaveArg<1>(&stop_inst));
 
   tracing_session.StopBlocking();
 
@@ -382,12 +460,12 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
   TracingSession tracing_session =
       TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
 
-  Notification stop_called;
+  WaitableEvent stop_called;
   struct PerfettoDsAsyncStopper* stopper;
 
-  EXPECT_CALL(ds2_callbacks_, OnStop(_, kDataSource2UserArg, _, _))
-      .WillOnce([&](PerfettoDsInstanceIndex, void*, void*,
-                    struct PerfettoDsOnStopArgs* args) {
+  EXPECT_CALL(ds2_callbacks_, OnStop(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnStopArgs* args) {
         stopper = PerfettoDsOnStopArgsPostpone(args);
         stop_called.Notify();
       });
@@ -396,6 +474,34 @@ TEST_F(SharedLibDataSourceTest, StopDone) {
 
   stop_called.WaitForNotification();
   PerfettoDsStopDone(stopper);
+
+  t.join();
+}
+
+TEST_F(SharedLibDataSourceTest, FlushDone) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name(kDataSourceName2).Build();
+
+  WaitableEvent flush_called;
+  WaitableEvent flush_done;
+  struct PerfettoDsAsyncFlusher* flusher;
+
+  EXPECT_CALL(ds2_callbacks_, OnFlush(_, _, kDataSource2UserArg, _, _))
+      .WillOnce([&](struct PerfettoDsImpl*, PerfettoDsInstanceIndex, void*,
+                    void*, struct PerfettoDsOnFlushArgs* args) {
+        flusher = PerfettoDsOnFlushArgsPostpone(args);
+        flush_called.Notify();
+      });
+
+  std::thread t([&]() {
+    tracing_session.FlushBlocking(/*timeout_ms=*/10000);
+    flush_done.Notify();
+  });
+
+  flush_called.WaitForNotification();
+  EXPECT_FALSE(flush_done.IsNotified());
+  PerfettoDsFlushDone(flusher);
+  flush_done.WaitForNotification();
 
   t.join();
 }

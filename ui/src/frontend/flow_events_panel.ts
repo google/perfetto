@@ -15,11 +15,12 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {tpTimeToCode} from '../common/time';
+import {raf} from '../core/raf_scheduler';
 
 import {Flow, globals} from './globals';
 import {BLANK_CHECKBOX, CHECKBOX} from './icons';
 import {Panel, PanelSize} from './panel';
+import {Duration} from './widgets/duration';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -95,7 +96,7 @@ export class FlowEventsPanel extends Panel {
 
       const data = [
         m('td.flow-link', args, outgoing ? 'Outgoing' : 'Incoming'),
-        m('td.flow-link', args, tpTimeToCode(flow.dur)),
+        m('td.flow-link', args, m(Duration, {dur: flow.dur})),
         m('td.flow-link', args, otherEnd.sliceId.toString()),
         m('td.flow-link', args, otherEnd.sliceName),
         m('td.flow-link', args, flow.begin.threadName),
@@ -169,7 +170,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                 });
               }
               globals.visibleFlowCategories.set(ALL_CATEGORIES, !allWasChecked);
-              globals.rafScheduler.scheduleFullRedraw();
+              raf.scheduleFullRedraw();
             },
           },
           allWasChecked ? CHECKBOX : BLANK_CHECKBOX)),
@@ -189,7 +190,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                   globals.visibleFlowCategories.set(ALL_CATEGORIES, false);
                 }
                 globals.visibleFlowCategories.set(cat, !wasChecked);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
             },
             wasChecked ? CHECKBOX : BLANK_CHECKBOX)),

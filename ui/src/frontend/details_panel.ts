@@ -17,15 +17,12 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
-import {pluginManager} from '../common/plugins';
 import {addSelectionChangeObserver} from '../common/selection_observer';
 import {Selection} from '../common/state';
-import {DebugSliceDetailsTab} from '../tracks/debug/details_tab';
-import {SCROLL_JANK_PLUGIN_ID} from '../tracks/scroll_jank';
-import {TOP_LEVEL_SCROLL_KIND} from '../tracks/scroll_jank/scroll_track';
+import {raf} from '../core/raf_scheduler';
 
 import {AggregationPanel} from './aggregation_panel';
-import {ChromeSliceDetailsPanel} from './chrome_slice_panel';
+import {ChromeSliceDetailsTab} from './chrome_slice_details_tab';
 import {CounterDetailsPanel} from './counter_panel';
 import {CpuProfileDetailsPanel} from './cpu_profile_panel';
 import {DEFAULT_DETAILS_CONTENT_HEIGHT} from './css_constants';
@@ -118,7 +115,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
     this.isClosed = newHeight <= DRAG_HANDLE_HEIGHT_PX;
     this.isFullscreen = newHeight >= this.fullscreenHeight;
     this.resize(newHeight);
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   onDragStart(_x: number, _y: number) {
@@ -153,7 +150,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                 this.isClosed = false;
                 this.isFullscreen = true;
                 this.resize(this.fullscreenHeight - DRAG_HANDLE_HEIGHT_PX);
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
               disabled: this.isFullscreen,
@@ -174,7 +171,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
                   this.previousHeight = this.height;
                   this.resize(0);
                 }
-                globals.rafScheduler.scheduleFullRedraw();
+                raf.scheduleFullRedraw();
               },
               title,
             },
@@ -182,7 +179,8 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   }
 }
 
-function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
+function handleSelectionChange(
+    newSelection: Selection|undefined, openCurrentSelectionTab: boolean): void {
   const currentSelectionTag = CURRENT_SELECTION_TAG;
   const bottomTabList = globals.bottomTabList;
   if (!bottomTabList) return;
@@ -198,6 +196,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         config: {
           id: newSelection.id,
         },
+        select: openCurrentSelectionTab,
       });
       break;
     case 'AREA':
@@ -208,6 +207,7 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
           config: {
             id: newSelection.noteId,
           },
+          select: openCurrentSelectionTab,
         });
       }
       break;
@@ -218,21 +218,27 @@ function handleSelectionChange(newSelection?: Selection, _?: Selection): void {
         config: {
           id: newSelection.id,
         },
+        select: openCurrentSelectionTab,
       });
       break;
-    case 'DEBUG_SLICE':
+    case 'GENERIC_SLICE':
       bottomTabList.addTab({
-        kind: DebugSliceDetailsTab.kind,
+        kind: newSelection.detailsPanelConfig.kind,
+        tag: currentSelectionTag,
+        config: newSelection.detailsPanelConfig.config,
+        select: openCurrentSelectionTab,
+      });
+      break;
+    case 'CHROME_SLICE':
+      bottomTabList.addTab({
+        kind: ChromeSliceDetailsTab.kind,
         tag: currentSelectionTag,
         config: {
-          sqlTableName: newSelection.sqlTableName,
           id: newSelection.id,
+          table: newSelection.table,
         },
+        select: openCurrentSelectionTab,
       });
-      break;
-    case TOP_LEVEL_SCROLL_KIND:
-      pluginManager.onDetailsPanelSelectionChange(
-          SCROLL_JANK_PLUGIN_ID, newSelection);
       break;
     default:
       bottomTabList.closeTabByTag(currentSelectionTag);
@@ -310,13 +316,6 @@ export class DetailsPanel implements m.ClassComponent {
             vnode: m(CpuProfileDetailsPanel, {
               key: 'cpu_profile_sample',
             }),
-          });
-          break;
-        case 'CHROME_SLICE':
-          detailsPanels.push({
-            key: 'current_selection',
-            name: 'Current Selection',
-            vnode: m(ChromeSliceDetailsPanel, {key: 'chrome_slice'}),
           });
           break;
         default:

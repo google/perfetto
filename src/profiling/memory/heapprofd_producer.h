@@ -318,7 +318,6 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   std::map<FlushRequestID, size_t> flushes_in_progress_;
   std::map<DataSourceInstanceID, DataSource> data_sources_;
-  std::vector<UnwindingWorker> unwinding_workers_;
 
   // Specific to mode_ == kChild
   Process target_process_{base::kInvalidPid, ""};
@@ -326,7 +325,11 @@ class HeapprofdProducer : public Producer, public UnwindingWorker::Delegate {
 
   SocketDelegate socket_delegate_;
 
-  base::WeakPtrFactory<HeapprofdProducer> weak_factory_;  // Keep last.
+  base::WeakPtrFactory<HeapprofdProducer> weak_factory_;
+
+  // UnwindingWorker's destructor might attempt to post producer tasks, so this
+  // needs to outlive weak_factory_.
+  std::vector<UnwindingWorker> unwinding_workers_;
 };
 
 }  // namespace profiling

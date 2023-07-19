@@ -13,8 +13,13 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {Span, tpDurationToSeconds} from '../common/time';
-import {TPDuration, TPTime, TPTimeSpan} from '../common/time';
+import {
+  Span,
+  timestampOffset,
+  TPDuration,
+  tpDurationToSeconds,
+  TPTime,
+} from '../common/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -147,7 +152,7 @@ export interface Tick {
   time: TPTime;
 }
 
-const MIN_PX_PER_STEP = 80;
+export const MIN_PX_PER_STEP = 120;
 export function getMaxMajorTicks(width: number) {
   return Math.max(1, Math.floor(width / MIN_PX_PER_STEP));
 }
@@ -214,13 +219,12 @@ export function drawGridLines(
   ctx.strokeStyle = TRACK_BORDER_COLOR;
   ctx.lineWidth = 1;
 
-  const {earliest, latest} = globals.frontendLocalState.visibleWindow;
-  const span = new TPTimeSpan(earliest, latest);
+  const span = globals.frontendLocalState.visibleTimeSpan;
   if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
     const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-    for (const {type, time} of new TickGenerator(
-             span, maxMajorTicks, globals.state.traceTime.start)) {
+    const offset = timestampOffset();
+    for (const {type, time} of new TickGenerator(span, maxMajorTicks, offset)) {
       const px = Math.floor(map.tpTimeToPx(time));
       if (type === TickType.MAJOR) {
         ctx.beginPath();

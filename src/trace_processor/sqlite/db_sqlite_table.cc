@@ -32,13 +32,11 @@ namespace {
 std::optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
   switch (sqlite_op) {
     case SQLITE_INDEX_CONSTRAINT_EQ:
-    case SQLITE_INDEX_CONSTRAINT_IS:
       return FilterOp::kEq;
     case SQLITE_INDEX_CONSTRAINT_GT:
       return FilterOp::kGt;
     case SQLITE_INDEX_CONSTRAINT_LT:
       return FilterOp::kLt;
-    case SQLITE_INDEX_CONSTRAINT_ISNOT:
     case SQLITE_INDEX_CONSTRAINT_NE:
       return FilterOp::kNe;
     case SQLITE_INDEX_CONSTRAINT_GE:
@@ -55,6 +53,8 @@ std::optional<FilterOp> SqliteOpToFilterOp(int sqlite_op) {
     // TODO(lalitm): start supporting these constraints.
     case SQLITE_INDEX_CONSTRAINT_LIMIT:
     case SQLITE_INDEX_CONSTRAINT_OFFSET:
+    case SQLITE_INDEX_CONSTRAINT_IS:
+    case SQLITE_INDEX_CONSTRAINT_ISNOT:
       return std::nullopt;
     default:
       PERFETTO_FATAL("Currently unsupported constraint");

@@ -13,33 +13,21 @@
 // limitations under the License.
 
 import {
-  BoolType,
+  Bool,
   Event,
-  IdType,
+  EventSet,
+  Id,
   KeySet,
-  NullType,
-  NumType,
-  StrType,
+  Null,
+  Num,
+  Str,
+  UntypedEventSet,
 } from './event_set';
-
-export function keySetMustHaveId(): KeySet {
-  // @ts-expect-error
-  const ks: KeySet = {};
-  return ks;
-}
-
-export function keySetMustHaveCorrectIdType(): KeySet {
-  const ks: KeySet = {
-    // @ts-expect-error
-    id: StrType,
-  };
-  return ks;
-}
 
 export function eventMustHaveAllKeys(): Event<KeySet> {
   const ks = {
-    id: IdType,
-    foo: StrType,
+    id: Id,
+    foo: Str,
   };
 
   // @ts-expect-error
@@ -50,13 +38,35 @@ export function eventMustHaveAllKeys(): Event<KeySet> {
   return event;
 }
 
-export function eventMayHaveNonKeyTypeValues(): Event<KeySet> {
+export function eventMustNotHaveExtraKeys(): Event<KeySet> {
   const ks = {
-    id: IdType,
-    foo: StrType,
-    bar: NumType,
-    baz: BoolType,
-    xyzzy: NullType,
+    id: Id,
+    foo: Str,
+    bar: Num,
+    baz: Bool,
+    xyzzy: Null,
+  };
+
+  const event: Event<typeof ks> = {
+    id: 'myid',
+    foo: 'foo',
+    bar: 32,
+    baz: false,
+    xyzzy: null,
+    // @ts-expect-error
+    plugh: 42,
+  };
+
+  return event;
+}
+
+export function eventsCanBeWellFormed(): Event<KeySet> {
+  const ks = {
+    id: Id,
+    foo: Str,
+    bar: Num,
+    baz: Bool,
+    xyzzy: Null,
   };
 
   const event: Event<typeof ks> = {
@@ -68,4 +78,38 @@ export function eventMayHaveNonKeyTypeValues(): Event<KeySet> {
   };
 
   return event;
+}
+
+
+const lettersKeySet = {
+  num: Num,
+  char: Str,
+};
+
+export async function badMaterialisation(input: EventSet<typeof lettersKeySet>):
+    Promise<UntypedEventSet> {
+  {
+    const a = await input.materialise({
+      baz: Num,
+    });
+    // @ts-expect-error
+    a.events;
+  }
+
+  {
+    // This is fine:
+    const a = await input.materialise(lettersKeySet);
+    a.events;
+  }
+
+  {
+    // So is this:
+    const a = await input.materialise({
+      num: Num,
+      char: Str,
+    });
+    a.events;
+  }
+
+  return input;
 }

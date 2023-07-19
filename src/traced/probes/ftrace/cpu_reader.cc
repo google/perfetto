@@ -18,7 +18,6 @@
 
 #include <dirent.h>
 #include <fcntl.h>
-#include <signal.h>
 
 #include <algorithm>
 #include <optional>
@@ -35,7 +34,7 @@
 #include "src/kallsyms/lazy_kernel_symbolizer.h"
 #include "src/traced/probes/ftrace/cpu_stats_parser.h"
 #include "src/traced/probes/ftrace/ftrace_config_muxer.h"
-#include "src/traced/probes/ftrace/ftrace_controller.h"
+#include "src/traced/probes/ftrace/ftrace_controller.h"  // FtraceClockSnapshot
 #include "src/traced/probes/ftrace/ftrace_data_source.h"
 #include "src/traced/probes/ftrace/ftrace_print_filter.h"
 #include "src/traced/probes/ftrace/proto_translation_table.h"
@@ -161,15 +160,17 @@ void LogInvalidPage(const void* start, size_t size) {
 using protos::pbzero::GenericFtraceEvent;
 
 CpuReader::CpuReader(size_t cpu,
+                     base::ScopedFile trace_fd,
                      const ProtoTranslationTable* table,
                      LazyKernelSymbolizer* symbolizer,
-                     const FtraceClockSnapshot* ftrace_clock_snapshot,
-                     base::ScopedFile trace_fd)
+                     protos::pbzero::FtraceClock ftrace_clock,
+                     const FtraceClockSnapshot* ftrace_clock_snapshot)
     : cpu_(cpu),
       table_(table),
       symbolizer_(symbolizer),
-      ftrace_clock_snapshot_(ftrace_clock_snapshot),
-      trace_fd_(std::move(trace_fd)) {
+      trace_fd_(std::move(trace_fd)),
+      ftrace_clock_(ftrace_clock),
+      ftrace_clock_snapshot_(ftrace_clock_snapshot) {
   PERFETTO_CHECK(trace_fd_);
   PERFETTO_CHECK(SetBlocking(*trace_fd_, false));
 }

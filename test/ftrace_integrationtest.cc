@@ -298,14 +298,16 @@ TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
   helper.WaitForDataSourceConnected("linux.ftrace");
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(32);
+  TraceConfig::BufferConfig* buf = trace_config.add_buffers();
+  buf->set_size_kb(32);
+  buf->set_fill_policy(TraceConfig::BufferConfig::DISCARD);
   trace_config.set_duration_ms(1);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
 
   protos::gen::FtraceConfig ftrace_config;
-  ftrace_config.add_ftrace_events("sched/sched_process_fork");    // Good.
+  ftrace_config.add_ftrace_events("sched/sched_switch");          // Good.
   ftrace_config.add_ftrace_events("sched/does_not_exist");        // Bad.
   ftrace_config.add_ftrace_events("foobar/i_just_made_this_up");  // Bad.
   ftrace_config.add_atrace_categories("madeup_atrace_cat");       // Bad.

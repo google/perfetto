@@ -164,3 +164,17 @@ class Dynamic(TestSuite):
         "t15","t20","t25"
         "[NULL]","[NULL]","[NULL]"
         """))
+
+  # TO_TIMECODE function
+  def test_various_clocks_to_timecode(self):
+    return DiffTestBlueprint(
+        trace=Path('various_clocks.textproto'),
+        query="""
+        SELECT
+          TO_TIMECODE(0) AS t0,
+          TO_TIMECODE(123456789123456789) AS tN
+        """,
+        out=Csv("""
+        "t0","tN"
+        "00:00:00 000 000 000","33:33:09 123 456 789"
+        """))

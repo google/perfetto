@@ -214,6 +214,11 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
   readonly start: HighPrecisionTime;
   readonly end: HighPrecisionTime;
 
+  static readonly ZERO = new HighPrecisionTimeSpan(
+      HighPrecisionTime.ZERO,
+      HighPrecisionTime.ZERO,
+  );
+
   constructor(start: TPTime|HighPrecisionTime, end: TPTime|HighPrecisionTime) {
     this.start = (start instanceof HighPrecisionTime) ?
         start :
@@ -231,13 +236,6 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
     return new HighPrecisionTimeSpan(
         HighPrecisionTime.fromTPTime(start),
         HighPrecisionTime.fromTPTime(end),
-    );
-  }
-
-  static get ZERO(): HighPrecisionTimeSpan {
-    return new HighPrecisionTimeSpan(
-        HighPrecisionTime.ZERO,
-        HighPrecisionTime.ZERO,
     );
   }
 
@@ -261,8 +259,12 @@ export class HighPrecisionTimeSpan implements Span<HighPrecisionTime> {
     }
   }
 
-  intersects(x: Span<HighPrecisionTime>): boolean {
+  intersectsSpan(x: Span<HighPrecisionTime>): boolean {
     return !(x.end.lte(this.start) || x.start.gte(this.end));
+  }
+
+  intersects(start: HighPrecisionTime, end: HighPrecisionTime): boolean {
+    return !(end.lte(this.start) || start.gte(this.end));
   }
 
   add(time: HighPrecisionTime): Span<HighPrecisionTime> {

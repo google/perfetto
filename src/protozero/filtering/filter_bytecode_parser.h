@@ -20,6 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <optional>
 #include <vector>
 
 namespace protozero {
@@ -46,15 +47,29 @@ class FilterBytecodeParser {
   struct QueryResult {
     bool allowed;  // Whether the field is allowed at all or no.
 
-    // If |allowed|==true && simple_field()==false, this tells the message index
-    // of the nested field that should be used when recursing in the parser.
+    // If |allowed|==true && nested_msg_field() == true, this tells the message
+    // index of the nested field that should be used when recursing in the
+    // parser.
     uint32_t nested_msg_index;
 
     // If |allowed|==true, specifies if the field is of a simple type (varint,
-    // fixed32/64, string or byte) or a nested field that needs recursion.
-    // In the latter case the caller is expected to use |nested_msg_index| for
-    // the next Query() calls.
+    // fixed32/64, string or byte).
     bool simple_field() const { return nested_msg_index == kSimpleField; }
+
+    // If |allowed|==true, specifies if this field is a string field that needs
+    // to be filtered.
+    bool filter_string_field() const {
+      return nested_msg_index == kFilterStringField;
+    }
+
+    // If |allowed|==true, specifies if the field is a nested field that needs
+    // recursion. The caller is expected to use |nested_msg_index| for the next
+    // Query() calls.
+    bool nested_msg_field() const {
+      static_assert(kFilterStringField < kSimpleField,
+                    "kFilterStringField < kSimpleField");
+      return nested_msg_index < kFilterStringField;
+    }
   };
 
   // Loads a filter. The filter data consists of a sequence of varints which
@@ -73,6 +88,7 @@ class FilterBytecodeParser {
   static constexpr uint32_t kDirectlyIndexLimit = 128;
   static constexpr uint32_t kAllowed = 1u << 31u;
   static constexpr uint32_t kSimpleField = 0x7fffffff;
+  static constexpr uint32_t kFilterStringField = 0x7ffffffe;
 
   bool LoadInternal(const uint8_t* filter_data, size_t len);
 
@@ -97,17 +113,17 @@ class FilterBytecodeParser {
   // [N + 6] -> Field state for fields in range 2 (below)
 
   // The "field state" word is as follows:
-  // Bit 31: 0 if the field is disallowed, 1 if allowed.
+  // Bit 31: 1 if the field is allowed, 0 if disallowed.
   //         Only directly indexed fields can be 0 (it doesn't make sense to add
   //         a range and then say "btw it's NOT allowed".. don't add it then.
   //         0 is only used for filling gaps in the directly indexed bucket.
   // Bits [30..0] (only when MSB == allowed):
   //  0x7fffffff: The field is "simple" (varint, fixed32/64, string, bytes) and
   //      can be directly passed through in output. No recursion is needed.
-  //  [0, 7ffffffe]: The field is a nested submessage. The value is the index
+  //  0x7ffffffe: The field is string field which needs to be filtered.
+  //  [0, 7ffffffd]: The field is a nested submessage. The value is the index
   //     that must be passed as first argument to the next Query() calls.
   //     Note that the message index is purely a monotonic counter in the
-  //     filter bytecode, has no proto-equivalent match (unlike field ids).
   std::vector<uint32_t> words_;
 
   // One entry for each message index stored in the filter plus a sentinel at

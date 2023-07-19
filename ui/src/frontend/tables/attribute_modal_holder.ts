@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {raf} from '../../core/raf_scheduler';
 import {globals} from '../globals';
 import {fullscreenModalContainer, ModalDefinition} from '../modal';
 import {AnyAttrsVnode} from '../panel_container';
@@ -32,7 +33,7 @@ export class AttributeModalHolder {
   start() {
     this.showModal = true;
     fullscreenModalContainer.createNew(this.renderModal());
-    globals.rafScheduler.scheduleFullRedraw();
+    raf.scheduleFullRedraw();
   }
 
   private renderModal(): ModalDefinition {

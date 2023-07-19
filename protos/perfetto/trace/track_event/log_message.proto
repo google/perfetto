@@ -23,6 +23,17 @@ message LogMessage {
   optional uint64 source_location_iid = 1;
   // interned LogMessageBody.
   optional uint64 body_iid = 2;
+  enum Priority {
+    PRIO_UNSPECIFIED = 0;
+    PRIO_UNUSED = 1;
+    PRIO_VERBOSE = 2;
+    PRIO_DEBUG = 3;
+    PRIO_INFO = 4;
+    PRIO_WARN = 5;
+    PRIO_ERROR = 6;
+    PRIO_FATAL = 7;
+  }
+  optional Priority prio = 3;
 }
 
 // --------------------

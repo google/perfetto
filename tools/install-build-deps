@@ -25,6 +25,7 @@ import sys
 import tempfile
 import time
 import zipfile
+import bz2
 
 from collections import namedtuple
 from platform import system, machine
@@ -35,7 +36,7 @@ from platform import system, machine
 # |source_url| can be either a git repo or a http url.
 # If a git repo, |checksum| is the SHA1 committish that will be checked out.
 # If a http url, |checksum| is the SHA256 of the downloaded file.
-# If the url is a .zip or .tgz file it will be automatically deflated under
+# If the url is a .zip, .tgz, or .tbz2 file it will be automatically deflated under
 # |target_folder|, taking care of stripping the root folder if it's a single
 # root (to avoid ending up with buildtools/protobuf/protobuf-1.2.3/... and have
 # instead just buildtools/protobuf).
@@ -100,30 +101,38 @@ BUILD_DEPS_TOOLCHAIN_HOST = [
         'windows', 'x64'),
 
     # clang-format
-    # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.sha1
+    # From
+    # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.arm64.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/62bde1baa7196ad9df969fc1f06b66360b1a927b',
-        '6df686a937443cbe6efc013467a7ba5f98d3f187eb7765bb7abc6ce47626cf66',
-        'darwin', 'all'),
+        'https://storage.googleapis.com/chromium-clang-format/5553d7a3d912b7d49381ad68c9a56740601a57a0',
+        'e077990b2ea6807f6abc71b4cf1e487719d7e40574baddd2b51187fdcc8db803',
+        'darwin', 'arm64'),
+    # From
+    # https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/mac/clang-format.x64.sha1
+    Dependency(
+        'third_party/clang-format/clang-format',
+        'https://storage.googleapis.com/chromium-clang-format/87d69aeff220c916b85b5d6d162fa5668aa9d64f',
+        '71179a8788a009cfd589636d50f0eb9f95f58b0cfda4351430bed7c0a48c080b',
+        'darwin', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/linux64/clang-format.sha1
     Dependency(
         'third_party/clang-format/clang-format',
-        'https://storage.googleapis.com/chromium-clang-format/1baf0089e895c989a311b6a38ed94d0e8be4c0a7',
-        'd02a97a87e8c28898033aaf5986967b24dc47ebd5b376e1cd93e5009f22cd75e',
+        'https://storage.googleapis.com/chromium-clang-format/1facab3101fc6da6b9467543f27f0622b966bc19',
+        '5e459118d8ac825452e9e1f2717e4de5a36399dc6cc6aec7ec483ad27a0c927e',
         'linux', 'x64'),
     # From https://chromium.googlesource.com/chromium/src/buildtools/+/refs/heads/master/win/clang-format.exe.sha1
     Dependency(
         'third_party/clang-format/clang-format.exe',
-        'https://storage.googleapis.com/chromium-clang-format/d4afd4eba27022f5f6d518133aebde57281677c9',
-        '2ba1b4d3ade90ea80316890b598ab5fc16777572be26afec6ce23117da121b80',
+        'https://storage.googleapis.com/chromium-clang-format/2e569921b9884daf157021d6ae9e21991cd6cf81',
+        '2227376ada89ea832995b832222b722a27c4d5d8d59e9c4d7842877f99a1e30d',
         'windows', 'x64'),
 
     # Keep the SHA1 in sync with |clang_format_rev| in chromium //buildtools/DEPS.
     Dependency(
         'buildtools/clang_format/script',
-        'https://chromium.googlesource.com/chromium/llvm-project/cfe/tools/clang-format.git',
-        '96636aa0e9f047f17447f2d45a094d0b59ed7917', 'all', 'all'),
+        'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git',
+        'f97059df7f8b205064625cdb5f97b56668a125ef', 'all', 'all'),
 
     # Ninja
     Dependency(
@@ -374,7 +383,28 @@ UI_DEPS = [
     Dependency(
         'buildtools/typefaces.tgz',
         'https://storage.googleapis.com/perfetto/typefaces-%s.tar.gz' %
-        TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all')
+        TYPEFACES_SHA256, TYPEFACES_SHA256, 'all', 'all'),
+
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-arm64-8.6.3',
+        'ac76e9ab6a770479f93c1a2bf978d72636dbcb02608554378cf30075a78a22ac',
+        'linux', 'arm64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-linux-x64-8.6.3',
+        '5a58ccd78d44faac138d901976a7a8917c0f2a2f83743cfdd895fcd0bb6aa135',
+        'linux', 'x64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-arm64-8.6.3',
+        'f527713d3183e30cfbfd7fd6403ceed730831c53649e50c979961eab3b2cf866',
+        'darwin', 'arm64'),
+    Dependency(
+        'third_party/pnpm/pnpm',
+        'https://storage.googleapis.com/perfetto/pnpm-macos-x64-8.6.3',
+        '6b425f7f0342341e9ee9427a9a2be2c89936c4a04efe6125f7af667eb02b10c1',
+        'darwin', 'x64'),
 ]
 
 # Dependencies to build gRPC.
@@ -529,29 +559,41 @@ def InstallNodeModules(force_clean=False):
     logging.info('Clearing %s', node_modules)
     subprocess.check_call(['git', 'clean', '-qxffd', node_modules],
                           cwd=ROOT_DIR)
-  logging.info("Running `npm ci` in {0}".format(UI_DIR))
-  # `npm ci` is like `npm install` but respects package-lock.json.
-  subprocess.check_call([os.path.join(TOOLS_DIR, 'npm'), 'ci'], cwd=UI_DIR)
-  # pbjs has the bad habit of installing extra packages on its first run. Run
-  # it here, so we avoid fetches while building.
-  node_bin = os.path.join(TOOLS_DIR, 'node')
-  pbjs = [node_bin, 'node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
-  subprocess.call(pbjs, cwd=UI_DIR)
+  logging.info("Running `pnpm install --shamefully-hoist --frozen-lockfile` in {0}".format(UI_DIR))
+
+  # Some node modules have postinstall scripts (already bad) but worse
+  # sometimes they are in the form: "postinstall: 'node ./scripts/foo'"
+  # so here we need to ensure that our hermetic node is available in
+  # PATH.
+  env = os.environ.copy()
+  env['PATH'] = TOOLS_DIR + ':' + env['PATH']
+
+  subprocess.check_call([
+    os.path.join(TOOLS_DIR, 'pnpm'),
+    'install',
+    '--shamefully-hoist',
+    '--frozen-lockfile'],
+    cwd=UI_DIR,
+    env=env)
+  # pbjs has the bad habit of installing extra packages on its first
+  # run. Run it here, so we avoid fetches while building.
+  pbjs = ['node_modules/.bin/pbjs', '/dev/null', '-o', '/dev/null']
+  subprocess.call(pbjs, cwd=UI_DIR, env=env)
   with open(NODE_MODULES_STATUS_FILE, 'w') as f:
-    f.write(HashLocalFile(os.path.join(UI_DIR, 'package-lock.json')))
+    f.write(HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml')))
 
 
 def CheckNodeModules():
   """Returns True if the modules are up-to-date.
 
   There doesn't seem to be an easy way to check node modules versions. Instead
-  just check if package-lock.json changed since the last `npm install` call.
+  just check if pnpm-lock.json changed since the last `pnpm install` call.
   """
   if not os.path.exists(NODE_MODULES_STATUS_FILE):
     return False
   with open(NODE_MODULES_STATUS_FILE, 'r') as f:
     actual = f.read()
-  expected = HashLocalFile(os.path.join(UI_DIR, 'package-lock.json'))
+  expected = HashLocalFile(os.path.join(UI_DIR, 'pnpm-lock.yaml'))
   return expected == actual
 
 
@@ -650,12 +692,12 @@ def Main():
       deps_updated |= CheckoutGitRepo(local_path, dep.source_url, dep.checksum,
                                       args.check_only)
       continue
-    is_zip = local_path.endswith('.zip') or local_path.endswith('.tgz')
-    zip_target_dir = local_path[:-4] if is_zip else None
-    zip_dir_stamp = os.path.join(zip_target_dir, '.stamp') if is_zip else None
+    is_compressed = any([local_path.endswith(ext) for ext in ['.zip', '.tgz', '.tbz2']])
+    compressed_target_dir = os.path.splitext(local_path)[0] if is_compressed else None
+    compressed_dir_stamp = os.path.join(compressed_target_dir, '.stamp') if is_compressed else None
 
-    if ((not is_zip and HashLocalFile(local_path) == dep.checksum) or
-        (is_zip and ReadFile(zip_dir_stamp) == dep.checksum)):
+    if ((not is_compressed and HashLocalFile(local_path) == dep.checksum) or
+        (is_compressed and ReadFile(compressed_dir_stamp) == dep.checksum)):
       continue
     deps_updated = True
     if args.check_only:
@@ -678,32 +720,39 @@ def Main():
 
     assert (HashLocalFile(local_path) == dep.checksum)
 
-    if is_zip:
-      logging.info('Extracting %s into %s' % (local_path, zip_target_dir))
-      assert (os.path.commonprefix((ROOT_DIR, zip_target_dir)) == ROOT_DIR)
-      RmtreeIfExists(zip_target_dir)
+    if is_compressed:
+      logging.info('Extracting %s into %s' % (local_path, compressed_target_dir))
+      assert (os.path.commonprefix((ROOT_DIR, compressed_target_dir)) == ROOT_DIR)
+      RmtreeIfExists(compressed_target_dir)
 
       # Decompress the archive.
       if local_path.endswith('.tgz'):
-        MkdirRecursive(zip_target_dir)
-        subprocess.check_call(['tar', '-oxf', local_path], cwd=zip_target_dir)
+        MkdirRecursive(compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', local_path], cwd=compressed_target_dir)
       elif local_path.endswith('.zip'):
         with zipfile.ZipFile(local_path, 'r') as zf:
           for info in zf.infolist():
-            ExtractZipfilePreservePermissions(zf, info, zip_target_dir)
+            ExtractZipfilePreservePermissions(zf, info, compressed_target_dir)
+      elif local_path.endswith('.tbz2'):
+        tar_path = '{}.tar.tmp'.format(local_path)
+        with open(tar_path, 'w') as f:
+          with bz2.open(local_path, 'r') as bf:
+            f.write(bf.read())
+        MkdirRecursive(compressed_target_dir)
+        subprocess.check_call(['tar', '-oxf', tar_path], cwd=compressed_target_dir)
 
       # If the zip contains one root folder, rebase one level up moving all
       # its sub files and folders inside |target_dir|.
-      subdir = os.listdir(zip_target_dir)
+      subdir = os.listdir(compressed_target_dir)
       if len(subdir) == 1:
-        subdir = os.path.join(zip_target_dir, subdir[0])
+        subdir = os.path.join(compressed_target_dir, subdir[0])
         if os.path.isdir(subdir):
           for subf in os.listdir(subdir):
-            shutil.move(os.path.join(subdir, subf), zip_target_dir)
+            shutil.move(os.path.join(subdir, subf), compressed_target_dir)
           os.rmdir(subdir)
 
       # Create stamp and remove the archive.
-      with open(zip_dir_stamp, 'w') as stamp_file:
+      with open(compressed_dir_stamp, 'w') as stamp_file:
         stamp_file.write(dep.checksum)
       os.remove(local_path)
 
