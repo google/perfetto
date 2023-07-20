@@ -2,7 +2,7 @@ codec_metrics {
   cpu_usage {
     process_name: "/system/bin/mediaserver"
     thread_name: "CodecLooper"
-    thread_cpu_us: 40782
+    thread_cpu_ns: 40782760
     num_threads: 1
     core_data {
       type: "bigger"
