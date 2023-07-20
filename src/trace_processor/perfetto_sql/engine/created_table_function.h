@@ -32,9 +32,12 @@ class PerfettoSqlEngine;
 class CreatedTableFunction final
     : public TypedSqliteTable<CreatedTableFunction, PerfettoSqlEngine*> {
  public:
+  // The state of this function. This is separated from |CreatedTableFunction|
+  // because |CreatedTableFunction| is owned by Sqlite while |State| is owned by
+  // PerfettoSqlEngine.
   struct State {
     std::string prototype_str;
-    std::string sql_defn_str;
+    SqlSource sql_defn_str;
 
     Prototype prototype;
     std::vector<sql_argument::ArgumentDefinition> return_values;

@@ -17,7 +17,9 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 
 #include <algorithm>
+#include <cstdint>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -31,11 +33,10 @@ namespace trace_processor {
 
 namespace {
 
-std::pair<uint32_t, uint32_t> UpdateLineAndColumnForOffset(
-    const std::string& sql,
-    uint32_t line,
-    uint32_t column,
-    uint32_t offset) {
+std::pair<uint32_t, uint32_t> GetLineAndColumnForOffset(const std::string& sql,
+                                                        uint32_t line,
+                                                        uint32_t column,
+                                                        uint32_t offset) {
   if (offset == 0) {
     return std::make_pair(line, column);
   }
@@ -59,80 +60,144 @@ std::pair<uint32_t, uint32_t> UpdateLineAndColumnForOffset(
 
 SqlSource::SqlSource(std::string sql,
                      std::string name,
-                     bool include_traceback_header,
-                     uint32_t line,
-                     uint32_t col)
-    : sql_(std::move(sql)),
-      name_(std::move(name)),
-      include_traceback_header_(include_traceback_header),
-      line_(line),
-      col_(col) {}
+                     bool include_traceback_header)
+    : sql_(sql) {
+  root_.name = std::move(name);
+  root_.sql = std::move(sql);
+  root_.include_traceback_header = include_traceback_header;
+}
 
 SqlSource SqlSource::FromExecuteQuery(std::string sql) {
-  return SqlSource(std::move(sql), "File \"stdin\"", true, 1, 1);
+  return SqlSource(std::move(sql), "File \"stdin\"", true);
 }
 
 SqlSource SqlSource::FromMetric(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Metric \"" + name + "\"", true, 1, 1);
-}
-
-SqlSource SqlSource::FromFunction(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Function \"" + name + "\"", false, 1, 1);
+  return SqlSource(std::move(sql), "Metric \"" + name + "\"", true);
 }
 
 SqlSource SqlSource::FromMetricFile(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Metric file \"" + name + "\"", false, 1, 1);
+  return SqlSource(std::move(sql), "Metric file \"" + name + "\"", false);
 }
 
 SqlSource SqlSource::FromModuleImport(std::string sql,
                                       const std::string& module) {
-  return SqlSource(std::move(sql), "Module import \"" + module + "\"", false, 1,
-                   1);
+  return SqlSource(std::move(sql), "Module import \"" + module + "\"", false);
 }
 
-SqlSource SqlSource::FromSpanJoin(std::string sql, const std::string& name) {
-  return SqlSource(std::move(sql), "Span Join Table \"" + name + "\"", false, 1,
-                   1);
+SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
+  return SqlSource(std::move(sql), "Trace Processor Internal", false);
+}
+
+std::string SqlSource::AsTraceback(std::optional<uint32_t> opt_offset) const {
+  return root_.AsTraceback(opt_offset.value_or(0));
 }
 
 SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
-  auto line_and_col = UpdateLineAndColumnForOffset(sql_, line_, col_, offset);
-  return SqlSource(sql_.substr(offset, len), name_, include_traceback_header_,
-                   line_and_col.first, line_and_col.second);
+  PERFETTO_CHECK(!IsRewritten());
+  SqlSource source;
+  source.sql_ = sql_.substr(offset, len);
+  source.root_ = root_.Substr(offset, len);
+  return source;
 }
 
-std::string SqlSource::AsTracebackFrame(
-    std::optional<uint32_t> opt_offset) const {
-  uint32_t offset = opt_offset.value_or(0);
+SqlSource SqlSource::FullRewrite(SqlSource source) const {
+  SqlSource::Rewriter rewriter(*this);
+  rewriter.Rewrite(0, static_cast<uint32_t>(sql_.size()), source);
+  return std::move(rewriter).Build();
+}
 
+SqlSource::Rewriter::Rewriter(SqlSource source) : orig_(std::move(source)) {
+  PERFETTO_CHECK(!orig_.IsRewritten());
+}
+
+void SqlSource::Rewriter::Rewrite(uint32_t start,
+                                  uint32_t end,
+                                  SqlSource source) {
+  PERFETTO_CHECK(start < end);
+  pending_.push_back(std::make_tuple(start, end, std::move(source)));
+}
+
+SqlSource SqlSource::Rewriter::Build() && {
+  std::string sql;
+  const char* ptr = orig_.sql_.data();
+  uint32_t prev_idx = 0;
+  for (auto& [start, end, source] : pending_) {
+    PERFETTO_CHECK(prev_idx <= start);
+    sql.append(ptr + prev_idx, ptr + start);
+
+    uint32_t rewrite_start = static_cast<uint32_t>(sql.size());
+    uint32_t rewrite_end =
+        static_cast<uint32_t>(rewrite_start + source.sql_.size());
+    sql.append(source.sql());
+    orig_.root_.rewrites.push_back(SqlSource::Rewrite{
+        rewrite_start, rewrite_end, start, end, std::move(source.root_)});
+    prev_idx = end;
+  }
+  sql.append(ptr + prev_idx, ptr + orig_.sql_.size());
+  orig_.sql_ = std::move(sql);
+  return orig_;
+}
+
+std::string SqlSource::Node::AsTraceback(uint32_t offset) const {
+  uint32_t rewritten_skipped = 0;
+  uint32_t original_skipped = 0;
+  for (const auto& rewrite : rewrites) {
+    if (offset >= rewrite.rewritten_end) {
+      original_skipped += rewrite.original_end - rewrite.original_start;
+      rewritten_skipped += rewrite.rewritten_end - rewrite.rewritten_start;
+      continue;
+    }
+    if (rewrite.rewritten_start > offset) {
+      break;
+    }
+    std::string res = SelfTraceback(rewrite.rewritten_start -
+                                    rewritten_skipped + original_skipped);
+    res.append(rewrite.node.AsTraceback(offset - rewrite.rewritten_start));
+    return res;
+  }
+  return SelfTraceback(offset - rewritten_skipped + original_skipped);
+}
+
+std::string SqlSource::Node::SelfTraceback(uint32_t offset) const {
   size_t start_idx = offset - std::min<size_t>(128ul, offset);
   if (offset > 0) {
-    size_t prev_nl = sql_.rfind('\n', offset - 1);
+    size_t prev_nl = sql.rfind('\n', offset - 1);
     if (prev_nl != std::string::npos) {
       start_idx = std::max(prev_nl + 1, start_idx);
     }
   }
 
-  size_t end_idx = std::min<size_t>(offset + 128ul, sql_.size());
-  size_t next_nl = sql_.find('\n', offset);
+  size_t end_idx = std::min<size_t>(offset + 128ul, sql.size());
+  size_t next_nl = sql.find('\n', offset);
   if (next_nl != std::string::npos) {
     end_idx = std::min(next_nl, end_idx);
   }
   size_t caret_pos = offset - start_idx;
 
   std::string header;
-  if (include_traceback_header_) {
+  if (include_traceback_header) {
     header = "Traceback (most recent call last):\n";
   }
 
-  auto line_and_col = UpdateLineAndColumnForOffset(sql_, line_, col_, offset);
-  std::string sql_segment = sql_.substr(start_idx, end_idx - start_idx);
+  auto line_and_col = GetLineAndColumnForOffset(sql, line, col, offset);
+  std::string sql_segment = sql.substr(start_idx, end_idx - start_idx);
   std::string caret = std::string(caret_pos, ' ') + "^";
   base::StackString<1024> str("%s  %s line %u col %u\n    %s\n    %s\n",
-                              header.c_str(), name_.c_str(), line_and_col.first,
+                              header.c_str(), name.c_str(), line_and_col.first,
                               line_and_col.second, sql_segment.c_str(),
                               caret.c_str());
   return str.ToStdString();
+}
+
+SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
+  PERFETTO_CHECK(rewrites.empty());
+  auto line_and_col = GetLineAndColumnForOffset(sql, line, col, offset);
+  return Node{name,
+              sql.substr(offset, len),
+              include_traceback_header,
+              line_and_col.first,
+              line_and_col.second,
+              {}};
 }
 
 }  // namespace trace_processor

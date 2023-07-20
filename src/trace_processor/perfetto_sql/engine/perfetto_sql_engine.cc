@@ -83,7 +83,7 @@ base::Status AddTracebackIfNeeded(base::Status status,
   if (status.GetPayload("perfetto.dev/has_traceback") == "true") {
     return status;
   }
-  std::string traceback = source.AsTracebackFrame(std::nullopt);
+  std::string traceback = source.AsTraceback(std::nullopt);
   status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
   status.SetPayload("perfetto.dev/has_traceback", "true");
   return status;
@@ -152,10 +152,6 @@ base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
 
 base::StatusOr<PerfettoSqlEngine::ExecutionResult>
 PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
-  // TODO(lalitm): remove this copy once we fully move CREATE PERFETTO FUNCTION
-  // parsing to the parser.
-  SqlSource copy = sql_source;
-
   // A SQL string can contain several statements. Some of them might be comment
   // only, e.g. "SELECT 1; /* comment */; SELECT 2;". Some statements can also
   // be PerfettoSQL statements which we need to transpile before execution or
@@ -182,7 +178,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
             &parser.statement())) {
       auto source_or = ExecuteCreateFunction(*cf);
-      RETURN_IF_ERROR(AddTracebackIfNeeded(source_or.status(), copy));
+      RETURN_IF_ERROR(AddTracebackIfNeeded(source_or.status(), cf->sql));
       source = std::move(source_or.value());
     } else if (auto* cst = std::get_if<PerfettoSqlParser::CreateTable>(
                    &parser.statement())) {
@@ -190,7 +186,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
           RegisterSqlTable(cst->name, cst->sql), cst->sql));
       // Since the rest of the code requires a statement, just use a no-value
       // dummy statement.
-      source = SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
+      source = cst->sql.FullRewrite(
+          SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -388,13 +385,11 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
     // Since the rest of the code requires a statement, just use a no-value
     // dummy statement.
-    return SqlSource::FromExecuteQuery("SELECT 0 WHERE 0");
+    return cf.sql.FullRewrite(
+        SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
   }
 
-  CreatedTableFunction::State state;
-  state.prototype_str = cf.prototype;
-  state.sql_defn_str = cf.sql.sql();
-
+  CreatedTableFunction::State state{cf.prototype, cf.sql, {}, {}, std::nullopt};
   base::StringView function_name;
   RETURN_IF_ERROR(
       ParseFunctionName(state.prototype_str.c_str(), function_name));
@@ -493,7 +488,8 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
     // This will cause |OnTableFunctionDestroyed| below to be executed.
     base::StackString<1024> drop("DROP TABLE %s",
                                  state.prototype.function_name.c_str());
-    auto res = Execute(SqlSource::FromExecuteQuery(drop.ToStdString()));
+    auto res = Execute(
+        SqlSource::FromTraceProcessorImplementation(drop.ToStdString()));
     RETURN_IF_ERROR(res.status());
   }
 
@@ -504,7 +500,8 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
   base::StackString<1024> create(
       "CREATE VIRTUAL TABLE %s USING created_table_function", fn_name.c_str());
-  return SqlSource::FromExecuteQuery(create.ToStdString());
+  return cf.sql.FullRewrite(
+      SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
 }
 
 CreatedTableFunction::State* PerfettoSqlEngine::GetTableFunctionState(

@@ -27,12 +27,30 @@
 
 namespace perfetto {
 namespace trace_processor {
-namespace {
 
 using Result = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
 using CreateTable = PerfettoSqlParser::CreateTable;
+
+inline bool operator==(const SqlSource& a, const SqlSource& b) {
+  return a.sql() == b.sql();
+}
+
+inline bool operator==(const SqliteSql& a, const SqliteSql& b) {
+  return a.sql == b.sql;
+}
+
+inline bool operator==(const CreateFn& a, const CreateFn& b) {
+  return std::tie(a.returns, a.is_table, a.prototype, a.replace, a.sql) ==
+         std::tie(b.returns, b.is_table, b.prototype, b.replace, b.sql);
+}
+
+inline bool operator==(const CreateTable& a, const CreateTable& b) {
+  return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
+}
+
+namespace {
 
 SqlSource FindSubstr(const SqlSource& source, const std::string& needle) {
   size_t off = source.sql().find(needle);
@@ -86,15 +104,15 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
                   false, "foo()", "INT", FindSubstr(res, "select 1"), false}));
 
   res = SqlSource::FromExecuteQuery(
-      "create perfetto function bar(x INT, y LONG) returns STRING as select "
-      "'foo'");
+      "create perfetto function bar(x INT, y LONG) returns STRING as "
+      "select 'foo'");
   ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
                                false, "bar(x INT, y LONG)", "STRING",
                                FindSubstr(res, "select 'foo'"), false}));
 
   res = SqlSource::FromExecuteQuery(
-      "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As select "
-      "'foo'");
+      "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As "
+      "select 'foo'");
   ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
                                false, "bar(x INT, y LONG)", "STRING",
                                FindSubstr(res, "select 'foo'"), false}));
