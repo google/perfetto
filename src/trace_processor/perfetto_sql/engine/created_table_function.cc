@@ -185,7 +185,7 @@ base::Status CreatedTableFunction::Cursor::Filter(const QueryConstraints& qc,
     ResetStatement(stmt_->sqlite_stmt());
   } else {
     auto stmt = table_->engine_->sqlite_engine()->PrepareStatement(
-        SqlSource::FromFunction(state_->sql_defn_str, state_->prototype_str));
+        state_->sql_defn_str);
     RETURN_IF_ERROR(stmt.status());
     stmt_ = std::move(stmt);
   }
