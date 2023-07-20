@@ -721,7 +721,7 @@ base::Status ComputeMetrics(PerfettoSqlEngine* engine,
     if (metric_it == sql_metrics.end())
       return base::ErrStatus("Unknown metric %s", name.c_str());
 
-    const auto& sql_metric = *metric_it;
+    const SqlMetricFile& sql_metric = *metric_it;
     auto prep_it =
         engine->Execute(SqlSource::FromMetric(sql_metric.sql, metric_it->path));
     RETURN_IF_ERROR(prep_it.status());
@@ -733,7 +733,7 @@ base::Status ComputeMetrics(PerfettoSqlEngine* engine,
         [&](metatrace::Record* r) { r->AddArg("SQL", output_query); });
 
     auto it = engine->ExecuteUntilLastStatement(
-        SqlSource::FromExecuteQuery(output_query));
+        SqlSource::FromTraceProcessorImplementation(std::move(output_query)));
     RETURN_IF_ERROR(it.status());
 
     // Allow the query to return no rows. This has the same semantic as an

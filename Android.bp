@@ -10629,6 +10629,7 @@ filegroup {
     srcs: [
         "src/trace_processor/sqlite/db_sqlite_table_unittest.cc",
         "src/trace_processor/sqlite/query_constraints_unittest.cc",
+        "src/trace_processor/sqlite/sql_source_unittest.cc",
         "src/trace_processor/sqlite/sqlite_tokenizer_unittest.cc",
         "src/trace_processor/sqlite/sqlite_utils_unittest.cc",
     ],

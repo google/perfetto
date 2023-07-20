@@ -283,7 +283,7 @@ bool PerfettoSqlParser::ParseArgumentDefinitions(std::string* str) {
 bool PerfettoSqlParser::ErrorAtToken(const SqliteTokenizer::Token& token,
                                      const char* error) {
   uint32_t offset = static_cast<uint32_t>(token.str.data() - sql_.sql().data());
-  std::string traceback = sql_.AsTracebackFrame(offset);
+  std::string traceback = sql_.AsTraceback(offset);
   status_ = base::ErrStatus("%s%s", traceback.c_str(), error);
   return false;
 }
