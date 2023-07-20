@@ -31,8 +31,6 @@ export class TextInput implements m.ClassComponent<TextInputAttrs> {
     const classes = classNames(extraClasses);
     return m('input.pf-text-input', {
       class: classes,
-      // Stop keydown events from triggering hotkeys
-      onkeydown: (e: Event) => e.stopPropagation(),
       ...htmlAttrs,
     });
   }

@@ -28,12 +28,14 @@ import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {executeSearch} from './search_handler';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
+import {HotkeyConfig, HotkeyContext} from './widgets/hotkey_context';
 
 const SIDEBAR_WIDTH = 256;
 
@@ -303,6 +305,24 @@ class TraceViewer implements m.ClassComponent {
 
 export const ViewerPage = createPage({
   view() {
-    return m(TraceViewer);
+    const hotkeys: HotkeyConfig[] = [
+      {
+        key: 'Enter',
+        mods: [],
+        allowInEditable: true,
+        callback: () => {
+          executeSearch();
+        },
+      },
+      {
+        key: 'Enter',
+        mods: ['Shift'],
+        allowInEditable: true,
+        callback: () => {
+          executeSearch(true);
+        },
+      },
+    ];
+    return m(HotkeyContext, {hotkeys}, m(TraceViewer));
   },
 });

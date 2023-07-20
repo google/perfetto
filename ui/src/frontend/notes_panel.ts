@@ -335,9 +335,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
             `Annotation at `,
             m(Timestamp, {ts: startTime})),
           m('input[type=text]', {
-            onkeydown: (e: Event) => {
-              e.stopImmediatePropagation();
-            },
             value: note.text,
             onchange: (e: InputEvent) => {
               const newText = (e.target as HTMLInputElement).value;
