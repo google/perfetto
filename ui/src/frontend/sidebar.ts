@@ -46,7 +46,7 @@ import {
 import {showModal} from './modal';
 import {runQueryInNewTab} from './query_result_tab';
 import {Router} from './router';
-import {isDownloadable, shareTrace} from './trace_attrs';
+import {createTraceLink, isDownloadable, shareTrace} from './trace_attrs';
 import {
   convertToJson,
   convertTraceToJsonAndDownload,
