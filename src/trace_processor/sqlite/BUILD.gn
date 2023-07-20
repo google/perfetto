@@ -76,6 +76,7 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "db_sqlite_table_unittest.cc",
     "query_constraints_unittest.cc",
+    "sql_source_unittest.cc",
     "sqlite_tokenizer_unittest.cc",
     "sqlite_utils_unittest.cc",
   ]

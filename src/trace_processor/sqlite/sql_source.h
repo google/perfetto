@@ -21,18 +21,17 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <vector>
 
 namespace perfetto {
 namespace trace_processor {
 
 // An SQL string which retains knowledge of the source of the SQL (i.e. stdlib
 // module, ExecuteQuery etc).
-//
-// The reason this class exists is to allow much better error messages as we
-// can not only render of the snippet of SQL which is failing but also point
-// to the correct line number in the context of the whole SQL file.
 class SqlSource {
  public:
+  class Rewriter;
+
   // Creates a SqlSource instance wrapping SQL passed to
   // |TraceProcessor::ExecuteQuery|.
   static SqlSource FromExecuteQuery(std::string sql);
@@ -48,19 +47,11 @@ class SqlSource {
   // Creates a SqlSource instance wrapping SQL executed when importing a module.
   static SqlSource FromModuleImport(std::string sql, const std::string& module);
 
-  // Creates a SqlSource instance wrapping SQL executed when running a function.
-  static SqlSource FromFunction(std::string sql, const std::string& function);
+  // Creates a SqlSource instance wrapping SQL which is an internal
+  // implementation detail of trace processor.
+  static SqlSource FromTraceProcessorImplementation(std::string sql);
 
-  // Creates a SqlSource instance wrapping SQL executed when executing a SPAN
-  // JOIN.
-  static SqlSource FromSpanJoin(std::string sql,
-                                const std::string& span_join_table);
-
-  // Creates a SqlSource instance with the SQL taken as a substring starting at
-  // |offset| with |len| characters.
-  SqlSource Substr(uint32_t offset, uint32_t len) const;
-
-  // Returns the this SqlSource instance as a string which can be appended as a
+  // Returns this SqlSource instance as a string which can be appended as a
   // "traceback" frame to an error message. Callers can pass an optional
   // |offset| parameter which indicates the exact location of the error in the
   // SQL string.
@@ -70,28 +61,84 @@ class SqlSource {
   //  b) line and column number of the error
   //  c) a snippet of the SQL and a caret (^) character pointing to the location
   //     of the error.
-  std::string AsTracebackFrame(std::optional<uint32_t> offset) const;
+  std::string AsTraceback(std::optional<uint32_t> offset) const;
 
-  // Returns the SQL backing this SqlSource instance;
+  // Creates a SqlSource instance with the SQL taken as a substring starting
+  // at |offset| with |len| characters.
+  //
+  // Note: this function should only be called if |this| has not already been
+  // rewritten (i.e. it is undefined behaviour if |IsRewritten()| returns true).
+  SqlSource Substr(uint32_t offset, uint32_t len) const;
+
+  // Creates a SqlSource instance with the execution SQL rewritten to
+  // |rewrite_sql| but preserving the context from |this|.
+  //
+  // This is useful when PerfettoSQL statements are transpiled into SQLite
+  // statements but we want to preserve the context of the original statement.
+  //
+  // Note: this function should only be called if |this| has not already been
+  // rewritten (i.e. it is undefined behaviour if |IsRewritten()| returns true).
+  SqlSource FullRewrite(SqlSource) const;
+
+  // Returns the SQL string backing this SqlSource instance;
   const std::string& sql() const { return sql_; }
 
-  bool operator==(const SqlSource& other) const {
-    return std::tie(sql_, line_, col_) ==
-           std::tie(other.sql_, other.line_, other.col_);
-  }
+  // Returns whether this SqlSource has been rewritten.
+  bool IsRewritten() const { return !root_.rewrites.empty(); }
 
  private:
-  SqlSource(std::string sql,
-            std::string name,
-            bool include_traceback_header,
-            uint32_t line,
-            uint32_t col);
+  struct Rewrite;
+  // Represents a tree of SQL rewrites, preserving the source for each rewrite.
+  struct Node {
+    std::string name;
+    std::string sql;
+    bool include_traceback_header = false;
+    uint32_t line = 1;
+    uint32_t col = 1;
+    std::vector<Rewrite> rewrites;
+
+    std::string AsTraceback(uint32_t offset) const;
+    std::string SelfTraceback(uint32_t offset) const;
+    Node Substr(uint32_t offset, uint32_t len) const;
+  };
+  struct Rewrite {
+    uint32_t rewritten_start;
+    uint32_t rewritten_end;
+    uint32_t original_start;
+    uint32_t original_end;
+    Node node;
+  };
+
+  SqlSource() = default;
+  SqlSource(std::string sql, std::string name, bool include_traceback_header);
 
   std::string sql_;
-  std::string name_;
-  bool include_traceback_header_ = false;
-  uint32_t line_ = 1;
-  uint32_t col_ = 1;
+  Node root_;
+};
+
+// Used to rewrite a SqlSource using SQL from other SqlSources.
+class SqlSource::Rewriter {
+ public:
+  // Creates a Rewriter object which can be used to rewrite the SQL backing
+  // |source|.
+  //
+  // Note: this function should only be called if |source| has not already been
+  // rewritten (i.e. it is undefined behaviour if |source.IsRewritten()| returns
+  // true).
+  explicit Rewriter(SqlSource source);
+
+  // Replaces the SQL between |start| and |end| with the contents of |rewrite|.
+  void Rewrite(uint32_t start, uint32_t end, SqlSource rewrite);
+
+  // Returns the rewritten SqlSource instance.
+  SqlSource Build() &&;
+
+ private:
+  using BoundedRewrite =
+      std::tuple<uint32_t /* start */, uint32_t /* end */, SqlSource>;
+
+  SqlSource orig_;
+  std::vector<BoundedRewrite> pending_;
 };
 
 }  // namespace trace_processor

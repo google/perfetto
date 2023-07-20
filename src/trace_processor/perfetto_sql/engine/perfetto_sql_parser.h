@@ -43,7 +43,6 @@ class PerfettoSqlParser {
   // PerfettoSQL statement and should be directly executed with SQLite.
   struct SqliteSql {
     SqlSource sql;
-    bool operator==(const SqliteSql& c) const { return sql == c.sql; }
   };
   // Indicates that the specified SQL was a CREATE PERFETTO FUNCTION statement
   // with the following parameters.
@@ -53,19 +52,12 @@ class PerfettoSqlParser {
     std::string returns;
     SqlSource sql;
     bool is_table;
-    bool operator==(const CreateFunction& c) const {
-      return std::tie(replace, prototype, returns, sql, is_table) ==
-             std::tie(replace, c.prototype, c.returns, c.sql, is_table);
-    }
   };
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.
   struct CreateTable {
     std::string name;
     SqlSource sql;
-    bool operator==(const CreateTable& c) const {
-      return std::tie(name, sql) == std::tie(c.name, c.sql);
-    }
   };
   using Statement = std::variant<SqliteSql, CreateFunction, CreateTable>;
 
