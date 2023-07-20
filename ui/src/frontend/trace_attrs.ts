@@ -74,7 +74,7 @@ export function shareTrace() {
   }
 }
 
-function createTraceLink(title: string, url: string) {
+export function createTraceLink(title: string, url: string) {
   if (url === '') {
     return m('a.trace-file-name', title);
   }
