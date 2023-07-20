@@ -92,21 +92,40 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
 
 let debugTrackCount = 0;
 
+export interface SqlDataSource {
+  // SQL source selecting the necessary data.
+  sqlSource: string;
+  // The caller is responsible for ensuring that the number of items in this
+  // list matches the number of columns returned by sqlSource.
+  columns: string[];
+}
+
 export async function addDebugTrack(
     engine: EngineProxy,
-    sqlViewName: string,
+    data: SqlDataSource,
     trackName: string,
     sliceColumns: SliceColumns,
     argColumns: string[]) {
-  // QueryResultTab has successfully created a view corresponding to |uuid|.
-  // To prepare displaying it as a track, we materialize it and compute depths.
+  // To prepare displaying the provided data as a track, materialize it and
+  // compute depths.
   const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `materialized_${debugTrackId}_${sqlViewName}`;
+  const sqlTableName = `__debug_slice_${debugTrackId}`;
+
+  // If the view has clashing names (e.g. "name" coming from joining two
+  // different tables, we will see names like "name_1", "name_2", but they won't
+  // be addressable from the SQL. So we explicitly name them through a list of
+  // columns passed to CTE.
+  const dataColumns =
+      data.columns !== undefined ? `(${data.columns.join(', ')})` : '';
+
   // TODO(altimin): Support removing this table when the track is closed.
   const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
   await engine.query(`
       create table ${sqlTableName} as
-      with prepared_data as (
+      with data${dataColumns} as (
+        ${data.sqlSource}
+      ),
+      prepared_data as (
         select
           row_number() over () as id,
           ${sliceColumns.ts} as ts,
@@ -114,7 +133,7 @@ export async function addDebugTrack(
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
           ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
-        from ${sqlViewName}
+        from data
       )
       select
         *
