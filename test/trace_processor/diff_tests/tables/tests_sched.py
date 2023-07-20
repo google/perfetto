@@ -273,23 +273,28 @@ class TablesSched(TestSuite):
           blocked_state,
           blocked_function,
           height,
-          is_leaf
+          is_leaf,
+          leaf_ts,
+          leaf_blocked_dur,
+          leaf_blocked_state,
+          leaf_blocked_function
         FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(NULL)
+        WHERE leaf_blocked_function IS NOT NULL
         ORDER BY height DESC, ts, tid
         LIMIT 10
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf"
-        1740252621947,35807217,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_7","/system/bin/mediaserver",16688,"S","[NULL]",153,0
-        1740287823247,9522163,282,282,"f2fs_ckpt-254:5","f2fs_ckpt-254:5","AsyncTask #1","com.android.providers.media.module",332115250,"S","[NULL]",152,0
-        1740252621947,35807217,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_7","/system/bin/mediaserver",16688,"S","[NULL]",151,0
-        1740297282282,13298848,3548,3487,"AsyncTask #1","com.android.providers.media.module","f2fs_ckpt-254:5","f2fs_ckpt-254:5",8853118,"D","f2fs_issue_checkpoint",151,0
-        1740287823247,9522163,282,282,"f2fs_ckpt-254:5","f2fs_ckpt-254:5","AsyncTask #1","com.android.providers.media.module",332115250,"S","[NULL]",150,0
-        1740310563850,141705,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",53196161,"S","[NULL]",150,0
-        1740297282282,13298848,3548,3487,"AsyncTask #1","com.android.providers.media.module","f2fs_ckpt-254:5","f2fs_ckpt-254:5",8853118,"D","f2fs_issue_checkpoint",149,0
-        1740310673843,167265,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:553_3","/system/bin/mediaserver",92713,"S","[NULL]",149,0
-        1740310563850,141705,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",53196161,"S","[NULL]",148,0
-        1740310830675,146216,2134,553,"binder:553_3","/system/bin/mediaserver","AsyncTask #1","com.android.providers.media.module",125120,"S","[NULL]",148,0
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
+        1737172465260,29548030,2052,2043,"FinalizerDaemon","com.android.deskclock","FinalizerWatchd","com.android.camera2",11770793,"D","rwsem_down_write_slowpath",5,0,1737197989304,9855602,"D","rwsem_down_write_slowpath"
+        1737188135137,13870797,2223,2206,"HeapTaskDaemon","com.android.calendar","FinalizerDaemon","com.android.deskclock",4102877,"D","rwsem_down_write_slowpath",4,0,1737197989304,9855602,"D","rwsem_down_write_slowpath"
+        1737192309903,9714420,2368,2358,"FinalizerWatchd","com.android.dynsystem:dynsystem","HeapTaskDaemon","com.android.calendar",7296983,"D","rwsem_down_write_slowpath",4,0,1737202220876,207586,"D","rwsem_down_write_slowpath"
+        1737163289015,17475229,2322,2311,"binder:2311_1","com.android.contacts","android.bg","com.android.quicksearchbox",27986951,"D","rwsem_down_write_slowpath",3,0,1737188046830,14783279,"D","rwsem_down_write_slowpath"
+        1737172465260,29548030,2052,2043,"FinalizerDaemon","com.android.deskclock","FinalizerWatchd","com.android.camera2",11770793,"D","rwsem_down_write_slowpath",3,0,1737183285297,3424846,"D","rwsem_down_write_slowpath"
+        1737192309903,9714420,2368,2358,"FinalizerWatchd","com.android.dynsystem:dynsystem","HeapTaskDaemon","com.android.calendar",7296983,"D","rwsem_down_write_slowpath",3,0,1737197989304,9855602,"D","rwsem_down_write_slowpath"
+        1737202014546,94607,2282,2272,"FinalizerWatchd","com.android.camera2","FinalizerWatchd","com.android.dynsystem:dynsystem",723969,"D","rwsem_down_write_slowpath",3,0,1737202220876,207586,"D","rwsem_down_write_slowpath"
+        1737179755966,8288639,2100,2093,"HeapTaskDaemon","com.android.localtransport","binder:2311_1","com.android.contacts",8507685,"D","rwsem_down_write_slowpath",2,0,1737188046830,14783279,"D","rwsem_down_write_slowpath"
+        1737179861894,4170366,2223,2206,"HeapTaskDaemon","com.android.calendar","FinalizerDaemon","com.android.deskclock",63556,"D","rwsem_down_write_slowpath",2,0,1737183285297,3424846,"D","rwsem_down_write_slowpath"
+        1737179861894,4170366,2223,2206,"HeapTaskDaemon","com.android.calendar","FinalizerDaemon","com.android.deskclock",63556,"D","rwsem_down_write_slowpath",2,0,1737184034149,735476,"D","rwsem_down_write_slowpath"
         """))
 
   def test_thread_executing_span_descendants_id(self):
