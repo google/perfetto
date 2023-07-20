@@ -389,33 +389,37 @@ WITH chain AS (
 SELECT * FROM chain
 ');
 
--- All thread_executing_spans that are ancestors of |leaf_id|
+-- All thread_executing_spans that are ancestors of |leaf_id|.
 --
--- @arg leaf_id INT           Thread state id to start recursion
+-- @arg leaf_id INT                Thread state id to start recursion.
 --
--- @column parent_id          Id of thread_executing_span that directly woke |id|
--- @column id                 Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                 Timestamp of first thread_state in thread_executing_span.
--- @column dur                Duration of thread_executing_span.
--- @column tid                Tid of thread with thread_state.
--- @column pid                Pid of process with thread_state.
--- @column utid               Utid of thread with thread_state.
--- @column upid               Upid of process with thread_state.
--- @column thread_name        Name of thread with thread_state.
--- @column process_name       Name of process with thread_state.
--- @column waker_tid          Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid          Pid of process that woke the first thread_state in thread_executing_span.
--- @column waker_utid         Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid         Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name  Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name Name of process that woke the first thread_state in thread_executing_span.
--- @column blocked_dur        Duration of blocking thread state before waking up.
--- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function   Kernel blocking function of thread state before waking up.
--- @column is_root            Whether this span is the root in the slice tree.
--- @column is_leaf            Whether this span is the leaf in the slice tree.
--- @column height             Tree height from |leaf_id|
--- @column leaf_id            Thread state id used to start the recursion. Helpful for SQL JOINs
+-- @column parent_id               Id of thread_executing_span that directly woke |id|.
+-- @column id                      Id of the first (runnable) thread state in thread_executing_span.
+-- @column ts                      Timestamp of first thread_state in thread_executing_span.
+-- @column dur                     Duration of thread_executing_span.
+-- @column tid                     Tid of thread with thread_state.
+-- @column pid                     Pid of process with thread_state.
+-- @column utid                    Utid of thread with thread_state.
+-- @column upid                    Upid of process with thread_state.
+-- @column thread_name             Name of thread with thread_state.
+-- @column process_name            Name of process with thread_state.
+-- @column waker_tid               Tid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_pid               Pid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_utid              Utid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_upid              Upid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_thread_name       Name of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_process_name      Name of process that woke the first thread_state in thread_executing_span.
+-- @column blocked_dur             Duration of blocking thread state before waking up.
+-- @column blocked_state           Thread state ('D' or 'S') of blocked thread_state before waking up.
+-- @column blocked_function        Kernel blocking function of thread state before waking up.
+-- @column is_root                 Whether this span is the root in the slice tree.
+-- @column is_leaf                 Whether this span is the leaf in the slice tree.
+-- @column height                  Tree height from |leaf_id|.
+-- @column leaf_id                 Thread state id used to start the recursion. Helpful for SQL JOINs.
+-- @column leaf_ts                 Thread state timestamp of the |leaf_id|.
+-- @column leaf_blocked_dur        Thread state duration blocked of the |leaf_id|.
+-- @column leaf_blocked_state      Thread state of the |leaf_id|.
+-- @column leaf_blocked_function   Thread state blocked_function of the |leaf_id|.
 SELECT CREATE_VIEW_FUNCTION(
 'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT)',
 '
@@ -441,7 +445,11 @@ SELECT CREATE_VIEW_FUNCTION(
   is_root INT,
   is_leaf INT,
   height INT,
-  leaf_id INT
+  leaf_id INT,
+  leaf_ts LONG,
+  leaf_blocked_dur LONG,
+  leaf_blocked_state STRING,
+  leaf_blocked_function STRING
 ',
 '
 WITH
@@ -452,6 +460,7 @@ chain AS (
     id AS leaf_id,
     ts AS leaf_ts,
     blocked_dur AS leaf_blocked_dur,
+    blocked_state AS leaf_blocked_state,
     blocked_function AS leaf_blocked_function
   FROM experimental_thread_executing_span_graph
   WHERE ($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL AND is_leaf)
@@ -462,34 +471,12 @@ chain AS (
     chain.leaf_id,
     chain.leaf_ts,
     chain.leaf_blocked_dur,
+    chain.leaf_blocked_state,
     chain.leaf_blocked_function
   FROM experimental_thread_executing_span_graph graph
   JOIN chain ON chain.parent_id = graph.id AND chain.ts >= (leaf_ts - leaf_blocked_dur)
-) SELECT
-    parent_id,
-    id,
-    ts,
-    dur,
-    tid,
-    pid,
-    utid,
-    upid,
-    thread_name,
-    process_name,
-    waker_tid,
-    waker_pid,
-    waker_utid,
-    waker_upid,
-    waker_thread_name,
-    waker_process_name,
-    blocked_dur,
-    blocked_state,
-    blocked_function,
-    is_root,
-    is_leaf,
-    height,
-    leaf_id
-  FROM chain;
+)
+SELECT * FROM chain
 ');
 
 -- Gets the thread_executing_span id a thread_state belongs to. Returns NULL if thread state is
