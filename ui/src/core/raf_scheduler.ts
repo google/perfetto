@@ -63,6 +63,7 @@ export class RafScheduler implements PerfStatsSource {
   private _shutdown = false;
   private _beforeRedraw: () => void = () => {};
   private _afterRedraw: () => void = () => {};
+  private _pendingCallbacks: RedrawCallback[] = [];
 
   private perfStats = {
     rafActions: new RunningStatistics(),
@@ -87,6 +88,10 @@ export class RafScheduler implements PerfStatsSource {
 
   removeRedrawCallback(cb: RedrawCallback) {
     this.canvasRedrawCallbacks.delete(cb);
+  }
+
+  addPendingCallback(cb: RedrawCallback) {
+    this._pendingCallbacks.push(cb);
   }
 
   // Schedule re-rendering of canvas only.
@@ -149,6 +154,10 @@ export class RafScheduler implements PerfStatsSource {
     for (const redraw of this.canvasRedrawCallbacks) redraw(nowMs);
     this.isRedrawing = false;
     this._afterRedraw();
+    for (const cb of this._pendingCallbacks) {
+      cb(nowMs);
+    }
+    this._pendingCallbacks.splice(0, this._pendingCallbacks.length);
     if (perfDebug()) {
       this.perfStats.rafCanvas.addValue(debugNow() - redrawStart);
     }
