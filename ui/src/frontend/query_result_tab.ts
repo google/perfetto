@@ -115,8 +115,10 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
                 position: PopupPosition.Top,
               },
               m(AddDebugTrackMenu, {
-                sqlViewName: this.sqlViewName,
-                columns: assertExists(this.queryResponse).columns,
+                dataSource: {
+                  sqlSource: `select * from ${this.sqlViewName}`,
+                  columns: assertExists(this.queryResponse).columns,
+                },
                 engine: this.engine,
               })),
       ],
