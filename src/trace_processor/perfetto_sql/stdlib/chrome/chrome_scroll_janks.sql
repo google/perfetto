@@ -13,6 +13,7 @@
 -- limitations under the License.
 
 -- TODO(b/286187288): Move this dependency to stdlib.
+SELECT IMPORT('chrome.chrome_scrolls');
 SELECT RUN_METRIC('chrome/chrome_scroll_jank_v3.sql');
 SELECT IMPORT('common.slices');
 
@@ -36,16 +37,16 @@ SELECT IMPORT('common.slices');
 --                                    presentation.
 CREATE TABLE chrome_janky_event_latencies_v3 AS
 SELECT
-    s.id,
-    s.ts,
-    s.dur,
-    s.track_id,
-    s.name,
-    e.cause_of_jank,
-    e.sub_cause_of_jank,
-    CAST((e.delay_since_last_frame/e.vsync_interval) AS INT) AS delayed_frame_count,
-    CAST(s.ts + s.dur - ((e.delay_since_last_frame - e.vsync_interval) * 1e6) AS INT) AS frame_jank_ts,
-    CAST((e.delay_since_last_frame - e.vsync_interval) * 1e6 AS INT) AS frame_jank_dur
+  s.id,
+  s.ts,
+  s.dur,
+  s.track_id,
+  s.name,
+  e.cause_of_jank,
+  e.sub_cause_of_jank,
+  CAST((e.delay_since_last_frame/e.vsync_interval) - 1 AS INT) AS delayed_frame_count,
+  CAST(s.ts + s.dur - ((e.delay_since_last_frame - e.vsync_interval) * 1e6) AS INT) AS frame_jank_ts,
+  CAST((e.delay_since_last_frame - e.vsync_interval) * 1e6 AS INT) AS frame_jank_dur
 FROM slice s
 JOIN chrome_janky_frames e
   ON s.id = e. event_latency_id;
@@ -66,14 +67,59 @@ JOIN chrome_janky_frames e
 --                                    the slice table.
 CREATE VIEW chrome_janky_frame_presentation_intervals AS
 SELECT
-    ROW_NUMBER() OVER(ORDER BY frame_jank_ts) AS id,
-    frame_jank_ts AS ts,
-    frame_jank_dur AS dur,
-    delayed_frame_count,
-    cause_of_jank,
-    sub_cause_of_jank,
-    id AS event_latency_id
+  ROW_NUMBER() OVER(ORDER BY frame_jank_ts) AS id,
+  frame_jank_ts AS ts,
+  frame_jank_dur AS dur,
+  delayed_frame_count,
+  cause_of_jank,
+  sub_cause_of_jank,
+  id AS event_latency_id
 FROM chrome_janky_event_latencies_v3;
+
+-- Scroll jank frame presentation stats for individual scrolls.
+--
+-- @column scroll_id INT              Id of the individual scroll.
+-- @column missed_vsyncs INT          The number of missed vsyncs in the scroll.
+-- @column frame_count INT            The number of frames in the scroll.
+-- @column presented_frame_count INT  The number presented frames in the scroll.
+-- @column janky_frame_count INT      The number of janky frames in the scroll.
+-- @column janky_frame_percent FLOAT  The % of frames that janked in the scroll.
+CREATE VIEW chrome_scroll_stats AS
+WITH vsyncs AS (
+  SELECT
+    COUNT() AS presented_vsync_count,
+    scroll.id AS scroll_id
+  FROM chrome_unique_frame_presentation_ts frame
+  JOIN chrome_scrolls scroll
+    ON frame.presentation_timestamp >= scroll.ts
+    AND frame.presentation_timestamp <= scroll.ts + scroll.dur
+  GROUP BY scroll_id),
+missed_vsyncs AS (
+  SELECT
+    CAST(SUM((delay_since_last_frame / vsync_interval) - 1) AS INT)  AS total_missed_vsyncs,
+    scroll_id
+  FROM chrome_janky_frames
+  GROUP BY scroll_id),
+frame_stats AS (
+  SELECT
+    scroll_id,
+    num_frames AS presented_frame_count,
+    IFNULL(num_janky_frames, 0) AS janky_frame_count,
+    ROUND(IFNULL(scroll_jank_percentage, 0), 2) AS janky_frame_percent
+  FROM frames_per_scroll
+)
+SELECT
+  vsyncs.scroll_id,
+  presented_vsync_count + IFNULL(total_missed_vsyncs, 0) AS frame_count,
+  total_missed_vsyncs AS missed_vsyncs,
+  presented_frame_count,
+  janky_frame_count,
+  janky_frame_percent
+FROM vsyncs
+LEFT JOIN missed_vsyncs
+  USING (scroll_id)
+LEFT JOIN frame_stats
+  USING (scroll_id);
 
 -- Defines slices for all of janky scrolling intervals in a trace.
 --

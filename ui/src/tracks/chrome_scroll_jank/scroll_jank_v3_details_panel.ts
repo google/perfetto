@@ -54,13 +54,14 @@ interface Data {
   // Duration of this slice in nanoseconds.
   dur: duration;
   // The number of frames that were delayed due to the jank.
-  delayedFrameCount: number;
+  delayedVsyncCount: number;
   // Slice ID of the corresponding EventLatency slice.
   eventLatencyId: number;
   // The stage of EventLatency that is the cause of jank.
   jankCause: string;
   // Where possible, the subcause of jank.
   jankSubcause: string;
+  jankyFrames?: number;
 }
 
 async function getSliceDetails(
@@ -115,7 +116,7 @@ export class ScrollJankV3DetailsPanel extends
         id,
         ts,
         dur,
-        delayed_frame_count AS delayedFrameCount,
+        delayed_frame_count AS delayedVsyncCount,
         event_latency_id AS eventLatencyId,
         IFNULL(cause_of_jank, "UNKNOWN") AS causeOfJank,
         IFNULL(sub_cause_of_jank, "UNKNOWN") AS subcauseOfJank
@@ -127,7 +128,7 @@ export class ScrollJankV3DetailsPanel extends
       id: NUM,
       ts: LONG,
       dur: LONG,
-      delayedFrameCount: NUM,
+      delayedVsyncCount: NUM,
       eventLatencyId: NUM,
       causeOfJank: STR,
       subcauseOfJank: STR,
@@ -137,11 +138,13 @@ export class ScrollJankV3DetailsPanel extends
       id: iter.id,
       ts: Time.fromRaw(iter.ts),
       dur: iter.dur,
-      delayedFrameCount: iter.delayedFrameCount,
+      delayedVsyncCount: iter.delayedVsyncCount,
       eventLatencyId: iter.eventLatencyId,
       jankCause: iter.causeOfJank,
       jankSubcause: iter.subcauseOfJank,
     };
+
+    await this.loadJankyFrames();
 
     await this.loadSlices();
     this.loaded = true;
@@ -181,6 +184,34 @@ export class ScrollJankV3DetailsPanel extends
     }
   }
 
+  private async loadJankyFrames() {
+    if (exists(this.data)) {
+      const queryResult = await this.engine.query(`
+        SELECT
+          COUNT(*) AS jankyFrames
+        FROM chrome_janky_frame_info_with_delay
+        WHERE delay_since_last_frame >
+          (
+            SELECT
+              vsync_interval + vsync_interval / 2
+            FROM chrome_vsyncs)
+          AND delay_since_last_input <
+            (
+              SELECT
+                vsync_interval + vsync_interval / 2
+              FROM chrome_vsyncs)
+          AND presentation_timestamp >= ${this.data.ts}
+          AND presentation_timestamp <= ${this.data.ts + this.data.dur};
+      `);
+
+      const iter = queryResult.firstRow({
+        jankyFrames: NUM,
+      });
+
+      this.data.jankyFrames = iter.jankyFrames;
+    }
+  }
+
   private renderDetailsDictionary(): m.Child[] {
     const details: {[key: string]: m.Child} = {};
     if (exists(this.data)) {
@@ -191,11 +222,11 @@ export class ScrollJankV3DetailsPanel extends
           m(Timestamp, {ts: Time.add(this.data.ts, this.data.dur)});
       details['Frame Presentation Delay'] =
           m(DurationWidget, {dur: this.data.dur});
-      details['Frames Delayed'] = this.data.delayedFrameCount;
-      details['Original Event Latency'] = m(SqlRef, {
-        table: 'slice',
-        id: this.data.eventLatencyId,
-      });
+      details['Vsyncs Delayed'] = this.data.delayedVsyncCount;
+      if (exists(this.data.jankyFrames)) {
+        details['Janky Frame Count'] = this.data.jankyFrames;
+      }
+      details['Original Event Latency'] = this.data.eventLatencyId;
       details['SQL ID'] = m(SqlRef, {
         table: 'chrome_janky_frame_presentation_intervals',
         id: this.data.id,

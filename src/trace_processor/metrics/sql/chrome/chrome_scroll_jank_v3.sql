@@ -270,7 +270,7 @@ SELECT
   100.0 * janky_frames.num_janky_frames / frames.num_frames
     AS scroll_jank_percentage
 FROM frames
-INNER JOIN janky_frames
+LEFT JOIN janky_frames
   ON frames.scroll_id = janky_frames.scroll_id;
 
 -- Scroll jank causes per scroll.
