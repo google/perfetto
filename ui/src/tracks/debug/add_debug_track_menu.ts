@@ -114,7 +114,6 @@ export class AddDebugTrackMenu implements
           onkeydown: (e: KeyboardEvent) => {
             // Allow Esc to close popup.
             if (e.key === 'Escape') return;
-            e.stopPropagation();
           },
           oninput: (e: KeyboardEvent) => {
             if (!e.target) return;
