@@ -27,6 +27,8 @@ import {
 import {
   Column,
   columnFromSqlTableColumn,
+  formatSqlProjection,
+  SqlProjection,
   sqlProjectionsForColumn,
 } from './column';
 import {SqlTableDescription, startsHidden} from './table_description';
@@ -107,15 +109,21 @@ export class SqlTableState {
     this.reload();
   }
 
-  // Compute the actual columns to fetch.
-  private getSQLProjections(): string[] {
-    const result = new Set<string>();
+  // Compute the actual columns to fetch. Some columns can appear multiple times
+  // (e.g. we might need "ts" to be able to show it, as well as a dependency for
+  // "slice_id" to be able to jump to it, so this function will deduplicate
+  // projections by alias.
+  private getSQLProjections(): SqlProjection[] {
+    const projections = [];
+    const aliases = new Set<string>();
     for (const column of this.columns) {
       for (const p of sqlProjectionsForColumn(column)) {
-        result.add(p);
+        if (aliases.has(p.alias)) continue;
+        aliases.add(p.alias);
+        projections.push(p);
       }
     }
-    return Array.from(result);
+    return projections;
   }
 
   getQueryConstraints(): SQLConstraints {
@@ -163,21 +171,35 @@ export class SqlTableState {
     `;
   }
 
-  getNonPaginatedSQLQuery(): string {
+  buildSqlSelectStatement(): {
+    selectStatement: string,
+    columns: string[],
+  } {
+    const projections = this.getSQLProjections();
     const orderBy = this.orderBy.map((c) => ({
                                        fieldName: c.column.alias,
                                        direction: c.direction,
                                      }));
     const constraints = this.getQueryConstraints();
     constraints.orderBy = orderBy;
+    const statement = `
+      ${constraintsToQueryPrefix(constraints)}
+      SELECT
+        ${projections.map(formatSqlProjection).join(',\n')}
+      FROM ${this.table.name}
+      ${constraintsToQuerySuffix(constraints)}
+    `;
+    return {
+      selectStatement: statement,
+      columns: projections.map((p) => p.alias),
+    };
+  }
+
+  getNonPaginatedSQLQuery(): string {
     return `
       ${this.getSQLImports()}
 
-      ${constraintsToQueryPrefix(constraints)}
-      SELECT
-        ${this.getSQLProjections().join(',\n')}
-      FROM ${this.table.name}
-      ${constraintsToQuerySuffix(constraints)}
+      ${this.buildSqlSelectStatement().selectStatement}
     `;
   }
 
