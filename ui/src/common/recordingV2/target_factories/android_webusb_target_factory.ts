@@ -90,7 +90,14 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
   }
 
   private async init() {
-    for (const device of await this.usb.getDevices()) {
+    let devices: USBDevice[] = [];
+    try {
+      devices = await this.usb.getDevices();
+    } catch (_) {
+      return;  // WebUSB not available or disallowed in iframe.
+    }
+
+    for (const device of devices) {
       if (this.checkDeviceValidity(device).isValid) {
         this.targets.set(
             assertExists(device.serialNumber),
