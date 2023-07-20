@@ -732,7 +732,7 @@ util::Status SpanJoinOperatorTable::Query::NextSliceState() {
 
 util::Status SpanJoinOperatorTable::Query::Rewind() {
   auto res = engine_->sqlite_engine()->PrepareStatement(
-      SqlSource::FromSpanJoin(sql_query_, table_->name()));
+      SqlSource::FromTraceProcessorImplementation(sql_query_));
   cursor_eof_ = false;
   RETURN_IF_ERROR(res.status());
   stmt_ = std::move(res);
