@@ -15,6 +15,8 @@
 
 import m from 'mithril';
 
+import {Disposable} from '../base/disposable';
+import {SimpleResizeObserver} from '../base/resize_observer';
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
@@ -76,20 +78,19 @@ function getEngine(): EngineProxy|undefined {
 }
 
 class QueryInput implements m.ClassComponent {
-  private resizeObserver?: ResizeObserver;
+  private resize?: Disposable;
 
   oncreate({dom}: m.CVnodeDOM): void {
-    this.resizeObserver = new ResizeObserver(() => {
+    this.resize = new SimpleResizeObserver(dom, () => {
       state.heightPx = (dom as HTMLElement).style.height;
     });
-    this.resizeObserver.observe(dom);
     (dom as HTMLElement).style.height = state.heightPx;
   }
 
   onremove(): void {
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = undefined;
+    if (this.resize) {
+      this.resize.dispose();
+      this.resize = undefined;
     }
   }
 
