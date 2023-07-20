@@ -137,6 +137,9 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
 export function dictToTreeNodes(dict: {[key: string]: m.Child}): m.Child[] {
   const children: m.Child[] = [];
   for (const key of Object.keys(dict)) {
+    if (dict[key] == undefined) {
+      continue;
+    }
     children.push(m(TreeNode, {
       left: key,
       right: dict[key],
