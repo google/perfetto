@@ -53,10 +53,14 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
                                          UniqueTid utid,
                                          UniqueTid waker_utid,
                                          std::optional<uint16_t> common_flags) {
-  // Only open new runnable state if thread already had a sched switch event.
+  // If thread has not had a sched switch event, just open a runnable state. There's no
+  // pending state to close.
   if (!HasPreviousRowNumbersForUtid(utid)) {
+      AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid,
+               common_flags);
     return;
   }
+
   auto last_row_ref = RowNumToRef(prev_row_numbers_for_thread_[utid]->last_row);
 
   // Occasionally, it is possible to get a waking event for a thread
