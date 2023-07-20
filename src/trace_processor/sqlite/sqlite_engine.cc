@@ -138,8 +138,7 @@ SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
   PreparedStatement statement{ScopedStmt(raw_stmt), std::move(sql)};
   if (err != SQLITE_OK) {
     const char* errmsg = sqlite3_errmsg(db_.get());
-    std::string frame =
-        statement.sql_source_.AsTracebackFrame(GetErrorOffset());
+    std::string frame = statement.sql_source_.AsTraceback(GetErrorOffset());
     base::Status status = base::ErrStatus("%s%s", frame.c_str(), errmsg);
     status.SetPayload("perfetto.dev/has_traceback", "true");
 
@@ -221,8 +220,8 @@ void SqliteEngine::OnSqliteTableDestroyed(const std::string& name) {
 }
 
 SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
-                                                   SqlSource tagged)
-    : stmt_(std::move(stmt)), sql_source_(std::move(tagged)) {}
+                                                   SqlSource source)
+    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
 
 bool SqliteEngine::PreparedStatement::Step() {
   PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP",
@@ -240,7 +239,7 @@ bool SqliteEngine::PreparedStatement::Step() {
     return false;
   }
   sqlite3* db = sqlite3_db_handle(stmt_.get());
-  std::string frame = sql_source_.AsTracebackFrame(GetErrorOffsetDb(db));
+  std::string frame = sql_source_.AsTraceback(GetErrorOffsetDb(db));
   const char* errmsg = sqlite3_errmsg(db);
   status_ = base::ErrStatus("%s%s", frame.c_str(), errmsg);
   return false;

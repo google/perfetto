@@ -94,10 +94,10 @@ base::Status CreateViewFunction::Run(CreateViewFunction::Context* ctx,
                                    kSqlTemplate, prototype_str,
                                    return_prototype_str, sql_defn_str);
   formatted_sql.resize(size);
-  return ctx
-      ->Execute(SqlSource::FromFunction(std::move(formatted_sql),
-                                        function_name_str.data()))
-      .status();
+
+  auto res = ctx->Execute(
+      SqlSource::FromTraceProcessorImplementation(std::move(formatted_sql)));
+  return res.status();
 }
 
 }  // namespace trace_processor
