@@ -22,7 +22,6 @@ import {
   focusHorizontalRange,
   verticalScrollToTrack,
 } from './scroll_helper';
-import {executeSearch} from './search_handler';
 
 const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
@@ -84,17 +83,8 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
     e.preventDefault();
     return true;
   }
-  if (down && 'b' === key && ctrlOrMeta) {
-    globals.dispatch(Actions.toggleSidebar({}));
-    return true;
-  }
   if (down && '?' === key && maybeShift) {
     toggleHelp();
-    return true;
-  }
-  if (down && 'enter' === key && maybeShift) {
-    e.preventDefault();
-    executeSearch(e.shiftKey);
     return true;
   }
   if (down && 'escape' === key) {

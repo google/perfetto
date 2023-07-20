@@ -27,11 +27,38 @@ export function findRef(root: Element, ref: string): Element|null {
   }
 }
 
-// Safely case an Element to an HTMLElement.
+// Safely cast an Element to an HTMLElement.
 // Throws if the element is not an HTMLElement.
 export function toHTMLElement(el: Element): HTMLElement {
   if (!(el instanceof HTMLElement)) {
     throw new Error('Element is not an HTLMElement');
   }
   return el as HTMLElement;
+}
+
+// Return true if EventTarget is or is inside an editable element.
+// Editable elements incluce: <input type="text">, <textarea>, or elements with
+// the |contenteditable| attribute set.
+export function elementIsEditable(target: EventTarget|null): boolean {
+  if (target === null) {
+    return false;
+  }
+
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  const editable = target.closest('input, textarea, [contenteditable=true]');
+
+  if (editable === null) {
+    return false;
+  }
+
+  if (editable instanceof HTMLInputElement) {
+    if (['radio', 'checkbox', 'button'].includes(editable.type)) {
+      return false;
+    }
+  }
+
+  return true;
 }
