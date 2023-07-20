@@ -13,11 +13,12 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {CommandWithMatchInfo} from 'src/common/commands';
 
+import {FuzzySegment} from '../base/fuzzy';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
-import {Command} from '../public';
 
 import {classNames} from './classnames';
 import {globals} from './globals';
@@ -40,7 +41,7 @@ const PLACEHOLDER = {
   [COMMAND]: 'Start typing a command..',
 };
 
-let matchingCommands: Command[] = [];
+let matchingCommands: CommandWithMatchInfo[] = [];
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
 
@@ -136,7 +137,7 @@ function onKeyUp(e: Event) {
 }
 
 interface CmdAttrs {
-  title: string;
+  title: FuzzySegment[];
   subtitle: string;
   highlighted?: boolean;
   icon?: string;
@@ -144,7 +145,7 @@ interface CmdAttrs {
 }
 
 class Cmd implements m.ClassComponent<CmdAttrs> {
-  view({attrs}: m.Vnode<CmdAttrs, this>): void|m.Children {
+  view({attrs}: m.Vnode<CmdAttrs>): void|m.Children {
     const {title, subtitle, icon, highlighted = false, ...htmlAttrs} = attrs;
     return m(
         'section.pf-cmd',
@@ -152,7 +153,9 @@ class Cmd implements m.ClassComponent<CmdAttrs> {
           class: classNames(highlighted && 'pf-highlighted'),
           ...htmlAttrs,
         },
-        m('h1', title),
+        m('h1', title.map(({value, matching}) => {
+          return matching ? m('b', value) : value;
+        })),
         m('h2', subtitle),
         m(Icon, {className: 'pf-right-icon', icon: icon ?? 'play_arrow'}),
     );
@@ -196,7 +199,7 @@ class Omnibox implements m.ClassComponent {
       } else {
         return matchingCommands.map((cmd, index) => {
           return m(Cmd, {
-            title: cmd.name,
+            title: cmd.segments,
             subtitle: cmd.id,
             highlighted: index === highlightedCommandIndex,
             onclick: () => {
