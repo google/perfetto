@@ -50,7 +50,7 @@ import {postMessageHandler} from './post_message_handler';
 import {QueryPage} from './query_page';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
-import {Router} from './router';
+import {Route, Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
@@ -101,6 +101,22 @@ function setExtensionAvailability(available: boolean) {
   globals.dispatch(Actions.setExtensionAvailable({
     available,
   }));
+}
+
+function routeChange(route: Route) {
+  raf.scheduleFullRedraw();
+  maybeOpenTraceFromRoute(route);
+  if (route.fragment) {
+    // This needs to happen after the next redraw call. It's not enough
+    // to use setTimeout(..., 0); since that may occur before the
+    // redraw scheduled above.
+    raf.addPendingCallback(() => {
+      const e = document.getElementById(route.fragment);
+      if (e) {
+        e.scrollIntoView();
+      }
+    });
+  }
 }
 
 function setupContentSecurityPolicy() {
@@ -206,10 +222,7 @@ function main() {
     '/info': TraceInfoPage,
     '/widgets': WidgetsPage,
   });
-  router.onRouteChanged = (route) => {
-    raf.scheduleFullRedraw();
-    maybeOpenTraceFromRoute(route);
-  };
+  router.onRouteChanged = routeChange;
 
   // These need to be set before globals.initialize.
   const route = Router.parseUrl(window.location.href);
@@ -387,7 +400,7 @@ function onCssLoaded() {
 
     // Handles the initial ?local_cache_key=123 or ?s=permalink or ?url=...
     // cases.
-    maybeOpenTraceFromRoute(route);
+    routeChange(route);
   });
 }
 
