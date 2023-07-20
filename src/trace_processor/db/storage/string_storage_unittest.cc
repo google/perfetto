@@ -194,6 +194,44 @@ TEST(StringStorageUnittest, LinearSearchGlob) {
   ASSERT_EQ(bv.CountSetBits(), 3u);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(StringStorageUnittest, LinearSearchRegex) {
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  ids.insert(ids.begin() + 3, StringPool::Id::Null());
+
+  StringStorage storage(&pool, ids.data(), 6);
+  BitVector bv =
+      storage.Search(FilterOp::kRegex, SqlValue::String(".*zz.*"), Range(0, 7))
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 1u);
+}
+
+TEST(StringStorageUnittest, LinearSearchRegexMalformed) {
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  ids.insert(ids.begin() + 3, StringPool::Id::Null());
+
+  StringStorage storage(&pool, ids.data(), 6);
+  BitVector bv =
+      storage.Search(FilterOp::kRegex, SqlValue::String("*"), Range(0, 7))
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 0u);
+}
+#endif
+
 TEST(StringStorageUnittest, IndexSearchEq) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};

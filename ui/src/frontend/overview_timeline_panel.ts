@@ -16,14 +16,12 @@ import m from 'mithril';
 
 import {hueForCpu} from '../common/colorizer';
 import {
+  duration,
   Span,
-  Timecode,
+  Time,
+  time,
   TimestampFormat,
   timestampFormat,
-  timestampOffset,
-  toDomainTime,
-  TPTime,
-  tpTimeToSeconds,
 } from '../common/time';
 
 import {
@@ -51,7 +49,7 @@ export class OverviewTimelinePanel extends Panel {
   private width = 0;
   private gesture?: DragGestureHandler;
   private timeScale?: TimeScale;
-  private traceTime?: Span<TPTime>;
+  private traceTime?: Span<time, duration>;
   private dragStrategy?: DragStrategy;
   private readonly boundOnMouseMove = this.onMouseMove.bind(this);
 
@@ -83,6 +81,10 @@ export class OverviewTimelinePanel extends Panel {
   }
 
   onremove({dom}: m.CVnodeDOM) {
+    if (this.gesture) {
+      this.gesture.dispose();
+      this.gesture = undefined;
+    }
     (dom as HTMLElement)
         .removeEventListener('mousemove', this.boundOnMouseMove);
   }
@@ -100,19 +102,19 @@ export class OverviewTimelinePanel extends Panel {
 
     if (size.width > TRACK_SHELL_WIDTH && this.traceTime.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(this.width - TRACK_SHELL_WIDTH);
-      const offset = timestampOffset();
+      const offset = globals.timestampOffset();
       const tickGen = new TickGenerator(this.traceTime, maxMajorTicks, offset);
 
       // Draw time labels
       ctx.font = '10px Roboto Condensed';
       ctx.fillStyle = '#999';
       for (const {type, time} of tickGen) {
-        const xPos = Math.floor(this.timeScale.tpTimeToPx(time));
+        const xPos = Math.floor(this.timeScale.timeToPx(time));
         if (xPos <= 0) continue;
         if (xPos > this.width) break;
         if (type === TickType.MAJOR) {
           ctx.fillRect(xPos - 1, 0, 1, headerHeight - 5);
-          const domainTime = toDomainTime(time);
+          const domainTime = globals.toDomainTime(time);
           renderTimestamp(ctx, domainTime, xPos + 5, 18, MIN_PX_PER_STEP);
         } else if (type == TickType.MEDIUM) {
           ctx.fillRect(xPos - 1, 0, 1, 8);
@@ -130,8 +132,8 @@ export class OverviewTimelinePanel extends Panel {
       for (const key of globals.overviewStore.keys()) {
         const loads = globals.overviewStore.get(key)!;
         for (let i = 0; i < loads.length; i++) {
-          const xStart = Math.floor(this.timeScale.tpTimeToPx(loads[i].start));
-          const xEnd = Math.ceil(this.timeScale.tpTimeToPx(loads[i].end));
+          const xStart = Math.floor(this.timeScale.timeToPx(loads[i].start));
+          const xEnd = Math.ceil(this.timeScale.timeToPx(loads[i].end));
           const yOff = Math.floor(headerHeight + y * trackHeight);
           const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
           ctx.fillStyle = `hsl(${hueForCpu(y)}, 50%, ${lightness}%)`;
@@ -239,7 +241,7 @@ export class OverviewTimelinePanel extends Panel {
 // Print a timestamp in the configured time format
 function renderTimestamp(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
@@ -256,7 +258,7 @@ function renderTimestamp(
       ctx.fillText(time.toLocaleString(), x, y, minWidth);
       break;
     case TimestampFormat.Seconds:
-      ctx.fillText(tpTimeToSeconds(time).toString() + ' s', x, y, minWidth);
+      ctx.fillText(Time.formatSeconds(time), x, y, minWidth);
       break;
     default:
       const z: never = fmt;
@@ -269,12 +271,12 @@ function renderTimestamp(
 // mmm uuu nnn
 function renderTimecode(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
     ): void {
-  const timecode = new Timecode(time);
+  const timecode = Time.toTimecode(time);
   const {dhhmmss} = timecode;
   ctx.fillText(dhhmmss, x, y, minWidth);
 }

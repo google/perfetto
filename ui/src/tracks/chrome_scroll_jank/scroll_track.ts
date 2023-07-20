@@ -19,10 +19,6 @@ import {
   PrimaryTrackSortKey,
   SCROLLING_TRACK_GROUP,
 } from '../../common/state';
-import {
-  Columns,
-  GenericSliceDetailsTab,
-} from '../../frontend/generic_slice_details_tab';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {
@@ -33,13 +29,13 @@ import {
 import {ScrollJankPluginState} from './index';
 
 import {ScrollJankTracks as DecideTracksResult} from './index';
+import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export {Data} from '../chrome_slices';
 
 export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
-  displayColumns: Columns = {};
 
   static create(args: NewTrackArgs): Track {
     return new TopLevelScrollTrack(args);
@@ -54,11 +50,10 @@ export class TopLevelScrollTrack extends
 
   getDetailsPanel(): CustomSqlDetailsPanelConfig {
     return {
-      kind: GenericSliceDetailsTab.kind,
+      kind: ScrollDetailsPanel.kind,
       config: {
         sqlTableName: this.tableName,
         title: 'Chrome Top Level Scrolls',
-        columns: this.displayColumns,
       },
     };
   }
@@ -72,10 +67,6 @@ export class TopLevelScrollTrack extends
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });
-
-    this.displayColumns['id'] = {displayName: 'Scroll Id (gesture_scroll_id)'};
-    this.displayColumns['ts'] = {displayName: 'Start time'};
-    this.displayColumns['dur'] = {displayName: 'Duration'};
   }
 
   onDestroy() {
@@ -98,7 +89,7 @@ export async function addTopLevelScrollTrack(engine: Engine):
     engineId: engine.id,
     kind: TopLevelScrollTrack.kind,
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-    name: 'Chrome Top Level Scrolls',
+    name: 'Chrome Scrolls',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });

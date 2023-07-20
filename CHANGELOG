@@ -8,6 +8,25 @@ Unreleased:
   SDK:
     *
 
+v36.1 - 2023-07-06:
+  Trace Processor:
+    * Fix compile on Windows.
+
+v36.0 - 2023-07-05:
+  Tracing service and probes:
+    * Fixed unnecessary reads of thread files /proc when scraping process names.
+  Trace Processor:
+    * Rewrote filtering engine to be significantly faster on a wide range of
+      common queries.
+    * Significantly improved quality of PerfettoSQL error messages.
+    * Added API to retrieve last executed statement from iterator.
+    * Added support for filtering rows by a regex.
+  UI:
+    * Fixed flow events working for async tracks.
+    * Added table viewer for slice-like tables.
+  SDK:
+    * Reduce binary size impact of macro and template expansions.
+
 v35.0 - 2023-06-07:
   Tracing service and probes:
     * Compression has been moved from perfetto_cmd to traced. Now compression is

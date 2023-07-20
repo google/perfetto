@@ -68,7 +68,7 @@ git cl upload
 ```
 
 Once the cherry-picks are landed, send out a CL to update the
-[channels.json](/ui/release/channels.json) in the `master` branch. See
+[channels.json](/ui/release/channels.json) in the `main` branch. See
 [r.android.com/1726101](https://r.android.com/1726101) for an example.
 
 ```json
@@ -94,7 +94,7 @@ Once the cherry-picks are landed, send out a CL to update the
 ```
 
 The state of `channels.json` in the other branches is irrelevant, the release
-infrastructure only looks at the `master` branch to determine the pinning of
+infrastructure only looks at the `main` branch to determine the pinning of
 each channel.
 
 After the `channels.json` CL lands, the build infrastructure will pick it up

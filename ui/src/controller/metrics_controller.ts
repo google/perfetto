@@ -34,10 +34,12 @@ export class MetricsController extends Controller<'main'> {
     if (name === this.currentlyRunningMetric) return;
     this.currentlyRunningMetric = name;
     try {
-      const metricResult = await this.engine.computeMetric([name]);
+      const metricResult = await this.engine.computeMetric([name], 'prototext');
+      const resultString =
+          metricResult instanceof Uint8Array ? '' : metricResult;
       publishMetricResult({
         name,
-        resultString: metricResult.metricsAsPrototext || undefined,
+        resultString,
       });
     } catch (e) {
       if (e instanceof QueryError) {

@@ -13,7 +13,7 @@
 -- limitations under the License.
 
 -- TODO(b/286187288): Move this dependency to stdlib.
-SELECT RUN_METRIC('chrome/scroll_jank_v3.sql');
+SELECT RUN_METRIC('chrome/chrome_scroll_jank_v3.sql');
 SELECT IMPORT('common.slices');
 
 -- Selects EventLatency slices that correspond with janks in a scroll. This is
@@ -28,6 +28,8 @@ SELECT IMPORT('common.slices');
 --                                    the jank.
 -- @column sub_cause_of_jank STRING   The stage of cause_of_jank that caused the
 --                                    jank.
+-- @column delayed_frame_count INT    How many vsyncs this frame missed its
+--                                    deadline by.
 -- @column frame_jank_ts INT          The start timestamp where frame
 --                                    frame presentation was delayed.
 -- @column frame_jank_dur INT         The duration in ms of the delay in frame
@@ -41,11 +43,37 @@ SELECT
     s.name,
     e.cause_of_jank,
     e.sub_cause_of_jank,
+    CAST((e.delay_since_last_frame/e.vsync_interval) AS INT) AS delayed_frame_count,
     CAST(s.ts + s.dur - ((e.delay_since_last_frame - e.vsync_interval) * 1e6) AS INT) AS frame_jank_ts,
     CAST((e.delay_since_last_frame - e.vsync_interval) * 1e6 AS INT) AS frame_jank_dur
 FROM slice s
 JOIN chrome_janky_frames e
   ON s.id = e. event_latency_id;
+
+-- Frame presentation interval is the delta between when the frame was supposed
+-- to be presented and when it was actually presented.
+--
+-- @column id INT                     Unique id.
+-- @column ts INT                     The start timestamp of the slice.
+-- @column dur INT                    The duration of the slice.
+-- @column delayed_frame_count INT    How many vsyncs this frame missed its
+--                                    deadline by.
+-- @column cause_of_jank STRING       The stage of EventLatency that the caused
+--                                    the jank.
+-- @column sub_cause_of_jank STRING   The stage of cause_of_jank that caused the
+--                                    jank.
+-- @column event_latency_id STRING    The id of the associated event latency in
+--                                    the slice table.
+CREATE VIEW chrome_janky_frame_presentation_intervals AS
+SELECT
+    ROW_NUMBER() OVER(ORDER BY frame_jank_ts) AS id,
+    frame_jank_ts AS ts,
+    frame_jank_dur AS dur,
+    delayed_frame_count,
+    cause_of_jank,
+    sub_cause_of_jank,
+    id AS event_latency_id
+FROM chrome_janky_event_latencies_v3;
 
 -- Defines slices for all of janky scrolling intervals in a trace.
 --

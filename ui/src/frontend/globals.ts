@@ -30,13 +30,21 @@ import {
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {onSelectionChanged} from '../common/selection_observer';
-import {CallsiteInfo, EngineConfig, ProfileType, State} from '../common/state';
 import {
+  CallsiteInfo,
+  EngineConfig,
+  ProfileType,
+  RESOLUTION_DEFAULT,
+  State,
+} from '../common/state';
+import {
+  duration,
   Span,
-  TPDuration,
-  TPTime,
-  tpTimeFromSeconds,
-  TPTimeSpan,
+  Time,
+  time,
+  TimeSpan,
+  TimestampFormat,
+  timestampFormat,
 } from '../common/time';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
@@ -46,7 +54,7 @@ import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
-import {SliceSqlId, TPTimestamp} from './sql_types';
+import {SliceSqlId} from './sql_types';
 import {createStore, Store} from './store';
 import {PxSpan, TimeScale} from './time_scale';
 
@@ -57,18 +65,18 @@ type AggregateDataStore = Map<string, AggregateData>;
 type Description = Map<string, string>;
 
 export interface SliceDetails {
-  ts?: TPTime;
+  ts?: time;
   absTime?: string;
-  dur?: TPDuration;
-  threadTs?: TPTime;
-  threadDur?: TPDuration;
+  dur?: duration;
+  threadTs?: time;
+  threadDur?: duration;
   priority?: number;
   endState?: string|null;
   cpu?: number;
   id?: number;
   threadStateId?: number;
   utid?: number;
-  wakeupTs?: TPTime;
+  wakeupTs?: time;
   wakerUtid?: number;
   wakerCpu?: number;
   category?: string;
@@ -90,8 +98,8 @@ export interface FlowPoint {
   sliceName: string;
   sliceCategory: string;
   sliceId: SliceSqlId;
-  sliceStartTs: TPTimestamp;
-  sliceEndTs: TPTimestamp;
+  sliceStartTs: time;
+  sliceEndTs: time;
   // Thread and process info. Only set in sliceSelected not in areaSelected as
   // the latter doesn't display per-flow info and it'd be a waste to join
   // additional tables for undisplayed info in that case. Nothing precludes
@@ -112,30 +120,30 @@ export interface Flow {
 
   begin: FlowPoint;
   end: FlowPoint;
-  dur: TPDuration;
+  dur: duration;
 
   category?: string;
   name?: string;
 }
 
 export interface CounterDetails {
-  startTime?: TPTime;
+  startTime?: time;
   value?: number;
   delta?: number;
-  duration?: TPDuration;
+  duration?: duration;
   name?: string;
 }
 
 export interface ThreadStateDetails {
-  ts?: TPTime;
-  dur?: TPDuration;
+  ts?: time;
+  dur?: duration;
 }
 
 export interface FlamegraphDetails {
   type?: ProfileType;
   id?: number;
-  start?: TPTime;
-  dur?: TPDuration;
+  start?: time;
+  dur?: duration;
   pids?: number[];
   upids?: number[];
   flamegraph?: CallsiteInfo[];
@@ -152,14 +160,14 @@ export interface FlamegraphDetails {
 
 export interface CpuProfileDetails {
   id?: number;
-  ts?: TPTime;
+  ts?: time;
   utid?: number;
   stack?: CallsiteInfo[];
 }
 
 export interface QuantizedLoad {
-  start: TPTime;
-  end: TPTime;
+  start: time;
+  end: time;
   load: number;
 }
 type OverviewStore = Map<string, QuantizedLoad[]>;
@@ -176,7 +184,7 @@ type ThreadMap = Map<number, ThreadDesc>;
 
 export interface FtraceEvent {
   id: number;
-  ts: TPTime;
+  ts: time;
   name: string;
   cpu: number;
   thread: string|null;
@@ -556,7 +564,7 @@ class Globals {
     this.aggregateDataStore.set(kind, data);
   }
 
-  getCurResolution(): TPDuration {
+  getCurResolution(): duration {
     // Truncate the resolution to the closest power of 2 (in nanosecond space).
     // We choose to work in ns space because resolution is consumed be track
     // controllers for quantization and they rely on resolution to be a power
@@ -571,12 +579,12 @@ class Globals {
     // TODO(b/186265930): Remove once fixed:
     if (timeScale.pxSpan.delta === 0) {
       console.error(`b/186265930: Bad pxToSec suppressed`);
-      return BigintMath.bitFloor(tpTimeFromSeconds(1000));
+      return RESOLUTION_DEFAULT;
     }
 
     const timePerPx = timeScale.pxDeltaToDuration(this.quantPx);
 
-    return BigintMath.bitFloor(timePerPx.toTPTime('floor'));
+    return BigintMath.bitFloor(timePerPx.toTime('floor'));
   }
 
   getCurrentEngine(): EngineConfig|undefined {
@@ -674,25 +682,25 @@ class Globals {
   // Get a timescale that covers the entire trace
   getTraceTimeScale(pxSpan: PxSpan): TimeScale {
     const {start, end} = this.state.traceTime;
-    const traceTime = HighPrecisionTimeSpan.fromTpTime(start, end);
+    const traceTime = HighPrecisionTimeSpan.fromTime(start, end);
     return TimeScale.fromHPTimeSpan(traceTime, pxSpan);
   }
 
   // Get the trace time bounds
   stateTraceTime(): Span<HighPrecisionTime> {
     const {start, end} = this.state.traceTime;
-    return HighPrecisionTimeSpan.fromTpTime(start, end);
+    return HighPrecisionTimeSpan.fromTime(start, end);
   }
 
-  stateTraceTimeTP(): Span<TPTime> {
+  stateTraceTimeTP(): Span<time, duration> {
     const {start, end} = this.state.traceTime;
-    return new TPTimeSpan(start, end);
+    return new TimeSpan(start, end);
   }
 
   // Get the state version of the visible time bounds
-  stateVisibleTime(): Span<TPTime> {
+  stateVisibleTime(): Span<time, duration> {
     const {start, end} = this.state.frontendLocalState.visibleState;
-    return new TPTimeSpan(start, end);
+    return new TimeSpan(start, end);
   }
 
   // How many pixels to use for one quanta of horizontal resolution
@@ -708,6 +716,27 @@ class Globals {
 
   get commandManager(): CommandManager {
     return assertExists(this._cmdManager);
+  }
+
+  // Offset between t=0 and the configured time domain.
+  timestampOffset(): time {
+    const fmt = timestampFormat();
+    switch (fmt) {
+      case TimestampFormat.Timecode:
+      case TimestampFormat.Seconds:
+        return globals.state.traceTime.start;
+      case TimestampFormat.Raw:
+      case TimestampFormat.RawLocale:
+        return Time.ZERO;
+      default:
+        const x: never = fmt;
+        throw new Error(`Unsupported format ${x}`);
+    }
+  }
+
+  // Convert absolute time to domain time.
+  toDomainTime(ts: time): time {
+    return Time.sub(ts, this.timestampOffset());
   }
 }
 

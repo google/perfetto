@@ -21,10 +21,10 @@ Continue with the appropriate section below.
 
 ## a) Creating a new major version
 
-Make sure that the current master branch builds on
+Make sure that the current main branch builds on
 [LUCI](https://luci-scheduler.appspot.com/jobs/perfetto) by triggering all the
 builds and waiting for their success. If any of the builds fail, fix the failure
-on master before proceeding.
+on main before proceeding.
 
 Create an entry in CHANGELOG with the new major version: this usually involves
 renaming the "Unreleased" entry to the version number you chose earlier
@@ -33,13 +33,13 @@ renaming the "Unreleased" entry to the version number you chose earlier
 Test that the perfetto build tools can parse the CHANGELOG: after building,
 running `perfetto --version` should show your new version number.
 
-Upload the CHANGELOG change and submit it on the master branch.
+Upload the CHANGELOG change and submit it on the main branch.
 
 Create a release branch for the new major version ("v16.x" here):
 
 ```bash
 git fetch origin
-git push origin origin/master:refs/heads/releases/v16.x
+git push origin origin/main:refs/heads/releases/v16.x
 git fetch origin
 git checkout -b releases/v16.x -t origin/releases/v16.x
 ```

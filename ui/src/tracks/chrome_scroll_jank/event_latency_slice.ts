@@ -18,12 +18,12 @@ import {assertExists} from '../../base/logging';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM} from '../../common/query_result';
-import {TPDuration} from '../../common/time';
+import {duration, Time, time} from '../../common/time';
 import {Anchor} from '../../frontend/anchor';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {Icons} from '../../frontend/semantic_icons';
-import {asTPTimestamp, SliceSqlId, TPTimestamp} from '../../frontend/sql_types';
+import {SliceSqlId} from '../../frontend/sql_types';
 
 import {
   EventLatencyTrack,
@@ -34,9 +34,9 @@ export interface EventLatencySlice {
   // Chrome slice id for an EventLatency slice.
   sliceId: SliceSqlId;
   // Timestamp of the beginning of this slice in nanoseconds.
-  ts: TPTimestamp;
+  ts: time;
   // Duration of this slice in nanoseconds.
-  dur: TPDuration;
+  dur: duration;
 }
 
 export async function getEventLatencySlice(
@@ -65,7 +65,7 @@ export async function getEventLatencySlice(
   for (; it.valid(); it.next()) {
     result.push({
       sliceId: it.sliceId as SliceSqlId,
-      ts: asTPTimestamp(it.ts),
+      ts: Time.fromRaw(it.ts),
       dur: it.dur,
     });
   }
@@ -102,7 +102,7 @@ export async function getEventLatencyDescendantSlice(
   for (; it.valid(); it.next()) {
     result.push({
       sliceId: it.sliceId as SliceSqlId,
-      ts: asTPTimestamp(it.ts),
+      ts: Time.fromRaw(it.ts),
       dur: it.dur,
     });
   }
@@ -128,7 +128,7 @@ export async function getEventLatencyDescendantSlice(
 
 interface EventLatencySliceRefAttrs {
   id: SliceSqlId;
-  ts: TPTimestamp;
+  ts: time;
   // If not present, a placeholder name will be used.
   name: string;
   chromeSliceTrackId?: number;

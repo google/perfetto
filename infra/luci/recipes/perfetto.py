@@ -142,6 +142,7 @@ def BuildForPlatform(api, ctx, platform):
     args = GnArgs(platform)
     api.step('gn gen',
              ['python3', 'tools/gn', 'gen', out_dir, '--args={}'.format(args)])
+    api.step('gn clean', ['python3', 'tools/gn', 'clean', out_dir])
     api.step('ninja', ['python3', 'tools/ninja', '-C', out_dir] + targets)
 
   # Upload stripped artifacts using gsutil if we're on the official builder.
@@ -168,7 +169,7 @@ def RunSteps(api, repository):
       build_input = api.buildbucket.build_input
       ref = (
           build_input.gitiles_commit.ref
-          if build_input.gitiles_commit else 'refs/heads/master')
+          if build_input.gitiles_commit else 'refs/heads/main')
       # Fetch tags so `git describe` works.
       api.step('fetch', ['git', 'fetch', '--tags', repository, ref])
       api.step('checkout', ['git', 'checkout', 'FETCH_HEAD'])

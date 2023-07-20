@@ -89,7 +89,7 @@ class AtraceAppsList implements m.ClassComponent {
           'com.android.phone\n' +
           'lmkd\n' +
           'com.android.nfc',
-      cssClass: '.atrace-apps-list',
+      cssClass: '.record-apps-list',
       set: (cfg, val) => cfg.atraceApps = val,
       get: (cfg) => cfg.atraceApps,
     } as TextareaAttrs);

@@ -1606,6 +1606,62 @@ TEST_F(TracingServiceImplTest, ProducerNameFilterChange) {
   Mock::VerifyAndClearExpectations(producer3.get());
 }
 
+TEST_F(TracingServiceImplTest, ProducerNameFilterChangeTwoDataSources) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer1 = CreateMockProducer();
+  producer1->Connect(svc.get(), "mock_producer_1");
+  producer1->RegisterDataSource("data_source");
+
+  std::unique_ptr<MockProducer> producer2 = CreateMockProducer();
+  producer2->Connect(svc.get(), "mock_producer_2");
+  producer2->RegisterDataSource("data_source");
+  producer2->RegisterDataSource("data_source");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* data_source = trace_config.add_data_sources();
+  data_source->mutable_config()->set_name("data_source");
+  *data_source->add_producer_name_filter() = "mock_producer_1";
+
+  // Enable tracing with only mock_producer_1 enabled;
+  // the rest should not start up.
+  consumer->EnableTracing(trace_config);
+
+  producer1->WaitForTracingSetup();
+  EXPECT_CALL(*producer1, SetupDataSource(_, _)).Times(1);
+  EXPECT_CALL(*producer1, StartDataSource(_, _)).Times(1);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  // Enable mock_producer_2, both instances of "data_source" should start
+  *data_source->add_producer_name_regex_filter() = ".*_producer_[2]";
+  consumer->ChangeTraceConfig(trace_config);
+
+  producer2->WaitForTracingSetup();
+  EXPECT_CALL(*producer2, SetupDataSource(_, _)).Times(2);
+  EXPECT_CALL(*producer2, StartDataSource(_, _)).Times(2);
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+
+  consumer->DisableTracing();
+  consumer->FreeBuffers();
+
+  EXPECT_CALL(*producer1, StopDataSource(_)).Times(1);
+  EXPECT_CALL(*producer2, StopDataSource(_)).Times(2);
+
+  consumer->WaitForTracingDisabled();
+
+  task_runner.RunUntilIdle();
+  Mock::VerifyAndClearExpectations(producer1.get());
+  Mock::VerifyAndClearExpectations(producer2.get());
+}
+
 TEST_F(TracingServiceImplTest, DisconnectConsumerWhileTracing) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
@@ -4679,6 +4735,93 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
                                          Property(&protos::gen::TestEvent::str,
                                                   Eq("B|1023|payP6ad1P")))));
+}
+
+TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(32);  // Buf 0.
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+
+  protozero::FilterBytecodeGenerator filt;
+  // Message 0: root Trace proto.
+  filt.AddNestedField(1 /* root trace.packet*/, 1);
+  filt.EndMessage();
+  // Message 1: TracePacket proto. Allow only the `for_testing` sub-field.
+  filt.AddNestedField(protos::pbzero::TracePacket::kForTestingFieldNumber, 2);
+  filt.EndMessage();
+  // Message 2: TestEvent proto. Allow only the `str` sub-field as a string.
+  filt.AddFilterStringField(protos::pbzero::TestEvent::kStrFieldNumber);
+  filt.EndMessage();
+  trace_config.mutable_trace_filter()->set_bytecode_v2(filt.Serialize());
+
+  auto* chain =
+      trace_config.mutable_trace_filter()->mutable_string_filter_chain();
+  auto* rule = chain->add_rules();
+  rule->set_policy(
+      protos::gen::TraceConfig::TraceFilter::SFP_ATRACE_MATCH_REDACT_GROUPS);
+  rule->set_atrace_payload_starts_with("payload");
+  rule->set_regex_pattern(R"(B\|\d+\|pay(lo)ad(\d*))");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+  {
+    auto tp = writer->NewTracePacket();
+    tp->set_for_testing()->set_str("B|1023|payload");
+  }
+
+  std::unique_ptr<MockConsumer> consumer2 = CreateMockConsumer();
+  consumer2->Connect(svc.get());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*consumer2, OnSessionCloned(_))
+      .WillOnce(Invoke([clone_done](const Consumer::OnSessionClonedArgs&) {
+        clone_done();
+      }));
+  consumer2->CloneSession(1);
+  // CloneSession() will implicitly issue a flush. Linearize with that.
+  producer->WaitForFlush(std::vector<TraceWriter*>{writer.get()});
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
+  EXPECT_CALL(*producer, StopDataSource(id1));
+
+  consumer->DisableTracing();
+  consumer->WaitForTracingDisabled();
+
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  Eq("B|1023|payP6ad")))));
+  EXPECT_THAT(packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             Eq("B|1023|payload"))))));
+
+  auto cloned_packets = consumer2->ReadBuffers();
+  EXPECT_THAT(cloned_packets,
+              Contains(Property(&protos::gen::TracePacket::for_testing,
+                                Property(&protos::gen::TestEvent::str,
+                                         Eq("B|1023|payP6ad")))));
+  EXPECT_THAT(cloned_packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             Eq("B|1023|payload"))))));
 }
 
 }  // namespace perfetto

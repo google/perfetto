@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, Trash} from '../base/disposable';
 import {raf} from '../core/raf_scheduler';
 
 import {Animation} from './animation';
@@ -91,7 +92,7 @@ function keyToZoom(e: KeyboardEvent): Zoom {
 /**
  * Enables horizontal pan and zoom with mouse-based drag and WASD navigation.
  */
-export class PanAndZoomHandler {
+export class PanAndZoomHandler implements Disposable {
   private mousePositionX: number|null = null;
   private boundOnMouseMove = this.onMouseMove.bind(this);
   private boundOnWheel = this.onWheel.bind(this);
@@ -116,6 +117,7 @@ export class PanAndZoomHandler {
       (dragStartX: number, dragStartY: number, prevX: number, currentX: number,
        currentY: number, editing: boolean) => void;
   private endSelection: (edit: boolean) => void;
+  private trash: Trash;
 
   constructor({
     element,
@@ -143,17 +145,24 @@ export class PanAndZoomHandler {
     this.editSelection = editSelection;
     this.onSelection = onSelection;
     this.endSelection = endSelection;
+    this.trash = new Trash();
 
     document.body.addEventListener('keydown', this.boundOnKeyDown);
     document.body.addEventListener('keyup', this.boundOnKeyUp);
     this.element.addEventListener('mousemove', this.boundOnMouseMove);
     this.element.addEventListener('wheel', this.boundOnWheel, {passive: true});
+    this.trash.addCallback(() => {
+      this.element.removeEventListener('wheel', this.boundOnWheel);
+      this.element.removeEventListener('mousemove', this.boundOnMouseMove);
+      document.body.removeEventListener('keyup', this.boundOnKeyUp);
+      document.body.removeEventListener('keydown', this.boundOnKeyDown);
+    });
 
     let prevX = -1;
     let dragStartX = -1;
     let dragStartY = -1;
     let edit = false;
-    new DragGestureHandler(
+    this.trash.add(new DragGestureHandler(
         this.element,
         (x, y) => {
           if (this.shiftDown) {
@@ -182,15 +191,12 @@ export class PanAndZoomHandler {
           dragStartX = -1;
           dragStartY = -1;
           this.endSelection(edit);
-        });
+        }));
   }
 
 
-  shutdown() {
-    document.body.removeEventListener('keydown', this.boundOnKeyDown);
-    document.body.removeEventListener('keyup', this.boundOnKeyUp);
-    this.element.removeEventListener('mousemove', this.boundOnMouseMove);
-    this.element.removeEventListener('wheel', this.boundOnWheel);
+  dispose() {
+    this.trash.dispose();
   }
 
   private onPanAnimationStep(msSinceStartOfAnimation: number) {

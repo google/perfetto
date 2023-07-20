@@ -15,13 +15,10 @@
 import m from 'mithril';
 
 import {
-  Timecode,
+  Time,
+  time,
   TimestampFormat,
   timestampFormat,
-  timestampOffset,
-  toDomainTime,
-  TPTime,
-  tpTimeToSeconds,
 } from '../common/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -45,7 +42,7 @@ export class TimeAxisPanel extends Panel {
     ctx.textAlign = 'left';
     ctx.font = '11px Roboto Condensed';
 
-    const offset = timestampOffset();
+    const offset = globals.timestampOffset();
     // If our timecode domain has an offset, print this offset
     if (offset != 0n) {
       const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
@@ -63,13 +60,13 @@ export class TimeAxisPanel extends Panel {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
 
-      const offset = timestampOffset();
+      const offset = globals.timestampOffset();
       const tickGen = new TickGenerator(span, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         if (type === TickType.MAJOR) {
-          const position = Math.floor(map.tpTimeToPx(time));
+          const position = Math.floor(map.timeToPx(time));
           ctx.fillRect(position, 0, 1, size.height);
-          const domainTime = toDomainTime(time);
+          const domainTime = globals.toDomainTime(time);
           renderTimestamp(ctx, domainTime, position + 5, 10, MIN_PX_PER_STEP);
         }
       }
@@ -81,7 +78,7 @@ export class TimeAxisPanel extends Panel {
 
 function renderTimestamp(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
@@ -95,8 +92,7 @@ function renderTimestamp(
     case TimestampFormat.RawLocale:
       return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
     case TimestampFormat.Seconds:
-      return renderRawTimestamp(
-          ctx, tpTimeToSeconds(time).toString() + ' s', x, y, minWidth);
+      return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
     default:
       const z: never = fmt;
       throw new Error(`Invalid timestamp ${z}`);
@@ -122,12 +118,12 @@ function renderRawTimestamp(
 // Returns the resultant width of the timecode.
 function renderTimecode(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
     ): number {
-  const timecode = new Timecode(time);
+  const timecode = Time.toTimecode(time);
   ctx.font = '11px Roboto Condensed';
 
   const {dhhmmss} = timecode;

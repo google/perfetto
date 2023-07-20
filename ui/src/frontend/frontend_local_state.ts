@@ -25,7 +25,7 @@ import {
   Timestamped,
   VisibleState,
 } from '../common/state';
-import {Span, TPDuration, TPTime, TPTimeSpan} from '../common/time';
+import {duration, Span, Time, time, TimeSpan} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
@@ -69,7 +69,7 @@ function calculateScrollbarWidth() {
 // also applies a hard-coded minimum zoom level.
 export class TimeWindow {
   readonly hpTimeSpan = HighPrecisionTimeSpan.ZERO;
-  readonly timeSpan = TPTimeSpan.ZERO;
+  readonly timeSpan = TimeSpan.ZERO;
 
   private readonly MIN_DURATION_NS = 10;
 
@@ -95,9 +95,9 @@ export class TimeWindow {
 
     this.hpTimeSpan =
         new HighPrecisionTimeSpan(start, start.addNanos(durationNanos));
-    this.timeSpan = new TPTimeSpan(
-        this.hpTimeSpan.start.toTPTime('floor'),
-        this.hpTimeSpan.end.toTPTime('ceil'));
+    this.timeSpan = new TimeSpan(
+        this.hpTimeSpan.start.toTime('floor'),
+        this.hpTimeSpan.end.toTime('ceil'));
   }
 
   static fromHighPrecisionTimeSpan(span: Span<HighPrecisionTime>): TimeWindow {
@@ -138,11 +138,11 @@ export class TimeWindow {
         new PxSpan(startPx, endPx));
   }
 
-  get earliest(): TPTime {
+  get earliest(): time {
     return this.timeSpan.start;
   }
 
-  get latest(): TPTime {
+  get latest(): time {
     return this.timeSpan.end;
   }
 }
@@ -170,8 +170,8 @@ export class FrontendLocalState {
 
   private _visibleState: VisibleState = {
     lastUpdate: 0,
-    start: 0n,
-    end: BigInt(10e9),
+    start: Time.ZERO,
+    end: Time.fromSeconds(10),
     resolution: 1n,
   };
 
@@ -240,21 +240,22 @@ export class FrontendLocalState {
     const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
     if (visibleStateWasUpdated) {
       this.updateLocalTime(new HighPrecisionTimeSpan(
-          HighPrecisionTime.fromTPTime(this._visibleState.start),
-          HighPrecisionTime.fromTPTime(this._visibleState.end),
+          HighPrecisionTime.fromTime(this._visibleState.start),
+          HighPrecisionTime.fromTime(this._visibleState.end),
           ));
     }
   }
 
   // Set the highlight box to draw
   selectArea(
-      start: TPTime, end: TPTime,
+      start: time, end: time,
       tracks = this._selectedArea ? this._selectedArea.tracks : []) {
     assertTrue(
         end >= start,
         `Impossible select area: start [${start}] >= end [${end}]`);
     this.showPanningHint = true;
-    this._selectedArea = {start, end, tracks}, raf.scheduleFullRedraw();
+    this._selectedArea = {start, end, tracks};
+    raf.scheduleFullRedraw();
   }
 
   deselectArea() {
@@ -289,8 +290,8 @@ export class FrontendLocalState {
 
   private kickUpdateLocalState() {
     this._visibleState.lastUpdate = Date.now() / 1000;
-    this._visibleState.start = this.visibleWindowTime.start.toTPTime();
-    this._visibleState.end = this.visibleWindowTime.end.toTPTime();
+    this._visibleState.start = this.visibleWindowTime.start.toTime();
+    this._visibleState.end = this.visibleWindowTime.end.toTime();
     this._visibleState.resolution = globals.getCurResolution();
     this.ratelimitedUpdateVisible();
   }
@@ -334,7 +335,7 @@ export class FrontendLocalState {
   }
 
   // Get the bounds of the visible window as a time span
-  get visibleTimeSpan(): Span<TPTime, TPDuration> {
+  get visibleTimeSpan(): Span<time, duration> {
     return this.visibleWindow.timeSpan;
   }
 }

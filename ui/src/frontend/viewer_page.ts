@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
-import {BigintMath} from '../base/bigint_math';
 import {clamp} from '../base/math_utils';
 import {Actions} from '../common/actions';
 import {featureFlags} from '../common/feature_flags';
+import {Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
@@ -55,8 +55,8 @@ function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
         globals.frontendLocalState.selectedArea :
         globals.state.areas[selection.areaId];
     const {visibleTimeScale} = globals.frontendLocalState;
-    const start = visibleTimeScale.tpTimeToPx(area.start);
-    const end = visibleTimeScale.tpTimeToPx(area.end);
+    const start = visibleTimeScale.timeToPx(area.start);
+    const end = visibleTimeScale.timeToPx(area.end);
     const startDrag = mousePos - TRACK_SHELL_WIDTH;
     const startDistance = Math.abs(start - startDrag);
     const endDistance = Math.abs(end - startDrag);
@@ -163,26 +163,24 @@ class TraceViewer implements m.ClassComponent {
                 globals.state.areas[selection.areaId];
             let newTime =
                 visibleTimeScale.pxToHpTime(currentX - TRACK_SHELL_WIDTH)
-                    .toTPTime();
+                    .toTime();
             // Have to check again for when one boundary crosses over the other.
             const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? area.end : area.start;
             // Don't drag selection outside of current screen.
             if (newTime < keepTime) {
-              newTime = BigintMath.max(
-                  newTime, visibleTimeScale.timeSpan.start.toTPTime());
+              newTime =
+                  Time.max(newTime, visibleTimeScale.timeSpan.start.toTime());
             } else {
-              newTime = BigintMath.max(
-                  newTime, visibleTimeScale.timeSpan.end.toTPTime());
+              newTime =
+                  Time.max(newTime, visibleTimeScale.timeSpan.end.toTime());
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
             frontendLocalState.selectArea(
-                BigintMath.max(
-                    BigintMath.min(keepTime, newTime), traceTime.start),
-                BigintMath.min(
-                    BigintMath.max(keepTime, newTime), traceTime.end),
+                Time.max(Time.min(keepTime, newTime), traceTime.start),
+                Time.min(Time.max(keepTime, newTime), traceTime.end),
                 globals.state.areas[selection.areaId].tracks);
           }
         } else {
@@ -193,8 +191,8 @@ class TraceViewer implements m.ClassComponent {
           startPx = clamp(startPx, pxSpan.start, pxSpan.end);
           endPx = clamp(endPx, pxSpan.start, pxSpan.end);
           frontendLocalState.selectArea(
-              visibleTimeScale.pxToHpTime(startPx).toTPTime('floor'),
-              visibleTimeScale.pxToHpTime(endPx).toTPTime('ceil'),
+              visibleTimeScale.pxToHpTime(startPx).toTime('floor'),
+              visibleTimeScale.pxToHpTime(endPx).toTime('ceil'),
           );
           frontendLocalState.areaY.start = dragStartY;
           frontendLocalState.areaY.end = currentY;
@@ -228,7 +226,7 @@ class TraceViewer implements m.ClassComponent {
 
   onremove() {
     window.removeEventListener('resize', this.onResize);
-    if (this.zoomContent) this.zoomContent.shutdown();
+    if (this.zoomContent) this.zoomContent.dispose();
   }
 
   view() {

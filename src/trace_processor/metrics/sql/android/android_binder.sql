@@ -46,12 +46,15 @@ SELECT AndroidBinderMetric(
         'client_dur', client_dur,
         'client_tid', client_tid,
         'client_pid', client_pid,
+        'client_oom_score', client_oom_score,
         'server_process', server_process,
         'server_thread', server_thread,
         'server_ts', server_ts,
         'server_dur', server_dur,
         'server_tid', server_tid,
         'server_pid', server_pid,
+        'server_oom_score', server_oom_score,
+        'is_sync', is_sync,
         'thread_states', (
           SELECT RepeatedField(
             AndroidBinderMetric_ThreadStateBreakdown(
@@ -60,7 +63,7 @@ SELECT AndroidBinderMetric(
               'thread_state_dur', thread_state_dur,
               'thread_state_count', thread_state_count
             )
-          ) FROM android_sync_binder_thread_state_by_txn t WHERE t.binder_txn_id = android_sync_binder_metrics_by_txn.binder_txn_id
+          ) FROM android_sync_binder_thread_state_by_txn t WHERE t.binder_txn_id = android_binder_txns.binder_txn_id
         ),
         'blocked_functions', (
           SELECT RepeatedField(
@@ -70,10 +73,10 @@ SELECT AndroidBinderMetric(
               'blocked_function_dur', blocked_function_dur,
               'blocked_function_count', blocked_function_count
             )
-          ) FROM android_sync_binder_blocked_functions_by_txn b WHERE b.binder_txn_id = android_sync_binder_metrics_by_txn.binder_txn_id
+          ) FROM android_sync_binder_blocked_functions_by_txn b WHERE b.binder_txn_id = android_binder_txns.binder_txn_id
         )
       )
     )
-    FROM android_sync_binder_metrics_by_txn
+    FROM android_binder_txns
   )
 );

@@ -73,7 +73,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
   std::string return_type_str = extract_string(return_type_value).ToStdString();
   std::string sql_defn_str = extract_string(sql_defn_value).ToStdString();
   return engine->RegisterSqlFunction(
-      prototype_str, return_type_str,
+      false, prototype_str, return_type_str,
       SqlSource::FromFunction(std::move(sql_defn_str), prototype_str));
 }
 

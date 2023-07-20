@@ -69,27 +69,24 @@ inline std::pair<uint8_t*, uint32_t> AppendLenDelim(uint32_t field_id,
 }
 }  // namespace
 
-MessageFilter::MessageFilter() {
+MessageFilter::MessageFilter(Config config) : config_(std::move(config)) {
   // Push a state on the stack for the implicit root message.
   stack_.emplace_back();
 }
 
-MessageFilter::MessageFilter(const MessageFilter& other)
-    : root_msg_index_(other.root_msg_index_), filter_(other.filter_) {
-  stack_.emplace_back();
-}
+MessageFilter::MessageFilter() : MessageFilter(Config()) {}
 
 MessageFilter::~MessageFilter() = default;
 
-bool MessageFilter::LoadFilterBytecode(const void* filter_data, size_t len) {
+bool MessageFilter::Config::LoadFilterBytecode(const void* filter_data,
+                                               size_t len) {
   return filter_.Load(filter_data, len);
 }
 
-bool MessageFilter::SetFilterRoot(const uint32_t* field_ids,
-                                  size_t num_fields) {
+bool MessageFilter::Config::SetFilterRoot(
+    std::initializer_list<uint32_t> field_ids) {
   uint32_t root_msg_idx = 0;
-  for (const uint32_t* it = field_ids; it < field_ids + num_fields; ++it) {
-    uint32_t field_id = *it;
+  for (uint32_t field_id : field_ids) {
     auto res = filter_.Query(root_msg_idx, field_id);
     if (!res.allowed || !res.nested_msg_field())
       return false;
@@ -123,7 +120,7 @@ MessageFilter::FilteredMessage MessageFilter::FilterMessageFragments(
   stack_[0].eat_next_bytes = UINT32_MAX;
   // stack_[1] is the actual root message.
   stack_[1].in_bytes_limit = total_len;
-  stack_[1].msg_index = root_msg_index_;
+  stack_[1].msg_index = config_.root_msg_index();
 
   // Process the input data and write the output.
   for (size_t slice_idx = 0; slice_idx < num_slices; ++slice_idx) {
@@ -163,7 +160,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
     } else if (state->action == StackState::kFilterString) {
       *(out_++) = octet;
       if (state->eat_next_bytes == 0) {
-        string_filter_.MaybeFilter(
+        config_.string_filter().MaybeFilter(
             reinterpret_cast<char*>(state->filter_string_ptr),
             static_cast<size_t>(out_ - state->filter_string_ptr));
       }
@@ -174,7 +171,7 @@ void MessageFilter::FilterOneByte(uint8_t octet) {
     // a varint field, only the last byte yields a token, all the other bytes
     // return an invalid token, they just update the internal tokenizer state.
     if (token.valid()) {
-      auto filter = filter_.Query(state->msg_index, token.field_id);
+      auto filter = config_.filter().Query(state->msg_index, token.field_id);
       switch (token.type) {
         case proto_utils::ProtoWireType::kVarInt:
           if (filter.allowed && filter.simple_field())

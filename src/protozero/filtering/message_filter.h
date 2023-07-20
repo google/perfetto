@@ -53,8 +53,24 @@ namespace protozero {
 // intended only on host tools.
 class MessageFilter {
  public:
+  class Config {
+   public:
+    bool LoadFilterBytecode(const void* filter_data, size_t len);
+    bool SetFilterRoot(std::initializer_list<uint32_t> field_ids);
+
+    const FilterBytecodeParser& filter() const { return filter_; }
+    const StringFilter& string_filter() const { return string_filter_; }
+    StringFilter& string_filter() { return string_filter_; }
+    uint32_t root_msg_index() const { return root_msg_index_; }
+
+   private:
+    FilterBytecodeParser filter_;
+    StringFilter string_filter_;
+    uint32_t root_msg_index_ = 0;
+  };
+
   MessageFilter();
-  explicit MessageFilter(const MessageFilter&);
+  explicit MessageFilter(Config);
   ~MessageFilter();
 
   struct InputSlice {
@@ -74,7 +90,9 @@ class MessageFilter {
   // message. Must be called before the first call to FilterMessage*().
   // |filter_data| must point to a byte buffer for a proto-encoded ProtoFilter
   // message (see proto_filter.proto).
-  bool LoadFilterBytecode(const void* filter_data, size_t len);
+  bool LoadFilterBytecode(const void* filter_data, size_t len) {
+    return config_.LoadFilterBytecode(filter_data, len);
+  }
 
   // This affects the filter starting point of the subsequent FilterMessage*()
   // calls. By default the filtering process starts from the message @ index 0,
@@ -88,7 +106,9 @@ class MessageFilter {
   // will identify the sub-message for the field "root.1.2.3" and use that.
   // In order for this to succeed all the fields in the path must be allowed
   // in the filter and must be a nested message type.
-  bool SetFilterRoot(const uint32_t* field_ids, size_t num_fields);
+  bool SetFilterRoot(std::initializer_list<uint32_t> field_ids) {
+    return config_.SetFilterRoot(field_ids);
+  }
 
   // Takes an input message, fragmented in arbitrary slices, and returns a
   // filtered message in output.
@@ -115,11 +135,10 @@ class MessageFilter {
     return field_usage_;
   }
 
-  // Exposed only for DCHECKS in TracingServiceImpl.
-  uint32_t root_msg_index() { return root_msg_index_; }
+  const Config& config() const { return config_; }
 
   // Retuns the helper class used to perform string filtering.
-  StringFilter& string_filter() { return string_filter_; }
+  StringFilter& string_filter() { return config_.string_filter(); }
 
  private:
   // This is called by FilterMessageFragments().
@@ -203,14 +222,13 @@ class MessageFilter {
 
   uint32_t out_written() { return static_cast<uint32_t>(out_ - &out_buf_[0]); }
 
+  Config config_;
+
   std::unique_ptr<uint8_t[]> out_buf_;
   uint8_t* out_ = nullptr;
   uint8_t* out_end_ = nullptr;
-  uint32_t root_msg_index_ = 0;
 
-  FilterBytecodeParser filter_;
   MessageTokenizer tokenizer_;
-  StringFilter string_filter_;
   std::vector<StackState> stack_;
 
   bool error_ = false;

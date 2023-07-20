@@ -17,7 +17,7 @@ import m from 'mithril';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Actions} from '../../common/actions';
-import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
+import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -31,7 +31,9 @@ import {
   LONG_NULL,
   NUM,
   PluginContext,
+  Store,
   STR,
+  TracePlugin,
   TrackInfo,
 } from '../../public';
 
@@ -61,8 +63,8 @@ export interface Config {
   name: string;
   maximumValue?: number;
   minimumValue?: number;
-  startTs?: TPTime;
-  endTs?: TPTime;
+  startTs?: time;
+  endTs?: time;
   namespace: string;
   trackId: number;
   scale?: CounterScaleOptions;
@@ -75,9 +77,9 @@ class CounterTrackController extends TrackController<Config, Data> {
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
   private minimumDeltaSeen = 0;
-  private maxDurNs: TPDuration = 0n;
+  private maxDurNs: duration = 0n;
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (!this.setup) {
       if (this.config.namespace === undefined) {
@@ -179,9 +181,9 @@ class CounterTrackController extends TrackController<Config, Data> {
     let lastValue = 0;
     let lastTs = 0n;
     for (let row = 0; it.valid(); it.next(), row++) {
-      const ts = it.tsq;
+      const ts = Time.fromRaw(it.tsq);
       const value = it.lastValue;
-      const rate = (value - lastValue) / (tpTimeToSeconds(ts - lastTs));
+      const rate = (value - lastValue) / (Time.toSeconds(Time.sub(ts, lastTs)));
       lastTs = ts;
       lastValue = value;
 
@@ -231,8 +233,8 @@ class CounterTrack extends Track<Config, Data> {
 
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
-  private hoveredTs: bigint|undefined = undefined;
-  private hoveredTsEnd: bigint|undefined = undefined;
+  private hoveredTs: time|undefined = undefined;
+  private hoveredTsEnd: time|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -358,8 +360,8 @@ class CounterTrack extends Track<Config, Data> {
     ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
     ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-    const calculateX = (ts: TPTime) => {
-      return Math.floor(timeScale.tpTimeToPx(ts));
+    const calculateX = (ts: time) => {
+      return Math.floor(timeScale.timeToPx(ts));
     };
     const calculateY = (value: number) => {
       return MARGIN_TOP + RECT_HEIGHT -
@@ -367,10 +369,12 @@ class CounterTrack extends Track<Config, Data> {
     };
 
     ctx.beginPath();
-    ctx.moveTo(calculateX(data.timestamps[0]), zeroY);
+    const timestamp = Time.fromRaw(data.timestamps[0]);
+    ctx.moveTo(calculateX(timestamp), zeroY);
     let lastDrawnY = zeroY;
     for (let i = 0; i < data.timestamps.length; i++) {
-      const x = calculateX(data.timestamps[i]);
+      const timestamp = Time.fromRaw(data.timestamps[i]);
+      const x = calculateX(timestamp);
       const minY = calculateY(minValues[i]);
       const maxY = calculateY(maxValues[i]);
       const lastY = calculateY(lastValues[i]);
@@ -420,10 +424,10 @@ class CounterTrack extends Track<Config, Data> {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(timeScale.tpTimeToPx(this.hoveredTs));
+      const xStart = Math.floor(timeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
-          Math.floor(timeScale.tpTimeToPx(this.hoveredTsEnd));
+          Math.floor(timeScale.timeToPx(this.hoveredTsEnd));
       const y = MARGIN_TOP + RECT_HEIGHT -
           Math.round(((this.hoveredValue - yMin) / yRange) * RECT_HEIGHT);
 
@@ -458,7 +462,7 @@ class CounterTrack extends Track<Config, Data> {
     {
       let counterEndPx = Infinity;
       if (this.config.endTs) {
-        counterEndPx = Math.min(timeScale.tpTimeToPx(this.config.endTs), endPx);
+        counterEndPx = Math.min(timeScale.timeToPx(this.config.endTs), endPx);
       }
 
       // Grey out RHS.
@@ -475,8 +479,8 @@ class CounterTrack extends Track<Config, Data> {
         this.getHeight(),
         windowSpan.start,
         windowSpan.end,
-        timeScale.tpTimeToPx(data.start),
-        timeScale.tpTimeToPx(data.end));
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
@@ -489,9 +493,11 @@ class CounterTrack extends Track<Config, Data> {
     const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
         data.totalDeltas :
         data.lastValues;
-    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
-    this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
-    this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
+    const [left, right] = searchSegment(data.timestamps, time.toTime());
+    this.hoveredTs =
+        left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
+    this.hoveredTsEnd =
+        right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
     this.hoveredValue = left === -1 ? undefined : values[left];
   }
 
@@ -505,15 +511,15 @@ class CounterTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
+    const [left, right] = searchSegment(data.timestamps, time.toTime());
     if (left === -1) {
       return false;
     } else {
       const counterId = data.lastIds[left];
       if (counterId === -1) return true;
       globals.makeSelection(Actions.selectCounter({
-        leftTs: data.timestamps[left],
-        rightTs: right !== -1 ? data.timestamps[right] : -1n,
+        leftTs: Time.fromRaw(data.timestamps[left]),
+        rightTs: Time.fromRaw(right !== -1 ? data.timestamps[right] : -1n),
         id: counterId,
         trackId: this.trackState.id,
       }));
@@ -522,8 +528,22 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
-  const result = await engine.query(`
+// This is just an example plugin, used to prove that the plugin system works.
+class CounterTrackPlugin implements TracePlugin {
+  static migrate(_initialState: unknown): {} {
+    return {};
+  }
+
+  constructor(_store: Store<{}>, private engine: EngineProxy) {
+    // No-op
+  }
+
+  dispose(): void {
+    // No-op
+  }
+
+  async tracks(): Promise<TrackInfo[]> {
+    const result = await this.engine.query(`
     select name, id
     from (
       select name, id
@@ -537,32 +557,33 @@ async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
     order by name
   `);
 
-  // Add global or GPU counter tracks that are not bound to any pid/tid.
-  const it = result.iter({
-    name: STR,
-    id: NUM,
-  });
-
-  const tracks: TrackInfo[] = [];
-  for (; it.valid(); it.next()) {
-    const name = it.name;
-    const trackId = it.id;
-    tracks.push({
-      trackKind: COUNTER_TRACK_KIND,
-      name,
-      config: {
-        name,
-        trackId,
-      },
+    // Add global or GPU counter tracks that are not bound to any pid/tid.
+    const it = result.iter({
+      name: STR,
+      id: NUM,
     });
+
+    const tracks: TrackInfo[] = [];
+    for (; it.valid(); it.next()) {
+      const name = it.name;
+      const trackId = it.id;
+      tracks.push({
+        trackKind: COUNTER_TRACK_KIND,
+        name,
+        config: {
+          name,
+          trackId,
+        },
+      });
+    }
+    return tracks;
   }
-  return tracks;
 }
 
 export function activate(ctx: PluginContext) {
   ctx.registerTrackController(CounterTrackController);
   ctx.registerTrack(CounterTrack);
-  ctx.registerTrackProvider(globalTrackProvider);
+  ctx.registerTracePluginFactory(CounterTrackPlugin);
 }
 
 export const plugin = {

@@ -17,11 +17,10 @@ import m from 'mithril';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
 import {StringListPatch} from '../common/state';
-import {TPTime} from '../common/time';
+import {time, Time} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';
-import {asTPTimestamp} from './sql_types';
 import {DetailsShell} from './widgets/details_shell';
 import {
   MultiSelectDiff,
@@ -103,12 +102,12 @@ export class FtracePanel extends Panel<{}> {
     this.recomputeVisibleRowsAndUpdate(container);
   };
 
-  onRowOver(ts: TPTime) {
+  onRowOver(ts: time) {
     globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
   }
 
   onRowOut() {
-    globals.dispatch(Actions.setHoverCursorTimestamp({ts: -1n}));
+    globals.dispatch(Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
   }
 
   private renderTitle() {
@@ -175,7 +174,7 @@ export class FtracePanel extends Panel<{}> {
       for (let i = 0; i < events.length; i++) {
         const {ts, name, cpu, process, args} = events[i];
 
-        const timestamp = m(Timestamp, {ts: asTPTimestamp(ts)});
+        const timestamp = m(Timestamp, {ts});
 
         const rank = i + offset;
 

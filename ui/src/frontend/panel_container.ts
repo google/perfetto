@@ -48,7 +48,7 @@ export type AnyAttrsVnode = m.Vnode<any, any>;
 export interface Attrs {
   panels: AnyAttrsVnode[];
   doesScroll: boolean;
-  kind: 'TRACKS'|'OVERVIEW'|'DETAILS';
+  kind: 'TRACKS'|'OVERVIEW';
 }
 
 interface PanelInfo {
@@ -143,8 +143,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
-        visibleTimeScale.tpTimeToPx(area.start),
-        visibleTimeScale.tpTimeToPx(area.end),
+        visibleTimeScale.timeToPx(area.start),
+        visibleTimeScale.timeToPx(area.end),
         globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT,
         globals.frontendLocalState.areaY.end + TOPBAR_HEIGHT);
     // Get the track ids from the panels.
@@ -455,8 +455,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     }
 
     const {visibleTimeScale} = globals.frontendLocalState;
-    const startX = visibleTimeScale.tpTimeToPx(area.start);
-    const endX = visibleTimeScale.tpTimeToPx(area.end);
+    const startX = visibleTimeScale.timeToPx(area.start);
+    const endX = visibleTimeScale.timeToPx(area.end);
     // To align with where to draw on the canvas subtract the first panel Y.
     selectedTracksMinY -= this.panelContainerTop;
     selectedTracksMaxY -= this.panelContainerTop;

@@ -213,7 +213,9 @@ class Column {
   // Creates a Column which returns the index as the value of the row.
   static Column IdColumn(Table* table,
                          uint32_t col_idx_in_table,
-                         uint32_t row_map_idx);
+                         uint32_t row_map_idx,
+                         const char* name = "id",
+                         uint32_t flags = kIdFlags);
 
   // Gets the value of the Column at the given |row|.
   SqlValue Get(uint32_t row) const { return GetAtIdx(overlay().Get(row)); }
@@ -388,6 +390,10 @@ class Column {
     return Constraint{index_in_table_, FilterOp::kGlob, value};
   }
 
+  Constraint regex_value(SqlValue value) const {
+    return Constraint{index_in_table_, FilterOp::kRegex, value};
+  }
+
   // Returns an Order for each Order type for this Column.
   Order ascending() const { return Order{index_in_table_, false}; }
   Order descending() const { return Order{index_in_table_, true}; }
@@ -541,6 +547,7 @@ class Column {
       case FilterOp::kIsNull:
       case FilterOp::kIsNotNull:
       case FilterOp::kGlob:
+      case FilterOp::kRegex:
         break;
     }
     return false;

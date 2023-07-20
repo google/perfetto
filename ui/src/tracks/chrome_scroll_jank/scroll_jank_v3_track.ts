@@ -27,24 +27,27 @@ import {
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
-import {ScrollJankPluginState} from './index';
-import {ScrollJankTracks as DecideTracksResult} from './index';
 import {
-  JankyEventLatenciesDetailsPanel,
-} from './top_level_janky_event_latencies_details_panel';
+  ScrollJankPluginState,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
+import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 
-export class TopLevelEventLatencyTrack extends
+export {Data} from '../chrome_slices';
+
+export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.top_level_event_latencies';
+  static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
   static create(args: NewTrackArgs): Track {
-    return new TopLevelEventLatencyTrack(args);
+    return new ScrollJankV3Track(args);
   }
 
   constructor(args: NewTrackArgs) {
     super(args);
+
     ScrollJankPluginState.getInstance().registerTrack({
-      kind: TopLevelEventLatencyTrack.kind,
+      kind: ScrollJankV3Track.kind,
       trackId: this.trackId,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
@@ -54,54 +57,49 @@ export class TopLevelEventLatencyTrack extends
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
       columns: [
-        `id`,
-        `ts`,
-        `dur`,
-        `track_id`,
         `IIF(
           cause_of_jank IS NOT NULL,
           cause_of_jank || IIF(
             sub_cause_of_jank IS NOT NULL, "::" || sub_cause_of_jank, ""
-            ), "UNKNOWN") AS name`,
-        `IFNULL(cause_of_jank, "UNKNOWN") AS jank_cause`,
-        `name AS type`,
-        `sub_cause_of_jank AS jank_subcause`,
+            ), "Unknown") || " Jank" AS name`,
+        'id',
+        'ts',
+        'dur',
       ],
-      sqlTableName: 'chrome_janky_event_latencies_v3',
+      sqlTableName: 'chrome_janky_frame_presentation_intervals',
     };
   }
 
   getDetailsPanel(): CustomSqlDetailsPanelConfig {
     return {
-      kind: JankyEventLatenciesDetailsPanel.kind,
+      kind: ScrollJankV3DetailsPanel.kind,
       config: {
-        sqlTableName: this.tableName,
-        title: 'Chrome Scroll Jank Event Latency: Cause',
+        sqlTableName: 'chrome_janky_frame_presentation_intervals',
+        title: 'Chrome Scroll Janks',
       },
     };
   }
 
   onDestroy() {
     super.onDestroy();
-    ScrollJankPluginState.getInstance().unregisterTrack(
-        TopLevelEventLatencyTrack.kind);
+    ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 }
 
-export async function addJankyLatenciesTrack(engine: Engine):
+export async function addScrollJankV3ScrollTrack(engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks');`);
+  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
 
   result.tracksToAdd.push({
     id: uuidv4(),
     engineId: engine.id,
-    kind: TopLevelEventLatencyTrack.kind,
-    trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
-    name: 'Chrome Scroll Jank Event Latencies',
+    kind: ScrollJankV3Track.kind,
+    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+    name: 'Chrome Scroll Janks',
     config: {},
     trackGroup: SCROLLING_TRACK_GROUP,
   });

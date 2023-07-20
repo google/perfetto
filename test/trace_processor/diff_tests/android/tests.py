@@ -293,6 +293,7 @@ class Android(TestSuite):
           is_main_thread,
           client_ts,
           client_dur,
+          client_oom_score,
           binder_reply_id,
           server_process,
           server_thread,
@@ -300,15 +301,16 @@ class Android(TestSuite):
           server_utid,
           server_tid,
           server_ts,
-          server_dur
+          server_dur,
+          server_oom_score
         FROM android_sync_binder_metrics_by_txn
         WHERE binder_txn_id = 34382
         ORDER BY client_ts
         LIMIT 1;
       """,
         out=Csv("""
-        "aidl_name","binder_txn_id","client_process","client_thread","client_upid","client_utid","client_tid","is_main_thread","client_ts","client_dur","binder_reply_id","server_process","server_thread","server_upid","server_utid","server_tid","server_ts","server_dur"
-        "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server",34382,"/system/bin/audioserver","audioserver",281,281,492,1,25505818197,3125407,34383,"system_server","binder:641_4",311,539,1596,25505891588,3000749
+        "aidl_name","binder_txn_id","client_process","client_thread","client_upid","client_utid","client_tid","is_main_thread","client_ts","client_dur","client_oom_score","binder_reply_id","server_process","server_thread","server_upid","server_utid","server_tid","server_ts","server_dur","server_oom_score"
+        "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server",34382,"/system/bin/audioserver","audioserver",281,281,492,1,25505818197,3125407,-1000,34383,"system_server","binder:641_4",311,539,1596,25505891588,3000749,-900
       """))
 
   def test_binder_sync_binder_thread_state(self):
@@ -457,7 +459,7 @@ class Android(TestSuite):
         13934,"D",11950576,1
       """))
 
-  def test_monitor_contention_chain_extraction_parent(self):
+  def test_monitor_contention_chain_extraction(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
@@ -468,8 +470,8 @@ class Android(TestSuite):
       LIMIT 1;
       """,
         out=Csv("""
-        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_id","binder_reply_ts","binder_reply_tid","pid"
-        956,"void com.android.server.am.AppProfiler.collectPssInBackground()","void com.android.server.am.ProcessRecord.setPid(int)","com.android.server.am.AppProfiler.collectPssInBackground","com.android.server.am.ProcessRecord.setPid","AppProfiler.java:514","ProcessRecord.java:596",0,656,"binder:642_12",506,"android.bg",670,250,"system_server",949,1737122781871,7301144,1236,0,2720,0,670,"[NULL]","[NULL]","[NULL]",642
+        "parent_id","blocking_method","blocked_method","short_blocking_method","short_blocked_method","blocking_src","blocked_src","waiter_count","blocked_utid","blocked_thread_name","blocking_utid","blocking_thread_name","blocking_tid","upid","process_name","id","ts","dur","track_id","is_blocked_thread_main","blocked_thread_tid","is_blocking_thread_main","blocking_thread_tid","binder_reply_id","binder_reply_ts","binder_reply_tid","pid","child_id"
+        949,"void com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied()","int com.android.server.am.ActivityManagerService.getMemoryTrimLevel()","com.android.server.am.ActivityManagerService$AppDeathRecipient.binderDied","com.android.server.am.ActivityManagerService.getMemoryTrimLevel","ActivityManagerService.java:1478","ActivityManagerService.java:9183",1,250,"system_server",656,"binder:642_12",2720,250,"system_server",956,1737123891932,17577143,1215,1,642,0,2720,"[NULL]","[NULL]","[NULL]",642,"[NULL]"
       """))
 
   def test_monitor_contention_metric(self):
@@ -477,3 +479,195 @@ class Android(TestSuite):
         trace=DataPath('android_monitor_contention_trace.atr'),
         query=Metric('android_monitor_contention'),
         out=Path('android_monitor_contention.out'))
+
+  def test_thread_creation_spam(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.thread');
+      SELECT * FROM ANDROID_THREAD_CREATION_SPAM(1e9, 1e9);
+      """,
+        out=Csv("""
+      "process_name","pid","thread_name_prefix","max_count_per_sec"
+      "com.android.providers.media.module",3487,"SharedPreferenc",3
+      "com.android.providers.media.module",3487,"MediaCodec_loop",2
+      "/apex/com.android.adbd/bin/adbd",527,"shell",1
+      "media.swcodec",563,"id.hevc.decoder",1
+      "system_server",642,"Thread",1
+      "sh",3474,"sh",1
+      "sh",3476,"sh",1
+      "sh",3478,"sh",1
+      "am",3480,"am",1
+      "cmd",3482,"binder",1
+      "cmd",3482,"cmd",1
+      "com.android.providers.media.module",3487,"CodecLooper",1
+      "sh",3517,"sh",1
+      "sgdisk",3521,"sgdisk",1
+      "blkid",3523,"blkid",1
+      "binder:243_4",3524,"binder",1
+      "fsck_msdos",3525,"fsck_msdos",1
+      "binder:243_4",3526,"binder",1
+      "sh",3532,"sh",1
+      "cut",3534,"cut",1
+      "sh",3536,"sh",1
+      "sh",3544,"sh",1
+      "sh",3546,"sh",1
+      "sh",3564,"sh",1
+      """))
+
+  def test_f2fs_counter_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.io');
+      SELECT * FROM android_io_f2fs_counter_stats;
+      """,
+        out=Csv("""
+        "counter_name","counter_sum","counter_max","counter_min","counter_dur","counter_count","counter_avg"
+        "read_app_total",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
+        "read_app_buffered",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
+        "write_cp_node",94208.000000,94208.000000,0.000000,2515275969,2,47104.000000
+        "write_app_mapped",65536.000000,65536.000000,0.000000,2515275969,2,32768.000000
+        "write_fs_data",28672.000000,28672.000000,0.000000,2515275969,2,14336.000000
+        "write_cp_meta",28672.000000,28672.000000,0.000000,2515275969,2,14336.000000
+        "write_app_total",20616.000000,20616.000000,0.000000,2515275969,2,10308.000000
+        "write_app_buffered",20616.000000,20616.000000,0.000000,2515275969,2,10308.000000
+        "write_fs_node",8192.000000,8192.000000,0.000000,2515275969,2,4096.000000
+        "write_sync_meta_peak",8.000000,8.000000,0.000000,2515276848,2,4.000000
+        "write_sync_meta_cnt",5.000000,5.000000,0.000000,2515276848,2,2.500000
+        "write_sync_node_peak",4.000000,4.000000,0.000000,2515276848,2,2.000000
+        "write_sync_node_cnt",3.000000,3.000000,0.000000,2515276848,2,1.500000
+        "write_sync_data_cnt",3.000000,3.000000,0.000000,2515276848,2,1.500000
+        "write_sync_node_avg",1.000000,1.000000,0.000000,2515276848,2,0.500000
+        "write_sync_meta_avg",1.000000,1.000000,0.000000,2515276848,2,0.500000
+        "write_sync_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_sync_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_gc_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_gc_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_cp_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_async_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_meta_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_async_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_meta_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_fs_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_gdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_fs_cdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_app_mapped",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "read_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "other_fs_discard",0.000000,0.000000,0.000000,2515275969,2,0.000000
+      """))
+
+  def test_f2fs_write_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+      SELECT IMPORT('android.io');
+      SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM android_io_f2fs_write_stats;
+      """,
+        out=Csv("""
+        "tid","thread_name","pid","process_name","ino","dev","bytes","write_count"
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2636,65077,135168,33
+        3516,"fg",3487,"com.android.providers.media.module",2409,65077,98304,24
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2642,65077,78280,57
+        3516,"fg",3487,"com.android.providers.media.module",2424,65077,37112,28
+        3487,"rs.media.module",3487,"com.android.providers.media.module",2366,65077,16480,12
+        3515,"ackgroundThread",3487,"com.android.providers.media.module",2642,65077,8272,7
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",4,65077,432,6
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",5,65077,432,6
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",3145,65077,233,2
+        743,"StorageManagerS",642,"system_server",3144,65077,227,1
+        282,"f2fs_ckpt-254:5",282,"f2fs_ckpt-254:5",6,65077,216,3
+        3487,"rs.media.module",3487,"com.android.providers.media.module",2367,65077,8,8
+        3516,"fg",3487,"com.android.providers.media.module",2425,65077,8,8
+        3548,"AsyncTask #1",3487,"com.android.providers.media.module",2643,65077,8,8
+      """))
+
+  def test_binder_async_txns(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT
+          aidl_name,
+          client_process,
+          server_process,
+          client_thread,
+          client_tid,
+          server_tid,
+          is_main_thread,
+          client_oom_score,
+          server_oom_score,
+          client_ts,
+          server_ts
+        FROM android_async_binder_metrics_by_txn
+        WHERE aidl_name IS NOT NULL
+        ORDER BY client_ts
+        LIMIT 10;
+      """,
+        out=Csv("""
+        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts"
+        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474
+        "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer","/system/bin/audioserver","media.metrics","audioserver",492,1262,1,-1000,-1000,25512325446,25512488255
+        "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer","/system/bin/audioserver","media.metrics","audioserver",492,1262,1,-1000,-1000,25512842465,25522410505
+        "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer","/vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu","/system/bin/surfaceflinger","binder:446_1",553,522,0,-1000,-1000,25847718645,25847734867
+        "AIDL::cpp::ITunnelModeEnabledListener::onTunnelModeEnabledChanged::cppServer","/system/bin/surfaceflinger","system_server","binder:496_2",522,1600,0,-1000,-900,25854181504,25854195485
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25855697394,25855710732
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25873210999,25873224961
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,522,0,-900,-1000,25951278287,25952242397
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,1575,0,-900,-1000,25965452828,25965590137
+        "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer","system_server","/system/bin/surfaceflinger","android.anim",662,1575,0,-900,-1000,26046376252,26046544680
+      """))
+
+  def test_binder_txns(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT
+          aidl_name,
+          client_process,
+          server_process,
+          client_thread,
+          client_tid,
+          server_tid,
+          is_main_thread,
+          client_oom_score,
+          server_oom_score,
+          client_ts,
+          server_ts
+        FROM android_binder_txns
+        WHERE aidl_name IS NOT NULL
+        ORDER BY client_ts
+        LIMIT 10;
+      """,
+        out=Csv("""
+        "aidl_name","client_process","server_process","client_thread","client_tid","server_tid","is_main_thread","client_oom_score","server_oom_score","client_ts","server_ts"
+        "AIDL::cpp::IClientCallback::onClients::cppServer","/system/bin/servicemanager","/system/bin/apexd","servicemanager",243,386,1,-1000,-1000,22213481492,22213517474
+        "AIDL::cpp::IInstalld::rmdex::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25230101202,25230125660
+        "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25243511980,25243544499
+        "AIDL::cpp::IInstalld::createAppDataBatched::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25244949065,25244971300
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,565,1,-1000,-1000,25279371214,25279387389
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25279567724,25279592927
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280736368,25280756522
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25280932813,25280946041
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719
+        "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273
+      """))

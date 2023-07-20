@@ -29,6 +29,7 @@ import {
   State,
   STATE_VERSION,
 } from './state';
+import {Time} from './time';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   id: 'autoloadStartedConfig',
@@ -148,8 +149,8 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoverCursorTimestamp: -1n,
-    hoveredNoteTimestamp: -1n,
+    hoverCursorTimestamp: Time.INVALID,
+    hoveredNoteTimestamp: Time.INVALID,
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,
     focusedFlowIdRight: -1,

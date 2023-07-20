@@ -27,7 +27,7 @@ import {AndroidWebsocketTarget} from '../targets/android_websocket_target';
 
 export const ANDROID_WEBSOCKET_TARGET_FACTORY = 'AndroidWebsocketTargetFactory';
 
-// https://cs.android.com/android/platform/superproject/+/master:packages/
+// https://cs.android.com/android/platform/superproject/+/main:packages/
 // modules/adb/SERVICES.TXT;l=135
 const PREFIX_LENGTH = 4;
 

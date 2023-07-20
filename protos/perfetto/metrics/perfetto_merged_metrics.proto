@@ -251,9 +251,11 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
+  // Next field id: 22
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
+    optional bool is_sync = 21;
     // Client
     // Removed: was binder_txn_id
     reserved 2;
@@ -262,6 +264,7 @@ message AndroidBinderMetric {
     optional bool is_main_thread = 5;
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
+    optional int64 client_oom_score = 19;
     // Server
     // Removed: was binder_reply_id
     reserved 8;
@@ -269,6 +272,7 @@ message AndroidBinderMetric {
     optional string server_thread = 10;
     optional int64 server_ts = 11;
     optional int64 server_dur = 12;
+    optional int64 server_oom_score = 20;
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
@@ -332,7 +336,11 @@ message AndroidCameraMetric {
 message AndroidCameraUnaggregatedMetric {
   message Value {
     optional int64 ts = 1;
-    optional double value = 2;
+    optional double gca_rss_val = 2;
+    optional double hal_rss_val = 3;
+    optional double cameraserver_rss_val = 4;
+    optional double dma_val = 5;
+    optional double value = 6;
   }
 
   // Timeseries for the sum of DMA and RSS across GCA, cameraserver
@@ -415,6 +423,59 @@ message AndroidCpuMetric {
 }
 
 // End of protos/perfetto/metrics/android/cpu_metric.proto
+
+// Begin of protos/perfetto/metrics/android/codec_metrics.proto
+
+// These metrices collects various function and thread
+// usage within androd's codec framework. This can give an
+// idea about performance and cpu usage when using codec
+// framework
+message AndroidCodecMetrics {
+
+  // profile details in messages
+  message Detail {
+    // function thread
+    optional string thread_name = 1;
+    // total time
+    optional int64 total_cpu_ns = 2;
+    // CPU time ( time 'Running' on cpu)
+    optional int64 running_cpu_ns = 3;
+  }
+
+  // These are traces and could indicate framework queue latency
+  // buffer-packing, buffer-preprocess, buffer post-process
+  // latency etc. These metrics are monitored to track quality.
+  // Same message can come from different
+  // processes.
+  message CodecFunction {
+    // codec string
+    optional string codec_string = 1;
+    // process_name
+    optional string process_name = 2;
+    // details
+    optional Detail detail = 3;
+  }
+
+  // This message can indicate overall cpu
+  // utilization of codec framework threads.
+  message CpuUsage {
+    // name of process using codec framework
+    optional string process_name = 1;
+    // name of the codec thread
+    optional string thread_name = 2;
+    // total cpu usage of the codec thread
+    optional int64 thread_cpu_us = 3;
+    // can be number of codec framework thread
+    optional uint32 num_threads = 4;
+    // core type data info used by codec thread
+    repeated AndroidCpuMetric.CoreTypeData core_data = 5;
+  }
+
+  repeated CpuUsage cpu_usage = 1;
+  repeated CodecFunction codec_function = 2;
+
+}
+// End of protos/perfetto/metrics/android/codec_metrics.proto
 
 // Begin of protos/perfetto/metrics/android/display_metrics.proto
 
@@ -1243,10 +1304,11 @@ message AndroidMemoryUnaggregatedMetric {
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
-  // Next field id: 24
+  // Next field id: 25
   message Node {
     // Global context
     optional int64 node_parent_id = 1;
+    optional int64 node_child_id = 24;
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
@@ -1767,13 +1829,13 @@ message AndroidStartupMetric {
     optional string destination_thread = 3;
     optional string destination_process = 4;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string flags = 5;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string code = 6;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional int64 data_size = 7;
   }
 
@@ -2003,6 +2065,12 @@ message AndroidTaskNames {
 
     // Packages matching the process uid.
     repeated string uid_package_name = 5;
+
+    // Removed, was short_lived_tasks.
+    reserved 6;
+
+    // Removed, was long_lived_tasks.
+    reserved 7;
   }
 
   repeated Process process = 1;
@@ -2231,6 +2299,9 @@ message TraceMetrics {
   optional AndroidMonitorContentionMetric android_monitor_contention = 50;
 
   optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
+
+  // Metrics to track codec framework.
+  optional AndroidCodecMetrics codec_metrics = 52;
 
   // Demo extensions.
   extensions 450 to 499;

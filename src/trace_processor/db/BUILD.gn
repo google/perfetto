@@ -26,6 +26,8 @@ source_set("db") {
     "compare.h",
     "query_executor.cc",
     "query_executor.h",
+    "runtime_table.cc",
+    "runtime_table.h",
     "table.cc",
     "table.h",
     "typed_column.h",
@@ -40,6 +42,8 @@ source_set("db") {
     "../../../include/perfetto/trace_processor",
     "../containers",
     "../util:glob",
+    "../util:regex",
+    "../util:util",
     "overlays",
     "storage",
   ]

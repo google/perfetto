@@ -31,6 +31,12 @@ message AndroidTaskNames {
 
     // Packages matching the process uid.
     repeated string uid_package_name = 5;
+
+    // Removed, was short_lived_tasks.
+    reserved 6;
+
+    // Removed, was long_lived_tasks.
+    reserved 7;
   }
 
   repeated Process process = 1;

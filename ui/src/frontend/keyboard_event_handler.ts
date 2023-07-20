@@ -14,7 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {Area} from '../common/state';
-import {TPTime} from '../common/time';
+import {time, Time} from '../common/time';
 
 import {Flow, globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -204,30 +204,30 @@ function moveByFocusedFlow(direction: Direction): void {
   }
 }
 
-function findTimeRangeOfSelection(): {startTs: TPTime, endTs: TPTime} {
+function findTimeRangeOfSelection(): {startTs: time, endTs: time} {
   const selection = globals.state.currentSelection;
-  let startTs = -1n;
-  let endTs = -1n;
+  let startTs = Time.INVALID;
+  let endTs = Time.INVALID;
   if (selection === null) {
     return {startTs, endTs};
   } else if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
     const slice = globals.sliceDetails;
     if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
       startTs = slice.ts;
-      endTs = startTs + slice.dur;
+      endTs = Time.add(startTs, slice.dur);
     } else if (slice.ts) {
       startTs = slice.ts;
       // This will handle either:
       // a)slice.dur === -1 -> unfinished slice
       // b)slice.dur === 0  -> instant event
-      endTs = slice.dur === -1n ? startTs + INCOMPLETE_SLICE_DURATION :
-                                  startTs + INSTANT_FOCUS_DURATION;
+      endTs = slice.dur === -1n ? Time.add(startTs, INCOMPLETE_SLICE_DURATION) :
+                                  Time.add(startTs, INSTANT_FOCUS_DURATION);
     }
   } else if (selection.kind === 'THREAD_STATE') {
     const threadState = globals.threadStateDetails;
     if (threadState.ts && threadState.dur) {
       startTs = threadState.ts;
-      endTs = startTs + threadState.dur;
+      endTs = Time.add(startTs, threadState.dur);
     }
   } else if (selection.kind === 'COUNTER') {
     startTs = selection.leftTs;
@@ -244,16 +244,16 @@ function findTimeRangeOfSelection(): {startTs: TPTime, endTs: TPTime} {
     // above in the AREA case.
     if (selectedNote && selectedNote.noteType === 'DEFAULT') {
       startTs = selectedNote.timestamp;
-      endTs = selectedNote.timestamp + INSTANT_FOCUS_DURATION;
+      endTs = Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION);
     }
   } else if (selection.kind === 'LOG') {
     // TODO(hjd): Make focus selection work for logs.
   } else if (selection.kind === 'GENERIC_SLICE') {
     startTs = selection.start;
     if (selection.duration > 0) {
-      endTs = startTs + selection.duration;
+      endTs = Time.add(startTs, selection.duration);
     } else {
-      endTs = startTs + INSTANT_FOCUS_DURATION;
+      endTs = Time.add(startTs, INSTANT_FOCUS_DURATION);
     }
   }
 

@@ -72,7 +72,7 @@ import {
   UtidToTrackSortKey,
   VisibleState,
 } from './state';
-import {TPDuration, TPTime} from './time';
+import {duration, time} from './time';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -100,8 +100,8 @@ export interface PostedTrace {
 }
 
 export interface PostedScrollToRange {
-  timeStart: TPTime;
-  timeEnd: TPTime;
+  timeStart: time;
+  timeEnd: time;
   viewPercentage?: number;
 }
 
@@ -583,7 +583,7 @@ export const StateActions = {
 
   addAutomaticNote(
       state: StateDraft,
-      args: {timestamp: TPTime, color: string, text: string}): void {
+      args: {timestamp: time, color: string, text: string}): void {
     const id = generateNextId(state);
     state.notes[id] = {
       noteType: 'DEFAULT',
@@ -594,7 +594,7 @@ export const StateActions = {
     };
   },
 
-  addNote(state: StateDraft, args: {timestamp: TPTime, color: string}): void {
+  addNote(state: StateDraft, args: {timestamp: time, color: string}): void {
     const id = generateNextId(state);
     state.notes[id] = {
       noteType: 'DEFAULT',
@@ -694,7 +694,7 @@ export const StateActions = {
 
   selectCounter(
       state: StateDraft,
-      args: {leftTs: TPTime, rightTs: TPTime, id: number, trackId: string}):
+      args: {leftTs: time, rightTs: time, id: number, trackId: string}):
       void {
         state.currentSelection = {
           kind: 'COUNTER',
@@ -707,7 +707,7 @@ export const StateActions = {
 
   selectHeapProfile(
       state: StateDraft,
-      args: {id: number, upid: number, ts: TPTime, type: ProfileType}): void {
+      args: {id: number, upid: number, ts: time, type: ProfileType}): void {
     state.currentSelection = {
       kind: 'HEAP_PROFILE',
       id: args.id,
@@ -717,7 +717,8 @@ export const StateActions = {
     };
     this.openFlamegraph(state, {
       type: args.type,
-      start: state.traceTime.start,
+      start: state.traceTime.start as
+          time,  // TODO(stevegolton): Avoid type assertion here.
       end: args.ts,
       upids: [args.upid],
       viewingOption: DEFAULT_VIEWING_OPTION,
@@ -727,8 +728,8 @@ export const StateActions = {
   selectPerfSamples(state: StateDraft, args: {
     id: number,
     upid: number,
-    leftTs: TPTime,
-    rightTs: TPTime,
+    leftTs: time,
+    rightTs: time,
     type: ProfileType
   }): void {
     state.currentSelection = {
@@ -750,8 +751,8 @@ export const StateActions = {
 
   openFlamegraph(state: StateDraft, args: {
     upids: number[],
-    start: TPTime,
-    end: TPTime,
+    start: time,
+    end: time,
     type: ProfileType,
     viewingOption: FlamegraphStateViewingOption
   }): void {
@@ -767,7 +768,7 @@ export const StateActions = {
   },
 
   selectCpuProfileSample(
-      state: StateDraft, args: {id: number, utid: number, ts: TPTime}): void {
+      state: StateDraft, args: {id: number, utid: number, ts: time}): void {
     state.currentSelection = {
       kind: 'CPU_PROFILE_SAMPLE',
       id: args.id,
@@ -811,8 +812,8 @@ export const StateActions = {
   selectGenericSlice(state: StateDraft, args: {
     id: number,
     sqlTableName: string,
-    start: TPTime,
-    duration: TPDuration,
+    start: time,
+    duration: duration,
     trackId: string,
     detailsPanelConfig:
         {kind: string, config: GenericSliceDetailsTabConfigBase},
@@ -1059,11 +1060,11 @@ export const StateActions = {
     state.searchIndex = args.index;
   },
 
-  setHoverCursorTimestamp(state: StateDraft, args: {ts: TPTime}) {
+  setHoverCursorTimestamp(state: StateDraft, args: {ts: time}) {
     state.hoverCursorTimestamp = args.ts;
   },
 
-  setHoveredNoteTimestamp(state: StateDraft, args: {ts: TPTime}) {
+  setHoveredNoteTimestamp(state: StateDraft, args: {ts: time}) {
     state.hoveredNoteTimestamp = args.ts;
   },
 

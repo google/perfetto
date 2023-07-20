@@ -32,6 +32,7 @@ namespace {
 using Result = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
+using CreateTable = PerfettoSqlParser::CreateTable;
 
 SqlSource FindSubstr(const SqlSource& source, const std::string& needle) {
   size_t off = source.sql().find(needle);
@@ -80,22 +81,23 @@ TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               "foo()", "INT", FindSubstr(res, "select 1")}));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(CreateFn{
+                  false, "foo()", "INT", FindSubstr(res, "select 1"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "create perfetto function bar(x INT, y LONG) returns STRING as select "
       "'foo'");
-  ASSERT_THAT(*Parse(res),
-              testing::ElementsAre(CreateFn{"bar(x INT, y LONG)", "STRING",
-                                            FindSubstr(res, "select 'foo'")}));
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
+                               false, "bar(x INT, y LONG)", "STRING",
+                               FindSubstr(res, "select 'foo'"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As select "
       "'foo'");
-  ASSERT_THAT(*Parse(res),
-              testing::ElementsAre(CreateFn{"bar(x INT, y LONG)", "STRING",
-                                            FindSubstr(res, "select 'foo'")}));
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
+                               false, "bar(x INT, y LONG)", "STRING",
+                               FindSubstr(res, "select 'foo'"), false}));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
@@ -110,6 +112,15 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
   res = SqlSource::FromExecuteQuery(
       "create perfetto function foo(x INT) returns INT");
   ASSERT_FALSE(Parse(res).status().ok());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto function foo() returns INT as select 1; select foo()");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(
+                               CreateFn{false, "foo()", "INT",
+                                        FindSubstr(res, "select 1;"), false},
+                               SqliteSql{FindSubstr(res, "select foo()")}));
 }
 
 }  // namespace

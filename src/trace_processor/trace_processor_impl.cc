@@ -86,7 +86,9 @@
 #include "src/trace_processor/sqlite/stats_table.h"
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/types/variadic.h"
+#include "src/trace_processor/util/protozero_to_json.h"
 #include "src/trace_processor/util/protozero_to_text.h"
+#include "src/trace_processor/util/regex.h"
 #include "src/trace_processor/util/sql_modules.h"
 #include "src/trace_processor/util/status_macros.h"
 
@@ -362,7 +364,8 @@ void TraceProcessorImpl::RegisterView(const View& view) {
 }
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
-    : TraceProcessorStorageImpl(cfg) {
+    : TraceProcessorStorageImpl(cfg),
+      engine_(context_.storage->mutable_string_pool()) {
   context_.fuchsia_trace_tokenizer.reset(new FuchsiaTraceTokenizer(&context_));
   context_.fuchsia_trace_parser.reset(new FuchsiaTraceParser(&context_));
 
@@ -432,6 +435,9 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       std::unique_ptr<ToFtrace::Context>(new ToFtrace::Context{
           context_.storage.get(), SystraceSerializer(&context_)}));
 
+  if constexpr (regex::IsRegexSupported()) {
+    RegisterFunction<Regex>(&engine_, "regexp", 2);
+  }
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
@@ -473,7 +479,6 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       false);
   engine_.sqlite_engine()->RegisterVirtualTableModule<WindowOperatorTable>(
       "window", storage, SqliteTable::TableType::kExplicitCreate, true);
-  RegisterCreateViewFunctionModule(&engine_);
 
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(engine_.sqlite_engine()->db());
@@ -885,8 +890,10 @@ base::Status TraceProcessorImpl::ComputeMetricText(
           protozero_to_text::kIncludeNewLines);
       break;
     case TraceProcessor::MetricResultFormat::kJson:
-      // TODO(dproy): Implement this.
-      PERFETTO_FATAL("Json formatted metrics not supported yet.");
+      *metrics_string = protozero_to_json::ProtozeroToJson(
+          pool_, ".perfetto.protos.TraceMetrics",
+          protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
+          protozero_to_json::kPretty | protozero_to_json::kInlineErrors);
       break;
   }
   return status;

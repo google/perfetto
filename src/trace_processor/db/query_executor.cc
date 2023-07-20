@@ -151,20 +151,19 @@ void QueryExecutor::FilterColumn(const Constraint& c,
 void QueryExecutor::LinearSearch(const Constraint& c,
                                  const SimpleColumn& col,
                                  RowMap* rm) {
-  // TODO(b/283763282): We should align these to word boundaries.
-  TableRange table_range{Range(rm->Get(0), rm->Get(rm->size() - 1) + 1)};
-  base::SmallVector<Range, kMaxOverlayCount> overlay_bounds;
+  // TODO(b/283763282): Align these to word boundaries.
+  TableRange bounds{Range(rm->Get(0), rm->Get(rm->size() - 1) + 1)};
 
+  // Translate the bounds to the storage level.
   for (const auto& overlay : col.overlays) {
-    StorageRange storage_range = overlay->MapToStorageRange(table_range);
-    overlay_bounds.emplace_back(storage_range.range);
-    table_range = TableRange({storage_range.range});
+    bounds = TableRange({overlay->MapToStorageRange(bounds).range});
   }
 
-  // Use binary search algorithm on storage.
+  // Search the storage.
   overlays::TableRangeOrBitVector res(
-      col.storage->Search(c.op, c.value, table_range.range));
+      col.storage->Search(c.op, c.value, bounds.range));
 
+  // Translate the result to global level.
   OverlayOp op = overlays::FilterOpToOverlayOp(c.op);
   for (uint32_t i = 0; i < col.overlays.size(); ++i) {
     uint32_t rev_i = static_cast<uint32_t>(col.overlays.size()) - 1 - i;

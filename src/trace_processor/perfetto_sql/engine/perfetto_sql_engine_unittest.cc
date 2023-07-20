@@ -25,7 +25,8 @@ namespace {
 
 class PerfettoSqlEngineTest : public ::testing::Test {
  protected:
-  PerfettoSqlEngine engine_;
+  StringPool pool_;
+  PerfettoSqlEngine engine_{&pool_};
 };
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionSmoke) {
@@ -56,6 +57,35 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionError) {
                                   "AS select $x + $y;"
                                   "SELECT foo(1, 2)"));
   ASSERT_FALSE(res.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableSmoke) {
+  auto res = engine_.Execute(
+      SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo AS SELECT 1"));
+  ASSERT_TRUE(res.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableStringSmoke) {
+  auto res = engine_.Execute(
+      SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo AS SELECT 'foo'"));
+  ASSERT_TRUE(res.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 1 AS x"));
+  ASSERT_TRUE(res.ok());
+
+  res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 1 AS x"));
+  ASSERT_FALSE(res.ok());
+
+  res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
+      "select 2 AS x"));
+  ASSERT_TRUE(res.ok());
 }
 
 }  // namespace

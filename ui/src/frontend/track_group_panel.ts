@@ -198,7 +198,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     if (selectedArea.tracks.includes(this.trackGroupId)) {
       ctx.fillStyle = 'rgba(131, 152, 230, 0.3)';
       ctx.fillRect(
-          visibleTimeScale.tpTimeToPx(selectedArea.start) + this.shellWidth,
+          visibleTimeScale.timeToPx(selectedArea.start) + this.shellWidth,
           0,
           visibleTimeScale.durationToPx(selectedAreaDuration),
           size.height);

@@ -445,6 +445,66 @@ TEST(QueryExecutor, StringBinarySearchIsNull) {
   ASSERT_EQ(res.Get(0), 2u);
 }
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+TEST(QueryExecutor, StringBinarySearchRegex) {
+  StringPool pool;
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  ids.insert(ids.begin() + 3, StringPool::Id::Null());
+  StringStorage storage(&pool, ids.data(), 7);
+
+  // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
+  BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};
+  SelectorOverlay selector_overlay(&selector_bv);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&selector_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kRegex, SqlValue::String("p.*")};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 1u);
+  ASSERT_EQ(res.Get(1), 3u);
+}
+
+TEST(QueryExecutor, StringBinarySearchRegexWithNum) {
+  StringPool pool;
+  std::vector<std::string> strings{"cheese",  "pasta", "pizza",
+                                   "pierogi", "onion", "fries"};
+  std::vector<StringPool::Id> ids;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  ids.insert(ids.begin() + 3, StringPool::Id::Null());
+  StringStorage storage(&pool, ids.data(), 7);
+
+  // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
+  BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};
+  SelectorOverlay selector_overlay(&selector_bv);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&selector_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kRegex, SqlValue::Long(4)};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 0u);
+}
+#endif
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

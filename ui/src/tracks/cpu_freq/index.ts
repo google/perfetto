@@ -23,7 +23,7 @@ import {
   NUM_NULL,
   QueryResult,
 } from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
+import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -36,7 +36,7 @@ export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
 
 export interface Data extends TrackData {
   maximumValue: number;
-  maxTsEnd: TPTime;
+  maxTsEnd: time;
 
   timestamps: BigInt64Array;
   minFreqKHz: Uint32Array;
@@ -56,8 +56,8 @@ export interface Config {
 class CpuFreqTrackController extends TrackController<Config, Data> {
   static readonly kind = CPU_FREQ_TRACK_KIND;
 
-  private maxDur: TPDuration = 0n;
-  private maxTsEnd: TPTime = 0n;
+  private maxDur: duration = 0n;
+  private maxTsEnd: time = Time.ZERO;
   private maximumValueSeen = 0;
   private cachedBucketSize = BIMath.INT64_MAX;
 
@@ -77,7 +77,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
       // if only one cpu has no cpufreq data.
       return;
     }
-    this.maxTsEnd = iter.maxTs + iter.dur;
+    this.maxTsEnd = Time.add(Time.fromRaw(iter.maxTs), iter.dur);
 
     const rowCount = iter.rowCount;
     const bucketSize = this.calcCachedBucketSize(rowCount);
@@ -101,7 +101,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     this.cachedBucketSize = bucketSize;
   }
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     // The resolution should always be a power of two for the logic of this
     // function to make sense.
@@ -143,7 +143,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     return data;
   }
 
-  private async queryData(start: TPTime, end: TPTime, bucketSize: TPDuration):
+  private async queryData(start: time, end: time, bucketSize: duration):
       Promise<QueryResult> {
     const isCached = this.cachedBucketSize <= bucketSize;
 
@@ -204,7 +204,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     return result.firstRow({'maxFreq': NUM_NULL}).maxFreq || 0;
   }
 
-  private async queryMaxSourceDur(): Promise<TPDuration> {
+  private async queryMaxSourceDur(): Promise<duration> {
     const maxDurFreqResult = await this.query(
         `select ifnull(max(dur), 0) as maxDur from ${this.tableName('freq')}`);
     const maxDur = maxDurFreqResult.firstRow({'maxDur': LONG}).maxDur;
@@ -272,8 +272,8 @@ class CpuFreqTrack extends Track<Config, Data> {
 
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
-  private hoveredTs: TPTime|undefined = undefined;
-  private hoveredTsEnd: TPTime|undefined = undefined;
+  private hoveredTs: time|undefined = undefined;
+  private hoveredTsEnd: time|undefined = undefined;
   private hoveredIdle: number|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
@@ -326,8 +326,8 @@ class CpuFreqTrack extends Track<Config, Data> {
     ctx.fillStyle = `hsl(${hue}, ${saturation}%, 70%)`;
     ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 55%)`;
 
-    const calculateX = (timestamp: TPTime) => {
-      return Math.floor(visibleTimeScale.tpTimeToPx(timestamp));
+    const calculateX = (timestamp: time) => {
+      return Math.floor(visibleTimeScale.timeToPx(timestamp));
     };
     const calculateY = (value: number) => {
       return zeroY - Math.round((value / yMax) * RECT_HEIGHT);
@@ -335,18 +335,20 @@ class CpuFreqTrack extends Track<Config, Data> {
 
     const start = visibleWindowTime.start;
     const end = visibleWindowTime.end;
-    const [rawStartIdx] = searchSegment(data.timestamps, start.toTPTime());
+    const [rawStartIdx] = searchSegment(data.timestamps, start.toTime());
     const startIdx = rawStartIdx === -1 ? 0 : rawStartIdx;
 
-    const [, rawEndIdx] = searchSegment(data.timestamps, end.toTPTime());
+    const [, rawEndIdx] = searchSegment(data.timestamps, end.toTime());
     const endIdx = rawEndIdx === -1 ? data.timestamps.length : rawEndIdx;
 
     ctx.beginPath();
-    ctx.moveTo(Math.max(calculateX(data.timestamps[startIdx]), 0), zeroY);
+    const timestamp = Time.fromRaw(data.timestamps[startIdx]);
+    ctx.moveTo(Math.max(calculateX(timestamp), 0), zeroY);
 
     let lastDrawnY = zeroY;
     for (let i = startIdx; i < endIdx; i++) {
-      const x = calculateX(data.timestamps[i]);
+      const timestamp = Time.fromRaw(data.timestamps[i]);
+      const x = calculateX(timestamp);
 
       const minY = calculateY(data.minFreqKHz[i]);
       const maxY = calculateY(data.maxFreqKHz[i]);
@@ -385,10 +387,11 @@ class CpuFreqTrack extends Track<Config, Data> {
       // coordinates. Instead we use floating point which prevents flickering as
       // we pan and zoom; this relies on the browser anti-aliasing pixels
       // correctly.
-      const x = visibleTimeScale.tpTimeToPx(data.timestamps[i]);
+      const timestamp = Time.fromRaw(data.timestamps[i]);
+      const x = visibleTimeScale.timeToPx(timestamp);
       const xEnd = i === data.lastIdleValues.length - 1 ?
           finalX :
-          visibleTimeScale.tpTimeToPx(data.timestamps[i + 1]);
+          visibleTimeScale.timeToPx(Time.fromRaw(data.timestamps[i + 1]));
 
       const width = xEnd - x;
       const height = calculateY(data.lastFreqKHz[i]) - zeroY;
@@ -404,10 +407,10 @@ class CpuFreqTrack extends Track<Config, Data> {
       ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
       ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
 
-      const xStart = Math.floor(visibleTimeScale.tpTimeToPx(this.hoveredTs));
+      const xStart = Math.floor(visibleTimeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?
           endPx :
-          Math.floor(visibleTimeScale.tpTimeToPx(this.hoveredTsEnd));
+          Math.floor(visibleTimeScale.timeToPx(this.hoveredTsEnd));
       const y = zeroY - Math.round((this.hoveredValue / yMax) * RECT_HEIGHT);
 
       // Highlight line.
@@ -450,8 +453,8 @@ class CpuFreqTrack extends Track<Config, Data> {
         this.getHeight(),
         windowSpan.start,
         windowSpan.end,
-        visibleTimeScale.tpTimeToPx(data.start),
-        visibleTimeScale.tpTimeToPx(data.end));
+        visibleTimeScale.timeToPx(data.start),
+        visibleTimeScale.timeToPx(data.end));
   }
 
   onMouseMove(pos: {x: number, y: number}) {
@@ -461,9 +464,11 @@ class CpuFreqTrack extends Track<Config, Data> {
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
-    const [left, right] = searchSegment(data.timestamps, time.toTPTime());
-    this.hoveredTs = left === -1 ? undefined : data.timestamps[left];
-    this.hoveredTsEnd = right === -1 ? undefined : data.timestamps[right];
+    const [left, right] = searchSegment(data.timestamps, time.toTime());
+    this.hoveredTs =
+        left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
+    this.hoveredTsEnd =
+        right === -1 ? undefined : Time.fromRaw(data.timestamps[right]);
     this.hoveredValue = left === -1 ? undefined : data.lastFreqKHz[left];
     this.hoveredIdle = left === -1 ? undefined : data.lastIdleValues[left];
   }

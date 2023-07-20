@@ -14,6 +14,7 @@
 
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
+import {Span, Time} from '../common/time';
 import {perfetto} from '../gen/protos';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';
@@ -24,20 +25,21 @@ import {
   QueryArgs,
   ResetTraceProcessorArgs,
 } from './protos';
-import {LONG, LONG_NULL, NUM, STR} from './query_result';
 import {
   createQueryResult,
+  LONG,
+  LONG_NULL,
+  NUM,
   QueryError,
   QueryResult,
+  STR,
   WritableQueryResult,
 } from './query_result';
-import {TPTime, TPTimeSpan} from './time';
+import {duration, time, TimeSpan} from './time';
 
 import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
 import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;
 import TPM = perfetto.protos.TraceProcessorRpc.TraceProcessorMethod;
-import {Span} from '../common/time';
-import {BigintMath} from '../base/bigint_math';
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -86,7 +88,7 @@ export abstract class Engine {
   private pendingResetTraceProcessors = new Array<Deferred<void>>();
   private pendingQueries = new Array<WritableQueryResult>();
   private pendingRestoreTables = new Array<Deferred<void>>();
-  private pendingComputeMetrics = new Array<Deferred<ComputeMetricResult>>();
+  private pendingComputeMetrics = new Array<Deferred<string|Uint8Array>>();
   private pendingReadMetatrace?: Deferred<DisableAndReadMetatraceResult>;
   private _isMetatracingEnabled = false;
 
@@ -207,7 +209,9 @@ export abstract class Engine {
               });
           pendingComputeMetric.reject(error);
         } else {
-          pendingComputeMetric.resolve(metricRes);
+          const result = metricRes.metricsAsPrototext ||
+              metricRes.metricsAsJson || metricRes.metrics || '';
+          pendingComputeMetric.resolve(result);
         }
         break;
       case TPM.TPM_DISABLE_AND_READ_METATRACE:
@@ -288,14 +292,23 @@ export abstract class Engine {
   }
 
   // Shorthand for sending a compute metrics request to the engine.
-  async computeMetric(metrics: string[]): Promise<ComputeMetricResult> {
-    const asyncRes = defer<ComputeMetricResult>();
+  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
+      Promise<string|Uint8Array> {
+    const asyncRes = defer<string|Uint8Array>();
     this.pendingComputeMetrics.push(asyncRes);
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_COMPUTE_METRIC;
     const args = rpc.computeMetricArgs = new ComputeMetricArgs();
     args.metricNames = metrics;
-    args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+    if (format === 'json') {
+      args.format = ComputeMetricArgs.ResultFormat.JSON;
+    } else if (format === 'prototext') {
+      args.format = ComputeMetricArgs.ResultFormat.TEXTPROTO;
+    } else if (format === 'proto') {
+      args.format = ComputeMetricArgs.ResultFormat.BINARY_PROTOBUF;
+    } else {
+      throw new Error(`Unknown compute metric format ${format}`);
+    }
     this.rpcSendRequest(rpc);
     return asyncRes;
   }
@@ -412,38 +425,39 @@ export abstract class Engine {
     return result.firstRow({cnt: NUM}).cnt;
   }
 
-  async getTraceTimeBounds(): Promise<Span<TPTime>> {
+  async getTraceTimeBounds(): Promise<Span<time, duration>> {
     const result = await this.query(
         `select start_ts as startTs, end_ts as endTs from trace_bounds`);
     const bounds = result.firstRow({
       startTs: LONG,
       endTs: LONG,
     });
-    return new TPTimeSpan(bounds.startTs, bounds.endTs);
+    return new TimeSpan(
+        Time.fromRaw(bounds.startTs), Time.fromRaw(bounds.endTs));
   }
 
-  async getTracingMetadataTimeBounds(): Promise<Span<TPTime>> {
+  async getTracingMetadataTimeBounds(): Promise<Span<time, duration>> {
     const queryRes = await this.query(`select
          name,
          int_value as intValue
          from metadata
          where name = 'tracing_started_ns' or name = 'tracing_disabled_ns'
          or name = 'all_data_source_started_ns'`);
-    let startBound = 0n;
-    let endBound = BigintMath.INT64_MAX;
+    let startBound = Time.MIN;
+    let endBound = Time.MAX;
     const it = queryRes.iter({'name': STR, 'intValue': LONG_NULL});
     for (; it.valid(); it.next()) {
       const columnName = it.name;
       const timestamp = it.intValue;
       if (timestamp === null) continue;
       if (columnName === 'tracing_disabled_ns') {
-        endBound = BigintMath.min(endBound, timestamp);
+        endBound = Time.min(endBound, Time.fromRaw(timestamp));
       } else {
-        startBound = BigintMath.max(startBound, timestamp);
+        startBound = Time.max(startBound, Time.fromRaw(timestamp));
       }
     }
 
-    return new TPTimeSpan(startBound, endBound);
+    return new TimeSpan(startBound, endBound);
   }
 
   getProxy(tag: string): EngineProxy {
@@ -464,6 +478,11 @@ export class EngineProxy {
 
   query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
     return this.engine.query(sqlQuery, tag || this.tag);
+  }
+
+  async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
+      Promise<string|Uint8Array> {
+    return this.engine.computeMetric(metrics, format);
   }
 
   get engineId(): string {
