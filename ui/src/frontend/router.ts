@@ -88,6 +88,7 @@ type RouteArgs = ValidatedType<typeof routeArgs>;
 export interface Route {
   page: string;
   subpage: string;
+  fragment: string;
   args: RouteArgs;
 }
 
@@ -127,6 +128,8 @@ export class Router {
     assertExists(routes[DEFAULT_ROUTE]);
     this.routes = routes;
     window.onhashchange = (e: HashChangeEvent) => this.onHashChange(e);
+    const route = Router.parseUrl(window.location.href);
+    this.onRouteChanged(route);
   }
 
   private onHashChange(e: HashChangeEvent) {
@@ -154,7 +157,13 @@ export class Router {
 
     const args = m.buildQueryString(newRoute.args);
     let normalizedFragment = `#!${newRoute.page}${newRoute.subpage}`;
-    normalizedFragment += args.length > 0 ? '?' + args : '';
+    if (args.length) {
+      normalizedFragment += `?${args}`;
+    }
+    if (newRoute.fragment) {
+      normalizedFragment += `#${newRoute.fragment}`;
+    }
+
     if (!e.newURL.endsWith(normalizedFragment)) {
       location.replace(normalizedFragment);
       return;
@@ -182,28 +191,39 @@ export class Router {
 
   // Breaks down a fragment into a Route object.
   // Sample input:
-  // '#!/record/gpu?local_cache_key=abcd-1234'
+  // '#!/record/gpu?local_cache_key=abcd-1234#myfragment'
   // Sample output:
-  // {page: '/record', subpage: '/gpu', args: {local_cache_key: 'abcd-1234'}}
+  // {
+  //  page: '/record',
+  //  subpage: '/gpu',
+  //  fragment: 'myfragment',
+  //  args: {local_cache_key: 'abcd-1234'}
+  // }
   static parseFragment(hash: string): Route {
-    const prefixLength = ROUTE_PREFIX.length;
-    let route = '';
     if (hash.startsWith(ROUTE_PREFIX)) {
-      route = hash.substring(prefixLength).split('?')[0];
+      hash = hash.substring(ROUTE_PREFIX.length);
+    } else {
+      hash = '';
     }
 
-    let page = route;
+    const url = new URL(`https://example.com${hash}`);
+
+    const path = url.pathname;
+    let page = path;
     let subpage = '';
-    const splittingPoint = route.indexOf('/', 1);
+    const splittingPoint = path.indexOf('/', 1);
     if (splittingPoint > 0) {
-      page = route.substring(0, splittingPoint);
-      subpage = route.substring(splittingPoint);
+      page = path.substring(0, splittingPoint);
+      subpage = path.substring(splittingPoint);
+    }
+    if (page === '/') {
+      page = '';
     }
 
-    const argsStart = hash.indexOf('?');
-    const argsStr = argsStart < 0 ? '' : hash.substring(argsStart + 1);
-    const rawArgs =
-        argsStr ? m.parseQueryString(hash.substring(argsStart)) : {};
+    let rawArgs = {};
+    if (url.search) {
+      rawArgs = m.parseQueryString(url.search);
+    }
 
     const args = runValidator(routeArgs, rawArgs).result;
 
@@ -216,7 +236,12 @@ export class Router {
       }
     }
 
-    return {page, subpage, args};
+    let fragment = url.hash;
+    if (fragment.startsWith('#')) {
+      fragment = fragment.substring(1);
+    }
+
+    return {page, subpage, args, fragment};
   }
 
   private static parseSearchParams(url: string): RouteArgs {

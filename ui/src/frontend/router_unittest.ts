@@ -60,30 +60,43 @@ describe('Router.parseUrl', () => {
   // Can parse arguments from the search string.
   test('Search parsing', () => {
     const url = 'http://localhost?p=123&s=42&url=a?b?c';
-    const args = Router.parseUrl(url).args;
+    const route = Router.parseUrl(url);
+    const args = route.args;
     expect(args.p).toBe('123');
     expect(args.s).toBe('42');
     expect(args.url).toBe('a?b?c');
+    expect(route.fragment).toBe('');
   });
 
   // Or from the fragment string.
   test('Fragment parsing', () => {
     const url = 'http://localhost/#!/foo?p=123&s=42&url=a?b?c';
-    const args = Router.parseUrl(url).args;
+    const route = Router.parseUrl(url);
+    const args = route.args;
     expect(args.p).toBe('123');
     expect(args.s).toBe('42');
     expect(args.url).toBe('a?b?c');
+    expect(route.fragment).toBe('');
   });
 
   // Or both in which case fragment overrides the search.
   test('Fragment parsing', () => {
     const url =
         'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false';
-    const args = Router.parseUrl(url).args;
+    const route = Router.parseUrl(url);
+    const args = route.args;
     expect(args.p).toBe('1');
     expect(args.s).toBe('3');
     expect(args.url).toBe('4');
     expect(args.hideSidebar).toBe(false);
+    expect(route.fragment).toBe('');
+  });
+
+  test('Nested fragment', () => {
+    const url =
+        'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false#myfragment';
+    const route = Router.parseUrl(url);
+    expect(route.fragment).toBe('myfragment');
   });
 });
 
