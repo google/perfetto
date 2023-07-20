@@ -125,12 +125,6 @@ class LogTextWidget implements m.ClassComponent {
     return m(
         TextInput, {
           placeholder: 'Search logs...',
-          onkeydown: (e: KeyboardEvent) => {
-            // This is to avoid zooming on 'w'(and other unexpected effects
-            // of key presses in this input field).
-            e.stopPropagation();
-          },
-
           onkeyup: (e: KeyboardEvent) => {
             // We want to use the value of the input field after it has been
             // updated with the latest key (onkeyup).

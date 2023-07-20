@@ -22,6 +22,7 @@ import {globals} from './globals';
 import {fullscreenModalContainer} from './modal';
 import {Sidebar} from './sidebar';
 import {Topbar} from './topbar';
+import {HotkeyConfig, HotkeyContext} from './widgets/hotkey_context';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -61,7 +62,17 @@ export function createPage(component: m.Component<PageAttrs>):
       if (globals.state.perfDebug) {
         children.push(m('.perf-stats'));
       }
-      return children;
+
+      const hotkeys: HotkeyConfig[] = [
+        {
+          key: 'b',
+          mods: ['Mod'],
+          allowInEditable: true,
+          callback: () => globals.dispatch(Actions.toggleSidebar({})),
+        },
+      ];
+
+      return m(HotkeyContext, {hotkeys}, children);
     },
   };
 
