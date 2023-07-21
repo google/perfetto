@@ -13,13 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {
-
-  duration,
-  Span,
-  time,
-  Time,
-} from '../common/time';
+import {duration, Span, time, Time} from '../common/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
