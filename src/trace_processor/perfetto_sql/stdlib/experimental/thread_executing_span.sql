@@ -44,21 +44,26 @@ FROM thread_state
 WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
    AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
--- Similar to |internal_runnable_state| but finds the runnable states at thread fork.
-CREATE VIEW internal_fork_runnable_state
+-- Similar to |internal_runnable_state| but finds the first runnable state at thread.
+CREATE VIEW internal_first_runnable_state
 AS
+WITH
+  first_state AS (
+    SELECT
+      MIN(thread_state.id) AS id
+    FROM thread_state
+    GROUP BY utid
+  )
 SELECT
   thread_state.id,
   thread_state.ts,
   thread_state.dur,
   thread_state.state,
   thread_state.utid,
-  thread_state.waker_utid,
-  thread.start_ts = thread_state.ts AS is_fork
+  thread_state.waker_utid
 FROM thread_state
-JOIN thread USING(utid)
-WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
-   AND thread.start_ts = thread_state.ts;
+JOIN first_state USING (id)
+WHERE thread_state.dur != -1 AND thread_state.state = 'R';
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
@@ -72,7 +77,7 @@ SELECT
   thread_state.blocked_function,
   thread_state.utid
 FROM thread_state
-WHERE dur != -1 AND (state = 'S' OR state = 'D');
+WHERE dur != -1 AND (state = 'S' OR state = 'D' OR state = 'I');
 
 --
 -- Finds the last execution for every thread to end executing_spans without a Sleep.
@@ -86,19 +91,20 @@ FROM thread_state
 WHERE dur != -1
 GROUP BY utid;
 
--- Similar to |internal_sleep_state| but finds the first sleep state after thread fork.
-CREATE VIEW internal_fork_sleep_state
+-- Similar to |internal_sleep_state| but finds the first sleep state in a thread.
+CREATE VIEW internal_first_sleep_state
 AS
 SELECT
-  MIN(thread_state.id) AS id,
-  thread_state.ts,
-  thread_state.dur,
-  thread_state.state,
-  thread_state.blocked_function,
-  thread_state.utid
-FROM thread_state
-WHERE dur != -1 AND (state = 'S' OR state = 'D')
-GROUP BY utid;
+  MIN(s.id) AS id,
+  s.ts,
+  s.dur,
+  s.state,
+  s.blocked_function,
+  s.utid
+FROM internal_sleep_state s
+JOIN internal_runnable_state r
+  ON s.utid = r.utid AND (s.ts + s.dur = r.ts)
+GROUP BY s.utid;
 
 --
 -- Finds all neighbouring ('Sleeping', 'Runnable') thread_states pairs from the same thread.
@@ -154,7 +160,6 @@ AS
   r.state AS start_state,
   r.utid AS utid,
   r.waker_utid,
-  0 AS is_fork,
   LEAD(s.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_id,
   IFNULL(LEAD(s.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts), thread_end.end_ts)  AS end_ts,
   LEAD(s.dur, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_dur,
@@ -181,15 +186,15 @@ UNION ALL
   r.state AS start_state,
   r.utid AS utid,
   r.waker_utid,
-  r.is_fork,
   s.id AS end_id,
-  s.ts AS end_ts,
+  IFNULL(s.ts, thread_end.end_ts)  AS end_ts,
   s.dur AS end_dur,
   s.state AS end_state,
   s.blocked_function AS blocked_function
-FROM internal_fork_runnable_state r
-JOIN internal_fork_sleep_state s
-  ON s.utid = r.utid;
+FROM internal_first_runnable_state r
+LEFT JOIN internal_first_sleep_state s
+  ON s.utid = r.utid
+LEFT JOIN internal_thread_end_ts thread_end USING(utid);
 
 -- Improves performance of |internal_wakeup_chain| computation.
 CREATE
@@ -463,7 +468,7 @@ chain AS (
     blocked_state AS leaf_blocked_state,
     blocked_function AS leaf_blocked_function
   FROM experimental_thread_executing_span_graph
-  WHERE ($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL AND is_leaf)
+  WHERE ($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL)
   UNION ALL
   SELECT
     graph.*,
