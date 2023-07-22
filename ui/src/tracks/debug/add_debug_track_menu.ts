@@ -15,8 +15,7 @@
 import m from 'mithril';
 
 import {EngineProxy} from '../../common/engine';
-import {Button} from '../../frontend/widgets/button';
-import {Form, FormButtonBar, FormLabel} from '../../frontend/widgets/form';
+import {Form, FormLabel} from '../../frontend/widgets/form';
 import {Select} from '../../frontend/widgets/select';
 import {TextInput} from '../../frontend/widgets/text_input';
 
@@ -104,6 +103,17 @@ export class AddDebugTrackMenu implements
     };
     return m(
         Form,
+        {
+          onSubmit: () => {
+            addDebugTrack(
+                vnode.attrs.engine,
+                vnode.attrs.dataSource,
+                this.name,
+                this.sliceColumns,
+                this.columns);
+          },
+          submitLabel: 'Show',
+        },
         m(FormLabel,
           {for: 'track_name',
           },
@@ -122,22 +132,6 @@ export class AddDebugTrackMenu implements
         renderSelect('ts'),
         renderSelect('dur'),
         renderSelect('name'),
-        m(
-            FormButtonBar,
-            m(Button, {
-              label: 'Show',
-              dismissPopup: true,
-              onclick: (e: Event) => {
-                e.preventDefault();
-                addDebugTrack(
-                    vnode.attrs.engine,
-                    vnode.attrs.dataSource,
-                    this.name,
-                    this.sliceColumns,
-                    this.columns);
-              },
-            }),
-            ),
     );
   }
 }
