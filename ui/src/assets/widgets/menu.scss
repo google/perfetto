@@ -18,11 +18,9 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 5px 0;
 
   .pf-menu-item {
     font-family: $pf-font;
-    font-size: 14px;
     user-select: none;
     text-align: left;
     padding: 5px 10px;
