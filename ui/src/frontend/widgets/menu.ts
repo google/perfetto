@@ -57,7 +57,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
   }
 
   private renderNested({attrs, children}: m.CVnode<MenuItemAttrs>) {
-    const {rightIcon = 'arrow_right', closePopupOnClick = false, ...rest} =
+    const {rightIcon = 'chevron_right', closePopupOnClick = false, ...rest} =
         attrs;
 
     return m(
@@ -65,7 +65,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
         {
           popupPosition: PopupPosition.RightStart,
           trigger: m(MenuItem, {
-            rightIcon: rightIcon ?? 'arrow_right',
+            rightIcon: rightIcon,
             closePopupOnClick,
             ...rest,
           }),

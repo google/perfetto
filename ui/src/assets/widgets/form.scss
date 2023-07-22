@@ -12,12 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+@import "theme";
+
 .pf-form {
   display: grid;
   grid-template-columns: auto auto;
-  margin: 6px;
-  row-gap: 8px;
-  column-gap: 8px;
+  gap: 8px;
+  font-family: $pf-font;
 
   .pf-form-button-bar {
     grid-column: span 2;
@@ -26,13 +27,17 @@
     justify-content: right;
     flex-direction: row-reverse;
     align-items: center;
-
-    .pf-button {
-      margin-right: 4px;
-    }
+    gap: 2px;
   }
 
   .pf-form-label {
-    font-weight: 600;
+    font-weight: bolder;
+  }
+}
+
+// Add some spacing around forms when placed inside a menu
+.pf-menu {
+  .pf-form {
+    margin: 4px;
   }
 }
