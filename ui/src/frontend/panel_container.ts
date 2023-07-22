@@ -14,7 +14,9 @@
 
 import m from 'mithril';
 
+import {Trash} from '../base/disposable';
 import {assertExists, assertFalse} from '../base/logging';
+import {SimpleResizeObserver} from '../base/resize_observer';
 import {
   debugNow,
   perfDebug,
@@ -89,9 +91,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   private ctx?: CanvasRenderingContext2D;
 
-  private onResize: () => void = () => {};
-  private parentOnScroll: () => void = () => {};
-  private canvasRedrawer: () => void;
+  private trash: Trash;
 
   get canvasOverdrawFactor() {
     return this.attrs.doesScroll ? SCROLLING_CANVAS_OVERDRAW_FACTOR : 1;
@@ -170,59 +170,60 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
 
   constructor(vnode: m.CVnode<Attrs>) {
     this.attrs = vnode.attrs;
-    this.canvasRedrawer = () => this.redrawCanvas();
-    raf.addRedrawCallback(this.canvasRedrawer);
-    perfDisplay.addContainer(this);
     this.flowEventsRenderer = new FlowEventsRenderer();
+    this.trash = new Trash();
+
+    const onRedraw = () => this.redrawCanvas();
+    raf.addRedrawCallback(onRedraw);
+    this.trash.addCallback(() => {
+      raf.removeRedrawCallback(onRedraw);
+    });
+
+    perfDisplay.addContainer(this);
+    this.trash.addCallback(() => {
+      perfDisplay.removeContainer(this);
+    });
   }
 
-  oncreate(vnodeDom: m.CVnodeDOM<Attrs>) {
+  oncreate({dom}: m.CVnodeDOM<Attrs>) {
     // Save the canvas context in the state.
-    const canvas =
-        vnodeDom.dom.querySelector('.main-canvas') as HTMLCanvasElement;
+    const canvas = dom.querySelector('.main-canvas') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d');
     if (!ctx) {
       throw Error('Cannot create canvas context');
     }
     this.ctx = ctx;
 
-    this.readParentSizeFromDom(vnodeDom.dom);
-    this.readPanelHeightsFromDom(vnodeDom.dom);
+    this.readParentSizeFromDom(dom);
+    this.readPanelHeightsFromDom(dom);
 
     this.updateCanvasDimensions();
     this.repositionCanvas();
 
-    // Save the resize handler in the state so we can remove it later.
-    // TODO: Encapsulate resize handling better.
-    this.onResize = () => {
-      this.readParentSizeFromDom(vnodeDom.dom);
+    this.trash.add(new SimpleResizeObserver(dom, () => {
+      this.readParentSizeFromDom(dom);
       this.updateCanvasDimensions();
       this.repositionCanvas();
       raf.scheduleFullRedraw();
-    };
-
-    // Once ResizeObservers are out, we can stop accessing the window here.
-    window.addEventListener('resize', this.onResize);
+    }));
 
     // TODO(dproy): Handle change in doesScroll attribute.
     if (this.attrs.doesScroll) {
-      this.parentOnScroll = () => {
-        this.scrollTop = assertExists(vnodeDom.dom.parentElement).scrollTop;
+      const parentOnScroll = () => {
+        this.scrollTop = dom.parentElement!.scrollTop;
         this.repositionCanvas();
         raf.scheduleRedraw();
       };
-      vnodeDom.dom.parentElement!.addEventListener(
-          'scroll', this.parentOnScroll, {passive: true});
+      dom.parentElement!.addEventListener(
+          'scroll', parentOnScroll, {passive: true});
+      this.trash.addCallback(() => {
+        dom.parentElement!.removeEventListener('scroll', parentOnScroll);
+      });
     }
   }
 
-  onremove({attrs, dom}: m.CVnodeDOM<Attrs>) {
-    window.removeEventListener('resize', this.onResize);
-    raf.removeRedrawCallback(this.canvasRedrawer);
-    if (attrs.doesScroll) {
-      dom.parentElement!.removeEventListener('scroll', this.parentOnScroll);
-    }
-    perfDisplay.removeContainer(this);
+  onremove() {
+    this.trash.dispose();
   }
 
   isTrackGroupAttrs(attrs: unknown): attrs is TrackGroupAttrs {
@@ -274,9 +275,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     ];
   }
 
-  onupdate(vnodeDom: m.CVnodeDOM<Attrs>) {
-    const totalPanelHeightChanged = this.readPanelHeightsFromDom(vnodeDom.dom);
-    const parentSizeChanged = this.readParentSizeFromDom(vnodeDom.dom);
+  onupdate({dom}: m.CVnodeDOM<Attrs>) {
+    const totalPanelHeightChanged = this.readPanelHeightsFromDom(dom);
+    const parentSizeChanged = this.readParentSizeFromDom(dom);
     const canvasSizeShouldChange =
         parentSizeChanged || !this.attrs.doesScroll && totalPanelHeightChanged;
     if (canvasSizeShouldChange) {
