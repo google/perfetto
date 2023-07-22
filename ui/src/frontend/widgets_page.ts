@@ -28,7 +28,7 @@ import {Callout} from './widgets/callout';
 import {Checkbox} from './widgets/checkbox';
 import {Editor} from './widgets/editor';
 import {EmptyState} from './widgets/empty_state';
-import {Form, FormButtonBar, FormLabel} from './widgets/form';
+import {Form, FormLabel} from './widgets/form';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {
@@ -861,20 +861,7 @@ export const WidgetsPage = createPage({
         m(
           WidgetShowcase, {
             label: 'Form',
-            renderWidget: () => m(
-              Form,
-              m(FormLabel, {for: 'foo'}, 'Foo'),
-              m(TextInput, {id: 'foo'}),
-              m(FormLabel, {for: 'bar'}, 'Bar'),
-              m(Select, {id: 'bar'}, [
-                m('option', {value: 'foo', label: 'Foo'}),
-                m('option', {value: 'bar', label: 'Bar'}),
-                m('option', {value: 'baz', label: 'Baz'}),
-              ]),
-              m(FormButtonBar,
-                m(Button, {label: 'Submit', rightIcon: 'chevron_right'}),
-                m(Button, {label: 'Cancel', minimal: true}),
-              )),
+            renderWidget: () => renderForm('form'),
           }),
         m(WidgetShowcase, {
             label: 'Nested Popups',
@@ -932,6 +919,54 @@ export const WidgetsPage = createPage({
 
             },
           }),
+          m(
+            WidgetShowcase, {
+              label: 'Form within PopupMenu2',
+              description: `A form placed inside a popup menu works just fine,
+              and the cancel/submit buttons also dismiss the popup. A bit more
+              margin is added around it too, which improves the look and feel.`,
+              renderWidget: () => m(
+                PopupMenu2,
+                {
+                  trigger: m(Button, {label: 'Popup!'}),
+                },
+                m(MenuItem,
+                  {
+                    label: 'Open form...',
+                  },
+                  renderForm('popup-form'),
+                ),
+              ),
+            }),
     );
   },
 });
+
+function renderForm(id: string) {
+  return m(
+      Form,
+      {
+        submitLabel: 'Submit',
+        submitIcon: 'send',
+        cancelLabel: 'Cancel',
+        resetLabel: 'Reset',
+        onSubmit: () => window.alert('Form submitted!'),
+      },
+      m(FormLabel,
+        {for: `${id}-foo`,
+        },
+        'Foo'),
+      m(TextInput, {id: `${id}-foo`}),
+      m(FormLabel,
+        {for: `${id}-bar`,
+        },
+        'Bar'),
+      m(Select,
+        {id: `${id}-bar`},
+        [
+          m('option', {value: 'foo', label: 'Foo'}),
+          m('option', {value: 'bar', label: 'Bar'}),
+          m('option', {value: 'baz', label: 'Baz'}),
+        ]),
+  );
+}
