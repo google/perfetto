@@ -65,6 +65,24 @@ function isSelected(id: string) {
   return selectedArea.tracks.includes(id);
 }
 
+interface TrackChipsAttrs {
+  config: {[k: string]: any};
+}
+
+export class TrackChips implements m.ClassComponent<TrackChipsAttrs> {
+  view({attrs}: m.CVnode<TrackChipsAttrs>) {
+    const {config} = attrs;
+
+    const isMetric = 'namespace' in config;
+    const isDebuggable = ('isDebuggable' in config) && config.isDebuggable;
+
+    return [
+      isMetric && m('span.chip', 'metric'),
+      isDebuggable && m('span.chip', 'debuggable'),
+    ];
+  }
+}
+
 interface TrackShellAttrs {
   track: Track;
   trackState: TrackState;
@@ -113,8 +131,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               },
             },
             attrs.trackState.name,
-            ('namespace' in attrs.trackState.config) &&
-                m('span.chip', 'metric'),
+            m(TrackChips, {config: attrs.trackState.config}),
             ),
         m('.track-buttons',
           attrs.track.getTrackShellButtons(),
