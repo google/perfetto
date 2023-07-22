@@ -1690,6 +1690,7 @@ class TrackDecider {
       thread.tid as tid,
       process.name as processName,
       thread.name as threadName,
+      package_list.debuggable as isDebuggable,
       ifnull((
         select group_concat(string_value)
         from args
@@ -1775,6 +1776,7 @@ class TrackDecider {
     ) using (upid)
     left join thread using(utid)
     left join process using(upid)
+    left join package_list using(uid)
     order by
       chromeProcessRank desc,
       hasHeapProfiles desc,
@@ -1796,6 +1798,7 @@ class TrackDecider {
       processName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
+      isDebuggable: NUM_NULL,
       chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
@@ -1807,6 +1810,7 @@ class TrackDecider {
       const processName = it.processName;
       const hasSched = !!it.hasSched;
       const hasHeapProfiles = !!it.hasHeapProfiles;
+      const isDebuggable = !!it.isDebuggable;
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1828,7 +1832,13 @@ class TrackDecider {
               PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
               PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
           name: `${upid === null ? tid : pid} summary`,
-          config: {pidForColor, upid, utid, tid},
+          config: {
+            pidForColor,
+            upid,
+            utid,
+            tid,
+            isDebuggable: isDebuggable ?? undefined,
+          },
           labels: it.chromeProcessLabels.split(','),
         });
 
