@@ -57,8 +57,10 @@ message AndroidCodecMetrics {
     optional string process_name = 1;
     // name of the codec thread
     optional string thread_name = 2;
+    // was thread_cpu_us
+    reserved 3;
     // total cpu usage of the codec thread
-    optional int64 thread_cpu_us = 3;
+    optional int64 thread_cpu_ns = 6;
     // can be number of codec framework thread
     optional uint32 num_threads = 4;
     // core type data info used by codec thread

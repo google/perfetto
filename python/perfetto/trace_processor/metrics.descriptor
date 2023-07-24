@@ -141,8 +141,8 @@ avgFreqKhze
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
 	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ
-ª
-3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"¯
+°
+3protos/perfetto/metrics/android/codec_metrics.protoperfetto.protos0protos/perfetto/metrics/android/cpu_metric.proto"µ
 AndroidCodecMetricsJ
 	cpu_usage (2-.perfetto.protos.AndroidCodecMetrics.CpuUsageRcpuUsageY
 codec_function (22.perfetto.protos.AndroidCodecMetrics.CodecFunctionRcodecFunctionq
@@ -155,15 +155,15 @@ totalCpuNs$
 CodecFunction!
 codec_string (	RcodecString!
 process_name (	RprocessNameC
-detail (2+.perfetto.protos.AndroidCodecMetrics.DetailRdetailà
+detail (2+.perfetto.protos.AndroidCodecMetrics.DetailRdetailæ
 CpuUsage!
 process_name (	RprocessName
 thread_name (	R
 threadName"
-thread_cpu_us (RthreadCpuUs
+thread_cpu_ns (RthreadCpuNs
 num_threads (R
 numThreadsK
-	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreData
+	core_data (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreDataJ
 ò
 3protos/perfetto/metrics/android/camera_metric.protoperfetto.protos"©
 AndroidCameraMetricQ
