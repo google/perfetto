@@ -35,7 +35,7 @@ SELECT
   upid,
   process.name AS process_name,
   thread.name AS thread_name,
-  CAST(SUM(sched.dur) / 1e3 as INT64) AS cpu_time_us,
+  CAST(SUM(sched.dur) as INT64) AS cpu_time_ns,
   COUNT(DISTINCT utid) AS num_threads
 FROM sched
 JOIN thread USING(utid)
@@ -63,7 +63,7 @@ CREATE VIEW codec_total_per_process_cpu_use AS
 SELECT
   upid,
   process_name,
-  CAST(SUM(sched.dur) / 1e3 as INT64) AS media_process_cpu_time_us
+  CAST(SUM(sched.dur) as INT64) AS media_process_cpu_time_ns
 FROM sched
 JOIN thread using(utid)
 JOIN android_codec_process using(upid)
@@ -177,7 +177,7 @@ SELECT AndroidCodecMetrics(
       AndroidCodecMetrics_CpuUsage(
         'process_name', process_name,
         'thread_name', thread_name,
-        'thread_cpu_us', CAST((cpu_time_us) as INT64),
+        'thread_cpu_ns', CAST((cpu_time_ns) as INT64),
         'num_threads', num_threads,
         'core_data', core_type_proto_per_thread_name.proto
       )
