@@ -15,10 +15,10 @@
 @import "theme";
 
 .pf-empty-state {
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  margin: 10px;
+  padding: 10px;
   user-select: none;
 
   & > i {

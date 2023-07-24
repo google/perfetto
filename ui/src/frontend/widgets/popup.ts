@@ -13,13 +13,16 @@
 // limitations under the License.
 
 import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
-import type {StrictModifiers} from '@popperjs/core';
+import type {Modifier, StrictModifiers} from '@popperjs/core';
 import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
 import {classNames} from '../classnames';
 import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
 import {assertExists} from '../../base/logging';
 import {raf} from '../../core/raf_scheduler';
+
+type CustomModifier = Modifier<'sameWidth', {}>;
+type ExtendedModifiers = StrictModifiers|CustomModifier;
 
 // Note: We could just use the Placement type from popper.js instead, which is a
 // union of string literals corresponding to the values in this enum, but having
@@ -78,6 +81,14 @@ export interface PopupAttrs {
   // only the group in which the button lives and it's children will be closed.
   // Defaults to true.
   createNewGroup?: boolean;
+  // Called when the popup mounts, passing the popup's dom element.
+  onPopupMount?: (dom: HTMLElement) => void;
+  // Called when the popup unmounts, padding the popup's dom element.
+  onPopupUnMount?: (dom: HTMLElement) => void;
+  // Popup matches the width of the trigger element. Default = false.
+  matchWidth?: boolean;
+  // Distance in px between the popup and its trigger. Default = 0.
+  offset?: number;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -137,6 +148,8 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       className,
       showArrow = true,
       createNewGroup = true,
+      onPopupMount = () => {},
+      onPopupUnMount = () => {},
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
@@ -151,12 +164,14 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         return {container: closestPopup ?? undefined};
       },
       onContentMount: (dom: HTMLElement) => {
-        this.popupElement =
+        const popupElement =
             toHTMLElement(assertExists(findRef(dom, Popup.POPUP_REF)));
+        this.popupElement = popupElement;
         this.createOrUpdatePopper(attrs);
         document.addEventListener('mousedown', this.handleDocMouseDown);
         document.addEventListener('keydown', this.handleDocKeyPress);
         dom.addEventListener('click', this.handleContentClick);
+        onPopupMount(popupElement);
       },
       onContentUpdate: () => {
         // The content inside the portal has updated, so we call popper to
@@ -164,6 +179,9 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         this.popper && this.popper.update();
       },
       onContentUnmount: (dom: HTMLElement) => {
+        if (this.popupElement) {
+          onPopupUnMount(this.popupElement);
+        }
         dom.removeEventListener('click', this.handleContentClick);
         document.removeEventListener('keydown', this.handleDocKeyPress);
         document.removeEventListener('mousedown', this.handleDocMouseDown);
@@ -205,21 +223,43 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     const {
       position = PopupPosition.Auto,
       showArrow = true,
+      matchWidth = false,
+      offset = 0,
     } = attrs;
 
-    const options: Partial<OptionsGeneric<StrictModifiers>> = {
+    let matchWidthModifier: Modifier<'sameWidth', {}>[];
+    if (matchWidth) {
+      matchWidthModifier = [{
+        name: 'sameWidth',
+        enabled: true,
+        phase: 'beforeWrite',
+        requires: ['computeStyles'],
+        fn: ({state}) => {
+          state.styles.popper.width = `${state.rects.reference.width}px`;
+        },
+        effect: ({state}) => {
+          const trigger = state.elements.reference as HTMLElement;
+          state.elements.popper.style.width = `${trigger.offsetWidth}px`;
+        },
+      }];
+    } else {
+      matchWidthModifier = [];
+    }
+
+    const options: Partial<OptionsGeneric<ExtendedModifiers>> = {
       placement: position,
       modifiers: [
         // Move the popup away from the target allowing room for the arrow
         {
           name: 'offset',
-          options: {offset: [0, showArrow ? 8 : 0]},
+          options: {offset: [0, showArrow ? offset + 8 : offset]},
         },
         // Don't let the popup touch the edge of the viewport
         {name: 'preventOverflow', options: {padding: 8}},
         // Don't let the arrow reach the end of the popup, which looks odd when
         // the popup has rounded corners
-        {name: 'arrow', options: {padding: 8}},
+        {name: 'arrow', options: {padding: 2}},
+        ...matchWidthModifier,
       ],
     };
 
@@ -227,7 +267,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       this.popper.setOptions(options);
     } else {
       if (this.popupElement && this.triggerElement) {
-        this.popper = createPopper<StrictModifiers>(
+        this.popper = createPopper<ExtendedModifiers>(
             this.triggerElement, this.popupElement, options);
       }
     }
