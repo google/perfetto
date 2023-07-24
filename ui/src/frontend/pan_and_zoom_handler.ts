@@ -274,6 +274,8 @@ export class PanAndZoomHandler implements Disposable {
     // Handle key events that are not pan or zoom.
     if (handleKey(e, true)) return;
 
+    if (e.ctrlKey || e.metaKey) return;
+
     if (keyToPan(e) !== Pan.None) {
       if (this.panning !== keyToPan(e)) {
         this.panAnimation.stop();
@@ -302,6 +304,8 @@ export class PanAndZoomHandler implements Disposable {
 
     // Handle key events that are not pan or zoom.
     if (handleKey(e, false)) return;
+
+    if (e.ctrlKey || e.metaKey) return;
 
     if (keyToPan(e) === this.panning) {
       this.panning = Pan.None;

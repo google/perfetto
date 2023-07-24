@@ -14,69 +14,10 @@
 
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
-
-import {onClickCopy} from './clipboard';
-import {CookieConsent} from './cookie_consent';
-import {globals} from './globals';
-import {fullscreenModalContainer} from './modal';
-import {Sidebar} from './sidebar';
-import {Topbar} from './topbar';
-import {HotkeyConfig, HotkeyContext} from './widgets/hotkey_context';
-
-function renderPermalink(): m.Children {
-  const permalink = globals.state.permalink;
-  if (!permalink.requestId || !permalink.hash) return null;
-  const url = `${self.location.origin}/#!/?s=${permalink.hash}`;
-  const linkProps = {title: 'Click to copy the URL', onclick: onClickCopy(url)};
-
-  return m('.alert-permalink', [
-    m('div', 'Permalink: ', m(`a[href=${url}]`, linkProps, url)),
-    m('button',
-      {
-        onclick: () => globals.dispatch(Actions.clearPermalink({})),
-      },
-      m('i.material-icons.disallow-selection', 'close')),
-  ]);
-}
-
-class Alerts implements m.ClassComponent {
-  view() {
-    return m('.alerts', renderPermalink());
-  }
-}
-
 // Wrap component with common UI elements (nav bar etc).
 export function createPage(component: m.Component<PageAttrs>):
     m.Component<PageAttrs> {
-  const pageComponent = {
-    view({attrs}: m.Vnode<PageAttrs>) {
-      const children = [
-        m(Sidebar),
-        m(Topbar),
-        m(Alerts),
-        m(component, attrs),
-        m(CookieConsent),
-        m(fullscreenModalContainer.mithrilComponent),
-      ];
-      if (globals.state.perfDebug) {
-        children.push(m('.perf-stats'));
-      }
-
-      const hotkeys: HotkeyConfig[] = [
-        {
-          key: 'b',
-          mods: ['Mod'],
-          allowInEditable: true,
-          callback: () => globals.dispatch(Actions.toggleSidebar({})),
-        },
-      ];
-
-      return m(HotkeyContext, {hotkeys}, children);
-    },
-  };
-
-  return pageComponent;
+  return component;
 }
 
 export interface PageAttrs {
