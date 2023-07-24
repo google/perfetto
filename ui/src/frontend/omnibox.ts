@@ -29,6 +29,8 @@ interface OmniboxOptionRowAttrs {
 }
 
 class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
+  private highlightedBefore = false;
+
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void|m.Children {
     const {title, highlighted, ...htmlAttrs} = attrs;
     return m(
@@ -41,6 +43,15 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
           return matching ? m('b', value) : value;
         }),
     );
+  }
+
+  onupdate({attrs, dom}: m.VnodeDOM<OmniboxOptionRowAttrs, this>) {
+    if (this.highlightedBefore !== attrs.highlighted) {
+      if (attrs.highlighted) {
+        dom.scrollIntoView({block: 'nearest'});
+      }
+      this.highlightedBefore = attrs.highlighted;
+    }
   }
 }
 
