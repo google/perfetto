@@ -54,6 +54,7 @@ import {
   FtraceFilterPatch,
   LoadedConfig,
   NewEngineMode,
+  OmniboxMode,
   OmniboxState,
   Pagination,
   PendingDeeplinkState,
@@ -927,6 +928,10 @@ export const StateActions = {
 
   setOmnibox(state: StateDraft, args: OmniboxState): void {
     state.omniboxState = args;
+  },
+
+  setOmniboxMode(state: StateDraft, args: {mode: OmniboxMode}): void {
+    state.omniboxState.mode = args.mode;
   },
 
   selectArea(state: StateDraft, args: {area: Area}): void {
