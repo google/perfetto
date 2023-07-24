@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable} from '../base/disposable';
 import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Command} from '../public';
 
@@ -24,14 +25,20 @@ export interface CommandWithMatchInfo extends Command {
 }
 
 export class CommandManager {
-  private commandSources: CommandSource[] = [];
+  private commandSources = new Set<CommandSource>();
 
-  registerCommandSource(cs: CommandSource) {
-    this.commandSources.push(cs);
+  registerCommandSource(cs: CommandSource): Disposable {
+    this.commandSources.add(cs);
+    return {
+      dispose: () => {
+        this.commandSources.delete(cs);
+      },
+    };
   }
 
   get commands(): Command[] {
-    return this.commandSources.flatMap((source) => source.commands());
+    const sourcesArray = Array.from(this.commandSources);
+    return sourcesArray.flatMap((source) => source.commands());
   }
 
   runCommand(id: string, ...args: any[]): void {
