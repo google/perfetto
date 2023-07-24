@@ -37,8 +37,12 @@
     grid-template-areas: "icon input stepthrough";
     grid-template-columns: 34px auto max-content;
     border-radius: $pf-border-radius;
-    background-color: #fcfcfc;
-    border: 0;
+    background-color: white;
+    border: solid 1px transparent;
+    &:focus-within {
+      border-color: $pf-colour-thin-border;
+      box-shadow: 1px 1px 8px rgba(0, 0, 0, 0.2);
+    }
     line-height: 34px;
     &:before {
       @include material-icon("search");
@@ -243,17 +247,15 @@
   }
 }
 
-.pf-cmd-container {
+.pf-omnibox-dropdown {
   margin: 2px;
 }
 
-.pf-cmd {
+.pf-omnibox-option {
   font-family: $pf-font;
   cursor: pointer;
-  display: grid;
-  width: 400px;
-  grid-template-columns: [titles]1fr [icon]auto;
-  padding: 4px;
+  list-style-type: none;
+  padding: 4px 8px;
   border-radius: $pf-border-radius;
   align-items: center;
   font-weight: lighter;
@@ -263,17 +265,5 @@
   &.pf-highlighted {
     background-color: $pf-primary-background;
     color: white;
-  }
-  i {
-    grid-column: icon;
-    grid-row: 1 / span 2;
-  }
-  h1 {
-    grid-column: titles;
-    font-size: larger;
-  }
-  h2 {
-    grid-column: titles;
-    font-size: smaller;
   }
 }

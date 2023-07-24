@@ -51,6 +51,9 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    // Find out whether the event has already been handled further up the chain.
+    if (e.defaultPrevented) return;
+
     const inEditable = elementIsEditable(e.target);
     if (this.hotkeys) {
       this.hotkeys.forEach((hotkey) => {
@@ -58,20 +61,25 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
         if (inEditable && !allowInEditable) {
           return;
         }
-        if (key === e.key && HotkeyContext.checkMods(e, mods)) {
+        if (compareKeys(e, key) && checkMods(e, mods)) {
           e.preventDefault();
           callback();
         }
       });
     }
   };
+}
 
-  // Return true if modifiers specified in |mods| match those in the event.
-  static checkMods(e: KeyboardEvent, mods: Modifier[]): boolean {
-    const mod = (e.ctrlKey || e.metaKey);
-    const shift = e.shiftKey;
-    const wantedMod = mods.includes('Mod');
-    const wantedShift = mods.includes('Shift');
-    return mod === wantedMod && shift === wantedShift;
-  }
+// Return true if |hotkey| matches the event's key (case in-sensitive).
+function compareKeys(e: KeyboardEvent, hotkey: string): boolean {
+  return e.key.toLowerCase() === hotkey.toLowerCase();
+}
+
+// Return true if modifiers specified in |mods| match those in the event.
+function checkMods(e: KeyboardEvent, mods: Modifier[]): boolean {
+  const mod = (e.ctrlKey || e.metaKey);
+  const shift = e.shiftKey;
+  const wantedMod = mods.includes('Mod');
+  const wantedShift = mods.includes('Shift');
+  return mod === wantedMod && shift === wantedShift;
 }
