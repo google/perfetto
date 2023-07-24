@@ -249,6 +249,8 @@
 
 .pf-omnibox-dropdown {
   margin: 2px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 
 .pf-omnibox-option {
