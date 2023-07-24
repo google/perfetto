@@ -20,14 +20,13 @@ import {Draft} from 'immer';
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
-import {assertExists, reportError, setErrorHandler} from '../base/logging';
+import {reportError, setErrorHandler} from '../base/logging';
 import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {CommandManager} from '../common/commands';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
-import {setTimestampFormat, TimestampFormat} from '../common/time';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {initController, runControllers} from '../controller';
 import {
@@ -35,7 +34,7 @@ import {
 } from '../controller/chrome_proxy_record_controller';
 import {raf} from '../core/raf_scheduler';
 
-import {addTab} from './bottom_tab';
+import {App} from './app';
 import {initCssConstants} from './css_constants';
 import {registerDebugGlobals} from './debug';
 import {maybeShowErrorDialog} from './error_dialog';
@@ -52,10 +51,6 @@ import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Route, Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
-import {executeSearch} from './search_handler';
-import {SqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
-import {shareTrace} from './trace_attrs';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
@@ -233,93 +228,6 @@ function main() {
 
   const cmdManager = new CommandManager();
 
-  // Register some "core" commands.
-  // TODO(stevegolton): Find a better place to put this.
-  cmdManager.registerCommandSource({
-    commands() {
-      return [
-        {
-          id: 'dev.perfetto.SetTimestampFormatTimecodes',
-          name: 'Set timestamp format: Timecode',
-          callback: () => {
-            setTimestampFormat(TimestampFormat.Timecode);
-            raf.scheduleFullRedraw();
-          },
-        },
-        {
-          id: 'dev.perfetto.SetTimestampFormatSeconds',
-          name: 'Set timestamp format: Seconds',
-          callback: () => {
-            setTimestampFormat(TimestampFormat.Seconds);
-            raf.scheduleFullRedraw();
-          },
-        },
-        {
-          id: 'dev.perfetto.SetTimestampFormatRaw',
-          name: 'Set timestamp format: Raw',
-          callback: () => {
-            setTimestampFormat(TimestampFormat.Raw);
-            raf.scheduleFullRedraw();
-          },
-        },
-        {
-          id: 'dev.perfetto.SetTimestampFormatLocaleRaw',
-          name: 'Set timestamp format: Raw (formatted)',
-          callback: () => {
-            setTimestampFormat(TimestampFormat.RawLocale);
-            raf.scheduleFullRedraw();
-          },
-        },
-        {
-          id: 'dev.perfetto.ShowSliceTabe',
-          name: 'Show slice table',
-          callback: () => {
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                displayName: 'slice',
-              },
-            });
-          },
-        },
-        {
-          id: 'dev.perfetto.ToggleLeftSidebar',
-          name: 'Toggle left sidebar',
-          callback: () => {
-            globals.dispatch(Actions.toggleSidebar({}));
-          },
-        },
-        {
-          id: 'dev.perfetto.TogglePerformanceMetrics',
-          name: 'Toggle performance metrics',
-          callback: () => {
-            globals.dispatch(Actions.togglePerfDebug({}));
-          },
-        },
-        {
-          id: 'dev.perfetto.ShareTrace',
-          name: 'Share trace',
-          callback: shareTrace,
-        },
-        {
-          id: 'dev.perfetto.SearchNext',
-          name: 'Go to next search result',
-          callback: () => {
-            executeSearch();
-          },
-        },
-        {
-          id: 'dev.perfetto.SearchPrev',
-          name: 'Go to previous search result',
-          callback: () => {
-            executeSearch(true);
-          },
-        },
-      ];
-    },
-  });
-
   globals.initialize(dispatch, router, createEmptyState(), cmdManager);
 
   globals.serviceWorkerController.install();
@@ -382,10 +290,10 @@ function onCssLoaded() {
   initCssConstants();
   // Clear all the contents of the initial page (e.g. the <pre> error message)
   // And replace it with the root <main> element which will be used by mithril.
-  document.body.innerHTML = '<main></main>';
-  const main = assertExists(document.body.querySelector('main'));
+  document.body.innerHTML = '';
+
   raf.domRedraw = () => {
-    m.render(main, globals.router.resolve());
+    m.render(document.body, m(App, globals.router.resolve()));
   };
 
   initLiveReloadIfLocalhost();

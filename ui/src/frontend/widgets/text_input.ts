@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+
 import {classNames} from '../classnames';
 
 export interface TextInputAttrs {
