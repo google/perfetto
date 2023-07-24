@@ -309,7 +309,6 @@ export const ViewerPage = createPage({
       {
         key: 'Enter',
         mods: [],
-        allowInEditable: true,
         callback: () => {
           executeSearch();
         },
@@ -317,7 +316,6 @@ export const ViewerPage = createPage({
       {
         key: 'Enter',
         mods: ['Shift'],
-        allowInEditable: true,
         callback: () => {
           executeSearch(true);
         },
