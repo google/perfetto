@@ -65,7 +65,7 @@ export class App implements m.ClassComponent {
   private hotkeys: HotkeyConfig[] = [
     {
       key: 'p',
-      mods: ['Mod'],
+      mods: ['Mod', 'Shift'],
       allowInEditable: true,
       callback:
           () => {
