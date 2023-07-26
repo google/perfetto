@@ -275,10 +275,8 @@ if (build_with_chromium) {
     deps = [
       "src/trace_processor/importers/memory_tracker:graph_processor",
       "src/tracing:client_api",
+      "src/tracing:platform_impl",
       "src/tracing/core",
-
-      # TODO(eseckler): Create a platform for chrome and hook it up somehow.
-      "src/tracing:platform_fake",
     ]
     configs -= [ "//build/config/compiler:chromium_code" ]
     configs += [ "//build/config/compiler:no_chromium_code" ]
