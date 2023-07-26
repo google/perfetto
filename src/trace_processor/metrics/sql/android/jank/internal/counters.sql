@@ -16,7 +16,7 @@
 DROP TABLE IF EXISTS android_jank_cuj_counter;
 CREATE TABLE android_jank_cuj_counter AS
 WITH cuj_counter_track AS (
-  SELECT
+  SELECT DISTINCT
     upid,
     track.id AS track_id,
     -- extract the CUJ name inside <>
