@@ -523,7 +523,7 @@ class Android(TestSuite):
       SELECT * FROM android_io_f2fs_counter_stats;
       """,
         out=Csv("""
-        "counter_name","counter_sum","counter_max","counter_min","counter_dur","counter_count","counter_avg"
+        "name","sum","max","min","dur","count","avg"
         "read_app_total",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
         "read_app_buffered",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
         "write_cp_node",94208.000000,94208.000000,0.000000,2515275969,2,47104.000000
@@ -599,6 +599,20 @@ class Android(TestSuite):
         3516,"fg",3487,"com.android.providers.media.module",2425,65077,8,8
         3548,"AsyncTask #1",3487,"com.android.providers.media.module",2643,65077,8,8
       """))
+
+  def test_f2fs_aggregate_write_stats(self):
+      return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query= """
+        SELECT IMPORT('android.io');
+        SELECT total_write_count, distinct_processes, total_bytes_written,
+               distinct_devices, distict_inodes, distinct_threads
+        FROM android_io_f2fs_aggregate_write_stats
+        """,
+        out= Csv("""
+        "total_write_count","distinct_processes","total_bytes_written","distinct_devices","distict_inodes","distinct_threads"
+        203,3,375180,1,13,6
+        """))
 
   def test_binder_async_txns(self):
     return DiffTestBlueprint(
