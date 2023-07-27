@@ -18,7 +18,7 @@ import {hasChildren} from '../../base/mithril_utils';
 import {classNames} from '../classnames';
 
 import {Icon} from './icon';
-import {Popup, PopupPosition} from './popup';
+import {Popup, PopupAttrs, PopupPosition} from './popup';
 
 export interface MenuItemAttrs {
   // Text to display on the menu button.
@@ -71,6 +71,7 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
           }),
           showArrow: false,
           createNewGroup: false,
+          edgeOffset: 5,  // Adjust for popup padding & border.
         },
         children,
     );
@@ -118,7 +119,7 @@ export class Menu implements m.ClassComponent {
   }
 };
 
-interface PopupMenu2Attrs {
+interface PopupMenu2Attrs extends PopupAttrs {
   // The trigger is mithril component which is used to toggle the popup when
   // clicked, and provides the anchor on the page which the popup shall hover
   // next to, and to which the popup's arrow shall point. The popup shall move
