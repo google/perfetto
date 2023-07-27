@@ -89,7 +89,6 @@ ORDER BY bytes DESC;
 -- @column distinct_device_count    Count of distinct devices written to.
 -- @column distict_inode_count      Count of distinct inodes written to.
 -- @column distinct_thread_count    Count of distinct threads writing.
-
 CREATE VIEW android_io_f2fs_aggregate_write_stats AS
 select SUM(write_count) as total_write_count,
       COUNT(DISTINCT pid) distinct_processes,
