@@ -127,5 +127,17 @@ service perfetto_trace_on_boot /system/bin/perfetto -c /data/misc/perfetto-confi
 # To use this, add a trigger with mode STOP_TRACING in the configuration used in perfetto_trace_on_boot.
 # Then create a new config which contains `activate_triggers: <trigger name>` where <trigger name> is
 # the name specified in configuration used in perfetto_trace_on_boot.
-on property:sys.boot_completed=1
+on property:sys.boot_completed=1 && property:init.svc.perfetto_trace_on_boot=running
     exec -- /system/bin/perfetto -c /data/misc/perfetto-configs/stopboottracetrigger.pbtxt --txt
+
+# Forcefully enable select userspace (atrace) tracing categories early into the
+# userspace boot. This is primarily for capturing zygote events without waiting
+# for perfetto daemons or the /data partition.
+on late-init && property:ro.boot.fastboot.boottrace=enabled
+    setprop debug.atrace.tags.enableflags 802922
+
+# disable on boot complete when using textual ftrace tracing without perfetto.
+on property:sys.boot_completed=1 && property:ro.boot.fastboot.boottrace=enabled && property:init.svc.perfetto_trace_on_boot=
+    setprop debug.atrace.tags.enableflags 0
+    write /sys/kernel/debug/tracing/tracing_on 0
+    write /sys/kernel/tracing/tracing_on 0
