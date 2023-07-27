@@ -35,6 +35,8 @@ perfetto_sql_source_set("android") {
     "android_hwcomposer.sql",
     "android_hwui_metric.sql",
     "android_hwui_threads.sql",
+    "android_io.sql",
+    "android_io_unagg.sql",
     "android_ion.sql",
     "android_irq_runtime.sql",
     "android_jank_cuj.sql",
