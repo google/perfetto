@@ -89,6 +89,13 @@ export interface PopupAttrs {
   matchWidth?: boolean;
   // Distance in px between the popup and its trigger. Default = 0.
   offset?: number;
+  // Cross-axial popup offset in px. Defaults to 0.
+  // When position is *-end or *-start, this setting specifies where start and
+  // end is as an offset from the edge of the popup.
+  // Positive values move the positioning away from the edge towards the center
+  // of the popup.
+  // If position is not *-end or *-start, this setting has no effect.
+  edgeOffset?: number;
 }
 
 // A popup is a portal whose position is dynamically updated so that it floats
@@ -225,6 +232,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
       showArrow = true,
       matchWidth = false,
       offset = 0,
+      edgeOffset = 0,
     } = attrs;
 
     let matchWidthModifier: Modifier<'sameWidth', {}>[];
@@ -252,7 +260,17 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
         // Move the popup away from the target allowing room for the arrow
         {
           name: 'offset',
-          options: {offset: [0, showArrow ? offset + 8 : offset]},
+          options: {
+            offset: ({placement}) => {
+              let skid = 0;
+              if (placement.includes('-end')) {
+                skid = edgeOffset;
+              } else if (placement.includes('-start')) {
+                skid = -edgeOffset;
+              }
+              return [skid, showArrow ? offset + 8 : offset];
+            },
+          },
         },
         // Don't let the popup touch the edge of the viewport
         {name: 'preventOverflow', options: {padding: 8}},
