@@ -24,18 +24,18 @@
 -- @column counter_avg    Avergate of all the counter values for the counter name.
 CREATE VIEW android_io_f2fs_counter_stats AS
 SELECT
-  STR_SPLIT(counter_track.name, '].', 1) AS counter_name,
-  SUM(counter.value) AS counter_sum,
-  MAX(counter.value) AS counter_max,
-  MIN(counter.value) AS counter_min,
-  MAX(ts) - MIN(ts) AS counter_dur,
-  COUNT(ts) AS counter_count,
-  AVG(counter.value) AS counter_avg
+  STR_SPLIT(counter_track.name, '].', 1) AS name,
+  SUM(counter.value) AS sum,
+  MAX(counter.value) AS max,
+  MIN(counter.value) AS min,
+  MAX(ts) - MIN(ts) AS dur,
+  COUNT(ts) AS count,
+  AVG(counter.value) AS avg
 FROM counter
 JOIN counter_track
   ON counter_track.id = counter.track_id AND counter_track.name LIKE '%f2fs%'
-GROUP BY counter_name
-ORDER BY counter_sum DESC;
+GROUP BY name
+ORDER BY sum DESC;
 
 -- Aggregates f2fs_write stats by inode and thread.
 --
@@ -79,3 +79,22 @@ JOIN process
   USING (upid)
 GROUP BY utid, ino, dev
 ORDER BY bytes DESC;
+
+-- Aggregates f2fs write stats. Counts distinct datapoints, total write operations,
+-- and bytes written
+--
+-- @column total_write_count        Total number of writes in the trace.
+-- @column distinct_processes       Number of distinct processes.
+-- @column total_bytes_written      Total number of bytes written.
+-- @column distinct_device_count    Count of distinct devices written to.
+-- @column distict_inode_count      Count of distinct inodes written to.
+-- @column distinct_thread_count    Count of distinct threads writing.
+
+CREATE VIEW android_io_f2fs_aggregate_write_stats AS
+select SUM(write_count) as total_write_count,
+      COUNT(DISTINCT pid) distinct_processes,
+      SUM(bytes) as total_bytes_written,
+      COUNT(DISTINCT dev) as distinct_device_count,
+      COUNT(DISTINCT ino) distict_inode_count,
+      COUNT(DISTINCT tid) distinct_thread_count
+from android_io_f2fs_write_stats;
