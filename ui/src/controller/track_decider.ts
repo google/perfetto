@@ -119,6 +119,8 @@ const POWER_RAILS_REGEX = new RegExp('^power.');
 const FREQUENCY_GROUP = 'Frequency Scaling';
 const TEMPERATURE_REGEX = new RegExp('^.* Temperature$');
 const TEMPERATURE_GROUP = 'Temperature';
+const IRQ_GROUP = 'IRQs';
+const IRQ_REGEX = new RegExp('^Irq Cpu.*');
 const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
@@ -1962,6 +1964,7 @@ class TrackDecider {
     await this.groupFrequencyTracks(FREQUENCY_GROUP);
     await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
     await this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+    await this.groupTracksByRegex(IRQ_REGEX, IRQ_GROUP);
     await this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
     await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 
