@@ -126,6 +126,7 @@ class UnixSocketRaw {
   void SetBlocking(bool);
   void DcheckIsBlocking(bool expected) const;  // No-op on release and Win.
   void SetRetainOnExec(bool retain);
+  std::string GetSockAddr() const;
   SockType type() const { return type_; }
   SockFamily family() const { return family_; }
   SocketHandle fd() const { return *fd_; }
@@ -331,6 +332,9 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
   void SetRxTimeout(uint32_t timeout_ms) {
     PERFETTO_CHECK(sock_raw_.SetRxTimeout(timeout_ms));
   }
+
+  std::string GetSockAddr() const { return sock_raw_.GetSockAddr(); }
+
   // Returns true is the message was queued, false if there was no space in the
   // output buffer, in which case the client should retry or give up.
   // If any other error happens the socket will be shutdown and
