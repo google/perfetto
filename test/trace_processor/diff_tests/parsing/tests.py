@@ -1171,6 +1171,7 @@ class Parsing(TestSuite):
         out=Csv("""
         "waker_utid"
         1
+        1
         """))
 
   # Parsing of mdss/tracing_mark_write events
