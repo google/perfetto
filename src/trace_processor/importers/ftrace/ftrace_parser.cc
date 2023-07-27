@@ -1741,6 +1741,12 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
                                   ThreadNamePriority::kFtrace);
+
+    auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
+    auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
+
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+      timestamp, new_utid, source_utid);
     return;
   }
 
