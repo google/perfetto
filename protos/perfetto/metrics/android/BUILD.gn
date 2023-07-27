@@ -39,6 +39,8 @@ perfetto_proto_library("@TYPE@") {
     "gpu_metric.proto",
     "hwcomposer.proto",
     "hwui_metric.proto",
+    "io_metric.proto",
+    "io_unagg_metric.proto",
     "ion_metric.proto",
     "irq_runtime_metric.proto",
     "jank_cuj_metric.proto",
