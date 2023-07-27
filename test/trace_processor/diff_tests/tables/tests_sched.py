@@ -89,16 +89,16 @@ class TablesSched(TestSuite):
         """,
         out=Csv("""
         "id","type","ts","thread_state_id","irq_context","utid","waker_utid"
-        0,"spurious_sched_wakeup",1735850782904,422,0,230,1465
-        1,"spurious_sched_wakeup",1736413914899,884,0,230,1467
-        2,"spurious_sched_wakeup",1736977755745,1295,0,230,1469
-        3,"spurious_sched_wakeup",1737046900004,1468,0,1472,1473
-        4,"spurious_sched_wakeup",1737047159060,1497,0,1474,1472
-        5,"spurious_sched_wakeup",1737081636170,2987,0,1214,1319
-        6,"spurious_sched_wakeup",1737108696536,5005,0,501,557
-        7,"spurious_sched_wakeup",1737153309978,6426,0,11,506
-        8,"spurious_sched_wakeup",1737165240546,6910,0,565,499
-        9,"spurious_sched_wakeup",1737211563344,8994,0,178,1195
+        0,"spurious_sched_wakeup",1735850782904,423,0,230,1465
+        1,"spurious_sched_wakeup",1736413914899,886,0,230,1467
+        2,"spurious_sched_wakeup",1736977755745,1298,0,230,1469
+        3,"spurious_sched_wakeup",1737046900004,1473,0,1472,1473
+        4,"spurious_sched_wakeup",1737047159060,1502,0,1474,1472
+        5,"spurious_sched_wakeup",1737081636170,2992,0,1214,1319
+        6,"spurious_sched_wakeup",1737108696536,5010,0,501,557
+        7,"spurious_sched_wakeup",1737153309978,6431,0,11,506
+        8,"spurious_sched_wakeup",1737165240546,6915,0,565,499
+        9,"spurious_sched_wakeup",1737211563344,8999,0,178,1195
         """))
 
   def test_raw_common_flags(self):
@@ -175,7 +175,7 @@ class TablesSched(TestSuite):
           blocked_state,
           blocked_function
         FROM experimental_thread_executing_span_graph
-          WHERE id = 375
+          WHERE id = 376
         """,
         out=Csv("""
         "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function"
@@ -243,16 +243,16 @@ class TablesSched(TestSuite):
         """,
         out=Csv("""
         "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","depth","is_root"
-        1740321632480,20897,404,398,"binder:398_2","/apex/com.android.os.statsd/bin/statsd","statsd.writer","/apex/com.android.os.statsd/bin/statsd",64173354,"S","[NULL]",424,0
-        1740470009095,113509,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",1204928,"S","[NULL]",424,0
-        1740470126280,60885652,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",3676,"S","[NULL]",424,0
-        1740321596028,46679,633,398,"statsd.writer","/apex/com.android.os.statsd/bin/statsd","mediametrics","media.metrics",64143546,"S","[NULL]",423,0
-        1740468702535,1449612,3548,3487,"AsyncTask #1","com.android.providers.media.module","HeapTaskDaemon","com.android.providers.media.module",1003391,"S","[NULL]",423,0
-        1740321315576,62532,2161,553,"binder:553_7","/system/bin/mediaserver","binder:551_4","media.extractor",63953635,"S","[NULL]",422,0
-        1740321322095,60476,553,553,"mediaserver","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",422,0
-        1740321326214,144263,2135,553,"binder:553_4","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",422,0
-        1740321344727,346525,552,552,"mediametrics","media.metrics","binder:551_4","media.extractor",63860347,"S","[NULL]",422,0
-        1740419776108,13020460,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",597159,"S","[NULL]",422,0
+        1740321632480,20897,404,398,"binder:398_2","/apex/com.android.os.statsd/bin/statsd","statsd.writer","/apex/com.android.os.statsd/bin/statsd",64173354,"S","[NULL]",445,0
+        1740470009095,113509,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",1204928,"S","[NULL]",445,0
+        1740470126280,60885652,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",3676,"S","[NULL]",445,0
+        1740321596028,46679,633,398,"statsd.writer","/apex/com.android.os.statsd/bin/statsd","mediametrics","media.metrics",64143546,"S","[NULL]",444,0
+        1740468702535,1449612,3548,3487,"AsyncTask #1","com.android.providers.media.module","HeapTaskDaemon","com.android.providers.media.module",1003391,"S","[NULL]",444,0
+        1740321315576,62532,2161,553,"binder:553_7","/system/bin/mediaserver","binder:551_4","media.extractor",63953635,"S","[NULL]",443,0
+        1740321322095,60476,553,553,"mediaserver","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",443,0
+        1740321326214,144263,2135,553,"binder:553_4","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",443,0
+        1740321344727,346525,552,552,"mediametrics","media.metrics","binder:551_4","media.extractor",63860347,"S","[NULL]",443,0
+        1740419776108,13020460,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",597159,"S","[NULL]",443,0
         """))
 
   def test_thread_executing_span_ancestors_null(self):
@@ -308,15 +308,14 @@ class TablesSched(TestSuite):
           depth,
           is_root,
           COUNT(thread_name) AS count
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(22886)
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(15923)
         GROUP BY 1,2,3,4
         ORDER BY depth
         """,
         out=Csv("""
         "thread_name","waker_thread_name","depth","is_root","count"
-        "SensorService","android.hardwar",0,0,1
-        "android.ui","SensorService",1,0,1
-        "system_server","SensorService",1,0,1
+        "rs.media.module","binder:642_1",0,0,1
+        "binder:642_A","rs.media.module",1,0,1
         """))
 
   def test_thread_executing_span_ancestors_id(self):
@@ -329,12 +328,12 @@ class TablesSched(TestSuite):
           waker_thread_name,
           height,
           is_leaf
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(15601) ORDER BY height
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(15923) ORDER BY height
         """,
         out=Csv("""
         "thread_name","waker_thread_name","height","is_leaf"
-        "rcu_exp_gp_kthr","binder:243_4",0,1
-        "binder:243_4","init",1,0
+        "rs.media.module","binder:642_1",0,0
+        "binder:642_1","rs.media.module",1,0
         """))
 
   def test_thread_executing_span_from_non_sleep_thread_state(self):
@@ -342,11 +341,11 @@ class TablesSched(TestSuite):
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         SELECT IMPORT('experimental.thread_executing_span');
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(16170) AS thread_executing_span_id
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(12394) AS thread_executing_span_id
         """,
         out=Csv("""
         "thread_executing_span_id"
-        16022
+        12254
         """))
 
   def test_thread_executing_span_from_sleep_thread_state(self):
@@ -354,7 +353,7 @@ class TablesSched(TestSuite):
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         SELECT IMPORT('experimental.thread_executing_span');
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(15957) AS thread_executing_span_id
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(13120) AS thread_executing_span_id
         """,
         out=Csv("""
         "thread_executing_span_id"
