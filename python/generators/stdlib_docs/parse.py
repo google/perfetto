@@ -27,6 +27,15 @@ from python.generators.stdlib_docs.utils import FUNCTION_RETURN_PATTERN
 from python.generators.stdlib_docs.utils import COLUMN_ANNOTATION_PATTERN
 
 
+def is_internal(name: str) -> bool:
+  return re.match(r'^internal_.*', name, re.IGNORECASE)
+
+
+def is_snake_case(s: str) -> bool:
+  """Returns true if the string is snake_case."""
+  return re.fullmatch(r'^[a-z_0-9]*$', s) is not None
+
+
 class AbstractDocParser(ABC):
 
   @dataclass
@@ -45,7 +54,7 @@ class AbstractDocParser(ABC):
     module_pattern = f"^{self.module}_.*"
     if upper:
       module_pattern = module_pattern.upper()
-    starts_with_module_name = re.match(module_pattern, self.name)
+    starts_with_module_name = re.match(module_pattern, self.name, re.IGNORECASE)
     if self.module == "common":
       if starts_with_module_name:
         self._error('Names of tables/views/functions in the "common" module '
@@ -155,27 +164,54 @@ class AbstractDocParser(ABC):
         f'{error}')
 
 
+class TableOrView:
+  name: str
+  type: str
+  desc: str
+  cols: Dict[str, str]
+
+  def __init__(self, name, type, desc, cols):
+    self.name = name
+    self.type = type
+    self.desc = desc
+    self.cols = cols
+
+
 class TableViewDocParser(AbstractDocParser):
   """Parses documentation for CREATE TABLE and CREATE VIEW statements."""
 
   def __init__(self, path: str, module: str):
     super().__init__(path, module)
 
-  def parse(self, doc: DocsExtractor.Extract) -> Optional[Dict[str, Any]]:
+  def parse(self, doc: DocsExtractor.Extract) -> Optional[TableOrView]:
     assert doc.obj_kind == ObjKind.table_view
 
-    # Ignore internal tables and views.
     self.name = doc.obj_match[1]
-    if re.match(r'^internal_.*', self.name):
+    if is_internal(self.name):
       return None
 
     self._validate_only_contains_annotations(doc.annotations, {'@column'})
-    return {
-        'name': self._parse_name(),
-        'type': doc.obj_match[0],
-        'desc': self._parse_desc_not_empty(doc.description),
-        'cols': self._parse_columns(doc.annotations, ''),
-    }
+    return TableOrView(
+        name=self._parse_name(),
+        type=doc.obj_match[0],
+        desc=self._parse_desc_not_empty(doc.description),
+        cols=self._parse_columns(doc.annotations, ''),
+    )
+
+
+class Function:
+  name: str
+  desc: str
+  args: Dict[str, Any]
+  return_type: str
+  return_desc: str
+
+  def __init__(self, name, desc, args, return_type, return_desc):
+    self.name = name
+    self.desc = desc
+    self.args = args
+    self.return_type = return_type
+    self.return_desc = return_desc
 
 
 class FunctionDocParser(AbstractDocParser):
@@ -184,23 +220,42 @@ class FunctionDocParser(AbstractDocParser):
   def __init__(self, path: str, module: str):
     super().__init__(path, module)
 
-  def parse(self, doc: DocsExtractor.Extract) -> Optional[Dict[str, Any]]:
+  def parse(self, doc: DocsExtractor.Extract) -> Optional[Function]:
     self.name, args, ret, _ = doc.obj_match
 
     # Ignore internal functions.
-    if re.match(r'^INTERNAL_.*', self.name):
+    if is_internal(self.name):
       return None
 
     self._validate_only_contains_annotations(doc.annotations, {'@arg', '@ret'})
 
     ret_type, ret_desc = self._parse_ret(doc.annotations, ret)
-    return {
-        'name': self._parse_name(upper=True),
-        'desc': self._parse_desc_not_empty(doc.description),
-        'args': self._parse_args(doc.annotations, args),
-        'return_type': ret_type,
-        'return_desc': ret_desc,
-    }
+    name = self._parse_name(upper=True)
+
+    if not is_snake_case(name):
+      self._error('Function name %s is not snake_case (should be %s) ' %
+                  (name, name.casefold()))
+
+    return Function(
+        name=self._parse_name(upper=True),
+        desc=self._parse_desc_not_empty(doc.description),
+        args=self._parse_args(doc.annotations, args),
+        return_type=ret_type,
+        return_desc=ret_desc,
+    )
+
+
+class TableFunction:
+  name: str
+  desc: str
+  cols: Dict[str, str]
+  args: Dict[str, Any]
+
+  def __init__(self, name, desc, cols, args):
+    self.name = name
+    self.desc = desc
+    self.cols = cols
+    self.args = args
 
 
 class ViewFunctionDocParser(AbstractDocParser):
@@ -209,26 +264,39 @@ class ViewFunctionDocParser(AbstractDocParser):
   def __init__(self, path: str, module: str):
     super().__init__(path, module)
 
-  def parse(self, doc: DocsExtractor.Extract) -> Optional[Dict[str, Any]]:
+  def parse(self, doc: DocsExtractor.Extract) -> TableFunction:
     self.name, args, columns, _ = doc.obj_match
 
     # Ignore internal functions.
-    if re.match(r'^INTERNAL_.*', self.name):
+    if is_internal(self.name):
       return None
 
     self._validate_only_contains_annotations(doc.annotations,
                                              {'@arg', '@column'})
-    return {
-        'name': self._parse_name(upper=True),
-        'desc': self._parse_desc_not_empty(doc.description),
-        'cols': self._parse_columns(doc.annotations, columns),
-        'args': self._parse_args(doc.annotations, args),
-    }
+    return TableFunction(
+        name=self._parse_name(upper=True),
+        desc=self._parse_desc_not_empty(doc.description),
+        cols=self._parse_columns(doc.annotations, columns),
+        args=self._parse_args(doc.annotations, args),
+    )
+
+
+class ParsedFile:
+  errors: List[str] = []
+  table_views: List[TableOrView] = []
+  functions: List[Function] = []
+  table_functions: List[TableFunction] = []
+
+  def __init__(self, errors, table_views, functions, view_functions):
+    self.errors = errors
+    self.table_views = table_views
+    self.functions = functions
+    self.table_functions = view_functions
 
 
 # Reads the provided SQL and, if possible, generates a dictionary with data
 # from documentation together with errors from validation of the schema.
-def parse_file_to_dict(path: str, sql: str) -> Union[Dict[str, Any], List[str]]:
+def parse_file(path: str, sql: str) -> ParsedFile:
   if sys.platform.startswith('win'):
     path = path.replace('\\', '/')
 
@@ -239,7 +307,7 @@ def parse_file_to_dict(path: str, sql: str) -> Union[Dict[str, Any], List[str]]:
   extractor = DocsExtractor(path, module_name, sql)
   docs = extractor.extract()
   if extractor.errors:
-    return extractor.errors
+    return ParsedFile(extractor.errors, [], [], [])
 
   # Parse the extracted docs.
   errors = []
@@ -266,8 +334,4 @@ def parse_file_to_dict(path: str, sql: str) -> Union[Dict[str, Any], List[str]]:
         view_functions.append(res)
       errors += parser.errors
 
-  return errors if errors else {
-      'imports': table_views,
-      'functions': functions,
-      'view_functions': view_functions
-  }
+  return ParsedFile(errors, table_views, functions, view_functions)
