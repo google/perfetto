@@ -57,9 +57,9 @@ SELECT IMPORT('android.startup.internal_startups_minsdk33');
 CREATE TABLE android_startups AS
 SELECT startup_id, ts, ts_end, dur, package, startup_type FROM
 internal_all_startups WHERE ( CASE
-  WHEN SLICE_COUNT('launchingActivity#*:*') > 0
+  WHEN slice_count('launchingActivity#*:*') > 0
     THEN sdk = "minsdk33"
-  WHEN SLICE_COUNT('MetricsLogger:*') > 0
+  WHEN slice_count('MetricsLogger:*') > 0
     THEN sdk = "minsdk29"
   ELSE sdk = "maxsdk28"
   END);
@@ -75,7 +75,7 @@ SELECT ts, name, track_id
 FROM slice
 WHERE name IN ('bindApplication', 'activityStart', 'activityResume');
 
-CREATE PERFETTO FUNCTION INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(start_ts LONG,
+CREATE PERFETTO FUNCTION INTERNAL_STARTUP_INDICATOR_slice_count(start_ts LONG,
                                                                 end_ts LONG,
                                                                 utid INT,
                                                                 name STRING)
@@ -117,9 +117,9 @@ WITH startup_with_type AS MATERIALIZED (
       l.startup_id,
       l.startup_type,
       p.upid,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
     FROM android_startups l
     JOIN android_process_metadata p ON (
       l.package = p.package_name
@@ -249,7 +249,7 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups
@@ -262,7 +262,7 @@ WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups

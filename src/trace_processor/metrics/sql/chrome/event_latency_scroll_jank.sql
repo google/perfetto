@@ -144,7 +144,7 @@ SELECT
   LAG(id) OVER sorted_events AS prev_id,
   LAG(ts) OVER sorted_events AS prev_ts,
   LAG(dur) OVER sorted_events AS prev_dur,
-  CalculateAvgVsyncInterval(gesture_begin_ts, gesture_end_ts) AS avg_vsync_interval
+  calculate_avg_vsync_interval(gesture_begin_ts, gesture_end_ts) AS avg_vsync_interval
 FROM scroll_event_latency_updates_with_ends
 WINDOW sorted_events AS (PARTITION BY upid, next_gesture_begin_ts ORDER BY id ASC, ts ASC);
 
@@ -152,9 +152,9 @@ DROP VIEW IF EXISTS scroll_event_latency_neighbors_jank;
 CREATE VIEW scroll_event_latency_neighbors_jank
 AS
 SELECT
-  IsJankyFrame(gesture_begin_ts, gesture_begin_ts, next_ts,
+  is_janky_frame(gesture_begin_ts, gesture_begin_ts, next_ts,
     gesture_begin_ts, gesture_end_ts, dur / avg_vsync_interval, next_dur / avg_vsync_interval) AS next_jank,
-  IsJankyFrame(gesture_begin_ts, gesture_begin_ts, prev_ts,
+  is_janky_frame(gesture_begin_ts, gesture_begin_ts, prev_ts,
     gesture_begin_ts, gesture_end_ts, dur / avg_vsync_interval, prev_dur / avg_vsync_interval) AS prev_jank,
   scroll_event_latency_with_neighbours.*
 FROM scroll_event_latency_with_neighbours;

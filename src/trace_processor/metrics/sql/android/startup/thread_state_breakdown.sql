@@ -58,7 +58,7 @@ GROUP BY 1, 2, 3, 4;
 
 -- Given a launch id and thread state value, returns the aggregate sum
 -- of time spent in that state by the main thread of the process being started up.
-CREATE PERFETTO FUNCTION MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(startup_id INT, state STRING)
+CREATE PERFETTO FUNCTION main_thread_time_for_launch_and_state(startup_id INT, state STRING)
 RETURNS INT AS
 SELECT SUM(dur)
 FROM launch_thread_state_dur_sum l
@@ -66,14 +66,14 @@ WHERE l.startup_id = $startup_id AND state GLOB $state AND is_main_thread;
 
 -- Given a launch id, returns the aggregate sum of time spent in runnable state
 -- by the main thread of the process being started up.
-CREATE PERFETTO FUNCTION MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(startup_id INT)
+CREATE PERFETTO FUNCTION main_thread_time_for_launch_in_runnable_state(startup_id INT)
 RETURNS INT AS
-SELECT IFNULL(MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE($startup_id, "R"), 0)
-      + IFNULL(MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE($startup_id, "R+"), 0);
+SELECT IFNULL(main_thread_time_for_launch_and_state($startup_id, "R"), 0)
+      + IFNULL(main_thread_time_for_launch_and_state($startup_id, "R+"), 0);
 
 -- Given a launch id, thread state  and io_wait value, returns the aggregate sum
 -- of time spent in that state by the main thread of the process being started up.
-CREATE PERFETTO FUNCTION MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(startup_id INT, state STRING, io_wait BOOL)
+CREATE PERFETTO FUNCTION main_thread_time_for_launch_state_and_io_wait(startup_id INT, state STRING, io_wait BOOL)
 RETURNS INT AS
 SELECT SUM(dur)
 FROM launch_thread_state_io_wait_dur_sum l
@@ -85,7 +85,7 @@ WHERE l.startup_id = $startup_id AND state GLOB $state
 -- of time spent in that state by that thread. Note: only threads of the processes
 -- being started are considered by this function - if a thread from a different name
 -- happens to match the name passed, it will *not* be included.
-CREATE PERFETTO FUNCTION THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(startup_id INT, state STRING, thread_name STRING)
+CREATE PERFETTO FUNCTION thread_time_for_launch_state_and_thread(startup_id INT, state STRING, thread_name STRING)
 RETURNS INT AS
 SELECT SUM(dur)
 FROM launch_thread_state_dur_sum l

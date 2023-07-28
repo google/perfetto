@@ -64,13 +64,13 @@ VALUES
 
 -- Functions below retrieve specific columns for a given table set.
 
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_SLICE(table_set STRING)
+CREATE PERFETTO FUNCTION android_jank_cuj_table_set_slice(table_set STRING)
 RETURNS STRING AS
 SELECT slice_table_name
 FROM android_jank_cuj_table_set ts
 WHERE ts.name = $table_set;
 
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_FRAME_BOUNDARY(
+CREATE PERFETTO FUNCTION android_jank_cuj_table_set_frame_boundary(
   table_set STRING
 )
 RETURNS STRING AS
@@ -78,7 +78,7 @@ SELECT frame_boundary_table_name
 FROM android_jank_cuj_table_set ts
 WHERE ts.name = $table_set;
 
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_CUJ_BOUNDARY(
+CREATE PERFETTO FUNCTION android_jank_cuj_table_set_cuj_boundary(
   table_set STRING
 )
 RETURNS STRING AS
@@ -86,7 +86,7 @@ SELECT cuj_boundary_table_name
 FROM android_jank_cuj_table_set ts
 WHERE ts.name = $table_set;
 
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_TABLE_SET_FRAME(table_set STRING)
+CREATE PERFETTO FUNCTION android_jank_cuj_table_set_frame(table_set STRING)
 RETURNS STRING AS
 SELECT frame_table_name
 FROM android_jank_cuj_table_set ts
@@ -94,7 +94,7 @@ WHERE ts.name = $table_set;
 
 -- Checks if two slices, described by ts and dur, ts_second and dur_second, overlap.
 -- Does not handle cases where slices are unfinished (dur = -1).
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_SLICE_OVERLAPS(ts LONG,
+CREATE PERFETTO FUNCTION android_jank_cuj_slice_overlaps(ts LONG,
                                                         dur LONG,
                                                         ts_second LONG,
                                                         dur_second LONG)
