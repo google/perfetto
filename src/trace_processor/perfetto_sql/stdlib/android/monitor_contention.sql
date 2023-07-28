@@ -114,11 +114,18 @@ CREATE PERFETTO FUNCTION ANDROID_EXTRACT_ANDROID_MONITOR_CONTENTION_BLOCKED_SRC(
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
-CREATE TABLE internal_broken_android_monitor_contention AS
-SELECT ancestor.id AS id FROM slice
-    JOIN slice ancestor ON ancestor.id = slice.parent_id
-    WHERE ancestor.name GLOB 'monitor contention*' AND slice.name NOT GLOB 'Lock contention*'
-    GROUP BY ancestor.id;
+CREATE TABLE internal_valid_android_monitor_contention AS
+SELECT slice.id AS id
+FROM slice
+LEFT JOIN slice child
+  ON child.parent_id = slice.id
+LEFT JOIN slice grand_child
+  ON grand_child.parent_id = child.id
+WHERE
+  slice.name GLOB 'monitor contention*'
+  AND (child.name GLOB 'Lock contention*' OR child.name IS NULL)
+  AND (grand_child.name IS NULL)
+GROUP BY slice.id;
 
 -- Contains parsed monitor contention slices.
 --
@@ -178,14 +185,13 @@ LEFT JOIN thread
   USING (utid)
 LEFT JOIN process
   USING (upid)
-LEFT JOIN internal_broken_android_monitor_contention ON internal_broken_android_monitor_contention.id = slice.id
 LEFT JOIN ANCESTOR_SLICE(slice.id) binder_reply ON binder_reply.name = 'binder reply'
 LEFT JOIN thread_track binder_reply_thread_track ON binder_reply.track_id = binder_reply_thread_track.id
 LEFT JOIN thread binder_reply_thread ON binder_reply_thread_track.utid = binder_reply_thread.utid
+JOIN internal_valid_android_monitor_contention ON internal_valid_android_monitor_contention.id = slice.id
 JOIN thread blocking_thread ON blocking_thread.tid = blocking_tid AND blocking_thread.upid = thread.upid
 WHERE slice.name GLOB 'monitor contention*'
   AND slice.dur != -1
-  AND internal_broken_android_monitor_contention.id IS NULL
   AND short_blocking_method IS NOT NULL
   AND short_blocked_method IS NOT NULL
 GROUP BY slice.id;
