@@ -201,10 +201,12 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     this.repositionCanvas();
 
     this.trash.add(new SimpleResizeObserver(dom, () => {
-      this.readParentSizeFromDom(dom);
-      this.updateCanvasDimensions();
-      this.repositionCanvas();
-      raf.scheduleFullRedraw();
+      const parentSizeChanged = this.readParentSizeFromDom(dom);
+      if (parentSizeChanged) {
+        this.updateCanvasDimensions();
+        this.repositionCanvas();
+        this.redrawCanvas();
+      }
     }));
 
     // TODO(dproy): Handle change in doesScroll attribute.
