@@ -24,7 +24,7 @@ ORDER BY track_id, ts;
 --
 -- begin_ts: segment start time
 -- end_ts: segment end time
-CREATE PERFETTO FUNCTION CalculateAvgVsyncInterval(
+CREATE PERFETTO FUNCTION calculate_avg_vsync_interval(
   begin_ts LONG,
   end_ts LONG
 )

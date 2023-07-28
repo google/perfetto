@@ -20,7 +20,7 @@ SELECT IMPORT('common.timestamps');
 -- @arg track STRING  The counter track name (e.g. 'battery_stats.audio').
 -- @arg value FLOAT   The counter value.
 -- @ret STRING        The human-readable name for the counter value.
-CREATE PERFETTO FUNCTION ANDROID_BATTERY_STATS_COUNTER_TO_STRING(track STRING, value FLOAT)
+CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(track STRING, value FLOAT)
 RETURNS STRING AS
 SELECT
   CASE
@@ -128,7 +128,7 @@ SELECT
   ts,
   name AS track_name,
   CAST(value AS INT64) AS value,
-  ANDROID_BATTERY_STATS_COUNTER_TO_STRING(name, value) AS value_name,
+  android_battery_stats_counter_to_string(name, value) AS value_name,
   IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur
 FROM counter
 JOIN counter_track
@@ -187,7 +187,7 @@ WITH
   event_spans AS (
     SELECT
       track_name, key,
-      IIF(start, ts, TRACE_START()) AS ts,
+      IIF(start, ts, trace_start()) AS ts,
       IIF(start, next_ts, ts) AS end_ts
     FROM with_neighbors
     -- For the majority of events, we take the `start` event and compute the dur
