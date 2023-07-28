@@ -16,8 +16,7 @@ from enum import Enum
 import re
 from typing import Dict, List
 
-LOWER_NAME = r'[a-z_\d]+'
-UPPER_NAME = r'[A-Z_\d]+'
+NAME = r'[a-zA-Z_\d]+'
 ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
 TYPE = r'[A-Z]+'
@@ -28,11 +27,11 @@ CREATE_TABLE_VIEW_PATTERN = (
     # Match create table/view and catch type
     fr'CREATE{WS}(?:VIRTUAL )?{WS}(TABLE|VIEW){WS}(?:IF NOT EXISTS)?{WS}'
     # Catch the name
-    fr'{WS}({LOWER_NAME}){WS}(?:AS|USING)?{WS}.*')
+    fr'{WS}({NAME}){WS}(?:AS|USING)?{WS}.*')
 
 CREATE_FUNCTION_PATTERN = (
     # Function name: we are matching everything [A-Z]* between ' and ).
-    fr"CREATE{WS}PERFETTO{WS}FUNCTION{WS}({UPPER_NAME}){WS}"
+    fr"CREATE{WS}PERFETTO{WS}FUNCTION{WS}({NAME}){WS}"
     # Args: anything before closing bracket.
     fr"{WS}\({WS}({ANY_WORDS}){WS}\){WS}"
     # Type: [A-Z]* between two '.
@@ -43,7 +42,7 @@ CREATE_FUNCTION_PATTERN = (
 CREATE_VIEW_FUNCTION_PATTERN = (
     fr"SELECT{WS}CREATE_VIEW_FUNCTION\({WS}"
     # Function name: we are matching everything [A-Z]* between ' and ).
-    fr"{WS}'{WS}({UPPER_NAME}){WS}\({WS}"
+    fr"{WS}'{WS}({NAME}){WS}\({WS}"
     # Args: anything before closing bracket with '.
     fr"{WS}({ANY_WORDS}){WS}\){WS}'{WS},{WS}"
     # Return columns: anything between two '.
@@ -64,9 +63,9 @@ PATTERN_BY_KIND = {
     ObjKind.view_function: CREATE_VIEW_FUNCTION_PATTERN,
 }
 
-COLUMN_ANNOTATION_PATTERN = fr'^\s*({LOWER_NAME})\s*({ANY_WORDS})'
+COLUMN_ANNOTATION_PATTERN = fr'^\s*({NAME})\s*({ANY_WORDS})'
 
-NAME_AND_TYPE_PATTERN = fr'\s*({LOWER_NAME})\s+({TYPE})\s*'
+NAME_AND_TYPE_PATTERN = fr'\s*({NAME})\s+({TYPE})\s*'
 
 ARG_ANNOTATION_PATTERN = fr'\s*{NAME_AND_TYPE_PATTERN}\s+({ANY_WORDS})'
 

@@ -193,16 +193,16 @@ TEST_F(ThreadStateTrackerUnittest, SchedWakingBigTest) {
   tracker_->PushSchedSwitchEvent(7, CPU_A, 0, StringIdOf(kRunnable), 18);
 
   auto rows_it = ThreadStateIterator();
-  VerifyThreadState(rows_it, 1, 2, 8, kRunnable,
-                    std::nullopt, std::nullopt, 11);
+  VerifyThreadState(rows_it, 1, 2, 8, kRunnable, std::nullopt, std::nullopt,
+                    11);
   VerifyThreadState(++rows_it, 2, 3, 8, kRunning);
   VerifyThreadState(++rows_it, 2, std::nullopt, 11, "S");
   VerifyThreadState(++rows_it, 3, std::nullopt, 8, "S");
   VerifyThreadState(++rows_it, 4, std::nullopt, 17771, "S");
   VerifyThreadState(++rows_it, 4, 5, 17772, kRunning);
   VerifyThreadState(++rows_it, 5, std::nullopt, 17772, "S");
-  VerifyThreadState(++rows_it, 6, 7, 18, kRunnable,
-                    std::nullopt, std::nullopt, 0);
+  VerifyThreadState(++rows_it, 6, 7, 18, kRunnable, std::nullopt, std::nullopt,
+                    0);
   VerifyThreadState(++rows_it, 7, std::nullopt, 18, kRunning);
 }
 
