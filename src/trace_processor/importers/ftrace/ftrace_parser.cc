@@ -1746,7 +1746,7 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
 
     ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
-      timestamp, new_utid, source_utid);
+        timestamp, new_utid, source_utid);
     return;
   }
 

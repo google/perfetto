@@ -490,7 +490,7 @@ SELECT * FROM chain
 -- @arg thread_state_id INT   Id of the thread_state to get the thread_executing_span id for
 -- @ret INT                   thread_executing_span id
 CREATE PERFETTO FUNCTION
-EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(thread_state_id INT)
+experimental_thread_executing_span_id_from_thread_state_id(thread_state_id INT)
 RETURNS INT AS
 WITH t AS (
   SELECT

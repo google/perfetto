@@ -53,11 +53,11 @@ void ThreadStateTracker::PushWakingEvent(int64_t event_ts,
                                          UniqueTid utid,
                                          UniqueTid waker_utid,
                                          std::optional<uint16_t> common_flags) {
-  // If thread has not had a sched switch event, just open a runnable state. There's no
-  // pending state to close.
+  // If thread has not had a sched switch event, just open a runnable state.
+  // There's no pending state to close.
   if (!HasPreviousRowNumbersForUtid(utid)) {
-      AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid,
-               common_flags);
+    AddOpenState(event_ts, utid, runnable_string_id_, std::nullopt, waker_utid,
+                 common_flags);
     return;
   }
 

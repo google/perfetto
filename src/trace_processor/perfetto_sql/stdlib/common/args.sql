@@ -35,11 +35,8 @@
 -- @arg arg_set_id INT  Id of the arg set.
 -- @arg key STRING      Key of the argument.
 -- @ret STRING          Formatted value of the argument.
-SELECT CREATE_FUNCTION(
-'FORMATTED_ARG(arg_set_id INT, key STRING)',
-'STRING',
-'
+CREATE PERFETTO FUNCTION formatted_arg(arg_set_id INT, key STRING)
+RETURNS STRING AS
 SELECT display_value
 FROM args
-WHERE arg_set_id = $arg_set_id AND key = $key
-');
+WHERE arg_set_id = $arg_set_id AND key = $key;

@@ -601,15 +601,15 @@ class Android(TestSuite):
       """))
 
   def test_f2fs_aggregate_write_stats(self):
-      return DiffTestBlueprint(
+    return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
-        query= """
+        query="""
         SELECT IMPORT('android.io');
         SELECT total_write_count, distinct_processes, total_bytes_written,
                distinct_device_count, distict_inode_count, distinct_thread_count
         FROM android_io_f2fs_aggregate_write_stats
         """,
-        out= Csv("""
+        out=Csv("""
         "total_write_count","distinct_processes","total_bytes_written","distinct_device_count","distict_inode_count","distinct_thread_count"
         203,3,375180,1,13,6
         """))
