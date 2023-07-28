@@ -59,10 +59,10 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 -- Returns the fully drawn slice proto given a launch id.
-CREATE PERFETTO FUNCTION REPORT_FULLY_DRAWN_FOR_LAUNCH(startup_id INT)
+CREATE PERFETTO FUNCTION report_fully_drawn_for_launch(startup_id INT)
 RETURNS PROTO AS
 SELECT
-  STARTUP_SLICE_PROTO(report_fully_drawn_ts - launch_ts)
+  startup_slice_proto(report_fully_drawn_ts - launch_ts)
 FROM (
   SELECT
     launches.ts AS launch_ts,
@@ -132,7 +132,7 @@ SELECT
     'long_binder_transactions', (
       SELECT RepeatedField(
         AndroidStartupMetric_BinderTransaction(
-          "duration", STARTUP_SLICE_PROTO(s.slice_dur),
+          "duration", startup_slice_proto(s.slice_dur),
           "thread", s.thread_name,
           "destination_thread", EXTRACT_ARG(s.arg_set_id, "destination name"),
           "destination_process", s.process,
@@ -157,103 +157,103 @@ SELECT
       'dur_ms', launches.dur / 1e6,
       'main_thread_by_task_state', AndroidStartupMetric_TaskStateBreakdown(
         'running_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'Running'), 0
+          main_thread_time_for_launch_and_state(launches.startup_id, 'Running'), 0
         ),
         'runnable_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id), 0
+          main_thread_time_for_launch_in_runnable_state(launches.startup_id), 0
         ),
         'uninterruptible_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'D*'), 0
+          main_thread_time_for_launch_and_state(launches.startup_id, 'D*'), 0
         ),
         'interruptible_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S'), 0
+          main_thread_time_for_launch_and_state(launches.startup_id, 'S'), 0
         ),
         'uninterruptible_io_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE), 0
+          main_thread_time_for_launch_state_and_io_wait(launches.startup_id, 'D*', TRUE), 0
         ),
         'uninterruptible_non_io_sleep_dur_ns', IFNULL(
-          MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', FALSE), 0
+          main_thread_time_for_launch_state_and_io_wait(launches.startup_id, 'D*', FALSE), 0
         )
 
       ),
       'mcycles_by_core_type', NULL_IF_EMPTY(AndroidStartupMetric_McyclesByCoreType(
-        'little', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.startup_id, 'little'),
-        'big', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.startup_id, 'big'),
-        'bigger', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.startup_id, 'bigger'),
-        'unknown', MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(launches.startup_id, 'unknown')
+        'little', mcycles_for_launch_and_core_type(launches.startup_id, 'little'),
+        'big', mcycles_for_launch_and_core_type(launches.startup_id, 'big'),
+        'bigger', mcycles_for_launch_and_core_type(launches.startup_id, 'bigger'),
+        'unknown', mcycles_for_launch_and_core_type(launches.startup_id, 'unknown')
       )),
       'to_post_fork',
-      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.startup_id, 'PostFork'),
+      launch_to_main_thread_slice_proto(launches.startup_id, 'PostFork'),
       'to_activity_thread_main',
-      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.startup_id, 'ActivityThreadMain'),
+      launch_to_main_thread_slice_proto(launches.startup_id, 'ActivityThreadMain'),
       'to_bind_application',
-      LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(launches.startup_id, 'bindApplication'),
+      launch_to_main_thread_slice_proto(launches.startup_id, 'bindApplication'),
       'time_activity_manager', (
-        SELECT STARTUP_SLICE_PROTO(l.ts - launches.ts)
+        SELECT startup_slice_proto(l.ts - launches.ts)
         FROM internal_startup_events l
         WHERE l.ts BETWEEN launches.ts AND launches.ts + launches.dur
       ),
       'time_post_fork',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'PostFork'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'PostFork'),
       'time_activity_thread_main',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'ActivityThreadMain'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'ActivityThreadMain'),
       'time_bind_application',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'bindApplication'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'bindApplication'),
       'time_activity_start',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'activityStart'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'activityStart'),
       'time_activity_resume',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'activityResume'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'activityResume'),
       'time_activity_restart',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'activityRestart'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'activityRestart'),
       'time_choreographer',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'Choreographer#doFrame*'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'Choreographer#doFrame*'),
       'time_inflate',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'inflate'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'inflate'),
       'time_get_resources',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'ResourcesManager#getResources'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'ResourcesManager#getResources'),
       'time_dex_open',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'OpenDexFilesFromOat*'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'OpenDexFilesFromOat*'),
       'time_verify_class',
-      DUR_SUM_SLICE_PROTO_FOR_LAUNCH(launches.startup_id, 'VerifyClass*'),
+      dur_sum_slice_proto_for_launch(launches.startup_id, 'VerifyClass*'),
       'time_gc_total', (
-        SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id)))
+        SELECT NULL_IF_EMPTY(startup_slice_proto(total_gc_time_by_launch(launches.startup_id)))
       ),
       'time_dex_open_thread_main',
-      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+      dur_sum_main_thread_slice_proto_for_launch(
         launches.startup_id,
         'OpenDexFilesFromOat*'),
       'time_dlopen_thread_main',
-      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+      dur_sum_main_thread_slice_proto_for_launch(
         launches.startup_id,
         'dlopen:*.so'),
       'time_lock_contention_thread_main',
-      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+      dur_sum_main_thread_slice_proto_for_launch(
         launches.startup_id,
         'Lock contention on*'
       ),
       'time_monitor_contention_thread_main',
-      DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(
+      dur_sum_main_thread_slice_proto_for_launch(
         launches.startup_id,
         'Lock contention on a monitor*'
       ),
       'time_before_start_process', (
-        SELECT STARTUP_SLICE_PROTO(ts - launches.ts)
+        SELECT startup_slice_proto(ts - launches.ts)
         FROM ZYGOTE_FORK_FOR_LAUNCH(launches.startup_id)
       ),
-      'time_jit_thread_pool_on_cpu', NULL_IF_EMPTY(STARTUP_SLICE_PROTO(
-        THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
+      'time_jit_thread_pool_on_cpu', NULL_IF_EMPTY(startup_slice_proto(
+        thread_time_for_launch_state_and_thread(
          launches.startup_id,
           'Running',
           'Jit thread pool'
         )
       )),
       'time_gc_on_cpu', (
-        SELECT STARTUP_SLICE_PROTO(sum_dur)
+        SELECT startup_slice_proto(sum_dur)
         FROM running_gc_slices_materialized
         WHERE launches.startup_id = startup_id
       ),
       'time_during_start_process', (
-        SELECT STARTUP_SLICE_PROTO(dur)
+        SELECT startup_slice_proto(dur)
         FROM ZYGOTE_FORK_FOR_LAUNCH(launches.startup_id)
       ),
       'jit_compiled_methods', (
@@ -274,12 +274,12 @@ SELECT
     ),
     'hsc', NULL_IF_EMPTY(AndroidStartupMetric_HscMetrics(
       'full_startup', (
-        SELECT STARTUP_SLICE_PROTO(h.ts_total)
+        SELECT startup_slice_proto(h.ts_total)
         FROM hsc_based_startup_times h
         WHERE h.id =launches.startup_id
       )
     )),
-    'report_fully_drawn', NULL_IF_EMPTY(REPORT_FULLY_DRAWN_FOR_LAUNCH(launches.startup_id)),
+    'report_fully_drawn', NULL_IF_EMPTY(report_fully_drawn_for_launch(launches.startup_id)),
     'optimization_status', (
       SELECT RepeatedField(AndroidStartupMetric_OptimizationStatus(
         'location', SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
@@ -287,7 +287,7 @@ SELECT
         'compilation_filter', STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
         'compilation_reason', STR_SPLIT(slice_name, ' reason=', 1),
         'summary',
-        SUMMARY_FOR_OPTIMIZATION_STATUS(
+        summary_for_optimization_status(
           SUBSTR(STR_SPLIT(slice_name, ' status=', 0), LENGTH('location=') + 1),
           STR_SPLIT(STR_SPLIT(slice_name, ' status=', 1), ' filter=', 0),
           STR_SPLIT(STR_SPLIT(slice_name, ' filter=', 1), ' reason=', 0),
@@ -312,7 +312,7 @@ SELECT
       SELECT RepeatedField(package)
       FROM android_startups l
       WHERE l.startup_id != launches.startup_id
-        AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+        AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
     ),
     'dlopen_file', (
       SELECT RepeatedField(STR_SPLIT(slice_name, "dlopen: ", 1))
@@ -321,110 +321,110 @@ SELECT
     ),
     'system_state', AndroidStartupMetric_SystemState(
       'dex2oat_running',
-      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 0,
+      dur_of_process_running_concurrent_to_launch(launches.startup_id, '*dex2oat64') > 0,
       'installd_running',
-      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 0,
+      dur_of_process_running_concurrent_to_launch(launches.startup_id, '*installd') > 0,
       'broadcast_dispatched_count',
-      COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.startup_id, 'Broadcast dispatched*'),
+      count_slices_concurrent_to_launch(launches.startup_id, 'Broadcast dispatched*'),
       'broadcast_received_count',
-      COUNT_SLICES_CONCURRENT_TO_LAUNCH(launches.startup_id, 'broadcastReceiveReg*'),
+      count_slices_concurrent_to_launch(launches.startup_id, 'broadcastReceiveReg*'),
       'most_active_non_launch_processes',
-      N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(launches.startup_id),
+      n_most_active_process_names_for_launch(launches.startup_id),
       'installd_dur_ns',
-      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd'),
+      dur_of_process_running_concurrent_to_launch(launches.startup_id, '*installd'),
       'dex2oat_dur_ns',
-      DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64')
+      dur_of_process_running_concurrent_to_launch(launches.startup_id, '*dex2oat64')
     ),
     'slow_start_reason', (SELECT RepeatedField(slow_cause)
       FROM (
         SELECT 'No baseline or cloud profiles' AS slow_cause
-        WHERE MISSING_BASELINE_PROFILE_FOR_LAUNCH(launches.startup_id, launches.package)
+        WHERE missing_baseline_profile_for_launch(launches.startup_id, launches.package)
 
         UNION ALL
         SELECT 'Optimized artifacts missing, run from apk'
-        WHERE  RUN_FROM_APK_FOR_LAUNCH(launches.startup_id)
+        WHERE  run_from_apk_for_launch(launches.startup_id)
 
         UNION ALL
         SELECT 'Unlock running during launch'
-        WHERE IS_UNLOCK_RUNNING_DURING_LAUNCH(launches.startup_id)
+        WHERE is_unlock_running_during_launch(launches.startup_id)
 
         UNION ALL
         SELECT 'App in debuggable mode'
-        WHERE IS_PROCESS_DEBUGGABLE(launches.package)
+        WHERE is_process_debuggable(launches.package)
 
         UNION ALL
         SELECT 'GC Activity'
-        WHERE TOTAL_GC_TIME_BY_LAUNCH(launches.startup_id) > 0
+        WHERE total_gc_time_by_launch(launches.startup_id) > 0
 
         UNION ALL
         SELECT 'dex2oat running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*dex2oat64') > 0
+          dur_of_process_running_concurrent_to_launch(launches.startup_id, '*dex2oat64') > 0
 
         UNION ALL
         SELECT 'installd running during launch' AS slow_cause
         WHERE
-          DUR_OF_PROCESS_RUNNING_CONCURRENT_TO_LAUNCH(launches.startup_id, '*installd') > 0
+          dur_of_process_running_concurrent_to_launch(launches.startup_id, '*installd') > 0
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Running state'
           AS slow_cause
         WHERE
-          MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'Running') > launches.dur * 0.8
+          main_thread_time_for_launch_and_state(launches.startup_id, 'Running') > launches.dur * 0.8
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
           AS slow_cause
         WHERE
-          MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > launches.dur * 0.15
+          main_thread_time_for_launch_in_runnable_state(launches.startup_id) > launches.dur * 0.15
 
         UNION ALL
         SELECT 'Main Thread - Time spent in interruptible sleep state'
           AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_AND_STATE(launches.startup_id, 'S') > 2900e6
+        WHERE main_thread_time_for_launch_and_state(launches.startup_id, 'S') > 2900e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_STATE_AND_IO_WAIT(launches.startup_id, 'D*', TRUE) > 155e6
+        WHERE main_thread_time_for_launch_state_and_io_wait(launches.startup_id, 'D*', TRUE) > 155e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
+        WHERE android_sum_dur_on_main_thread_for_startup_and_slice(
           launches.startup_id, 'OpenDexFilesFromOat*') > launches.dur * 0.2
 
         UNION ALL
         SELECT 'Time spent in bindApplication'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'bindApplication') > 1250e6
+        WHERE android_sum_dur_for_startup_and_slice(launches.startup_id, 'bindApplication') > 1250e6
 
         UNION ALL
         SELECT 'Time spent in view inflation'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'inflate') > 450e6
+        WHERE android_sum_dur_for_startup_and_slice(launches.startup_id, 'inflate') > 450e6
 
         UNION ALL
         SELECT 'Time spent in ResourcesManager#getResources'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(
+        WHERE android_sum_dur_for_startup_and_slice(
           launches.startup_id, 'ResourcesManager#getResources') > 130e6
 
         UNION ALL
         SELECT 'Time spent verifying classes'
           AS slow_cause
         WHERE
-          ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(launches.startup_id, 'VerifyClass*')
+          android_sum_dur_for_startup_and_slice(launches.startup_id, 'VerifyClass*')
             > launches.dur * 0.15
 
         UNION ALL
         SELECT 'Potential CPU contention with another process' AS slow_cause
-        WHERE MAIN_THREAD_TIME_FOR_LAUNCH_IN_RUNNABLE_STATE(launches.startup_id) > 100e6
-          AND MOST_ACTIVE_PROCESS_FOR_LAUNCH(launches.startup_id) IS NOT NULL
+        WHERE main_thread_time_for_launch_in_runnable_state(launches.startup_id) > 100e6
+          AND most_active_process_for_launch(launches.startup_id) IS NOT NULL
 
         UNION ALL
         SELECT 'JIT Activity'
           AS slow_cause
-        WHERE THREAD_TIME_FOR_LAUNCH_STATE_AND_THREAD(
+        WHERE thread_time_for_launch_state_and_thread(
           launches.startup_id,
           'Running',
           'Jit thread pool'
@@ -433,7 +433,7 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Lock contention'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
+        WHERE android_sum_dur_on_main_thread_for_startup_and_slice(
           launches.startup_id,
           'Lock contention on*'
         ) > launches.dur * 0.2
@@ -441,7 +441,7 @@ SELECT
         UNION ALL
         SELECT 'Main Thread - Monitor contention'
           AS slow_cause
-        WHERE ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(
+        WHERE android_sum_dur_on_main_thread_for_startup_and_slice(
           launches.startup_id,
           'Lock contention on a monitor*'
         ) > launches.dur * 0.15
@@ -456,14 +456,14 @@ SELECT
 
         UNION ALL
         SELECT 'Broadcast dispatched count'
-        WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+        WHERE count_slices_concurrent_to_launch(
           launches.startup_id,
           'Broadcast dispatched*'
         ) > 15
 
         UNION ALL
         SELECT 'Broadcast received count'
-        WHERE COUNT_SLICES_CONCURRENT_TO_LAUNCH(
+        WHERE count_slices_concurrent_to_launch(
           launches.startup_id,
           'broadcastReceiveReg*'
         ) > 50
@@ -474,7 +474,7 @@ SELECT
           SELECT package
           FROM android_startups l
           WHERE l.startup_id != launches.startup_id
-            AND IS_SPANS_OVERLAPPING(l.ts, l.ts_end, launches.ts, launches.ts_end)
+            AND is_spans_overlapping(l.ts, l.ts_end, launches.ts, launches.ts_end)
         )
 
         UNION ALL
