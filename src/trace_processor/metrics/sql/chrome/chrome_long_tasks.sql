@@ -48,7 +48,7 @@ SELECT CREATE_VIEW_FUNCTION(
   '
 );
 
-CREATE PERFETTO FUNCTION IS_LONG_CHOREOGRAPHER_TASK(dur LONG)
+CREATE PERFETTO FUNCTION is_long_choreographer_task(dur LONG)
 RETURNS BOOL AS
 SELECT $dur >= 4 * 1e6;
 
@@ -72,7 +72,7 @@ WITH
       mojo.interface_name,
       mojo.ipc_hash,
       mojo.message_type,
-      INTERNAL_GET_POSTED_FROM(s.arg_set_id) as posted_from
+      internal_get_posted_from(s.arg_set_id) as posted_from
     FROM long_tasks_extracted_slices mojo
     JOIN slice s ON mojo.id = s.id
   )
@@ -82,7 +82,7 @@ SELECT
     WHEN interface_name IS NOT NULL
       THEN printf('%s %s (hash=%d)', interface_name, message_type, ipc_hash)
     ELSE
-      INTERNAL_FORMAT_SCHEDULER_TASK_NAME(posted_from)
+      internal_format_scheduler_task_name(posted_from)
     END AS full_name,
   interface_name IS NOT NULL AS is_mojo
 FROM raw_extracted_values;
@@ -101,7 +101,7 @@ WITH
     UNION ALL
     SELECT id, "Choreographer" as kind, ts, dur, name
     FROM slice
-    WHERE IS_LONG_CHOREOGRAPHER_TASK(dur)
+    WHERE is_long_choreographer_task(dur)
       AND name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*"
   ),
   -- Intermediate step to allow us to sort java view names.
@@ -128,7 +128,7 @@ WITH -- Generate full names for tasks with java views.
   java_views_tasks AS (
     SELECT
       printf('%s(java_views=%s)', kind, java_views) as full_name,
-      INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+      internal_get_java_views_task_type(kind) AS task_type,
       id
     FROM long_task_slices_with_java_views
     WHERE kind = "SingleThreadProxy::BeginMainFrame"
@@ -146,12 +146,12 @@ WITH -- Generate full names for tasks with java views.
       -- NOTE: unless Navigation category is enabled and recorded on the same
       -- track as the LongTaskTracker slice, frame type will always be unknown.
       printf('%s (%s)',
-        INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name),
-        IFNULL(INTERNAL_EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
+        internal_human_readable_navigation_task_name(full_name),
+        IFNULL(internal_extract_frame_type(id), 'unknown frame type')) AS full_name,
       'navigation_task' AS task_type,
       id
     FROM scheduler_tasks_with_mojo
-    WHERE INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name) IS NOT NULL
+    WHERE internal_human_readable_navigation_task_name(full_name) IS NOT NULL
   )
 SELECT
   COALESCE(s4.full_name, s3.full_name, s2.full_name, s1.full_name) AS full_name,
@@ -166,7 +166,7 @@ UNION ALL
 -- LongTaskTracker slice, so join them separately.
 SELECT
   printf('%s(java_views=%s)', kind, java_views) as full_name,
-  INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+  internal_get_java_views_task_type(kind) AS task_type,
   id
 FROM long_task_slices_with_java_views
 WHERE kind = "Choreographer";

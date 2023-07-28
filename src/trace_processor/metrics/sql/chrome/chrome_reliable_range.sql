@@ -153,9 +153,9 @@ AS
 SELECT
   -- If the trace has a cropping packet, we don't want to recompute the reliable
   -- based on cropped track events - the result might be incorrect.
-  IFNULL(EXTRACT_INT_METADATA('range_of_interest_start_us') * 1000,
+  IFNULL(extract_int_metadata('range_of_interest_start_us') * 1000,
          MAX(thread_start, data_loss_free_start)) AS start,
-  IIF(EXTRACT_INT_METADATA('range_of_interest_start_us') IS NOT NULL,
+  IIF(extract_int_metadata('range_of_interest_start_us') IS NOT NULL,
       'Range of interest packet',
       IIF(limiting_upid IN (SELECT upid FROM chrome_processes_with_missing_main),
           'Missing main thread for upid=' || limiting_upid,

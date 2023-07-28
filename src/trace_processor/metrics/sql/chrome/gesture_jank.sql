@@ -75,7 +75,7 @@ SELECT
   end.ts AS end_ts,
   end.ts + end.dur AS end_ts_and_dur,
   end.trace_id AS end_trace_id,
-  CalculateAvgVsyncInterval(begin.ts, end.ts) AS avg_vsync_interval
+  calculate_avg_vsync_interval(begin.ts, end.ts) AS avg_vsync_interval
 FROM {{prefix}}_begin_and_end begin JOIN {{prefix}}_begin_and_end end ON
     begin.trace_id < end.trace_id
     AND begin.name = 'InputLatency::{{gesture_start}}'
@@ -201,15 +201,15 @@ ORDER BY {{id_field}} ASC, ts ASC;
 -- rate more than 1 FPS (and therefore VSync interval less than a second), this
 -- ratio should increase with increments more than minimal value in numerator
 -- (1ns) divided by maximum value in denominator, giving 1e-9.
--- Note: Logic is inside the IsJankyFrame function found in jank_utilities.sql.
+-- Note: Logic is inside the is_janky_frame function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
 CREATE VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
 SELECT
   *,
-  IsJankyFrame({{id_field}}, prev_{{id_field}},
+  is_janky_frame({{id_field}}, prev_{{id_field}},
     prev_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, prev_gesture_frames_exact) AS prev_jank,
-  IsJankyFrame({{id_field}}, next_{{id_field}},
+  is_janky_frame({{id_field}}, next_{{id_field}},
     next_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, next_gesture_frames_exact) AS next_jank
 FROM {{prefix}}_jank_maybe_null_prev_and_next_without_precompute
@@ -218,14 +218,14 @@ ORDER BY {{id_field}} ASC, ts ASC;
 -- This just uses prev_jank and next_jank to see if each "update" event is a
 -- jank.
 --
--- JankBudget is the time in ns that we need to reduce the current
+-- jank_budget is the time in ns that we need to reduce the current
 -- gesture (|id|) for this frame not to be considered janky (i.e., how much
--- faster for IsJankyFrame() to have not returned true).
+-- faster for is_janky_frame() to have not returned true).
 --
--- For JankBudget we use the frames_exact of current, previous and next to find
+-- For jank_budget we use the frames_exact of current, previous and next to find
 -- the jank budget in exact frame count. We then multiply by avg_vsync_internal
 -- to get the jank budget time.
--- Note: Logic is inside the JankBudget function found in jank_utilities.sql.
+-- Note: Logic is inside the jank_budget function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank;
 CREATE VIEW {{prefix}}_jank AS
 SELECT
@@ -233,7 +233,7 @@ SELECT
   (next_jank IS NOT NULL AND next_jank)
   OR (prev_jank IS NOT NULL AND prev_jank)
   AS jank,
-  JankBudget(gesture_frames_exact, prev_gesture_frames_exact,
+  jank_budget(gesture_frames_exact, prev_gesture_frames_exact,
     next_gesture_frames_exact) * avg_vsync_interval AS jank_budget,
   *
 FROM {{prefix}}_jank_maybe_null_prev_and_next

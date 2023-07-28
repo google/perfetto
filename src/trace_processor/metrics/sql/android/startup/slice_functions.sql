@@ -17,7 +17,7 @@
 SELECT IMPORT('android.startup.startups');
 
 -- Helper function to build a Slice proto from a duration.
-CREATE PERFETTO FUNCTION STARTUP_SLICE_PROTO(dur INT)
+CREATE PERFETTO FUNCTION startup_slice_proto(dur INT)
 RETURNS PROTO AS
 SELECT AndroidStartupMetric_Slice(
   "dur_ns", $dur,
@@ -33,30 +33,30 @@ SELECT * FROM android_thread_slices_for_all_startups;
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto,
 -- summing the slice durations across the whole startup.
-CREATE PERFETTO FUNCTION DUR_SUM_SLICE_PROTO_FOR_LAUNCH(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION dur_sum_slice_proto_for_launch(startup_id LONG, slice_name STRING)
 RETURNS PROTO AS
 SELECT NULL_IF_EMPTY(
-  STARTUP_SLICE_PROTO(
-    ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE($startup_id, $slice_name)
+  startup_slice_proto(
+    android_sum_dur_for_startup_and_slice($startup_id, $slice_name)
   )
 );
 
--- Same as |DUR_SUM_SLICE_PROTO_FOR_LAUNCH| except only counting slices happening
+-- Same as |dur_sum_slice_proto_for_launch| except only counting slices happening
 -- on the main thread.
-CREATE PERFETTO FUNCTION DUR_SUM_MAIN_THREAD_SLICE_PROTO_FOR_LAUNCH(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION dur_sum_main_thread_slice_proto_for_launch(startup_id LONG, slice_name STRING)
 RETURNS PROTO AS
 SELECT NULL_IF_EMPTY(
-  STARTUP_SLICE_PROTO(
-    ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE($startup_id, $slice_name)
+  startup_slice_proto(
+    android_sum_dur_on_main_thread_for_startup_and_slice($startup_id, $slice_name)
   )
 );
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto by
 -- taking the duration between the start of the launch and start of the slice.
 -- If multiple slices match, picks the latest one which started during the launch.
-CREATE PERFETTO FUNCTION LAUNCH_TO_MAIN_THREAD_SLICE_PROTO(startup_id INT, slice_name STRING)
+CREATE PERFETTO FUNCTION launch_to_main_thread_slice_proto(startup_id INT, slice_name STRING)
 RETURNS PROTO AS
-SELECT NULL_IF_EMPTY(STARTUP_SLICE_PROTO(MAX(slice_ts) - startup_ts))
+SELECT NULL_IF_EMPTY(startup_slice_proto(MAX(slice_ts) - startup_ts))
 FROM android_thread_slices_for_all_startups s
 JOIN thread t USING (utid)
 WHERE
@@ -66,7 +66,7 @@ WHERE
   (t.end_ts IS NULL OR t.end_ts >= s.startup_ts_end);
 
 -- Given a lauch id, returns the total time spent in GC
-CREATE PERFETTO FUNCTION TOTAL_GC_TIME_BY_LAUNCH(startup_id LONG)
+CREATE PERFETTO FUNCTION total_gc_time_by_launch(startup_id LONG)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups slice
@@ -79,7 +79,7 @@ WHERE
   );
 
 -- Given a launch id and package name, returns if baseline or cloud profile is missing.
-CREATE PERFETTO FUNCTION MISSING_BASELINE_PROFILE_FOR_LAUNCH(startup_id LONG, pkg_name STRING)
+CREATE PERFETTO FUNCTION missing_baseline_profile_for_launch(startup_id LONG, pkg_name STRING)
 RETURNS BOOL AS
 SELECT (COUNT(slice_name) > 0)
 FROM (
@@ -102,7 +102,7 @@ WHERE
 -- Given a launch id, returns if there is a main thread run-from-apk slice.
 -- Add an exception if "split_config" is in parent slice's name(b/277809828).
 -- TODO: remove the exception after Sep 2023 (b/78772867)
-CREATE PERFETTO FUNCTION RUN_FROM_APK_FOR_LAUNCH(launch_id LONG)
+CREATE PERFETTO FUNCTION run_from_apk_for_launch(launch_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice_name, startup_id, is_main_thread
@@ -118,7 +118,7 @@ SELECT EXISTS(
       parent.name NOT GLOB ("OpenDexFilesFromOat(*split_config*apk)"))
 );
 
-CREATE PERFETTO FUNCTION SUMMARY_FOR_OPTIMIZATION_STATUS(
+CREATE PERFETTO FUNCTION summary_for_optimization_status(
   loc STRING,
   status STRING,
   filter_str STRING,
@@ -151,7 +151,7 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 -- Given a launch id, return if unlock is running by systemui during the launch.
-CREATE PERFETTO FUNCTION IS_UNLOCK_RUNNING_DURING_LAUNCH(startup_id LONG)
+CREATE PERFETTO FUNCTION is_unlock_running_during_launch(startup_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice.name
