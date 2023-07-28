@@ -23,7 +23,7 @@
 --
 -- @arg name STRING   Raw name of the slice
 -- @ret STRING        Simplified name.
-CREATE PERFETTO FUNCTION ANDROID_STANDARDIZE_SLICE_NAME(name STRING)
+CREATE PERFETTO FUNCTION android_standardize_slice_name(name STRING)
 RETURNS STRING AS
 SELECT
   CASE

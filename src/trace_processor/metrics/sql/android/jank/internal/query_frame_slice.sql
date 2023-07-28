@@ -90,7 +90,7 @@ FROM {{frame_table_name}} frame
 JOIN {{frame_boundary_table_name}} frame_boundary USING (cuj_id, vsync)
 JOIN {{table_name_prefix}}_query_slice query_slice
   ON frame_boundary.cuj_id = query_slice.cuj_id
-    AND ANDROID_JANK_CUJ_SLICE_OVERLAPS(frame_boundary.ts, frame_boundary.dur, query_slice.ts, query_slice.dur);
+    AND android_jank_cuj_slice_overlaps(frame_boundary.ts, frame_boundary.dur, query_slice.ts, query_slice.dur);
 
 -- Aggregated view of frames and slices overall durations within each frame boundaries.
 DROP VIEW IF EXISTS {{table_name_prefix}}_slice_in_frame_agg;

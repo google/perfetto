@@ -25,7 +25,7 @@
 
 SELECT IMPORT('chrome.tasks');
 
-CREATE PERFETTO FUNCTION DescribeSymbol(symbol STRING, frame_name STRING)
+CREATE PERFETTO FUNCTION describe_symbol(symbol STRING, frame_name STRING)
 RETURNS STRING AS
 SELECT COALESCE($symbol,
   CASE WHEN demangle($frame_name) IS NULL
@@ -86,7 +86,7 @@ JOIN process USING(upid);
 DROP VIEW IF EXISTS chrome_thread_symbolized_child_frames;
 CREATE VIEW chrome_thread_symbolized_child_frames AS
 SELECT
-  DescribeSymbol(symbol.name, frame_name) AS description,
+  describe_symbol(symbol.name, frame_name) AS description,
   depth,
   ts,
   callsite_id,
@@ -117,7 +117,7 @@ JOIN chrome_non_symbolized_frames
 DROP VIEW IF EXISTS chrome_frames_timed_and_symbolized;
 CREATE VIEW chrome_frames_timed_and_symbolized AS
 SELECT
-  DescribeSymbol(symbol.name, frame_name) AS description,
+  describe_symbol(symbol.name, frame_name) AS description,
   ts,
   depth,
   callsite_id,

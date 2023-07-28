@@ -96,7 +96,7 @@ DROP TABLE IF EXISTS android_blocking_calls_cuj_calls;
 CREATE TABLE android_blocking_calls_cuj_calls AS
 WITH all_main_thread_relevant_slices AS (
     SELECT DISTINCT
-        ANDROID_STANDARDIZE_SLICE_NAME(s.name) AS name,
+        android_standardize_slice_name(s.name) AS name,
         s.ts,
         s.track_id,
         s.dur,

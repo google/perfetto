@@ -35,7 +35,7 @@ WHERE id = $path_id;
 -- @arg path_id  LONG Id of the path in EXPERIMENTAL_PROTO_PATH that will be
 -- the leaf in the returned stack
 -- @ret BYTES    Stack
-CREATE PERFETTO FUNCTION EXPERIMENTAL_PROTO_PATH_TO_STACK(path_id LONG)
+CREATE PERFETTO FUNCTION experimental_proto_path_to_stack(path_id LONG)
 RETURNS BYTES AS
 WITH
   R AS (
