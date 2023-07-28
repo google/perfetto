@@ -106,7 +106,7 @@ JOIN process USING (upid);
 -- @arg id INT              Id of the slice to check parents of.
 -- @arg parent_name STRING  Name of potential ancestor slice.
 -- @ret BOOL                Whether `parent_name` is a name of an ancestor slice.
-CREATE PERFETTO FUNCTION HAS_PARENT_SLICE_WITH_NAME(id INT, parent_name STRING)
+CREATE PERFETTO FUNCTION has_parent_slice_with_name(id INT, parent_name STRING)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT 1
@@ -121,7 +121,7 @@ SELECT EXISTS(
 -- @arg descendant_name STRING  Name of potential descendant slice.
 -- @ret BOOL                    Whether `descendant_name` is a name of an
 --                              descendant slice.
-CREATE PERFETTO FUNCTION HAS_DESCENDANT_SLICE_WITH_NAME(
+CREATE PERFETTO FUNCTION has_descendant_slice_with_name(
   id INT,
   descendant_name STRING
 )
@@ -137,7 +137,7 @@ SELECT EXISTS(
 --
 -- @arg slice_glob STRING Name of the slices to counted.
 -- @ret INT               Number of slices with the name.
-CREATE PERFETTO FUNCTION SLICE_COUNT(slice_glob STRING)
+CREATE PERFETTO FUNCTION slice_count(slice_glob STRING)
 RETURNS INT AS
 SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;;
 
@@ -148,7 +148,7 @@ SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;;
 -- @arg parent_id INT Id of the parent slice.
 -- @arg child_name STRING name of the child with the desired end TS.
 -- @ret INT end timestamp of the child or NULL if it doesn't exist.
-CREATE PERFETTO FUNCTION DESCENDANT_SLICE_END(
+CREATE PERFETTO FUNCTION descendant_slice_end(
   parent_id INT,
   child_name STRING
 )
