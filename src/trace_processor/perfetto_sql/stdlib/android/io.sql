@@ -33,7 +33,7 @@ SELECT
   AVG(counter.value) AS avg
 FROM counter
 JOIN counter_track
-  ON counter_track.id = counter.track_id AND counter_track.name LIKE '%f2fs%'
+  ON counter_track.id = counter.track_id AND counter_track.name GLOB '*f2fs*'
 GROUP BY name
 ORDER BY sum DESC;
 
@@ -59,7 +59,7 @@ WITH
       EXTRACT_ARG(arg_set_id, 'ino') AS ino,
       EXTRACT_ARG(arg_set_id, 'copied') AS copied
     FROM raw
-    WHERE name LIKE 'f2fs_write_end%'
+    WHERE name GLOB 'f2fs_write_end*'
   )
 SELECT
   thread.utid,

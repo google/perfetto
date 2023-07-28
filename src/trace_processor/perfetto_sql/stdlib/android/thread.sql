@@ -13,13 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT CREATE_FUNCTION(
-    'INTERNAL_THREAD_PREFIX(thread_name STRING)',
-    'STRING',
-    '
-    SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
-    '
-);
+CREATE PERFETTO FUNCTION internal_thread_prefix(thread_name STRING)
+RETURNS STRING AS
+SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
 
 -- Per process stats of threads created in a process
 --
