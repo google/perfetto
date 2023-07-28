@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
+import {stringifyJsonWithBigints} from '../base/json_utils';
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {traceEvent} from '../common/metatracing';
@@ -236,9 +237,7 @@ export class BottomTabList {
         'uuid': uuid,
         'kind': args.kind,
         'tag': args.tag ?? '<undefined>',
-        'config': JSON.stringify(
-            args.config,
-            (_, value) => typeof value === 'bigint' ? value.toString() : value),
+        'config': stringifyJsonWithBigints(args.config),
       },
     });
   }
