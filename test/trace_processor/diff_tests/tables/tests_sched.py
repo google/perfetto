@@ -278,7 +278,7 @@ class TablesSched(TestSuite):
           leaf_blocked_dur,
           leaf_blocked_state,
           leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(NULL)
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(NULL, NULL)
         WHERE leaf_blocked_function IS NOT NULL
         ORDER BY height DESC, ts, tid
         LIMIT 10
@@ -328,7 +328,7 @@ class TablesSched(TestSuite):
           waker_thread_name,
           height,
           is_leaf
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(15923) ORDER BY height
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(15923, NULL) ORDER BY height
         """,
         out=Csv("""
         "thread_name","waker_thread_name","height","is_leaf"
@@ -407,7 +407,7 @@ class TablesSched(TestSuite):
           leaf_blocked_dur,
           leaf_blocked_state,
           leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173))
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173), NULL)
         ORDER BY ts
         """,
         out=Csv("""
@@ -424,4 +424,86 @@ class TablesSched(TestSuite):
         1737715845787,497587,743,642,"StorageManagerS","system_server","binder:642_1","system_server",793525,"S","[NULL]",2,0,1737716642304,160997369,"S","[NULL]"
         1737716343374,298930,3501,3487,"binder:3487_4","com.android.providers.media.module","StorageManagerS","system_server",1016895,"S","[NULL]",1,0,1737716642304,160997369,"S","[NULL]"
         1737716642304,4521857,3487,3487,"rs.media.module","com.android.providers.media.module","binder:3487_4","com.android.providers.media.module",160997369,"S","[NULL]",0,0,1737716642304,160997369,"S","[NULL]"
+        """))
+
+  def test_thread_executing_span_critical_path_utid(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function,
+          height,
+          is_leaf,
+          leaf_ts,
+          leaf_blocked_dur,
+          leaf_blocked_state,
+          leaf_blocked_function
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(NULL, 257)
+        ORDER BY ts
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
+        1736109621029,714160,1469,1469,"m.android.phone","com.android.phone","swapper","[NULL]","[NULL]","[NULL]","[NULL]",0,0,1736109621029,"[NULL]","[NULL]","[NULL]"
+        1736110335189,575700,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone","[NULL]","[NULL]","[NULL]",1,0,1736110910889,575700,"S","[NULL]"
+        1736110910889,405524,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",575700,"S","[NULL]",0,0,1736110910889,575700,"S","[NULL]"
+        1736111316413,390566,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",332001,"S","[NULL]",1,0,1736111706979,390566,"S","[NULL]"
+        1736111706979,188251,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",390566,"S","[NULL]",0,0,1736111706979,390566,"S","[NULL]"
+        1736111895230,192497,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",144095,"S","[NULL]",1,0,1736112087727,192497,"S","[NULL]"
+        1736112087727,189615,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",192497,"S","[NULL]",0,0,1736112087727,192497,"S","[NULL]"
+        1736112277342,250380,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",151648,"S","[NULL]",1,0,1736112527722,250380,"S","[NULL]"
+        1736112527722,123152,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",250380,"S","[NULL]",0,1,1736112527722,250380,"S","[NULL]"
+        1736112650874,286064951,240,240,"kworker/0:3","kworker/0:3-events","adbd","/apex/com.android.adbd/bin/adbd",1103252,"I","worker_thread",20,0,1737109104220,996453346,"S","[NULL]"
+        """))
+
+  def test_thread_executing_span_critical_path_all(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function,
+          height,
+          is_leaf,
+          leaf_ts,
+          leaf_blocked_dur,
+          leaf_blocked_state,
+          leaf_blocked_function
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(NULL, NULL)
+        ORDER BY ts
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
+        1735489812571,83938,575,224,"logd.reader.per","/system/bin/logd","logd.writer","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,0,1735489812571,"[NULL]","[NULL]","[NULL]"
+        1735489833977,52463,3468,3468,"logcat","logcat","logd.reader.per","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,0,1735489833977,"[NULL]","[NULL]","[NULL]"
+        1735489876788,76985,3469,527,"shell svc 3468","/apex/com.android.adbd/bin/adbd","logcat","logcat","[NULL]","[NULL]","[NULL]",0,0,1735489876788,"[NULL]","[NULL]","[NULL]"
+        1735489879097,338180,562,562,"logcat","/system/bin/logcat","logd.reader.per","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,1,1735489879097,"[NULL]","[NULL]","[NULL]"
+        1735489933912,653746,527,527,"adbd","/apex/com.android.adbd/bin/adbd","shell svc 3468","/apex/com.android.adbd/bin/adbd","[NULL]","[NULL]","[NULL]",0,0,1735489933912,"[NULL]","[NULL]","[NULL]"
+        1735489999987,55979,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",0,0,1735489999987,4178,"S","[NULL]"
+        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",27,0,1737051466727,1561612705,"S","[NULL]"
+        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",29,0,1737061888312,1572044057,"S","[NULL]"
+        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",30,0,1737061943856,1572057416,"S","[NULL]"
+        1735490039439,570799,544,527,"adbd","/apex/com.android.adbd/bin/adbd","init","/system/bin/init","[NULL]","[NULL]","[NULL]",0,1,1735490039439,"[NULL]","[NULL]","[NULL]"
         """))
