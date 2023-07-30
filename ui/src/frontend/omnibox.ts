@@ -23,8 +23,15 @@ import {EmptyState} from './widgets/empty_state';
 import {Popup} from './widgets/popup';
 
 interface OmniboxOptionRowAttrs {
-  title: FuzzySegment[];
+  // Human readable display name for the option.
+  // This can either be a simple string, or a list of fuzzy segments in which
+  // case highlighting will be applied to the matching segments.
+  displayName: FuzzySegment[]|string;
+
+  // Highlight this option.
   highlighted: boolean;
+
+  // Additional attrs forwarded to the underlying element.
   [htmlAttrs: string]: any;
 }
 
@@ -32,17 +39,25 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   private highlightedBefore = false;
 
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void|m.Children {
-    const {title, highlighted, ...htmlAttrs} = attrs;
+    const {displayName, highlighted, ...htmlAttrs} = attrs;
     return m(
         'li.pf-omnibox-option',
         {
           class: classNames(highlighted && 'pf-highlighted'),
           ...htmlAttrs,
         },
-        title.map(({matching, value}) => {
-          return matching ? m('b', value) : value;
-        }),
+        this.renderTitle(displayName),
     );
+  }
+
+  private renderTitle(title: FuzzySegment[]|string): m.Children {
+    if (typeof title === 'string') {
+      return title;
+    } else {
+      return title.map(({matching, value}) => {
+        return matching ? m('b', value) : value;
+      });
+    }
   }
 
   onupdate({attrs, dom}: m.VnodeDOM<OmniboxOptionRowAttrs, this>) {
@@ -56,12 +71,13 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
 }
 
 export interface OmniboxOption {
+  // The value to place into the omnibox.
   key: string;
   displayName: FuzzySegment[];
 }
 
 export interface OmniboxAttrs {
-  // Omnibox text.
+  // Current value of the omnibox input.
   value: string;
 
   // What to show when value is blank.
@@ -76,29 +92,40 @@ export interface OmniboxAttrs {
   // Called on close.
   onClose?: () => void;
 
-  // Dropdown items to show.
+  // Dropdown items to show. If none are supplied, the omnibox runs in free text
+  // mode, where anyt text can be input. Otherwise, onSubmit will always be
+  // called with one of the options.
   options?: OmniboxOption[];
 
   // Called when the user expresses the intent to "execute" the thing.
   onSubmit?: (value: string, mod: boolean, shift: boolean) => void;
 
-  // Icon to show on the left.
-  icon?: string;
-
-  // When true, disable input in the bar and show a more gray appearance.
+  // When true, disable and grey-out the omnibox's input.
   readonly?: boolean;
 
+  // Ref to use on the input - useful for extracing this element from the DOM.
   inputRef?: string;
 
+  // Whether to close when the user presses Enter. Default = false.
   closeOnSubmit?: boolean;
 
+  // Whether to close the omnibox (i.e. call the |onClose| handler) when we
+  // click outside the omnibox or its dropdown. Default = false.
   closeOnOutsideClick?: boolean;
 
+  // Some content to place into the right hand side of the after the input.
   rightContent?: m.Children;
+
+  // If we have options, this value indicates the index of the option which
+  // is currently highlighted.
+  selectedOptionIndex?: number;
+
+  // Callback for when the user pressed up/down, expressing a desire to change
+  // the |selectedOptionIndex|.
+  onSelectedOptionChanged?: (index: number) => void;
 }
 
 export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
-  private highlightedOptionIndex = 0;
   private popupElement?: HTMLElement;
   private dom?: Element;
   private attrs?: OmniboxAttrs;
@@ -114,6 +141,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       options,
       closeOnSubmit = false,
       rightContent,
+      selectedOptionIndex = 0,
     } = attrs;
 
     return m(
@@ -136,7 +164,6 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
                 value,
                 placeholder,
                 oninput: (e: Event) => {
-                  this.highlightedOptionIndex = 0;
                   onInput((e.target as HTMLInputElement).value, value);
                 },
                 onkeydown: (e: KeyboardEvent) => {
@@ -150,14 +177,14 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
                   if (options) {
                     if (e.key === 'ArrowUp') {
                       e.preventDefault();
-                      this.highlightPreviousOption();
+                      this.highlightPreviousOption(attrs);
                     } else if (e.key === 'ArrowDown') {
                       e.preventDefault();
-                      this.highlightNextOption(options);
+                      this.highlightNextOption(attrs);
                     } else if (e.key === 'Enter') {
                       e.preventDefault();
 
-                      const option = options[this.highlightedOptionIndex];
+                      const option = options[selectedOptionIndex];
                       if (option) {
                         closeOnSubmit && this.close(attrs);
 
@@ -191,20 +218,21 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       onSubmit = () => {},
       options,
       closeOnSubmit = false,
+      selectedOptionIndex,
     } = attrs;
 
     if (!options) return null;
 
     if (options.length === 0) {
-      return m(EmptyState, {header: 'No matching commands...'});
+      return m(EmptyState, {header: 'No matching options...'});
     } else {
       return m(
-          '.pf-omnibox-dropdown',
+          'ul.pf-omnibox-dropdown',
           options.map(({displayName, key}, index) => {
             return m(OmniboxOptionRow, {
               key,
-              title: displayName,
-              highlighted: index === this.highlightedOptionIndex,
+              displayName: displayName,
+              highlighted: index === selectedOptionIndex,
               onclick: () => {
                 closeOnSubmit && onClose();
                 onSubmit(key, false, false);
@@ -257,18 +285,26 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
   private close(attrs: OmniboxAttrs): void {
     const {onClose = () => {}} = attrs;
     raf.scheduleFullRedraw();
-    this.highlightedOptionIndex = 0;
     onClose();
   }
 
-  private highlightPreviousOption() {
-    this.highlightedOptionIndex = Math.max(0, --this.highlightedOptionIndex);
-    raf.scheduleFullRedraw();
+  private highlightPreviousOption(attrs: OmniboxAttrs) {
+    const {
+      selectedOptionIndex = 0,
+      onSelectedOptionChanged = () => {},
+    } = attrs;
+
+    onSelectedOptionChanged(Math.max(0, selectedOptionIndex - 1));
   }
 
-  private highlightNextOption(commands: OmniboxOption[]) {
-    const max = commands.length - 1;
-    this.highlightedOptionIndex = Math.min(max, ++this.highlightedOptionIndex);
-    raf.scheduleFullRedraw();
+  private highlightNextOption(attrs: OmniboxAttrs) {
+    const {
+      selectedOptionIndex = 0,
+      onSelectedOptionChanged = () => {},
+      options = [],
+    } = attrs;
+
+    const max = options.length - 1;
+    onSelectedOptionChanged(Math.min(max, selectedOptionIndex + 1));
   }
 }

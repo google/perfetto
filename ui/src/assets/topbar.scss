@@ -96,6 +96,14 @@
         grid-area: icon;
       }
     }
+    &.prompt-mode {
+      &:before {
+        @include material-icon("question_mark");
+        margin: 5px;
+        color: #aaa;
+        grid-area: icon;
+      }
+    }
     &.message-mode {
       background-color: hsl(0, 0%, 89%);
       border-radius: $pf-border-radius;
@@ -247,13 +255,14 @@
   }
 }
 
-.pf-omnibox-dropdown {
+ul.pf-omnibox-dropdown {
   margin: 2px;
   max-height: 300px;
   overflow-y: auto;
+  padding-left: 0;
 }
 
-.pf-omnibox-option {
+li.pf-omnibox-option {
   font-family: $pf-font;
   cursor: pointer;
   list-style-type: none;
