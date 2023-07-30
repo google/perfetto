@@ -353,9 +353,75 @@ class TablesSched(TestSuite):
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         SELECT IMPORT('experimental.thread_executing_span');
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(13120) AS thread_executing_span_id
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(15173) AS thread_executing_span_id
         """,
         out=Csv("""
         "thread_executing_span_id"
         "[NULL]"
+        """))
+
+  def test_thread_executing_span_following_from_sleep_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173) AS thread_executing_span_id
+        """,
+        out=Csv("""
+        "thread_executing_span_id"
+        15750
+        """))
+
+  def test_thread_executing_span_following_from_non_sleep_thread_state(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(12394) AS thread_executing_span_id
+        """,
+        out=Csv("""
+        "thread_executing_span_id"
+        "[NULL]"
+        """))
+
+  def test_thread_executing_span_critical_path(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          waker_thread_name,
+          waker_process_name,
+          blocked_dur,
+          blocked_state,
+          blocked_function,
+          height,
+          is_leaf,
+          leaf_ts,
+          leaf_blocked_dur,
+          leaf_blocked_state,
+          leaf_blocked_function
+        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173))
+        ORDER BY ts
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
+        1737555644935,155300703,281,243,"binder:243_4","/system/bin/vold","StorageManagerS","system_server",207137317,"S","[NULL]",11,0,1737716642304,160997369,"S","[NULL]"
+        1737710945638,719567,158,1,"init","/system/bin/init","binder:243_4","/system/bin/vold",320099853,"S","[NULL]",10,0,1737716642304,160997369,"S","[NULL]"
+        1737711665205,2066552,281,243,"binder:243_4","/system/bin/vold","init","/system/bin/init",473986,"S","[NULL]",9,0,1737716642304,160997369,"S","[NULL]"
+        1737713731757,46394,3335,3335,"kworker/u4:2","kworker/u4:2-events_unbound","binder:243_4","/system/bin/vold",172402014,"I","worker_thread",8,0,1737716642304,160997369,"S","[NULL]"
+        1737713778151,818659,281,243,"binder:243_4","/system/bin/vold","kworker/u4:2","kworker/u4:2-events_unbound",38815,"D","__flush_work",7,0,1737716642304,160997369,"S","[NULL]"
+        1737714596810,414789,743,642,"StorageManagerS","system_server","binder:243_4","/system/bin/vold",161843036,"S","[NULL]",6,0,1737716642304,160997369,"S","[NULL]"
+        1737715011599,256989,3501,3487,"binder:3487_4","com.android.providers.media.module","StorageManagerS","system_server",167350508,"S","[NULL]",5,0,1737716642304,160997369,"S","[NULL]"
+        1737715268588,219727,3519,3487,"android.bg","com.android.providers.media.module","binder:3487_4","com.android.providers.media.module",163900842,"S","[NULL]",4,0,1737716642304,160997369,"S","[NULL]"
+        1737715488315,357472,657,642,"binder:642_1","system_server","android.bg","com.android.providers.media.module",344488980,"S","[NULL]",3,0,1737716642304,160997369,"S","[NULL]"
+        1737715845787,497587,743,642,"StorageManagerS","system_server","binder:642_1","system_server",793525,"S","[NULL]",2,0,1737716642304,160997369,"S","[NULL]"
+        1737716343374,298930,3501,3487,"binder:3487_4","com.android.providers.media.module","StorageManagerS","system_server",1016895,"S","[NULL]",1,0,1737716642304,160997369,"S","[NULL]"
+        1737716642304,4521857,3487,3487,"rs.media.module","com.android.providers.media.module","binder:3487_4","com.android.providers.media.module",160997369,"S","[NULL]",0,0,1737716642304,160997369,"S","[NULL]"
         """))
