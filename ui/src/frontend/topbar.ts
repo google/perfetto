@@ -14,16 +14,11 @@
 
 import m from 'mithril';
 
-import {findRef} from '../base/dom_utils';
-import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 
 import {classNames} from './classnames';
 import {globals} from './globals';
-import {Omnibox, OmniboxOption} from './omnibox';
-import {runQueryInNewTab} from './query_result_tab';
-import {executeSearch} from './search_handler';
 import {taskTracker} from './task_tracker';
 
 export const DISMISSED_PANNING_HINT_KEY = 'dismissedPanningHint';
@@ -109,211 +104,20 @@ class TraceErrorIcon implements m.ClassComponent {
 }
 
 export interface TopbarAttrs {
-  commandMode: boolean;
-  commandText: string;
-  onCommandModeChange?: (commandMode: boolean) => void;
-  onCommandValueChange?: (value: string) => void;
+  omnibox: m.Children;
 }
 
 export class Topbar implements m.ClassComponent<TopbarAttrs> {
-  private omniboxQueryValue = '';
-  private omniboxInputEl?: HTMLInputElement;
-
-  static readonly OMNIBOX_INPUT_REF = 'omnibox';
-
   view({attrs}: m.Vnode<TopbarAttrs>) {
+    const {omnibox} = attrs;
     return m(
         '.topbar',
         {class: globals.state.sidebarVisible ? '' : 'hide-sidebar'},
         globals.frontendLocalState.newVersionAvailable ?
             m(NewVersionNotification) :
-            this.renderOmnibox(attrs),
+            omnibox,
         m(Progress),
         m(HelpPanningNotification),
         m(TraceErrorIcon));
-  }
-
-  renderOmnibox(attrs: TopbarAttrs): m.Children {
-    const msgTTL = globals.state.status.timestamp + 1 - Date.now() / 1e3;
-    const engineIsBusy =
-        globals.state.engine !== undefined && !globals.state.engine.ready;
-
-    if (msgTTL > 0 || engineIsBusy) {
-      setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
-      return m(
-          `.omnibox.message-mode`,
-          m(`input[placeholder=${
-                globals.state.status.msg}][readonly][disabled][ref=omnibox]`,
-            {
-              value: '',
-            }));
-    }
-
-    const {commandMode} = attrs;
-    if (commandMode) {
-      return this.renderCommandOmnibox(attrs);
-    } else {
-      const mode = globals.state.omniboxState.mode;
-      switch (mode) {
-        case 'COMMAND':
-          // COMMAND is the previous term for query - let's avoid changing this.
-          return this.renderQueryOmnibox();
-        case 'SEARCH':
-          return this.renderSearchOmnibox(attrs);
-        default:
-          const x: never = mode;
-          throw new Error(`Unhandled omnibox mode ${x}`);
-      }
-    }
-  }
-
-  renderSearchOmnibox(attrs: TopbarAttrs): m.Children {
-    const {
-      onCommandModeChange = () => {},
-    } = attrs;
-
-    const omniboxState = globals.state.omniboxState;
-    const displayStepThrough =
-        omniboxState.omnibox.length >= 4 || omniboxState.force;
-
-    return m(Omnibox, {
-      value: globals.state.omniboxState.omnibox,
-      placeholder: 'Search...',
-      inputRef: Topbar.OMNIBOX_INPUT_REF,
-      onInput: (value, prev) => {
-        if (prev === '') {
-          if (value === '>') {
-            onCommandModeChange(true);
-            return;
-          } else if (value === ':') {
-            // Switch to query mode.
-            globals.dispatch(Actions.setOmniboxMode({mode: 'COMMAND'}));
-            return;
-          }
-        }
-        globals.dispatch(Actions.setOmnibox({omnibox: value, mode: 'SEARCH'}));
-      },
-      onClose: () => {
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
-        }
-      },
-      onSubmit: (value, _mod, shift) => {
-        executeSearch(shift);
-        globals.dispatch(
-            Actions.setOmnibox({omnibox: value, mode: 'SEARCH', force: true}));
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
-        }
-      },
-      rightContent: displayStepThrough && this.renderStepThrough(),
-    });
-  }
-
-  private renderStepThrough() {
-    return m(
-        '.stepthrough',
-        m('.current',
-          `${
-              globals.currentSearchResults.totalResults === 0 ?
-                  '0 / 0' :
-                  `${globals.state.searchIndex + 1} / ${
-                      globals.currentSearchResults.totalResults}`}`),
-        m('button',
-          {
-            onclick: () => {
-              executeSearch(true /* reverse direction */);
-            },
-          },
-          m('i.material-icons.left', 'keyboard_arrow_left')),
-        m('button',
-          {
-            onclick: () => {
-              executeSearch();
-            },
-          },
-          m('i.material-icons.right', 'keyboard_arrow_right')));
-  }
-
-  renderCommandOmnibox(attrs: TopbarAttrs): m.Children {
-    const {
-      onCommandModeChange = () => {},
-      commandText,
-      onCommandValueChange = () => {},
-    } = attrs;
-
-    const cmdMgr = globals.commandManager;
-    const filteredCmds = cmdMgr.fuzzyFilterCommands(commandText);
-    const options: OmniboxOption[] = filteredCmds.map(({segments, id}) => {
-      return {
-        key: id,
-        displayName: segments,
-      };
-    });
-
-    return m(Omnibox, {
-      value: commandText,
-      placeholder: 'Start typing a command...',
-      inputRef: Topbar.OMNIBOX_INPUT_REF,
-      extraClasses: 'command-mode',
-      options,
-      closeOnSubmit: true,
-      closeOnOutsideClick: true,
-      onInput: (value) => {
-        onCommandValueChange(value);
-      },
-      onClose: () => {
-        onCommandModeChange(false);
-        onCommandValueChange('');
-        globals.dispatch(Actions.setOmniboxMode({mode: 'SEARCH'}));
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
-        }
-      },
-      onSubmit: (key: string) => {
-        cmdMgr.runCommand(key);
-      },
-    });
-  }
-
-  renderQueryOmnibox(): m.Children {
-    const ph = 'e.g. select * from sched left join thread using(utid) limit 10';
-    return m(Omnibox, {
-      value: this.omniboxQueryValue,
-      placeholder: ph,
-      inputRef: Topbar.OMNIBOX_INPUT_REF,
-      extraClasses: 'query-mode',
-      onInput: (value) => {
-        this.omniboxQueryValue = value;
-        raf.scheduleFullRedraw();
-      },
-      onSubmit: (value, alt) => {
-        runQueryInNewTab(
-            value,
-            alt ? 'Pinned query' : 'Omnibox query',
-            alt ? undefined : 'omnibox_query');
-      },
-      onClose: () => {
-        this.omniboxQueryValue = '';
-        globals.dispatch(Actions.setOmniboxMode({mode: 'SEARCH'}));
-        if (this.omniboxInputEl) {
-          this.omniboxInputEl.blur();
-        }
-      },
-    });
-  }
-
-  oncreate({dom}: m.VnodeDOM<TopbarAttrs, this>) {
-    const el = findRef(dom, Topbar.OMNIBOX_INPUT_REF);
-    if (el && el instanceof HTMLInputElement) {
-      this.omniboxInputEl = el;
-    }
-  }
-
-  onupdate({dom}: m.VnodeDOM<TopbarAttrs, this>) {
-    const el = findRef(dom, Topbar.OMNIBOX_INPUT_REF);
-    if (el && el instanceof HTMLInputElement) {
-      this.omniboxInputEl = el;
-    }
   }
 }
