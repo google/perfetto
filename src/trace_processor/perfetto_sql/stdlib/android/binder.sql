@@ -418,3 +418,82 @@ AS
 SELECT *, 1 AS is_sync FROM android_sync_binder_metrics_by_txn
 UNION ALL
 SELECT *, 0 AS is_sync FROM android_async_binder_metrics_by_txn;
+
+-- Returns a DAG of all outgoing binder txns from a process.
+-- The roots of the graph are the threads making the txns and the graph flows from:
+-- thread -> server_process -> AIDL interface -> AIDL method.
+-- The weights of each node represent the wall execution time in the server_process.
+--
+-- @arg upid STRING   Upid of process to generate an outgoing graph for.
+-- @ret pprof BYTES   Pprof of outgoing binder txns.
+CREATE PERFETTO FUNCTION ANDROID_BINDER_OUTGOING_GRAPH(upid INT)
+RETURNS TABLE(pprof BYTES) AS
+WITH threads AS (
+  SELECT binder_txn_id, CAT_STACKS(client_thread) AS stack
+  FROM android_binder_txns
+  WHERE ($upid IS NOT NULL AND client_upid = $upid) OR ($upid IS NULL)
+), server_process AS (
+  SELECT binder_txn_id, CAT_STACKS(stack, server_process) AS stack
+  FROM android_binder_txns
+  JOIN threads USING(binder_txn_id)
+), end_points AS (
+  SELECT binder_txn_id,
+         CAT_STACKS(stack, STR_SPLIT(aidl_name, '::', IIF(aidl_name GLOB 'AIDL*', 2, 1))) AS stack
+  FROM android_binder_txns
+  JOIN server_process USING(binder_txn_id)
+), aidl_names AS (
+  SELECT binder_txn_id, server_dur,
+         CAT_STACKS(stack, STR_SPLIT(aidl_name, '::', IIF(aidl_name GLOB 'AIDL*', 3, 2))) AS stack
+  FROM android_binder_txns
+  JOIN end_points USING(binder_txn_id)
+) SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', server_dur) AS pprof
+  FROM aidl_names;
+
+-- Returns a DAG of all incoming binder txns from a process.
+-- The roots of the graph are the clients making the txns and the graph flows from:
+-- client_process -> AIDL interface -> AIDL method.
+-- The weights of each node represent the wall execution time in the server_process.
+--
+-- @arg upid STRING   Upid of process to generate an outgoing graph for.
+-- @ret pprof BYTES   Pprof of outgoing binder txns.
+CREATE PERFETTO FUNCTION ANDROID_BINDER_INCOMING_GRAPH(upid INT)
+RETURNS TABLE(pprof BYTES) AS
+WITH client_process AS (
+  SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
+  FROM android_binder_txns
+  WHERE ($upid IS NOT NULL AND server_upid = $upid) OR ($upid IS NULL)
+), end_points AS (
+  SELECT binder_txn_id,
+         CAT_STACKS(stack, STR_SPLIT(aidl_name, '::', IIF(aidl_name GLOB 'AIDL*', 2, 1))) AS stack
+  FROM android_binder_txns
+  JOIN client_process USING(binder_txn_id)
+), aidl_names AS (
+  SELECT binder_txn_id, server_dur,
+         CAT_STACKS(stack, STR_SPLIT(aidl_name, '::', IIF(aidl_name GLOB 'AIDL*', 3, 2))) AS stack
+  FROM android_binder_txns
+  JOIN end_points USING(binder_txn_id)
+) SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', server_dur) AS pprof
+  FROM aidl_names;
+
+-- Returns a graph of all binder txns in a trace.
+-- The nodes are client_process and server_process.
+-- The weights of each node represent the wall execution time in the server_process.
+--
+-- @arg min_client_oom_score INT   Matches txns from client_processes greater than or equal to the OOM score.
+-- @arg max_client_oom_score INT   Matches txns from client_processes less than or equal to the OOM score.
+-- @arg min_server_oom_score INT   Matches txns to server_processes greater than or equal to the OOM score.
+-- @arg max_server_oom_score INT   Matches txns to server_processes less than or equal to the OOM score.
+-- @ret pprof BYTES                Pprof of binder txns.
+CREATE PERFETTO FUNCTION ANDROID_BINDER_GRAPH(min_client_oom_score INT, max_client_oom_score INT, min_server_oom_score INT, max_server_oom_score INT)
+RETURNS TABLE(pprof BYTES) AS
+WITH clients AS (
+  SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
+   FROM android_binder_txns
+   WHERE client_oom_score BETWEEN $min_client_oom_score AND $max_client_oom_score
+), servers AS (
+  SELECT binder_txn_id, server_dur, CAT_STACKS(stack, server_process) AS stack
+  FROM android_binder_txns
+  JOIN clients USING(binder_txn_id)
+  WHERE server_oom_score BETWEEN $min_server_oom_score AND $max_server_oom_score
+) SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', server_dur) AS pprof
+  FROM servers;
