@@ -17,10 +17,6 @@ import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 import {base64Encode} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
-import {
-  ConsumerPort,
-  TraceConfig,
-} from '../common/protos';
 import {genTraceConfig} from '../common/recordingV2/recording_config_utils';
 import {TargetInfo} from '../common/recordingV2/recording_interfaces_v2';
 import {
@@ -29,6 +25,10 @@ import {
   isChromeTarget,
   RecordingTarget,
 } from '../common/state';
+import {
+  ConsumerPort,
+  TraceConfig,
+} from '../core/protos';
 import {globals} from '../frontend/globals';
 import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 
