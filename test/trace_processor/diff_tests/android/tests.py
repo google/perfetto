@@ -480,6 +480,37 @@ class Android(TestSuite):
         query=Metric('android_monitor_contention'),
         out=Path('android_monitor_contention.out'))
 
+  def test_monitor_contention_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+        SELECT IMPORT('android.monitor_contention');
+
+        SELECT HEX(pprof) FROM android_monitor_contention_graph(303)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        Sample:
+        Values: 29604
+        Stack:
+        android.bg:android.os.MessageQueue.nativeWake (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+
+        Sample:
+        Values: 66924
+        Stack:
+        android.bg:android.os.MessageQueue.enqueueMessage (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+
+        Sample:
+        Values: 73265
+        Stack:
+        main:android.os.MessageQueue.enqueueMessage (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+        """))
+
   def test_thread_creation_spam(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),

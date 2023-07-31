@@ -370,3 +370,40 @@ SELECT
 FROM android_monitor_contention_chain_thread_state
 WHERE blocked_function IS NOT NULL
 GROUP BY id, blocked_function;
+
+-- Returns a DAG of all Java lock contentions in a process.
+-- Each node in the graph is a <thread:Java method> pair.
+-- Each edge connects from a node waiting on a lock to a node holding a lock.
+-- The weights of each node represent the cumulative wall time the node blocked
+-- other nodes connected to it.
+--
+-- @arg upid INT      Upid of process to generate a lock graph for.
+-- @ret pprof BYTES   Pprof of lock graph.
+CREATE PERFETTO FUNCTION android_monitor_contention_graph(upid INT)
+RETURNS TABLE(pprof BYTES) AS
+WITH contention_chain AS (
+SELECT *,
+       IIF(blocked_thread_name LIKE 'binder:%', 'binder', blocked_thread_name)
+        AS blocked_thread_name_norm,
+       IIF(blocking_thread_name LIKE 'binder:%', 'binder', blocking_thread_name)
+        AS blocking_thread_name_norm
+FROM android_monitor_contention_chain WHERE upid = $upid
+GROUP BY id, parent_id
+), graph AS (
+SELECT
+  id,
+  dur,
+  CAT_STACKS(blocked_thread_name_norm || ':' || short_blocked_method,
+    blocking_thread_name_norm || ':' || short_blocking_method) AS stack
+FROM contention_chain
+WHERE parent_id IS NULL
+UNION ALL
+SELECT
+c.id,
+c.dur AS dur,
+  CAT_STACKS(blocked_thread_name_norm || ':' || short_blocked_method,
+             blocking_thread_name_norm || ':' || short_blocking_method, stack) AS stack
+FROM contention_chain c, graph AS p
+WHERE p.id = c.parent_id
+) SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof
+  FROM graph;
