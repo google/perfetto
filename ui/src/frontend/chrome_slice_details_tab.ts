@@ -65,6 +65,10 @@ function getPidFromSlice(slice: SliceDetails): number|undefined {
   return slice.process?.pid;
 }
 
+function getUpidFromSlice(slice: SliceDetails): number|undefined {
+  return slice.process?.upid;
+}
+
 function getProcessNameFromSlice(slice: SliceDetails): string|undefined {
   return slice.process?.name;
 }
@@ -139,44 +143,11 @@ const ITEMS: ContextMenuItem[] = [
     name: 'Lock graph',
     shouldDisplay: (slice: SliceDetails) => hasId(slice),
     run: (slice: SliceDetails) => runQueryInNewTab(
-        `SELECT IMPORT('android.monitor_contention');
-         DROP TABLE IF EXISTS FAST;
-         CREATE TABLE FAST
-         AS
-         WITH slice_process AS (
-         SELECT process.name, process.upid FROM slice
-         JOIN thread_track ON thread_track.id = slice.track_id
-         JOIN thread USING(utid)
-         JOIN process USING(upid)
-         WHERE slice.id = ${slice.id}
-         )
-         SELECT *,
-         IIF(blocked_thread_name LIKE 'binder:%', 'binder', blocked_thread_name)
-          AS blocked_thread_name_norm,
-         IIF(blocking_thread_name LIKE 'binder:%', 'binder', blocking_thread_name)
-          AS blocking_thread_name_norm
-         FROM android_monitor_contention_chain, slice_process
-         WHERE android_monitor_contention_chain.upid = slice_process.upid;
+        `
+         SELECT IMPORT('android.monitor_contention');
 
-         WITH
-         R AS (
-         SELECT
-           id,
-           dur,
-           CAT_STACKS(blocked_thread_name_norm || ':' || short_blocked_method,
-             blocking_thread_name_norm || ':' || short_blocking_method) AS stack
-         FROM FAST
-         WHERE parent_id IS NULL
-         UNION ALL
-         SELECT
-         c.id,
-         c.dur AS dur,
-         CAT_STACKS(stack, blocking_thread_name_norm || ':' || short_blocking_method) AS stack
-         FROM FAST c, R AS p
-         WHERE p.id = c.parent_id
-         )
-         SELECT TITLE.process_name, EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof
-         FROM R, (SELECT process_name FROM FAST LIMIT 1) TITLE;`,
+         SELECT * FROM android_monitor_contention_graph(${getUpidFromSlice(slice)});
+        `,
         'Lock graph',
         ),
   },
