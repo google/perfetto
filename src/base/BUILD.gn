@@ -233,13 +233,12 @@ perfetto_unittest_source_set("unittests") {
     deps += [ "//third_party/fuchsia-sdk/sdk/pkg/fdio" ]
   }
   if (perfetto_build_standalone || perfetto_build_with_android) {
+    sources += [ "unix_socket_unittest.cc" ]
+    deps += [ ":unix_socket" ]
+
     # This causes some problems on the chromium waterfall.
     if (is_linux || is_android) {
       sources += [ "watchdog_unittest.cc" ]
-    }
-    if (!is_win) {
-      sources += [ "unix_socket_unittest.cc" ]
-      deps += [ ":unix_socket" ]
     }
   }
 }
