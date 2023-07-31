@@ -74,7 +74,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_flat_slice.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h"
 #include "src/trace_processor/perfetto_sql/prelude/tables_views.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
@@ -359,8 +359,8 @@ void InitializePreludeTablesViews(sqlite3* db) {
 
 template <typename View>
 void TraceProcessorImpl::RegisterView(const View& view) {
-  RegisterTableFunction(std::unique_ptr<TableFunction>(
-      new ViewTableFunction(&view, View::Name())));
+  RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction>(
+      new ViewStaticTableFunction(&view, View::Name())));
 }
 
 TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
@@ -500,35 +500,35 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
       "stats", storage, SqliteTable::TableType::kEponymousOnly, false);
 
   // Tables dynamically generated at query time.
-  RegisterTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
+  RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlamegraph>(
       new ExperimentalFlamegraph(&context_)));
-  RegisterTableFunction(std::unique_ptr<ExperimentalCounterDur>(
+  RegisterStaticTableFunction(std::unique_ptr<ExperimentalCounterDur>(
       new ExperimentalCounterDur(storage->counter_table())));
-  RegisterTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
+  RegisterStaticTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
       new ExperimentalSliceLayout(context_.storage.get()->mutable_string_pool(),
                                   &storage->slice_table())));
-  RegisterTableFunction(std::unique_ptr<Ancestor>(
+  RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
       new Ancestor(Ancestor::Type::kSlice, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<Ancestor>(new Ancestor(
+  RegisterStaticTableFunction(std::unique_ptr<Ancestor>(new Ancestor(
       Ancestor::Type::kStackProfileCallsite, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<Ancestor>(
+  RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
       new Ancestor(Ancestor::Type::kSliceByStack, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<Descendant>(
+  RegisterStaticTableFunction(std::unique_ptr<Descendant>(
       new Descendant(Descendant::Type::kSlice, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<Descendant>(
+  RegisterStaticTableFunction(std::unique_ptr<Descendant>(
       new Descendant(Descendant::Type::kSliceByStack, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+  RegisterStaticTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
       ConnectedFlow::Mode::kDirectlyConnectedFlow, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+  RegisterStaticTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
       ConnectedFlow::Mode::kPrecedingFlow, context_.storage.get())));
-  RegisterTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
+  RegisterStaticTableFunction(std::unique_ptr<ConnectedFlow>(new ConnectedFlow(
       ConnectedFlow::Mode::kFollowingFlow, context_.storage.get())));
-  RegisterTableFunction(
+  RegisterStaticTableFunction(
       std::unique_ptr<ExperimentalSchedUpid>(new ExperimentalSchedUpid(
           storage->sched_slice_table(), storage->thread_table())));
-  RegisterTableFunction(std::unique_ptr<ExperimentalAnnotatedStack>(
+  RegisterStaticTableFunction(std::unique_ptr<ExperimentalAnnotatedStack>(
       new ExperimentalAnnotatedStack(&context_)));
-  RegisterTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
+  RegisterStaticTableFunction(std::unique_ptr<ExperimentalFlatSlice>(
       new ExperimentalFlatSlice(&context_)));
 
   // Views.
@@ -538,85 +538,85 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   // Note: if adding a table here which might potentially contain many rows
   // (O(rows in sched/slice/counter)), then consider calling ShrinkToFit on
   // that table in TraceStorage::ShrinkToFitTables.
-  RegisterDbTable(storage->arg_table());
-  RegisterDbTable(storage->raw_table());
-  RegisterDbTable(storage->ftrace_event_table());
-  RegisterDbTable(storage->thread_table());
-  RegisterDbTable(storage->process_table());
-  RegisterDbTable(storage->filedescriptor_table());
+  RegisterStaticTable(storage->arg_table());
+  RegisterStaticTable(storage->raw_table());
+  RegisterStaticTable(storage->ftrace_event_table());
+  RegisterStaticTable(storage->thread_table());
+  RegisterStaticTable(storage->process_table());
+  RegisterStaticTable(storage->filedescriptor_table());
 
-  RegisterDbTable(storage->slice_table());
-  RegisterDbTable(storage->flow_table());
-  RegisterDbTable(storage->slice_table());
-  RegisterDbTable(storage->sched_slice_table());
-  RegisterDbTable(storage->spurious_sched_wakeup_table());
-  RegisterDbTable(storage->thread_state_table());
-  RegisterDbTable(storage->gpu_slice_table());
+  RegisterStaticTable(storage->slice_table());
+  RegisterStaticTable(storage->flow_table());
+  RegisterStaticTable(storage->slice_table());
+  RegisterStaticTable(storage->sched_slice_table());
+  RegisterStaticTable(storage->spurious_sched_wakeup_table());
+  RegisterStaticTable(storage->thread_state_table());
+  RegisterStaticTable(storage->gpu_slice_table());
 
-  RegisterDbTable(storage->track_table());
-  RegisterDbTable(storage->thread_track_table());
-  RegisterDbTable(storage->process_track_table());
-  RegisterDbTable(storage->cpu_track_table());
-  RegisterDbTable(storage->gpu_track_table());
+  RegisterStaticTable(storage->track_table());
+  RegisterStaticTable(storage->thread_track_table());
+  RegisterStaticTable(storage->process_track_table());
+  RegisterStaticTable(storage->cpu_track_table());
+  RegisterStaticTable(storage->gpu_track_table());
 
-  RegisterDbTable(storage->counter_table());
+  RegisterStaticTable(storage->counter_table());
 
-  RegisterDbTable(storage->counter_track_table());
-  RegisterDbTable(storage->process_counter_track_table());
-  RegisterDbTable(storage->thread_counter_track_table());
-  RegisterDbTable(storage->cpu_counter_track_table());
-  RegisterDbTable(storage->irq_counter_track_table());
-  RegisterDbTable(storage->softirq_counter_track_table());
-  RegisterDbTable(storage->gpu_counter_track_table());
-  RegisterDbTable(storage->gpu_counter_group_table());
-  RegisterDbTable(storage->perf_counter_track_table());
-  RegisterDbTable(storage->energy_counter_track_table());
-  RegisterDbTable(storage->uid_counter_track_table());
-  RegisterDbTable(storage->energy_per_uid_counter_track_table());
+  RegisterStaticTable(storage->counter_track_table());
+  RegisterStaticTable(storage->process_counter_track_table());
+  RegisterStaticTable(storage->thread_counter_track_table());
+  RegisterStaticTable(storage->cpu_counter_track_table());
+  RegisterStaticTable(storage->irq_counter_track_table());
+  RegisterStaticTable(storage->softirq_counter_track_table());
+  RegisterStaticTable(storage->gpu_counter_track_table());
+  RegisterStaticTable(storage->gpu_counter_group_table());
+  RegisterStaticTable(storage->perf_counter_track_table());
+  RegisterStaticTable(storage->energy_counter_track_table());
+  RegisterStaticTable(storage->uid_counter_track_table());
+  RegisterStaticTable(storage->energy_per_uid_counter_track_table());
 
-  RegisterDbTable(storage->heap_graph_object_table());
-  RegisterDbTable(storage->heap_graph_reference_table());
-  RegisterDbTable(storage->heap_graph_class_table());
+  RegisterStaticTable(storage->heap_graph_object_table());
+  RegisterStaticTable(storage->heap_graph_reference_table());
+  RegisterStaticTable(storage->heap_graph_class_table());
 
-  RegisterDbTable(storage->symbol_table());
-  RegisterDbTable(storage->heap_profile_allocation_table());
-  RegisterDbTable(storage->cpu_profile_stack_sample_table());
-  RegisterDbTable(storage->perf_sample_table());
-  RegisterDbTable(storage->stack_profile_callsite_table());
-  RegisterDbTable(storage->stack_profile_mapping_table());
-  RegisterDbTable(storage->stack_profile_frame_table());
-  RegisterDbTable(storage->package_list_table());
-  RegisterDbTable(storage->profiler_smaps_table());
+  RegisterStaticTable(storage->symbol_table());
+  RegisterStaticTable(storage->heap_profile_allocation_table());
+  RegisterStaticTable(storage->cpu_profile_stack_sample_table());
+  RegisterStaticTable(storage->perf_sample_table());
+  RegisterStaticTable(storage->stack_profile_callsite_table());
+  RegisterStaticTable(storage->stack_profile_mapping_table());
+  RegisterStaticTable(storage->stack_profile_frame_table());
+  RegisterStaticTable(storage->package_list_table());
+  RegisterStaticTable(storage->profiler_smaps_table());
 
-  RegisterDbTable(storage->android_log_table());
-  RegisterDbTable(storage->android_dumpstate_table());
-  RegisterDbTable(storage->android_game_intervention_list_table());
+  RegisterStaticTable(storage->android_log_table());
+  RegisterStaticTable(storage->android_dumpstate_table());
+  RegisterStaticTable(storage->android_game_intervention_list_table());
 
-  RegisterDbTable(storage->vulkan_memory_allocations_table());
+  RegisterStaticTable(storage->vulkan_memory_allocations_table());
 
-  RegisterDbTable(storage->graphics_frame_slice_table());
+  RegisterStaticTable(storage->graphics_frame_slice_table());
 
-  RegisterDbTable(storage->expected_frame_timeline_slice_table());
-  RegisterDbTable(storage->actual_frame_timeline_slice_table());
+  RegisterStaticTable(storage->expected_frame_timeline_slice_table());
+  RegisterStaticTable(storage->actual_frame_timeline_slice_table());
 
-  RegisterDbTable(storage->surfaceflinger_layers_snapshot_table());
-  RegisterDbTable(storage->surfaceflinger_layer_table());
-  RegisterDbTable(storage->surfaceflinger_transactions_table());
+  RegisterStaticTable(storage->surfaceflinger_layers_snapshot_table());
+  RegisterStaticTable(storage->surfaceflinger_layer_table());
+  RegisterStaticTable(storage->surfaceflinger_transactions_table());
 
-  RegisterDbTable(storage->metadata_table());
-  RegisterDbTable(storage->cpu_table());
-  RegisterDbTable(storage->cpu_freq_table());
-  RegisterDbTable(storage->clock_snapshot_table());
+  RegisterStaticTable(storage->metadata_table());
+  RegisterStaticTable(storage->cpu_table());
+  RegisterStaticTable(storage->cpu_freq_table());
+  RegisterStaticTable(storage->clock_snapshot_table());
 
-  RegisterDbTable(storage->memory_snapshot_table());
-  RegisterDbTable(storage->process_memory_snapshot_table());
-  RegisterDbTable(storage->memory_snapshot_node_table());
-  RegisterDbTable(storage->memory_snapshot_edge_table());
+  RegisterStaticTable(storage->memory_snapshot_table());
+  RegisterStaticTable(storage->process_memory_snapshot_table());
+  RegisterStaticTable(storage->memory_snapshot_node_table());
+  RegisterStaticTable(storage->memory_snapshot_edge_table());
 
-  RegisterDbTable(storage->experimental_proto_path_table());
-  RegisterDbTable(storage->experimental_proto_content_table());
+  RegisterStaticTable(storage->experimental_proto_path_table());
+  RegisterStaticTable(storage->experimental_proto_content_table());
 
-  RegisterDbTable(storage->experimental_missing_chrome_processes_table());
+  RegisterStaticTable(storage->experimental_missing_chrome_processes_table());
 }
 
 TraceProcessorImpl::~TraceProcessorImpl() = default;

@@ -19,13 +19,13 @@
 
 #include <set>
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ExperimentalSchedUpid : public TableFunction {
+class ExperimentalSchedUpid : public StaticTableFunction {
  public:
   ExperimentalSchedUpid(const tables::SchedSliceTable&,
                         const tables::ThreadTable&);
