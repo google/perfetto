@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CREATED_TABLE_FUNCTION_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CREATED_TABLE_FUNCTION_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_
 
 #include <optional>
 
@@ -29,11 +29,11 @@ class PerfettoSqlEngine;
 
 // The implementation of the SqliteTable interface for table functions defined
 // at runtime using SQL.
-class CreatedTableFunction final
-    : public TypedSqliteTable<CreatedTableFunction, PerfettoSqlEngine*> {
+class RuntimeTableFunction final
+    : public TypedSqliteTable<RuntimeTableFunction, PerfettoSqlEngine*> {
  public:
-  // The state of this function. This is separated from |CreatedTableFunction|
-  // because |CreatedTableFunction| is owned by Sqlite while |State| is owned by
+  // The state of this function. This is separated from |RuntimeTableFunction|
+  // because |RuntimeTableFunction| is owned by Sqlite while |State| is owned by
   // PerfettoSqlEngine.
   struct State {
     std::string prototype_str;
@@ -68,7 +68,7 @@ class CreatedTableFunction final
   };
   class Cursor final : public SqliteTable::BaseCursor {
    public:
-    explicit Cursor(CreatedTableFunction* table, State* state);
+    explicit Cursor(RuntimeTableFunction* table, State* state);
     ~Cursor() final;
 
     base::Status Filter(const QueryConstraints& qc,
@@ -79,7 +79,7 @@ class CreatedTableFunction final
     base::Status Column(sqlite3_context* context, int N);
 
    private:
-    CreatedTableFunction* table_ = nullptr;
+    RuntimeTableFunction* table_ = nullptr;
     State* state_ = nullptr;
 
     std::optional<SqliteEngine::PreparedStatement> stmt_;
@@ -89,8 +89,8 @@ class CreatedTableFunction final
     int next_call_count_ = 0;
   };
 
-  CreatedTableFunction(sqlite3*, PerfettoSqlEngine*);
-  ~CreatedTableFunction() final;
+  RuntimeTableFunction(sqlite3*, PerfettoSqlEngine*);
+  ~RuntimeTableFunction() final;
 
   base::Status Init(int argc, const char* const* argv, Schema*) final;
   std::unique_ptr<SqliteTable::BaseCursor> CreateCursor() final;
@@ -106,4 +106,4 @@ class CreatedTableFunction final
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_CREATED_TABLE_FUNCTION_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_RUNTIME_TABLE_FUNCTION_H_

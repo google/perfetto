@@ -19,16 +19,16 @@
 
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "src/trace_processor/db/view.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-class ViewTableFunction : public TableFunction {
+class ViewStaticTableFunction : public StaticTableFunction {
  public:
-  explicit ViewTableFunction(const View*, const char* name);
-  ~ViewTableFunction() override;
+  explicit ViewStaticTableFunction(const View*, const char* name);
+  ~ViewStaticTableFunction() override;
 
   Table::Schema CreateSchema() override;
   std::string TableName() override;

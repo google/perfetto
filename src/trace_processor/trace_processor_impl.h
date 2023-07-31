@@ -108,12 +108,12 @@ class TraceProcessorImpl : public TraceProcessor,
   friend class IteratorImpl;
 
   template <typename Table>
-  void RegisterDbTable(const Table& table) {
-    engine_.RegisterTable(table, Table::Name());
+  void RegisterStaticTable(const Table& table) {
+    engine_.RegisterStaticTable(table, Table::Name());
   }
 
-  void RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
-    engine_.RegisterTableFunction(std::move(fn));
+  void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn) {
+    engine_.RegisterStaticTableFunction(std::move(fn));
   }
 
   template <typename View>
