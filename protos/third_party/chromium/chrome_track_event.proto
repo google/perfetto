@@ -750,6 +750,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_LOW_PRIORITY_SCRIPT_EXECUTION = 81;
     TASK_TYPE_STORAGE = 82;
     TASK_TYPE_NETWORKING_UNFREEZABLE_IMAGE_LOADING = 83;
+    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY = 84;
   }
 
   enum FrameType {
@@ -806,6 +807,9 @@ message EventLatency {
   // This is same as LatencyInfo's trace_id, using the name event_latency_id to
   // move away from the generic trace_id name used at other places as well.
   optional int64 event_latency_id = 4;
+  // This is set only for scroll updates and is based on the
+  // Event.ScrollJank.DelayedFramesPercentage.FixedWindow metric.
+  optional bool is_janky_scrolled_frame = 5;
 }
 
 message ProcessSingleton {
@@ -950,6 +954,8 @@ message SequenceManagerTask {
 
     UI_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 54;
     IO_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 55;
+
+    V8_LOW_PRIORITY_TQ = 56;
   }
 
   optional Priority priority = 1;
