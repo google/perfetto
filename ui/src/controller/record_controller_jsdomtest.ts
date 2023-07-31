@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
-import {TraceConfig} from '../common/protos';
+import {TraceConfig} from '../core/protos';
 
 import {createEmptyRecordConfig} from './record_config_types';
 import {genConfigProto, toPbtxt} from './record_controller';
