@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnType} from '../common/query_result';
-
 export type ComparisonFn<X> = (a: X, b: X) => number;
 
 export type SortDirection = 'DESC'|'ASC';
@@ -39,7 +37,7 @@ export function withDirection<T>(
   };
 }
 
-export type SortableValue = ColumnType|undefined;
+export type SortableValue = string|number|bigint|null|Uint8Array|undefined;
 
 function columnTypeKind(a: SortableValue): number {
   if (a === undefined) {
