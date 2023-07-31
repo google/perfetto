@@ -18,17 +18,17 @@ import {Client} from 'noice-json-rpc';
 
 import {base64Encode} from '../base/string_utils';
 import {
-  browserSupportsPerfettoConfig,
-  extractTraceConfig,
-  hasSystemDataSourceConfig,
-} from '../base/trace_config_utils';
-import {TraceConfig} from '../common/protos';
-import {
   ConsumerPortResponse,
   GetTraceStatsResponse,
   ReadBuffersResponse,
 } from '../controller/consumer_port_types';
 import {RpcConsumerPort} from '../controller/record_controller_interfaces';
+import {TraceConfig} from '../core/protos';
+import {
+  browserSupportsPerfettoConfig,
+  extractTraceConfig,
+  hasSystemDataSourceConfig,
+} from '../core/trace_config_utils';
 import {perfetto} from '../gen/protos';
 
 import {DevToolsSocket} from './devtools_socket';
