@@ -91,6 +91,7 @@ void InitializePerfetto() {
   // are going to use the system-wide tracing service, so that we can see our
   // app's events in context with system profiling information.
   args.backends = perfetto::kSystemBackend;
+  args.enable_system_consumer = false;
 
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();
