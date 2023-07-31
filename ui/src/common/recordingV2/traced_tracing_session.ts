@@ -34,7 +34,7 @@ import {
   ReadBuffersRequest,
   ReadBuffersResponse,
   TraceConfig,
-} from '../protos';
+} from '../../core/protos';
 
 import {RecordingError} from './recording_error_handling';
 import {
