@@ -144,16 +144,11 @@ RULES = [
         r'/controller/.*',
         'trying to reduce the dependency mess as we refactor into core',
     ),
-
-    # Fails at the moment due to:
-    # ui/src/base/comparison_utils.ts
-    #    -> ui/src/common/query_result.ts
-    #    -> ui/src/core/static_initializers.ts
-    #NoDep(
-    #  r'/base/.*',
-    #  r'/core/.*',
-    #  'core should depend on base not the other way round',
-    #),
+    NoDep(
+        r'/base/.*',
+        r'/core/.*',
+        'core should depend on base not the other way round',
+    ),
 
     # Fails at the moment as we have several circular dependencies. One
     # example:
