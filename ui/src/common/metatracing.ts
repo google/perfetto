@@ -163,3 +163,31 @@ export function traceEventEnd(traceEvent: TraceEventScope) {
     traceEvents.shift();
   }
 }
+
+// Flatten arbitrary values so they can be used as args in traceEvent() et al.
+export function flattenArgs(
+    input: unknown, parentKey = ''): {[key: string]: string} {
+  if (typeof input !== 'object' || input === null) {
+    return {[parentKey]: String(input)};
+  }
+
+  if (Array.isArray(input)) {
+    const result: Record<string, string> = {};
+
+    (input as Array<unknown>).forEach((item, index) => {
+      const arrayKey = `${parentKey}[${index}]`;
+      Object.assign(result, flattenArgs(item, arrayKey));
+    });
+
+    return result;
+  }
+
+  const result: Record<string, string> = {};
+
+  Object.entries(input as Record<string, unknown>).forEach(([key, value]) => {
+    const newKey = parentKey ? `${parentKey}.${key}` : key;
+    Object.assign(result, flattenArgs(value, newKey));
+  });
+
+  return result;
+}
