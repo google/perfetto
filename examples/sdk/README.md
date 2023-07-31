@@ -67,6 +67,10 @@ To build:
 ```bash
 export NDK=/path/to/ndk
 cmake -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+      -DANDROID_ABI=arm64-v8a \
+      -DANDROID_PLATFORM=android-21 \
+      -DANDROID_LD=lld \
+      -DCMAKE_BUILD_TYPE=Release \
       -B build_android
 cmake --build build_android
 ```
