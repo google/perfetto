@@ -339,10 +339,10 @@ def comment_and_vote_cl(handler):
         for (job_id, status) in failed_jobs.iteritems()
     ])
   if passed_jobs:
-    msg += 'PASS:\n'
+    msg += '#\nPASS:\n'
     msg += ''.join(['- %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
   if ui_links:
-    msg += 'Artifacts:\n' + ''.join('- %s\n' % link for link in ui_links)
+    msg += '\nArtifacts:\n' + ''.join('- %s\n' % link for link in ui_links)
   msg += 'CI page for this CL:\n'
   msg += '- https://ci.perfetto.dev/#!/cls/%s\n' % cl_and_ps.split('-')[0]
   body = {'labels': {}, 'message': msg}
