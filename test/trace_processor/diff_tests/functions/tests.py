@@ -17,26 +17,8 @@ from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import PrintProfileProto
 from google.protobuf import text_format
-
-
-def PrintProfileProto(profile):
-  locations = {l.id: l for l in profile.location}
-  functions = {f.id: f for f in profile.function}
-  samples = []
-  for s in profile.sample:
-    stack = []
-    for location in [locations[id] for id in s.location_id]:
-      for function in [functions[l.function_id] for l in location.line]:
-        stack.append("{name} ({address})".format(
-            name=profile.string_table[function.name],
-            address=hex(location.address)))
-      if len(location.line) == 0:
-        stack.append("({address})".format(address=hex(location.address)))
-    samples.append('Sample:\nValues: {values}\nStack:\n{stack}'.format(
-        values=', '.join(map(str, s.value)), stack='\n'.join(stack)))
-  return '\n\n'.join(sorted(samples)) + '\n'
-
 
 class Functions(TestSuite):
 
