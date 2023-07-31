@@ -401,56 +401,38 @@ struct MetricNameAndPath {
 };
 
 base::Status RunMetrics(const std::vector<MetricNameAndPath>& metrics,
-                        OutputFormat format,
-                        const google::protobuf::DescriptorPool& pool) {
+                        OutputFormat format) {
   std::vector<std::string> metric_names(metrics.size());
   for (size_t i = 0; i < metrics.size(); ++i) {
     metric_names[i] = metrics[i].name;
   }
 
-  if (format == OutputFormat::kTextProto) {
-    std::string out;
-    base::Status status =
-        g_tp->ComputeMetricText(metric_names, TraceProcessor::kProtoText, &out);
-    if (!status.ok()) {
-      return status;
-    }
-    out += '\n';
-    fwrite(out.c_str(), sizeof(char), out.size(), stdout);
-    return base::OkStatus();
-  }
-
-  std::vector<uint8_t> metric_result;
-  RETURN_IF_ERROR(g_tp->ComputeMetric(metric_names, &metric_result));
   switch (format) {
-    case OutputFormat::kJson: {
-      // TODO(b/182165266): Handle this using ComputeMetricText.
-      google::protobuf::DynamicMessageFactory factory(&pool);
-      auto* descriptor =
-          pool.FindMessageTypeByName("perfetto.protos.TraceMetrics");
-      std::unique_ptr<google::protobuf::Message> metric_msg(
-          factory.GetPrototype(descriptor)->New());
-      metric_msg->ParseFromArray(metric_result.data(),
-                                 static_cast<int>(metric_result.size()));
-
-      // We need to instantiate field options from dynamic message factory
-      // because otherwise it cannot parse our custom extensions.
-      const google::protobuf::Message* field_options_prototype =
-          factory.GetPrototype(
-              pool.FindMessageTypeByName("google.protobuf.FieldOptions"));
-      auto out = proto_to_json::MessageToJsonWithAnnotations(
-          *metric_msg, field_options_prototype, 0);
-      fwrite(out.c_str(), sizeof(char), out.size(), stdout);
-      break;
-    }
-    case OutputFormat::kBinaryProto:
+    case OutputFormat::kBinaryProto: {
+      std::vector<uint8_t> metric_result;
+      RETURN_IF_ERROR(g_tp->ComputeMetric(metric_names, &metric_result));
       fwrite(metric_result.data(), sizeof(uint8_t), metric_result.size(),
              stdout);
       break;
+    }
+    case OutputFormat::kJson: {
+      std::string out;
+      RETURN_IF_ERROR(g_tp->ComputeMetricText(
+          metric_names, TraceProcessor::MetricResultFormat::kJson, &out));
+      out += '\n';
+      fwrite(out.c_str(), sizeof(char), out.size(), stdout);
+      break;
+    }
+    case OutputFormat::kTextProto: {
+      std::string out;
+      RETURN_IF_ERROR(g_tp->ComputeMetricText(
+          metric_names, TraceProcessor::MetricResultFormat::kProtoText, &out));
+      out += '\n';
+      fwrite(out.c_str(), sizeof(char), out.size(), stdout);
+      break;
+    }
     case OutputFormat::kNone:
       break;
-    case OutputFormat::kTextProto:
-      PERFETTO_FATAL("This case was already handled.");
   }
 
   return base::OkStatus();
@@ -1495,7 +1477,7 @@ base::Status StartInteractiveShell(const InteractiveOptions& options) {
         }
 
         base::Status status =
-            RunMetrics(options.metrics, options.metric_format, *options.pool);
+            RunMetrics(options.metrics, options.metric_format);
         if (!status.ok()) {
           fprintf(stderr, "%s\n", status.c_message());
         }
@@ -1660,7 +1642,7 @@ base::Status TraceProcessorMain(int argc, char** argv) {
 
   OutputFormat metric_format = ParseOutputFormat(options);
   if (!metrics.empty()) {
-    RETURN_IF_ERROR(RunMetrics(metrics, metric_format, pool));
+    RETURN_IF_ERROR(RunMetrics(metrics, metric_format));
   }
 
   if (!options.query_file_path.empty()) {
