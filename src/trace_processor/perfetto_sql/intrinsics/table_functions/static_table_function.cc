@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-TableFunction::~TableFunction() = default;
+StaticTableFunction::~StaticTableFunction() = default;
 
 }  // namespace trace_processor
 }  // namespace perfetto

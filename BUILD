@@ -2104,14 +2104,14 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/perfetto_sql/engine/created_function.cc",
         "src/trace_processor/perfetto_sql/engine/created_function.h",
-        "src/trace_processor/perfetto_sql/engine/created_table_function.cc",
-        "src/trace_processor/perfetto_sql/engine/created_table_function.h",
         "src/trace_processor/perfetto_sql/engine/function_util.cc",
         "src/trace_processor/perfetto_sql/engine/function_util.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h",
+        "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
+        "src/trace_processor/perfetto_sql/engine/runtime_table_function.h",
     ],
 )
 
@@ -2167,8 +2167,8 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_intrinsics_table_functions_interface",
     srcs = [
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.cc",
-        "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.cc",
+        "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h",
     ],
 )
 
