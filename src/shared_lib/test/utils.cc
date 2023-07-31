@@ -85,22 +85,37 @@ TracingSession TracingSession::Builder::Build() {
 
   PerfettoTracingSessionStartBlocking(ts);
 
+  return TracingSession::Adopt(ts);
+}
+
+TracingSession TracingSession::Adopt(
+    struct PerfettoTracingSessionImpl* session) {
   TracingSession ret;
-  ret.session_ = ts;
+  ret.session_ = session;
+  ret.stopped_ = std::make_unique<WaitableEvent>();
+  PerfettoTracingSessionSetStopCb(
+      ret.session_,
+      [](struct PerfettoTracingSessionImpl*, void* arg) {
+        static_cast<WaitableEvent*>(arg)->Notify();
+      },
+      ret.stopped_.get());
   return ret;
 }
 
 TracingSession::TracingSession(TracingSession&& other) noexcept {
   session_ = other.session_;
   other.session_ = nullptr;
+  stopped_ = std::move(other.stopped_);
+  other.stopped_ = nullptr;
 }
 
 TracingSession::~TracingSession() {
   if (!session_) {
     return;
   }
-  if (!stopped_) {
+  if (!stopped_->IsNotified()) {
     PerfettoTracingSessionStopBlocking(session_);
+    stopped_->WaitForNotification();
   }
   PerfettoTracingSessionDestroy(session_);
 }
@@ -124,8 +139,11 @@ bool TracingSession::FlushBlocking(uint32_t timeout_ms) {
   return result;
 }
 
+void TracingSession::WaitForStopped() {
+  stopped_->WaitForNotification();
+}
+
 void TracingSession::StopBlocking() {
-  stopped_ = true;
   PerfettoTracingSessionStopBlocking(session_);
 }
 

@@ -22,9 +22,11 @@
 
 #include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/abi/data_source_abi.h"
+#include "perfetto/public/abi/heap_buffer.h"
 #include "perfetto/public/compiler.h"
 #include "perfetto/public/pb_msg.h"
 #include "perfetto/public/pb_utils.h"
+#include "perfetto/public/protos/common/data_source_descriptor.pzc.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
 
 // A data source type.
@@ -40,7 +42,7 @@ struct PerfettoDs {
   { &perfetto_atomic_false, PERFETTO_NULL }
 
 // All the callbacks are optional and can be NULL if not needed.
-struct PerfettoDsCallbacks {
+struct PerfettoDsParams {
   // Instance lifecycle callbacks:
   PerfettoDsOnSetupCb on_setup_cb;
   PerfettoDsOnStartCb on_start_cb;
@@ -60,75 +62,87 @@ struct PerfettoDsCallbacks {
 
   // Passed to all the callbacks as the `user_arg` param.
   void* user_arg;
+
+  // How to behave when running out of shared memory buffer space.
+  enum PerfettoDsBufferExhaustedPolicy buffer_exhausted_policy;
 };
 
-static inline struct PerfettoDsCallbacks PerfettoDsNoCallbacks(void) {
-  struct PerfettoDsCallbacks ret = {
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL, PERFETTO_NULL};
+static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
+  struct PerfettoDsParams ret = {
+      PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_NULL,
+      PERFETTO_NULL, PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP};
   return ret;
 }
 
 // Registers the data source type `ds`, named `data_source_name` with the global
 // perfetto producer.
-//
-// `callbacks` are called when certain events happen on the data source type.
-// PerfettoDsNoCallbacks() can be used if callbacks are not needed.
-//
-// TODO(ddiproietto): Accept the full DataSourceDescriptor, not just the
-// data_source_name
 static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
                                       const char* data_source_name,
-                                      struct PerfettoDsCallbacks callbacks) {
+                                      struct PerfettoDsParams params) {
   struct PerfettoDsImpl* ds_impl;
   bool success;
-  // Build the DataSourceDescriptor protobuf message.
-  size_t data_source_name_len = strlen(data_source_name);
-  uint8_t* data_source_desc = PERFETTO_STATIC_CAST(
-      uint8_t*, malloc(data_source_name_len + PERFETTO_PB_VARINT_MAX_SIZE_32 +
-                       PERFETTO_PB_VARINT_MAX_SIZE_64));
-  uint8_t* write_ptr = data_source_desc;
-  const int32_t name_field_id = 1;  // perfetto.protos.DataSourceDescriptor.name
-  write_ptr = PerfettoPbWriteVarInt(
-      PerfettoPbMakeTag(name_field_id, PERFETTO_PB_WIRE_TYPE_DELIMITED),
-      write_ptr);
-  write_ptr = PerfettoPbWriteVarInt(data_source_name_len, write_ptr);
-  memcpy(write_ptr, data_source_name, data_source_name_len);
-  write_ptr += data_source_name_len;
+  void* desc_buf;
+  size_t desc_size;
+
+  ds->enabled = &perfetto_atomic_false;
+  ds->impl = PERFETTO_NULL;
+
+  {
+    struct PerfettoPbMsgWriter writer;
+    struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+    struct perfetto_protos_DataSourceDescriptor desc;
+    PerfettoPbMsgInit(&desc.msg, &writer);
+
+    perfetto_protos_DataSourceDescriptor_set_cstr_name(&desc, data_source_name);
+
+    desc_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+    desc_buf = malloc(desc_size);
+    PerfettoHeapBufferCopyInto(hb, &writer.writer, desc_buf, desc_size);
+    PerfettoHeapBufferDestroy(hb, &writer.writer);
+  }
+
+  if (!desc_buf) {
+    return false;
+  }
 
   ds_impl = PerfettoDsImplCreate();
-  if (callbacks.on_setup_cb) {
-    PerfettoDsSetOnSetupCallback(ds_impl, callbacks.on_setup_cb);
+  if (params.on_setup_cb) {
+    PerfettoDsSetOnSetupCallback(ds_impl, params.on_setup_cb);
   }
-  if (callbacks.on_start_cb) {
-    PerfettoDsSetOnStartCallback(ds_impl, callbacks.on_start_cb);
+  if (params.on_start_cb) {
+    PerfettoDsSetOnStartCallback(ds_impl, params.on_start_cb);
   }
-  if (callbacks.on_stop_cb) {
-    PerfettoDsSetOnStopCallback(ds_impl, callbacks.on_stop_cb);
+  if (params.on_stop_cb) {
+    PerfettoDsSetOnStopCallback(ds_impl, params.on_stop_cb);
   }
-  if (callbacks.on_flush_cb) {
-    PerfettoDsSetOnFlushCallback(ds_impl, callbacks.on_flush_cb);
+  if (params.on_flush_cb) {
+    PerfettoDsSetOnFlushCallback(ds_impl, params.on_flush_cb);
   }
-  if (callbacks.on_create_tls_cb) {
-    PerfettoDsSetOnCreateTls(ds_impl, callbacks.on_create_tls_cb);
+  if (params.on_create_tls_cb) {
+    PerfettoDsSetOnCreateTls(ds_impl, params.on_create_tls_cb);
   }
-  if (callbacks.on_delete_tls_cb) {
-    PerfettoDsSetOnDeleteTls(ds_impl, callbacks.on_delete_tls_cb);
+  if (params.on_delete_tls_cb) {
+    PerfettoDsSetOnDeleteTls(ds_impl, params.on_delete_tls_cb);
   }
-  if (callbacks.on_create_incr_cb) {
-    PerfettoDsSetOnCreateIncr(ds_impl, callbacks.on_create_incr_cb);
+  if (params.on_create_incr_cb) {
+    PerfettoDsSetOnCreateIncr(ds_impl, params.on_create_incr_cb);
   }
-  if (callbacks.on_delete_incr_cb) {
-    PerfettoDsSetOnDeleteIncr(ds_impl, callbacks.on_delete_incr_cb);
+  if (params.on_delete_incr_cb) {
+    PerfettoDsSetOnDeleteIncr(ds_impl, params.on_delete_incr_cb);
   }
-  if (callbacks.user_arg) {
-    PerfettoDsSetCbUserArg(ds_impl, callbacks.user_arg);
+  if (params.user_arg) {
+    PerfettoDsSetCbUserArg(ds_impl, params.user_arg);
+  }
+  if (params.buffer_exhausted_policy !=
+      PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP) {
+    PerfettoDsSetBufferExhaustedPolicy(ds_impl, params.buffer_exhausted_policy);
   }
 
-  success = PerfettoDsImplRegister(
-      ds_impl, &ds->enabled, data_source_desc,
-      PERFETTO_STATIC_CAST(size_t, write_ptr - data_source_desc));
-  free(data_source_desc);
+  success = PerfettoDsImplRegister(ds_impl, &ds->enabled, desc_buf, desc_size);
+  free(desc_buf);
   if (!success) {
     return false;
   }

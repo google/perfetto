@@ -45,7 +45,7 @@ bool Initialize() {
   struct PerfettoProducerInitArgs args = {0};
   args.backends = PERFETTO_BACKEND_IN_PROCESS;
   PerfettoProducerInit(args);
-  PerfettoDsRegister(&custom, kDataSourceName, PerfettoDsNoCallbacks());
+  PerfettoDsRegister(&custom, kDataSourceName, PerfettoDsParamsDefault());
   return true;
 }
 
