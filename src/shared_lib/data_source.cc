@@ -18,6 +18,7 @@
 
 #include <bitset>
 
+#include "perfetto/tracing/buffer_exhausted_policy.h"
 #include "perfetto/tracing/data_source.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "protos/perfetto/common/data_source_descriptor.gen.h"
@@ -59,6 +60,9 @@ struct PerfettoDsImpl {
 
   // Passed to all the callbacks as the `user_arg` param.
   void* cb_user_arg;
+
+  perfetto::BufferExhaustedPolicy buffer_exhausted_policy =
+      perfetto::BufferExhaustedPolicy::kDrop;
 
   DataSourceType cpp_type;
   std::atomic<bool> enabled{false};
@@ -262,6 +266,24 @@ void PerfettoDsSetCbUserArg(struct PerfettoDsImpl* ds_impl, void* user_arg) {
   ds_impl->cb_user_arg = user_arg;
 }
 
+bool PerfettoDsSetBufferExhaustedPolicy(struct PerfettoDsImpl* ds_impl,
+                                        uint32_t policy) {
+  if (ds_impl->IsRegistered()) {
+    return false;
+  }
+
+  switch (policy) {
+    case PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP:
+      ds_impl->buffer_exhausted_policy = perfetto::BufferExhaustedPolicy::kDrop;
+      return true;
+    case PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_STALL_AND_ABORT:
+      ds_impl->buffer_exhausted_policy =
+          perfetto::BufferExhaustedPolicy::kStall;
+      return true;
+  }
+  return false;
+}
+
 bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
@@ -295,7 +317,7 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
   params.supports_multiple_instances = true;
   params.requires_callbacks_under_lock = false;
   bool success = data_source_type->cpp_type.Register(
-      dsd, factory, params, perfetto::BufferExhaustedPolicy::kDrop,
+      dsd, factory, params, data_source_type->buffer_exhausted_policy,
       create_custom_tls_fn, create_incremental_state_fn, cb_ctx);
   if (!success) {
     return false;

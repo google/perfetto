@@ -29,7 +29,7 @@ int main(void) {
   PerfettoProducerInit(args);
 
   PerfettoDsRegister(&custom, "com.example.custom_data_source",
-                     PerfettoDsNoCallbacks());
+                     PerfettoDsParamsDefault());
 
   for (;;) {
     PERFETTO_DS_TRACE(custom, ctx) {
