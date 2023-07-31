@@ -512,7 +512,7 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageMetricFile) {
   ASSERT_EQ(it.Status().message(),
             R"(Traceback (most recent call last):
   File "stdin" line 1 col 1
-    select RUN_METRIC('foo/bar.sql');
+    select RUN_METRIC('foo/bar.sql')
     ^
   Metric file "foo/bar.sql" line 1 col 8
     select t from slice
@@ -534,7 +534,7 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
   ASSERT_EQ(it.Status().message(),
             R"(Traceback (most recent call last):
   File "stdin" line 1 col 1
-    select IMPORT('foo.bar');
+    select IMPORT('foo.bar')
     ^
   Module import "foo.bar" line 1 col 8
     select t from slice

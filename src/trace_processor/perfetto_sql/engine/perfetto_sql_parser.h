@@ -97,7 +97,6 @@ class PerfettoSqlParser {
 
   bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
 
-  SqlSource sql_;
   SqliteTokenizer tokenizer_;
   base::Status status_;
   std::optional<Statement> statement_;
