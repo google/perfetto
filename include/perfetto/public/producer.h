@@ -17,8 +17,11 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_PRODUCER_H_
 #define INCLUDE_PERFETTO_PUBLIC_PRODUCER_H_
 
+#include <stdint.h>
+
 #include "perfetto/public/abi/backend_type.h"
 #include "perfetto/public/abi/producer_abi.h"
+#include "perfetto/public/compiler.h"
 
 // Arguments for PerfettoProducerInit. This struct is not ABI-stable, fields can
 // be added and rearranged.
@@ -35,6 +38,20 @@ static inline void PerfettoProducerInit(struct PerfettoProducerInitArgs args) {
   if (args.backends & PERFETTO_BACKEND_SYSTEM) {
     PerfettoProducerSystemInit();
   }
+}
+
+// Informs the tracing services to activate the single trigger `trigger_name` if
+// any tracing session was waiting for it.
+//
+// Sends the trigger signal to all the initialized backends that are currently
+// connected and that connect in the next `ttl_ms` milliseconds (but
+// returns immediately anyway).
+static inline void PerfettoProducerActivateTrigger(const char* trigger_name,
+                                                   uint32_t ttl_ms) {
+  const char* trigger_names[2];
+  trigger_names[0] = trigger_name;
+  trigger_names[1] = PERFETTO_NULL;
+  PerfettoProducerActivateTriggers(trigger_names, ttl_ms);
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PRODUCER_H_

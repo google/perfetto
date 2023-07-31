@@ -25,5 +25,6 @@ source_set("protos") {
     "trace/track_event/debug_annotation.pzc.h",
     "trace/track_event/track_descriptor.pzc.h",
     "trace/track_event/track_event.pzc.h",
+    "trace/trigger.pzc.h",
   ]
 }

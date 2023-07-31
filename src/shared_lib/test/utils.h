@@ -22,6 +22,7 @@
 #include <cstdint>
 #include <functional>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <ostream>
 #include <string>
@@ -78,6 +79,9 @@ class TracingSession {
    private:
     std::string data_source_name_;
   };
+
+  static TracingSession Adopt(struct PerfettoTracingSessionImpl*);
+
   TracingSession(TracingSession&&) noexcept;
 
   ~TracingSession();
@@ -85,13 +89,14 @@ class TracingSession {
   struct PerfettoTracingSessionImpl* session() const { return session_; }
 
   bool FlushBlocking(uint32_t timeout_ms);
+  void WaitForStopped();
   void StopBlocking();
   std::vector<uint8_t> ReadBlocking();
 
  private:
   TracingSession() = default;
   struct PerfettoTracingSessionImpl* session_;
-  bool stopped_ = false;
+  std::unique_ptr<WaitableEvent> stopped_;
 };
 
 template <typename FieldSkipper>

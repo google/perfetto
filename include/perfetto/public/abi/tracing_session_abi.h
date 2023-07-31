@@ -41,6 +41,15 @@ PERFETTO_SDK_EXPORT void PerfettoTracingSessionSetup(
     void* cfg_begin,
     size_t cfg_len);
 
+typedef void (*PerfettoTracingSessionStopCb)(struct PerfettoTracingSessionImpl*,
+                                             void* user_arg);
+
+// Calls `*cb` with `user_arg` when the tracing session is stopped.
+PERFETTO_SDK_EXPORT void PerfettoTracingSessionSetStopCb(
+    struct PerfettoTracingSessionImpl*,
+    PerfettoTracingSessionStopCb cb,
+    void* user_arg);
+
 PERFETTO_SDK_EXPORT void PerfettoTracingSessionStartAsync(
     struct PerfettoTracingSessionImpl*);
 
