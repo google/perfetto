@@ -149,6 +149,16 @@ RULES = [
         r'/core/.*',
         'core should depend on base not the other way round',
     ),
+    NoDep(
+        r'/base/.*',
+        r'/common/.*',
+        'common should depend on base not the other way round',
+    ),
+    NoDep(
+        r'/common/.*',
+        r'/chrome_extension/.*',
+        'chrome_extension must be a leaf',
+    ),
 
     # Fails at the moment as we have several circular dependencies. One
     # example:

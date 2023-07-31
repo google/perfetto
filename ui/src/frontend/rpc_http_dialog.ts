@@ -17,7 +17,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {HttpRpcEngine, RPC_URL} from '../common/http_rpc_engine';
-import {StatusResult} from '../common/protos';
+import {StatusResult} from '../core/protos';
 import {VERSION} from '../gen/perfetto_version';
 import {perfetto} from '../gen/protos';
 

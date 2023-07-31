@@ -15,7 +15,6 @@
 
 import {base64Encode} from '../../base/string_utils';
 import {RecordConfig} from '../../controller/record_config_types';
-import {perfetto} from '../../gen/protos';
 import {
   AndroidLogConfig,
   AndroidLogId,
@@ -36,7 +35,8 @@ import {
   TraceConfig,
   TrackEventConfig,
   VmstatCounters,
-} from '../protos';
+} from '../../core/protos';
+import {perfetto} from '../../gen/protos';
 
 import {TargetInfo} from './recording_interfaces_v2';
 
