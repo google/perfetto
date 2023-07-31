@@ -15,16 +15,16 @@
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertTrue} from '../base/logging';
 import {Span, Time} from '../common/time';
-import {perfetto} from '../gen/protos';
-
-import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
   DisableAndReadMetatraceResult,
   QueryArgs,
   ResetTraceProcessorArgs,
-} from './protos';
+} from '../core/protos';
+import {perfetto} from '../gen/protos';
+
+import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
   LONG,
