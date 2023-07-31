@@ -81,19 +81,24 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   auto res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res}));
+  ASSERT_THAT(
+      *Parse(res),
+      testing::ElementsAre(SqliteSql{FindSubstr(res, "SELECT * FROM slice")}));
 }
 
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res.Substr(0, 20)},
-                                                SqliteSql{res.Substr(21, 15)}));
+  ASSERT_THAT(
+      *Parse(res),
+      testing::ElementsAre(SqliteSql{FindSubstr(res, "SELECT * FROM slice")},
+                           SqliteSql{FindSubstr(res, "SELECT * FROM s")}));
 }
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(SqliteSql{res.Substr(3, 16)}));
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(
+                               SqliteSql{FindSubstr(res, "SELECT * FROM s")}));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
@@ -135,10 +140,10 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(
-                               CreateFn{false, "foo()", "INT",
-                                        FindSubstr(res, "select 1;"), false},
-                               SqliteSql{FindSubstr(res, "select foo()")}));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(CreateFn{false, "foo()", "INT",
+                                            FindSubstr(res, "select 1"), false},
+                                   SqliteSql{FindSubstr(res, "select foo()")}));
 }
 
 }  // namespace

@@ -19,6 +19,7 @@
 
 #include <optional>
 #include <string_view>
+#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -67,7 +68,7 @@ enum class SqliteTokenType : uint32_t {
 // https://www2.sqlite.org/hlr40000.html
 //
 // Usage of this class:
-// SqliteTokenizer tzr(my_sql_string.c_str());
+// SqliteTokenizer tzr(std::move(my_sql_source));
 // for (auto t = tzr.Next(); t.token_type != TK_SEMI; t = tzr.Next()) {
 //   // Handle t here
 // }
@@ -91,7 +92,7 @@ class SqliteTokenizer {
     }
   };
 
-  explicit SqliteTokenizer(const char* sql);
+  explicit SqliteTokenizer(SqlSource sql);
 
   // Returns the next SQL token.
   Token Next();
@@ -102,15 +103,32 @@ class SqliteTokenizer {
   // Returns the next SQL token which is terminal.
   Token NextTerminal();
 
-  // Returns the pointer to the start of the next token which will be returned.
-  const char* ptr() const { return ptr_; }
+  // Returns an SqlSource containing all the tokens between |start| and |end|.
+  //
+  // Note: |start| and |end| must both have been previously returned by this
+  // tokenizer.
+  SqlSource Substr(Token start, Token end) const;
 
- private:
-  const unsigned char* unsigned_ptr() const {
-    return reinterpret_cast<const unsigned char*>(ptr_);
+  // Returns a traceback error message for the SqlSource backing this tokenizer
+  // pointing to |token|. See SqlSource::AsTraceback for more information about
+  // this method.
+  //
+  // Note: |token| must have been previously returned by this tokenizer.
+  std::string AsTraceback(Token) const;
+
+  // Resets this tokenizer to tokenize |source|. Any previous returned tokens
+  // are invalidated.
+  void Reset(SqlSource source) {
+    source_ = std::move(source);
+    offset_ = 0;
   }
 
-  const char* ptr_ = nullptr;
+ private:
+  SqliteTokenizer(SqliteTokenizer&&) = delete;
+  SqliteTokenizer& operator=(SqliteTokenizer&&) = delete;
+
+  SqlSource source_;
+  uint32_t offset_ = 0;
 };
 
 }  // namespace trace_processor
