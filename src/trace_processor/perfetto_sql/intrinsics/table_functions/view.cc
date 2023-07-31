@@ -19,32 +19,35 @@
 namespace perfetto {
 namespace trace_processor {
 
-ViewTableFunction::ViewTableFunction(const View* view, const char* name)
+ViewStaticTableFunction::ViewStaticTableFunction(const View* view,
+                                                 const char* name)
     : view_(view), name_(name) {}
 
-ViewTableFunction::~ViewTableFunction() = default;
+ViewStaticTableFunction::~ViewStaticTableFunction() = default;
 
-base::Status ViewTableFunction::ValidateConstraints(const QueryConstraints&) {
+base::Status ViewStaticTableFunction::ValidateConstraints(
+    const QueryConstraints&) {
   return base::OkStatus();
 }
 
-base::Status ViewTableFunction::ComputeTable(const std::vector<Constraint>& cs,
-                                             const std::vector<Order>& ob,
-                                             const BitVector& cols_used,
-                                             std::unique_ptr<Table>& table) {
+base::Status ViewStaticTableFunction::ComputeTable(
+    const std::vector<Constraint>& cs,
+    const std::vector<Order>& ob,
+    const BitVector& cols_used,
+    std::unique_ptr<Table>& table) {
   table.reset(new Table(view_->Query(cs, ob, cols_used)));
   return base::OkStatus();
 }
 
-Table::Schema ViewTableFunction::CreateSchema() {
+Table::Schema ViewStaticTableFunction::CreateSchema() {
   return view_->schema();
 }
 
-std::string ViewTableFunction::TableName() {
+std::string ViewStaticTableFunction::TableName() {
   return name_;
 }
 
-uint32_t ViewTableFunction::EstimateRowCount() {
+uint32_t ViewStaticTableFunction::EstimateRowCount() {
   return view_->EstimateRowCount();
 }
 

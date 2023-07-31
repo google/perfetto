@@ -19,7 +19,7 @@
 
 #include <optional>
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -53,7 +53,7 @@ class TraceProcessorContext;
 // (which picks all slices with ts + dur >= bound) and is more akin to doing
 // a simple ts >= bound. However, slices *will* be truncated at the end
 // if they would spill past the provided end bound.
-class ExperimentalFlatSlice : public TableFunction {
+class ExperimentalFlatSlice : public StaticTableFunction {
  public:
   ExperimentalFlatSlice(TraceProcessorContext* context);
 
