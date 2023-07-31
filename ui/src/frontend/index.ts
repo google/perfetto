@@ -25,6 +25,7 @@ import {Actions, DeferredAction, StateActions} from '../common/actions';
 import {CommandManager} from '../common/commands';
 import {createEmptyState} from '../common/empty_state';
 import {RECORDING_V2_FLAG} from '../common/feature_flags';
+import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
 import {initWasm} from '../common/wasm_engine_proxy';
@@ -86,9 +87,13 @@ class FrontendApi {
 
   dispatchMultiple(actions: DeferredAction[]) {
     const edits = actions.map((action) => {
-      return (draft: Draft<State>) => {
-        (StateActions as any)[action.type](draft, action.args);
-      };
+      return traceEvent(`action.${action.type}`, () => {
+        return (draft: Draft<State>) => {
+          (StateActions as any)[action.type](draft, action.args);
+        };
+      }, {
+        args: flattenArgs(action.args),
+      });
     });
     globals.store.edit(edits);
   }
