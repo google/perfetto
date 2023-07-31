@@ -21,7 +21,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
@@ -29,14 +29,13 @@ namespace perfetto {
 namespace trace_processor {
 
 enum class DbSqliteTableComputation {
-  // Mode when the table is static (i.e. passed in at construction
-  // time).
+  // Table is statically defined.
   kStatic,
 
-  // Mode when table is dynamically computed at filter time.
+  // Table is defined as a function.
   kTableFunction,
 
-  // Mode when table is dynamically computer at SQL runtime.
+  // Table is defined in runtime.
   kRuntime
 };
 
@@ -47,11 +46,11 @@ struct DbSqliteTableContext {
   // Only valid when computation == TableComputation::kStatic.
   const Table* static_table;
 
-  // Only valid when computation == TableComputation::kSql.
+  // Only valid when computation == TableComputation::kRuntime.
   std::unique_ptr<RuntimeTable> sql_table;
 
-  // Only valid when computation == TableComputation::kDynamic.
-  std::unique_ptr<TableFunction> generator;
+  // Only valid when computation == TableComputation::kTableFunction.
+  std::unique_ptr<StaticTableFunction> generator;
 };
 
 // Implements the SQLite table interface for db tables.
@@ -171,8 +170,8 @@ class DbSqliteTable final
   // Only valid when computation_ == TableComputation::kSql.
   std::unique_ptr<RuntimeTable> sql_table_;
 
-  // Only valid when computation_ == TableComputation::kDynamic.
-  std::unique_ptr<TableFunction> generator_;
+  // Only valid when computation_ == TableComputation::kTableFunction.
+  std::unique_ptr<StaticTableFunction> generator_;
 };
 
 }  // namespace trace_processor

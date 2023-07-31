@@ -26,9 +26,9 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
-#include "src/trace_processor/perfetto_sql/engine/created_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
@@ -93,8 +93,8 @@ base::Status AddTracebackIfNeeded(base::Status status,
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
     : query_cache_(new QueryCache()), pool_(pool), engine_(new SqliteEngine()) {
-  engine_->RegisterVirtualTableModule<CreatedTableFunction>(
-      "created_table_function", this, SqliteTable::TableType::kExplicitCreate,
+  engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
+      "runtime_table_function", this, SqliteTable::TableType::kExplicitCreate,
       false);
 }
 
@@ -102,11 +102,11 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
   // Destroying the sqlite engine should also destroy all the created table
   // functions.
   engine_.reset();
-  PERFETTO_CHECK(created_table_function_state_.size() == 0);
+  PERFETTO_CHECK(runtime_table_fn_states_.size() == 0);
 }
 
-void PerfettoSqlEngine::RegisterTable(const Table& table,
-                                      const std::string& table_name) {
+void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
+                                            const std::string& table_name) {
   DbSqliteTable::Context context{
       query_cache_.get(), DbSqliteTable::TableComputation::kStatic, &table,
       /*sql_table=*/nullptr, /*generator=*/nullptr};
@@ -127,8 +127,8 @@ void PerfettoSqlEngine::RegisterTable(const Table& table,
   }
 }
 
-void PerfettoSqlEngine::RegisterTableFunction(
-    std::unique_ptr<TableFunction> fn) {
+void PerfettoSqlEngine::RegisterStaticTableFunction(
+    std::unique_ptr<StaticTableFunction> fn) {
   std::string table_name = fn->TableName();
   DbSqliteTable::Context context{
       query_cache_.get(), DbSqliteTable::TableComputation::kTableFunction,
@@ -183,7 +183,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     } else if (auto* cst = std::get_if<PerfettoSqlParser::CreateTable>(
                    &parser.statement())) {
       RETURN_IF_ERROR(AddTracebackIfNeeded(
-          RegisterSqlTable(cst->name, cst->sql), cst->sql));
+          RegisterRuntimeTable(cst->name, cst->sql), cst->sql));
       // Since the rest of the code requires a statement, just use a no-value
       // dummy statement.
       source = cst->sql.FullRewrite(
@@ -298,8 +298,8 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(bool replace,
       std::move(*opt_return_type), std::move(return_type_str), std::move(sql));
 }
 
-base::Status PerfettoSqlEngine::RegisterSqlTable(std::string name,
-                                                 SqlSource sql) {
+base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
+                                                     SqlSource sql) {
   auto stmt_or = engine_->PrepareStatement(sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
@@ -389,7 +389,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
         SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
   }
 
-  CreatedTableFunction::State state{cf.prototype, cf.sql, {}, {}, std::nullopt};
+  RuntimeTableFunction::State state{cf.prototype, cf.sql, {}, {}, std::nullopt};
   base::StringView function_name;
   RETURN_IF_ERROR(
       ParseFunctionName(state.prototype_str.c_str(), function_name));
@@ -480,7 +480,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
   std::string fn_name = state.prototype.function_name;
   std::string lower_name = base::ToLower(state.prototype.function_name);
-  if (created_table_function_state_.Find(lower_name)) {
+  if (runtime_table_fn_states_.Find(lower_name)) {
     if (!cf.replace) {
       return base::ErrStatus("Table function named %s already exists",
                              state.prototype.function_name.c_str());
@@ -493,26 +493,27 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
     RETURN_IF_ERROR(res.status());
   }
 
-  auto it_and_inserted = created_table_function_state_.Insert(
+  auto it_and_inserted = runtime_table_fn_states_.Insert(
       lower_name,
-      std::make_unique<CreatedTableFunction::State>(std::move(state)));
+      std::make_unique<RuntimeTableFunction::State>(std::move(state)));
   PERFETTO_CHECK(it_and_inserted.second);
 
   base::StackString<1024> create(
-      "CREATE VIRTUAL TABLE %s USING created_table_function", fn_name.c_str());
+      "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
   return cf.sql.FullRewrite(
       SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
 }
 
-CreatedTableFunction::State* PerfettoSqlEngine::GetTableFunctionState(
+RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
     const std::string& name) const {
-  auto it = created_table_function_state_.Find(base::ToLower(name));
+  auto it = runtime_table_fn_states_.Find(base::ToLower(name));
   PERFETTO_CHECK(it);
   return it->get();
 }
 
-void PerfettoSqlEngine::OnTableFunctionDestroyed(const std::string& name) {
-  PERFETTO_CHECK(created_table_function_state_.Erase(base::ToLower(name)));
+void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
+    const std::string& name) {
+  PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
 }
 
 }  // namespace trace_processor

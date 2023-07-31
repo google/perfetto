@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_ANNOTATED_STACK_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_ANNOTATED_STACK_H_
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -29,7 +29,7 @@ class TraceProcessorContext;
 // Given a leaf callsite id, returns the full callstack (including the leaf),
 // with optional (currently Android-specific) annotations. A given callsite will
 // always have the same annotation.
-class ExperimentalAnnotatedStack : public TableFunction {
+class ExperimentalAnnotatedStack : public StaticTableFunction {
  public:
   explicit ExperimentalAnnotatedStack(TraceProcessorContext* context)
       : context_(context) {}

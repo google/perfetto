@@ -19,7 +19,7 @@
 
 #include <optional>
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -32,7 +32,7 @@ class TraceProcessorContext;
 // * descendant_slice_by_stack
 //
 // See docs/analysis/trace-processor for usage.
-class Descendant : public TableFunction {
+class Descendant : public StaticTableFunction {
  public:
   enum class Type { kSlice = 1, kSliceByStack = 2 };
 
