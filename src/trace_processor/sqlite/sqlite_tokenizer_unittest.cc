@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -30,13 +31,16 @@ using Type = SqliteTokenType;
 class SqliteTokenizerTest : public ::testing::Test {
  protected:
   std::vector<SqliteTokenizer::Token> Tokenize(const char* ptr) {
-    SqliteTokenizer tokenizer(ptr);
+    tokenizer_.Reset(SqlSource::FromTraceProcessorImplementation(ptr));
     std::vector<SqliteTokenizer::Token> tokens;
-    for (auto t = tokenizer.Next(); !t.str.empty(); t = tokenizer.Next()) {
+    for (auto t = tokenizer_.Next(); !t.str.empty(); t = tokenizer_.Next()) {
       tokens.push_back(t);
     }
     return tokens;
   }
+
+ private:
+  SqliteTokenizer tokenizer_{SqlSource::FromTraceProcessorImplementation("")};
 };
 
 TEST_F(SqliteTokenizerTest, EmptyString) {
