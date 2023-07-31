@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceConfig} from '../common/protos';
+import {TraceConfig} from '../core/protos';
 import {perfetto} from '../gen/protos';
 
 // In this file are contained a few functions to simplify the proto parsing.

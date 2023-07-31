@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoMetatrace, Trace, TracePacket} from '../common/protos';
+import {PerfettoMetatrace, Trace, TracePacket} from '../core/protos';
 import {perfetto} from '../gen/protos';
 
 import {featureFlags} from './feature_flags';
