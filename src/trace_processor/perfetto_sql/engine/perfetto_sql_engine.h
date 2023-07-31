@@ -23,10 +23,10 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
-#include "src/trace_processor/perfetto_sql/engine/created_table_function.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
@@ -113,16 +113,17 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
-  void RegisterTable(const Table& table, const std::string& name);
+  void RegisterStaticTable(const Table& table, const std::string& name);
 
   // Registers a trace processor C++ table function with SQLite.
-  void RegisterTableFunction(std::unique_ptr<TableFunction> fn);
+  void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
 
   // Returns the state for the given table function.
-  CreatedTableFunction::State* GetTableFunctionState(const std::string&) const;
+  RuntimeTableFunction::State* GetRuntimeTableFunctionState(
+      const std::string&) const;
 
   // Should be called when a table function is destroyed.
-  void OnTableFunctionDestroyed(const std::string&);
+  void OnRuntimeTableFunctionDestroyed(const std::string&);
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
@@ -131,12 +132,12 @@ class PerfettoSqlEngine {
       const PerfettoSqlParser::CreateFunction&);
 
   // Registers a SQL-defined trace processor C++ table with SQLite.
-  base::Status RegisterSqlTable(std::string name, SqlSource sql);
+  base::Status RegisterRuntimeTable(std::string name, SqlSource sql);
 
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
-  base::FlatHashMap<std::string, std::unique_ptr<CreatedTableFunction::State>>
-      created_table_function_state_;
+  base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
+      runtime_table_fn_states_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 

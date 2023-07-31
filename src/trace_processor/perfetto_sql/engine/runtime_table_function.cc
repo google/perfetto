@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/perfetto_sql/engine/created_table_function.h"
+#include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 
 #include <optional>
 #include <utility>
@@ -34,24 +34,24 @@ void ResetStatement(sqlite3_stmt* stmt) {
 
 }  // namespace
 
-CreatedTableFunction::CreatedTableFunction(sqlite3*, PerfettoSqlEngine* engine)
+RuntimeTableFunction::RuntimeTableFunction(sqlite3*, PerfettoSqlEngine* engine)
     : engine_(engine) {}
 
-CreatedTableFunction::~CreatedTableFunction() {
-  engine_->OnTableFunctionDestroyed(name());
+RuntimeTableFunction::~RuntimeTableFunction() {
+  engine_->OnRuntimeTableFunctionDestroyed(name());
 }
 
-base::Status CreatedTableFunction::Init(int,
+base::Status RuntimeTableFunction::Init(int,
                                         const char* const*,
                                         Schema* schema) {
-  state_ = engine_->GetTableFunctionState(name());
+  state_ = engine_->GetRuntimeTableFunctionState(name());
 
   // Now we've parsed prototype and return values, create the schema.
   *schema = CreateSchema();
   return base::OkStatus();
 }
 
-SqliteTable::Schema CreatedTableFunction::CreateSchema() {
+SqliteTable::Schema RuntimeTableFunction::CreateSchema() {
   std::vector<Column> columns;
   for (size_t i = 0; i < state_->return_values.size(); ++i) {
     const auto& ret = state_->return_values[i];
@@ -82,11 +82,11 @@ SqliteTable::Schema CreatedTableFunction::CreateSchema() {
   return SqliteTable::Schema(std::move(columns), std::move(primary_keys));
 }
 
-std::unique_ptr<SqliteTable::BaseCursor> CreatedTableFunction::CreateCursor() {
+std::unique_ptr<SqliteTable::BaseCursor> RuntimeTableFunction::CreateCursor() {
   return std::unique_ptr<Cursor>(new Cursor(this, state_));
 }
 
-int CreatedTableFunction::BestIndex(const QueryConstraints& qc,
+int RuntimeTableFunction::BestIndex(const QueryConstraints& qc,
                                     BestIndexInfo* info) {
   // Only accept constraint sets where every input parameter has a value.
   size_t seen_argument_constraints = 0;
@@ -107,7 +107,7 @@ int CreatedTableFunction::BestIndex(const QueryConstraints& qc,
   return SQLITE_OK;
 }
 
-CreatedTableFunction::Cursor::Cursor(CreatedTableFunction* table, State* state)
+RuntimeTableFunction::Cursor::Cursor(RuntimeTableFunction* table, State* state)
     : SqliteTable::BaseCursor(table), table_(table), state_(state) {
   if (state->reusable_stmt) {
     stmt_ = std::move(state->reusable_stmt);
@@ -116,14 +116,14 @@ CreatedTableFunction::Cursor::Cursor(CreatedTableFunction* table, State* state)
   }
 }
 
-CreatedTableFunction::Cursor::~Cursor() {
+RuntimeTableFunction::Cursor::~Cursor() {
   if (return_stmt_to_state_) {
     ResetStatement(stmt_->sqlite_stmt());
     state_->reusable_stmt = std::move(stmt_);
   }
 }
 
-base::Status CreatedTableFunction::Cursor::Filter(const QueryConstraints& qc,
+base::Status RuntimeTableFunction::Cursor::Filter(const QueryConstraints& qc,
                                                   sqlite3_value** argv,
                                                   FilterHistory) {
   PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "TABLE_FUNCTION_CALL",
@@ -216,17 +216,17 @@ base::Status CreatedTableFunction::Cursor::Filter(const QueryConstraints& qc,
   return Next();
 }
 
-base::Status CreatedTableFunction::Cursor::Next() {
+base::Status RuntimeTableFunction::Cursor::Next() {
   is_eof_ = !stmt_->Step();
   next_call_count_++;
   return stmt_->status();
 }
 
-bool CreatedTableFunction::Cursor::Eof() {
+bool RuntimeTableFunction::Cursor::Eof() {
   return is_eof_;
 }
 
-base::Status CreatedTableFunction::Cursor::Column(sqlite3_context* ctx, int i) {
+base::Status RuntimeTableFunction::Cursor::Column(sqlite3_context* ctx, int i) {
   size_t idx = static_cast<size_t>(i);
   if (state_->IsReturnValueColumn(idx)) {
     sqlite3_result_value(ctx, sqlite3_column_value(stmt_->sqlite_stmt(), i));
