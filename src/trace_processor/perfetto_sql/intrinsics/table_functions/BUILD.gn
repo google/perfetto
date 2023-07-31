@@ -62,8 +62,8 @@ source_set("table_functions") {
 
 source_set("interface") {
   sources = [
-    "table_function.cc",
-    "table_function.h",
+    "static_table_function.cc",
+    "static_table_function.h",
   ]
   deps = [
     "../../../../../gn:default_deps",

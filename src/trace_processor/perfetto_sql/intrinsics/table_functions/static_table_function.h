@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_TABLE_FUNCTION_H_
-#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_TABLE_FUNCTION_H_
+#ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_
+#define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_
 
 #include "perfetto/base/status.h"
 #include "src/trace_processor/db/table.h"
@@ -28,9 +28,9 @@ namespace trace_processor {
 // at filter time.
 // This class is used to implement table-valued functions and other similar
 // tables.
-class TableFunction {
+class StaticTableFunction {
  public:
-  virtual ~TableFunction();
+  virtual ~StaticTableFunction();
 
   // Returns the schema of the table that will be returned by ComputeTable.
   virtual Table::Schema CreateSchema() = 0;
@@ -62,4 +62,4 @@ class TableFunction {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_TABLE_FUNCTION_H_
+#endif  // SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_STATIC_TABLE_FUNCTION_H_
