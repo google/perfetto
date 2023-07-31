@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-#include <condition_variable>
-#include <mutex>
 #include <thread>
 
 #include "perfetto/public/abi/data_source_abi.h"
+#include "perfetto/public/abi/heap_buffer.h"
 #include "perfetto/public/abi/pb_decoder_abi.h"
+#include "perfetto/public/abi/tracing_session_abi.h"
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/pb_decoder.h"
 #include "perfetto/public/producer.h"
+#include "perfetto/public/protos/config/data_source_config.pzc.h"
+#include "perfetto/public/protos/config/trace_config.pzc.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"
 #include "perfetto/public/protos/trace/trace.pzc.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/trigger.pzc.h"
 
 #include "test/gtest_and_gmock.h"
 
@@ -188,7 +191,7 @@ class SharedLibDataSourceTest : public testing::Test {
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoDsRegister(&data_source_1, kDataSourceName1,
-                       PerfettoDsNoCallbacks());
+                       PerfettoDsParamsDefault());
     RegisterDataSource2();
   }
 
@@ -208,36 +211,36 @@ class SharedLibDataSourceTest : public testing::Test {
   };
 
   void RegisterDataSource2() {
-    static struct PerfettoDsCallbacks callbacks = {};
-    callbacks.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* ds_config,
-                               size_t ds_config_size, void* user_arg) -> void* {
+    struct PerfettoDsParams params = PerfettoDsParamsDefault();
+    params.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* ds_config,
+                            size_t ds_config_size, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnSetup(ds_impl, inst_id, ds_config,
                                           ds_config_size, thiz->ds2_user_arg_);
     };
-    callbacks.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* user_arg,
-                               void* inst_ctx) -> void {
+    params.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* user_arg,
+                            void* inst_ctx) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
                                           inst_ctx);
     };
-    callbacks.on_stop_cb =
+    params.on_stop_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnStop(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
-    callbacks.on_flush_cb =
+    params.on_flush_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
-    callbacks.on_create_tls_cb =
+    params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -247,12 +250,12 @@ class SharedLibDataSourceTest : public testing::Test {
                                                        thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_tls_cb = [](void* ptr) {
+    params.on_delete_tls_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteTls(state->actual);
       delete state;
     };
-    callbacks.on_create_incr_cb =
+    params.on_create_incr_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -262,13 +265,13 @@ class SharedLibDataSourceTest : public testing::Test {
           ds_impl, inst_id, tracer, thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_incr_cb = [](void* ptr) {
+    params.on_delete_incr_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteIncr(state->actual);
       delete state;
     };
-    callbacks.user_arg = this;
-    PerfettoDsRegister(&data_source_2, kDataSourceName2, callbacks);
+    params.user_arg = this;
+    PerfettoDsRegister(&data_source_2, kDataSourceName2, params);
   }
 
   void* Ds2ActualCustomState(void* ptr) {
@@ -556,6 +559,79 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
   TracingSession tracing_session_1 =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+class SharedLibProducerTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    struct PerfettoProducerInitArgs args = {0};
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+  }
+
+  void TearDown() override { perfetto::shlib::ResetForTesting(); }
+};
+
+TEST_F(SharedLibDataSourceTest, ActivateTriggers) {
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+
+  struct perfetto_protos_TraceConfig cfg;
+  PerfettoPbMsgInit(&cfg.msg, &writer);
+  {
+    struct perfetto_protos_TraceConfig_BufferConfig buffers;
+    perfetto_protos_TraceConfig_begin_buffers(&cfg, &buffers);
+    perfetto_protos_TraceConfig_BufferConfig_set_size_kb(&buffers, 1024);
+    perfetto_protos_TraceConfig_end_buffers(&cfg, &buffers);
+  }
+  {
+    struct perfetto_protos_TraceConfig_TriggerConfig trigger_config;
+    perfetto_protos_TraceConfig_begin_trigger_config(&cfg, &trigger_config);
+    perfetto_protos_TraceConfig_TriggerConfig_set_trigger_mode(
+        &trigger_config,
+        perfetto_protos_TraceConfig_TriggerConfig_STOP_TRACING);
+    perfetto_protos_TraceConfig_TriggerConfig_set_trigger_timeout_ms(
+        &trigger_config, 5000);
+    {
+      struct perfetto_protos_TraceConfig_TriggerConfig_Trigger trigger;
+      perfetto_protos_TraceConfig_TriggerConfig_begin_triggers(&trigger_config,
+                                                               &trigger);
+      perfetto_protos_TraceConfig_TriggerConfig_Trigger_set_cstr_name(
+          &trigger, "trigger1");
+      perfetto_protos_TraceConfig_TriggerConfig_end_triggers(&trigger_config,
+                                                             &trigger);
+    }
+    perfetto_protos_TraceConfig_end_trigger_config(&cfg, &trigger_config);
+  }
+  size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  std::unique_ptr<uint8_t[]> ser(new uint8_t[cfg_size]);
+  PerfettoHeapBufferCopyInto(hb, &writer.writer, ser.get(), cfg_size);
+  PerfettoHeapBufferDestroy(hb, &writer.writer);
+
+  struct PerfettoTracingSessionImpl* ts =
+      PerfettoTracingSessionCreate(PERFETTO_BACKEND_IN_PROCESS);
+
+  PerfettoTracingSessionSetup(ts, ser.get(), cfg_size);
+
+  PerfettoTracingSessionStartBlocking(ts);
+  TracingSession tracing_session = TracingSession::Adopt(ts);
+
+  const char* triggers[3];
+  triggers[0] = "trigger0";
+  triggers[1] = "trigger1";
+  triggers[2] = nullptr;
+  PerfettoProducerActivateTriggers(triggers, 10000);
+
+  tracing_session.WaitForStopped();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(FieldView(data),
+              Contains(PbField(
+                  perfetto_protos_Trace_packet_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TracePacket_trigger_field_number,
+                      MsgField(Contains(PbField(
+                          perfetto_protos_Trigger_trigger_name_field_number,
+                          StringField("trigger1"))))))))));
 }
 
 }  // namespace

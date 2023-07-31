@@ -172,6 +172,27 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnDeleteIncr(
 PERFETTO_SDK_EXPORT void PerfettoDsSetCbUserArg(struct PerfettoDsImpl*,
                                                 void* user_arg);
 
+enum PerfettoDsBufferExhaustedPolicy {
+  // If the data source runs out of space when trying to acquire a new chunk,
+  // it will drop data.
+  PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP = 0,
+  // If the data source runs out of space when trying to acquire a new chunk,
+  // it will stall, retry and eventually abort if a free chunk is not acquired
+  // after a while.
+  PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_STALL_AND_ABORT = 1,
+};
+
+// If the data source doesn't find an empty chunk when trying to emit tracing
+// data, it will behave according to `policy` (which is a `enum
+// PerfettoDsBufferExhaustedPolicy`).
+//
+// Should not be called after PerfettoDsImplRegister().
+//
+// Returns true if successful, false otherwise.
+PERFETTO_SDK_EXPORT bool PerfettoDsSetBufferExhaustedPolicy(
+    struct PerfettoDsImpl*,
+    uint32_t policy);
+
 // Registers the `*ds_impl` data source type.
 //
 // `ds_impl` must be obtained via a call to `PerfettoDsImplCreate()`.
