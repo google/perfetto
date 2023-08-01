@@ -53,7 +53,9 @@ PERFETTO_SDK_EXPORT struct PerfettoDsImpl* PerfettoDsImplCreate(void);
 // Called when a data source instance of a specific type is created. `ds_config`
 // points to a serialized perfetto.protos.DataSourceConfig message,
 // `ds_config_size` bytes long. `user_arg` is the value passed to
-// PerfettoDsSetCbUserArg().
+// PerfettoDsSetCbUserArg(). The return value of this is passed to all other
+// callbacks (for this data source instance) as `inst_ctx` and can be accessed
+// during tracing with PerfettoDsImplGetInstanceLocked().
 typedef void* (*PerfettoDsOnSetupCb)(struct PerfettoDsImpl*,
                                      PerfettoDsInstanceIndex inst_id,
                                      void* ds_config,
@@ -87,13 +89,22 @@ PERFETTO_SDK_EXPORT void PerfettoDsStopDone(struct PerfettoDsAsyncStopper*);
 
 // Called when tracing stops for a data source instance. `user_arg` is the value
 // passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
-// PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
-// instance.
+// PerfettoDsOnSetupCb.`args` can be used to postpone stopping this data source
+// instance. Note that, in general, it's not a good idea to destroy `inst_ctx`
+// here: PerfettoDsOnDestroyCb should be used instead.
 typedef void (*PerfettoDsOnStopCb)(struct PerfettoDsImpl*,
                                    PerfettoDsInstanceIndex inst_id,
                                    void* user_arg,
                                    void* inst_ctx,
                                    struct PerfettoDsOnStopArgs* args);
+
+// Called after tracing has been stopped for a data source instance, to signal
+// that `inst_ctx` (which is the return value of PerfettoDsOnSetupCb) can
+// potentially be destroyed. `user_arg` is the value passed to
+// PerfettoDsSetCbUserArg().
+typedef void (*PerfettoDsOnDestroyCb)(struct PerfettoDsImpl*,
+                                      void* user_arg,
+                                      void* inst_ctx);
 
 // Internal handle used to perform operations from the OnFlush callback.
 struct PerfettoDsOnFlushArgs;
@@ -145,6 +156,9 @@ PERFETTO_SDK_EXPORT void PerfettoDsSetOnStartCallback(struct PerfettoDsImpl*,
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnStopCallback(struct PerfettoDsImpl*,
                                                      PerfettoDsOnStopCb);
+
+PERFETTO_SDK_EXPORT void PerfettoDsSetOnDestroyCallback(struct PerfettoDsImpl*,
+                                                        PerfettoDsOnDestroyCb);
 
 PERFETTO_SDK_EXPORT void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl*,
                                                       PerfettoDsOnFlushCb);
