@@ -730,10 +730,10 @@ Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
   uint32_t sql_stats_row =
       context_.storage->mutable_sql_stats()->RecordQueryBegin(
           sql, base::GetWallTimeNs().count());
-
+  std::string non_breaking_sql = base::ReplaceAll(sql, "\u00A0", " ");
   base::StatusOr<PerfettoSqlEngine::ExecutionResult> result =
       engine_.ExecuteUntilLastStatement(
-          SqlSource::FromExecuteQuery(sql.c_str()));
+          SqlSource::FromExecuteQuery(std::move(non_breaking_sql)));
   std::unique_ptr<IteratorImpl> impl(
       new IteratorImpl(this, std::move(result), sql_stats_row));
   return Iterator(std::move(impl));
