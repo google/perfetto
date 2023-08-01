@@ -29,3 +29,23 @@ export function lookupPath<SubT, T>(value: T, path: Path): SubT|undefined {
   }
   return o;
 }
+
+export function shallowEquals(a: any, b: any) {
+  if (a === b) {
+    return true;
+  }
+  if (a === undefined || b === undefined) {
+    return false;
+  }
+  for (const key of Object.keys(a)) {
+    if (a[key] !== b[key]) {
+      return false;
+    }
+  }
+  for (const key of Object.keys(b)) {
+    if (a[key] !== b[key]) {
+      return false;
+    }
+  }
+  return true;
+}
