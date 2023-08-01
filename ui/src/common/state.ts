@@ -115,7 +115,8 @@ export const MAX_TIME = 180;
 // 33. Add plugins state.
 // 34. Add additional pendingDeeplink fields (query, pid).
 // 35. Add force to OmniboxState
-export const STATE_VERSION = 35;
+// 36. Remove metrics
+export const STATE_VERSION = 36;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -428,12 +429,6 @@ export interface AggregationState {
   sorting?: Sorting;
 }
 
-export interface MetricsState {
-  availableMetrics?: string[];  // Undefined until list is loaded.
-  selectedIndex?: number;
-  requestedMetric?: string;  // Unset after metric request is handled.
-}
-
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
@@ -566,7 +561,6 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  metrics: MetricsState;
   permalink: PermalinkConfig;
   notes: ObjectById<Note|AreaNote>;
   status: Status;
