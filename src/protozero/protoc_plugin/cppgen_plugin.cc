@@ -702,9 +702,14 @@ void CppObjGenerator::GenClassDef(const Descriptor* msg, Printer* p) const {
   p->Print("bool $n$::operator==(const $n$& other) const {\n", "n", full_name);
   p->Indent();
 
-  p->Print("return unknown_fields_ == other.unknown_fields_");
+  p->Print(
+      "return ::protozero::internal::gen_helpers::EqualsField(unknown_fields_, "
+      "other.unknown_fields_)");
   for (int i = 0; i < msg->field_count(); i++)
-    p->Print("\n && $n$_ == other.$n$_", "n", msg->field(i)->lowercase_name());
+    p->Print(
+        "\n && ::protozero::internal::gen_helpers::EqualsField($n$_, "
+        "other.$n$_)",
+        "n", msg->field(i)->lowercase_name());
   p->Print(";");
   p->Outdent();
   p->Print("\n}\n\n");
