@@ -528,7 +528,6 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-// This is just an example plugin, used to prove that the plugin system works.
 class CounterTrackPlugin implements TracePlugin {
   static migrate(_initialState: unknown): {} {
     return {};
