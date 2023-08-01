@@ -110,7 +110,6 @@ import {
 import {FtraceController} from './ftrace_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
-import {MetricsController} from './metrics_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
   PivotTableController,
@@ -338,8 +337,7 @@ export class TraceController extends Controller<States> {
             Child('ftrace', FtraceController, {engine, app: globals}));
 
         childControllers.push(
-          Child('traceError', TraceErrorController, {engine}));
-        childControllers.push(Child('metrics', MetricsController, {engine}));
+            Child('traceError', TraceErrorController, {engine}));
 
         return childControllers;
 
@@ -854,7 +852,6 @@ export class TraceController extends Controller<States> {
     for (const it = metricsResult.iter({name: STR}); it.valid(); it.next()) {
       availableMetrics.push(it.name);
     }
-    globals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
 
     const availableMetricsSet = new Set<string>(availableMetrics);
     for (const [flag, metric] of FLAGGED_METRICS) {
