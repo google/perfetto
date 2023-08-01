@@ -92,6 +92,22 @@ describe('Router.parseUrl', () => {
     expect(route.fragment).toBe('');
   });
 
+  // + is also space
+  test('plus is space query', () => {
+    const url = 'http://localhost?query=(foo+%2B+bar),';
+    const route = Router.parseUrl(url);
+    const args = route.args;
+    expect(args.query).toBe('(foo + bar),');
+  });
+
+  // + is also space
+  test('plus is space hash', () => {
+    const url = 'http://localhost#!/foo?query=(foo+%2B+bar),';
+    const route = Router.parseUrl(url);
+    const args = route.args;
+    expect(args.query).toBe('(foo + bar),');
+  });
+
   test('Nested fragment', () => {
     const url =
         'http://localhost/?p=1&s=2&hideSidebar=true#!/foo?s=3&url=4&hideSidebar=false#myfragment';
