@@ -853,9 +853,6 @@ export const WidgetsPage = createPage({
               },
             }),
             ),
-          initialOpts: {
-            hideControls: false,
-          },
           wide: true,
         }),
         m(
