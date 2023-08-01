@@ -1017,7 +1017,8 @@ export class Sidebar implements m.ClassComponent {
             m('button.sidebar-button',
               {
                 onclick: () => {
-                  globals.dispatch(Actions.toggleSidebar({}));
+                  globals.commandManager.runCommand(
+                      'dev.perfetto.CoreCommands.ToggleLeftSidebar');
                 },
               },
               m('i.material-icons',

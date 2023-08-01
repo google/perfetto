@@ -29,6 +29,19 @@ export {
 } from '../common/query_result';
 export {Store} from '../frontend/store';
 
+// An imperative API for plugins to change the UI.
+export interface Viewer {
+  // Control of the sidebar.
+  sidebar: {
+    // Show the sidebar.
+    show(): void;
+    // Hide the sidebar.
+    hide(): void;
+    // Returns true if the sidebar is visble.
+    isVisible(): boolean;
+  }
+}
+
 export interface Command {
   // A unique id for this command.
   id: string;
@@ -63,7 +76,7 @@ export interface TracePluginFactory<StateT> {
   migrate(initialState: unknown): StateT;
 
   // Instantiate the plugin.
-  new(store: Store<StateT>, engine: EngineProxy): TracePlugin;
+  new(store: Store<StateT>, engine: EngineProxy, viewer: Viewer): TracePlugin;
 }
 
 export interface TrackInfo {
@@ -78,7 +91,6 @@ export interface TrackInfo {
   // An opaque config for the track.
   config: {};
 }
-
 
 // The public API plugins use to extend the UI. This is passed to each
 // plugin via the exposed 'activate' function.
