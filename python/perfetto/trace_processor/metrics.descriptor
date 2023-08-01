@@ -78,8 +78,8 @@ current_ua (R	currentUa$
 timestamp_ns (RtimestampNs
 duration_ns (R
 durationNs
-€
-;protos/perfetto/metrics/android/android_blocking_call.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"÷
+È
+;protos/perfetto/metrics/android/android_blocking_call.protoperfetto.protos"÷
 AndroidBlockingCall
 name (	Rname
 cnt (Rcnt 
@@ -95,8 +95,8 @@ totalDurNs
 max_dur_ns (RmaxDurNs
 
 min_dur_ns (RminDurNs
-Ü
-Wprotos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.protoperfetto.protos;protos/perfetto/metrics/android/android_blocking_call.proto6protos/perfetto/metrics/android/process_metadata.proto"{
+¤
+Wprotos/perfetto/metrics/android/android_sysui_notifications_blocking_calls_metric.protoperfetto.protos;protos/perfetto/metrics/android/android_blocking_call.proto"{
 ,AndroidSysUINotificationsBlockingCallsMetricK
 blocking_calls (2$.perfetto.protos.AndroidBlockingCallRblockingCalls
 •
