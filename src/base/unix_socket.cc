@@ -34,6 +34,7 @@
 
 #include <afunix.h>
 #else
+#include <arpa/inet.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -688,6 +689,50 @@ bool UnixSocketRaw::SetRxTimeout(uint32_t timeout_ms) {
   return setsockopt(*fd_, SOL_SOCKET, SO_RCVTIMEO,
                     reinterpret_cast<const char*>(&timeout),
                     sizeof(timeout)) == 0;
+}
+
+std::string UnixSocketRaw::GetSockAddr() const {
+  struct sockaddr_storage stg {};
+  socklen_t slen = sizeof(stg);
+  PERFETTO_CHECK(
+      getsockname(*fd_, reinterpret_cast<struct sockaddr*>(&stg), &slen) == 0);
+  char addr[255]{};
+
+  if (stg.ss_family == AF_UNIX) {
+    auto* saddr = reinterpret_cast<struct sockaddr_un*>(&stg);
+    static_assert(sizeof(addr) >= sizeof(saddr->sun_path), "addr too small");
+    memcpy(addr, saddr->sun_path, sizeof(saddr->sun_path));
+    addr[0] = addr[0] == '\0' ? '@' : addr[0];
+    addr[sizeof(saddr->sun_path) - 1] = '\0';
+    return std::string(addr);
+  }
+
+  if (stg.ss_family == AF_INET) {
+    auto* saddr = reinterpret_cast<struct sockaddr_in*>(&stg);
+    PERFETTO_CHECK(inet_ntop(AF_INET, &saddr->sin_addr, addr, sizeof(addr)));
+    uint16_t port = ntohs(saddr->sin_port);
+    base::StackString<255> addr_and_port("%s:%" PRIu16, addr, port);
+    return addr_and_port.ToStdString();
+  }
+
+  if (stg.ss_family == AF_INET6) {
+    auto* saddr = reinterpret_cast<struct sockaddr_in6*>(&stg);
+    PERFETTO_CHECK(inet_ntop(AF_INET6, &saddr->sin6_addr, addr, sizeof(addr)));
+    auto port = ntohs(saddr->sin6_port);
+    base::StackString<255> addr_and_port("[%s]:%" PRIu16, addr, port);
+    return addr_and_port.ToStdString();
+  }
+
+#ifdef AF_VSOCK
+  if (stg.ss_family == AF_VSOCK) {
+    auto* saddr = reinterpret_cast<struct sockaddr_vm*>(&stg);
+    base::StackString<255> addr_and_port("%s%d:%d", kVsockNamePrefix,
+                                         saddr->svm_cid, saddr->svm_port);
+    return addr_and_port.ToStdString();
+  }
+#endif
+
+  PERFETTO_FATAL("GetSockAddr() unsupported on family %d", stg.ss_family);
 }
 
 #if defined(__GNUC__) && !PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
