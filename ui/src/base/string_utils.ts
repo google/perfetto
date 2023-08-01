@@ -115,3 +115,11 @@ export function binaryDecode(str: string): Uint8Array {
 export function sqliteString(str: string): string {
   return `'${str.replace(/'/g, '\'\'')}'`;
 }
+
+// Chat apps (including G Chat) sometimes replace ASCII characters with similar
+// looking unicode characters that break code snippets.
+// This function attempts to undo these replacements.
+export function undoCommonChatAppReplacements(str: string): string {
+  // Replace non-breaking spaces with normal spaces.
+  return str.replace(/\u00A0/g, ' ');
+}
