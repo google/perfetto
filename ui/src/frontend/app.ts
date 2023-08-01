@@ -281,6 +281,38 @@ export class App implements m.ClassComponent {
       name: 'Search',
       callback: () => this.enterSearchMode(true),
     },
+    {
+      id: 'perfetto.binder.system_server.Incoming',
+      name: 'Run query: system_server incoming binder graph',
+      callback: () => runQueryInNewTab(
+          `SELECT IMPORT('android.binder');
+           SELECT * FROM android_binder_incoming_graph((SELECT utid FROM thread WHERE name = 'system_server'))`,
+          'system_server incoming binder graph'),
+    },
+    {
+      id: 'perfetto.binder.system_server.Outgoing',
+      name: 'Run query: system_server outgoing binder graph',
+      callback: () => runQueryInNewTab(
+          `SELECT IMPORT('android.binder');
+           SELECT * FROM android_binder_outgoing_graph((SELECT utid FROM thread WHERE name = 'system_server'))`,
+          'system_server outgoing binder graph'),
+    },
+    {
+      id: 'perfetto.monitor_contention.system_server',
+      name: 'Run query: system_server monitor_contention graph',
+      callback: () => runQueryInNewTab(
+          `SELECT IMPORT('android.monitor_contention');
+           SELECT * FROM android_monitor_contention_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
+          'system_server monitor_contention graph'),
+    },
+    {
+      id: 'perfetto.binder.all',
+      name: 'Run query: all process binder graph',
+      callback: () => runQueryInNewTab(
+          `SELECT IMPORT('android.binder');
+           SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
+          'all process binder graph'),
+    },
   ];
 
   commands() {
