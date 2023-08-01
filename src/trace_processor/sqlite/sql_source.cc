@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/sqlite/sql_source.h"
 
+#include <sqlite3.h>
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
@@ -89,7 +90,18 @@ SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
 }
 
 std::string SqlSource::AsTraceback(std::optional<uint32_t> opt_offset) const {
-  return root_.AsTraceback(opt_offset.value_or(0));
+  uint32_t offset = opt_offset.value_or(0);
+  // Unfortunately, there is a bug in pre-3.41.2 versions of SQLite where
+  // sqlite3_error_offset can return an offset out of bounds. In these
+  // situations, zero the offset.
+#if SQLITE_VERSION_NUMBER < 3041002
+  if (offset >= sql_.size()) {
+    offset = 0;
+  }
+#else
+  PERFETTO_CHECK(offset < sql_.size());
+#endif
+  return root_.AsTraceback(offset);
 }
 
 SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
