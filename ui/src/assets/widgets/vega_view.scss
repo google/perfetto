@@ -15,19 +15,10 @@
 @import "theme";
 
 .pf-vega-view {
-  display: grid;
-  align-items: center;
-  justify-items: center;
-  grid-template-rows: 1fr;
-  grid-template-columns: 1fr;
   border-radius: $pf-border-radius;
   border: solid 1px $pf-colour-thin-border;
   color: $pf-minimal-foreground;
-}
-
-.pf-vega-view > * {
-  grid-column-start: 1;
-  grid-row-start: 1;
+  position: relative;
 }
 
 .pf-vega-view-status {
@@ -36,4 +27,6 @@
   height: 100%;
   width: 100%;
   padding: 1rem;
+  position: absolute;
+  top: 0;
 }
