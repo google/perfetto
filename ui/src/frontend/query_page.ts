@@ -17,6 +17,7 @@ import m from 'mithril';
 
 import {Disposable} from '../base/disposable';
 import {SimpleResizeObserver} from '../base/resize_observer';
+import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
@@ -47,23 +48,25 @@ function runManualQuery(query: string) {
   state.queryResult = undefined;
   const engine = getEngine();
   if (engine) {
-    runQuery(query, engine).then((resp: QueryResponse) => {
-      addTab({
-        kind: QueryResultTab.kind,
-        tag: 'analyze_page_query',
-        config: {
-          query: query,
-          title: 'Standalone Query',
-          prefetchedResponse: resp,
-        },
-      });
-      // We might have started to execute another query. Ignore it in that case.
-      if (state.executedQuery !== query) {
-        return;
-      }
-      state.queryResult = resp;
-      raf.scheduleFullRedraw();
-    });
+    runQuery(undoCommonChatAppReplacements(query), engine)
+        .then((resp: QueryResponse) => {
+          addTab({
+            kind: QueryResultTab.kind,
+            tag: 'analyze_page_query',
+            config: {
+              query: query,
+              title: 'Standalone Query',
+              prefetchedResponse: resp,
+            },
+          });
+          // We might have started to execute another query. Ignore it in that
+          // case.
+          if (state.executedQuery !== query) {
+            return;
+          }
+          state.queryResult = resp;
+          raf.scheduleFullRedraw();
+        });
   }
   raf.scheduleDelayedFullRedraw();
 }
