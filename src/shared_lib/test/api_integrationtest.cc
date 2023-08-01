@@ -84,6 +84,9 @@ class MockDs2Callbacks : testing::Mock {
                void* inst_ctx,
                struct PerfettoDsOnStopArgs* args));
   MOCK_METHOD(void,
+              OnDestroy,
+              (struct PerfettoDsImpl*, void* user_arg, void* inst_ctx));
+  MOCK_METHOD(void,
               OnFlush,
               (struct PerfettoDsImpl*,
                PerfettoDsInstanceIndex inst_id,
@@ -233,6 +236,11 @@ class SharedLibDataSourceTest : public testing::Test {
           return thiz->ds2_callbacks_.OnStop(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
+    params.on_destroy_cb = [](struct PerfettoDsImpl* ds_impl, void* user_arg,
+                              void* inst_ctx) -> void {
+      auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+      thiz->ds2_callbacks_.OnDestroy(ds_impl, thiz->ds2_user_arg_, inst_ctx);
+    };
     params.on_flush_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
@@ -452,6 +460,7 @@ TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   EXPECT_CALL(ds2_callbacks_,
               OnStop(_, _, kDataSource2UserArg, kInstancePtr, _))
       .WillOnce(SaveArg<1>(&stop_inst));
+  EXPECT_CALL(ds2_callbacks_, OnDestroy(_, kDataSource2UserArg, kInstancePtr));
 
   tracing_session.StopBlocking();
 

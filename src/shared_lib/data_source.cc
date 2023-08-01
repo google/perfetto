@@ -47,6 +47,7 @@ struct PerfettoDsImpl {
   PerfettoDsOnSetupCb on_setup_cb = nullptr;
   PerfettoDsOnStartCb on_start_cb = nullptr;
   PerfettoDsOnStopCb on_stop_cb = nullptr;
+  PerfettoDsOnDestroyCb on_destroy_cb = nullptr;
   PerfettoDsOnFlushCb on_flush_cb = nullptr;
 
   // These are called to create/delete custom thread-local instance state.
@@ -134,6 +135,12 @@ class ShlibDataSource : public perfetto::DataSourceBase {
     type_.enabled_instances.reset(args.internal_instance_index);
     if (type_.enabled_instances.none()) {
       type_.enabled.store(false, std::memory_order_release);
+    }
+  }
+
+  ~ShlibDataSource() override {
+    if (type_.on_destroy_cb) {
+      type_.on_destroy_cb(&type_, type_.cb_user_arg, inst_ctx_);
     }
   }
 
@@ -229,6 +236,12 @@ void PerfettoDsSetOnStopCallback(struct PerfettoDsImpl* ds_impl,
                                  PerfettoDsOnStopCb cb) {
   PERFETTO_CHECK(!ds_impl->IsRegistered());
   ds_impl->on_stop_cb = cb;
+}
+
+void PerfettoDsSetOnDestroyCallback(struct PerfettoDsImpl* ds_impl,
+                                    PerfettoDsOnDestroyCb cb) {
+  PERFETTO_CHECK(!ds_impl->IsRegistered());
+  ds_impl->on_destroy_cb = cb;
 }
 
 void PerfettoDsSetOnFlushCallback(struct PerfettoDsImpl* ds_impl,
