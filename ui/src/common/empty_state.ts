@@ -102,7 +102,6 @@ export function createEmptyState(): State {
     scrollingTracks: [],
     areas: {},
     queries: {},
-    metrics: {},
     permalink: {},
     notes: {},
     visualisedArgs: [],

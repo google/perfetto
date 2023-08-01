@@ -16,6 +16,9 @@ import m from 'mithril';
 import * as vega from 'vega';
 import * as vegaLite from 'vega-lite';
 
+import {Disposable} from '../../base/disposable';
+import {shallowEquals} from '../../base/object_utils';
+import {SimpleResizeObserver} from '../../base/resize_observer';
 import {getErrorMessage} from '../../common/errors';
 import {raf} from '../../core/raf_scheduler';
 
@@ -86,9 +89,16 @@ class VegaWrapper {
   }
 
   set data(value: VegaViewData) {
-    if (this._data !== value) {
-      this._data = value;
-      this.updateView();
+    if (this._data === value || shallowEquals(this._data, value)) {
+      return;
+    }
+    this._data = value;
+    this.updateView();
+  }
+
+  onResize() {
+    if (this.view) {
+      this.view.resize();
     }
   }
 
@@ -180,12 +190,16 @@ class VegaWrapper {
 
 export class VegaView implements m.ClassComponent<VegaViewAttrs> {
   private wrapper?: VegaWrapper;
+  private resize?: Disposable;
 
   oncreate({dom, attrs}: m.CVnodeDOM<VegaViewAttrs>) {
     const wrapper = new VegaWrapper(dom.firstElementChild!);
     wrapper.spec = attrs.spec;
     wrapper.data = attrs.data;
     this.wrapper = wrapper;
+    this.resize = new SimpleResizeObserver(dom, () => {
+      wrapper.onResize();
+    });
   }
 
   onupdate({attrs}: m.CVnodeDOM<VegaViewAttrs>) {
@@ -196,6 +210,10 @@ export class VegaView implements m.ClassComponent<VegaViewAttrs> {
   }
 
   onremove() {
+    if (this.resize) {
+      this.resize.dispose();
+      this.resize = undefined;
+    }
     if (this.wrapper) {
       this.wrapper.dispose();
       this.wrapper = undefined;
