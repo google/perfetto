@@ -188,7 +188,11 @@ export class App implements m.ClassComponent {
       key: 'b',
       mods: ['Mod'],
       allowInEditable: true,
-      callback: () => globals.dispatch(Actions.toggleSidebar({})),
+      callback:
+          () => {
+            globals.commandManager.runCommand(
+                'dev.perfetto.CoreCommands.ToggleLeftSidebar');
+          },
     },
   ];
 
@@ -231,11 +235,6 @@ export class App implements m.ClassComponent {
               },
             });
           },
-    },
-    {
-      id: 'perfetto.ToggleLeftSidebar',
-      name: 'Toggle left sidebar',
-      callback: () => globals.dispatch(Actions.toggleSidebar({})),
     },
     {
       id: 'perfetto.TogglePerformanceMetrics',
