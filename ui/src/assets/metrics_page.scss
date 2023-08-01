@@ -14,26 +14,22 @@
 
 @import "widgets/theme";
 
+.metrics-page-picker {
+  display: flex;
+}
+
+.metrics-page-picker > * {
+  margin-right: 1rem;
+}
+
 .metrics-page {
   padding: 30px;
   font-family: "Roboto", sans-serif;
-  overflow-y: auto;
+  overflow-y: scroll;
+  overflow-x: hidden;
 
-  .metric-run-button {
-    background-color: #262f3c;
-    color: #fff;
-    border-radius: 4px;
-    padding: 5px 10px;
-    font-weight: bold;
-    font-family: "Roboto";
-  }
-
-  select {
-    margin: 10px;
-    font-family: "Roboto";
-    font-size: 1em;
-    border: 1px solid black;
-    background-color: #eee;
+  & > * {
+    margin-bottom: 1rem;
   }
 
   pre {

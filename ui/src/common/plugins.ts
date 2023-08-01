@@ -22,6 +22,7 @@ import {trackRegistry} from '../frontend/track_registry';
 import {
   Command,
   EngineProxy,
+  MetricVisualisation,
   PluginContext,
   PluginInfo,
   Store,
@@ -204,6 +205,17 @@ export class PluginManager {
       const tracePlugin = ctx.tracePlugin;
       if (tracePlugin && tracePlugin.commands) {
         return tracePlugin.commands();
+      } else {
+        return [];
+      }
+    });
+  }
+
+  metricVisualisations(): MetricVisualisation[] {
+    return Array.from(this.contexts.values()).flatMap((ctx) => {
+      const tracePlugin = ctx.tracePlugin;
+      if (tracePlugin && tracePlugin.metricVisualisations) {
+        return tracePlugin.metricVisualisations();
       } else {
         return [];
       }
