@@ -47,6 +47,7 @@ struct PerfettoDsParams {
   PerfettoDsOnSetupCb on_setup_cb;
   PerfettoDsOnStartCb on_start_cb;
   PerfettoDsOnStopCb on_stop_cb;
+  PerfettoDsOnDestroyCb on_destroy_cb;
   PerfettoDsOnFlushCb on_flush_cb;
 
   // These are called to create/delete custom thread-local instance state, which
@@ -68,12 +69,17 @@ struct PerfettoDsParams {
 };
 
 static inline struct PerfettoDsParams PerfettoDsParamsDefault(void) {
-  struct PerfettoDsParams ret = {
-      PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_NULL,
-      PERFETTO_NULL, PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP};
+  struct PerfettoDsParams ret = {PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_NULL,
+                                 PERFETTO_DS_BUFFER_EXHAUSTED_POLICY_DROP};
   return ret;
 }
 
@@ -117,6 +123,9 @@ static inline bool PerfettoDsRegister(struct PerfettoDs* ds,
   }
   if (params.on_stop_cb) {
     PerfettoDsSetOnStopCallback(ds_impl, params.on_stop_cb);
+  }
+  if (params.on_destroy_cb) {
+    PerfettoDsSetOnDestroyCallback(ds_impl, params.on_destroy_cb);
   }
   if (params.on_flush_cb) {
     PerfettoDsSetOnFlushCallback(ds_impl, params.on_flush_cb);
