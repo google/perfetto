@@ -723,7 +723,8 @@ std::string UnixSocketRaw::GetSockAddr() const {
     return addr_and_port.ToStdString();
   }
 
-#ifdef AF_VSOCK
+#if defined(AF_VSOCK) && (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+                          PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
   if (stg.ss_family == AF_VSOCK) {
     auto* saddr = reinterpret_cast<struct sockaddr_vm*>(&stg);
     base::StackString<255> addr_and_port("%s%d:%d", kVsockNamePrefix,
