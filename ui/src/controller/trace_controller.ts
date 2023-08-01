@@ -55,6 +55,7 @@ import {
   Time,
   TimeSpan,
 } from '../common/time';
+import {ViewerImpl} from '../common/viewer';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
@@ -386,7 +387,7 @@ export class TraceController extends Controller<States> {
     }
     this.engine = engine;
 
-    pluginManager.onTraceLoad(globals.store, engine);
+    pluginManager.onTraceLoad(globals.store, engine, new ViewerImpl());
 
     if (isMetatracingEnabled()) {
       this.engine.enableMetatrace(
