@@ -397,6 +397,7 @@ SELECT * FROM chain
 -- All thread_executing_spans that are ancestors of |leaf_id|.
 --
 -- @arg leaf_id INT                Thread state id to start recursion.
+-- @arg leaf_utid INT              Thread utid to start recursion from.
 --
 -- @column parent_id               Id of thread_executing_span that directly woke |id|.
 -- @column id                      Id of the first (runnable) thread state in thread_executing_span.
@@ -422,11 +423,12 @@ SELECT * FROM chain
 -- @column height                  Tree height from |leaf_id|.
 -- @column leaf_id                 Thread state id used to start the recursion. Helpful for SQL JOINs.
 -- @column leaf_ts                 Thread state timestamp of the |leaf_id|.
+-- @column leaf_utid               Thread Utid of the |leaf_id|.
 -- @column leaf_blocked_dur        Thread state duration blocked of the |leaf_id|.
 -- @column leaf_blocked_state      Thread state of the |leaf_id|.
 -- @column leaf_blocked_function   Thread state blocked_function of the |leaf_id|.
 SELECT CREATE_VIEW_FUNCTION(
-'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT)',
+'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT, leaf_utid INT)',
 '
   parent_id LONG,
   id LONG,
@@ -452,6 +454,7 @@ SELECT CREATE_VIEW_FUNCTION(
   height INT,
   leaf_id INT,
   leaf_ts LONG,
+  leaf_utid INT,
   leaf_blocked_dur LONG,
   leaf_blocked_state STRING,
   leaf_blocked_function STRING
@@ -464,17 +467,20 @@ chain AS (
     0 AS height,
     id AS leaf_id,
     ts AS leaf_ts,
+    utid AS leaf_utid,
     blocked_dur AS leaf_blocked_dur,
     blocked_state AS leaf_blocked_state,
     blocked_function AS leaf_blocked_function
   FROM experimental_thread_executing_span_graph
-  WHERE ($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL)
+  WHERE (($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL))
+    AND (($leaf_utid IS NOT NULL AND utid = $leaf_utid) OR ($leaf_utid IS NULL))
   UNION ALL
   SELECT
     graph.*,
     chain.height + 1 AS height,
     chain.leaf_id,
     chain.leaf_ts,
+    chain.leaf_utid,
     chain.leaf_blocked_dur,
     chain.leaf_blocked_state,
     chain.leaf_blocked_function
@@ -526,24 +532,13 @@ SELECT MIN(start_id) AS thread_executing_span_id
 FROM internal_wakeup wakeup, sleeping
 WHERE sleeping.utid = wakeup.utid AND sleeping.ts < wakeup.start_ts;
 
--- Computes the start and end of each thread_executing_span in the critical path.
+-- Computes the start of each thread_executing_span in the critical path.
 
--- For the ends, it is the MIN between the end of the current span and the start of
--- the next span in the critical path.
-
--- For the starts, it is the MAX between the start of the critical span and the start
--- of the blocked region. This ensures that the critical path doesn't overlap regions
--- that are not actually blocked.
-CREATE PERFETTO FUNCTION internal_compute_critical_path_boundaries(thread_executing_span_id INT)
-RETURNS TABLE(id INT, ts LONG, dur LONG) AS
-SELECT
-  id,
-  MAX(ts, leaf_ts - leaf_blocked_dur) AS ts,
-  MIN(
-    MAX(ts, leaf_ts - leaf_blocked_dur) + dur,
-    IFNULL(LEAD(ts) OVER (PARTITION BY leaf_id ORDER BY height DESC), trace_bounds.end_ts))
-    - MAX(ts, leaf_ts - leaf_blocked_dur) AS dur
-FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS($thread_executing_span_id), trace_bounds;
+-- It finds the MAX between the start of the critical span and the start
+-- of the blocked region. This ensures that the critical path doesn't overlap
+-- the preceding thread_executing_span before the blocked region.
+CREATE PERFETTO FUNCTION internal_critical_path_start_ts(ts LONG, leaf_ts LONG, leaf_blocked_dur LONG)
+RETURNS LONG AS SELECT MAX($ts, IFNULL($leaf_ts - $leaf_blocked_dur, $ts));
 
 -- Critical path of thread_executing_spans blocking the thread_executing_span with id,
 -- |thread_executing_span_id|. For a given thread state span, its duration in the critical path
@@ -551,6 +546,7 @@ FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS($thread_executing_span_id), tr
 -- critical path.
 --
 -- @arg thread_executing_span_id INT        Id of blocked thread_executing_span.
+-- @arg utid INT                            Thread utid to pre-filter critical paths for.
 --
 -- @column parent_id                        Id of thread_executing_span that directly woke |id|.
 -- @column id                               Id of the first (runnable) thread state in thread_executing_span.
@@ -576,10 +572,11 @@ FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS($thread_executing_span_id), tr
 -- @column height                           Tree height from |leaf_id|.
 -- @column leaf_id                          Thread state id used to start the recursion. Helpful for SQL JOINs.
 -- @column leaf_ts                          Thread state timestamp of the |leaf_id|.
+-- @column leaf_utid                        Thread Utid of the |leaf_id|. Helpful for post-filtering the critical path to those originating from a thread.
 -- @column leaf_blocked_dur                 Thread state duration blocked of the |leaf_id|.
 -- @column leaf_blocked_state               Thread state of the |leaf_id|.
 -- @column leaf_blocked_function            Thread state blocked_function of the |leaf_id|.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(thread_executing_span_id INT)
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(thread_executing_span_id INT, leaf_utid INT)
 RETURNS TABLE(
   parent_id LONG,
   id LONG,
@@ -605,6 +602,7 @@ RETURNS TABLE(
   height INT,
   leaf_id INT,
   leaf_ts LONG,
+  leaf_utid INT,
   leaf_blocked_dur LONG,
   leaf_blocked_state STRING,
   leaf_blocked_function STRING
@@ -612,8 +610,17 @@ RETURNS TABLE(
  SELECT
     parent_id,
     id,
-    boundary.ts,
-    boundary.dur,
+    -- Here we compute the real ts and dur of a span in the critical_path.
+    -- For the ts, we simply use the internal_critical_path_start_ts helper function.
+    internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS ts,
+    -- For the dur, it is the MIN between the end of the current span and the start of
+    -- the next span in the critical path. This ensures that the critical paths don't overlap.
+    -- We are simply doing a MIN(real_ts + dur, lead(ts) - ts). It's written inline here for
+    -- performance reasons. Note that we don't need the real_ts in the lead() because the real_ts
+    -- is really only needed for the first ts in the critical path.
+    MIN(internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) + dur,
+        IFNULL(LEAD(ts) OVER (PARTITION BY leaf_id ORDER BY height DESC), trace_bounds.end_ts))
+    - internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS dur,
     tid,
     pid,
     utid,
@@ -634,8 +641,9 @@ RETURNS TABLE(
     height,
     leaf_id,
     leaf_ts,
+    leaf_utid,
     leaf_blocked_dur,
     leaf_blocked_state,
     leaf_blocked_function
-  FROM experimental_thread_executing_span_ancestors($thread_executing_span_id)
-  JOIN internal_compute_critical_path_boundaries($thread_executing_span_id) boundary USING(id);
+  FROM experimental_thread_executing_span_ancestors($thread_executing_span_id, $leaf_utid),
+    trace_bounds;
