@@ -222,7 +222,7 @@ export class Router {
 
     let rawArgs = {};
     if (url.search) {
-      rawArgs = m.parseQueryString(url.search);
+      rawArgs = Router.parseQueryString(url.search);
     }
 
     const args = runValidator(routeArgs, rawArgs).result;
@@ -244,9 +244,15 @@ export class Router {
     return {page, subpage, args, fragment};
   }
 
+  private static parseQueryString(query: string) {
+    // TODO(hjd): Use replaceAll when we have updated to es2021.
+    query = query.replace(/\+/g, ' ');
+    return m.parseQueryString(query);
+  }
+
   private static parseSearchParams(url: string): RouteArgs {
     const query = (new URL(url)).search;
-    const rawArgs = m.parseQueryString(query);
+    const rawArgs = Router.parseQueryString(query);
     const args = runValidator(routeArgs, rawArgs).result;
 
     // Javascript sadly distinguishes between foo[bar] === undefined
