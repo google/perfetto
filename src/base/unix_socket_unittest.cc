@@ -39,6 +39,8 @@
 #include "src/ipc/test/test_socket.h"
 #include "test/gtest_and_gmock.h"
 
+#if (PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+     PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID))
 #define SKIP_IF_VSOCK_LOOPBACK_NOT_SUPPORTED()                                 \
   do {                                                                         \
     if (!UnixSocketRaw::CreateMayFail(SockFamily::kVsock, SockType::kStream)   \
@@ -47,6 +49,7 @@
                    << "Please run sudo modprobe vsock-loopback";               \
     }                                                                          \
   } while (0)
+#endif
 
 namespace perfetto {
 namespace base {
@@ -449,6 +452,9 @@ TEST_F(UnixSocketTest, GetSockAddrTcp4) {
 TEST_F(UnixSocketTest, GetSockAddrTcp6) {
   auto srv = UnixSocket::Listen("[::1]:0", &event_listener_, &task_runner_,
                                 SockFamily::kInet6, SockType::kStream);
+  if (!srv)
+    GTEST_SKIP() << "This test requires IPv6 support in the OS. Skipping";
+
   ASSERT_TRUE(srv->is_listening());
   auto cli =
       UnixSocket::Connect(srv->GetSockAddr(), &event_listener_, &task_runner_,
