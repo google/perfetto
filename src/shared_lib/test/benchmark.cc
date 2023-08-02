@@ -42,7 +42,7 @@ using ::perfetto::shlib::test_utils::TracingSession;
 constexpr char kDataSourceName[] = "com.example.custom_data_source";
 
 bool Initialize() {
-  struct PerfettoProducerInitArgs args = {0};
+  struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
   args.backends = PERFETTO_BACKEND_IN_PROCESS;
   PerfettoProducerInit(args);
   PerfettoDsRegister(&custom, kDataSourceName, PerfettoDsParamsDefault());

@@ -30,6 +30,10 @@ struct PerfettoProducerInitArgs {
   PerfettoBackendTypes backends;
 };
 
+// Initializes a PerfettoProducerInitArgs struct.
+#define PERFETTO_PRODUCER_INIT_ARGS_INIT() \
+  { 0 }
+
 // Initializes the global perfetto producer.
 static inline void PerfettoProducerInit(struct PerfettoProducerInitArgs args) {
   if (args.backends & PERFETTO_BACKEND_IN_PROCESS) {
