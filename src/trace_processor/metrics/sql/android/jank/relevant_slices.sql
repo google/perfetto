@@ -68,7 +68,15 @@ WHERE
   AND slice.name not GLOB '*resynced*'
   AND slice.dur > 0
   AND (vsync >= begin_vsync OR begin_vsync is NULL)
-  AND (vsync <= end_vsync OR end_vsync is NULL);
+  AND (vsync <= end_vsync OR end_vsync is NULL)
+  -- In some malformed traces we see nested doFrame slices.
+  -- If that is the case, we ignore all parent doFrames and only keep the one
+  -- the lowest in the hierarchy.
+  AND NOT EXISTS (
+    SELECT 1 FROM descendant_slice(slice.id) child
+    WHERE child.name GLOB 'Choreographer#doFrame*'
+    AND child.name NOT GLOB '*resynced*'
+  );
 
 
 -- Store render thread DrawFrames by matching in the vsync IDs extracted from
