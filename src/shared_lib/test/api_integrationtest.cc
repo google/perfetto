@@ -190,7 +190,7 @@ TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
 class SharedLibDataSourceTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoDsRegister(&data_source_1, kDataSourceName1,
