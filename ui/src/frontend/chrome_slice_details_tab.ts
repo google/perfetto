@@ -65,20 +65,12 @@ function getPidFromSlice(slice: SliceDetails): number|undefined {
   return slice.process?.pid;
 }
 
-function getUpidFromSlice(slice: SliceDetails): number|undefined {
-  return slice.process?.upid;
-}
-
 function getProcessNameFromSlice(slice: SliceDetails): string|undefined {
   return slice.process?.name;
 }
 
 function hasName(slice: SliceDetails): boolean {
   return slice.name !== undefined;
-}
-
-function hasId(slice: SliceDetails): boolean {
-  return slice.id !== undefined;
 }
 
 function hasTid(slice: SliceDetails): boolean {
@@ -95,7 +87,7 @@ function hasProcessName(slice: SliceDetails): boolean {
 
 const ITEMS: ContextMenuItem[] = [
   {
-    name: 'Average duration',
+    name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
     run: (slice: SliceDetails) => runQueryInNewTab(
         `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
@@ -103,19 +95,7 @@ const ITEMS: ContextMenuItem[] = [
         ),
   },
   {
-    name: 'Binder by TXN',
-    shouldDisplay: () => true,
-    run: () => runQueryInNewTab(
-        `SELECT IMPORT('android.binder');
-
-         SELECT *
-         FROM android_sync_binder_metrics_by_txn
-         ORDER BY client_dur DESC`,
-        'Binder by TXN',
-        ),
-  },
-  {
-    name: 'Binder call names',
+    name: 'Binder call names on thread',
     shouldDisplay: (slice) =>
         hasProcessName(slice) && hasTid(slice) && hasPid(slice),
     run: (slice: SliceDetails) => {
@@ -138,18 +118,6 @@ const ITEMS: ContextMenuItem[] = [
                       getTidFromSlice(slice)})`,
                   ));
     },
-  },
-  {
-    name: 'Lock graph',
-    shouldDisplay: (slice: SliceDetails) => hasId(slice),
-    run: (slice: SliceDetails) => runQueryInNewTab(
-        `
-         SELECT IMPORT('android.monitor_contention');
-
-         SELECT * FROM android_monitor_contention_graph(${getUpidFromSlice(slice)});
-        `,
-        'Lock graph',
-        ),
   },
 ];
 
