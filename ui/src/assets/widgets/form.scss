@@ -38,6 +38,8 @@
 // Add some spacing around forms when placed inside a menu
 .pf-menu {
   .pf-form {
-    margin: 4px;
+    // Compensate for the uneven |4px 0| padding in pf-menu, resulting in an
+    // even 4px padding all around the form.
+    margin: 0 4px;
   }
 }
