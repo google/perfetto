@@ -367,12 +367,6 @@ SELECT
           dur_of_process_running_concurrent_to_launch(launches.startup_id, '*installd') > 0
 
         UNION ALL
-        SELECT 'Main Thread - Time spent in Running state'
-          AS slow_cause
-        WHERE
-          main_thread_time_for_launch_and_state(launches.startup_id, 'Running') > launches.dur * 0.8
-
-        UNION ALL
         SELECT 'Main Thread - Time spent in Runnable state'
           AS slow_cause
         WHERE
@@ -385,7 +379,7 @@ SELECT
 
         UNION ALL
         SELECT 'Main Thread - Time spent in Blocking I/O'
-        WHERE main_thread_time_for_launch_state_and_io_wait(launches.startup_id, 'D*', TRUE) > 155e6
+        WHERE main_thread_time_for_launch_state_and_io_wait(launches.startup_id, 'D*', TRUE) > 450e6
 
         UNION ALL
         SELECT 'Main Thread - Time spent in OpenDexFilesFromOat*'
