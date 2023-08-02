@@ -20,8 +20,10 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
+import {CommandWithMatchInfo} from '../common/commands';
 import {setTimestampFormat, TimestampFormat} from '../common/time';
 import {raf} from '../core/raf_scheduler';
+import {Command} from '../public';
 
 import {addTab} from './bottom_tab';
 import {onClickCopy} from './clipboard';
@@ -90,6 +92,7 @@ export class App implements m.ClassComponent {
   private pendingPrompt?: Prompt;
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
+  private recentCommands: string[] = [];
 
   private enterCommandMode(): void {
     this.omniboxMode = OmniboxMode.Command;
@@ -352,7 +355,7 @@ export class App implements m.ClassComponent {
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
-      options,
+      options: options && [{options}],
       selectedOptionIndex: this.omniboxSelectionIndex,
       onSelectedOptionChanged: (index) => {
         this.omniboxSelectionIndex = index;
@@ -360,6 +363,7 @@ export class App implements m.ClassComponent {
       },
       onInput: (value) => {
         this.omniboxText = value;
+        this.omniboxSelectionIndex = 0;
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, _alt) => {
@@ -373,20 +377,42 @@ export class App implements m.ClassComponent {
 
   renderCommandOmnibox(): m.Children {
     const cmdMgr = globals.commandManager;
+
+    // Fuzzy-filter commands by the filter string.
     const filteredCmds = cmdMgr.fuzzyFilterCommands(this.omniboxText);
-    const options: OmniboxOption[] = filteredCmds.map(({segments, id}) => {
+
+    // Sort commands alphabetically
+    const sortedFilteredCommands =
+        filteredCmds.sort((a, b) => a.name.localeCompare(b.name));
+
+    // Look up recent comands
+    const recents = this.findRecentCommands(filteredCmds);
+
+    const cmdToOpt = ({segments, id}: CommandWithMatchInfo): OmniboxOption => {
       return {
         key: id,
         displayName: segments,
       };
-    });
+    };
+
+    const recentOptions = recents.map(cmdToOpt);
+    const allOptions = sortedFilteredCommands.map(cmdToOpt);
+
+    const optionCategories = recentOptions.length > 0 ?
+        [
+          {name: 'Recent Commands', options: recentOptions},
+          {name: 'All Commands', options: allOptions},
+        ] :
+        [
+          {name: 'All Commands', options: allOptions},
+        ];
 
     return m(Omnibox, {
       value: this.omniboxText,
-      placeholder: 'Start typing a command...',
+      placeholder: 'Filter commands...',
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
-      options,
+      options: optionCategories,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
       selectedOptionIndex: this.omniboxSelectionIndex,
@@ -396,6 +422,7 @@ export class App implements m.ClassComponent {
       },
       onInput: (value) => {
         this.omniboxText = value;
+        this.omniboxSelectionIndex = 0;
         raf.scheduleFullRedraw();
       },
       onClose: () => {
@@ -406,9 +433,28 @@ export class App implements m.ClassComponent {
         raf.scheduleFullRedraw();
       },
       onSubmit: (key: string) => {
+        this.addRecentCommand(key);
         cmdMgr.runCommand(key);
       },
     });
+  }
+
+  // Locates all recent commands within a given list of commands.
+  private findRecentCommands<T extends Command>(cmds: T[]): T[] {
+    const recents: T[] = [];
+    for (const recentCmdId of this.recentCommands) {
+      const cmd = cmds.find(({id}) => id === recentCmdId);
+      if (cmd) {
+        recents.push(cmd);
+      }
+    }
+    return recents;
+  }
+
+  private addRecentCommand(id: string): void {
+    this.recentCommands = this.recentCommands.filter((x) => x !== id);
+    this.recentCommands.unshift(id);
+    this.recentCommands.length = Math.min(this.recentCommands.length, 6);
   }
 
   renderQueryOmnibox(): m.Children {

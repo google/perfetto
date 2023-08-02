@@ -255,26 +255,38 @@
   }
 }
 
-ul.pf-omnibox-dropdown {
+.pf-omnibox-dropdown {
   margin: 2px;
   max-height: 300px;
   overflow-y: auto;
-  padding-left: 0;
-}
 
-li.pf-omnibox-option {
-  font-family: $pf-font;
-  cursor: pointer;
-  list-style-type: none;
-  padding: 4px 8px;
-  border-radius: $pf-border-radius;
-  align-items: center;
-  font-weight: lighter;
-  &:hover {
-    background-color: $pf-minimal-background-hover;
+  ul {
+    padding-left: 0;
   }
-  &.pf-highlighted {
-    background-color: $pf-primary-background;
-    color: white;
+
+  .pf-omnibox-section-header {
+    font-family: $pf-font;
+    font-size: smaller;
+    margin: 4px 0;
+    border-bottom: solid 1px $pf-colour-thin-border;
+    position: sticky;
+    top: 0;
+  }
+
+  li {
+    font-family: $pf-font;
+    cursor: pointer;
+    list-style-type: none;
+    padding: 4px 8px;
+    border-radius: $pf-border-radius;
+    align-items: center;
+    font-weight: lighter;
+    &:hover {
+      background-color: $pf-minimal-background-hover;
+    }
+    &.pf-highlighted {
+      background-color: $pf-primary-background;
+      color: white;
+    }
   }
 }
