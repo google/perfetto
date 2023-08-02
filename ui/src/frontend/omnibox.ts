@@ -41,7 +41,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void|m.Children {
     const {displayName, highlighted, ...htmlAttrs} = attrs;
     return m(
-        'li.pf-omnibox-option',
+        'li',
         {
           class: classNames(highlighted && 'pf-highlighted'),
           ...htmlAttrs,
@@ -70,10 +70,24 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   }
 }
 
+// Omnibox option.
 export interface OmniboxOption {
-  // The value to place into the omnibox.
+  // The value to place into the omnibox. This is what's returned in onSubmit.
   key: string;
-  displayName: FuzzySegment[];
+
+  // Display name provided as a string or a list of fuzzy segments to enable
+  // fuzzy match highlighting.
+  displayName: FuzzySegment[]|string;
+}
+
+// A category of omnibox options.
+export interface OmniboxOptionsCategory {
+  // Optional name of the category. If omitted, the divider for this category
+  // shall be omitted.
+  name?: string;
+
+  // List of options in this category.
+  options: OmniboxOption[];
 }
 
 export interface OmniboxAttrs {
@@ -95,7 +109,10 @@ export interface OmniboxAttrs {
   // Dropdown items to show. If none are supplied, the omnibox runs in free text
   // mode, where anyt text can be input. Otherwise, onSubmit will always be
   // called with one of the options.
-  options?: OmniboxOption[];
+  // Options are provided in groups called categories. If the category has a
+  // name the name will be listed at the top of the group rendered with a little
+  // divider as well.
+  options?: OmniboxOptionsCategory[];
 
   // Called when the user expresses the intent to "execute" the thing.
   onSubmit?: (value: string, mod: boolean, shift: boolean) => void;
@@ -144,10 +161,12 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       selectedOptionIndex = 0,
     } = attrs;
 
+    const flatOptions = options?.flatMap(({options}) => options);
+
     return m(
         Popup,
         {
-          className: 'pf-popup-padded',
+          className: 'pf-omnibox-dropdown',
           onPopupMount: (dom: HTMLElement) => this.popupElement = dom,
           onPopupUnMount: (_dom: HTMLElement) => this.popupElement = undefined,
           isOpen: exists(options),
@@ -174,7 +193,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
                     this.close(attrs);
                   }
 
-                  if (options) {
+                  if (flatOptions) {
                     if (e.key === 'ArrowUp') {
                       e.preventDefault();
                       this.highlightPreviousOption(attrs);
@@ -184,7 +203,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
                     } else if (e.key === 'Enter') {
                       e.preventDefault();
 
-                      const option = options[selectedOptionIndex];
+                      const option = flatOptions[selectedOptionIndex];
                       if (option) {
                         closeOnSubmit && this.close(attrs);
 
@@ -223,23 +242,28 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
 
     if (!options) return null;
 
+    let index = 0;
+
     if (options.length === 0) {
       return m(EmptyState, {header: 'No matching options...'});
     } else {
-      return m(
-          'ul.pf-omnibox-dropdown',
-          options.map(({displayName, key}, index) => {
-            return m(OmniboxOptionRow, {
-              key,
-              displayName: displayName,
-              highlighted: index === selectedOptionIndex,
-              onclick: () => {
-                closeOnSubmit && onClose();
-                onSubmit(key, false, false);
-              },
-            });
-          }),
-      );
+      return options.map(({name, options}) => {
+        return m(
+            'ul.pf-omnibox-dropdown',
+            name && m('.pf-omnibox-section-header', name),
+            options.map(({displayName, key}) => {
+              return m(OmniboxOptionRow, {
+                key,
+                displayName: displayName,
+                highlighted: index++ === selectedOptionIndex,
+                onclick: () => {
+                  closeOnSubmit && onClose();
+                  onSubmit(key, false, false);
+                },
+              });
+            }),
+        );
+      });
     }
   }
 
@@ -304,7 +328,7 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
       options = [],
     } = attrs;
 
-    const max = options.length - 1;
+    const max = options.reduce((sum, {options}) => sum + options.length, 0) - 1;
     onSelectedOptionChanged(Math.min(max, selectedOptionIndex + 1));
   }
 }
