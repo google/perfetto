@@ -22,13 +22,13 @@ export class ViewerImpl implements Viewer {
   sidebar = {
     hide: () => {
       globals.dispatch(Actions.setSidebar({
-        visible: true,
+        visible: false,
       }));
     },
     show:
         () => {
           globals.dispatch(Actions.setSidebar({
-            visible: false,
+            visible: true,
           }));
         },
     isVisible: () => globals.state.sidebarVisible,
