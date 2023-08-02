@@ -23,7 +23,7 @@ import {
   runValidator,
   str,
   ValidatedType,
-} from '../controller/validators';
+} from '../base/validators';
 import {assertTrue} from '../base/logging';
 import {Icon} from './widgets/icon';
 import {raf} from '../core/raf_scheduler';
