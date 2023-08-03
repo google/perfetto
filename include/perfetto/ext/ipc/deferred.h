@@ -70,10 +70,6 @@ class DeferredBase {
   explicit DeferredBase(
       std::function<void(AsyncResult<ProtoMessage>)> callback = nullptr);
 
-  template <typename T>
-  explicit DeferredBase(Deferred<T> other)
-      : callback_(std::move(other.callback_)) {}
-
   ~DeferredBase();
   DeferredBase(DeferredBase&&) noexcept;
   DeferredBase& operator=(DeferredBase&&);
