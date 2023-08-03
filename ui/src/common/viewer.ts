@@ -14,6 +14,7 @@
 
 import {Disposable} from '../base/disposable';
 import {globals} from '../frontend/globals';
+import {runQueryInNewTab} from '../frontend/query_result_tab';
 import {Viewer} from '../public';
 
 import {Actions} from './actions';
@@ -32,6 +33,10 @@ export class ViewerImpl implements Viewer {
           }));
         },
     isVisible: () => globals.state.sidebarVisible,
+  };
+
+  tabs = {
+    openQuery: runQueryInNewTab,
   };
 
   constructor() {}
@@ -70,6 +75,7 @@ export class ViewerProxy implements Viewer, Disposable {
 
   // ViewerImpl:
   sidebar: Viewer['sidebar'];
+  tabs: Viewer['tabs'];
 
   // ViewerProxy:
   constructor(parent: ViewerImpl, pluginId: string) {
@@ -83,6 +89,10 @@ export class ViewerProxy implements Viewer, Disposable {
       show: wrapVoid(allow, parent.sidebar.show.bind(parent.sidebar)),
       isVisible:
           wrap(allow, parent.sidebar.isVisible.bind(parent.sidebar), false),
+    };
+
+    this.tabs = {
+      openQuery: wrapVoid(allow, parent.tabs.openQuery.bind(parent.tabs)),
     };
   }
 

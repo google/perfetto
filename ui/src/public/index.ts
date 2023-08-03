@@ -40,6 +40,12 @@ export interface Viewer {
     // Returns true if the sidebar is visble.
     isVisible(): boolean;
   }
+
+  // Control over the bottom details pane.
+  tabs: {
+    // Creates a new tab running the provided query.
+    openQuery(query: string, title: string): void;
+  }
 }
 
 export interface Command {
