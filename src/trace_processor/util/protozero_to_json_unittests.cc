@@ -357,18 +357,20 @@ TEST_F(ProtozeroToJsonTestMessageTest, FieldLengthLimitedBadString) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_string(R"("\
 )");
+  std::string res = R"({"field_string":"\"\\\n"})";
   EXPECT_EQ(ProtozeroToJson(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kNone),
-            R"({"field_string":"\"\\\n"})");
+            res);
 }
 
 TEST_F(ProtozeroToJsonTestMessageTest, FieldLengthLimitedUnicodeString) {
   protozero::HeapBuffered<EveryField> msg;
   msg->set_field_string(R"($£Иह€한𐍈)");
-  EXPECT_EQ(
-      ProtozeroToJson(pool_, ".protozero.test.protos.EveryField",
-                      msg.SerializeAsArray(), kNone),
-      R"({"field_string":"$\u00a3\u0418\u0939\u20ac\ud55c\ud800\udf48"})");
+  std::string res =
+      R"({"field_string":"$\u00a3\u0418\u0939\u20ac\ud55c\ud800\udf48"})";
+  EXPECT_EQ(ProtozeroToJson(pool_, ".protozero.test.protos.EveryField",
+                            msg.SerializeAsArray(), kNone),
+            res);
 }
 
 TEST_F(ProtozeroToJsonTestMessageTest, FieldLengthLimitedBytes) {
