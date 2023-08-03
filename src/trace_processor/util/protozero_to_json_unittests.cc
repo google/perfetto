@@ -168,7 +168,7 @@ TEST_F(ProtozeroToJsonTestMessageTest, FieldVarIntInt64) {
 
 TEST_F(ProtozeroToJsonTestMessageTest, FieldVarIntSint64) {
   protozero::HeapBuffered<EveryField> msg;
-  msg->set_field_sint64(-3000000000);
+  msg->set_field_sint64(INT64_C(-3000000000));
 
   EXPECT_EQ(ProtozeroToJson(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kNone),
