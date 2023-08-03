@@ -22,7 +22,7 @@ import {
   record,
   runValidator,
   ValidatedType,
-} from '../controller/validators';
+} from '../base/validators';
 
 import {PageAttrs} from './pages';
 
