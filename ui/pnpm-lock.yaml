@@ -99,8 +99,8 @@ dependencies:
     specifier: ^1.0.11
     version: 1.0.11
   protobufjs:
-    specifier: ^6.11.3
-    version: 6.11.3
+    specifier: ^7.2.4
+    version: 7.2.4
   sass:
     specifier: ^1.63.6
     version: 1.63.6
@@ -1187,10 +1187,6 @@ packages:
   /@types/json-schema@7.0.12:
     resolution: {integrity: sha512-Hr5Jfhc9eYOQNPYO5WLDq/n4jqijdHNlDXjuAQkkt+mWdQR+XJToOHrsD4cPaMXpn6KO7y2+wM8AZEs8VpBLVA==}
     dev: true
-
-  /@types/long@4.0.2:
-    resolution: {integrity: sha512-MqTGEo5bj5t157U6fA/BiDynNkn0YknVdh48CMPkTSpFTVmvao5UQmm7uEF6xBEo7qIMAlY/JSleYaE6VOdpaA==}
-    dev: false
 
   /@types/mithril@2.0.12:
     resolution: {integrity: sha512-vedzt04n3EB7rcnfSLCv3+w3qJLkGWdsNRBKvelTqhSJSfg73Roq9b+rcnn9zeqGYtQAMqNcO6vNBR/w0OzipQ==}
@@ -4207,8 +4203,8 @@ packages:
     resolution: {integrity: sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==}
     dev: true
 
-  /long@4.0.0:
-    resolution: {integrity: sha512-XsP+KhQif4bjX1kbuSiySJFNAehNxgLb6hPRGJ9QsUr8ajHkuXGdrHmFUTUUXhDwVX2R5bY4JNZEwbUiMhV+MA==}
+  /long@5.2.3:
+    resolution: {integrity: sha512-lcHwpNoggQTObv5apGNCTdJrO69eHOZMi4BNC+rTLER8iHAqGrUVeLh/irVIM7zTw2bOXA8T6uNPeujwOLg/2Q==}
     dev: false
 
   /lru-cache@5.1.1:
@@ -4755,9 +4751,9 @@ packages:
       sisteransi: 1.0.5
     dev: true
 
-  /protobufjs@6.11.3:
-    resolution: {integrity: sha512-xL96WDdCZYdU7Slin569tFX712BxsxslWwAfAhCYjQKGTq7dAU91Lomy6nLLhh/dyGhk/YH4TwTSRxTzhuHyZg==}
-    hasBin: true
+  /protobufjs@7.2.4:
+    resolution: {integrity: sha512-AT+RJgD2sH8phPmCf7OUZR8xGdcJRga4+1cOaXJ64hvcSkVhNcRHOwIxUatPH15+nj59WAGTDv3LSGZPEQbJaQ==}
+    engines: {node: '>=12.0.0'}
     requiresBuild: true
     dependencies:
       '@protobufjs/aspromise': 1.1.2
@@ -4770,9 +4766,8 @@ packages:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/long': 4.0.2
       '@types/node': 14.18.51
-      long: 4.0.0
+      long: 5.2.3
     dev: false
 
   /proxy-agent@6.2.1:
@@ -6278,5 +6273,4 @@ packages:
   file:src/base/utils:
     resolution: {directory: src/base/utils, type: directory}
     name: custom_utils
-    version: 0.0.1
     dev: false
