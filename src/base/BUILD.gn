@@ -140,12 +140,12 @@ if (enable_perfetto_ipc) {
       "../../gn:default_deps",
       "../../include/perfetto/ext/base",
     ]
-    sources = [ "unix_socket.cc" ]
+    sources = [
+      "unix_socket.cc",
+      "vm_sockets.h",
+    ]
     if (is_win && perfetto_build_standalone) {
       libs = [ "Ws2_32.lib" ]
-    }
-    if (is_linux || is_android) {
-      sources += [ "vm_sockets.h" ]
     }
   }
 }
