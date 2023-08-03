@@ -141,7 +141,7 @@ SELECT
           "data_size", EXTRACT_ARG(s.arg_set_id, "data_size")
         )
       )
-      FROM ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP(launches.startup_id, 5e7) s
+      FROM ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP(launches.startup_id, 2e7) s
     ),
     'zygote_new_process', EXISTS(SELECT TRUE FROM ZYGOTE_FORK_FOR_LAUNCH(launches.startup_id)),
     'activity_hosting_process_count', (
