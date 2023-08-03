@@ -17,12 +17,17 @@
 #ifndef SRC_BASE_VM_SOCKETS_H_
 #define SRC_BASE_VM_SOCKETS_H_
 
+#include "perfetto/base/build_config.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
 #include <sys/socket.h>
 
 #ifdef AF_VSOCK
 // Use system vm_socket.h if avaialbe.
 #include <linux/vm_sockets.h>
-#else
+#else  // defined(AF_SOCK)
 // Fallback and use the stripped copy from the UAPI vm_sockets.h.
 
 #include <stdint.h>  // For uint8_t.
@@ -40,6 +45,9 @@ struct sockaddr_vm {
                          sizeof(unsigned int) - sizeof(uint8_t)];
 };
 
-#endif
+#endif  // defined(AF_SOCK)
+
+#endif  // PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) ||
+        // PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 
 #endif  // SRC_BASE_VM_SOCKETS_H_
