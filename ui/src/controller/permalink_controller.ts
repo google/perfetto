@@ -15,14 +15,14 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {runValidator} from '../base/validators';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {
   createEmptyNonSerializableState,
   createEmptyState,
 } from '../common/empty_state';
-import {EngineConfig, ObjectById, State} from '../common/state';
-import {STATE_VERSION} from '../common/state';
+import {EngineConfig, ObjectById, State, STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
   buggyToSha256,
@@ -37,7 +37,6 @@ import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {RecordConfig, recordConfigValidator} from './record_config_types';
-import {runValidator} from './validators';
 
 interface MultiEngineState {
   currentEngineId?: string;

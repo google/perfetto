@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {runValidator, ValidationResult} from '../base/validators';
 import {getDefaultRecordingTargets, RecordingTarget} from '../common/state';
 import {
   createEmptyRecordConfig,
@@ -20,7 +21,6 @@ import {
   RecordConfig,
   recordConfigValidator,
 } from '../controller/record_config_types';
-import {runValidator, ValidationResult} from '../controller/validators';
 
 const LOCAL_STORAGE_RECORD_CONFIGS_KEY = 'recordConfigs';
 const LOCAL_STORAGE_AUTOSAVE_CONFIG_KEY = 'autosaveConfig';
