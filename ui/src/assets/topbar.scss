@@ -263,6 +263,11 @@
     font-size: smaller;
   }
 
+  ul {
+    padding: 0;
+    margin: 0;
+  }
+
   .pf-omnibox-options-container {
     max-height: 450px;
     overflow-y: auto;
@@ -271,11 +276,6 @@
       font-size: smaller;
       margin: 4px 0;
       border-bottom: solid 1px $pf-colour-thin-border;
-    }
-
-    ul {
-      padding: 0;
-      margin: 0;
     }
 
     li {
@@ -293,6 +293,13 @@
 
       .pf-title {
         flex-grow: 1;
+      }
+
+      .pf-tag {
+        border-radius: 10px;
+        background: $pf-minimal-background-hover;
+        padding: 0 6px;
+        font-size: smaller;
       }
 
       &:hover {
