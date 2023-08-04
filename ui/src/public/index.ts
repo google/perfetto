@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Disposable} from '../base/disposable';
+import {Hotkey} from '../base/hotkeys';
 import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
@@ -51,10 +52,18 @@ export interface Viewer {
 export interface Command {
   // A unique id for this command.
   id: string;
-  // A friendly human name for the command.
+  // A human-friendly name for this command.
   name: string;
   // Callback is called when the command is invoked.
   callback: (...args: any[]) => void;
+  // Default hotkey for this command.
+  // Note: this is just the default and may be changed by the user.
+  // Examples:
+  // - 'P'
+  // - 'Shift+P'
+  // - '!Mod+Shift+P'
+  // See hotkeys.ts for guidance on hotkey syntax.
+  defaultHotkey?: Hotkey;
 }
 
 export interface MetricVisualisation {

@@ -14,15 +14,11 @@
 
 import m from 'mithril';
 
-import {elementIsEditable} from '../../base/dom_utils';
-
-type Modifier = 'Mod'|'Shift';
+import {checkHotkey, Hotkey} from '../../base/hotkeys';
 
 export interface HotkeyConfig {
-  key: string;
-  mods: Modifier[];
+  hotkey: Hotkey;
   callback: () => void;
-  allowInEditable?: boolean;
 }
 
 export interface HotkeyContextAttrs {
@@ -54,32 +50,11 @@ export class HotkeyContext implements m.ClassComponent<HotkeyContextAttrs> {
     // Find out whether the event has already been handled further up the chain.
     if (e.defaultPrevented) return;
 
-    const inEditable = elementIsEditable(e.target);
-    if (this.hotkeys) {
-      this.hotkeys.forEach((hotkey) => {
-        const {key, mods, callback, allowInEditable = false} = hotkey;
-        if (inEditable && !allowInEditable) {
-          return;
-        }
-        if (compareKeys(e, key) && checkMods(e, mods)) {
-          e.preventDefault();
-          callback();
-        }
-      });
-    }
+    this.hotkeys?.forEach(({callback, hotkey}) => {
+      if (checkHotkey(hotkey, e)) {
+        e.preventDefault();
+        callback();
+      }
+    });
   };
-}
-
-// Return true if |hotkey| matches the event's key (case in-sensitive).
-function compareKeys(e: KeyboardEvent, hotkey: string): boolean {
-  return e.key.toLowerCase() === hotkey.toLowerCase();
-}
-
-// Return true if modifiers specified in |mods| match those in the event.
-function checkMods(e: KeyboardEvent, mods: Modifier[]): boolean {
-  const mod = (e.ctrlKey || e.metaKey);
-  const shift = e.shiftKey;
-  const wantedMod = mods.includes('Mod');
-  const wantedShift = mods.includes('Shift');
-  return mod === wantedMod && shift === wantedShift;
 }
