@@ -1483,6 +1483,89 @@ TEST_F(TracingServiceImplTest, SkipProbability) {
       HasTriggerMode(protos::gen::TraceConfig::TriggerConfig::STOP_TRACING));
 }
 
+// Creates a tracing session with a CLONE_SNAPSHOT trigger and checks that
+// ReadBuffer calls on it return consistently no data (as in the case of
+// STOP_TRACING with no triggers hit) to avoid double uploads (b/290799105 and
+// b/290798988).
+TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_1");
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::CLONE_SNAPSHOT);
+  trigger_config->set_trigger_timeout_ms(8.64e+7);
+  for (int i = 0; i < 3; i++) {
+    auto* trigger = trigger_config->add_triggers();
+    trigger->set_name("trigger_" + std::to_string(i));
+    trigger->set_stop_delay_ms(1);
+  }
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
+
+  auto writer = producer->CreateTraceWriter("ds_1");
+
+  TracingSessionID orig_tsid = GetTracingSessionID();
+
+  // Iterate over a sequence of trigger + CloneSession, to emulate a long trace
+  // receiving different triggers and being cloned several times.
+  for (int iter = 0; iter < 3; iter++) {
+    std::string trigger_name = "trigger_" + std::to_string(iter);
+    producer->endpoint()->ActivateTriggers({trigger_name});
+
+    auto* orig_session = GetTracingSession(orig_tsid);
+    ASSERT_EQ(orig_session->received_triggers.size(), 1u);
+    EXPECT_EQ(trigger_name, orig_session->received_triggers[0].trigger_name);
+
+    // Reading the original trace session should always return nothing. Only the
+    // cloned sessions should return data.
+    EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
+
+    // Now clone the session and check that the cloned session has the triggers.
+    std::unique_ptr<MockConsumer> clone_cons = CreateMockConsumer();
+    clone_cons->Connect(svc.get());
+
+    std::string checkpoint_name = "clone_done_" + std::to_string(iter);
+    auto clone_done = task_runner.CreateCheckpoint(checkpoint_name);
+    EXPECT_CALL(*clone_cons, OnSessionCloned(_))
+        .WillOnce(InvokeWithoutArgs(clone_done));
+    clone_cons->CloneSession(orig_tsid);
+    // CloneSession() will implicitly issue a flush. Linearize with that.
+    producer->WaitForFlush(writer.get());
+    task_runner.RunUntilCheckpoint(checkpoint_name);
+
+    // Read the cloned session and ensure it only contains the last trigger
+    // (i.e. check that the trigger history is reset after each clone and
+    // doesn't pile up).
+    auto packets = clone_cons->ReadBuffers();
+    auto expect_received_trigger = [](const std::string& name) {
+      return Contains(
+          Property(&protos::gen::TracePacket::trigger,
+                   Property(&protos::gen::Trigger::trigger_name, Eq(name))));
+    };
+    EXPECT_THAT(packets, expect_received_trigger(trigger_name));
+    EXPECT_THAT(
+        packets,
+        Not(expect_received_trigger("trigger_" + std::to_string(iter - 1))));
+  }  // for (iter)
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  consumer->WaitForTracingDisabled();
+}
+
 TEST_F(TracingServiceImplTest, LockdownMode) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
