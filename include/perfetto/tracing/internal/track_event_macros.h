@@ -203,7 +203,8 @@
   }
 #endif  // PERFETTO_ENABLE_LEGACY_TRACE_EVENTS
 
-#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC)
+#if PERFETTO_BUILDFLAG(PERFETTO_COMPILER_GCC) || \
+    PERFETTO_BUILDFLAG(PERFETTO_COMPILER_MSVC)
 // On GCC versions <9 there's a bug that prevents using captured constant
 // variables in constexpr evaluation inside a lambda:
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=82643
