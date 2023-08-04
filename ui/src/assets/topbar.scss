@@ -261,7 +261,8 @@
   overflow-y: auto;
 
   ul {
-    padding-left: 0;
+    padding: 0;
+    margin: 0;
   }
 
   .pf-omnibox-section-header {
@@ -269,24 +270,32 @@
     font-size: smaller;
     margin: 4px 0;
     border-bottom: solid 1px $pf-colour-thin-border;
-    position: sticky;
-    top: 0;
   }
 
   li {
+    list-style-type: none;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    user-select: none;
     font-family: $pf-font;
     cursor: pointer;
-    list-style-type: none;
     padding: 4px 8px;
     border-radius: $pf-border-radius;
     align-items: center;
     font-weight: lighter;
+    line-height: 1.2;
+
     &:hover {
       background-color: $pf-minimal-background-hover;
     }
+
     &.pf-highlighted {
       background-color: $pf-primary-background;
       color: white;
+    }
+
+    .pf-keycap {
+      font-size: smaller;
     }
   }
 }
