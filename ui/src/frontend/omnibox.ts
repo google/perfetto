@@ -31,6 +31,9 @@ interface OmniboxOptionRowAttrs {
   // Highlight this option.
   highlighted: boolean;
 
+  // Arbitrary components to put on the right hand side of the option.
+  rightContent?: m.Children;
+
   // Additional attrs forwarded to the underlying element.
   [htmlAttrs: string]: any;
 }
@@ -39,14 +42,18 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   private highlightedBefore = false;
 
   view({attrs}: m.Vnode<OmniboxOptionRowAttrs>): void|m.Children {
-    const {displayName, highlighted, ...htmlAttrs} = attrs;
+    const {displayName, highlighted, rightContent, ...htmlAttrs} = attrs;
     return m(
         'li',
         {
           class: classNames(highlighted && 'pf-highlighted'),
           ...htmlAttrs,
         },
-        this.renderTitle(displayName),
+        m(
+            'span',
+            this.renderTitle(displayName),
+            ),
+        rightContent,
     );
   }
 
@@ -78,6 +85,9 @@ export interface OmniboxOption {
   // Display name provided as a string or a list of fuzzy segments to enable
   // fuzzy match highlighting.
   displayName: FuzzySegment[]|string;
+
+  // Arbitrary components to put on the right hand side of the option.
+  rightContent?: m.Children;
 }
 
 // A category of omnibox options.
@@ -166,7 +176,6 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     return m(
         Popup,
         {
-          className: 'pf-omnibox-dropdown',
           onPopupMount: (dom: HTMLElement) => this.popupElement = dom,
           onPopupUnMount: (_dom: HTMLElement) => this.popupElement = undefined,
           isOpen: exists(options),
@@ -247,11 +256,11 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     if (options.length === 0) {
       return m(EmptyState, {header: 'No matching options...'});
     } else {
-      return options.map(({name, options}) => {
+      return m('.pf-omnibox-dropdown', options.map(({name, options}) => {
         return m(
-            'ul.pf-omnibox-dropdown',
+            'ul',
             name && m('.pf-omnibox-section-header', name),
-            options.map(({displayName, key}) => {
+            options.map(({displayName, key, rightContent}) => {
               return m(OmniboxOptionRow, {
                 key,
                 displayName: displayName,
@@ -260,10 +269,11 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
                   closeOnSubmit && onClose();
                   onSubmit(key, false, false);
                 },
+                rightContent,
               });
             }),
         );
-      });
+      }));
     }
   }
 
