@@ -3530,6 +3530,7 @@ perfetto_proto_library(
         "protos/perfetto/config/android/network_trace_config.proto",
         "protos/perfetto/config/android/packages_list_config.proto",
         "protos/perfetto/config/android/surfaceflinger_layers_config.proto",
+        "protos/perfetto/config/android/surfaceflinger_transactions_config.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
