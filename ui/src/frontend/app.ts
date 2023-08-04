@@ -39,6 +39,7 @@ import {SqlTables} from './sql_table/well_known_tables';
 import {Topbar} from './topbar';
 import {shareTrace} from './trace_attrs';
 import {HotkeyConfig, HotkeyContext} from './widgets/hotkey_context';
+import {HotkeyGlyphs} from './widgets/hotkey_glyphs';
 
 function renderPermalink(): m.Children {
   const permalink = globals.state.permalink;
@@ -168,38 +169,7 @@ export class App implements m.ClassComponent {
     this.enterSearchMode(false);
   }
 
-  private hotkeys: HotkeyConfig[] = [
-    {
-      key: 'p',
-      mods: ['Mod', 'Shift'],
-      allowInEditable: true,
-      callback: () => this.enterCommandMode(),
-    },
-    {
-      key: 'o',
-      mods: ['Mod'],
-      allowInEditable: true,
-      callback: () => this.enterQueryMode(),
-    },
-    {
-      key: 's',
-      mods: ['Mod'],
-      allowInEditable: true,
-      callback: () => this.enterSearchMode(true),
-    },
-    {
-      key: 'b',
-      mods: ['Mod'],
-      allowInEditable: true,
-      callback:
-          () => {
-            globals.commandManager.runCommand(
-                'dev.perfetto.CoreCommands.ToggleLeftSidebar');
-          },
-    },
-  ];
-
-  private cmds = [
+  private cmds: Command[] = [
     {
       id: 'perfetto.SetTimestampFormat',
       name: 'Set timestamp format',
@@ -259,6 +229,7 @@ export class App implements m.ClassComponent {
           () => {
             executeSearch();
           },
+      defaultHotkey: 'Enter',
     },
     {
       id: 'perfetto.SearchPrev',
@@ -267,21 +238,25 @@ export class App implements m.ClassComponent {
           () => {
             executeSearch(true);
           },
+      defaultHotkey: 'Shift+Enter',
     },
     {
       id: 'perfetto.OpenCommandPalette',
       name: 'Open Command Palette',
       callback: () => this.enterCommandMode(),
+      defaultHotkey: '!Mod+Shift+P',
     },
     {
       id: 'perfetto.RunQuery',
       name: 'Run Query',
       callback: () => this.enterQueryMode(),
+      defaultHotkey: '!Mod+O',
     },
     {
       id: 'perfetto.Search',
       name: 'Search',
       callback: () => this.enterSearchMode(true),
+      defaultHotkey: '!Mod+S',
     },
   ];
 
@@ -387,10 +362,12 @@ export class App implements m.ClassComponent {
     // Look up recent comands
     const recents = this.findRecentCommands(filteredCmds);
 
-    const cmdToOpt = ({segments, id}: CommandWithMatchInfo): OmniboxOption => {
+    const cmdToOpt = ({segments, id, defaultHotkey}:
+                          CommandWithMatchInfo): OmniboxOption => {
       return {
         key: id,
         displayName: segments,
+        rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
     };
 
@@ -548,9 +525,22 @@ export class App implements m.ClassComponent {
   }
 
   view({children}: m.Vnode): m.Children {
+    const hotkeys: HotkeyConfig[] = [];
+    const commands = globals.commandManager.commands;
+    for (const {id, defaultHotkey} of commands) {
+      if (defaultHotkey) {
+        hotkeys.push({
+          callback: () => {
+            globals.commandManager.runCommand(id);
+          },
+          hotkey: defaultHotkey,
+        });
+      }
+    }
+
     return m(
         HotkeyContext,
-        {hotkeys: this.hotkeys},
+        {hotkeys},
         m(
             'main',
             m(Sidebar),
