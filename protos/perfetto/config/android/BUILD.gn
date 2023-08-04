@@ -25,5 +25,6 @@ perfetto_proto_library("@TYPE@") {
     "network_trace_config.proto",
     "packages_list_config.proto",
     "surfaceflinger_layers_config.proto",
+    "surfaceflinger_transactions_config.proto",
   ]
 }
