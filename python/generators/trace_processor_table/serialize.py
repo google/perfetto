@@ -401,7 +401,8 @@ class TableSerializer(object):
 
    private:
     friend class {self.table_name};
-    friend class AbstractConstIterator;
+    friend class macros_internal::AbstractConstIterator<
+      ConstIterator, {self.table_name}, RowNumber, ConstRowReference>;
   }};
       '''
 
