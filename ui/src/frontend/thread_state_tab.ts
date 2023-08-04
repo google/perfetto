@@ -14,8 +14,10 @@
 
 import m from 'mithril';
 
+import {runQuery} from '../common/queries';
 import {Duration, time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
+import {addDebugTrack} from '../tracks/debug/slice_track';
 
 import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
@@ -33,6 +35,7 @@ import {
   ThreadState,
   ThreadStateRef,
 } from './thread_state';
+import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
 import {DurationWidget} from './widgets/duration';
 import {GridLayout} from './widgets/grid_layout';
@@ -226,10 +229,11 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       utid: state.thread!.utid,
       name,
     });
+    const sliceColumns = {ts: 'ts', dur: 'dur', name: 'thread_name'};
 
     const nameForNextOrPrev = (state: ThreadState) =>
         `${state.state} for ${Duration.humanise(state.dur)}`;
-    return m(
+    return [m(
         Tree,
         this.relatedStates.waker && m(TreeNode, {
           left: 'Waker',
@@ -263,8 +267,27 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                                  }),
                                  right: renderRef(
                                      state, getFullThreadName(state.thread)),
-                               })))),
-    );
+                  })))),
+      ), m(Button,
+           {
+          label: 'Critical path',
+          onclick: () => runQuery(`SELECT IMPORT('experimental.thread_executing_span');`, this.engine)
+              .then(() => addDebugTrack(
+              this.engine,
+                  {
+                    sqlSource:
+                  `
+                     SELECT ts, dur, thread_name, process_name, height
+                     FROM experimental_thread_executing_span_critical_path(
+                       NULL, ${this.state?.thread?.utid})
+                  `,
+                  columns: ['ts', 'dur', 'thread_name', 'process_name', 'height']
+                  },
+               `${this.state?.thread?.name}`,
+                  sliceColumns,
+                  ['ts', 'dur', 'thread_name', 'process_name', 'height'])),
+      }
+      )];
   }
 
 
