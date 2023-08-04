@@ -47,6 +47,7 @@ class CoreCommands implements TracePlugin {
           this.viewer.sidebar.show();
         }
       },
+      defaultHotkey: '!Mod+B',
     }];
   }
 }
