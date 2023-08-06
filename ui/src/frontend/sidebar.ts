@@ -44,7 +44,6 @@ import {
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
 import {showModal} from './modal';
-import {runQueryInNewTab} from './query_result_tab';
 import {Router} from './router';
 import {createTraceLink, isDownloadable, shareTrace} from './trace_attrs';
 import {
@@ -53,72 +52,6 @@ import {
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
 import {Button} from './widgets/button';
-
-const ALL_PROCESSES_QUERY = 'select name, pid from process order by name;';
-
-const CPU_TIME_FOR_PROCESSES = `
-select
-  process.name,
-  sum(dur)/1e9 as cpu_sec
-from sched
-join thread using(utid)
-join process using(upid)
-group by upid
-order by cpu_sec desc
-limit 100;`;
-
-const CYCLES_PER_P_STATE_PER_CPU = `
-select
-  cpu,
-  freq,
-  dur,
-  sum(dur * freq)/1e6 as mcycles
-from (
-  select
-    cpu,
-    value as freq,
-    lead(ts) over (partition by cpu order by ts) - ts as dur
-  from counter
-  inner join cpu_counter_track on counter.track_id = cpu_counter_track.id
-  where name = 'cpufreq'
-) group by cpu, freq
-order by mcycles desc limit 32;`;
-
-const CPU_TIME_BY_CPU_BY_PROCESS = `
-select
-  process.name as process,
-  thread.name as thread,
-  cpu,
-  sum(dur) / 1e9 as cpu_sec
-from sched
-inner join thread using(utid)
-inner join process using(upid)
-group by utid, cpu
-order by cpu_sec desc
-limit 30;`;
-
-const HEAP_GRAPH_BYTES_PER_TYPE = `
-select
-  o.upid,
-  o.graph_sample_ts,
-  c.name,
-  sum(o.self_size) as total_self_size
-from heap_graph_object o join heap_graph_class c on o.type_id = c.id
-group by
- o.upid,
- o.graph_sample_ts,
- c.name
-order by total_self_size desc
-limit 100;`;
-
-const SQL_STATS = `
-with first as (select started as ts from sqlstats limit 1)
-select
-    round((max(ended - started, 0))/1e6) as runtime_ms,
-    round((started - first.ts)/1e6) as t_start_ms,
-    query
-from sqlstats, first
-order by started desc`;
 
 const GITILES_URL =
     'https://android.googlesource.com/platform/external/perfetto';
@@ -156,13 +89,6 @@ const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
 
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
-}
-
-function createCannedQuery(query: string, title: string): (_: Event) => void {
-  return (e: Event) => {
-    e.preventDefault();
-    runQueryInNewTab(query, title);
-  };
 }
 
 export const EXAMPLE_ANDROID_TRACE_URL =
@@ -315,13 +241,6 @@ const SECTIONS: Section[] = [
         a: () => window.open(getBugReportUrl()),
         i: 'bug_report',
       },
-    ],
-  },
-
-  {
-    title: 'Sample queries',
-    summary: 'Compute summary statistics',
-    items: [
       {
         t: 'Record metatrace',
         a: recordMetatrace,
@@ -334,42 +253,8 @@ const SECTIONS: Section[] = [
         i: 'file_download',
         checkMetatracingEnabled: true,
       },
-      {
-        t: 'All Processes',
-        a: createCannedQuery(ALL_PROCESSES_QUERY, 'All Processes'),
-        i: 'search',
-      },
-      {
-        t: 'CPU Time by process',
-        a: createCannedQuery(CPU_TIME_FOR_PROCESSES, 'CPU Time by process'),
-        i: 'search',
-      },
-      {
-        t: 'Cycles by p-state by CPU',
-        a: createCannedQuery(
-            CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU'),
-        i: 'search',
-      },
-      {
-        t: 'CPU Time by CPU by process',
-        a: createCannedQuery(
-            CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process'),
-        i: 'search',
-      },
-      {
-        t: 'Heap Graph: Bytes per type',
-        a: createCannedQuery(
-            HEAP_GRAPH_BYTES_PER_TYPE, 'Heap Graph: Bytes per type'),
-        i: 'search',
-      },
-      {
-        t: 'Debug SQL performance',
-        a: createCannedQuery(SQL_STATS, 'Recent SQL queries'),
-        i: 'bug_report',
-      },
     ],
   },
-
 ];
 
 function openHelp(e: Event) {
