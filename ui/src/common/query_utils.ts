@@ -22,8 +22,8 @@ enum EscapeFlag {
 function escape(s: string, flags?: number): string {
   flags = flags === undefined ? 0 : flags;
   // See https://www.sqlite.org/lang_expr.html#:~:text=A%20string%20constant
-  s = s.replace(/\'/g, '\'\'');
-  s = s.replace(/\[/g, '[[]');
+  s = s.replaceAll('\'', '\'\'');
+  s = s.replaceAll('[', '[[]');
   if (flags & EscapeFlag.CaseInsensitive) {
     s = s.replace(/[a-zA-Z]/g, (m) => {
       const lower = m.toLowerCase();
@@ -31,8 +31,8 @@ function escape(s: string, flags?: number): string {
       return `[${lower}${upper}]`;
     });
   }
-  s = s.replace(/\?/g, '[?]');
-  s = s.replace(/\*/g, '[*]');
+  s = s.replaceAll('?', '[?]');
+  s = s.replaceAll('*', '[*]');
   if (flags & EscapeFlag.MatchAny) {
     s = `*${s}*`;
   }
@@ -50,6 +50,6 @@ export function escapeSearchQuery(s: string): string {
 
 export function escapeGlob(s: string): string {
   // For globs we are only preoccupied by mismatching single quotes.
-  s = s.replace(/\'/g, '\'\'');
+  s = s.replaceAll('\'', '\'\'');
   return `'*${s}*'`;
 }
