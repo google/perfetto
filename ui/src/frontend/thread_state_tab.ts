@@ -281,12 +281,12 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                      FROM experimental_thread_executing_span_critical_path(
                        NULL, ${this.state?.thread?.utid})
                   `,
-                  columns: ['ts', 'dur', 'thread_name', 'process_name', 'height']
+                  columns: ['ts', 'dur', 'thread_name', 'process_name', 'height'],
                   },
                `${this.state?.thread?.name}`,
                   sliceColumns,
                   ['ts', 'dur', 'thread_name', 'process_name', 'height'])),
-      }
+      },
       )];
   }
 
