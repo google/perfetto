@@ -39,7 +39,6 @@ class SqliteTokenizerTest : public ::testing::Test {
     return tokens;
   }
 
- private:
   SqliteTokenizer tokenizer_{SqlSource::FromTraceProcessorImplementation("")};
 };
 
@@ -64,6 +63,18 @@ TEST_F(SqliteTokenizerTest, Select) {
           Token{"*", Type::TK_STAR}, Token{" ", Type::TK_SPACE},
           Token{"FROM", Type::TK_GENERIC_KEYWORD}, Token{" ", Type::TK_SPACE},
           Token{"slice", Type::TK_ID}, Token{";", Type::TK_SEMI}));
+}
+
+TEST_F(SqliteTokenizerTest, PastEndErrorToken) {
+  tokenizer_.Reset(SqlSource::FromTraceProcessorImplementation("S"));
+  ASSERT_EQ(tokenizer_.Next(), (Token{"S", Type::TK_ID}));
+
+  auto end_token = tokenizer_.Next();
+  ASSERT_EQ(end_token, (Token{"", Type::TK_ILLEGAL}));
+  ASSERT_EQ(tokenizer_.AsTraceback(end_token),
+            "  Trace Processor Internal line 1 col 2\n"
+            "    S\n"
+            "     ^\n");
 }
 
 }  // namespace
