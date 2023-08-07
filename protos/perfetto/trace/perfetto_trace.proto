@@ -4308,6 +4308,8 @@ message DisplayProto {
   optional RectProto layer_stack_space_rect = 5;
   optional TransformProto transform = 6;
   optional bool is_virtual = 7;
+  optional double dpi_x = 8;
+  optional double dpi_y = 9;
 }
 
 // Must match definition in the IComposerClient HAL
