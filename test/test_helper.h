@@ -246,7 +246,8 @@ class FakeProducerThread {
     PosixSharedMemory::Factory factory;
 #endif
     shm_ = factory.CreateSharedMemory(1024 * 1024);
-    shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), 4096);
+    shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(
+        shm_.get(), 4096, SharedMemoryABI::ShmemMode::kDefault);
   }
 
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config,

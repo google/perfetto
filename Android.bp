@@ -11557,6 +11557,7 @@ filegroup {
     name: "perfetto_src_tracing_core_core",
     srcs: [
         "src/tracing/core/id_allocator.cc",
+        "src/tracing/core/in_process_shared_memory.cc",
         "src/tracing/core/null_trace_writer.cc",
         "src/tracing/core/shared_memory_abi.cc",
         "src/tracing/core/shared_memory_arbiter_impl.cc",
@@ -11725,7 +11726,6 @@ filegroup {
         "src/tracing/test/fake_packet.cc",
         "src/tracing/test/mock_consumer.cc",
         "src/tracing/test/mock_producer.cc",
-        "src/tracing/test/test_shared_memory.cc",
         "src/tracing/test/traced_value_test_support.cc",
     ],
 }

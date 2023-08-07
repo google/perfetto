@@ -129,7 +129,9 @@ void ProducerIPCService::InitializeConnection(
     return;
   }
 
+  bool use_shmem_emulation = ipc::Service::use_shmem_emulation();
   bool using_producer_shmem =
+      !use_shmem_emulation &&
       producer->service_endpoint->IsShmemProvidedByProducer();
 
   producers_.emplace(ipc_client_id, std::move(producer));
@@ -139,6 +141,7 @@ void ProducerIPCService::InitializeConnection(
       ipc::AsyncResult<protos::gen::InitializeConnectionResponse>::Create();
   async_res->set_using_shmem_provided_by_producer(using_producer_shmem);
   async_res->set_direct_smb_patching_supported(true);
+  async_res->set_use_shmem_emulation(use_shmem_emulation);
   response.Resolve(std::move(async_res));
 }
 

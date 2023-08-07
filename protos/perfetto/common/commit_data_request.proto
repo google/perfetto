@@ -32,6 +32,13 @@ message CommitDataRequest {
     // The target buffer it should be moved onto. The service will check that
     // the producer is allowed to write into that buffer before the move.
     optional uint32 target_buffer = 3;
+
+    // Sending the chunk data over the wire. Used for transports that don't
+    // support shared memory (e.g. vsock or TCP sockets). In the default case
+    // (tracing protocol over a Unix socket), this field is not used and tracing
+    // data is stored in the shmem buffer and referenced by the fields above.
+    // See |use_shemem_emulation| in the codebase for reference.
+    optional bytes data = 4;
   }
   repeated ChunksToMove chunks_to_move = 1;
 
