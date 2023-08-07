@@ -124,6 +124,9 @@ class SqliteTokenizer {
   }
 
  private:
+  SqliteTokenizer(const SqliteTokenizer&) = delete;
+  SqliteTokenizer& operator=(const SqliteTokenizer&) = delete;
+
   SqliteTokenizer(SqliteTokenizer&&) = delete;
   SqliteTokenizer& operator=(SqliteTokenizer&&) = delete;
 

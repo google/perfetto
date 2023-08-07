@@ -52,16 +52,21 @@ class SqlSource {
   static SqlSource FromTraceProcessorImplementation(std::string sql);
 
   // Returns this SqlSource instance as a string which can be appended as a
-  // "traceback" frame to an error message. Callers can pass an optional
-  // |offset| parameter which indicates the exact location of the error in the
-  // SQL string.
+  // "traceback" frame to an error message. Callers should pass an |offset|
+  // parameter which indicates the exact location of the error in the SQL
+  // string. 0 and |sql().size()| are both valid offset positions and correspond
+  // to the start and end of the source respectively.
   //
   // Specifically, this string will include:
   //  a) context about the source of the SQL
   //  b) line and column number of the error
   //  c) a snippet of the SQL and a caret (^) character pointing to the location
   //     of the error.
-  std::string AsTraceback(std::optional<uint32_t> offset) const;
+  std::string AsTraceback(uint32_t offset) const;
+
+  // Same as |AsTraceback| but for offsets which come from SQLite instead of
+  // from trace processor tokenization or parsing.
+  std::string AsTracebackForSqliteOffset(std::optional<uint32_t> offset) const;
 
   // Creates a SqlSource instance with the SQL taken as a substring starting
   // at |offset| with |len| characters.

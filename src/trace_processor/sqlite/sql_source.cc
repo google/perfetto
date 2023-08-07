@@ -89,7 +89,12 @@ SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {
   return SqlSource(std::move(sql), "Trace Processor Internal", false);
 }
 
-std::string SqlSource::AsTraceback(std::optional<uint32_t> opt_offset) const {
+std::string SqlSource::AsTraceback(uint32_t offset) const {
+  return root_.AsTraceback(offset);
+}
+
+std::string SqlSource::AsTracebackForSqliteOffset(
+    std::optional<uint32_t> opt_offset) const {
   uint32_t offset = opt_offset.value_or(0);
   // Unfortunately, there is a bug in pre-3.41.2 versions of SQLite where
   // sqlite3_error_offset can return an offset out of bounds. In these
@@ -99,7 +104,7 @@ std::string SqlSource::AsTraceback(std::optional<uint32_t> opt_offset) const {
     offset = 0;
   }
 #else
-  PERFETTO_CHECK(offset < sql_.size());
+  PERFETTO_CHECK(offset <= sql_.size());
 #endif
   return root_.AsTraceback(offset);
 }
