@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include <cinttypes>
+#include <limits>
 #include <optional>
 #include <regex>
 #include <unordered_set>
@@ -4156,8 +4157,24 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     if (page_idx >= shmem_abi_.num_pages())
       continue;  // A buggy or malicious producer.
 
-    SharedMemoryABI::Chunk chunk =
-        shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
+    SharedMemoryABI::Chunk chunk;
+    bool commit_data_over_ipc = entry.has_data();
+    if (PERFETTO_UNLIKELY(commit_data_over_ipc)) {
+      // Chunk data is passed over the wire. Create a chunk using the serialized
+      // protobuf message.
+      const std::string& data = entry.data();
+      if (data.size() > SharedMemoryABI::Chunk::kMaxSize) {
+        PERFETTO_DFATAL("IPC data commit too large: %zu", data.size());
+        continue;  // A malicious or buggy producer
+      }
+      // |data| is not altered, but we need to const_cast becasue Chunk data
+      // members are non-const.
+      chunk = SharedMemoryABI::MakeChunkFromSerializedData(
+          reinterpret_cast<uint8_t*>(const_cast<char*>(data.data())),
+          static_cast<uint16_t>(entry.data().size()),
+          static_cast<uint8_t>(entry.chunk()));
+    } else
+      chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
     if (!chunk.is_valid()) {
       PERFETTO_DLOG("Asked to move chunk %d:%d, but it's not complete",
                     entry.page(), entry.chunk());
@@ -4182,8 +4199,10 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
         chunk_flags,
         /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
 
-    // This one has release-store semantics.
-    shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+    if (!commit_data_over_ipc) {
+      // This one has release-store semantics.
+      shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+    }
   }  // for(chunks_to_move)
 
   service_->ApplyChunkPatches(id_, req_untrusted.chunks_to_patch());
@@ -4212,10 +4231,12 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
-                        shared_buffer_page_size_kb() * 1024);
+                        shared_buffer_page_size_kb() * 1024,
+                        SharedMemoryABI::ShmemMode::kDefault);
   if (in_process_) {
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
+        SharedMemoryABI::ShmemMode::kDefault,
         shared_buffer_page_size_kb_ * 1024, this, task_runner_));
     inproc_shmem_arbiter_->SetDirectSMBPatchingSupportedByService();
   }
