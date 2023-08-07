@@ -87,6 +87,14 @@ const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const VIZ_PAGE_IN_NAV_FLAG = featureFlags.register({
+  id: 'showVizPageInNav',
+  name: 'Show viz page',
+  description: 'Show a link to the viz page in the side bar.',
+  defaultValue: true,
+});
+
+
 function shouldShowHiringBanner(): boolean {
   return globals.isInternalUser && HIRING_BANNER_FLAG.get();
 }
@@ -169,6 +177,12 @@ const SECTIONS: Section[] = [
         a: navigateInsights,
         i: 'insights',
         isVisible: () => INSIGHTS_PAGE_IN_NAV_FLAG.get(),
+      },
+      {
+        t: 'Viz',
+        a: navigateViz,
+        i: 'area_chart',
+        isVisible: () => VIZ_PAGE_IN_NAV_FLAG.get(),
       },
       {t: 'Metrics', a: navigateMetrics, i: 'speed'},
       {t: 'Info and stats', a: navigateInfo, i: 'info'},
@@ -460,6 +474,11 @@ function navigateQuery(e: Event) {
 function navigateInsights(e: Event) {
   e.preventDefault();
   Router.navigate('#!/insights');
+}
+
+function navigateViz(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/viz');
 }
 
 function navigateFlags(e: Event) {
