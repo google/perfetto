@@ -2986,6 +2986,8 @@ perfetto_filegroup(
         "src/tracing/core/histogram.h",
         "src/tracing/core/id_allocator.cc",
         "src/tracing/core/id_allocator.h",
+        "src/tracing/core/in_process_shared_memory.cc",
+        "src/tracing/core/in_process_shared_memory.h",
         "src/tracing/core/null_trace_writer.cc",
         "src/tracing/core/null_trace_writer.h",
         "src/tracing/core/patch_list.h",
