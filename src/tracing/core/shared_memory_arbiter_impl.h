@@ -109,8 +109,19 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
   // boundaries of the shared memory buffer. ProducerEndpoint and TaskRunner may
   // be |nullptr| if created unbound, see
   // SharedMemoryArbiter::CreateUnboundInstance().
+
+  // SharedMemoryArbiterImpl(void* start,
+  //                         size_t size,
+  //                         size_t page_size,
+  //                         TracingService::ProducerEndpoint*
+  //                         producer_endpoint, base::TaskRunner* task_runner) :
+  //   SharedMemoryArbiterImpl(start, size, page_size, false, producer_endpoint,
+  //   task_runner) {
+  // }
+
   SharedMemoryArbiterImpl(void* start,
                           size_t size,
+                          ShmemMode mode,
                           size_t page_size,
                           TracingService::ProducerEndpoint*,
                           base::TaskRunner*);
@@ -247,6 +258,10 @@ class SharedMemoryArbiterImpl : public SharedMemoryArbiter {
 
   // Only accessed on |task_runner_| after the producer endpoint was bound.
   TracingService::ProducerEndpoint* producer_endpoint_ = nullptr;
+
+  // Set to true when this instance runs in a emulation mode for a producer
+  // endpoint that doesn't support shared memory (e.g. vsock).
+  const bool use_shmem_emulation_ = false;
 
   // --- Begin lock-protected members ---
 

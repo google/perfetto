@@ -88,7 +88,16 @@ enum class SockPeerCredMode {
 // - @abstract_name  : for abstract AF_UNIX sockets.
 // - 1.2.3.4:8080    : for Inet sockets.
 // - [::1]:8080      : for Inet6 sockets.
+// - vsock://-1:3000 : for VM sockets.
 SockFamily GetSockFamily(const char* addr);
+
+// Returns whether inter-process shared memory is supported for the socket.
+inline bool SockShmemSupported(SockFamily sock_family) {
+  return sock_family == SockFamily::kUnix;
+}
+inline bool SockShmemSupported(const char* addr) {
+  return SockShmemSupported(GetSockFamily(addr));
+}
 
 // UnixSocketRaw is a basic wrapper around sockets. It exposes wrapper
 // methods that take care of most common pitfalls (e.g., marking fd as
