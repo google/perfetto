@@ -24,7 +24,7 @@ namespace {
 
 TEST(SqlSourceTest, Factory) {
   SqlSource source = SqlSource::FromExecuteQuery("SELECT * FROM slice");
-  ASSERT_EQ(source.AsTraceback(std::nullopt),
+  ASSERT_EQ(source.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    SELECT * FROM slice\n"
@@ -41,7 +41,7 @@ TEST(SqlSourceTest, Substr) {
       SqlSource::FromExecuteQuery("SELECT * FROM slice").Substr(9, 10);
   ASSERT_EQ(source.sql(), "FROM slice");
 
-  ASSERT_EQ(source.AsTraceback(std::nullopt),
+  ASSERT_EQ(source.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 10\n"
             "    FROM slice\n"
@@ -60,7 +60,7 @@ TEST(SqlSourceTest, FullRewrite) {
               "SELECT * FROM slice"));
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
-  ASSERT_EQ(source.AsTraceback(std::nullopt),
+  ASSERT_EQ(source.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -89,7 +89,7 @@ TEST(SqlSourceTest, NestedFullRewrite) {
       SqlSource::FromExecuteQuery("macro!()").FullRewrite(std::move(nested));
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
-  ASSERT_EQ(source.AsTraceback(std::nullopt),
+  ASSERT_EQ(source.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -124,7 +124,7 @@ TEST(SqlSourceTest, Rewriter) {
   ASSERT_EQ(rewritten.sql(), "SELECT ts, dur, ts + dur AS ts_end FROM slice");
 
   // Offset points at the top level source.
-  ASSERT_EQ(rewritten.AsTraceback(std::nullopt),
+  ASSERT_EQ(rewritten.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    SELECT cols!() FROM slice\n"
@@ -163,7 +163,7 @@ TEST(SqlSourceTest, NestedRewriter) {
   ASSERT_EQ(rewritten.sql(), "SELECT id, ts, dur, depth, name FROM slice");
 
   // Offset points at the top level source.
-  ASSERT_EQ(rewritten.AsTraceback(std::nullopt),
+  ASSERT_EQ(rewritten.AsTraceback(0),
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    SELECT cols!() FROM slice\n"
