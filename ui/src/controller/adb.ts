@@ -586,7 +586,7 @@ export class AdbMsgImpl implements AdbMsg {
 
 
 function base64StringToArray(s: string) {
-  const decoded = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+  const decoded = atob(s.replaceAll('-', '+').replaceAll('_', '/'));
   return [...decoded].map((char) => char.charCodeAt(0));
 }
 

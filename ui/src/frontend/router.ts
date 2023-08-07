@@ -245,8 +245,7 @@ export class Router {
   }
 
   private static parseQueryString(query: string) {
-    // TODO(hjd): Use replaceAll when we have updated to es2021.
-    query = query.replace(/\+/g, ' ');
+    query = query.replaceAll('+', ' ');
     return m.parseQueryString(query);
   }
 
