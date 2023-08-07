@@ -83,7 +83,9 @@ base::Status AddTracebackIfNeeded(base::Status status,
   if (status.GetPayload("perfetto.dev/has_traceback") == "true") {
     return status;
   }
-  std::string traceback = source.AsTraceback(std::nullopt);
+  // Since the error is with the statement as a whole, just pass zero so the
+  // traceback points to the start of the statement.
+  std::string traceback = source.AsTraceback(0);
   status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
   status.SetPayload("perfetto.dev/has_traceback", "true");
   return status;
