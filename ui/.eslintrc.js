@@ -33,6 +33,7 @@ module.exports = {
       },
     ],
 
+    'linebreak-style': 'off',
     // Indentation handled by clang-format --js:
     'indent': 'off',
 
