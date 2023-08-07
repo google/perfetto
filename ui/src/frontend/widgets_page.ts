@@ -340,8 +340,7 @@ interface WidgetTitleAttrs {
 class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
   view({attrs}: m.CVnode<WidgetTitleAttrs>) {
     const {label} = attrs;
-    // TODO(hjd): Use replaceAll when have updated to es2021.
-    const id = label.replace(/ /g, '').toLowerCase();
+    const id = label.replaceAll(' ', '').toLowerCase();
     const href = `#!/widgets#${id}`;
     return m(Anchor, {id, href}, m('h2', label));
   }
