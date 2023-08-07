@@ -11,7 +11,7 @@
     "outDir": "./out/tsc",
     "lib": [
       "dom",                               // Need to be explicitly mentioned now since we're overriding default included libs.
-      "es2020",                            // Need this to use Promise.allSettled.
+      "es2021",                            // Need this to use Promise.allSettled, replaceAll, etc
     ],
     "paths": {
       "*" : ["*", "./node_modules/@tsundoku/micromodal_types/*"]
