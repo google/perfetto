@@ -68,22 +68,25 @@ ConvertThreadId(const PerfettoLegacyCurrentThreadId&);
 // below.
 #define PERFETTO_INTERNAL_LEGACY_EVENT_ON_TRACK(phase, category, name, track, \
                                                 ...)                          \
-  PERFETTO_INTERNAL_TRACK_EVENT(                                              \
-      category, ::perfetto::internal::DecayEventNameType(name),               \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(                                  \
+      TraceForCategory, category,                                             \
+      ::perfetto::internal::DecayEventNameType(name),                         \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track,      \
       ##__VA_ARGS__);
 
 #define PERFETTO_INTERNAL_LEGACY_EVENT_WITH_FLAGS_ON_TRACK(              \
     phase, category, name, track, flags, ...)                            \
-  PERFETTO_INTERNAL_LEGACY_TRACK_EVENT(                                  \
-      category, ::perfetto::internal::DecayEventNameType(name),          \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(                             \
+      TraceForCategoryLegacy, category,                                  \
+      ::perfetto::internal::DecayEventNameType(name),                    \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track, \
       phase, flags, ##__VA_ARGS__);
 
 #define PERFETTO_INTERNAL_LEGACY_EVENT_WITH_ID_ON_TRACK(                 \
     phase, category, name, track, flags, thread_id, id, ...)             \
-  PERFETTO_INTERNAL_LEGACY_TRACK_EVENT_WITH_ID(                          \
-      category, ::perfetto::internal::DecayEventNameType(name),          \
+  PERFETTO_INTERNAL_TRACK_EVENT_WITH_METHOD(                             \
+      TraceForCategoryLegacyWithId, category,                            \
+      ::perfetto::internal::DecayEventNameType(name),                    \
       ::perfetto::internal::TrackEventLegacy::PhaseToType(phase), track, \
       phase, flags, thread_id, id, ##__VA_ARGS__);
 
