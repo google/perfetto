@@ -125,6 +125,7 @@ bool HostImpl::ExposeService(std::unique_ptr<Service> service) {
     PERFETTO_DLOG("Duplicate ExposeService(): %s", service_name.c_str());
     return false;
   }
+  service->use_shmem_emulation_ = !base::SockShmemSupported(sock()->family());
   ServiceID sid = ++last_service_id_;
   ExposedService exposed_service(sid, service_name, std::move(service));
   services_.emplace(sid, std::move(exposed_service));

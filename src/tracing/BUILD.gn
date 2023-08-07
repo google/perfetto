@@ -225,6 +225,7 @@ source_set("in_process_backend") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing/core",
     "../base",
+    "core",
     "core:service",
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]

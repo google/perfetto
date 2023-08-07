@@ -34,7 +34,8 @@ size_t const kPageSizes[] = {4096, 8192, 16384, 32768, 65536};
 INSTANTIATE_TEST_SUITE_P(PageSize, SharedMemoryABITest, ValuesIn(kPageSizes));
 
 TEST_P(SharedMemoryABITest, NominalCases) {
-  SharedMemoryABI abi(buf(), buf_size(), page_size());
+  SharedMemoryABI abi(buf(), buf_size(), page_size(),
+                      SharedMemoryABI::ShmemMode::kDefault);
 
   ASSERT_EQ(buf(), abi.start());
   ASSERT_EQ(buf() + buf_size(), abi.end());
@@ -187,6 +188,64 @@ TEST_P(SharedMemoryABITest, NominalCases) {
       ASSERT_EQ(SharedMemoryABI::kChunkFree,
                 abi.GetChunkState(page_idx, chunk_idx));
     }
+  }
+}
+
+// Tests chunk state transition in the emulation mode.
+TEST_P(SharedMemoryABITest, ShmemEmulation) {
+  SharedMemoryABI abi(buf(), buf_size(), page_size(),
+                      SharedMemoryABI::ShmemMode::kShmemEmulation);
+
+  for (size_t i = 0; i < kNumPages; i++) {
+    ASSERT_TRUE(abi.is_page_free(i));
+    ASSERT_FALSE(abi.is_page_complete(i));
+    // GetFreeChunks() should return 0 for an unpartitioned page.
+    ASSERT_EQ(0u, abi.GetFreeChunks(i));
+  }
+
+  ASSERT_TRUE(abi.TryPartitionPage(0, SharedMemoryABI::kPageDiv14));
+  ASSERT_EQ(0x3fffu, abi.GetFreeChunks(0));
+
+  ASSERT_FALSE(abi.is_page_free(0));
+
+  const size_t num_chunks =
+      SharedMemoryABI::GetNumChunksForLayout(abi.GetPageLayout(0));
+  Chunk chunks[14];
+
+  for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+    Chunk& chunk = chunks[chunk_idx];
+    ChunkHeader header{};
+
+    ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0, chunk_idx));
+
+    chunk = abi.TryAcquireChunkForWriting(0, chunk_idx, &header);
+    ASSERT_TRUE(chunk.is_valid());
+    ASSERT_EQ(SharedMemoryABI::kChunkBeingWritten,
+              abi.GetChunkState(0, chunk_idx));
+
+    // Reacquiring the same chunk should fail.
+    ASSERT_FALSE(
+        abi.TryAcquireChunkForWriting(0, chunk_idx, &header).is_valid());
+  }
+
+  // Now release chunks and check the Release() logic.
+  for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+    Chunk& chunk = chunks[chunk_idx];
+
+    size_t res = abi.ReleaseChunkAsComplete(std::move(chunk));
+    ASSERT_EQ(0u, res);
+    ASSERT_EQ(SharedMemoryABI::kChunkComplete, abi.GetChunkState(0, chunk_idx));
+  }
+
+  for (size_t chunk_idx = 0; chunk_idx < num_chunks; chunk_idx++) {
+    Chunk chunk = abi.GetChunkUnchecked(0, abi.GetPageLayout(0), chunk_idx);
+
+    // If this was the last chunk in the page, the full page should be marked
+    // as free.
+    size_t res = abi.ReleaseChunkAsFree(std::move(chunk));
+    ASSERT_EQ(0u, res);
+    ASSERT_EQ(chunk_idx == num_chunks - 1, abi.is_page_free(0));
+    ASSERT_EQ(SharedMemoryABI::kChunkFree, abi.GetChunkState(0u, chunk_idx));
   }
 }
 

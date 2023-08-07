@@ -185,6 +185,11 @@ message InitializeConnectionResponse {
   // chunks that have not yet been committed to it.
   // This field has been introduced in Android S.
   optional bool direct_smb_patching_supported = 2;
+
+  // Indicates whether the service would like to use SMB emulation for the
+  // connection, and request the client to send chunk data over the socket e.g.
+  // for remote connection from a VM guest.
+  optional bool use_shmem_emulation = 3;
 }
 
 // Arguments for rpc RegisterDataSource().

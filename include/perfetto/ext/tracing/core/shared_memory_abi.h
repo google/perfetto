@@ -176,6 +176,11 @@ class SharedMemoryABI {
   //  kChunkBeingRead                |
   //        |   (Service)            |
   //        +------------------------+
+  //
+  // The ABI has an "emulation mode" for transports where shared memory isn't
+  // supported. In this mode, kChunkBeingRead is skipped. A chunk in the
+  // kChunkComplete state is released as free after the producer serializes
+  // chunk content to the protobuf message.
   enum ChunkState : uint32_t {
     // The Chunk is free. The Service shall never touch it, the Producer can
     // acquire it and transition it into kChunkBeingWritten.
@@ -225,6 +230,16 @@ class SharedMemoryABI {
 
   // Keep this consistent with the PageLayout enum above.
   static constexpr uint32_t kNumChunksForLayout[] = {0, 1, 2, 4, 7, 14, 0, 0};
+
+  enum class ShmemMode {
+    // The default mode, where the shared buffer is visible to both the producer
+    // and the service.
+    kDefault,
+
+    // The emulation mode, used for producer ports without shared memory. The
+    // state transitions are all done in the producer process.
+    kShmemEmulation,
+  };
 
   // Layout of a Page.
   // +===================================================+
@@ -443,13 +458,22 @@ class SharedMemoryABI {
     uint8_t* begin_ = nullptr;
     uint16_t size_ = 0;
     uint8_t chunk_idx_ = 0;
+
+   public:
+    static constexpr size_t kMaxSize = 1ULL << sizeof(size_) * 8;
   };
 
   // Construct an instance from an existing shared memory buffer.
-  SharedMemoryABI(uint8_t* start, size_t size, size_t page_size);
+  SharedMemoryABI(uint8_t* start,
+                  size_t size,
+                  size_t page_size,
+                  ShmemMode mode);
   SharedMemoryABI();
 
-  void Initialize(uint8_t* start, size_t size, size_t page_size);
+  void Initialize(uint8_t* start,
+                  size_t size,
+                  size_t page_size,
+                  ShmemMode mode);
 
   uint8_t* start() const { return start_; }
   uint8_t* end() const { return start_ + size_; }
@@ -536,6 +560,15 @@ class SharedMemoryABI {
                           uint32_t page_layout,
                           size_t chunk_idx);
 
+  // Creates a Chunk by adopting the given buffer (|data| and |size|) and chunk
+  // index. This is used for chunk data passed over the wire (e.g. tcp or
+  // vsock). The chunk should *not* be freed to the shared memory.
+  static Chunk MakeChunkFromSerializedData(uint8_t* data,
+                                           uint16_t size,
+                                           uint8_t chunk_idx) {
+    return Chunk(data, size, chunk_idx);
+  }
+
   // Puts a chunk into the kChunkComplete state. Returns the page index.
   size_t ReleaseChunkAsComplete(Chunk chunk) {
     return ReleaseChunk(std::move(chunk), kChunkComplete);
@@ -595,6 +628,7 @@ class SharedMemoryABI {
   uint8_t* start_ = nullptr;
   size_t size_ = 0;
   size_t page_size_ = 0;
+  bool use_shmem_emulation_ = false;
   size_t num_pages_ = 0;
   std::array<uint16_t, kNumPageLayouts> chunk_sizes_;
 };
