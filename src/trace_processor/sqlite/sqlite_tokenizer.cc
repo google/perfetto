@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -461,6 +462,9 @@ SqlSource SqliteTokenizer::Substr(Token start, Token end) const {
 }
 
 std::string SqliteTokenizer::AsTraceback(Token token) const {
+  PERFETTO_CHECK(source_.sql().c_str() <= token.str.data());
+  PERFETTO_CHECK(token.str.data() <=
+                 source_.sql().c_str() + source_.sql().size());
   uint32_t offset =
       static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
   return source_.AsTraceback(offset);
