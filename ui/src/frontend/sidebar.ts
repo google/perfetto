@@ -922,7 +922,7 @@ export class Sidebar implements m.ClassComponent {
               {
                 onclick: () => {
                   globals.commandManager.runCommand(
-                      'dev.perfetto.CoreCommands.ToggleLeftSidebar');
+                      'dev.perfetto.CoreCommands#ToggleLeftSidebar');
                 },
               },
               m('i.material-icons',
