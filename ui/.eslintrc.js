@@ -1,4 +1,5 @@
 module.exports = {
+  'root': true,
   'env': {
     'browser': true,
     'es2021': true,
@@ -32,6 +33,7 @@ module.exports = {
       },
     ],
 
+    'linebreak-style': 'off',
     // Indentation handled by clang-format --js:
     'indent': 'off',
 
