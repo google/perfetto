@@ -458,6 +458,9 @@ export const StateActions = {
   // |isRemovable| property of its state.
   removeTrack(state: StateDraft, args: {trackId: string}): void {
     const track = state.tracks[args.trackId];
+    if(!track){
+      return;
+    }
     assertTrue(track.isRemovable ?? false);
     removeTrack(state, args.trackId);
 
@@ -494,6 +497,9 @@ export const StateActions = {
   // |isRemovable| property of its state.
   removeTrackGroup(state: StateDraft, args: {id: string, summaryTrackId: string}): void {
     const trackGroup = state.trackGroups[args.id];
+    if(!trackGroup){
+      return;
+    }
     assertTrue(trackGroup.isRemovable ?? false);
 
     removeTrackGroup(state, args.id);
