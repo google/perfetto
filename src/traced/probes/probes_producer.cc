@@ -503,38 +503,51 @@ void ProbesProducer::OnTracingSetup() {
 void ProbesProducer::Flush(FlushRequestID flush_request_id,
                            const DataSourceInstanceID* data_source_ids,
                            size_t num_data_sources) {
+  PERFETTO_DLOG("ProbesProducer::Flush(%" PRIu64 ") begin", flush_request_id);
   PERFETTO_DCHECK(flush_request_id);
-  auto weak_this = weak_factory_.GetWeakPtr();
+  auto log_on_exit = base::OnScopeExit([&] {
+    PERFETTO_DLOG("ProbesProducer::Flush(%" PRIu64 ") end", flush_request_id);
+  });
 
   // Issue a Flush() to all started data sources.
-  bool flush_queued = false;
+  std::vector<std::pair<DataSourceInstanceID, ProbesDataSource*>> ds_to_flush;
   for (size_t i = 0; i < num_data_sources; i++) {
     DataSourceInstanceID ds_id = data_source_ids[i];
     auto it = data_sources_.find(ds_id);
     if (it == data_sources_.end() || !it->second->started)
       continue;
     pending_flushes_.emplace(flush_request_id, ds_id);
-    flush_queued = true;
-    auto flush_callback = [weak_this, flush_request_id, ds_id] {
-      if (weak_this)
-        weak_this->OnDataSourceFlushComplete(flush_request_id, ds_id);
-    };
-    it->second->Flush(flush_request_id, flush_callback);
+    ds_to_flush.emplace_back(std::make_pair(ds_id, it->second.get()));
   }
 
   // If there is nothing to flush, ack immediately.
-  if (!flush_queued) {
+  if (ds_to_flush.empty()) {
     endpoint_->NotifyFlushComplete(flush_request_id);
     return;
   }
 
-  // Otherwise, post the timeout task.
+  // Otherwise post the timeout task and issue all flushes in order.
+  auto weak_this = weak_factory_.GetWeakPtr();
   task_runner_->PostDelayedTask(
       [weak_this, flush_request_id] {
         if (weak_this)
           weak_this->OnFlushTimeout(flush_request_id);
       },
       kFlushTimeoutMs);
+
+  // Issue all the flushes in order. We do this in a separate loop to deal with
+  // the case of data sources invoking the callback synchronously (b/295189870).
+  for (const auto& kv : ds_to_flush) {
+    const DataSourceInstanceID ds_id = kv.first;
+    ProbesDataSource* const data_source = kv.second;
+    auto flush_callback = [weak_this, flush_request_id, ds_id] {
+      if (weak_this)
+        weak_this->OnDataSourceFlushComplete(flush_request_id, ds_id);
+    };
+    PERFETTO_DLOG("Flushing data source %" PRIu64 " %s", ds_id,
+                  data_source->descriptor->name);
+    data_source->Flush(flush_request_id, flush_callback);
+  }
 }
 
 void ProbesProducer::OnDataSourceFlushComplete(FlushRequestID flush_request_id,
