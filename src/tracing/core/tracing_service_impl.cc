@@ -3702,6 +3702,7 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   // 1. Adding noise in the cloned trace emitting triggers that happened too
   //    far back (see b/290799105).
   // 2. Bloating memory (see b/290798988).
+  cloned_session->should_emit_stats = true;
   cloned_session->received_triggers = std::move(src->received_triggers);
   src->received_triggers.clear();
   src->num_triggers_emitted_into_trace = 0;
