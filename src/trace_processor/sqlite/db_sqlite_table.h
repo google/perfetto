@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include <memory>
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/runtime_table.h"
@@ -61,7 +62,8 @@ struct DbSqliteTableContext {
 
 // Implements the SQLite table interface for db tables.
 class DbSqliteTable final
-    : public TypedSqliteTable<DbSqliteTable, DbSqliteTableContext> {
+    : public TypedSqliteTable<DbSqliteTable,
+                              std::unique_ptr<DbSqliteTableContext>> {
  public:
   using Context = DbSqliteTableContext;
   using TableComputation = Context::Computation;
@@ -138,7 +140,7 @@ class DbSqliteTable final
     uint32_t rows;
   };
 
-  DbSqliteTable(sqlite3*, Context context);
+  DbSqliteTable(sqlite3*, Context* context);
   virtual ~DbSqliteTable() final;
 
   // Table implementation.
@@ -163,7 +165,7 @@ class DbSqliteTable final
                                 const QueryConstraints& qc);
 
  private:
-  DbSqliteTableContext context_;
+  Context* context_ = nullptr;
 
   // Only valid after Init has completed.
   Table::Schema schema_;
