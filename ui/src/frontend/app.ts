@@ -29,6 +29,7 @@ import {addTab} from './bottom_tab';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
+import {toggleHelp} from './help_modal';
 import {fullscreenModalContainer} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {runQueryInNewTab} from './query_result_tab';
@@ -257,6 +258,12 @@ export class App implements m.ClassComponent {
       name: 'Search',
       callback: () => this.enterSearchMode(true),
       defaultHotkey: '!Mod+S',
+    },
+    {
+      id: 'perfetto.ShowHelp',
+      name: 'Show help',
+      callback: () => toggleHelp(),
+      defaultHotkey: '?',
     },
   ];
 
