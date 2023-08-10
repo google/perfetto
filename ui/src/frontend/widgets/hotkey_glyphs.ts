@@ -57,16 +57,16 @@ export class HotkeyGlyphs implements m.ClassComponent<HotkeyGlyphsAttrs> {
 }
 
 export interface KeycapGlyphsAttrs {
-  key: Key;
+  keyValue: Key;
   spoof?: Platform;
 }
 
 // Renders a single keycap.
 export class KeycapGlyph implements m.ClassComponent<KeycapGlyphsAttrs> {
   view({attrs}: m.Vnode<KeycapGlyphsAttrs>) {
-    const {key, spoof} = attrs;
+    const {keyValue, spoof} = attrs;
     const platform = getPlatform(spoof);
-    return m('span.pf-keycap', glyphForKey(key, platform));
+    return m('span.pf-keycap', glyphForKey(keyValue, platform));
   }
 }
 
