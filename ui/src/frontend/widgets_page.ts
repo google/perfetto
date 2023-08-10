@@ -966,7 +966,7 @@ export const WidgetsPage = createPage({
                 }
               },
               initialOpts: {
-                hotkey: 'P',
+                hotkey: 'Mod+Shift+P',
                 platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
               },
             }),
