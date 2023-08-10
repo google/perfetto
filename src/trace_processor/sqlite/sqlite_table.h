@@ -356,8 +356,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
                      sqlite3_vtab** tab,
                      char** pzErr) {
     auto* xdesc = static_cast<ModuleArg*>(arg);
-    std::unique_ptr<SubTable> table(
-        new SubTable(xdb, std::move(xdesc->context)));
+    std::unique_ptr<SubTable> table(new SubTable(xdb, &*xdesc->context));
     SubTable* table_ptr = table.get();
     base::Status status = table->InitInternal(xdesc->engine, argc, argv);
     if (!status.ok()) {
