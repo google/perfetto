@@ -17,7 +17,6 @@ import {Area} from '../common/state';
 import {time, Time} from '../common/time';
 
 import {Flow, globals} from './globals';
-import {toggleHelp} from './help_modal';
 import {
   focusHorizontalRange,
   verticalScrollToTrack,
@@ -81,10 +80,6 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
       },
     }));
     e.preventDefault();
-    return true;
-  }
-  if (down && '?' === key && maybeShift) {
-    toggleHelp();
     return true;
   }
   if (down && 'escape' === key) {
