@@ -47,6 +47,15 @@ void MaliGpuEventTracker::ParseMaliGpuEvent(int64_t ts,
                                             uint32_t pid) {
   using protos::pbzero::FtraceEvent;
 
+  // It seems like it is not correct to add to add any of these slices
+  // in the normal thread slice track since they are not guaranteed to
+  // be correctly nested with respect to atrace events.
+  // For now just disable all mali events by early returning here.
+  // TODO(b/294866695): Consider how to best visualise these events.
+  if (ts != 0) {
+    return;
+  }
+
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track_id = context_->track_tracker->InternThreadTrack(utid);
 
@@ -117,8 +126,11 @@ void MaliGpuEventTracker::ParseMaliKcpuCqsSet(int64_t timestamp,
                                   mali_KCPU_CQS_SET_id_, 0);
 }
 
-void MaliGpuEventTracker::ParseMaliKcpuCqsWaitStart(int64_t timestamp,
-                                                    TrackId track_id) {
+PERFETTO_NORETURN void MaliGpuEventTracker::ParseMaliKcpuCqsWaitStart(
+    int64_t timestamp,
+    TrackId track_id) {
+  // TODO(b/294866695): Remove
+  PERFETTO_FATAL("This causes incorrectly nested slices at present.");
   context_->slice_tracker->Begin(timestamp, track_id, kNullStringId,
                                  mali_KCPU_CQS_WAIT_id_);
 }
