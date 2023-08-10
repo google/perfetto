@@ -20,6 +20,7 @@ import {raf} from '../core/raf_scheduler';
 
 import {classNames} from './classnames';
 import {EmptyState} from './widgets/empty_state';
+import {KeycapGlyph} from './widgets/hotkey_glyphs';
 import {Popup} from './widgets/popup';
 
 interface OmniboxOptionRowAttrs {
@@ -50,7 +51,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
           ...htmlAttrs,
         },
         m(
-            'span',
+            'span.pf-title',
             this.renderTitle(displayName),
             ),
         rightContent,
@@ -256,24 +257,46 @@ export class Omnibox implements m.ClassComponent<OmniboxAttrs> {
     if (options.length === 0) {
       return m(EmptyState, {header: 'No matching options...'});
     } else {
-      return m('.pf-omnibox-dropdown', options.map(({name, options}) => {
-        return m(
-            'ul',
-            name && m('.pf-omnibox-section-header', name),
-            options.map(({displayName, key, rightContent}) => {
-              return m(OmniboxOptionRow, {
-                key,
-                displayName: displayName,
-                highlighted: index++ === selectedOptionIndex,
-                onclick: () => {
-                  closeOnSubmit && onClose();
-                  onSubmit(key, false, false);
-                },
-                rightContent,
-              });
-            }),
-        );
-      }));
+      return m(
+          '.pf-omnibox-dropdown',
+          m('.pf-omnibox-options-container', options.map(({name, options}) => {
+            return m(
+                'ul',
+                name && m('.pf-omnibox-section-header', name),
+                options.map(({displayName, key, rightContent}) => {
+                  return m(OmniboxOptionRow, {
+                    key,
+                    displayName: displayName,
+                    highlighted: index++ === selectedOptionIndex,
+                    onclick: () => {
+                      closeOnSubmit && onClose();
+                      onSubmit(key, false, false);
+                    },
+                    rightContent,
+                  });
+                }),
+            );
+          })),
+          m(
+              '.pf-omnibox-dropdown-footer',
+              m(
+                  'section',
+                  m(KeycapGlyph, {keyValue: 'ArrowUp'}),
+                  m(KeycapGlyph, {keyValue: 'ArrowDown'}),
+                  'to navigate',
+                  ),
+              m(
+                  'section',
+                  m(KeycapGlyph, {keyValue: 'Enter'}),
+                  'to use',
+                  ),
+              m(
+                  'section',
+                  m(KeycapGlyph, {keyValue: 'Escape'}),
+                  'to dismiss',
+                  ),
+              ),
+      );
     }
   }
 
