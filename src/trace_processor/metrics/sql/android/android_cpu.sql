@@ -19,6 +19,7 @@ SELECT RUN_METRIC('android/android_cpu_agg.sql');
 SELECT RUN_METRIC('android/android_cpu_raw_metrics_per_core.sql',
   'input_table', 'cpu_freq_sched_per_thread',
   'output_table', 'raw_metrics_per_core');
+SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS metrics_per_core_type;
 CREATE VIEW metrics_per_core_type AS
@@ -197,6 +198,7 @@ SELECT AndroidCpuMetric(
     SELECT RepeatedField(
       AndroidCpuMetric_Process(
         'name', process.name,
+        'process', process_metadata.metadata,
         'metrics', metrics_proto_per_process.proto,
         'threads', thread_proto_per_process.proto,
         'core', core_proto_per_process.proto,
@@ -208,5 +210,6 @@ SELECT AndroidCpuMetric(
     JOIN thread_proto_per_process USING (upid)
     JOIN core_proto_per_process USING (upid)
     JOIN core_type_proto_per_process USING (upid)
+    JOIN process_metadata USING (upid)
   )
 );

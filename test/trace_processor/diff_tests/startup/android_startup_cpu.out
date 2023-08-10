@@ -88,6 +88,10 @@ android_cpu {
         avg_freq_khz: 800000
       }
     }
+    process {
+      name: "Process1"
+      pid: 1
+    }
   }
   process_info {
     name: "Process2"
@@ -228,6 +232,10 @@ android_cpu {
         avg_freq_khz: 3200000
       }
     }
+    process {
+      name: "Process2"
+      pid: 2
+    }
   }
   process_info {
     name: "Process3"
@@ -327,6 +335,10 @@ android_cpu {
         max_freq_khz: 8000000
         avg_freq_khz: 8000000
       }
+    }
+    process {
+      name: "Process3"
+      pid: 3
     }
   }
 }
