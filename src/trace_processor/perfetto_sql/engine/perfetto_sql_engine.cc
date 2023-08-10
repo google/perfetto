@@ -109,9 +109,7 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
 
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
                                             const std::string& table_name) {
-  DbSqliteTable::Context context{
-      query_cache_.get(), DbSqliteTable::TableComputation::kStatic, &table,
-      /*sql_table=*/nullptr, /*generator=*/nullptr};
+  DbSqliteTable::Context context(query_cache_.get(), &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
 
@@ -132,9 +130,7 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
 void PerfettoSqlEngine::RegisterStaticTableFunction(
     std::unique_ptr<StaticTableFunction> fn) {
   std::string table_name = fn->TableName();
-  DbSqliteTable::Context context{
-      query_cache_.get(), DbSqliteTable::TableComputation::kTableFunction,
-      /*static_table=*/nullptr, /*sql_table=*/nullptr, std::move(fn)};
+  DbSqliteTable::Context context(query_cache_.get(), std::move(fn));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
 }
@@ -359,9 +355,7 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
   }
   RETURN_IF_ERROR(table->AddColumnsAndOverlays(rows));
 
-  DbSqliteTable::Context context{
-      query_cache_.get(), DbSqliteTable::TableComputation::kRuntime,
-      /*static_table=*/nullptr, std::move(table), /*generator=*/nullptr};
+  DbSqliteTable::Context context(query_cache_.get(), std::move(table));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       name, std::move(context), SqliteTable::kEponymousOnly, false);
   return base::OkStatus();

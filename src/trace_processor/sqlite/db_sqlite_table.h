@@ -28,23 +28,29 @@
 namespace perfetto {
 namespace trace_processor {
 
-enum class DbSqliteTableComputation {
-  // Table is statically defined.
-  kStatic,
-
-  // Table is defined as a function.
-  kTableFunction,
-
-  // Table is defined in runtime.
-  kRuntime
-};
-
 struct DbSqliteTableContext {
+  enum class Computation {
+    // Table is statically defined.
+    kStatic,
+
+    // Table is defined as a function.
+    kTableFunction,
+
+    // Table is defined in runtime.
+    kRuntime
+  };
+  DbSqliteTableContext() = default;
+  DbSqliteTableContext(QueryCache* query_cache, const Table* table);
+  DbSqliteTableContext(QueryCache* query_cache,
+                       std::unique_ptr<RuntimeTable> table);
+  DbSqliteTableContext(QueryCache* query_cache,
+                       std::unique_ptr<StaticTableFunction> table);
+
   QueryCache* cache;
-  DbSqliteTableComputation computation;
+  Computation computation;
 
   // Only valid when computation == TableComputation::kStatic.
-  const Table* static_table;
+  const Table* static_table = nullptr;
 
   // Only valid when computation == TableComputation::kRuntime.
   std::unique_ptr<RuntimeTable> sql_table;
@@ -57,8 +63,8 @@ struct DbSqliteTableContext {
 class DbSqliteTable final
     : public TypedSqliteTable<DbSqliteTable, DbSqliteTableContext> {
  public:
-  using TableComputation = DbSqliteTableComputation;
   using Context = DbSqliteTableContext;
+  using TableComputation = Context::Computation;
 
   class Cursor final : public SqliteTable::BaseCursor {
    public:
@@ -157,21 +163,10 @@ class DbSqliteTable final
                                 const QueryConstraints& qc);
 
  private:
-  QueryCache* cache_ = nullptr;
-
-  TableComputation computation_ = TableComputation::kStatic;
+  DbSqliteTableContext context_;
 
   // Only valid after Init has completed.
   Table::Schema schema_;
-
-  // Only valid when computation_ == TableComputation::kStatic.
-  const Table* static_table_ = nullptr;
-
-  // Only valid when computation_ == TableComputation::kSql.
-  std::unique_ptr<RuntimeTable> sql_table_;
-
-  // Only valid when computation_ == TableComputation::kTableFunction.
-  std::unique_ptr<StaticTableFunction> generator_;
 };
 
 }  // namespace trace_processor
