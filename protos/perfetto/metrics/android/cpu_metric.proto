@@ -18,6 +18,8 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/process_metadata.proto";
+
 message AndroidCpuMetric {
   // Next id: 6
   message Metrics {
@@ -64,6 +66,7 @@ message AndroidCpuMetric {
   // Next id: 8
   message Process {
     optional string name = 1;
+    optional AndroidProcessMetadata process = 8;
     optional Metrics metrics = 4;
 
     // Breakdowns of above metrics.

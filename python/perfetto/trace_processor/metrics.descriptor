@@ -110,8 +110,8 @@ Gprotos/perfetto/metrics/android/android_blocking_calls_cuj_metric.protoperfet
 ts (Rts
 dur (RdurK
 blocking_calls (2$.perfetto.protos.AndroidBlockingCallRblockingCalls
-Ô
-0protos/perfetto/metrics/android/cpu_metric.protoperfetto.protos"Ž
+Ï	
+0protos/perfetto/metrics/android/cpu_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ñ
 AndroidCpuMetricL
 process_info (2).perfetto.protos.AndroidCpuMetric.ProcessRprocessInfo¨
 Metrics
@@ -134,9 +134,10 @@ avgFreqKhze
 name (	RnameC
 metrics (2).perfetto.protos.AndroidCpuMetric.MetricsRmetrics>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
-	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJ¹
+	core_type (2..perfetto.protos.AndroidCpuMetric.CoreTypeDataRcoreTypeJü
 Process
-name (	RnameC
+name (	RnameA
+process (2'.perfetto.protos.AndroidProcessMetadataRprocessC
 metrics (2).perfetto.protos.AndroidCpuMetric.MetricsRmetricsB
 threads (2(.perfetto.protos.AndroidCpuMetric.ThreadRthreads>
 core (2*.perfetto.protos.AndroidCpuMetric.CoreDataRcoreK
