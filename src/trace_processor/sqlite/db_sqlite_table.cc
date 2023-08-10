@@ -135,21 +135,20 @@ class SafeStringWriter {
 
 }  // namespace
 
-DbSqliteTable::DbSqliteTable(sqlite3*, Context context)
-    : context_(std::move(context)) {}
+DbSqliteTable::DbSqliteTable(sqlite3*, Context* context) : context_(context) {}
 DbSqliteTable::~DbSqliteTable() = default;
 
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
-  switch (context_.computation) {
+  switch (context_->computation) {
     case TableComputation::kStatic:
-      schema_ = context_.static_table->ComputeSchema();
+      schema_ = context_->static_table->ComputeSchema();
       break;
     case TableComputation::kRuntime:
-      PERFETTO_CHECK(!context_.sql_table->columns().empty());
-      schema_ = context_.sql_table->ComputeSchema();
+      PERFETTO_CHECK(!context_->sql_table->columns().empty());
+      schema_ = context_->sql_table->ComputeSchema();
       break;
     case TableComputation::kTableFunction:
-      schema_ = context_.generator->CreateSchema();
+      schema_ = context_->generator->CreateSchema();
       break;
   }
   *schema = ComputeSchema(schema_, name().c_str());
@@ -179,18 +178,18 @@ SqliteTable::Schema DbSqliteTable::ComputeSchema(const Table::Schema& schema,
 }
 
 int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
-  switch (context_.computation) {
+  switch (context_->computation) {
     case TableComputation::kStatic:
-      BestIndex(schema_, context_.static_table->row_count(), qc, info);
+      BestIndex(schema_, context_->static_table->row_count(), qc, info);
       break;
     case TableComputation::kRuntime:
-      BestIndex(schema_, context_.sql_table->row_count(), qc, info);
+      BestIndex(schema_, context_->sql_table->row_count(), qc, info);
       break;
     case TableComputation::kTableFunction:
-      base::Status status = context_.generator->ValidateConstraints(qc);
+      base::Status status = context_->generator->ValidateConstraints(qc);
       if (!status.ok())
         return SQLITE_CONSTRAINT;
-      BestIndex(schema_, context_.generator->EstimateRowCount(), qc, info);
+      BestIndex(schema_, context_->generator->EstimateRowCount(), qc, info);
       break;
   }
   return SQLITE_OK;
@@ -378,7 +377,7 @@ DbSqliteTable::QueryCost DbSqliteTable::EstimateCost(
 }
 
 std::unique_ptr<SqliteTable::BaseCursor> DbSqliteTable::CreateCursor() {
-  return std::unique_ptr<Cursor>(new Cursor(this, context_.cache));
+  return std::unique_ptr<Cursor>(new Cursor(this, context_->cache));
 }
 
 DbSqliteTable::Cursor::Cursor(DbSqliteTable* sqlite_table, QueryCache* cache)
@@ -483,18 +482,18 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   }
 
   // Setup the upstream table based on the computation state.
-  switch (db_sqlite_table_->context_.computation) {
+  switch (db_sqlite_table_->context_->computation) {
     case TableComputation::kStatic:
       // If we have a static table, just set the upstream table to be the static
       // table.
-      upstream_table_ = db_sqlite_table_->context_.static_table;
+      upstream_table_ = db_sqlite_table_->context_->static_table;
 
       // Tries to create a sorted cached table which can be used to speed up
       // filters below.
       TryCacheCreateSortedTable(qc, history);
       break;
     case TableComputation::kRuntime:
-      upstream_table_ = db_sqlite_table_->context_.sql_table.get();
+      upstream_table_ = db_sqlite_table_->context_->sql_table.get();
 
       // Tries to create a sorted cached table which can be used to speed up
       // filters below.
@@ -510,7 +509,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       std::unique_ptr<Table> computed_table;
       BitVector cols_used_bv = ColsUsedBitVector(
           qc.cols_used(), db_sqlite_table_->schema_.columns.size());
-      auto status = db_sqlite_table_->context_.generator->ComputeTable(
+      auto status = db_sqlite_table_->context_->generator->ComputeTable(
           constraints_, orders_, cols_used_bv, computed_table);
 
       if (!status.ok()) {
