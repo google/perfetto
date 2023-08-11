@@ -141,3 +141,15 @@ on property:sys.boot_completed=1 && property:ro.boot.fastboot.boottrace=enabled 
     setprop debug.atrace.tags.enableflags 0
     write /sys/kernel/debug/tracing/tracing_on 0
     write /sys/kernel/tracing/tracing_on 0
+
+# These must be set as soon as possible for processes guarded by
+# android.sdk_sysprop_guard to find and cache the memory locations of
+# where these sysprops are stored, particularly SurfaceFlinger which starts
+# very early.
+# TODO(b/281329340): remove this when no longer needed.
+on init
+    setprop debug.perfetto.sdk_sysprop_guard_generation 0
+    setprop debug.hwui.skia_tracing_enabled false
+    setprop debug.hwui.skia_use_perfetto_track_events false
+    setprop debug.renderengine.skia_tracing_enabled false
+    setprop debug.renderengine.skia_use_perfetto_track_events false
