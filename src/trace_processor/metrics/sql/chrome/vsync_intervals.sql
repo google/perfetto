@@ -4,7 +4,7 @@
 -- Note: In traces without the "Java" category there will be no VSync
 --       TraceEvents and this table will be empty.
 DROP TABLE IF EXISTS vsync_intervals;
-CREATE TABLE vsync_intervals AS
+CREATE PERFETTO TABLE vsync_intervals AS
 SELECT
   slice_id,
   ts,

@@ -135,7 +135,7 @@ LEFT JOIN chrome_scroll_updates_with_deltas deltas
  -- Join the frame view with scroll jank cause and subcause based
  -- on event latency id.
 DROP TABLE IF EXISTS chrome_frame_view_with_jank;
-CREATE TABLE chrome_frame_view_with_jank AS
+CREATE PERFETTO TABLE chrome_frame_view_with_jank AS
 SELECT
   frames.*,
   jank_cause.cause_of_jank,

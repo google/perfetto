@@ -27,7 +27,7 @@ SELECT RUN_METRIC('android/power_drain_in_watts.sql');
 -- SPAN_JOIN does not yet support non-integer partitions so add an integer
 -- column that corresponds to the power rail name.
 DROP TABLE IF EXISTS power_rail_name_mapping;
-CREATE TABLE power_rail_name_mapping AS
+CREATE PERFETTO TABLE power_rail_name_mapping AS
 SELECT DISTINCT name,
   ROW_NUMBER() OVER() AS idx
 FROM drain_in_watts;
