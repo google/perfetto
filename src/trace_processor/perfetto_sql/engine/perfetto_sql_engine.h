@@ -23,6 +23,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
@@ -138,6 +139,7 @@ class PerfettoSqlEngine {
   StringPool* pool_ = nullptr;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
+  base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 

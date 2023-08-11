@@ -60,15 +60,37 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionError) {
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableSmoke) {
-  auto res = engine_.Execute(
-      SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo AS SELECT 1"));
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar"));
+  PERFETTO_ELOG("%s", res.status().c_message());
   ASSERT_TRUE(res.ok());
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableStringSmoke) {
-  auto res = engine_.Execute(
-      SqlSource::FromExecuteQuery("CREATE PERFETTO TABLE foo AS SELECT 'foo'"));
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
   ASSERT_TRUE(res.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableDrop) {
+  auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
+  ASSERT_TRUE(res_create.ok());
+
+  auto res_drop =
+      engine_.Execute(SqlSource::FromExecuteQuery("DROP TABLE foo"));
+  ASSERT_TRUE(res_drop.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableValues) {
+  auto res = engine_.ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("creatE PeRfEttO TABLE foo AS "
+                                  "SELECT 42 as bar;"
+                                  "SELECT * from foo"));
+  ASSERT_TRUE(res.ok());
+  ASSERT_FALSE(res->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 42);
+  ASSERT_FALSE(res->stmt.Step());
 }
 
 TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
