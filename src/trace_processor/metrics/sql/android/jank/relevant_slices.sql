@@ -48,7 +48,7 @@ SELECT
 -- We extract vsync IDs from doFrame slice names and use these as the source
 -- of truth that allow us to get correct slices on the other threads.
 DROP TABLE IF EXISTS android_jank_cuj_do_frame_slice;
-CREATE TABLE android_jank_cuj_do_frame_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_do_frame_slice AS
 SELECT
   cuj.cuj_id,
   main_thread.upid,
@@ -83,7 +83,7 @@ WHERE
 -- doFrame slices. In case of multiple layers being drawn, there might be
 -- multiple DrawFrames for a single vsync.
 DROP TABLE IF EXISTS android_jank_cuj_draw_frame_slice;
-CREATE TABLE android_jank_cuj_draw_frame_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_draw_frame_slice AS
 SELECT
   cuj_id,
   render_thread.upid,
@@ -102,7 +102,7 @@ WHERE slice.name GLOB 'DrawFrame*'
 -- Find descendants of DrawFrames which contain the GPU completion fence ID that
 -- is used for signaling that the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_fence;
-CREATE TABLE android_jank_cuj_gpu_completion_fence AS
+CREATE PERFETTO TABLE android_jank_cuj_gpu_completion_fence AS
 SELECT
   cuj_id,
   vsync,
@@ -114,7 +114,7 @@ JOIN descendant_slice(draw_frame.id) fence
 
 -- Similarly find descendants of DrawFrames which have the HWC release fence ID
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_fence;
-CREATE TABLE android_jank_cuj_hwc_release_fence AS
+CREATE PERFETTO TABLE android_jank_cuj_hwc_release_fence AS
 SELECT
   cuj_id,
   vsync,
@@ -126,7 +126,7 @@ JOIN descendant_slice(draw_frame.id) fence
 
 -- Find HWC release slices which indicate when the HWC released the buffer.
 DROP TABLE IF EXISTS android_jank_cuj_hwc_release_slice;
-CREATE TABLE android_jank_cuj_hwc_release_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_hwc_release_slice AS
 SELECT
   fence.cuj_id,
   vsync,
@@ -145,7 +145,7 @@ WHERE
 
 -- Find GPU completion slices which indicate when the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_gpu_completion_slice;
-CREATE TABLE android_jank_cuj_gpu_completion_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_gpu_completion_slice AS
 SELECT
   fence.cuj_id,
   vsync,
@@ -169,7 +169,7 @@ WHERE
 -- Note that there might be multiple SF vsync IDs that match a single App vsync ID, e.g.
 -- if one App layer produced a frame later and it was picked up by the next SF frame.
 DROP TABLE IF EXISTS android_jank_cuj_app_to_sf_match;
-CREATE TABLE android_jank_cuj_app_to_sf_match AS
+CREATE PERFETTO TABLE android_jank_cuj_app_to_sf_match AS
 SELECT
   cuj_id,
   do_frame.upid AS app_upid,
@@ -216,16 +216,16 @@ SELECT CREATE_VIEW_FUNCTION(
 );
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_commit_slice;
-CREATE TABLE android_jank_cuj_sf_commit_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_commit_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('commit *');
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_composite_slice;
-CREATE TABLE android_jank_cuj_sf_composite_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_composite_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('composite *');
 
 -- Older builds do not have the commit/composite but onMessageInvalidate instead
 DROP TABLE IF EXISTS android_jank_cuj_sf_on_message_invalidate_slice;
-CREATE TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_root_slice;
@@ -239,7 +239,7 @@ SELECT * FROM android_jank_cuj_sf_on_message_invalidate_slice;
 -- Find descendants of SF main thread slices which contain the GPU completion fence ID that
 -- is used for signaling that the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_fence;
-CREATE TABLE android_jank_cuj_sf_gpu_completion_fence AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_fence AS
 SELECT
   cuj_id,
   vsync,
@@ -251,7 +251,7 @@ JOIN descendant_slice(sf_root_slice.id) fence
 
 -- Find GPU completion slices which indicate when the GPU finished drawing.
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_slice;
-CREATE TABLE android_jank_cuj_sf_gpu_completion_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_slice AS
 SELECT
   fence.cuj_id,
   vsync,
@@ -273,7 +273,7 @@ WHERE
 -- the drawLayers slice is completely within the bounds of composeSurfaces on SF
 -- main thread.
 DROP TABLE IF EXISTS android_jank_cuj_sf_draw_layers_slice;
-CREATE TABLE android_jank_cuj_sf_draw_layers_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_draw_layers_slice AS
 WITH compose_surfaces AS (
   SELECT
     cuj_id,

@@ -38,7 +38,7 @@ GROUP BY
   process_name,
   slice_name;
 
-CREATE TABLE internal_binder_txn_merged AS
+CREATE PERFETTO TABLE internal_binder_txn_merged AS
 WITH
   -- Fetch the broken binder txns first, i.e, the txns that have children slices
   -- They are definietly broken because synchronous txns are blocked sleeping while

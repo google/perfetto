@@ -36,7 +36,7 @@ WHERE
 -- TODO(243897379): switch this back to a view once we understand why rolling SQLite to
 -- 3.39.2 causes slowdowns.
 DROP TABLE IF EXISTS chrome_annotated_threads_and_processes;
-CREATE TABLE chrome_annotated_threads_and_processes AS
+CREATE PERFETTO TABLE chrome_annotated_threads_and_processes AS
 SELECT
   thread_track.id AS track_id,
   chrome_thread.canonical_name AS thread_name,
@@ -56,7 +56,7 @@ ORDER BY
 -- TODO(243897379): switch this back to a view once we understand why rolling SQLite to
 -- 3.39.2 causes slowdowns.
 DROP TABLE IF EXISTS blocking_chrome_tasks_without_threadpool;
-CREATE TABLE blocking_chrome_tasks_without_threadpool AS
+CREATE PERFETTO TABLE blocking_chrome_tasks_without_threadpool AS
 SELECT
   slice.*,
   annotations.thread_name AS thread_name,
@@ -77,7 +77,7 @@ WHERE
 -- implies its a "ThreadController active" slice because we removed it
 -- previously).
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;
-CREATE TABLE blocking_tasks_queuing_delay AS
+CREATE PERFETTO TABLE blocking_tasks_queuing_delay AS
 SELECT
   EXTRACT_ARG(slice.arg_set_id, "task.posted_from.file_name") AS file,
   EXTRACT_ARG(slice.arg_set_id, "task.posted_from.function_name") AS function,
@@ -150,7 +150,7 @@ FROM
   descendant_slice(base.id) AS descendant;
 
 DROP TABLE IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
-CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
+CREATE PERFETTO TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
 SELECT
   cpu.thread_dur AS descendant_thread_dur,
   CAST(cpu.thread_dur AS REAL) / descendant.thread_dur

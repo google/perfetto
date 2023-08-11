@@ -62,7 +62,6 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionError) {
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar"));
-  PERFETTO_ELOG("%s", res.status().c_message());
   ASSERT_TRUE(res.ok());
 }
 
