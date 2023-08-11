@@ -27,8 +27,10 @@ namespace shlib {
 void ResetForTesting() {
   auto* muxer = static_cast<internal::TracingMuxerImpl*>(
       internal::TracingMuxerImpl::instance_);
-  muxer->AppendResetForTestingCallback(
-      [] { perfetto::shlib::ResetDataSourceTls(); });
+  muxer->AppendResetForTestingCallback([] {
+    perfetto::shlib::ResetDataSourceTls();
+    perfetto::shlib::ResetTrackEventTls();
+  });
   perfetto::Tracing::ResetForTesting();
 }
 

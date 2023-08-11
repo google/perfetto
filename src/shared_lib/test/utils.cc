@@ -21,6 +21,7 @@
 #include "perfetto/public/pb_utils.h"
 #include "perfetto/public/protos/config/data_source_config.pzc.h"
 #include "perfetto/public/protos/config/trace_config.pzc.h"
+#include "perfetto/public/protos/config/track_event/track_event_config.pzc.h"
 #include "perfetto/public/tracing_session.h"
 
 namespace perfetto {
@@ -67,6 +68,21 @@ TracingSession TracingSession::Builder::Build() {
 
       perfetto_protos_DataSourceConfig_set_cstr_name(&ds_cfg,
                                                      data_source_name_.c_str());
+      if (!enabled_categories_.empty() && !disabled_categories_.empty()) {
+        perfetto_protos_TrackEventConfig te_cfg;
+        perfetto_protos_DataSourceConfig_begin_track_event_config(&ds_cfg,
+                                                                  &te_cfg);
+        for (const std::string& cat : enabled_categories_) {
+          perfetto_protos_TrackEventConfig_set_enabled_categories(
+              &te_cfg, cat.data(), cat.size());
+        }
+        for (const std::string& cat : disabled_categories_) {
+          perfetto_protos_TrackEventConfig_set_disabled_categories(
+              &te_cfg, cat.data(), cat.size());
+        }
+        perfetto_protos_DataSourceConfig_end_track_event_config(&ds_cfg,
+                                                                &te_cfg);
+      }
 
       perfetto_protos_TraceConfig_DataSource_end_config(&data_sources, &ds_cfg);
     }
