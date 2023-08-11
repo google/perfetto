@@ -432,7 +432,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerDeferredStart) {
   producer->WaitForDataSourceStart("ds_1");
 
   auto writer1 = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer1.get());
+  producer->ExpectFlush(writer1.get());
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
@@ -598,7 +598,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerCorrectProducer) {
   producer->WaitForDataSourceStart("ds_1");
 
   auto writer = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
@@ -689,7 +689,7 @@ TEST_F(TracingServiceImplTest, StartTracingTriggerMultipleTriggers) {
   producer->WaitForDataSourceStart("ds_1");
 
   auto writer = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
@@ -869,7 +869,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStartTracingTrigger) {
 
   producer->WaitForDataSourceStart("ds_1");
   auto writer1 = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer1.get());
+  producer->ExpectFlush(writer1.get());
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
 
@@ -942,7 +942,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersWithStopTracingTrigger) {
   producer->endpoint()->ActivateTriggers(req);
 
   auto writer1 = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer1.get());
+  producer->ExpectFlush(writer1.get());
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
 
@@ -1043,7 +1043,7 @@ TEST_F(TracingServiceImplTest, EmitTriggersRepeatedly) {
   producer->endpoint()->ActivateTriggers({"trigger_name_2"});
 
   auto writer1 = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer1.get());
+  producer->ExpectFlush(writer1.get());
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
 
@@ -1096,7 +1096,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerTimeout) {
   EXPECT_THAT(consumer->ReadBuffers(), IsEmpty());
 
   auto writer = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(0u, tracing_session()->received_triggers.size());
 
@@ -1167,7 +1167,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerRingBuffer) {
     payload.append(std::to_string(i));
     tp->set_for_testing()->set_str(payload.c_str(), payload.size());
   }
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(1u, tracing_session()->received_triggers.size());
   EXPECT_EQ("trigger_name",
@@ -1244,7 +1244,7 @@ TEST_F(TracingServiceImplTest, StopTracingTriggerMultipleTriggers) {
   producer->endpoint()->ActivateTriggers(req);
 
   auto writer = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(2u, tracing_session()->received_triggers.size());
   EXPECT_EQ("trigger_name",
@@ -1299,7 +1299,7 @@ TEST_F(TracingServiceImplTest, SecondTriggerHitsLimit) {
               tracing_session()->received_triggers[0].trigger_name);
 
     auto writer = producer->CreateTraceWriter("data_source_a");
-    producer->WaitForFlush(writer.get());
+    producer->ExpectFlush(writer.get());
 
     producer->WaitForDataSourceStop("data_source_a");
     consumer->WaitForTracingDisabled();
@@ -1382,7 +1382,7 @@ TEST_F(TracingServiceImplTest, SecondTriggerDoesntHitLimit) {
               tracing_session()->received_triggers[0].trigger_name);
 
     auto writer = producer->CreateTraceWriter("data_source_a");
-    producer->WaitForFlush(writer.get());
+    producer->ExpectFlush(writer.get());
 
     producer->WaitForDataSourceStop("data_source_a");
     consumer->WaitForTracingDisabled();
@@ -1419,7 +1419,7 @@ TEST_F(TracingServiceImplTest, SecondTriggerDoesntHitLimit) {
               tracing_session()->received_triggers[0].trigger_name);
 
     auto writer = producer->CreateTraceWriter("data_source_b");
-    producer->WaitForFlush(writer.get());
+    producer->ExpectFlush(writer.get());
 
     producer->WaitForDataSourceStop("data_source_b");
     consumer->WaitForTracingDisabled();
@@ -1470,7 +1470,7 @@ TEST_F(TracingServiceImplTest, SkipProbability) {
   producer->endpoint()->ActivateTriggers(req);
 
   auto writer = producer->CreateTraceWriter("data_source");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   ASSERT_EQ(1u, tracing_session()->received_triggers.size());
   EXPECT_EQ("trigger_name",
@@ -1543,7 +1543,7 @@ TEST_F(TracingServiceImplTest, CloneSnapshotTriggers) {
         .WillOnce(InvokeWithoutArgs(clone_done));
     clone_cons->CloneSession(orig_tsid);
     // CloneSession() will implicitly issue a flush. Linearize with that.
-    producer->WaitForFlush(writer.get());
+    producer->ExpectFlush(writer.get());
     task_runner.RunUntilCheckpoint(checkpoint_name);
 
     // Read the cloned session and ensure it only contains the last trigger
@@ -2111,7 +2111,7 @@ TEST_F(TracingServiceImplTest, CloneSessionWithCompression) {
       }));
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
-  producer->WaitForFlush(std::vector<TraceWriter*>{writer.get()});
+  producer->ExpectFlush(std::vector<TraceWriter*>{writer.get()});
   task_runner.RunUntilCheckpoint("clone_done");
 
   // Delete the initial tracing session.
@@ -2454,7 +2454,7 @@ TEST_F(TracingServiceImplTest, ExplicitFlush) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   consumer->DisableTracing();
@@ -2492,7 +2492,7 @@ TEST_F(TracingServiceImplTest, ImplicitFlushOnTimedTraces) {
     tp->set_for_testing()->set_str("payload");
   }
 
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
@@ -2542,10 +2542,10 @@ TEST_F(TracingServiceImplTest, BatchFlushes) {
 
   // Make the producer reply only to the 3rd flush request.
   InSequence seq;
-  producer->WaitForFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 1.
-  producer->WaitForFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 2.
-  producer->WaitForFlush(writer.get());              // Reply only to flush 3.
-  producer->WaitForFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 4.
+  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 1.
+  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 2.
+  producer->ExpectFlush(writer.get());              // Reply only to flush 3.
+  producer->ExpectFlush(nullptr, /*reply=*/false);  // Do NOT reply to flush 4.
 
   // Even if the producer explicily replied only to flush ID == 3, all the
   // previous flushed < 3 should be implicitly acked.
@@ -2758,7 +2758,7 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledWaitsForDataSourceStopAcks) {
 
   std::unique_ptr<TraceWriter> writer =
       producer->CreateTraceWriter("ds_wont_ack");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("ds_will_ack_1");
   producer->WaitForDataSourceStop("ds_wont_ack");
@@ -2838,7 +2838,7 @@ TEST_F(TracingServiceImplTest, OnTracingDisabledCalledAnywaysInCaseOfTimeout) {
 
   std::unique_ptr<TraceWriter> writer =
       producer->CreateTraceWriter("data_source");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("data_source");
   consumer->WaitForTracingDisabled();
@@ -2893,10 +2893,10 @@ TEST_F(TracingServiceImplTest, SessionId) {
     last_session_id = ds1->session_id;
 
     auto writer1 = producer1->CreateTraceWriter("ds_1A");
-    producer1->WaitForFlush(writer1.get());
+    producer1->ExpectFlush(writer1.get());
 
     auto writer2 = producer2->CreateTraceWriter("ds_2A");
-    producer2->WaitForFlush(writer2.get());
+    producer2->ExpectFlush(writer2.get());
 
     producer1->WaitForDataSourceStop("ds_1A");
     producer1->WaitForDataSourceStop("ds_1B");
@@ -3017,7 +3017,7 @@ TEST_F(TracingServiceImplTest, DeferredStart) {
   producer->WaitForDataSourceStart("ds_1");
 
   auto writer = producer->CreateTraceWriter("ds_1");
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
 
   producer->WaitForDataSourceStop("ds_1");
   consumer->WaitForTracingDisabled();
@@ -3070,8 +3070,8 @@ TEST_F(TracingServiceImplTest, ProducerUIDsAndPacketSequenceIDs) {
   }
 
   auto flush_request = consumer->Flush();
-  producer1->WaitForFlush({writer1a.get(), writer1b.get()});
-  producer2->WaitForFlush(writer2a.get());
+  producer1->ExpectFlush({writer1a.get(), writer1b.get()});
+  producer2->ExpectFlush(writer2a.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   consumer->DisableTracing();
@@ -3246,7 +3246,7 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Try to write to the wrong buffer.
@@ -3258,7 +3258,7 @@ TEST_F(TracingServiceImplTest, CommitToForbiddenBufferIsDiscarded) {
   }
 
   flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   consumer->DisableTracing();
@@ -3322,7 +3322,7 @@ TEST_F(TracingServiceImplTest, RegisterAndUnregisterTraceWriter) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Destroying the writer should unregister it.
@@ -3377,7 +3377,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
 
   // Flush but don't actually flush the chunk from TraceWriter.
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(nullptr, /*reply=*/true);
+  producer->ExpectFlush(nullptr, /*reply=*/true);
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Chunk with the packets should have been scraped. The service can't know
@@ -3400,7 +3400,7 @@ TEST_F(TracingServiceImplTest, ScrapeBuffersOnFlush) {
 
   // Don't reply to flush, causing a timeout. This should scrape again.
   flush_request = consumer->Flush(/*timeout=*/100);
-  producer->WaitForFlush(nullptr, /*reply=*/false);
+  producer->ExpectFlush(nullptr, /*reply=*/false);
   ASSERT_FALSE(flush_request.WaitForReply());
 
   // Chunk with the packets should have been scraped again, overriding the
@@ -3700,7 +3700,7 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
   writer2->Flush();
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush({writer1.get(), writer2.get()});
+  producer->ExpectFlush({writer1.get(), writer2.get()});
   ASSERT_TRUE(flush_request.WaitForReply());
 
   writer1.reset();
@@ -4159,7 +4159,7 @@ TEST_F(TracingServiceImplTest, LifecycleEventSmoke) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   packets = consumer->ReadBuffers();
@@ -4208,7 +4208,7 @@ TEST_F(TracingServiceImplTest, LifecycleMultipleFlushEventsQueued) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   {
@@ -4217,7 +4217,7 @@ TEST_F(TracingServiceImplTest, LifecycleMultipleFlushEventsQueued) {
   }
 
   flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   auto packets = consumer->ReadBuffers();
@@ -4461,7 +4461,7 @@ TEST_F(TracingServiceImplTest, ProducerProvidedSMB) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   consumer->DisableTracing();
@@ -4620,7 +4620,7 @@ TEST_F(TracingServiceImplTest, CloneSession) {
           }));
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
-  producer->WaitForFlush({writers[0].get(), writers[1].get()});
+  producer->ExpectFlush({writers[0].get(), writers[1].get()});
   task_runner.RunUntilCheckpoint("clone_done");
 
   // Overwrite the ring buffer of the original session to check that clone
@@ -4632,7 +4632,7 @@ TEST_F(TracingServiceImplTest, CloneSession) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush({writers[0].get(), writers[1].get()});
+  producer->ExpectFlush({writers[0].get(), writers[1].get()});
   ASSERT_TRUE(flush_request.WaitForReply());
 
   // Delete the initial tracing session.
@@ -4802,7 +4802,7 @@ TEST_F(TracingServiceImplTest, StringFiltering) {
   }
 
   auto flush_request = consumer->Flush();
-  producer->WaitForFlush(writer.get());
+  producer->ExpectFlush(writer.get());
   ASSERT_TRUE(flush_request.WaitForReply());
 
   const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
@@ -4878,7 +4878,7 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
       }));
   consumer2->CloneSession(1);
   // CloneSession() will implicitly issue a flush. Linearize with that.
-  producer->WaitForFlush(std::vector<TraceWriter*>{writer.get()});
+  producer->ExpectFlush(std::vector<TraceWriter*>{writer.get()});
   task_runner.RunUntilCheckpoint("clone_done");
 
   const DataSourceInstanceID id1 = producer->GetDataSourceInstanceId("ds_1");
