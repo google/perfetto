@@ -34,6 +34,7 @@ source_set("engine") {
     "../../../../gn:default_deps",
     "../../../../gn:sqlite",
     "../../../base",
+    "../../db",
     "../../perfetto_sql/intrinsics/functions:interface",
     "../../perfetto_sql/intrinsics/table_functions:interface",
     "../../sqlite",
