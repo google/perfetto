@@ -37,6 +37,7 @@ source_set("service") {
   public_deps = [ "../../../include/perfetto/ext/traced" ]
   deps = [
     "../../../gn:default_deps",
+    "../../../protos/perfetto/config/android:zero",
     "../../base",
     "../../base:version",
     "../../tracing/core",
@@ -60,6 +61,7 @@ perfetto_unittest_source_set("unittests") {
     ":service",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../protos/perfetto/config/android:cpp",
     "../../base",
     "../../base:test_support",
     "../../tracing/core",
