@@ -40,10 +40,10 @@ struct DbSqliteTableContext {
     // Table is defined in runtime.
     kRuntime
   };
-  DbSqliteTableContext() = default;
   DbSqliteTableContext(QueryCache* query_cache, const Table* table);
   DbSqliteTableContext(QueryCache* query_cache,
-                       std::unique_ptr<RuntimeTable> table);
+                       std::function<RuntimeTable*(std::string)> get_table,
+                       std::function<void(std::string)> erase_table);
   DbSqliteTableContext(QueryCache* query_cache,
                        std::unique_ptr<StaticTableFunction> table);
 
@@ -54,7 +54,11 @@ struct DbSqliteTableContext {
   const Table* static_table = nullptr;
 
   // Only valid when computation == TableComputation::kRuntime.
-  std::unique_ptr<RuntimeTable> sql_table;
+  // Those functions implement the interactions with
+  // PerfettoSqlEngine::runtime_tables_ to get the |runtime_table_| and erase it
+  // from the map when |this| is destroyed.
+  std::function<RuntimeTable*(std::string)> get_runtime_table;
+  std::function<void(std::string)> erase_runtime_table;
 
   // Only valid when computation == TableComputation::kTableFunction.
   std::unique_ptr<StaticTableFunction> generator;
@@ -169,6 +173,7 @@ class DbSqliteTable final
 
   // Only valid after Init has completed.
   Table::Schema schema_;
+  RuntimeTable* runtime_table_;
 };
 
 }  // namespace trace_processor
