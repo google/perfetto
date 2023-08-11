@@ -70,6 +70,10 @@ template <typename, const internal::TrackEventCategoryRegistry*>
 class TrackEventDataSource;
 }  // namespace internal
 
+namespace shlib {
+class TrackEvent;
+}  // namespace shlib
+
 namespace test {
 class DataSourceInternalForTest;
 }  // namespace test
@@ -465,6 +469,7 @@ class DataSource : public DataSourceBase {
 
  private:
   friend ::perfetto::test::DataSourceInternalForTest;
+  friend ::perfetto::shlib::TrackEvent;
   // Traits for customizing the behavior of a specific trace point.
   struct DefaultTracePointTraits {
     // By default, every call to DataSource::Trace() will record trace events

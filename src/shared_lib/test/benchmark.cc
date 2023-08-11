@@ -22,16 +22,26 @@
 
 #include <benchmark/benchmark.h>
 
+#include "perfetto/public/abi/atomic.h"
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/pb_utils.h"
 #include "perfetto/public/producer.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"
 #include "perfetto/public/protos/trace/trace.pzc.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/track_event/debug_annotation.pzc.h"
+#include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
+#include "perfetto/public/te_category_macros.h"
+#include "perfetto/public/te_macros.h"
+#include "perfetto/public/track_event.h"
 
 #include "src/shared_lib/test/utils.h"
 
 static struct PerfettoDs custom = PERFETTO_DS_INIT();
+
+#define BENCHMARK_CATEGORIES(C) C(benchmark_cat, "benchmark", "")
+
+PERFETTO_TE_CATEGORIES_DEFINE(BENCHMARK_CATEGORIES)
 
 namespace {
 
@@ -46,6 +56,8 @@ bool Initialize() {
   args.backends = PERFETTO_BACKEND_IN_PROCESS;
   PerfettoProducerInit(args);
   PerfettoDsRegister(&custom, kDataSourceName, PerfettoDsParamsDefault());
+  PerfettoTeInit();
+  PERFETTO_TE_REGISTER_CATEGORIES(BENCHMARK_CATEGORIES);
   return true;
 }
 
@@ -130,7 +142,221 @@ void BM_Shlib_DataSource_DifferentPacketSize(benchmark::State& state) {
   state.counters["PacketSize"] = static_cast<double>(DecodePacketSizes(data));
 }
 
+void BM_Shlib_TeDisabled(benchmark::State& state) {
+  EnsureInitialized();
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("DisabledEvent"));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeBasic(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeBasicNoIntern(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
+                PERFETTO_TE_NO_INTERN());
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeDebugAnnotations(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    PERFETTO_TE(benchmark_cat, PERFETTO_TE_SLICE_BEGIN("Event"),
+                PERFETTO_TE_ARG_UINT64("value", 42));
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeLlBasic(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+            benchmark_cat.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
+      struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+      int32_t type = PERFETTO_TE_TYPE_SLICE_BEGIN;
+      const char* name = "Event";
+      for (struct PerfettoTeLlIterator ctx =
+               PerfettoTeLlBeginSlowPath(&benchmark_cat, timestamp);
+           ctx.impl.ds.tracer != nullptr;
+           PerfettoTeLlNext(&benchmark_cat, timestamp, &ctx)) {
+        uint64_t name_iid;
+        {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+          PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+          perfetto_protos_TracePacket_set_sequence_flags(
+              &trace_packet.msg,
+              perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+          {
+            struct PerfettoTeLlInternContext intern_ctx;
+            PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                          &trace_packet.msg);
+            PerfettoTeLlInternRegisteredCat(&intern_ctx, &benchmark_cat);
+            name_iid = PerfettoTeLlInternEventName(&intern_ctx, name);
+            PerfettoTeLlInternContextDestroy(&intern_ctx);
+          }
+          {
+            struct perfetto_protos_TrackEvent te_msg;
+            perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg,
+                                                          &te_msg);
+            perfetto_protos_TrackEvent_set_type(
+                &te_msg,
+                static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+            PerfettoTeLlWriteRegisteredCat(&te_msg, &benchmark_cat);
+            PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
+            perfetto_protos_TracePacket_end_track_event(&trace_packet.msg,
+                                                        &te_msg);
+          }
+          PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+        }
+      }
+    }
+
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeLlBasicNoIntern(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+            benchmark_cat.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
+      struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+      int32_t type = PERFETTO_TE_TYPE_SLICE_BEGIN;
+      const char* name = "Event";
+      for (struct PerfettoTeLlIterator ctx =
+               PerfettoTeLlBeginSlowPath(&benchmark_cat, timestamp);
+           ctx.impl.ds.tracer != nullptr;
+           PerfettoTeLlNext(&benchmark_cat, timestamp, &ctx)) {
+        {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+          PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+          perfetto_protos_TracePacket_set_sequence_flags(
+              &trace_packet.msg,
+              perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+          {
+            struct PerfettoTeLlInternContext intern_ctx;
+            PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                          &trace_packet.msg);
+            PerfettoTeLlInternRegisteredCat(&intern_ctx, &benchmark_cat);
+            PerfettoTeLlInternContextDestroy(&intern_ctx);
+          }
+          {
+            struct perfetto_protos_TrackEvent te_msg;
+            perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg,
+                                                          &te_msg);
+            perfetto_protos_TrackEvent_set_type(
+                &te_msg,
+                static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+            PerfettoTeLlWriteRegisteredCat(&te_msg, &benchmark_cat);
+            PerfettoTeLlWriteEventName(&te_msg, name);
+            perfetto_protos_TracePacket_end_track_event(&trace_packet.msg,
+                                                        &te_msg);
+          }
+          PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+        }
+      }
+    }
+    benchmark::ClobberMemory();
+  }
+}
+
+void BM_Shlib_TeLlDebugAnnotations(benchmark::State& state) {
+  EnsureInitialized();
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  while (state.KeepRunning()) {
+    if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+            benchmark_cat.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
+      struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+      int32_t type = PERFETTO_TE_TYPE_SLICE_BEGIN;
+      const char* name = "Event";
+      for (struct PerfettoTeLlIterator ctx =
+               PerfettoTeLlBeginSlowPath(&benchmark_cat, timestamp);
+           ctx.impl.ds.tracer != nullptr;
+           PerfettoTeLlNext(&benchmark_cat, timestamp, &ctx)) {
+        uint64_t name_iid;
+        uint64_t dbg_arg_iid;
+        {
+          struct PerfettoDsRootTracePacket trace_packet;
+          PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+          PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+          perfetto_protos_TracePacket_set_sequence_flags(
+              &trace_packet.msg,
+              perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+          {
+            struct PerfettoTeLlInternContext intern_ctx;
+            PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                          &trace_packet.msg);
+            PerfettoTeLlInternRegisteredCat(&intern_ctx, &benchmark_cat);
+            name_iid = PerfettoTeLlInternEventName(&intern_ctx, name);
+            dbg_arg_iid = PerfettoTeLlInternDbgArgName(&intern_ctx, "value");
+            PerfettoTeLlInternContextDestroy(&intern_ctx);
+          }
+          {
+            struct perfetto_protos_TrackEvent te_msg;
+            perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg,
+                                                          &te_msg);
+            perfetto_protos_TrackEvent_set_type(
+                &te_msg,
+                static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+            PerfettoTeLlWriteRegisteredCat(&te_msg, &benchmark_cat);
+            PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
+            {
+              struct perfetto_protos_DebugAnnotation dbg_arg;
+              perfetto_protos_TrackEvent_begin_debug_annotations(&te_msg,
+                                                                 &dbg_arg);
+              perfetto_protos_DebugAnnotation_set_name_iid(&dbg_arg,
+                                                           dbg_arg_iid);
+              perfetto_protos_DebugAnnotation_set_uint_value(&dbg_arg, 42);
+              perfetto_protos_TrackEvent_end_debug_annotations(&te_msg,
+                                                               &dbg_arg);
+            }
+            perfetto_protos_TracePacket_end_track_event(&trace_packet.msg,
+                                                        &te_msg);
+          }
+          PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+        }
+      }
+    }
+    benchmark::ClobberMemory();
+  }
+}
+
 }  // namespace
 
 BENCHMARK(BM_Shlib_DataSource_Disabled);
 BENCHMARK(BM_Shlib_DataSource_DifferentPacketSize)->Range(1, 1000);
+BENCHMARK(BM_Shlib_TeDisabled);
+BENCHMARK(BM_Shlib_TeBasic);
+BENCHMARK(BM_Shlib_TeBasicNoIntern);
+BENCHMARK(BM_Shlib_TeDebugAnnotations);
+BENCHMARK(BM_Shlib_TeLlBasic);
+BENCHMARK(BM_Shlib_TeLlBasicNoIntern);
+BENCHMARK(BM_Shlib_TeLlDebugAnnotations);
