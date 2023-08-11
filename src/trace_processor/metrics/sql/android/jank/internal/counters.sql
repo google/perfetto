@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP TABLE IF EXISTS android_jank_cuj_counter;
-CREATE TABLE android_jank_cuj_counter AS
+CREATE PERFETTO TABLE android_jank_cuj_counter AS
 WITH cuj_counter_track AS (
   SELECT DISTINCT
     upid,
@@ -51,7 +51,7 @@ WHERE
 ORDER BY ts ASC LIMIT 1;
 
 DROP TABLE IF EXISTS cuj_marker_missed_callback;
-CREATE TABLE cuj_marker_missed_callback AS
+CREATE PERFETTO TABLE cuj_marker_missed_callback AS
 SELECT
   marker_track.name AS cuj_slice_name,
   marker.ts,
@@ -77,7 +77,7 @@ ORDER BY ts ASC
 LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
-CREATE TABLE android_jank_cuj_counter_metrics AS
+CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.
 -- This is to avoid selecting counters logged for the next CUJ in case multiple
 -- CUJs happened in a short succession.

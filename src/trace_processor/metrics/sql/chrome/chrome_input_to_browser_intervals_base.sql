@@ -127,7 +127,7 @@ JOIN thread ON thread_track.utid = thread.utid
 -- GestureScrollUpdate, this will later be used to calculate the time
 -- from receiving input to the first flow event appearing.
 DROP TABLE IF EXISTS chrome_indexed_flow_per_gesture;
-CREATE TABLE chrome_indexed_flow_per_gesture
+CREATE PERFETTO TABLE chrome_indexed_flow_per_gesture
 AS
 SELECT
   ts,
