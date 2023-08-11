@@ -136,7 +136,11 @@ class SafeStringWriter {
 }  // namespace
 
 DbSqliteTable::DbSqliteTable(sqlite3*, Context* context) : context_(context) {}
-DbSqliteTable::~DbSqliteTable() = default;
+DbSqliteTable::~DbSqliteTable() {
+  if (context_->computation == DbSqliteTableContext::Computation::kRuntime) {
+    context_->erase_runtime_table(name());
+  }
+}
 
 base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
   switch (context_->computation) {
@@ -144,8 +148,10 @@ base::Status DbSqliteTable::Init(int, const char* const*, Schema* schema) {
       schema_ = context_->static_table->ComputeSchema();
       break;
     case TableComputation::kRuntime:
-      PERFETTO_CHECK(!context_->sql_table->columns().empty());
-      schema_ = context_->sql_table->ComputeSchema();
+      runtime_table_ = context_->get_runtime_table(name());
+      PERFETTO_CHECK(runtime_table_);
+      PERFETTO_CHECK(!runtime_table_->columns().empty());
+      schema_ = runtime_table_->ComputeSchema();
       break;
     case TableComputation::kTableFunction:
       schema_ = context_->generator->CreateSchema();
@@ -183,7 +189,7 @@ int DbSqliteTable::BestIndex(const QueryConstraints& qc, BestIndexInfo* info) {
       BestIndex(schema_, context_->static_table->row_count(), qc, info);
       break;
     case TableComputation::kRuntime:
-      BestIndex(schema_, context_->sql_table->row_count(), qc, info);
+      BestIndex(schema_, runtime_table_->row_count(), qc, info);
       break;
     case TableComputation::kTableFunction:
       base::Status status = context_->generator->ValidateConstraints(qc);
@@ -493,7 +499,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       TryCacheCreateSortedTable(qc, history);
       break;
     case TableComputation::kRuntime:
-      upstream_table_ = db_sqlite_table_->context_->sql_table.get();
+      upstream_table_ = db_sqlite_table_->runtime_table_;
 
       // Tries to create a sorted cached table which can be used to speed up
       // filters below.
@@ -674,11 +680,14 @@ DbSqliteTableContext::DbSqliteTableContext(QueryCache* query_cache,
       computation(Computation::kStatic),
       static_table(table) {}
 
-DbSqliteTableContext::DbSqliteTableContext(QueryCache* query_cache,
-                                           std::unique_ptr<RuntimeTable> table)
+DbSqliteTableContext::DbSqliteTableContext(
+    QueryCache* query_cache,
+    std::function<RuntimeTable*(std::string)> get_table,
+    std::function<void(std::string)> erase_table)
     : cache(query_cache),
       computation(Computation::kRuntime),
-      sql_table(std::move(table)) {}
+      get_runtime_table(get_table),
+      erase_runtime_table(erase_table) {}
 
 DbSqliteTableContext::DbSqliteTableContext(
     QueryCache* query_cache,
