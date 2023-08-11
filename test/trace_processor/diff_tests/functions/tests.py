@@ -211,7 +211,7 @@ class Functions(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        CREATE TABLE tree AS
+        CREATE PERFETTO TABLE tree AS
         WITH data(id, parent_id) as (VALUES
           (1, NULL),
           (2, 1),

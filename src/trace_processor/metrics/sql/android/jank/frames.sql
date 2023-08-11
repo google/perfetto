@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP TABLE IF EXISTS vsync_missed_callback;
-CREATE TABLE vsync_missed_callback AS
+CREATE PERFETTO TABLE vsync_missed_callback AS
 SELECT CAST(STR_SPLIT(name, 'Callback#', 1) AS INTEGER) AS vsync,
        MAX(name GLOB '*SF*') as sf_callback_missed,
        MAX(name GLOB '*HWUI*') as hwui_callback_missed
@@ -23,7 +23,7 @@ WHERE name GLOB '*FT#Missed*Callback*'
 GROUP BY vsync;
 
 DROP TABLE IF EXISTS android_jank_cuj_frame_timeline;
-CREATE TABLE android_jank_cuj_frame_timeline AS
+CREATE PERFETTO TABLE android_jank_cuj_frame_timeline AS
 WITH actual_timeline_with_vsync AS (
   SELECT
     *,
@@ -74,7 +74,7 @@ WHERE
 GROUP BY cuj_id, vsync;
 
 DROP TABLE IF EXISTS android_jank_cuj_layer_name;
-CREATE TABLE android_jank_cuj_layer_name AS
+CREATE PERFETTO TABLE android_jank_cuj_layer_name AS
 SELECT
     cuj_id,
     MAX(frame_layer_name) as layer_name
@@ -88,7 +88,7 @@ HAVING MAX(number_of_layers_for_frame) = 1;
 -- all threads. Joins with the actual timeline to figure out which frames missed
 -- the deadline and whether the app process or SF are at fault.
 DROP TABLE IF EXISTS android_jank_cuj_frame;
-CREATE TABLE android_jank_cuj_frame AS
+CREATE PERFETTO TABLE android_jank_cuj_frame AS
 WITH frame_base AS (
   SELECT
     cuj_id,
@@ -124,7 +124,7 @@ JOIN android_jank_cuj_frame_timeline USING (cuj_id, vsync);
 -- The computation is somewhat simpler as most of SF work happens within the duration of
 -- the commit/composite slices on the main thread.
 DROP TABLE IF EXISTS android_jank_cuj_sf_frame;
-CREATE TABLE android_jank_cuj_sf_frame AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_frame AS
 SELECT
   cuj_id,
   ROW_NUMBER() OVER (PARTITION BY cuj_id ORDER BY vsync ASC) AS frame_number,

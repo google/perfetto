@@ -28,7 +28,7 @@ DROP TABLE IF EXISTS top_level_slice;
 -- Filter out Looper events since they are likely to belong to the host app.
 -- Slices are only used to calculate the contribution of the browser process,
 -- renderer contribution will be calculated as the sum of all renderer processes' usage.
-CREATE TABLE top_level_slice AS
+CREATE PERFETTO TABLE top_level_slice AS
 SELECT *
 FROM slice WHERE
   depth = 0
@@ -41,7 +41,7 @@ DROP TABLE IF EXISTS webview_browser_slices;
 -- This excludes any renderer slices because renderer processes are counted
 -- as a whole separately.
 -- Slices from Chrome browser processes are also excluded.
-CREATE TABLE webview_browser_slices AS
+CREATE PERFETTO TABLE webview_browser_slices AS
 SELECT
   top_level_slice.ts,
   top_level_slice.dur,
@@ -70,7 +70,7 @@ DROP TABLE IF EXISTS webview_browser_slices_power_summary;
 
 -- Calculate the power usage of all WebView browser slices for each app
 -- in milliampere-seconds.
-CREATE TABLE webview_browser_slices_power_summary AS
+CREATE PERFETTO TABLE webview_browser_slices_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
@@ -80,7 +80,7 @@ GROUP BY app_name;
 DROP TABLE IF EXISTS webview_renderer_threads;
 
 -- All threads of all WebView renderer processes.
-CREATE TABLE webview_renderer_threads AS
+CREATE PERFETTO TABLE webview_renderer_threads AS
 SELECT
   thread.utid AS utid,
   extract_arg(process.arg_set_id, 'chrome.host_app_package_name') AS app_name
@@ -94,7 +94,7 @@ DROP TABLE IF EXISTS webview_renderer_power_summary;
 
 -- Calculate the power usage of all WebView renderer processes for each app
 -- in milliampere-seconds.
-CREATE TABLE webview_renderer_power_summary AS
+CREATE PERFETTO TABLE webview_renderer_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
@@ -107,7 +107,7 @@ DROP TABLE IF EXISTS webview_renderer_power_per_core_type;
 
 -- Calculate the power usage of all WebView renderer processes for each app
 -- in milliampere-seconds grouped by core type.
-CREATE TABLE webview_renderer_power_per_core_type AS
+CREATE PERFETTO TABLE webview_renderer_power_per_core_type AS
 SELECT
   app_name,
   core_type_per_cpu.core_type AS core_type,
@@ -127,7 +127,7 @@ DROP TABLE IF EXISTS host_app_threads;
 -- For example, only some of app's threads wrote any slices, but we are selecting
 -- all threads for this app's process.
 -- Excludes all renderer processes and Chrome browser processes.
-CREATE TABLE host_app_threads AS
+CREATE PERFETTO TABLE host_app_threads AS
 SELECT
   thread.utid AS utid,
   thread.name AS name,
@@ -144,7 +144,7 @@ DROP TABLE IF EXISTS host_app_power_summary;
 
 -- Calculate the power usage of all WebView (host app+browser) processes for each app
 -- in milliampere-seconds.
-CREATE TABLE host_app_power_summary AS
+CREATE PERFETTO TABLE host_app_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
@@ -157,7 +157,7 @@ DROP TABLE IF EXISTS host_app_power_per_core_type;
 
 -- Calculate the power usage of all WebView (host app+browser) processes for each app
 -- in milliampere-seconds grouped by core type.
-CREATE TABLE host_app_power_per_core_type AS
+CREATE PERFETTO TABLE host_app_power_per_core_type AS
 SELECT
   app_name,
   core_type_per_cpu.core_type AS core_type,
@@ -172,7 +172,7 @@ GROUP BY app_name, core_type_per_cpu.core_type;
 DROP TABLE IF EXISTS webview_only_threads;
 
 -- A subset of the host app threads that are WebView-specific.
-CREATE TABLE webview_only_threads AS
+CREATE PERFETTO TABLE webview_only_threads AS
 SELECT *
 FROM host_app_threads
 WHERE name GLOB 'Chrome*' OR name GLOB 'CookieMonster*'
@@ -185,7 +185,7 @@ DROP TABLE IF EXISTS webview_only_power_summary;
 
 -- Calculate the power usage of all WebView-specific host app threads
 -- (browser + in-process renderers) for each app in milliampere-seconds.
-CREATE TABLE webview_only_power_summary AS
+CREATE PERFETTO TABLE webview_only_power_summary AS
 SELECT
   app_name,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
@@ -198,7 +198,7 @@ DROP TABLE IF EXISTS webview_only_power_per_core_type;
 
 -- Calculate the power usage of all WebView-specific host app threads
 -- for each app in milliampere-seconds grouped by core type.
-CREATE TABLE webview_only_power_per_core_type AS
+CREATE PERFETTO TABLE webview_only_power_per_core_type AS
 SELECT app_name,
   core_type_per_cpu.core_type AS core_type,
   SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
@@ -213,7 +213,7 @@ GROUP BY app_name, core_type_per_cpu.core_type;
 
 DROP TABLE IF EXISTS total_app_power_output;
 
-CREATE TABLE total_app_power_output AS
+CREATE PERFETTO TABLE total_app_power_output AS
 SELECT
   host_app_power_summary.app_name AS app_name,
   host_app_power_summary.power_mas AS total_mas,
@@ -232,7 +232,7 @@ LEFT JOIN host_app_power_per_core_type AS host_app_power_bigger_cores_mas
 
 DROP TABLE IF EXISTS webview_renderer_power_output;
 
-CREATE TABLE webview_renderer_power_output AS
+CREATE PERFETTO TABLE webview_renderer_power_output AS
 SELECT
   webview_renderer_power_summary.app_name AS app_name,
   webview_renderer_power_summary.power_mas AS total_mas,
@@ -251,7 +251,7 @@ LEFT JOIN webview_renderer_power_per_core_type AS webview_renderer_bigger_power
 
 DROP TABLE IF EXISTS webview_only_power_output;
 
-CREATE TABLE webview_only_power_output AS
+CREATE PERFETTO TABLE webview_only_power_output AS
 SELECT
   webview_only_power_summary.app_name AS app_name,
   webview_only_power_summary.power_mas AS total_mas,
@@ -271,6 +271,6 @@ LEFT JOIN webview_only_power_per_core_type AS webview_only_power_bigger_cores_ma
 DROP TABLE IF EXISTS total_device_power;
 
 -- Calculate the power usage of the device in milliampere-seconds.
-CREATE TABLE total_device_power AS
+CREATE PERFETTO TABLE total_device_power AS
 SELECT SUM(dur * COALESCE(power_ma, 0) / 1e9) AS power_mas
 FROM power_per_thread;

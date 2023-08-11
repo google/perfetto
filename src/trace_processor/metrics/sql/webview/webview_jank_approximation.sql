@@ -35,14 +35,14 @@ WHERE name IN ('com.android.systemui',
 
 -- Select all slices related to startup
 DROP TABLE IF EXISTS webview_browser_startup_slices;
-CREATE TABLE webview_browser_startup_slices AS
+CREATE PERFETTO TABLE webview_browser_startup_slices AS
 SELECT slice.id AS browser_startup_id, slice.ts, slice.dur
 FROM slice
 WHERE name = 'WebViewChromium.init';
 
 -- Select all scheduler slices from WebView renderer processes
 DROP TABLE IF EXISTS webview_renderer_slices;
-CREATE TABLE webview_renderer_slices AS
+CREATE PERFETTO TABLE webview_renderer_slices AS
 SELECT sched_slice.id as renderer_id, sched_slice.ts, sched_slice.dur
 FROM sched_slice
 JOIN thread
@@ -53,7 +53,7 @@ WHERE process.name GLOB '*webview*Sand*';
 
 -- Select all jank slices
 DROP TABLE IF EXISTS all_self_jank_slices;
-CREATE TABLE all_self_jank_slices AS
+CREATE PERFETTO TABLE all_self_jank_slices AS
 SELECT *
 FROM actual_frame_timeline_slice
 WHERE jank_type NOT IN ('None', 'Buffer Stuffing')
