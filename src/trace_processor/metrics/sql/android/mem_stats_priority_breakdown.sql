@@ -15,16 +15,7 @@
 --
 
 DROP TABLE IF EXISTS {{table_name}}_by_priority_stats;
-CREATE TABLE {{table_name}}_by_priority_stats (
-  process_name TEXT,
-  priority TEXT,
-  min_value REAL,
-  max_value REAL,
-  avg_value REAL,
-  PRIMARY KEY (process_name, priority)
-);
-
-INSERT INTO {{table_name}}_by_priority_stats
+CREATE PERFETTO TABLE {{table_name}}_by_priority_stats AS
 SELECT
   process.name AS process_name,
   CASE

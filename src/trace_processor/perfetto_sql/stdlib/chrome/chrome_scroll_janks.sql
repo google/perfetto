@@ -35,7 +35,7 @@ SELECT IMPORT('common.slices');
 --                                    frame presentation was delayed.
 -- @column frame_jank_dur INT         The duration in ms of the delay in frame
 --                                    presentation.
-CREATE TABLE chrome_janky_event_latencies_v3 AS
+CREATE PERFETTO TABLE chrome_janky_event_latencies_v3 AS
 SELECT
   s.id,
   s.ts,
@@ -126,7 +126,7 @@ LEFT JOIN frame_stats
 -- @column id            The unique identifier of the janky interval.
 -- @column ts            The start timestamp of the janky interval.
 -- @column dur           The duration of the janky interval.
-CREATE TABLE chrome_scroll_jank_intervals_v3 AS
+CREATE PERFETTO TABLE chrome_scroll_jank_intervals_v3 AS
 -- Sub-table to retrieve all janky slice timestamps. Ordering calculations are
 -- based on timestamps rather than durations.
 WITH janky_latencies AS (
