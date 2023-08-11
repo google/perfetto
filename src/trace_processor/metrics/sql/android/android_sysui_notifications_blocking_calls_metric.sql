@@ -16,7 +16,7 @@
 SELECT IMPORT('android.slices');
 
 DROP TABLE IF EXISTS android_sysui_notifications_blocking_calls;
-CREATE TABLE android_sysui_notifications_blocking_calls AS
+CREATE PERFETTO TABLE android_sysui_notifications_blocking_calls AS
 SELECT
     s.name name,
     COUNT(s.name) count,

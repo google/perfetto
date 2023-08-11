@@ -79,7 +79,7 @@ SELECT $category IN ("toplevel", "toplevel,viz", "toplevel,Java");
 -- a "child" table with more information about the task (e.g. posted_from for
 -- scheduler tasks). Currently this is not the case and needs a cleanup.
 -- Also we should align this with how table inheritance should work for
--- `create perfetto table`.
+-- `CREATE PERFETTO TABLE`.
 
 -- Get task type for a given task kind.
 CREATE PERFETTO FUNCTION internal_get_java_views_task_type(kind STRING)
