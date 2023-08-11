@@ -115,7 +115,10 @@ if (enable_perfetto_integration_tests) {
     "test/stress_test",
   ]
   if (!is_win && !is_mac) {
-    all_targets += [ "examples/shared_lib:example_shlib_data_source" ]
+    all_targets += [
+      "examples/shared_lib:example_shlib_data_source",
+      "examples/shared_lib:example_shlib_track_event",
+    ]
   }
 }
 
