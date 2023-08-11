@@ -98,6 +98,20 @@ PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
   engine_->RegisterVirtualTableModule<RuntimeTableFunction>(
       "runtime_table_function", this, SqliteTable::TableType::kExplicitCreate,
       false);
+  auto context = std::make_unique<DbSqliteTable::Context>(
+      query_cache_.get(),
+      [this](const std::string& name) {
+        auto table = runtime_tables_.Find(name);
+        PERFETTO_CHECK(table);
+        return table->get();
+      },
+      [this](const std::string& name) {
+        bool res = runtime_tables_.Erase(name);
+        PERFETTO_CHECK(res);
+      });
+  engine_->RegisterVirtualTableModule<DbSqliteTable>(
+      "runtime_table", std::move(context),
+      SqliteTable::TableType::kExplicitCreate, false);
 }
 
 PerfettoSqlEngine::~PerfettoSqlEngine() {
@@ -105,6 +119,7 @@ PerfettoSqlEngine::~PerfettoSqlEngine() {
   // functions.
   engine_.reset();
   PERFETTO_CHECK(runtime_table_fn_states_.size() == 0);
+  PERFETTO_CHECK(runtime_tables_.size() == 0);
 }
 
 void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
@@ -308,13 +323,20 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
       static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
   std::vector<std::string> column_names;
   for (uint32_t i = 0; i < columns; ++i) {
-    column_names.push_back(
-        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i)));
-
-    if (column_names.back().empty()) {
+    std::string col_name =
+        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
+    if (col_name.empty()) {
       return base::ErrStatus(
           "CREATE PERFETTO TABLE: column name must not be empty");
     }
+    if (!std::isalpha(col_name.front()) ||
+        !sql_argument::IsValidName(base::StringView(col_name))) {
+      return base::ErrStatus(
+          "Column name %s has to start with a letter and can only consists "
+          "of alphanumeric characters and underscores.",
+          col_name.c_str());
+    }
+    column_names.push_back(col_name);
   }
 
   size_t column_count = column_names.size();
@@ -357,11 +379,12 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
   }
   RETURN_IF_ERROR(table->AddColumnsAndOverlays(rows));
 
-  auto context = std::make_unique<DbSqliteTable::Context>(query_cache_.get(),
-                                                          std::move(table));
-  engine_->RegisterVirtualTableModule<DbSqliteTable>(
-      name, std::move(context), SqliteTable::kEponymousOnly, false);
-  return base::OkStatus();
+  runtime_tables_.Insert(name, std::move(table));
+  base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
+                                 name.c_str());
+  return Execute(
+             SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
+      .status();
 }
 
 base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
