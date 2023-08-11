@@ -27,9 +27,11 @@ extern "C" {
 
 #if defined(__Fuchsia__)
 #include <zircon/types.h>
-#elif __linux__
+#elif defined(__linux__)
 #include <sys/types.h>
 #include <unistd.h>
+#elif defined(__APPLE__) || defined(_WIN32)
+#include <stdint.h>
 #else
 #include <pthread.h>
 #endif
