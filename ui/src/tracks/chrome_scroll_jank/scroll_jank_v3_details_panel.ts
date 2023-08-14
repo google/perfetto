@@ -38,12 +38,13 @@ import {SqlRef} from '../../frontend/widgets/sql_ref';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {dictToTreeNodes, Tree, TreeNode} from '../../frontend/widgets/tree';
 
+import {EventLatencyTrack} from './event_latency_track';
 import {
-  eventLatencySlice,
   EventLatencySlice,
   getEventLatencyDescendantSlice,
   getEventLatencySlice,
-} from './event_latency_slice';
+  getSliceForTrack,
+} from './scroll_jank_slice';
 
 interface Data {
   name: string;
@@ -254,28 +255,28 @@ export class ScrollJankV3DetailsPanel extends
 
     if (exists(this.sliceDetails) && exists(this.data)) {
       result['Janked Event Latency stage'] = exists(this.causeSliceDetails) ?
-          eventLatencySlice(
+          getSliceForTrack(
               this.causeSliceDetails,
-              this.data.jankCause,
-              this.sliceDetails.sqlTrackId) :
+              EventLatencyTrack.kind,
+              this.data.jankCause) :
           sqlValueToString(this.data.jankCause);
 
       if (this.hasSubcause()) {
         result['Sub-cause of Jank'] = exists(this.subcauseSliceDetails) ?
-            eventLatencySlice(
+            getSliceForTrack(
                 this.subcauseSliceDetails,
-                this.data.jankSubcause,
-                this.sliceDetails.sqlTrackId) :
+                EventLatencyTrack.kind,
+                this.data.jankSubcause) :
             sqlValueToString(this.data.jankSubcause);
       }
 
       const children = dictToTreeNodes(result);
       if (exists(this.eventLatencySliceDetails)) {
         children.unshift(m(TreeNode, {
-          left: eventLatencySlice(
+          left: getSliceForTrack(
               this.eventLatencySliceDetails,
-              'Event Latency',
-              this.sliceDetails.sqlTrackId),
+              EventLatencyTrack.kind,
+              'Event Latency'),
           right: '',
         }));
       } else {
