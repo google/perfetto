@@ -14,20 +14,14 @@
 
 import m from 'mithril';
 
-import {BigintMath} from '../base/bigint_math';
-import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
-import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
-import {Duration, duration, Time, time} from '../common/time';
-import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
+import {duration, Time} from '../common/time';
 import {addDebugTrack} from '../tracks/debug/slice_track';
 
-import {Anchor} from './anchor';
 import {
-  addTab,
   BottomTab,
   bottomTabRegistry,
   NewBottomTabArgs,
@@ -36,20 +30,16 @@ import {FlowPoint, globals} from './globals';
 import {PanelSize} from './panel';
 import {runQueryInNewTab} from './query_result_tab';
 import {Icons} from './semantic_icons';
-import {Arg} from './sql/args';
+import {renderArguments} from './slice_args';
+import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
-import {SqlTableTab} from './sql_table/tab';
-import {SqlTables} from './sql_table/well_known_tables';
 import {asSliceSqlId} from './sql_types';
-import {getProcessName, getThreadName} from './thread_and_process_info';
 import {Button} from './widgets/button';
 import {DetailsShell} from './widgets/details_shell';
 import {DurationWidget} from './widgets/duration';
 import {GridLayout, GridLayoutColumn} from './widgets/grid_layout';
 import {MenuItem, PopupMenu2} from './widgets/menu';
 import {Section} from './widgets/section';
-import {SqlRef} from './widgets/sql_ref';
-import {Timestamp} from './widgets/timestamp';
 import {Tree, TreeNode} from './widgets/tree';
 
 interface ContextMenuItem {
@@ -149,124 +139,6 @@ function getEngine(): EngineProxy|undefined {
   return engine;
 }
 
-function renderArgKey(key: string, value?: Arg): m.Children {
-  if (value === undefined) {
-    return key;
-  } else {
-    const {key: fullKey, displayValue} = value;
-    return m(
-        PopupMenu2,
-        {trigger: m(Anchor, {icon: Icons.ContextMenu}, key)},
-        m(MenuItem, {
-          label: 'Copy full key',
-          icon: 'content_copy',
-          onclick: () => navigator.clipboard.writeText(fullKey),
-        }),
-        value && m(MenuItem, {
-          label: 'Find slices with same arg value',
-          icon: 'search',
-          onclick: () => {
-            addTab({
-              kind: SqlTableTab.kind,
-              config: {
-                table: SqlTables.slice,
-                filters: [{
-                  type: 'arg_filter',
-                  argSetIdColumn: 'arg_set_id',
-                  argName: fullKey,
-                  op: `= ${sqliteString(displayValue)}`,
-                }],
-              },
-            });
-          },
-        }),
-        value && m(MenuItem, {
-          label: 'Visualise argument values',
-          icon: 'query_stats',
-          onclick: () => {
-            globals.dispatch(Actions.addVisualisedArg({argName: fullKey}));
-          },
-        }),
-    );
-  }
-}
-
-function isWebLink(value: unknown): value is string {
-  return typeof value === 'string' &&
-      (value.startsWith('http://') || value.startsWith('https://'));
-}
-
-// Try to render arg value as a special value, otherwise just render the text.
-function renderArgValue({value}: Arg): m.Children {
-  if (isWebLink(value)) {
-    return renderWebLink(value);
-  } else {
-    return `${value}`;
-  }
-}
-
-function renderWebLink(url: string): m.Children {
-  return m(Anchor, {href: url, target: '_blank', icon: 'open_in_new'}, url);
-}
-
-function renderSummary(children: ArgNode<Arg>[]): m.Children {
-  const summary = children.slice(0, 2).map(({key}) => key).join(', ');
-  const remaining = children.length - 2;
-  if (remaining > 0) {
-    return `{${summary}, ... (${remaining} more items)}`;
-  } else {
-    return `{${summary}}`;
-  }
-}
-
-// Format any number of keys into a composite key with standardized formatting.
-function stringifyKey(...key: Key[]): string {
-  return key
-      .map((element, index) => {
-        if (typeof element === 'number') {
-          return `[${element}]`;
-        } else {
-          return (index === 0 ? '' : '.') + element;
-        }
-      })
-      .join('');
-}
-
-function renderArgTreeNodes(
-    engine: EngineProxy, args: ArgNode<Arg>[]): m.Children {
-  return args.map((arg) => {
-    const {key, value, children} = arg;
-    if (children && children.length === 1) {
-      // If we only have one child, collapse into self and combine keys
-      const child = children[0];
-      const compositeArg = {
-        ...child,
-        key: stringifyKey(key, child.key),
-      };
-      return renderArgTreeNodes(engine, [compositeArg]);
-    } else {
-      return m(
-          TreeNode,
-          {
-            left: renderArgKey(stringifyKey(key), value),
-            right: exists(value) && renderArgValue(value),
-            summary: children && renderSummary(children),
-          },
-          children && renderArgTreeNodes(engine, children),
-      );
-    }
-  });
-}
-
-function computeDuration(ts: time, dur: duration): m.Children {
-  if (dur === -1n) {
-    const minDuration = globals.state.traceTime.end - ts;
-    return `${Duration.format(minDuration)} (Did not end)`;
-  } else {
-    return m(DurationWidget, {dur});
-  }
-}
-
 async function getAnnotationSlice(
     engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {
   const query = await engine.query(`
@@ -358,7 +230,7 @@ export class ChromeSliceDetailsTab extends
           },
           m(
               GridLayout,
-              this.renderDetails(slice),
+              renderDetails(slice),
               this.renderRhs(this.engine, slice),
               ),
       );
@@ -374,7 +246,7 @@ export class ChromeSliceDetailsTab extends
   private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
-    const args = this.renderArguments(engine, slice);
+    const args = renderArguments(engine, slice);
     if (precFlows ?? followingFlows ?? args) {
       return m(
           GridLayoutColumn,
@@ -382,97 +254,6 @@ export class ChromeSliceDetailsTab extends
           followingFlows,
           args,
       );
-    } else {
-      return undefined;
-    }
-  }
-
-  private renderDetails(slice: SliceDetails) {
-    return m(
-        Section,
-        {title: 'Details'},
-        m(
-            Tree,
-            m(TreeNode, {
-              left: 'Name',
-              right: m(
-                  PopupMenu2,
-                  {
-                    trigger: m(Anchor, slice.name),
-                  },
-                  m(MenuItem, {
-                    label: 'Slices with the same name',
-                    onclick: () => {
-                      addTab({
-                        kind: SqlTableTab.kind,
-                        config: {
-                          table: SqlTables.slice,
-                          displayName: 'slice',
-                          filters: [`name = ${sqliteString(slice.name)}`],
-                        },
-                      });
-                    },
-                  }),
-                  ),
-            }),
-            m(TreeNode, {
-              left: 'Category',
-              right: !slice.category || slice.category === '[NULL]' ?
-                  'N/A' :
-                  slice.category,
-            }),
-            m(TreeNode, {
-              left: 'Start time',
-              right: m(Timestamp, {ts: slice.ts}),
-            }),
-            exists(slice.absTime) &&
-                m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
-            m(TreeNode, {
-              left: 'Duration',
-              right: computeDuration(slice.ts, slice.dur),
-            }),
-            this.renderThreadDuration(slice),
-            slice.thread && m(TreeNode, {
-              left: 'Thread',
-              right: getThreadName(slice.thread),
-            }),
-            slice.process && m(TreeNode, {
-              left: 'Process',
-              right: getProcessName(slice.process),
-            }),
-            slice.process && exists(slice.process.uid) && m(TreeNode, {
-              left: 'User ID',
-              right: slice.process.uid,
-            }),
-            slice.process && slice.process.packageName && m(TreeNode, {
-              left: 'Package name',
-              right: slice.process.packageName,
-            }),
-            slice.process && exists(slice.process.versionCode) && m(TreeNode, {
-              left: 'Version code',
-              right: slice.process.versionCode,
-            }),
-            m(TreeNode, {
-              left: 'SQL ID',
-              right: m(SqlRef, {table: 'slice', id: slice.id}),
-            }),
-            ));
-  }
-
-  private renderThreadDuration(sliceInfo: SliceDetails) {
-    if (exists(sliceInfo.threadTs) && exists(sliceInfo.threadDur)) {
-      // If we have valid thread duration, also display a percentage of
-      // |threadDur| compared to |dur|.
-      const ratio = BigintMath.ratio(sliceInfo.threadDur, sliceInfo.dur);
-      const threadDurFractionSuffix =
-          sliceInfo.threadDur === -1n ? '' : ` (${(ratio * 100).toFixed(2)}%)`;
-      return m(TreeNode, {
-        left: 'Thread duration',
-        right: [
-          computeDuration(sliceInfo.threadTs, sliceInfo.threadDur),
-          threadDurFractionSuffix,
-        ],
-      });
     } else {
       return undefined;
     }
@@ -545,19 +326,6 @@ export class ChromeSliceDetailsTab extends
         m(TreeNode, {left: 'Delay', right: m(DurationWidget, {dur})}),
         m(TreeNode, {left: 'Thread', right: threadName}),
     );
-  }
-
-  private renderArguments(engine: EngineProxy, slice: SliceDetails):
-      m.Children {
-    if (slice.args && slice.args.length > 0) {
-      const tree = convertArgsToTree(slice.args);
-      return m(
-          Section,
-          {title: 'Arguments'},
-          m(Tree, renderArgTreeNodes(engine, tree)));
-    } else {
-      return undefined;
-    }
   }
 
   private renderContextButton(sliceInfo: SliceDetails): m.Children {
