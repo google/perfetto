@@ -20,7 +20,6 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {CommandWithMatchInfo} from '../common/commands';
 import {setTimestampFormat, TimestampFormat} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
@@ -336,7 +335,7 @@ export class App implements m.ClassComponent {
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'prompt-mode',
       closeOnOutsideClick: true,
-      options: options && [{options}],
+      options,
       selectedOptionIndex: this.omniboxSelectionIndex,
       onSelectedOptionChanged: (index) => {
         this.omniboxSelectionIndex = index;
@@ -362,40 +361,40 @@ export class App implements m.ClassComponent {
     // Fuzzy-filter commands by the filter string.
     const filteredCmds = cmdMgr.fuzzyFilterCommands(this.omniboxText);
 
-    // Sort commands alphabetically
-    const sortedFilteredCommands =
-        filteredCmds.sort((a, b) => a.name.localeCompare(b.name));
+    // Create an array of commands with attached heuristics from the recent
+    // command register.
+    const commandsWithHeuristics = filteredCmds.map((cmd) => {
+      return {
+        recentsIndex: this.recentCommands.findIndex((id) => id === cmd.id),
+        cmd,
+      };
+    });
 
-    // Look up recent comands
-    const recents = this.findRecentCommands(filteredCmds);
+    // Sort by recentsIndex then by alphabetical order
+    const sorted = commandsWithHeuristics.sort((a, b) => {
+      if (b.recentsIndex === a.recentsIndex) {
+        return a.cmd.name.localeCompare(b.cmd.name);
+      } else {
+        return b.recentsIndex - a.recentsIndex;
+      }
+    });
 
-    const cmdToOpt = ({segments, id, defaultHotkey}:
-                          CommandWithMatchInfo): OmniboxOption => {
+    const options = sorted.map(({recentsIndex, cmd}): OmniboxOption => {
+      const {segments, id, defaultHotkey} = cmd;
       return {
         key: id,
         displayName: segments,
+        tag: recentsIndex !== -1 ? 'recently used' : undefined,
         rightContent: defaultHotkey && m(HotkeyGlyphs, {hotkey: defaultHotkey}),
       };
-    };
-
-    const recentOptions = recents.map(cmdToOpt);
-    const allOptions = sortedFilteredCommands.map(cmdToOpt);
-
-    const optionCategories = recentOptions.length > 0 ?
-        [
-          {name: 'Recent Commands', options: recentOptions},
-          {name: 'All Commands', options: allOptions},
-        ] :
-        [
-          {name: 'All Commands', options: allOptions},
-        ];
+    });
 
     return m(Omnibox, {
       value: this.omniboxText,
       placeholder: 'Filter commands...',
       inputRef: App.OMNIBOX_INPUT_REF,
       extraClasses: 'command-mode',
-      options: optionCategories,
+      options,
       closeOnSubmit: true,
       closeOnOutsideClick: true,
       selectedOptionIndex: this.omniboxSelectionIndex,
@@ -422,22 +421,12 @@ export class App implements m.ClassComponent {
     });
   }
 
-  // Locates all recent commands within a given list of commands.
-  private findRecentCommands<T extends Command>(cmds: T[]): T[] {
-    const recents: T[] = [];
-    for (const recentCmdId of this.recentCommands) {
-      const cmd = cmds.find(({id}) => id === recentCmdId);
-      if (cmd) {
-        recents.push(cmd);
-      }
-    }
-    return recents;
-  }
-
   private addRecentCommand(id: string): void {
     this.recentCommands = this.recentCommands.filter((x) => x !== id);
-    this.recentCommands.unshift(id);
-    this.recentCommands.length = Math.min(this.recentCommands.length, 6);
+    this.recentCommands.push(id);
+    while (this.recentCommands.length > 6) {
+      this.recentCommands.shift();
+    }
   }
 
   renderQueryOmnibox(): m.Children {
