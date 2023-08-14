@@ -116,7 +116,8 @@ export const MAX_TIME = 180;
 // 34. Add additional pendingDeeplink fields (query, pid).
 // 35. Add force to OmniboxState
 // 36. Remove metrics
-export const STATE_VERSION = 36;
+// 37. Add additional pendingDeeplink fields (visStart, visEnd).
+export const STATE_VERSION = 37;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -529,6 +530,8 @@ export interface PendingDeeplinkState {
   tid?: string;
   pid?: string;
   query?: string;
+  visStart?: string;
+  visEnd?: string;
 }
 
 export interface State {
