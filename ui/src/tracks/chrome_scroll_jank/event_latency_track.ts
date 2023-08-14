@@ -19,12 +19,17 @@ import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
 import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
-import {ChromeSliceDetailsTab} from '../../frontend/chrome_slice_details_tab';
 import {
-  NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {
+  CustomSqlDetailsPanelConfig,
+  CustomSqlTableDefConfig,
+  CustomSqlTableSliceTrack,
+} from '../custom_sql_table_slices';
+
+import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {ScrollJankTracks as DecideTracksResult} from './index';
 import {ScrollJankPluginState} from './index';
 
@@ -32,7 +37,8 @@ export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
   config: {baseTable: string;}
 }
 
-export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
+export class EventLatencyTrack extends
+    CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.event_latencies';
 
   static create(args: NewTrackArgs): Track {
@@ -45,13 +51,7 @@ export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
       kind: EventLatencyTrack.kind,
       trackId: this.trackId,
       tableName: this.tableName,
-      detailsPanelConfig: {
-        kind: ChromeSliceDetailsTab.kind,
-        config: {
-          title: 'Input Event Latency Slice',
-          sqlTableName: this.tableName,
-        },
-      },
+      detailsPanelConfig: this.getDetailsPanel(),
     });
   }
 
@@ -65,6 +65,19 @@ export class EventLatencyTrack extends NamedSliceTrack<EventLatencyTrackTypes> {
         `CREATE VIEW ${tableName} AS SELECT * FROM ${this.config.baseTable}`;
 
     await this.engine.query(sql);
+  }
+
+  getDetailsPanel(): CustomSqlDetailsPanelConfig {
+    return {
+      kind: EventLatencySliceDetailsPanel.kind,
+      config: {title: '', sqlTableName: this.tableName},
+    };
+  }
+
+  getSqlDataSource(): CustomSqlTableDefConfig {
+    return {
+      sqlTableName: this.config.baseTable,
+    };
   }
 
   // At the moment we will just display the slice details. However, on select,
@@ -144,7 +157,7 @@ export async function addLatencyTracks(engine: Engine):
     id: uuidv4(),
     engineId: engine.id,
     kind: EventLatencyTrack.kind,
-    trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
+    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scroll Input Latencies',
     config: {baseTable: baseTable},
     trackGroup: SCROLLING_TRACK_GROUP,
