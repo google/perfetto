@@ -23,6 +23,7 @@ import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
 import {Duration, duration, Time, time} from '../common/time';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
+import {addDebugTrack} from '../tracks/debug/slice_track';
 
 import {Anchor} from './anchor';
 import {
@@ -69,6 +70,10 @@ function getProcessNameFromSlice(slice: SliceDetails): string|undefined {
   return slice.process?.name;
 }
 
+function getThreadNameFromSlice(slice: SliceDetails): string|undefined {
+  return slice.thread?.name;
+}
+
 function hasName(slice: SliceDetails): boolean {
   return slice.name !== undefined;
 }
@@ -85,6 +90,10 @@ function hasProcessName(slice: SliceDetails): boolean {
   return getProcessNameFromSlice(slice) !== undefined;
 }
 
+function hasThreadName(slice: SliceDetails): boolean {
+  return getThreadNameFromSlice(slice) !== undefined;
+}
+
 const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration of slice name',
@@ -96,26 +105,32 @@ const ITEMS: ContextMenuItem[] = [
   },
   {
     name: 'Binder call names on thread',
-    shouldDisplay: (slice) =>
-        hasProcessName(slice) && hasTid(slice) && hasPid(slice),
+    shouldDisplay: (slice) => hasProcessName(slice) && hasThreadName(slice) &&
+        hasTid(slice) && hasPid(slice),
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
       runQuery(`SELECT IMPORT('android.binder');`, engine)
           .then(
-              () => runQueryInNewTab(
-                  `
-                SELECT s.ts, s.dur, tx.aidl_name AS name, s.id
-                FROM android_sync_binder_metrics_by_txn tx
-                  JOIN slice s ON tx.binder_txn_id = s.id
-                  JOIN thread_track ON s.track_id = thread_track.id
-                  JOIN thread USING (utid)
-                  JOIN process USING (upid)
-                WHERE aidl_name IS NOT NULL
-                  AND pid = ${getPidFromSlice(slice)}
-                  AND tid = ${getTidFromSlice(slice)}`,
+              () => addDebugTrack(
+                  engine,
+                  {
+                    sqlSource: `
+                            SELECT s.ts, s.dur, tx.aidl_name AS name
+                            FROM android_sync_binder_metrics_by_txn tx
+                              JOIN slice s ON tx.binder_txn_id = s.id
+                              JOIN thread_track ON s.track_id = thread_track.id
+                              JOIN thread USING (utid)
+                              JOIN process USING (upid)
+                            WHERE aidl_name IS NOT NULL
+                              AND pid = ${getPidFromSlice(slice)}
+                              AND tid = ${getTidFromSlice(slice)}`,
+                    columns: ['ts', 'dur', 'name'],
+                  },
                   `Binder names (${getProcessNameFromSlice(slice)}:${
-                      getTidFromSlice(slice)})`,
+                      getThreadNameFromSlice(slice)})`,
+                  {ts: 'ts', dur: 'dur', name: 'name'},
+                  [],
                   ));
     },
   },
