@@ -79,6 +79,8 @@ const routeArgs = record({
   tid: optStr,
   pid: optStr,
   query: optStr,
+  visStart: optStr,
+  visEnd: optStr,
 });
 type RouteArgs = ValidatedType<typeof routeArgs>;
 

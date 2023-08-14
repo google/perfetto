@@ -541,6 +541,11 @@ export class TraceController extends Controller<States> {
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
       await this.selectPendingDeeplink(pendingDeeplink);
+      if (pendingDeeplink.visStart !== undefined &&
+          pendingDeeplink.visEnd !== undefined) {
+        this.zoomPendingDeeplink(
+            pendingDeeplink.visStart, pendingDeeplink.visEnd);
+      }
       if (pendingDeeplink.query !== undefined) {
         runQueryInNewTab(pendingDeeplink.query, 'Deeplink Query');
       }
@@ -631,6 +636,7 @@ export class TraceController extends Controller<States> {
       from slice
       where ${conditions.join(' and ')}
     ;`;
+
 
     const result = await assertExists(this.engine).query(query);
     if (result.numRows() > 0) {
@@ -973,6 +979,26 @@ export class TraceController extends Controller<States> {
     globals.dispatch(Actions.updateStatus({
       msg,
       timestamp: Date.now() / 1000,
+    }));
+  }
+
+  private zoomPendingDeeplink(visStart: string, visEnd: string) {
+    const visualStart = Time.fromRaw(BigInt(visStart));
+    const visualEnd = Time.fromRaw(BigInt(visEnd));
+    const traceTime = globals.stateTraceTimeTP();
+
+    if (!(visualStart < visualEnd && traceTime.start <= visualStart &&
+          visualEnd <= traceTime.end)) {
+      return;
+    }
+
+    const res = (visualEnd - visualStart) / 1000n;
+
+    globals.dispatch(Actions.setVisibleTraceTime({
+      start: visualStart,
+      end: visualEnd,
+      resolution: BigintMath.max(res, 1n),
+      lastUpdate: Date.now() / 1000,
     }));
   }
 }
