@@ -40,11 +40,14 @@
 #define PERFETTO_I_TE_STATIC_ASSERT_NUM_PARAMS(...) \
   PERFETTO_I_TE_STATIC_ASSERT_NUM_PARAMS_(__VA_ARGS__, 0, 0, 0, 0, 0, 0)
 
-#define PERFETTO_I_TE_LIMIT_4(NAME_AND_TYPE1, NAME_AND_TYPE2, EXTRA1, EXTRA2, \
-                              EXTRA3, EXTRA4, ...)                            \
+#define PERFETTO_I_TE_LIMIT_4__(NAME_AND_TYPE1, NAME_AND_TYPE2, EXTRA1, \
+                                EXTRA2, EXTRA3, EXTRA4, ...)            \
   NAME_AND_TYPE1, NAME_AND_TYPE2, EXTRA1, EXTRA2, EXTRA3, EXTRA4
+#define PERFETTO_I_TE_LIMIT_4_(MACRO, ARGS) MACRO ARGS
+#define PERFETTO_I_TE_LIMIT_4(...) \
+  PERFETTO_I_TE_LIMIT_4_(PERFETTO_I_TE_LIMIT_4__, (__VA_ARGS__))
 
-// In C we have to use a compund literal. In C++ we can use a regular
+// In C we have to use a compound literal. In C++ we can use a regular
 // initializer.
 #ifndef __cplusplus
 #define PERFETTO_I_TE_HL_MACRO_PARAMS_PREAMBLE (struct PerfettoTeHlMacroParams)

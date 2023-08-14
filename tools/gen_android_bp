@@ -59,6 +59,7 @@ default_targets = [
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/android_internal:libperfetto_android_internal',
     '//src/base:perfetto_base_default_platform',
+    '//src/shared_lib:libperfetto_c',
     '//src/perfetto_cmd:perfetto',
     '//src/perfetto_cmd:trigger_perfetto',
     '//src/profiling/memory:heapprofd_client',
@@ -102,6 +103,7 @@ target_host_supported = [
     '//:libperfetto',
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
     '//src/traced/probes:traced_probes',
@@ -261,6 +263,11 @@ additional_args = {
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+    ],
+    'libperfetto_c': [
+        ('min_sdk_version', '30'),
+        ('export_include_dirs', {'include'}),
+        ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
