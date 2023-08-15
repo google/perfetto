@@ -16,9 +16,55 @@ import m from 'mithril';
 
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
 
+import {Anchor} from './anchor';
 import {globals} from './globals';
 import {createPage} from './pages';
+import {HotkeyGlyphs} from './widgets/hotkey_glyphs';
 
+export class Hints implements m.ClassComponent {
+  view() {
+    return m(
+        '.home-page-hints',
+        m('.tagline', 'New!'),
+        m(
+            'ul',
+            m(
+                'li',
+                'Use ',
+                m(HotkeyGlyphs, {hotkey: 'W'}),
+                m(HotkeyGlyphs, {hotkey: 'A'}),
+                m(HotkeyGlyphs, {hotkey: 'S'}),
+                m(HotkeyGlyphs, {hotkey: 'D'}),
+                ' to navigate the trace.',
+                ),
+            m('li',
+              'Try the ',
+              m(Anchor,
+                {
+                  href:
+                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-pallete',
+                },
+                'command pallete,'),
+              ' press ',
+              m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
+              '.'),
+            m(
+                'li',
+                'Customize the ',
+                m(
+                    Anchor,
+                    {
+                      href:
+                          'https://perfetto.dev/docs/visualization/perfetto-ui#changing-the-time-format-and-offset',
+                    },
+                    'time format',
+                    ),
+                '.',
+                ),
+            ),
+    );
+  }
+}
 
 export const HomePage = createPage({
   view() {
@@ -26,11 +72,15 @@ export const HomePage = createPage({
         '.page.home-page',
         m(
             '.home-page-center',
-            m('.home-page-title', 'Perfetto'),
-            m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
             m(
-                'div.channel-select',
-                m('div',
+                '.home-page-title',
+                m(`img.logo[src=${globals.root}assets/logo-3d.png]`),
+                'Perfetto',
+                ),
+            m(Hints),
+            m(
+                '.channel-select',
+                m('',
                   'Feeling adventurous? Try our bleeding edge Canary version'),
                 m(
                     'fieldset',
