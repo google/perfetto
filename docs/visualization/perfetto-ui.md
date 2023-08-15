@@ -4,6 +4,32 @@
 the browser. It supports several different tracing formats, including the
 perfetto proto trace format and the legacy json trace format.
 
+## New Features
+What features have come to the UI recently? See below.
+
+### Command Palette
+Tired of remembering the location of buttons in the Perfetto UI?
+Commands to the rescue!
+
+![Command](https://storage.googleapis.com/perfetto-misc/feature-command-palette.gif)
+
+Commands are:
+- Discoverable & Searchable
+- Keyboard driven
+- Plugin-able
+- Context sensitive
+- ...with more added every day
+
+Access the command palette via `Ctrl-Shift-P` or by typing `>` in the
+search bar.
+
+### Changing the time format and offset
+
+![Time](https://storage.googleapis.com/perfetto-misc/feature-time.gif)
+
+The displayed timestamp format can be changed globally, cycling between seconds, raw nanoseconds and a new "timecode" format.
+We also have a new `TO_TIMECODE()` function in Trace Processor to print timestamps in the timecode format.
+
 ## UI Tips and Tricks
 
 ### Pivot Tables

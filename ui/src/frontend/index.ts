@@ -157,6 +157,7 @@ function setupContentSecurityPolicy() {
       'blob:',
       'https://www.google-analytics.com',
       'https://www.googletagmanager.com',
+      'https://*.googleapis.com',
     ],
     'style-src': [
       `'self'`,
