@@ -30,6 +30,7 @@ export {
 } from '../common/query_result';
 export {Store} from '../frontend/store';
 
+
 // An imperative API for plugins to change the UI.
 export interface Viewer {
   // Control of the sidebar.
@@ -40,6 +41,12 @@ export interface Viewer {
     hide(): void;
     // Returns true if the sidebar is visble.
     isVisible(): boolean;
+  }
+
+  // Tracks
+  tracks: {
+    pin(predicate: TrackPredicate): void;
+    unpin(predicate: TrackPredicate): void;
   }
 
   // Control over the bottom details pane.
@@ -175,6 +182,20 @@ export interface TrackInfo {
 
   // An opaque config for the track.
   config: {};
+}
+
+// A predicate for selecting a groups of tracks.
+export type TrackPredicate = (info: TrackTags) => boolean;
+
+// An set of key/value pairs describing a given track. These
+// are used for selecting tracks to pin/unpin and (in future) the
+// sorting and grouping of tracks. The values are always strings.
+export interface TrackTags {
+  // A human readable name for this specific track.
+  name?: string;
+
+  // There may be arbitrary other key/value pairs.
+  [key: string]: string|undefined;
 }
 
 // The public API plugins use to extend the UI. This is passed to each
