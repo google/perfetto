@@ -169,6 +169,26 @@ class CoreCommands implements TracePlugin {
         },
       },
 
+      {
+        id: 'dev.perfetto.CoreCommands#PinFtraceTracks',
+        name: 'Pin ftrace tracks',
+        callback: () => {
+          this.viewer.tracks.pin((tags) => {
+            return !!tags.name?.startsWith('Ftrace Events Cpu ');
+          });
+        },
+      },
+
+      {
+        id: 'dev.perfetto.CoreCommands#UnpinAllTracks',
+        name: 'Unpin all tracks',
+        callback: () => {
+          this.viewer.tracks.unpin((_) => {
+            return true;
+          });
+        },
+      },
+
     ];
   }
 }
