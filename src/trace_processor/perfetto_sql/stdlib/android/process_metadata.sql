@@ -15,7 +15,7 @@
 --
 
 -- Count packages by package UID.
-CREATE TABLE internal_uid_package_count AS
+CREATE PERFETTO TABLE internal_uid_package_count AS
 SELECT uid, COUNT(1) AS cnt
 FROM package_list
 GROUP BY 1;
