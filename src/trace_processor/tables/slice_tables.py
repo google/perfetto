@@ -87,11 +87,11 @@ SLICE_TABLE = Table(
             'parent_id':
                 '''
                   The id of the parent (i.e. immediate ancestor) slice for this
-                  slice
+                  slice.
                 ''',
             'arg_set_id':
                 ColumnDoc(
-                    'The id of the argument set associated with this slice',
+                    'The id of the argument set associated with this slice.',
                     joinable='args.arg_set_id'),
             'thread_ts':
                 '''
@@ -273,7 +273,7 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
                 ''',
             'arg_set_id':
                 ColumnDoc(
-                    'The id of the argument set associated with this slice',
+                    'The id of the argument set associated with this slice.',
                     joinable='args.arg_set_id'),
             'source_id':
                 'The id of the slice which this row originated from.',
