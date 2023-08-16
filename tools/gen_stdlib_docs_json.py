@@ -23,7 +23,7 @@ from typing import Dict
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.stdlib_docs.parse import parse_file
+from python.generators.sql_processing.docs_parse import parse_file
 
 
 def main():

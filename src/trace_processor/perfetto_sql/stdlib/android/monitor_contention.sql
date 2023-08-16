@@ -383,9 +383,9 @@ CREATE PERFETTO FUNCTION android_monitor_contention_graph(upid INT)
 RETURNS TABLE(pprof BYTES) AS
 WITH contention_chain AS (
 SELECT *,
-       IIF(blocked_thread_name LIKE 'binder:%', 'binder', blocked_thread_name)
+       IIF(blocked_thread_name GLOB 'binder:*', 'binder', blocked_thread_name)
         AS blocked_thread_name_norm,
-       IIF(blocking_thread_name LIKE 'binder:%', 'binder', blocking_thread_name)
+       IIF(blocking_thread_name GLOB 'binder:*', 'binder', blocking_thread_name)
         AS blocking_thread_name_norm
 FROM android_monitor_contention_chain WHERE upid = $upid
 GROUP BY id, parent_id

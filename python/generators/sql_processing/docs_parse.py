@@ -17,18 +17,18 @@ from abc import ABC
 from dataclasses import dataclass
 import re
 import sys
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from python.generators.stdlib_docs.extractor import DocsExtractor
-from python.generators.stdlib_docs.utils import ObjKind
-from python.generators.stdlib_docs.utils import ARG_ANNOTATION_PATTERN
-from python.generators.stdlib_docs.utils import NAME_AND_TYPE_PATTERN
-from python.generators.stdlib_docs.utils import FUNCTION_RETURN_PATTERN
-from python.generators.stdlib_docs.utils import COLUMN_ANNOTATION_PATTERN
+from python.generators.sql_processing.docs_extractor import DocsExtractor
+from python.generators.sql_processing.utils import ObjKind
+from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
+from python.generators.sql_processing.utils import NAME_AND_TYPE_PATTERN
+from python.generators.sql_processing.utils import FUNCTION_RETURN_PATTERN
+from python.generators.sql_processing.utils import COLUMN_ANNOTATION_PATTERN
 
 
 def is_internal(name: str) -> bool:
-  return re.match(r'^internal_.*', name, re.IGNORECASE)
+  return re.match(r'^internal_.*', name, re.IGNORECASE) is not None
 
 
 def is_snake_case(s: str) -> bool:
@@ -264,7 +264,7 @@ class ViewFunctionDocParser(AbstractDocParser):
   def __init__(self, path: str, module: str):
     super().__init__(path, module)
 
-  def parse(self, doc: DocsExtractor.Extract) -> TableFunction:
+  def parse(self, doc: DocsExtractor.Extract) -> Optional[TableFunction]:
     self.name, args, columns, _ = doc.obj_match
 
     # Ignore internal functions.
