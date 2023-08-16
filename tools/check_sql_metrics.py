@@ -21,62 +21,53 @@ from __future__ import division
 from __future__ import print_function
 
 import os
-import re
 import sys
+from typing import Dict, Tuple, List
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.join(ROOT_DIR))
+
+from python.generators.sql_processing.utils import match_pattern
+from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.utils import DROP_TABLE_VIEW_PATTERN
+from python.generators.sql_processing.utils import CREATE_TABLE_VIEW_PATTERN
 
 
-def check(path):
+def match_pattern_to_dict(sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
+  res = {}
+  for line_num, matches in match_pattern(pattern, sql).items():
+    res[matches[1]] = [line_num, str(matches[0])]
+  return res
+
+
+def check(path: str) -> List[str]:
+  errors = []
   with open(path) as f:
-    lines = [l.strip() for l in f.readlines()]
+    sql = f.read()
 
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
-  errors = 0
-  d_type, d_name = None, None
-  for line in lines:
-    m = re.match(r'^DROP (TABLE|VIEW) IF EXISTS (.*);$', line)
-    if m is not None:
-      d_type, d_name = m.group(1), m.group(2)
+  create_table_view_dir = match_pattern_to_dict(sql, CREATE_TABLE_VIEW_PATTERN)
+  drop_table_view_dir = match_pattern_to_dict(sql, DROP_TABLE_VIEW_PATTERN)
+  for name, [line, type] in create_table_view_dir.items():
+    if name not in drop_table_view_dir:
+      errors.append(f'Missing DROP before CREATE {type.upper()} "{name}"\n'
+                    f'Offending file: {path}\n')
       continue
-    m = re.match(r'^CREATE (?:VIRTUAL )?(TABLE|VIEW) (.*) (?:AS|USING).*', line)
-    if m is None:
+    drop_line, drop_type = drop_table_view_dir[name]
+    if drop_line > line:
+      errors.append(f'DROP has to be before CREATE {type.upper()} "{name}"\n'
+                    f'Offending file: {path}\n')
       continue
-    type, name = m.group(1), m.group(2)
-    if type != d_type or name != d_name:
-      sys.stderr.write(
-          ('Missing DROP %s before CREATE %s\n') % (d_type, d_type))
-      sys.stderr.write(('%s:\n"%s" vs %s %s\n') % (path, line, d_type, d_name))
-      errors += 1
-    d_type, d_name = None, None
+    if drop_type != type:
+      errors.append(f'DROP type doesnt match CREATE {type.upper()} "{name}"\n'
+                    f'Offending file: {path}\n')
 
-  # Ban the use of LIKE in non-comment lines.
-  for line in lines:
-    if line.startswith('--'):
-      continue
-
-    if 'like' in line.casefold():
-      sys.stderr.write(
-          'LIKE is banned in trace processor metrics. Prefer GLOB instead.\n')
-      sys.stderr.write('Offending file: %s\n' % path)
-      errors += 1
-
-  # Ban the use of CREATE_FUNCTION.
-  for line in lines:
-    if line.startswith('--'):
-      continue
-
-    if 'create_function' in line.casefold():
-      sys.stderr.write('CREATE_FUNCTION is deprecated in trace processor. '
-                       'Prefer CREATE PERFETTO FUNCTION instead.\n')
-      sys.stderr.write('Offending file: %s\n' % path)
-      errors += 1
-
+  errors += check_banned_words(sql, path)
   return errors
 
 
 def main():
-  errors = 0
+  errors = []
   metrics_sources = os.path.join(ROOT_DIR, 'src', 'trace_processor', 'metrics',
                                  'sql')
   for root, _, files in os.walk(metrics_sources, topdown=True):
@@ -84,7 +75,10 @@ def main():
       path = os.path.join(root, f)
       if path.endswith('.sql'):
         errors += check(path)
-  return 0 if errors == 0 else 1
+
+  sys.stderr.write("\n".join(errors))
+  sys.stderr.write("\n")
+  return 0 if not errors else 1
 
 
 if __name__ == '__main__':
