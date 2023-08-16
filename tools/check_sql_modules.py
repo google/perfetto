@@ -25,7 +25,8 @@ import re
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.stdlib_docs.parse import ParsedFile, parse_file
+from python.generators.sql_processing.docs_parse import ParsedFile, parse_file
+from python.generators.sql_processing.utils import check_banned_words
 
 
 def main():
@@ -48,27 +49,9 @@ def main():
       parsed = parse_file(path, sql)
       modules.append((path, sql, parsed))
 
-  functions = set()
-
   for path, sql, parsed in modules:
     errors += parsed.errors
-
-    lines = [l.strip() for l in sql.split('\n')]
-    for line in lines:
-      # Strip the SQL comments.
-      line = re.sub(r'--.*$', '', line)
-
-      # Ban the use of LIKE in non-comment lines.
-      if 'like' in line.casefold():
-        errors.append('LIKE is banned in trace processor metrics. '
-                      'Prefer GLOB instead.')
-        errors.append('Offending file: %s' % path)
-
-      # Ban the use of CREATE_FUNCTION.
-      if 'create_function' in line.casefold():
-        errors.append('CREATE_FUNCTION is deprecated in trace processor. '
-                      'Prefer CREATE PERFETTO FUNCTION instead.')
-        errors.append('Offending file: %s' % path)
+    errors += check_banned_words(sql, path)
 
   sys.stderr.write("\n".join(errors))
   sys.stderr.write("\n")
