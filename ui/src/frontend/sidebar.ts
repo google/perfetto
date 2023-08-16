@@ -27,11 +27,6 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {EngineMode} from '../common/state';
-import {
-  setTimestampFormat,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 
@@ -51,7 +46,6 @@ import {
   convertTraceToJsonAndDownload,
   convertTraceToSystraceAndDownload,
 } from './trace_converter';
-import {Button} from './widgets/button';
 
 const GITILES_URL =
     'https://android.googlesource.com/platform/external/perfetto';
@@ -727,50 +721,12 @@ const ServiceWorkerWidget: m.Component = {
   },
 };
 
-function cycleTimestampFormat() {
-  let nextFmt: TimestampFormat = TimestampFormat.Timecode;
-  const fmt = timestampFormat();
-  switch (fmt) {
-    case TimestampFormat.Timecode:
-      nextFmt = TimestampFormat.Raw;
-      break;
-    case TimestampFormat.Raw:
-      nextFmt = TimestampFormat.RawLocale;
-      break;
-    case TimestampFormat.RawLocale:
-      nextFmt = TimestampFormat.Seconds;
-      break;
-    case TimestampFormat.Seconds:
-      nextFmt = TimestampFormat.Timecode;
-      break;
-    default:
-      const x: never = fmt;
-      throw new Error(`Invalid timestamp format ${x}`);
-  }
-  setTimestampFormat(nextFmt);
-  raf.scheduleFullRedraw();
-}
-
 const SidebarFooter: m.Component = {
   view() {
     return m(
         '.sidebar-footer',
-        m('button',
-          {
-            onclick: () => globals.dispatch(Actions.togglePerfDebug({})),
-          },
-          m('i.material-icons',
-            {title: 'Toggle Perf Debug Mode'},
-            'assessment')),
         m(EngineRPCWidget),
         m(ServiceWorkerWidget),
-        m(Button, {
-          icon: 'schedule',
-          minimal: true,
-          compact: true,
-          title: 'Cycle timestamp formats',
-          onclick: cycleTimestampFormat,
-        }),
         m(
             '.version',
             m('a',
