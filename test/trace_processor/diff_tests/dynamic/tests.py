@@ -134,6 +134,37 @@ class Dynamic(TestSuite):
         "[NULL]","[NULL]","[NULL]"
         """))
 
+  # TO_REALTIME function
+  def test_various_clocks_to_realtime(self):
+    return DiffTestBlueprint(
+        trace=Path('various_clocks.textproto'),
+        query="""
+        SELECT
+          TO_REALTIME(15) AS t15,
+          TO_REALTIME(25) AS t25,
+          TO_REALTIME(35) AS t35;
+        """,
+        out=Csv("""
+        "t15","t25","t35"
+        15,15,20
+        """))
+
+  def test_empty_to_realtime(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+
+        """),
+        query="""
+        SELECT
+          TO_REALTIME(15) AS t15,
+          TO_REALTIME(25) AS t25,
+          TO_REALTIME(35) AS t35;
+        """,
+        out=Csv("""
+        "t15","t25","t35"
+        "[NULL]","[NULL]","[NULL]"
+        """))
+
   # TO_MONOTONIC function
   def test_various_clocks_to_monotonic(self):
     return DiffTestBlueprint(
