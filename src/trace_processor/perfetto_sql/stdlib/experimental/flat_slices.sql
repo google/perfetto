@@ -46,8 +46,7 @@
 -- @column upid               Alias for `process.upid`.
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
-CREATE TABLE experimental_slice_flattened
-AS
+CREATE TABLE experimental_slice_flattened AS
 -- The algorithm proceeds as follows:
 -- 1. Find the start and end timestamps of all slices.
 -- 2. Iterate the generated timestamps within a stack in chronoligical order.
