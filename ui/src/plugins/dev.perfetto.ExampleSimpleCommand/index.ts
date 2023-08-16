@@ -18,19 +18,18 @@ import {
   PluginContext,
   Store,
   TracePlugin,
+  Viewer,
 } from '../../public';
 
-interface ExampleState {
-  counter: number;
-}
+interface State {}
 
 // This is just an example plugin, used to prove that the plugin system works.
-class ExamplePlugin implements TracePlugin {
-  static migrate(_initialState: unknown): ExampleState {
-    return {counter: 0};
+class ExampleSimpleCommand implements TracePlugin {
+  static migrate(_initialState: unknown): State {
+    return {};
   }
 
-  constructor(_store: Store<ExampleState>, _engine: EngineProxy) {
+  constructor(_store: Store<State>, _engine: EngineProxy, _viewer: Viewer) {
     // No-op
   }
 
@@ -39,23 +38,19 @@ class ExamplePlugin implements TracePlugin {
   }
 
   commands(): Command[] {
-    // Example return value:
-    // return [
-    //   {
-    //     id: 'dev.perfetto.ExampleCommand',
-    //     name: 'Example Command',
-    //     callback: () => console.log('Hello from example command'),
-    //   },
-    // ];
-    return [];
+    return [
+      {
+        id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
+        name: 'Log "Hello, world!"',
+        callback: () => console.log('Hello, world!'),
+      },
+    ];
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTracePluginFactory(ExamplePlugin);
-}
-
 export const plugin = {
-  pluginId: 'dev.perfetto.ExamplePlugin',
-  activate,
+  pluginId: 'dev.perfetto.ExampleSimpleCommand',
+  activate(ctx: PluginContext) {
+    ctx.registerTracePluginFactory(ExampleSimpleCommand);
+  },
 };
