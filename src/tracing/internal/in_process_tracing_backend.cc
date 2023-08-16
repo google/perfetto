@@ -19,6 +19,7 @@
 #include "perfetto/base/logging.h"
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/paged_memory.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 
@@ -48,8 +49,8 @@ std::unique_ptr<ProducerEndpoint> InProcessTracingBackend::ConnectProducer(
     const ConnectProducerArgs& args) {
   PERFETTO_DCHECK(args.task_runner->RunsTasksOnCurrentThread());
   return GetOrCreateService(args.task_runner)
-      ->ConnectProducer(args.producer, /*uid=*/0, /*pid=*/0, args.producer_name,
-                        args.shmem_size_hint_bytes,
+      ->ConnectProducer(args.producer, ClientIdentity(/*uid=*/0, /*pid=*/0),
+                        args.producer_name, args.shmem_size_hint_bytes,
                         /*in_process=*/true,
                         TracingService::ProducerSMBScrapingMode::kEnabled,
                         args.shmem_page_size_hint_bytes);

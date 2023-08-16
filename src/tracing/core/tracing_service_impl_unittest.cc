@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -187,7 +188,7 @@ class TracingServiceImplTest : public testing::Test {
   ProducerID* last_producer_id() { return &svc->last_producer_id_; }
 
   uid_t GetProducerUid(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->uid_;
+    return svc->GetProducer(producer_id)->uid();
   }
 
   TracingServiceImpl::TracingSession* GetTracingSession(TracingSessionID tsid) {
@@ -1590,9 +1591,10 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<MockProducer> producer_otheruid = CreateMockProducer();
-  auto x = svc->ConnectProducer(producer_otheruid.get(),
-                                base::GetCurrentUserId() + 1,
-                                base::GetProcessId(), "mock_producer_ouid");
+  auto x = svc->ConnectProducer(
+      producer_otheruid.get(),
+      ClientIdentity(base::GetCurrentUserId() + 1, base::GetProcessId()),
+      "mock_producer_ouid");
   EXPECT_CALL(*producer_otheruid, OnConnect()).Times(0);
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(producer_otheruid.get());
