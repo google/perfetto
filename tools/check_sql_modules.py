@@ -27,6 +27,29 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.sql_processing.docs_parse import ParsedFile, parse_file
 from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.utils import check_banned_create_table_as
+
+CREATE_TABLE_ALLOWLIST = {
+    '/src/trace_processor/perfetto_sql/stdlib/android/binder.sql': [
+        'internal_oom_score', 'internal_async_binder_reply',
+        'internal_binder_async_txn_raw'
+    ],
+    '/src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql': [
+        'internal_isolated', 'android_monitor_contention_chain',
+        'android_monitor_contention'
+    ],
+    '/src/trace_processor/perfetto_sql/stdlib/chrome/tasks.sql': [
+        'internal_chrome_mojo_slices', 'internal_chrome_java_views',
+        'internal_chrome_scheduler_tasks', 'internal_chrome_tasks'
+    ],
+    ('/src/trace_processor/perfetto_sql/stdlib/experimental/'
+     'thread_executing_span.sql'): [
+        'internal_wakeup', 'experimental_thread_executing_span_graph'
+    ],
+    '/src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql': [
+        'experimental_slice_flattened'
+    ]
+}
 
 
 def main():
@@ -52,9 +75,13 @@ def main():
   for path, sql, parsed in modules:
     errors += parsed.errors
     errors += check_banned_words(sql, path)
+    errors += check_banned_create_table_as(sql,
+                                           path.split(ROOT_DIR)[1],
+                                           CREATE_TABLE_ALLOWLIST)
 
-  sys.stderr.write("\n".join(errors))
-  sys.stderr.write("\n")
+  if errors:
+    sys.stderr.write("\n".join(errors))
+    sys.stderr.write("\n")
   return 0 if not errors else 1
 
 

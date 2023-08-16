@@ -142,8 +142,7 @@ GROUP BY s.utid;
 -- end_ts           = S1_ts.
 -- end_dur          = S1_dur.
 -- end_state        = 'S' or 'D'.
-CREATE TABLE internal_wakeup
-AS
+CREATE TABLE internal_wakeup AS
   SELECT
   LAG(r.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_id,
   LAG(r.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_ts,
@@ -276,8 +275,7 @@ SELECT *, 1 AS is_root, 0 AS is_leaf FROM internal_wakeup_root;
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
 -- @column blocked_function   Kernel blocking function of thread state before waking up.
-CREATE TABLE experimental_thread_executing_span_graph
-AS
+CREATE TABLE experimental_thread_executing_span_graph AS
 SELECT
   graph.parent_id,
   graph.start_id AS id,
