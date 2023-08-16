@@ -421,6 +421,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
   RegisterFunction<Reverse>(&engine_, "REVERSE", 1);
   RegisterFunction<ToMonotonic>(&engine_, "TO_MONOTONIC", 1,
                                 context_.clock_converter.get());
+  RegisterFunction<ToMonotonic>(&engine_, "TO_REALTIME", 1,
+                                context_.clock_converter.get());
   RegisterFunction<ToTimecode>(&engine_, "TO_TIMECODE", 1);
   RegisterFunction<CreateFunction>(&engine_, "CREATE_FUNCTION", 3, &engine_);
   RegisterFunction<CreateViewFunction>(&engine_, "CREATE_VIEW_FUNCTION", 3,
