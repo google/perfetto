@@ -29,8 +29,29 @@ sys.path.append(os.path.join(ROOT_DIR))
 
 from python.generators.sql_processing.utils import match_pattern
 from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.utils import check_banned_create_table_as
 from python.generators.sql_processing.utils import DROP_TABLE_VIEW_PATTERN
 from python.generators.sql_processing.utils import CREATE_TABLE_VIEW_PATTERN
+
+CREATE_TABLE_ALLOWLIST = {
+    ('/src/trace_processor/metrics/sql/android'
+     '/android_blocking_calls_cuj_metric.sql'): [
+        'android_cujs', 'relevant_binder_calls_with_names',
+        'android_blocking_calls_cuj_calls'
+    ],
+    '/src/trace_processor/metrics/sql/android/jank/cujs.sql': [
+        'android_jank_cuj'
+    ],
+    '/src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql': [
+        '{{prefix}}_latency_info_flow_step_filtered'
+    ],
+    '/src/trace_processor/metrics/sql/chrome/gesture_jank.sql': [
+        '{{prefix}}_jank_maybe_null_prev_and_next_without_precompute'
+    ],
+    '/src/trace_processor/metrics/sql/experimental/frame_times.sql': [
+        'DisplayCompositorPresentationEvents'
+    ]
+}
 
 
 def match_pattern_to_dict(sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
@@ -41,13 +62,15 @@ def match_pattern_to_dict(sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
 
 
 def check(path: str) -> List[str]:
-  errors = []
   with open(path) as f:
     sql = f.read()
 
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
   create_table_view_dir = match_pattern_to_dict(sql, CREATE_TABLE_VIEW_PATTERN)
   drop_table_view_dir = match_pattern_to_dict(sql, DROP_TABLE_VIEW_PATTERN)
+  errors = check_banned_create_table_as(sql,
+                                        path.split(ROOT_DIR)[1],
+                                        CREATE_TABLE_ALLOWLIST)
   for name, [line, type] in create_table_view_dir.items():
     if name not in drop_table_view_dir:
       errors.append(f'Missing DROP before CREATE {type.upper()} "{name}"\n'
@@ -76,8 +99,9 @@ def main():
       if path.endswith('.sql'):
         errors += check(path)
 
-  sys.stderr.write("\n".join(errors))
-  sys.stderr.write("\n")
+  if errors:
+    sys.stderr.write("\n".join(errors))
+    sys.stderr.write("\n")
   return 0 if not errors else 1
 
 
