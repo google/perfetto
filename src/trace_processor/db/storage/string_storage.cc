@@ -152,14 +152,16 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_ + range.start;
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::Search",
-                    [range, op, &sql_val](metatrace::Record* r) {
-                      r->AddArg("Start", std::to_string(range.start));
-                      r->AddArg("End", std::to_string(range.end));
-                      r->AddArg("Op",
-                                std::to_string(static_cast<uint32_t>(op)));
-                      r->AddArg("String", sql_val.AsString());
-                    });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::DB, "StringStorage::Search",
+      [range, op, &sql_val](metatrace::Record* r) {
+        r->AddArg("Start", std::to_string(range.start));
+        r->AddArg("End", std::to_string(range.end));
+        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
+        r->AddArg("String", sql_val.type == SqlValue::Type::kString
+                                ? sql_val.AsString()
+                                : "NULL");
+      });
 
   BitVector::Builder builder(range.end, range.start);
   switch (op) {
@@ -255,13 +257,15 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_;
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::IndexSearch",
-                    [indices_size, op, &sql_val](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_size));
-                      r->AddArg("Op",
-                                std::to_string(static_cast<uint32_t>(op)));
-                      r->AddArg("String", sql_val.AsString());
-                    });
+  PERFETTO_TP_TRACE(
+      metatrace::Category::DB, "StringStorage::IndexSearch",
+      [indices_size, op, &sql_val](metatrace::Record* r) {
+        r->AddArg("Count", std::to_string(indices_size));
+        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
+        r->AddArg("String", sql_val.type == SqlValue::Type::kString
+                                ? sql_val.AsString()
+                                : "NULL");
+      });
 
   BitVector::Builder builder(indices_size);
 
