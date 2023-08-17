@@ -106,6 +106,44 @@ class AndroidCujs implements TracePlugin {
             `,
             'Android Jank CUJs'),
       },
+      {
+        id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
+        name: 'Run query: Android Latency CUJs',
+        callback: () => this.viewer.tabs.openQuery(
+            `
+              SELECT
+                CASE
+                  WHEN
+                    EXISTS(
+                        SELECT 1
+                        FROM slice AS cuj_state_marker
+                               JOIN track marker_track
+                                    ON marker_track.id = cuj_state_marker.track_id
+                        WHERE
+                          cuj_state_marker.ts >= cuj.ts
+                          AND cuj_state_marker.ts + cuj_state_marker.dur <= cuj.ts + cuj.dur
+                          AND marker_track.name = cuj.name AND (
+                              cuj_state_marker.name GLOB 'cancel' 
+                              OR cuj_state_marker.name GLOB 'timeout')
+                      )
+                    THEN '❌ CANCELED'
+                  ELSE '✅ completed'
+                  END AS state,
+                cuj.name,
+                cuj.dur / 1e6 as dur_ms,
+                cuj.ts,
+                cuj.dur,
+                cuj.track_id,
+                cuj.slice_id
+              FROM slice AS cuj
+                     JOIN process_track AS pt
+                          ON cuj.track_id = pt.id
+              WHERE cuj.name GLOB 'L<*>'
+                AND cuj.dur > 0
+              ORDER BY state asc, ts desc;
+            `,
+            'Android Latency CUJs'),
+      },
     ];
   }
 }
