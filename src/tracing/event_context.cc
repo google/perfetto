@@ -52,15 +52,6 @@ EventContext::~EventContext() {
     // Reset the message but keep one buffer allocated for future use.
     serialized_interned_data.Reset();
   }
-
-  trace_packet_ = TracePacketHandle();
-  // Make sure that the packet we just wrote is immediately visible in the
-  // shared memory buffer.
-  // TODO(b/162206162): Remove this when TracePacketHandle destruction calls
-  // FinishTracePacket automatically.
-  if (trace_writer_) {
-    trace_writer_->FinishTracePacket();
-  }
 }
 
 protos::pbzero::DebugAnnotation* EventContext::AddDebugAnnotation(

@@ -998,11 +998,6 @@ static void InstanceOp(
       incr_state->serialized_interned_data.Reset();
     }
   }
-  // Make sure that the packet we just wrote is immediately visible in the
-  // TraceWriter and scrapable by the tracing service.
-  // TODO(b/162206162): Remove this when TracePacketHandle destruction calls
-  // FinishTracePacket automatically.
-  trace_writer->FinishTracePacket();
 
   bool flush = false;
   for (const auto* it = extra_data; it; it = it->next) {

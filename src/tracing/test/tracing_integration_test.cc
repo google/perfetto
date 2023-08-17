@@ -541,9 +541,7 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
       }));
   task_runner_->RunUntilCheckpoint("on_flush_complete");
 
-  // Read the log buffer. We should only see the first two written trace
-  // packets, because the service can't be sure the last one was written
-  // completely by the trace writer.
+  // Read the log buffer. We should see all the packets.
   consumer_endpoint_->ReadBuffers();
 
   size_t num_test_pack_rx = 0;
@@ -564,7 +562,7 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
               all_packets_rx();
           }));
   task_runner_->RunUntilCheckpoint("all_packets_rx");
-  ASSERT_EQ(2u, num_test_pack_rx);
+  ASSERT_EQ(3u, num_test_pack_rx);
 
   // Disable tracing.
   consumer_endpoint_->DisableTracing();
