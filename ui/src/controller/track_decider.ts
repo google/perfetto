@@ -494,6 +494,17 @@ class TrackDecider {
     }
   }
 
+  async addCpuFreqLimitCounterTracks(engine: EngineProxy): Promise<void> {
+    const cpuFreqLimitCounterTracksSql = `
+      select name, id
+      from cpu_counter_track
+      where name glob "Cpu * Freq Limit"
+      order by name asc
+    `;
+
+    this.addCpuCounterTracks(engine, cpuFreqLimitCounterTracksSql);
+  }
+
   async addCpuPerfCounterTracks(engine: EngineProxy): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
@@ -501,11 +512,16 @@ class TrackDecider {
     // it. This might look surprising in the UI, but placeholder tracks are
     // wasteful as there's no way of collapsing global counter tracks at the
     // moment.
-    const result = await engine.query(`
+    const addCpuPerfCounterTracksSql = `
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
       order by perf_session_id asc, pct.name asc, cpu asc
-  `);
+    `;
+    this.addCpuCounterTracks(engine, addCpuPerfCounterTracksSql);
+  }
+
+  async addCpuCounterTracks(engine: EngineProxy, sql: string): Promise<void> {
+    const result = await engine.query(sql);
 
     const it = result.iter({
       name: STR,
@@ -1944,6 +1960,8 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
         this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
+    await this.addCpuFreqLimitCounterTracks(
+          this.engine.getProxy('TrackDecider::addCpuFreqLimitCounterTracks'));
     await this.addCpuPerfCounterTracks(
         this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
     await this.addPluginTracks();
