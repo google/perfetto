@@ -19,9 +19,9 @@ cd perfetto
 
 ### Copy the plugin skeleton
 ```sh
-cp -r ui/plugins/com.example.Skeleton ui/plugins/<your-plugin-name>
+cp -r ui/src/plugins/com.example.Skeleton ui/src/plugins/<your-plugin-name>
 ```
-Now edit `ui/plugins/<your-plugin-name>/index.ts`.
+Now edit `ui/src/plugins/<your-plugin-name>/index.ts`.
 Search for all instances of `SKELETON: <instruction>` in the file and
 follow the instructions.
 
@@ -47,7 +47,7 @@ Notes on naming:
 Now navigate to [](http://localhost:10000/settings)
 
 ### Upload your plugin for review
-- Update `ui/plugins/<your-plugin-name>/OWNERS` to include your email.
+- Update `ui/src/plugins/<your-plugin-name>/OWNERS` to include your email.
 - Follow the [Contributing](./getting-started#contributing)
   instructions to upload your CL to the codereview tool.
 - Once uploaded add `hjd@google.com` as a reviewer for your CL.
