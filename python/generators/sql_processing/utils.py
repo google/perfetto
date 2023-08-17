@@ -25,7 +25,7 @@ WS = r'\s*'
 
 CREATE_TABLE_VIEW_PATTERN = (
     # Match create table/view and catch type
-    fr'^CREATE{WS}(?:VIRTUAL )?{WS}(TABLE|VIEW){WS}(?:IF NOT EXISTS)?{WS}'
+    fr'^CREATE{WS}(?:VIRTUAL|PERFETTO)?{WS}(TABLE|VIEW){WS}(?:IF NOT EXISTS)?'
     # Catch the name
     fr'{WS}({NAME}){WS}(?:AS|USING)?{WS}.*')
 
