@@ -543,13 +543,12 @@ class DataSource : public DataSourceBase {
   // destructors) that we need to defer to the embedder. In chromium's platform
   // implementation, for instance, the tls slot is implemented using
   // chromium's base::ThreadLocalStorage.
-  static PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState* tls_state_;
+  static thread_local internal::DataSourceThreadLocalState* tls_state_;
 };
 
 // static
 template <typename T, typename D>
-PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState*
-    DataSource<T, D>::tls_state_;
+thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 
 }  // namespace perfetto
 
