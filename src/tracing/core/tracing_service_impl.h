@@ -465,9 +465,10 @@ class TracingServiceImpl : public TracingService {
       return timeout_ms ? timeout_ms : kDataSourceStopTimeoutMs;
     }
 
-    PacketSequenceID GetPacketSequenceID(ProducerID producer_id,
+    PacketSequenceID GetPacketSequenceID(MachineID machine_id,
+                                         ProducerID producer_id,
                                          WriterID writer_id) {
-      auto key = std::make_pair(producer_id, writer_id);
+      auto key = std::make_tuple(machine_id, producer_id, writer_id);
       auto it = packet_sequence_ids.find(key);
       if (it != packet_sequence_ids.end())
         return it->second;
@@ -551,7 +552,7 @@ class TracingServiceImpl : public TracingService {
     // many entries as |config.buffers_size()|.
     std::vector<BufferID> buffers_index;
 
-    std::map<std::pair<ProducerID, WriterID>, PacketSequenceID>
+    std::map<std::tuple<MachineID, ProducerID, WriterID>, PacketSequenceID>
         packet_sequence_ids;
     PacketSequenceID last_packet_sequence_id = kServicePacketSequenceID;
 

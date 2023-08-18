@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_TRACING_CORE_CLIENT_IDENTITY_H_
 
 #include "perfetto/ext/base/sys_types.h"
+#include "perfetto/ext/tracing/core/basic_types.h"
 
 namespace perfetto {
 
@@ -26,7 +27,8 @@ namespace perfetto {
 class ClientIdentity {
  public:
   ClientIdentity() = default;
-  ClientIdentity(uid_t uid, pid_t pid) : uid_(uid), pid_(pid) {}
+  ClientIdentity(uid_t uid, pid_t pid, MachineID machine_id = kDefaultMachineID)
+      : uid_(uid), pid_(pid), machine_id_(machine_id) {}
 
   bool has_uid() const { return uid_ != base::kInvalidUid; }
   uid_t uid() const { return uid_; }
@@ -34,9 +36,15 @@ class ClientIdentity {
   bool has_pid() const { return pid_ != base::kInvalidPid; }
   pid_t pid() const { return pid_; }
 
+  bool has_non_default_machine_id() const {
+    return machine_id_ != kDefaultMachineID;
+  }
+  base::MachineID machine_id() const { return machine_id_; }
+
  private:
   uid_t uid_ = base::kInvalidUid;
   pid_t pid_ = base::kInvalidPid;
+  MachineID machine_id_ = kDefaultMachineID;
 };
 }  // namespace perfetto
 

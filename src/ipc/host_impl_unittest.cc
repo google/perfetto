@@ -15,11 +15,12 @@
  */
 
 #include "src/ipc/host_impl.h"
-
+#include <sys/socket.h>
 #include <memory>
 
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/utils.h"
@@ -37,6 +38,7 @@ namespace perfetto {
 namespace ipc {
 namespace {
 
+using ::perfetto::ipc::Frame;
 using ::perfetto::ipc::gen::ReplyProto;
 using ::perfetto::ipc::gen::RequestProto;
 using ::testing::_;
@@ -95,6 +97,12 @@ class FakeClient : public base::UnixSocket::EventListener {
                                       base::SockType::kStream);
   }
 
+  FakeClient(const char* sock_name, base::TaskRunner* task_runner) {
+    auto sock_family = base::GetSockFamily(sock_name);
+    sock_ = base::UnixSocket::Connect(sock_name, this, task_runner, sock_family,
+                                      base::SockType::kStream);
+  }
+
   FakeClient(base::ScopedSocketHandle connected_socket,
              base::TaskRunner* task_runner) {
     sock_ = base::UnixSocket::AdoptConnected(std::move(connected_socket), this,
@@ -113,6 +121,21 @@ class FakeClient : public base::UnixSocket::EventListener {
     frame.mutable_msg_bind_service()->set_service_name(service_name);
     SendFrame(frame);
   }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  void SetPeerIdentity(uid_t uid,
+                       pid_t pid,
+                       const std::string& machine_id_hint) {
+    Frame ipc_frame;
+    ipc_frame.set_request_id(0);
+    auto* set_peer_identity = ipc_frame.mutable_set_peer_identity();
+    set_peer_identity->set_pid(pid);
+    set_peer_identity->set_uid(static_cast<int32_t>(uid));
+    set_peer_identity->set_machine_id_hint(machine_id_hint);
+    SendFrame(ipc_frame);
+  }
+#endif
 
   void InvokeMethod(ServiceID service_id,
                     MethodID method_id,
@@ -529,6 +552,97 @@ TEST_F(HostImplTest, ServiceClientInfo) {
 
   EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).WillOnce(Return());
   task_runner_->RunUntilIdle();
+}
+
+TEST_F(HostImplTest, SetPeerIdentityUnixSocket) {
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host_->ExposeService(std::unique_ptr<Service>(fake_service)));
+  // SetPeerIdentity must be the first message. Use getpid()+1/geteuid+1 to
+  // check that this message doesn't take effect for Unix socket.
+  cli_->SetPeerIdentity(geteuid() + 1, getpid() + 1, "test_machine_id_hint");
+
+  auto on_bind = task_runner_->CreateCheckpoint("on_bind");
+  cli_->BindService("FakeService");
+  EXPECT_CALL(*cli_, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner_->RunUntilCheckpoint("on_bind");
+
+  RequestProto req_args;
+  req_args.set_data("foo");
+  cli_->InvokeMethod(cli_->last_bound_service_id_, 1, req_args);
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .WillOnce(
+          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
+            ASSERT_EQ("foo", req.data());
+            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+            reply_args->set_data("bar");
+            reply->Resolve(AsyncResult<ProtoMessage>(
+                std::unique_ptr<ProtoMessage>(reply_args.release())));
+            // Verifies the pid() and uid() values in ClientInfo.
+            const auto& client_info = fake_service->client_info();
+            ASSERT_EQ(client_info.uid(), getuid());
+            ASSERT_EQ(client_info.pid(), getpid());
+            ASSERT_EQ(client_info.machine_id(), base::kDefaultMachineID);
+          }));
+
+  EXPECT_CALL(*cli_, OnInvokeMethodReply(_)).WillOnce(Return());
+  task_runner_->RunUntilIdle();
+}
+
+TEST(HostImpl, SetPeerIdentityTcpSocket) {
+  std::unique_ptr<base::TestTaskRunner> task_runner(new base::TestTaskRunner());
+  std::unique_ptr<HostImpl> host_impl;
+  std::unique_ptr<FakeClient> cli;
+
+  auto tear_down = base::OnScopeExit([&]() {
+    task_runner->RunUntilIdle();
+    cli.reset();
+    host_impl.reset();
+    task_runner->RunUntilIdle();
+    task_runner.reset();
+  });
+
+  Host* host = Host::CreateInstance("127.0.0.1:0", task_runner.get()).release();
+  ASSERT_NE(nullptr, host);
+  host_impl.reset(static_cast<HostImpl*>(host));
+
+  auto sock_name = host_impl->sock()->GetSockAddr();
+  cli.reset(new FakeClient(sock_name.c_str(), task_runner.get()));
+
+  auto on_connect = task_runner->CreateCheckpoint("on_connect");
+  EXPECT_CALL(*cli, OnConnect()).WillOnce(Invoke(on_connect));
+  task_runner->RunUntilCheckpoint("on_connect");
+
+  FakeService* fake_service = new FakeService("FakeService");
+  ASSERT_TRUE(host->ExposeService(std::unique_ptr<Service>(fake_service)));
+  // Set peer identity with fake values.
+  cli->SetPeerIdentity(123, 456, "test_machine_id_hint");
+
+  auto on_bind = task_runner->CreateCheckpoint("on_bind");
+  cli->BindService("FakeService");
+  EXPECT_CALL(*cli, OnServiceBound(_)).WillOnce(InvokeWithoutArgs(on_bind));
+  task_runner->RunUntilCheckpoint("on_bind");
+
+  RequestProto req_args;
+  req_args.set_data("foo");
+  cli->InvokeMethod(cli->last_bound_service_id_, 1, req_args);
+  EXPECT_CALL(*fake_service, OnFakeMethod1(_, _))
+      .WillOnce(
+          Invoke([fake_service](const RequestProto& req, DeferredBase* reply) {
+            ASSERT_EQ("foo", req.data());
+            std::unique_ptr<ReplyProto> reply_args(new ReplyProto());
+            reply_args->set_data("bar");
+            reply->Resolve(AsyncResult<ProtoMessage>(
+                std::unique_ptr<ProtoMessage>(reply_args.release())));
+            // Verify peer identity.
+            const auto& client_info = fake_service->client_info();
+            ASSERT_EQ(client_info.uid(), 123u);
+            ASSERT_EQ(client_info.pid(), 456);
+            // ClientInfo contains non-default raw machine ID.
+            ASSERT_NE(client_info.machine_id(), base::kDefaultMachineID);
+          }));
+
+  EXPECT_CALL(*cli, OnInvokeMethodReply(_)).WillOnce(Return());
+  task_runner->RunUntilIdle();
 }
 #endif  // OS_WIN
 
