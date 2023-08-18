@@ -285,9 +285,6 @@ class PERFETTO_EXPORT_COMPONENT DataSourceType {
   // per data-source *instance*.
   template <typename DataSourceTraits>
   DataSourceThreadLocalState* GetOrCreateDataSourceTLS() {
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_IOS)
-    PERFETTO_FATAL("Data source TLS not supported on iOS, see b/158814068");
-#endif
     auto* tracing_impl = TracingMuxer::Get();
     TracingTLS* root_tls = tracing_impl->GetOrCreateTracingTLS();
     DataSourceThreadLocalState* ds_tls =
