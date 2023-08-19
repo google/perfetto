@@ -20,6 +20,7 @@
 // } from '../../common/internal_layout_utils';
 // import { PrimaryTrackSortKey, SCROLLING_TRACK_GROUP } from
 // '../../common/state';
+import {Engine} from '../../common/engine';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
@@ -87,7 +88,8 @@ export class EventLatencyTrack extends
   // this behavior should be customized to show jank-related data.
 }
 
-export async function addLatencyTracks(): Promise<DecideTracksResult> {
+export async function addLatencyTracks(_engine: Engine):
+    Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
