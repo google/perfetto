@@ -19,6 +19,7 @@
 //   PrimaryTrackSortKey,
 //   SCROLLING_TRACK_GROUP,
 // } from '../../common/state';
+import {Engine} from '../../common/engine';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {
@@ -86,7 +87,7 @@ export class ScrollJankV3Track extends
   }
 }
 
-export async function addScrollJankV3ScrollTrack():
+export async function addScrollJankV3ScrollTrack(_engine: Engine):
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
