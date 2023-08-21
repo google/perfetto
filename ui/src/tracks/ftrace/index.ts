@@ -24,7 +24,7 @@ import {
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 
 export interface Data extends TrackData {
@@ -150,12 +150,14 @@ export class FtraceRawTrack extends Track<Config, Data> {
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrack(FtraceRawTrack);
-  ctx.registerTrackController(FtraceRawTrackController);
+class FtraceRawPlugin implements Plugin {
+  onActivate(ctx: PluginContext) {
+    ctx.registerTrack(FtraceRawTrack);
+    ctx.registerTrackController(FtraceRawTrackController);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.FtraceRaw',
-  activate,
+  plugin: FtraceRawPlugin,
 };

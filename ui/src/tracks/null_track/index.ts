@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const NULL_TRACK_KIND = 'NullTrack';
 
@@ -35,11 +35,13 @@ export class NullTrack extends Track {
   renderCanvas(_: CanvasRenderingContext2D): void {}
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrack(NullTrack);
+class NullTrackPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrack(NullTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.NullTrack',
-  activate,
+  plugin: NullTrackPlugin,
 };

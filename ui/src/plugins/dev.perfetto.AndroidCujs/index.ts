@@ -14,34 +14,22 @@
 
 import {
   Command,
-  EngineProxy,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin, Viewer,
+  PluginInfo,
 } from '../../public';
 
-interface State {}
-
-class AndroidCujs implements TracePlugin {
-  static migrate(_initialState: unknown): State {
-    return {};
+class AndroidCujs implements Plugin {
+  onActivate(_: PluginContext): void {
+    //
   }
 
-  private viewer: Viewer;
-
-  constructor(_store: Store<State>, _engine: EngineProxy, viewer: Viewer) {
-    this.viewer = viewer;
-  }
-
-  dispose(): void {
-  }
-
-  commands(): Command[] {
+  commands(ctx: PluginContext): Command[] {
     return [
       {
         id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
         name: 'Run query: Android Jank CUJs',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => ctx.viewer.tabs.openQuery(
             `
               SELECT RUN_METRIC('android/android_jank_cuj.sql');
               SELECT RUN_METRIC('android/jank/internal/counters.sql');
@@ -109,7 +97,7 @@ class AndroidCujs implements TracePlugin {
       {
         id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
         name: 'Run query: Android Latency CUJs',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => ctx.viewer.tabs.openQuery(
             `
               SELECT
                 CASE
@@ -148,9 +136,7 @@ class AndroidCujs implements TracePlugin {
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.AndroidCujs',
-  activate: (ctx: PluginContext) => {
-    ctx.registerTracePluginFactory(AndroidCujs);
-  },
+  plugin: AndroidCujs,
 };

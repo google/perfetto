@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable} from '../base/disposable';
+
 export interface HasKind { kind: string; }
 
 export class Registry<T> {
@@ -27,12 +29,16 @@ export class Registry<T> {
     this.key = key;
   }
 
-  register(registrant: T) {
+  register(registrant: T): Disposable {
     const kind = this.key(registrant);
     if (this.registry.has(kind)) {
       throw new Error(`Registrant ${kind} already exists in the registry`);
     }
     this.registry.set(kind, registrant);
+
+    return {
+      dispose: () => this.registry.delete(kind),
+    };
   }
 
   has(kind: string): boolean {
