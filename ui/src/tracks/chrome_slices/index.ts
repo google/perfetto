@@ -26,7 +26,7 @@ import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {PxSpan, TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
@@ -440,12 +440,14 @@ export class ChromeSliceTrack extends Track<Config, Data> {
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrackController(ChromeSliceTrackController);
-  ctx.registerTrack(ChromeSliceTrack);
+class ChromeSlicesPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(ChromeSliceTrackController);
+    ctx.registerTrack(ChromeSliceTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.ChromeSlices',
-  activate,
+  plugin: ChromeSlicesPlugin,
 };
