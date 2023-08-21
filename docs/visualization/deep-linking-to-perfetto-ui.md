@@ -91,6 +91,14 @@ the page that does the window.open() before). It's quite common when testing
 this code to see a popup blocker the first time the new feature is used and
 then not see it again.
 
+This scheme will not work from a `file://` based URL.
+This is due to browser security context for `file://` URLs.
+
+The source website must not be served with the
+`Cross-Origin-Opener-Policy: same-origin` header.
+For example see
+[this issue](https://github.com/google/perfetto/issues/525#issuecomment-1625055986).
+
 ### Where does the posted trace go?
 
 The Perfetto UI is client-only and doesn't require any server-side interaction.
