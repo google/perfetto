@@ -26,7 +26,7 @@ import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
@@ -244,12 +244,14 @@ class CpuProfileTrack extends Track<Config, Data> {
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrackController(CpuProfileTrackController);
-  ctx.registerTrack(CpuProfileTrack);
+class CpuProfile implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(CpuProfileTrackController);
+    ctx.registerTrack(CpuProfileTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.CpuProfile',
-  activate,
+  plugin: CpuProfile,
 };

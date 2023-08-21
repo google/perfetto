@@ -22,7 +22,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 
@@ -214,12 +214,14 @@ class ProcessSummaryTrack extends Track<Config, Data> {
   }
 }
 
-export function activate(ctx: PluginContext) {
-  ctx.registerTrack(ProcessSummaryTrack);
-  ctx.registerTrackController(ProcessSummaryTrackController);
+class ProcessSummaryPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrack(ProcessSummaryTrack);
+    ctx.registerTrackController(ProcessSummaryTrackController);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.ProcessSummary',
-  activate,
+  plugin: ProcessSummaryPlugin,
 };

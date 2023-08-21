@@ -24,7 +24,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -314,12 +314,14 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
   }
 }
 
-export function activate(ctx: PluginContext) {
-  ctx.registerTrackController(ProcessSchedulingTrackController);
-  ctx.registerTrack(ProcessSchedulingTrack);
+class ProcessSchedulingPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(ProcessSchedulingTrackController);
+    ctx.registerTrack(ProcessSchedulingTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.ProcessScheduling',
-  activate,
+  plugin: ProcessSchedulingPlugin,
 };

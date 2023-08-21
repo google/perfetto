@@ -26,7 +26,7 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
@@ -283,12 +283,14 @@ class ThreadStateTrack extends Track<Config, Data> {
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrack(ThreadStateTrack);
-  ctx.registerTrackController(ThreadStateTrackController);
+class ThreadState implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrack(ThreadStateTrack);
+    ctx.registerTrackController(ThreadStateTrackController);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.ThreadState',
-  activate,
+  plugin: ThreadState,
 };
