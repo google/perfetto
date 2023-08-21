@@ -16,8 +16,7 @@
 -- Creates metric with info about breakdowns and jank for GestureScrollBegin and GestureScrollUpdate.
 
 -- Select EventLatency events.
-DROP VIEW IF EXISTS event_latency;
-CREATE VIEW event_latency
+CREATE VIEW internal_event_latency
 AS
 SELECT
   *,
@@ -26,9 +25,19 @@ FROM slice
 WHERE
   name = "EventLatency";
 
--- Select breakdowns related to EventLatencies from `event_latency` table.
-DROP VIEW IF EXISTS event_latency_breakdowns;
-CREATE VIEW event_latency_breakdowns
+-- Select breakdowns related to EventLatencies.
+--
+-- @column slice_id                  ID of the slice.
+-- @column name                      Slice name.
+-- @column dur                       Slice duration.
+-- @column track_id                  Track ID of the slice.
+-- @column ts                        Timestamp of the slice.
+-- @column event_latency_id          ID of the associated EventLatency slice.
+-- @column event_latency_track_id    Track ID of the associated EventLatency.
+-- @column event_latency_ts          Timestamp of the associated EventLatency.
+-- @column event_latency_dur         Duration of the associated EventLatency.
+-- @column event_type                Event type of the associated EventLatency.
+CREATE VIEW chrome_event_latency_breakdowns
 AS
 SELECT
   slice.id AS slice_id,
@@ -36,17 +45,17 @@ SELECT
   slice.dur AS dur,
   slice.track_id AS track_id,
   slice.ts AS ts,
-  event_latency.slice_id AS event_latency_id,
-  event_latency.track_id AS event_latency_track_id,
-  event_latency.ts AS event_latency_ts,
-  event_latency.dur AS event_latency_dur,
-  event_latency.event_type AS event_type
-FROM slice JOIN event_latency
-  ON slice.parent_id = event_latency.slice_id;
+  internal_event_latency.slice_id AS event_latency_id,
+  internal_event_latency.track_id AS event_latency_track_id,
+  internal_event_latency.ts AS event_latency_ts,
+  internal_event_latency.dur AS event_latency_dur,
+  internal_event_latency.event_type AS event_type
+FROM slice JOIN internal_event_latency
+  ON slice.parent_id = internal_event_latency.slice_id;
 
 -- The function takes a breakdown name and checks if the breakdown name is known or not.
 -- Returns the input breakdown name if it's an unknown breakdown, NULL otherwise.
-CREATE PERFETTO FUNCTION invalid_name_or_null(name STRING)
+CREATE PERFETTO FUNCTION internal_invalid_name_or_null(name STRING)
 RETURNS STRING AS
 SELECT
   CASE
@@ -86,8 +95,54 @@ SELECT
 -- | event_latency_id | event_latency_ts | event_latency_dur | event_type       | GenerationToBrowserMainNs | BrowserMainToRendererCompositorNs |...|
 -- |------------------|------------------|-------------------|------------------|----------------------------|------------------------------------|---|
 -- | 123              | 1661947470       | 20                | 1234567          | 30                         | 50                                 |   |
-DROP VIEW IF EXISTS event_latency_to_breakdowns;
-CREATE VIEW event_latency_to_breakdowns
+--
+-- @column event_latency_id                  The EventLatency ID.
+-- @column event_latency_track_id            The EventLatency Track ID.
+-- @column event_latency_ts                  Timestamp of EventLatency.
+-- @column event_latency_dur                 Duration of EventLatency.
+-- @column event_type                        Event type.
+-- @column GenerationToRendererCompositorNs  Duration of the
+--                                           GenerationToRendererCompositorNs
+--                                           stage. All subsequent columns are
+--                                           durations and named for their
+--                                           respective stages.
+-- @column GenerationToBrowserMainNs         Duration, see above.
+-- @column BrowserMainToRendererCompositorNs Duration, see above.
+-- @column RendererCompositorQueueingDelayNs Duration, see above.
+-- @column RendererCompositorProcessingNs    Duration, see above.
+-- @column RendererCompositorToMainNs        Duration, see above.
+-- @column RendererMainProcessingNs          Duration, see above.
+-- @column ArrivedInRendererCompositorToTerminationNs   Duration, see above.
+-- @column RendererCompositorStartedToTerminationNs     Duration, see above.
+-- @column RendererCompositorFinishedToTerminationNs    Duration, see above.
+-- @column RendererMainStartedToTerminationNs           Duration, see above.
+-- @column RendererMainFinishedToTerminationNs          Duration, see above.
+-- @column BeginImplFrameToSendBeginMainFrameNs         Duration, see above.
+-- @column RendererCompositorFinishedToSendBeginMainFrameNs Duration, see above.
+-- @column RendererCompositorFinishedToBeginImplFrameNs     Duration, see above.
+-- @column RendererCompositorFinishedToCommitNs         Duration, see above.
+-- @column RendererCompositorFinishedToEndCommitNs      Duration, see above.
+-- @column RendererCompositorFinishedToActivationNs     Duration, see above.
+-- @column RendererCompositorFinishedToEndActivateNs    Duration, see above.
+-- @column RendererCompositorFinishedToSubmitCompositorFrameNs Duration, see
+--                                                             above.
+-- @column RendererMainFinishedToBeginImplFrameNs       Duration, see above.
+-- @column RendererMainFinishedToSendBeginMainFrameNs   Duration, see above.
+-- @column RendererMainFinishedToCommitNs    Duration, see above.
+-- @column RendererMainFinishedToEndCommitNs Duration, see above.
+-- @column RendererMainFinishedToActivationNs           Duration, see above.
+-- @column RendererMainFinishedToEndActivateNs          Duration, see above.
+-- @column RendererMainFinishedToSubmitCompositorFrameNs       Duration, see
+--                                                             above.
+-- @column EndActivateToSubmitCompositorFrameNs         Duration, see above.
+-- @column SubmitCompositorFrameToPresentationCompositorFrameNs Duration, see
+--                                                              above.
+-- @column SendBeginMainFrameToCommitNs      Duration, see above.
+-- @column CommitNs                          Duration, see above.
+-- @column EndCommitToActivationNs           Duration, see above.
+-- @column ActivationNs                      Duration, see above.
+-- @column unknown_stages_seen               List of any unknown stages.
+CREATE VIEW chrome_event_latency_to_breakdowns
 AS
 SELECT
   event_latency_id,
@@ -133,6 +188,6 @@ SELECT
   max(CASE WHEN name = "Activation" THEN dur END) AS ActivationNs,
   -- This column indicates whether there are unknown breakdowns.
   -- Contains: NULL if there are no unknown breakdowns, otherwise a list of unknown breakdows.
-  group_concat(invalid_name_or_null(name), ', ') AS unknown_stages_seen
-FROM event_latency_breakdowns
+  group_concat(internal_invalid_name_or_null(name), ', ') AS unknown_stages_seen
+FROM chrome_event_latency_breakdowns
 GROUP BY event_latency_id;

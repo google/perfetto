@@ -22,15 +22,14 @@
 --          notice.
 
 
-SELECT RUN_METRIC('chrome/event_latency_scroll_jank.sql');
+SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank');
 
 -- Calculating the jank delta for EventLatency events which are janky relatevly to its next EventLatency event.
 -- For breakdowns that exist in the current EventLatency but not the next EventLatency
 -- we use a default of 0 so that the full duration is considered when looking for the maximum increase.
 -- Breakdowns that exist in the next EventLatency event, but not in the current EventLatency event,
 -- are ignored because they do not cause a jank anyway.
-DROP VIEW IF EXISTS event_latency_scroll_breakdowns_next_jank_deltas;
-CREATE VIEW event_latency_scroll_breakdowns_next_jank_deltas
+CREATE VIEW internal_event_latency_scroll_breakdowns_next_jank_deltas
 AS
 SELECT
     cur_breakdowns.*,
@@ -38,7 +37,7 @@ SELECT
     next_breakdowns.slice_id as next_breakdown_id,
     next_breakdowns.dur as next_dur,
     cur_breakdowns.dur - COALESCE(next_breakdowns.dur, 0) as delta_dur_ns
-FROM event_latency_scroll_breakdowns_jank as cur_breakdowns LEFT JOIN event_latency_scroll_breakdowns_jank as next_breakdowns
+FROM internal_event_latency_scroll_breakdowns_jank as cur_breakdowns LEFT JOIN internal_event_latency_scroll_breakdowns_jank as next_breakdowns
 ON cur_breakdowns.next_event_latency_id = next_breakdowns.event_latency_id AND
     cur_breakdowns.name = next_breakdowns.name
 WHERE cur_breakdowns.next_jank = 1;
@@ -48,8 +47,7 @@ WHERE cur_breakdowns.next_jank = 1;
 -- we use a default of 0 so that the full duration is considered when looking for the maximum increase.
 -- Breakdowns that exist in the prev EventLatency event, but not in the current EventLatency event,
 -- are ignored because they do not cause a jank anyway.
-DROP VIEW IF EXISTS event_latency_scroll_breakdowns_prev_jank_deltas;
-CREATE VIEW event_latency_scroll_breakdowns_prev_jank_deltas
+CREATE VIEW internal_event_latency_scroll_breakdowns_prev_jank_deltas
 AS
 SELECT
     cur_breakdowns.*,
@@ -57,31 +55,29 @@ SELECT
     prev_breakdowns.slice_id as prev_breakdown_id,
     prev_breakdowns.dur as prev_dur,
     cur_breakdowns.dur - COALESCE(prev_breakdowns.dur, 0) as delta_dur_ns
-FROM event_latency_scroll_breakdowns_jank as cur_breakdowns LEFT JOIN event_latency_scroll_breakdowns_jank as prev_breakdowns
+FROM internal_event_latency_scroll_breakdowns_jank as cur_breakdowns LEFT JOIN internal_event_latency_scroll_breakdowns_jank as prev_breakdowns
 ON cur_breakdowns.prev_event_latency_id = prev_breakdowns.event_latency_id AND
     cur_breakdowns.name = prev_breakdowns.name
 WHERE cur_breakdowns.prev_jank = 1;
 
 -- Add a jank indicator to each breakdown. Jank indicator is related to an entire EventLatency envent, not only to a breakdown.
-DROP VIEW IF EXISTS event_latency_scroll_breakdowns_jank;
-CREATE VIEW event_latency_scroll_breakdowns_jank
+CREATE VIEW internal_event_latency_scroll_breakdowns_jank
 AS
 SELECT
-  event_latency_breakdowns.*,
-  scroll_event_latency_jank.jank,
-  scroll_event_latency_jank.next_jank,
-  scroll_event_latency_jank.prev_jank,
-  scroll_event_latency_jank.next_id as next_event_latency_id,
-  scroll_event_latency_jank.prev_id as prev_event_latency_id
-FROM event_latency_breakdowns JOIN scroll_event_latency_jank
-ON event_latency_breakdowns.event_latency_id = scroll_event_latency_jank.id
-WHERE event_latency_breakdowns.event_type in ("GESTURE_SCROLL_UPDATE", "FIRST_GESTURE_SCROLL_UPDATE", "INERTIAL_GESTURE_SCROLL_UPDATE");
+  chrome_event_latency_breakdowns.*,
+  chrome_scroll_event_latency_jank.jank,
+  chrome_scroll_event_latency_jank.next_jank,
+  chrome_scroll_event_latency_jank.prev_jank,
+  chrome_scroll_event_latency_jank.next_id as next_event_latency_id,
+  chrome_scroll_event_latency_jank.prev_id as prev_event_latency_id
+FROM chrome_event_latency_breakdowns JOIN chrome_scroll_event_latency_jank
+ON chrome_event_latency_breakdowns.event_latency_id = chrome_scroll_event_latency_jank.id
+WHERE chrome_event_latency_breakdowns.event_type in ("GESTURE_SCROLL_UPDATE", "FIRST_GESTURE_SCROLL_UPDATE", "INERTIAL_GESTURE_SCROLL_UPDATE");
 
--- Merge breakdowns from the |event_latency_scroll_breakdowns_next_jank_deltas|
--- and |event_latency_scroll_breakdowns_prev_jank_deltas| tables and select the maximum |delta_dur_ns| of them.
+-- Merge breakdowns from the |internal_event_latency_scroll_breakdowns_next_jank_deltas|
+-- and |internal_event_latency_scroll_breakdowns_prev_jank_deltas| tables and select the maximum |delta_dur_ns| of them.
 -- This is necessary in order to get a single reason for the jank for the event later.
-DROP VIEW IF EXISTS event_latency_scroll_breakdowns_max_jank_deltas;
-CREATE VIEW event_latency_scroll_breakdowns_max_jank_deltas
+CREATE VIEW internal_event_latency_scroll_breakdowns_max_jank_deltas
 AS
 SELECT
   COALESCE(next.slice_id, prev.slice_id) as slice_id,
@@ -110,13 +106,12 @@ SELECT
       THEN next.next_breakdown_id
     ELSE prev.prev_breakdown_id
   END as max_jank_neigbour_breakdown_id
-FROM event_latency_scroll_breakdowns_next_jank_deltas as next
-FULL JOIN event_latency_scroll_breakdowns_prev_jank_deltas as prev
+FROM internal_event_latency_scroll_breakdowns_next_jank_deltas as next
+FULL JOIN internal_event_latency_scroll_breakdowns_prev_jank_deltas as prev
 ON next.slice_id = prev.slice_id;
 
 -- Selecting breakdowns which have a maximum ns duration delta as a main causes of a jank for this EventLatency event.
-DROP VIEW IF EXISTS event_latency_scroll_jank_cause_top_level;
-CREATE VIEW event_latency_scroll_jank_cause_top_level
+CREATE VIEW internal_event_latency_scroll_jank_cause_top_level
 AS
 SELECT
   event_latency_id as slice_id,
@@ -134,18 +129,17 @@ SELECT
   slice_id as max_jank_breakdown_id,
   max_jank_neigbour_breakdown_id,
   MAX(delta_dur_ns) as max_delta_dur_ns
-FROM event_latency_scroll_breakdowns_max_jank_deltas
+FROM internal_event_latency_scroll_breakdowns_max_jank_deltas
 GROUP BY event_latency_id;
 
 -- Selecting sub-breakdowns of the main causes of a jank which have a maximum ns duration delta with a neighbour event's breakdowns.
-DROP VIEW IF EXISTS event_latency_scroll_sub_breakdowns_max_deltas;
-CREATE VIEW event_latency_scroll_sub_breakdowns_max_deltas
+CREATE VIEW internal_event_latency_scroll_sub_breakdowns_max_deltas
 AS
 SELECT
   cur_event_latency.slice_id as event_latency_id,
   cur_sub_breakdowns.name as sub_breakdown_name,
   MAX(cur_sub_breakdowns.dur - neighbour_sub_breakdowns.dur) as max_sub_breakdown_delta_dur_ns
-FROM event_latency_scroll_jank_cause_top_level as cur_event_latency
+FROM internal_event_latency_scroll_jank_cause_top_level as cur_event_latency
 LEFT JOIN slices as cur_sub_breakdowns
   ON cur_event_latency.max_jank_breakdown_id = cur_sub_breakdowns.parent_id
 LEFT JOIN slices as neighbour_sub_breakdowns
@@ -154,23 +148,47 @@ LEFT JOIN slices as neighbour_sub_breakdowns
 GROUP BY cur_event_latency.slice_id, cur_event_latency.max_jank_breakdown_id;
 
 -- Selecting the main cause of jank and its sub-cause of jank.
-DROP VIEW IF EXISTS event_latency_scroll_jank_cause;
-CREATE VIEW event_latency_scroll_jank_cause
+--
+-- @column slice_id               The id of the EventLatency/frame.
+-- @column track_id               The track id associated with the EventLatency.
+-- @column dur                    The duration of the frame presentation.
+-- @column ts                     The timestamp of the frame.
+-- @column event_type             The event type.
+-- @column next_jank              Whether the subsequent event is janky.
+-- @column prev_jank              Whether the previous event is janky.
+-- @column next_event_latency_id  The ID of the next frame.
+-- @column prev_event_latency_id  The ID of the previous frame.
+-- @column next_delta_dur_ns      The duration delta in ns of the next frame.
+-- @column prev_delta_dur_ns      The duration delta in ns of the previous
+--                                frame.
+-- @column cause_of_jank          The stage of EventLatency responsible for the
+--                                jank.
+-- @column max_jank_breakdown_id  The ID of the stage of maximum jank.
+-- @column max_jank_neighbor_breakdown_id     The ID of the stage of maximum
+--                                jank in a neighboring frame.
+-- @column max_delta_dur_ns       The maximum delta duration of jank in ns.
+-- @column sub_cause_of_jank      The sub-stage of the cause_of_jank that is
+--                                responsible for the jank, if such a stage
+--                                exists.
+CREATE VIEW chrome_event_latency_scroll_jank_cause
 AS
 SELECT
-  event_latency_scroll_jank_cause_top_level.*,
+  internal_event_latency_scroll_jank_cause_top_level.*,
   max_sub_breakdowns.sub_breakdown_name as sub_cause_of_jank
-FROM event_latency_scroll_jank_cause_top_level
-LEFT JOIN event_latency_scroll_sub_breakdowns_max_deltas as max_sub_breakdowns
-ON event_latency_scroll_jank_cause_top_level.slice_id = max_sub_breakdowns.event_latency_id;
+FROM internal_event_latency_scroll_jank_cause_top_level
+LEFT JOIN internal_event_latency_scroll_sub_breakdowns_max_deltas as max_sub_breakdowns
+ON internal_event_latency_scroll_jank_cause_top_level.slice_id = max_sub_breakdowns.event_latency_id;
 
 -- Calculate how often each breakdown is a main cause of a jank for EventLatency events.
-DROP VIEW IF EXISTS event_latency_scroll_jank_cause_cnt;
-CREATE VIEW event_latency_scroll_jank_cause_cnt
+--
+-- @column cause_of_jank             Cause of jank in the trace
+-- @column sub_cause_of_jank         Associated sub-cause of jank in the trace.
+-- @column cnt                       # of janks with this cause/subcause pair.
+CREATE VIEW chrome_event_latency_scroll_jank_cause_cnt
 AS
 SELECT
   cause_of_jank,
   sub_cause_of_jank,
   COUNT(*) as cnt
-FROM event_latency_scroll_jank_cause
+FROM chrome_event_latency_scroll_jank_cause
 GROUP BY cause_of_jank, sub_cause_of_jank;
