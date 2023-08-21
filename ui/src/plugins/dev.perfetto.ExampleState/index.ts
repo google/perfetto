@@ -14,11 +14,10 @@
 
 import {
   Command,
-  EngineProxy,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin,
-  Viewer,
+  PluginInfo,
+  TracePluginContext,
 } from '../../public';
 
 interface State {
@@ -27,8 +26,8 @@ interface State {
 
 // This example plugin shows using state that is persisted in the
 // permalink.
-class ExampleState implements TracePlugin {
-  static migrate(_initialState: unknown): State {
+class ExampleState implements Plugin<State> {
+  migrate(_initialState: unknown): State {
     // TODO(hjd): Show validation example.
 
     return {
@@ -36,36 +35,28 @@ class ExampleState implements TracePlugin {
     };
   }
 
-  private store: Store<State>;
-  private viewer: Viewer;
-
-  constructor(store: Store<State>, _engine: EngineProxy, viewer: Viewer) {
-    this.store = store;
-    this.viewer = viewer;
+  onActivate(_: PluginContext): void {
+    //
   }
 
-  dispose(): void {
-    // No-op
-  }
-
-  commands(): Command[] {
+  traceCommands(ctx: TracePluginContext<State>): Command[] {
+    const {viewer, store} = ctx;
     return [
       {
         id: 'dev.perfetto.ExampleState#ShowCounter',
         name: 'Show ExampleState counter',
         callback: () => {
-          const counter = this.store.state.counter;
-          this.viewer.tabs.openQuery(
+          const counter = store.state.counter;
+          viewer.tabs.openQuery(
               `SELECT ${counter} as counter;`, `Show counter ${counter}`);
+          store.edit((draft) => ++draft.counter);
         },
       },
     ];
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.ExampleState',
-  activate(ctx: PluginContext) {
-    ctx.registerTracePluginFactory(ExampleState);
-  },
+  plugin: ExampleState,
 };

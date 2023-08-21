@@ -14,34 +14,22 @@
 
 import {
   Command,
-  EngineProxy,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin,
-  Viewer,
+  PluginInfo,
 } from '../../public';
 
-interface State {}
-
-class AndroidPerf implements TracePlugin {
-  static migrate(_initialState: unknown): State {
-    return {};
+class AndroidPerf implements Plugin {
+  onActivate(_: PluginContext): void {
+    //
   }
 
-  private viewer: Viewer;
-
-  constructor(_store: Store<State>, _engine: EngineProxy, viewer: Viewer) {
-    this.viewer = viewer;
-  }
-
-  dispose(): void {}
-
-  commands(): Command[] {
+  commands({viewer}: PluginContext): Command[] {
     return [
       {
         id: 'dev.perfetto.AndroidPerf#BinderSystemServerIncoming',
         name: 'Run query: system_server incoming binder graph',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => viewer.tabs.openQuery(
             `SELECT IMPORT('android.binder');
              SELECT * FROM android_binder_incoming_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
             'system_server incoming binder graph'),
@@ -49,7 +37,7 @@ class AndroidPerf implements TracePlugin {
       {
         id: 'dev.perfetto.AndroidPerf#BinderSystemServerOutgoing',
         name: 'Run query: system_server outgoing binder graph',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => viewer.tabs.openQuery(
             `SELECT IMPORT('android.binder');
              SELECT * FROM android_binder_outgoing_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
             'system_server outgoing binder graph'),
@@ -57,7 +45,7 @@ class AndroidPerf implements TracePlugin {
       {
         id: 'dev.perfetto.AndroidPerf#MonitorContentionSystemServer',
         name: 'Run query: system_server monitor_contention graph',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => viewer.tabs.openQuery(
             `SELECT IMPORT('android.monitor_contention');
              SELECT * FROM android_monitor_contention_graph((SELECT upid FROM process WHERE name = 'system_server'))`,
             'system_server monitor_contention graph'),
@@ -65,7 +53,7 @@ class AndroidPerf implements TracePlugin {
       {
         id: 'dev.perfetto.AndroidPerf#BinderAll',
         name: 'Run query: all process binder graph',
-        callback: () => this.viewer.tabs.openQuery(
+        callback: () => viewer.tabs.openQuery(
             `SELECT IMPORT('android.binder');
              SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
             'all process binder graph'),
@@ -74,9 +62,7 @@ class AndroidPerf implements TracePlugin {
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.AndroidPerf',
-  activate: (ctx: PluginContext) => {
-    ctx.registerTracePluginFactory(AndroidPerf);
-  },
+  plugin: AndroidPerf,
 };

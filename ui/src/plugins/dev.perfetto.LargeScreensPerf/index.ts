@@ -14,33 +14,22 @@
 
 import {
   Command,
-  EngineProxy,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin,
-  Viewer,
+  PluginInfo,
 } from '../../public';
 
-interface State {}
-
-class LargeScreensPerf implements TracePlugin {
-  static migrate(_initialState: unknown): State {
-    return {};
+class LargeScreensPerf implements Plugin {
+  onActivate(_: PluginContext): void {
+    //
   }
 
-  private viewer: Viewer;
-
-  constructor(_store: Store<State>, _engine: EngineProxy, viewer: Viewer) {
-    this.viewer = viewer;
-  }
-  dispose(): void {}
-
-  commands(): Command[] {
+  commands(ctx: PluginContext): Command[] {
     return [{
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        this.viewer.tracks.pin((tags) => {
+        ctx.viewer.tracks.pin((tags) => {
           return !!tags.name?.includes('UNFOLD') ||
               tags.name?.includes('Screen on blocked') ||
               tags.name?.startsWith('waitForAllWindowsDrawn') ||
@@ -52,9 +41,7 @@ class LargeScreensPerf implements TracePlugin {
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.LargeScreensPerf',
-  activate: (ctx: PluginContext) => {
-    ctx.registerTracePluginFactory(LargeScreensPerf);
-  },
+  plugin: LargeScreensPerf,
 };
