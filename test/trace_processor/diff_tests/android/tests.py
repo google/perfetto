@@ -277,6 +277,12 @@ class Android(TestSuite):
         """,
         out=Path('android_network_activity.out'))
 
+  def test_anr_metric(self):
+    return DiffTestBlueprint(
+        trace=Path('android_anr_metric.py'),
+        query=Metric('android_anr'),
+        out=Path('android_anr_metric.out'))
+
   def test_binder_sync_binder_metrics(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
