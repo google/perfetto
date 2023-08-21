@@ -7,6 +7,34 @@ perfetto proto trace format and the legacy json trace format.
 ## New Features
 What features have come to the UI recently? See below.
 
+### Custom visualisation with Vega and Vega-lite
+
+The `Viz` page available in the sidebar after you load the trace allows
+for custom visualisation using [Vega](https://vega.github.io/vega/) or
+[Vega-lite](https://vega.github.io/vega-lite/docs/).
+
+Type a Vega specification into the bottom editor pane and the
+visualisation will update in real time in the top pane.
+You can put arbitrary `trace_processor` SQL queries where the URL would
+go in a normal Vega visualisation.
+
+![Viz page](https://storage.googleapis.com/perfetto-misc/feature-viz-page.png)
+
+Try the following visualisation with the Android example trace:
+
+```json
+{
+  "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+  "data": {"url": "select cpu, dur from sched where utid != 0"},
+  "mark": "bar",
+  "encoding": {
+    "x": {
+      "field": "cpu"
+    },
+    "y": {"aggregate": "sum", "field": "dur"}
+}
+```
+
 ### Command Palette
 Tired of remembering the location of buttons in the Perfetto UI?
 Commands to the rescue!
