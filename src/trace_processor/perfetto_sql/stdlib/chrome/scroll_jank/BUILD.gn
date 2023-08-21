@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import("../../../../../gn/perfetto_sql.gni")
+import("../../../../../../gn/perfetto_sql.gni")
 
-perfetto_sql_source_set("chrome_sql") {
-  deps = [ "scroll_jank" ]
+perfetto_sql_source_set("scroll_jank") {
   sources = [
-    "chrome_scrolls.sql",
-    "cpu_powerups.sql",
-    "histograms.sql",
-    "metadata.sql",
-    "speedometer.sql",
-    "tasks.sql",
-    "vsync_intervals.sql",
+    "event_latency_scroll_jank.sql",
+    "event_latency_scroll_jank_cause.sql",
+    "event_latency_to_breakdowns.sql",
+    "scroll_jank_intervals.sql",
+    "scroll_jank_v3.sql",
+    "utils.sql",
   ]
 }
