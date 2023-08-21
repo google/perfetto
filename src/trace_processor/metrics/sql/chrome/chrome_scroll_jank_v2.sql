@@ -16,7 +16,7 @@
 -- A collection of metrics related to janky scrolling. Please refer to the
 -- corresponding `chrome/scroll_jank_v2.proto` for more details.
 
-SELECT RUN_METRIC('chrome/event_latency_scroll_jank_cause.sql');
+SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
 
 DROP VIEW IF EXISTS __chrome_scroll_jank_v2_scroll_processing;
 
@@ -24,9 +24,9 @@ CREATE VIEW __chrome_scroll_jank_v2_scroll_processing
 AS
 SELECT COALESCE(SUM(jank.dur), 0) / 1.0e6 AS scroll_processing_ms
 FROM
-  scroll_event_latency_jank AS jank
+  chrome_scroll_event_latency_jank AS jank
 LEFT JOIN
-  event_latency_scroll_jank_cause AS cause
+  chrome_event_latency_scroll_jank_cause AS cause
   ON
     jank.id = cause.slice_id;
 
@@ -47,9 +47,9 @@ SELECT
       jank.dur / 1.0e6))
     AS scroll_jank_causes_and_durations
 FROM
-  scroll_event_latency_jank AS jank
+  chrome_scroll_event_latency_jank AS jank
 LEFT JOIN
-  event_latency_scroll_jank_cause AS cause
+  chrome_event_latency_scroll_jank_cause AS cause
   ON
     jank.id = cause.slice_id
 WHERE
