@@ -1961,7 +1961,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v2.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_tasks.sql",
@@ -1975,14 +1974,10 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/cpu_time_by_rail_mode.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_category.sql",
         "src/trace_processor/metrics/sql/chrome/estimated_power_by_rail_mode.sql",
-        "src/trace_processor/metrics/sql/chrome/event_latency_scroll_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/event_latency_scroll_jank_cause.sql",
-        "src/trace_processor/metrics/sql/chrome/event_latency_to_breakdowns.sql",
         "src/trace_processor/metrics/sql/chrome/experimental_reliable_chrome_tasks_delaying_input_processing.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/gesture_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/jank_utilities.sql",
         "src/trace_processor/metrics/sql/chrome/rail_modes.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/scroll_flow_event_queuing_delay.sql",
@@ -1997,7 +1992,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/touch_flow_event.sql",
         "src/trace_processor/metrics/sql/chrome/touch_flow_event_queuing_delay.sql",
         "src/trace_processor/metrics/sql/chrome/touch_jank.sql",
-        "src/trace_processor/metrics/sql/chrome/vsync_intervals.sql",
     ],
 )
 
@@ -2264,17 +2258,30 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank:scroll_jank
+perfetto_filegroup(
+    name = "src_trace_processor_perfetto_sql_stdlib_chrome_scroll_jank_scroll_jank",
+    srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_scroll_jank.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_scroll_jank_cause.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_to_breakdowns.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_intervals.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_v3.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/utils.sql",
+    ],
+)
+
 # GN target: //src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scroll_janks.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/chrome_scrolls.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/cpu_powerups.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/histograms.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/speedometer.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/tasks.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/vsync_intervals.sql",
     ],
 )
 
@@ -2319,6 +2326,7 @@ perfetto_cc_amalgamated_sql(
         ":src_trace_processor_perfetto_sql_stdlib_android_android",
         ":src_trace_processor_perfetto_sql_stdlib_android_startup_startup",
         ":src_trace_processor_perfetto_sql_stdlib_chrome_chrome_sql",
+        ":src_trace_processor_perfetto_sql_stdlib_chrome_scroll_jank_scroll_jank",
         ":src_trace_processor_perfetto_sql_stdlib_common_common",
         ":src_trace_processor_perfetto_sql_stdlib_experimental_experimental",
         ":src_trace_processor_perfetto_sql_stdlib_pkvm_pkvm",
