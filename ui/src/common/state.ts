@@ -22,6 +22,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {TrackTags} from '../public/index';
 
 import {Direction} from './event_set';
 import {duration, Time, time} from './time';
@@ -117,7 +118,8 @@ export const MAX_TIME = 180;
 // 35. Add force to OmniboxState
 // 36. Remove metrics
 // 37. Add additional pendingDeeplink fields (visStart, visEnd).
-export const STATE_VERSION = 37;
+// 38. Add track tags.
+export const STATE_VERSION = 38;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -249,6 +251,7 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
+  tags: TrackTags;
   config: {
     trackId?: number;
     trackIds?: number[];
