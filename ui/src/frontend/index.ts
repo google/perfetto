@@ -28,6 +28,7 @@ import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {flattenArgs, traceEvent} from '../common/metatracing';
 import {pluginManager, pluginRegistry} from '../common/plugins';
 import {State} from '../common/state';
+import {ViewerImpl} from '../common/viewer';
 import {initWasm} from '../common/wasm_engine_proxy';
 import {initController, runControllers} from '../controller';
 import {
@@ -287,8 +288,9 @@ function main() {
   }
 
   // Initialize all plugins:
+  const viewer = new ViewerImpl();
   for (const plugin of pluginRegistry.values()) {
-    pluginManager.activatePlugin(plugin.pluginId);
+    pluginManager.activatePlugin(plugin.pluginId, viewer);
   }
 
   cmdManager.registerCommandSource(pluginManager);

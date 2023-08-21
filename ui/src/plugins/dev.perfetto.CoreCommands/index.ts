@@ -14,11 +14,9 @@
 
 import {
   Command,
-  EngineProxy,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin,
-  Viewer,
+  PluginInfo,
 } from '../../public';
 
 const SQL_STATS = `
@@ -87,31 +85,18 @@ group by
 order by total_self_size desc
 limit 100;`;
 
-class CoreCommands implements TracePlugin {
-  static migrate(_initialState: unknown): {} {
-    return {};
-  }
-
-  private viewer: Viewer;
-
-  constructor(_store: Store<{}>, _engine: EngineProxy, viewer: Viewer) {
-    this.viewer = viewer;
-  }
-
-  dispose(): void {
-    // No-op
-  }
-
-  commands(): Command[] {
+const coreCommands: Plugin = {
+  onActivate: function(_: PluginContext): void {},
+  commands: function({viewer}: PluginContext): Command[] {
     return [
       {
         id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
         name: 'Toggle left sidebar',
         callback: () => {
-          if (this.viewer.sidebar.isVisible()) {
-            this.viewer.sidebar.hide();
+          if (viewer.sidebar.isVisible()) {
+            viewer.sidebar.hide();
           } else {
-            this.viewer.sidebar.show();
+            viewer.sidebar.show();
           }
         },
         defaultHotkey: '!Mod+B',
@@ -121,7 +106,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#RunQueryAllProcesses',
         name: 'Run query: all processes',
         callback: () => {
-          this.viewer.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
+          viewer.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
         },
       },
 
@@ -129,8 +114,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#RunQueryCpuTimeByProcess',
         name: 'Run query: CPU time by process',
         callback: () => {
-          this.viewer.tabs.openQuery(
-              CPU_TIME_FOR_PROCESSES, 'CPU time by process');
+          viewer.tabs.openQuery(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
         },
       },
 
@@ -138,7 +122,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
         name: 'Run query: cycles by p-state by CPU',
         callback: () => {
-          this.viewer.tabs.openQuery(
+          viewer.tabs.openQuery(
               CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU');
         },
       },
@@ -147,7 +131,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
         name: 'Run query: CPU Time by CPU by process',
         callback: () => {
-          this.viewer.tabs.openQuery(
+          viewer.tabs.openQuery(
               CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process');
         },
       },
@@ -156,7 +140,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
         name: 'Run query: heap graph bytes per type',
         callback: () => {
-          this.viewer.tabs.openQuery(
+          viewer.tabs.openQuery(
               HEAP_GRAPH_BYTES_PER_TYPE, 'Heap graph bytes per type');
         },
       },
@@ -165,7 +149,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#DebugSqlPerformance',
         name: 'Debug SQL performance',
         callback: () => {
-          this.viewer.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
+          viewer.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
         },
       },
 
@@ -173,7 +157,7 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#PinFtraceTracks',
         name: 'Pin ftrace tracks',
         callback: () => {
-          this.viewer.tracks.pin((tags) => {
+          viewer.tracks.pin((tags) => {
             return !!tags.name?.startsWith('Ftrace Events Cpu ');
           });
         },
@@ -183,21 +167,17 @@ class CoreCommands implements TracePlugin {
         id: 'dev.perfetto.CoreCommands#UnpinAllTracks',
         name: 'Unpin all tracks',
         callback: () => {
-          this.viewer.tracks.unpin((_) => {
+          viewer.tracks.unpin((_) => {
             return true;
           });
         },
       },
 
     ];
-  }
-}
+  },
+};
 
-function activate(ctx: PluginContext) {
-  ctx.registerTracePluginFactory(CoreCommands);
-}
-
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.CoreCommands',
-  activate,
+  plugin: coreCommands,
 };
