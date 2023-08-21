@@ -12,18 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from '../public';
+import {Plugin, PluginContext} from '../public';
 
 import {PluginManager, PluginRegistry} from './plugins';
+import {ViewerImpl} from './viewer';
+
+const viewer = new ViewerImpl();
+
+class FooPlugin implements Plugin {
+  onActivate(_: PluginContext): void {}
+}
 
 test('can activate plugin', () => {
   const registry = new PluginRegistry();
   registry.register({
     pluginId: 'foo',
-    activate: (_: PluginContext) => {},
+    plugin: FooPlugin,
   });
   const manager = new PluginManager(registry);
-  manager.activatePlugin('foo');
+  manager.activatePlugin('foo', viewer);
   expect(manager.isActive('foo')).toBe(true);
 });
 
@@ -31,10 +38,10 @@ test('can deactivate plugin', () => {
   const registry = new PluginRegistry();
   registry.register({
     pluginId: 'foo',
-    activate: (_: PluginContext) => {},
+    plugin: FooPlugin,
   });
   const manager = new PluginManager(registry);
-  manager.activatePlugin('foo');
+  manager.activatePlugin('foo', viewer);
   manager.deactivatePlugin('foo');
   expect(manager.isActive('foo')).toBe(false);
 });

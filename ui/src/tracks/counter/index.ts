@@ -26,14 +26,14 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 import {Button} from '../../frontend/widgets/button';
 import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
 import {
-  EngineProxy,
   LONG,
   LONG_NULL,
   NUM,
+  Plugin,
   PluginContext,
-  Store,
+  PluginInfo,
   STR,
-  TracePlugin,
+  TracePluginContext,
   TrackInfo,
 } from '../../public';
 
@@ -528,21 +528,15 @@ class CounterTrack extends Track<Config, Data> {
   }
 }
 
-class CounterTrackPlugin implements TracePlugin {
-  static migrate(_initialState: unknown): {} {
-    return {};
+class CounterPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(CounterTrackController);
+    ctx.registerTrack(CounterTrack);
   }
 
-  constructor(_store: Store<{}>, private engine: EngineProxy) {
-    // No-op
-  }
-
-  dispose(): void {
-    // No-op
-  }
-
-  async tracks(): Promise<TrackInfo[]> {
-    const result = await this.engine.query(`
+  async findPotentialTracks({engine}: TracePluginContext):
+      Promise<TrackInfo[]> {
+    const result = await engine.query(`
     select name, id
     from (
       select name, id
@@ -579,13 +573,7 @@ class CounterTrackPlugin implements TracePlugin {
   }
 }
 
-export function activate(ctx: PluginContext) {
-  ctx.registerTrackController(CounterTrackController);
-  ctx.registerTrack(CounterTrack);
-  ctx.registerTracePluginFactory(CounterTrackPlugin);
-}
-
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.Counter',
-  activate,
+  plugin: CounterPlugin,
 };

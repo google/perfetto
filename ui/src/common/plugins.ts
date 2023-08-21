@@ -12,210 +12,275 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, Trash} from '../base/disposable';
 import {ViewerImpl, ViewerProxy} from '../common/viewer';
 import {
   TrackControllerFactory,
   trackControllerRegistry,
 } from '../controller/track_controller';
+import {globals} from '../frontend/globals';
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
 import {
   Command,
   EngineProxy,
   MetricVisualisation,
+  Plugin,
+  PluginClass,
   PluginContext,
   PluginInfo,
   Store,
-  TracePlugin,
-  TracePluginFactory,
+  TracePluginContext,
   TrackInfo,
+  Viewer,
 } from '../public';
 
 import {Engine} from './engine';
 import {Registry} from './registry';
-import {State} from './state';
-
-interface TracePluginContext {
-  plugin: TracePlugin;
-  store: Store<unknown>;
-  engine: EngineProxy;
-  viewer: ViewerProxy;
-}
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
-export class PluginContextImpl implements PluginContext {
+export class PluginContextImpl implements PluginContext, Disposable {
   readonly pluginId: string;
-  private tracePluginFactory?: TracePluginFactory<any>;
-  private _tracePluginCtx?: TracePluginContext;
+  readonly viewer: ViewerProxy;
+  private trash = new Trash();
 
-  constructor(pluginId: string) {
+  constructor(pluginId: string, viewer: ViewerProxy) {
     this.pluginId = pluginId;
+
+    this.viewer = viewer;
+    this.trash.add(viewer);
   }
 
-  // ==================================================================
-  // The plugin facing API of PluginContext:
   registerTrackController(track: TrackControllerFactory): void {
-    trackControllerRegistry.register(track);
+    const unregister = trackControllerRegistry.register(track);
+    this.trash.add(unregister);
   }
 
   registerTrack(track: TrackCreator): void {
-    trackRegistry.register(track);
+    const unregister = trackRegistry.register(track);
+    this.trash.add(unregister);
   }
 
-  registerTracePluginFactory<T>(pluginFactory: TracePluginFactory<T>): void {
-    this.tracePluginFactory = pluginFactory;
+  dispose(): void {
+    this.trash.dispose();
   }
-  // ==================================================================
+}
 
-  // ==================================================================
-  // Internal facing API:
-  findPotentialTracks(): Promise<TrackInfo[]>[] {
-    const tracePlugin = this.tracePlugin;
-    if (tracePlugin && tracePlugin.tracks) {
-      return [tracePlugin.tracks()];
-    } else {
-      return [];
-    }
-  }
+// Implementation the trace plugin context with trace-relevant properties.
+class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
+  private ctx: PluginContext;
+  readonly engine: EngineProxy;
+  readonly store: Store<T>;
+  private trash = new Trash();
 
-  onTraceLoad(store: Store<State>, engine: Engine, viewer: ViewerImpl): void {
-    const TracePluginClass = this.tracePluginFactory;
-    if (TracePluginClass) {
-      // Make an engine proxy for this plugin.
-      const engineProxy: EngineProxy = engine.getProxy(this.pluginId);
+  constructor(ctx: PluginContext, store: Store<T>, engine: EngineProxy) {
+    this.ctx = ctx;
 
-      // Make a viewer for this plugin.
-      const viewerProxy: ViewerProxy = viewer.getProxy(this.pluginId);
+    this.engine = engine;
+    this.trash.add(engine);
 
-      // Extract the initial state and pass to the plugin factory for migration.
-      const initialState = store.state.plugins[this.pluginId];
-      const migratedState = TracePluginClass.migrate(initialState);
-
-      // Store the initial state in our root store.
-      store.edit((draft) => {
-        draft.plugins[this.pluginId] = migratedState;
-      });
-
-      // Create a proxy store for our plugin to use.
-      const storeProxy = store.createProxy<unknown>(['plugins', this.pluginId]);
-
-      // Instantiate the plugin.
-      this._tracePluginCtx = {
-        plugin: new TracePluginClass(storeProxy, engineProxy, viewerProxy),
-        store: storeProxy,
-        engine: engineProxy,
-        viewer: viewerProxy,
-      };
-    }
+    this.store = store;
+    this.trash.add(store);
   }
 
-  onTraceClosed() {
-    if (this._tracePluginCtx) {
-      this._tracePluginCtx.plugin.dispose();
-      this._tracePluginCtx.store.dispose();
-      this._tracePluginCtx.engine.dispose();
-      this._tracePluginCtx.viewer.dispose();
-      this._tracePluginCtx = undefined;
-    }
+  registerTrackController(track: TrackControllerFactory): void {
+    this.ctx.registerTrackController(track);
   }
 
-  get tracePlugin(): TracePlugin|undefined {
-    return this._tracePluginCtx?.plugin;
+  registerTrack(track: TrackCreator): void {
+    this.ctx.registerTrack(track);
   }
 
-  // Unload the plugin. Ideally no plugin code runs after this point.
-  // PluginContext should unregister everything.
-  revoke() {
-    // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
-    // etc.
-    // TODO(stevegolton): Dispose the trace plugin.
+  get viewer(): Viewer {
+    return this.ctx.viewer;
   }
-  // ==================================================================
+
+  dispose(): void {
+    this.trash.dispose();
+  }
 }
 
 // 'Static' registry of all known plugins.
-export class PluginRegistry extends Registry<PluginInfo> {
+export class PluginRegistry extends Registry<PluginInfo<unknown>> {
   constructor() {
     super((info) => info.pluginId);
   }
 }
 
+interface PluginDetails<T> {
+  plugin: Plugin<T>;
+  context: PluginContextImpl;
+  traceContext?: TracePluginContextImpl<T>;
+}
+
+function isPluginClass<T>(v: unknown): v is PluginClass<T> {
+  return typeof v === 'function' && !!(v.prototype.onActivate);
+}
+
+function makePlugin<T>(info: PluginInfo<T>): Plugin<T> {
+  const {plugin: pluginFactory} = info;
+
+  if (typeof pluginFactory === 'function') {
+    if (isPluginClass(pluginFactory)) {
+      const PluginClass = pluginFactory;
+      return new PluginClass();
+    } else {
+      return pluginFactory();
+    }
+  } else {
+    // pluginFactory is the plugin!
+    const plugin = pluginFactory;
+    return plugin;
+  }
+}
+
 export class PluginManager {
   private registry: PluginRegistry;
-  private contexts: Map<string, PluginContextImpl>;
+  private plugins: Map<string, PluginDetails<unknown>>;
+  private engine?: Engine;
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
-    this.contexts = new Map();
+    this.plugins = new Map();
   }
 
-  activatePlugin(pluginId: string): void {
-    if (this.isActive(pluginId)) {
+  activatePlugin(id: string, viewer: ViewerImpl): void {
+    if (this.isActive(id)) {
       return;
     }
-    const pluginInfo = this.registry.get(pluginId);
-    const context = new PluginContextImpl(pluginId);
-    this.contexts.set(pluginId, context);
-    pluginInfo.activate(context);
+
+    // This is where the plugin context is created, and where we call
+    // onInit() on the plugin.
+    const pluginInfo = this.registry.get(id);
+    const plugin = makePlugin(pluginInfo);
+    const viewerProxy = viewer.getProxy(id);
+
+    // Create a proxy store for our plugin to use.
+    const context = new PluginContextImpl(id, viewerProxy);
+    plugin.onActivate && plugin.onActivate(context);
+
+    const pluginDetails: PluginDetails<unknown> = {
+      plugin,
+      context,
+    };
+
+    // If we already have a trace when the plugin is activated, call
+    // onTraceLoad() on the plugin and store the traceContext.
+    if (this.engine) {
+      this.initTracePlugin(pluginDetails, this.engine, id);
+    }
+
+    this.plugins.set(id, pluginDetails);
   }
 
   deactivatePlugin(pluginId: string): void {
-    const context = this.getPluginContext(pluginId);
-    if (context === undefined) {
+    const pluginDetails = this.getPluginContext(pluginId);
+    if (pluginDetails === undefined) {
       return;
     }
-    context.revoke();
-    this.contexts.delete(pluginId);
+    const {context, plugin, traceContext} = pluginDetails;
+
+    if (traceContext) {
+      plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
+    }
+
+    plugin.onDeactivate && plugin.onDeactivate(context);
+    context.dispose();
+
+    this.plugins.delete(pluginId);
   }
 
   isActive(pluginId: string): boolean {
     return this.getPluginContext(pluginId) !== undefined;
   }
 
-  getPluginContext(pluginId: string): PluginContextImpl|undefined {
-    return this.contexts.get(pluginId);
+  getPluginContext(pluginId: string): PluginDetails<unknown>|undefined {
+    return this.plugins.get(pluginId);
   }
 
   findPotentialTracks(): Promise<TrackInfo[]>[] {
-    const promises = [];
-    for (const context of this.contexts.values()) {
-      for (const promise of context.findPotentialTracks()) {
+    const promises: Promise<TrackInfo[]>[] = [];
+    for (const {plugin, traceContext} of this.plugins.values()) {
+      if (plugin.findPotentialTracks && traceContext) {
+        const promise = plugin.findPotentialTracks(traceContext);
         promises.push(promise);
       }
     }
     return promises;
   }
 
-  onTraceLoad(store: Store<State>, engine: Engine, viewer: ViewerImpl): void {
-    for (const context of this.contexts.values()) {
-      context.onTraceLoad(store, engine, viewer);
+  onTraceLoad(engine: Engine): void {
+    this.engine = engine;
+    for (const [id, pluginDetails] of this.plugins) {
+      this.initTracePlugin(pluginDetails, engine, id);
     }
+  }
+
+  private initTracePlugin(
+      pluginDetails: PluginDetails<unknown>, engine: Engine, id: string): void {
+    const {plugin, context} = pluginDetails;
+
+    const engineProxy = engine.getProxy(id);
+    if (plugin.migrate) {
+      // Extract the initial state and migrate.
+      const initialState = globals.store.state.plugins[id];
+      const migratedState = plugin.migrate(initialState);
+
+      // Write the the migrated state back to our root store.
+      globals.store.edit((draft) => {
+        draft.plugins[id] = migratedState;
+      });
+    }
+
+    const proxyStore = globals.store.createProxy<unknown>(['plugins', id]);
+    const traceCtx =
+        new TracePluginContextImpl(context, proxyStore, engineProxy);
+
+    // TODO(stevegolton): We should probably wait for this to complete.
+    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
+    pluginDetails.traceContext = traceCtx;
   }
 
   onTraceClose() {
-    for (const context of this.contexts.values()) {
-      context.onTraceClosed();
+    for (const pluginDetails of this.plugins.values()) {
+      const {traceContext, plugin} = pluginDetails;
+
+      if (traceContext) {
+        if (plugin.onTraceUnload) {
+          plugin.onTraceUnload(traceContext);
+        }
+        traceContext.dispose();
+      }
+
+      pluginDetails.traceContext = undefined;
     }
+    this.engine = undefined;
   }
 
   commands(): Command[] {
-    return Array.from(this.contexts.values()).flatMap((ctx) => {
-      const tracePlugin = ctx.tracePlugin;
-      if (tracePlugin && tracePlugin.commands) {
-        return tracePlugin.commands();
-      } else {
-        return [];
+    return Array.from(this.plugins.values()).flatMap((ctx) => {
+      const plugin = ctx.plugin;
+      let commands: Command[] = [];
+
+      if (plugin && plugin.commands) {
+        commands = commands.concat(plugin.commands(ctx.context));
       }
+
+      if (ctx.traceContext && plugin.traceCommands) {
+        commands = commands.concat(plugin.traceCommands(ctx.traceContext));
+      }
+
+      return commands;
     });
   }
 
   metricVisualisations(): MetricVisualisation[] {
-    return Array.from(this.contexts.values()).flatMap((ctx) => {
-      const tracePlugin = ctx.tracePlugin;
+    return Array.from(this.plugins.values()).flatMap((ctx) => {
+      const tracePlugin = ctx.plugin;
       if (tracePlugin && tracePlugin.metricVisualisations) {
-        return tracePlugin.metricVisualisations();
+        return tracePlugin.metricVisualisations(ctx.context);
       } else {
         return [];
       }

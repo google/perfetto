@@ -16,9 +16,7 @@ import {AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {ObjectById} from '../../common/state';
-import {
-  PluginContext,
-} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
@@ -129,14 +127,16 @@ export async function getScrollJankTracks(engine: Engine):
   return result;
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrack(ChromeTasksScrollJankTrack);
-  ctx.registerTrack(EventLatencyTrack);
-  ctx.registerTrack(ScrollJankV3Track);
-  ctx.registerTrack(TopLevelScrollTrack);
+class ChromeScrollJankPlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrack(ChromeTasksScrollJankTrack);
+    ctx.registerTrack(EventLatencyTrack);
+    ctx.registerTrack(ScrollJankV3Track);
+    ctx.registerTrack(TopLevelScrollTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.ChromeScrollJank',
-  activate,
+  plugin: ChromeScrollJankPlugin,
 };
