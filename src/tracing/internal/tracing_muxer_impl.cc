@@ -167,10 +167,12 @@ struct CompareBackendByType {
 TracingMuxerImpl::ProducerImpl::ProducerImpl(
     TracingMuxerImpl* muxer,
     TracingBackendId backend_id,
-    uint32_t shmem_batch_commits_duration_ms)
+    uint32_t shmem_batch_commits_duration_ms,
+    bool shmem_direct_patching_enabled)
     : muxer_(muxer),
       backend_id_(backend_id),
-      shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms) {}
+      shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms),
+      shmem_direct_patching_enabled_(shmem_direct_patching_enabled) {}
 
 TracingMuxerImpl::ProducerImpl::~ProducerImpl() {
   muxer_ = nullptr;
@@ -260,6 +262,9 @@ void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
   did_setup_tracing_ = true;
   service_->MaybeSharedMemoryArbiter()->SetBatchCommitsDuration(
       shmem_batch_commits_duration_ms_);
+  if (shmem_direct_patching_enabled_) {
+    service_->MaybeSharedMemoryArbiter()->EnableDirectSMBPatching();
+  }
 }
 
 void TracingMuxerImpl::ProducerImpl::OnStartupTracingSetup() {
@@ -955,8 +960,9 @@ void TracingMuxerImpl::AddProducerBackend(TracingProducerBackend* backend,
   rb.backend = backend;
   rb.id = backend_id;
   rb.type = type;
-  rb.producer.reset(
-      new ProducerImpl(this, backend_id, args.shmem_batch_commits_duration_ms));
+  rb.producer.reset(new ProducerImpl(this, backend_id,
+                                     args.shmem_batch_commits_duration_ms,
+                                     args.shmem_direct_patching_enabled));
   rb.producer_conn_args.producer = rb.producer.get();
   rb.producer_conn_args.producer_name = platform_->GetCurrentProcessName();
   rb.producer_conn_args.task_runner = task_runner_.get();
