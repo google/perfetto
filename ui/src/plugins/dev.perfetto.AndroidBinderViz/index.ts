@@ -13,11 +13,10 @@
 // limitations under the License.
 
 import {
-  EngineProxy,
   MetricVisualisation,
+  Plugin,
   PluginContext,
-  Store,
-  TracePlugin,
+  PluginInfo,
 } from '../../public';
 
 const SPEC = `
@@ -37,19 +36,9 @@ const SPEC = `
 }
 `;
 
-interface State {}
-
-class AndroidBinderVizPlugin implements TracePlugin {
-  static migrate(_initialState: unknown): State {
-    return {};
-  }
-
-  constructor(_store: Store<State>, _engine: EngineProxy) {
-    // No-op
-  }
-
-  dispose(): void {
-    // No-op
+class AndroidBinderVizPlugin implements Plugin {
+  onActivate(_: PluginContext): void {
+    //
   }
 
   metricVisualisations(): MetricVisualisation[] {
@@ -61,9 +50,7 @@ class AndroidBinderVizPlugin implements TracePlugin {
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.AndroidBinderVizPlugin',
-  activate(ctx: PluginContext) {
-    ctx.registerTracePluginFactory(AndroidBinderVizPlugin);
-  },
+  plugin: AndroidBinderVizPlugin,
 };

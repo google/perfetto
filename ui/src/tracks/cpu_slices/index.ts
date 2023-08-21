@@ -31,7 +31,7 @@ import {
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -457,12 +457,14 @@ class CpuSliceTrack extends Track<Config, Data> {
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrackController(CpuSliceTrackController);
-  ctx.registerTrack(CpuSliceTrack);
+class CpuSlices implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(CpuSliceTrackController);
+    ctx.registerTrack(CpuSliceTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.CpuSlices',
-  activate,
+  plugin: CpuSlices,
 };

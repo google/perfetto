@@ -23,7 +23,7 @@ import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {Plugin, PluginContext, PluginInfo} from '../../public';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -208,12 +208,14 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
   }
 }
 
-export function activate(ctx: PluginContext) {
-  ctx.registerTrackController(PerfSamplesProfileTrackController);
-  ctx.registerTrack(PerfSamplesProfileTrack);
+class PerfSamplesProfilePlugin implements Plugin {
+  onActivate(ctx: PluginContext): void {
+    ctx.registerTrackController(PerfSamplesProfileTrackController);
+    ctx.registerTrack(PerfSamplesProfileTrack);
+  }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'perfetto.PerfSamplesProfile',
-  activate,
+  plugin: PerfSamplesProfilePlugin,
 };
