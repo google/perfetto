@@ -28,6 +28,7 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
+import {TrackTags} from '../public/index';
 import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 import {randomColor} from './colorizer';
@@ -88,6 +89,7 @@ export interface AddTrackArgs {
   trackSortKey: TrackSortKey;
   trackGroup?: string;
   config: {};
+  tags?: TrackTags;
 }
 
 export interface PostedTrace {
@@ -239,8 +241,19 @@ export const StateActions = {
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
     args.tracks.forEach((track) => {
       const id = track.id === undefined ? generateNextId(state) : track.id;
-      track.id = id;
-      state.tracks[id] = track as TrackState;
+      const name = track.name;
+      const tags = track.tags ?? {name};
+      state.tracks[id] = {
+        id,
+        engineId: track.engineId,
+        kind: track.kind,
+        name,
+        trackSortKey: track.trackSortKey,
+        trackGroup: track.trackGroup,
+        tags,
+        config: track.config,
+        labels: track.labels,
+      };
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(id);
@@ -258,26 +271,8 @@ export const StateActions = {
     state.utidToThreadSortKey = args.threadOrderingMetadata;
   },
 
-  addTrack(state: StateDraft, args: {
-    id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {}; trackSortKey: TrackSortKey;
-  }): void {
-    const id = args.id !== undefined ? args.id : generateNextId(state);
-    state.tracks[id] = {
-      id,
-      engineId: args.engineId,
-      kind: args.kind,
-      name: args.name,
-      trackSortKey: args.trackSortKey,
-      trackGroup: args.trackGroup,
-      config: args.config,
-    };
-    this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
-    if (args.trackGroup === SCROLLING_TRACK_GROUP) {
-      state.scrollingTracks.push(id);
-    } else if (args.trackGroup !== undefined) {
-      assertExists(state.trackGroups[args.trackGroup]).tracks.push(id);
-    }
+  addTrack(state: StateDraft, args: AddTrackArgs): void {
+    this.addTracks(state, {tracks: [args]});
   },
 
   addTrackGroup(
