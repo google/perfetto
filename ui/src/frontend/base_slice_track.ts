@@ -17,7 +17,6 @@ import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {
   colorCompare,
-  colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
 import {LONG, NUM} from '../common/query_result';
@@ -32,6 +31,7 @@ import {raf} from '../core/raf_scheduler';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
+import {cachedHsluvToHex} from './hsluv_cache';
 import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
@@ -401,7 +401,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     for (const slice of vizSlicesByColor) {
       if (slice.color !== lastColor) {
         lastColor = slice.color;
-        ctx.fillStyle = colorToStr(slice.color);
+        ctx.fillStyle = slice.color.c;
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -461,7 +461,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       const slice = this.selectedSlice;
       const color = slice.color;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
+      ctx.strokeStyle = cachedHsluvToHex(color.h, 100, 10);
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
