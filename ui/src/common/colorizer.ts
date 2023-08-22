@@ -190,3 +190,16 @@ export function colorToStr(color: Color) {
 export function colorCompare(x: Color, y: Color) {
   return (x.h - y.h) || (x.s - y.s) || (x.l - y.l);
 }
+
+export function getColorForSlice(
+    sliceName: string, hasFocus: boolean|null): Color {
+  const name = sliceName.replace(/( )?\d+/g, '');
+  const [hue, saturation, lightness] = hslForSlice(name, hasFocus);
+
+  return {
+    c: cachedHsluvToHex(hue, saturation, lightness),
+    h: hue,
+    s: saturation,
+    l: lightness,
+  };
+}

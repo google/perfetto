@@ -14,8 +14,7 @@
 
 import {Actions} from '../common/actions';
 import {
-  Color,
-  hslForSlice,
+  getColorForSlice,
 } from '../common/colorizer';
 import {STR_NULL} from '../common/query_result';
 
@@ -59,10 +58,7 @@ export abstract class NamedSliceTrack<
     const baseSlice = super.rowToSlice(row);
     // Ignore PIDs or numeric arguments when hashing.
     const name = row.name || '';
-    const nameForHashing = name.replace(/\s?\d+/g, '');
-    const hsl = hslForSlice(nameForHashing, /* isSelected=*/ false);
-    // We cache the color so we hash only once per query.
-    const baseColor: Color = {c: '', h: hsl[0], s: hsl[1], l: hsl[2]};
+    const baseColor = getColorForSlice(name, false);
     return {...baseSlice, title: name, baseColor};
   }
 
