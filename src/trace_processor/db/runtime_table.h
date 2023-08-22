@@ -55,15 +55,6 @@ class RuntimeTable : public Table {
   base::Status AddColumnsAndOverlays(uint32_t rows);
 
  private:
-  template <typename T, typename U>
-  base::Status Fill(VariantStorage* col, uint32_t leading_nulls, U value) {
-    *col = T();
-    auto* storage = std::get_if<T>(col);
-    for (uint32_t i = 0; i < leading_nulls; ++i) {
-      storage->Append(value);
-    }
-    return base::OkStatus();
-  }
   std::vector<std::string> col_names_;
   std::vector<std::unique_ptr<VariantStorage>> storage_;
 };
