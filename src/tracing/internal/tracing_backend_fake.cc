@@ -115,7 +115,9 @@ class UnsupportedConsumerEndpoint : public ConsumerEndpoint {
   void StartTracing() override {}
   void DisableTracing() override {}
 
-  void Flush(uint32_t /*timeout_ms*/, FlushCallback callback) override {
+  void Flush(uint32_t /*timeout_ms*/,
+             FlushCallback callback,
+             FlushFlags) override {
     callback(/*success=*/false);
   }
 

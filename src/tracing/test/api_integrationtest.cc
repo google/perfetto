@@ -282,7 +282,7 @@ struct TestDataSourceHandle {
   bool handle_flush_asynchronously = false;
   std::function<void()> on_start_callback;
   std::function<void()> on_stop_callback;
-  std::function<void()> on_flush_callback;
+  std::function<void(perfetto::FlushFlags)> on_flush_callback;
   std::function<void()> async_stop_closure;
   std::function<void()> async_flush_closure;
 };
@@ -949,8 +949,9 @@ void MockDataSource::OnFlush(const FlushArgs& args) {
   EXPECT_NE(handle_, nullptr);
   if (handle_->handle_flush_asynchronously)
     handle_->async_flush_closure = args.HandleFlushAsynchronously();
-  if (handle_->on_flush_callback)
-    handle_->on_flush_callback();
+  if (handle_->on_flush_callback) {
+    handle_->on_flush_callback(args.flush_flags);
+  }
   handle_->on_flush.Notify();
 }
 
@@ -4224,8 +4225,11 @@ TEST_P(PerfettoApiTest, OnFlush) {
   WaitableTestEvent producer_on_flush;
   WaitableTestEvent consumer_flush_done;
 
-  data_source->on_flush_callback = [&] {
+  data_source->on_flush_callback = [&](perfetto::FlushFlags flush_flags) {
     EXPECT_FALSE(consumer_flush_done.notified());
+    EXPECT_EQ(flush_flags.initiator(),
+              perfetto::FlushFlags::Initiator::kConsumerSdk);
+    EXPECT_EQ(flush_flags.reason(), perfetto::FlushFlags::Reason::kExplicit);
     producer_on_flush.Notify();
     MockDataSource::Trace([](MockDataSource::TraceContext ctx) {
       ctx.NewTracePacket()->set_for_testing()->set_str("on-flush");
@@ -4275,7 +4279,7 @@ TEST_P(PerfettoApiTest, OnFlushAsync) {
   WaitableTestEvent consumer_flush_done;
 
   data_source->handle_flush_asynchronously = true;
-  data_source->on_flush_callback = [&] {
+  data_source->on_flush_callback = [&](perfetto::FlushFlags) {
     EXPECT_FALSE(consumer_flush_done.notified());
   };
 

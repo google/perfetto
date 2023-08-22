@@ -136,7 +136,9 @@ class TracingServiceImpl : public TracingService {
     void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&);
     void StartDataSource(DataSourceInstanceID, const DataSourceConfig&);
     void StopDataSource(DataSourceInstanceID);
-    void Flush(FlushRequestID, const std::vector<DataSourceInstanceID>&);
+    void Flush(FlushRequestID,
+               const std::vector<DataSourceInstanceID>&,
+               FlushFlags);
     void OnFreeBuffers(const std::vector<BufferID>& target_buffers);
     void ClearIncrementalState(const std::vector<DataSourceInstanceID>&);
 
@@ -219,7 +221,7 @@ class TracingServiceImpl : public TracingService {
     void DisableTracing() override;
     void ReadBuffers() override;
     void FreeBuffers() override;
-    void Flush(uint32_t timeout_ms, FlushCallback) override;
+    void Flush(uint32_t timeout_ms, FlushCallback, FlushFlags) override;
     void Detach(const std::string& key) override;
     void Attach(const std::string& key) override;
     void GetTraceStats() override;
@@ -306,7 +308,8 @@ class TracingServiceImpl : public TracingService {
   void DisableTracing(TracingSessionID, bool disable_immediately = false);
   void Flush(TracingSessionID tsid,
              uint32_t timeout_ms,
-             ConsumerEndpoint::FlushCallback);
+             ConsumerEndpoint::FlushCallback,
+             FlushFlags);
   void FlushAndDisableTracing(TracingSessionID);
   void FlushAndCloneSession(ConsumerEndpointImpl*, TracingSessionID);
 

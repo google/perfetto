@@ -30,6 +30,7 @@
 #include "perfetto/ext/tracing/core/shared_memory.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 
 namespace perfetto {
@@ -203,7 +204,15 @@ class PERFETTO_EXPORT_COMPONENT ConsumerEndpoint {
   // if that one is not set (or is set to 0), kDefaultFlushTimeoutMs (5s) is
   // used.
   using FlushCallback = std::function<void(bool /*success*/)>;
-  virtual void Flush(uint32_t timeout_ms, FlushCallback) = 0;
+  virtual void Flush(uint32_t timeout_ms, FlushCallback callback, FlushFlags);
+
+  // The only caller of this method is arctraceservice's PerfettoClient.
+  // Everything else in the codebase uses the 3-arg Flush() above.
+  // TODO(primiano): remove the overload without FlushFlags once
+  // arctraceservice moves away from this interface. arctraceservice lives in
+  // the internal repo and changes to this interface require multi-side patches.
+  // Inernally this calls Flush(timeout, callback, FlushFlags(0)).
+  virtual void Flush(uint32_t timeout_ms, FlushCallback callback);
 
   // Tracing data will be delivered invoking Consumer::OnTraceData().
   virtual void ReadBuffers() = 0;

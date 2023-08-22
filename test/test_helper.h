@@ -314,7 +314,7 @@ class TestHelper : public Consumer {
   void StartTracing(const TraceConfig& config,
                     base::ScopedFile = base::ScopedFile());
   void DisableTracing();
-  void FlushAndWait(uint32_t timeout_ms);
+  void FlushAndWait(uint32_t timeout_ms, FlushFlags = FlushFlags());
   void ReadData(uint32_t read_count = 0);
   void FreeBuffers();
   void DetachConsumer(const std::string& key);

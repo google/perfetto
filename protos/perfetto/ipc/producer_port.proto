@@ -318,6 +318,10 @@ message GetAsyncCommandResponse {
     // expected to copy this value back into the CommitDataRequest, so the
     // service can tell when the data for this flush has been committed.
     optional uint64 request_id = 2;
+
+    // More details such as flush reason and originator. Introduced in v38 / V.
+    // See FlushFlags in include/perfetto/ext/tracing/core/flush_flags.h.
+    optional uint64 flags = 3;
   }
 
   // Instructs the given data sources to stop referring to any trace contents
