@@ -833,14 +833,14 @@ class Parsing(TestSuite):
             "pid": 1,
             "tid": 1,
             "ph": "B",
-            "ts": 1597071955492308000
+            "ts": 1597071955492308
           },
           {
             "name": "add_graph",
             "pid": 1,
             "tid": 1,
             "ph": "E",
-            "ts": 1597071955703771000
+            "ts": 1597071955703771
           }
         ]
         }
@@ -850,7 +850,7 @@ class Parsing(TestSuite):
         """,
         out=Csv("""
         "ts","dur","name"
-        -7794778920422990592,211463000000,"add_graph"
+        1597071955492308000,211463000,"add_graph"
         """))
 
   # Parsing sched_blocked_reason
