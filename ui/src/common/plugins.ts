@@ -41,6 +41,7 @@ import {Registry} from './registry';
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
+// The PluginContext exists for the whole duration a plugin is active.
 export class PluginContextImpl implements PluginContext, Disposable {
   readonly pluginId: string;
   readonly viewer: ViewerProxy;
@@ -68,7 +69,10 @@ export class PluginContextImpl implements PluginContext, Disposable {
   }
 }
 
-// Implementation the trace plugin context with trace-relevant properties.
+// This TracePluginContext implementation provides the plugin access to trace
+// related resources, such as the engine and the store.
+// The TracePluginContext exists for the whole duration a plugin is active AND a
+// trace is loaded.
 class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
   private ctx: PluginContext;
   readonly engine: EngineProxy;
@@ -151,14 +155,12 @@ export class PluginManager {
       return;
     }
 
-    // This is where the plugin context is created, and where we call
-    // onInit() on the plugin.
     const pluginInfo = this.registry.get(id);
     const plugin = makePlugin(pluginInfo);
-    const viewerProxy = viewer.getProxy(id);
 
-    // Create a proxy store for our plugin to use.
+    const viewerProxy = viewer.getProxy(id);
     const context = new PluginContextImpl(id, viewerProxy);
+
     plugin.onActivate && plugin.onActivate(context);
 
     const pluginDetails: PluginDetails<unknown> = {
@@ -166,30 +168,28 @@ export class PluginManager {
       context,
     };
 
-    // If we already have a trace when the plugin is activated, call
-    // onTraceLoad() on the plugin and store the traceContext.
+    // If a trace is already loaded when plugin is activated, make sure to
+    // call onTraceLoad().
     if (this.engine) {
-      this.initTracePlugin(pluginDetails, this.engine, id);
+      doPluginTraceLoad(pluginDetails, this.engine, id);
     }
 
     this.plugins.set(id, pluginDetails);
   }
 
-  deactivatePlugin(pluginId: string): void {
-    const pluginDetails = this.getPluginContext(pluginId);
+  deactivatePlugin(id: string): void {
+    const pluginDetails = this.getPluginContext(id);
     if (pluginDetails === undefined) {
       return;
     }
-    const {context, plugin, traceContext} = pluginDetails;
+    const {context, plugin} = pluginDetails;
 
-    if (traceContext) {
-      plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
-    }
+    maybeDoPluginTraceUnload(pluginDetails);
 
     plugin.onDeactivate && plugin.onDeactivate(context);
     context.dispose();
 
-    this.plugins.delete(pluginId);
+    this.plugins.delete(id);
   }
 
   isActive(pluginId: string): boolean {
@@ -214,47 +214,13 @@ export class PluginManager {
   onTraceLoad(engine: Engine): void {
     this.engine = engine;
     for (const [id, pluginDetails] of this.plugins) {
-      this.initTracePlugin(pluginDetails, engine, id);
+      doPluginTraceLoad(pluginDetails, engine, id);
     }
-  }
-
-  private initTracePlugin(
-      pluginDetails: PluginDetails<unknown>, engine: Engine, id: string): void {
-    const {plugin, context} = pluginDetails;
-
-    const engineProxy = engine.getProxy(id);
-    if (plugin.migrate) {
-      // Extract the initial state and migrate.
-      const initialState = globals.store.state.plugins[id];
-      const migratedState = plugin.migrate(initialState);
-
-      // Write the the migrated state back to our root store.
-      globals.store.edit((draft) => {
-        draft.plugins[id] = migratedState;
-      });
-    }
-
-    const proxyStore = globals.store.createProxy<unknown>(['plugins', id]);
-    const traceCtx =
-        new TracePluginContextImpl(context, proxyStore, engineProxy);
-
-    // TODO(stevegolton): We should probably wait for this to complete.
-    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
-    pluginDetails.traceContext = traceCtx;
   }
 
   onTraceClose() {
     for (const pluginDetails of this.plugins.values()) {
-      const {traceContext, plugin} = pluginDetails;
-
-      if (traceContext) {
-        if (plugin.onTraceUnload) {
-          plugin.onTraceUnload(traceContext);
-        }
-        traceContext.dispose();
-      }
-
-      pluginDetails.traceContext = undefined;
+      maybeDoPluginTraceUnload(pluginDetails);
     }
     this.engine = undefined;
   }
@@ -264,7 +230,7 @@ export class PluginManager {
       const plugin = ctx.plugin;
       let commands: Command[] = [];
 
-      if (plugin && plugin.commands) {
+      if (plugin.commands) {
         commands = commands.concat(plugin.commands(ctx.context));
       }
 
@@ -287,6 +253,42 @@ export class PluginManager {
     });
   }
 }
+
+function doPluginTraceLoad(
+    pluginDetails: PluginDetails<unknown>, engine: Engine, pluginId: string):
+    void {
+  const {plugin, context} = pluginDetails;
+
+  // Migrate state & write back to store.
+  if (plugin.migrate) {
+    const initialState = globals.store.state.plugins[pluginId];
+    const migratedState = plugin.migrate(initialState);
+    globals.store.edit((draft) => {
+      draft.plugins[pluginId] = migratedState;
+    });
+  }
+
+  // Create proxies & trace context.
+  const proxyStore = globals.store.createProxy<unknown>(['plugins', pluginId]);
+  const engineProxy = engine.getProxy(pluginId);
+  const traceCtx = new TracePluginContextImpl(context, proxyStore, engineProxy);
+  pluginDetails.traceContext = traceCtx;
+
+  // TODO(stevegolton): Await onTraceLoad.
+  plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
+}
+
+function maybeDoPluginTraceUnload(pluginDetails: PluginDetails<unknown>): void {
+  const {traceContext, plugin} = pluginDetails;
+
+  if (traceContext) {
+    // TODO(stevegolton): Await onTraceUnload.
+    plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
+    traceContext.dispose();
+    pluginDetails.traceContext = undefined;
+  }
+}
+
 
 // TODO(hjd): Sort out the story for global singletons like these:
 export const pluginRegistry = new PluginRegistry();
