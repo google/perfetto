@@ -106,7 +106,7 @@ class ShlibDataSource : public perfetto::DataSourceBase {
       std::vector<uint8_t> serialized_config = args.config->SerializeAsArray();
       inst_ctx_ = type_.on_setup_cb(
           &type_, args.internal_instance_index, serialized_config.data(),
-          serialized_config.size(), type_.cb_user_arg);
+          serialized_config.size(), type_.cb_user_arg, nullptr);
     }
     std::lock_guard<std::mutex> lock(type_.mu);
     const bool was_enabled = type_.enabled_instances.any();
@@ -119,7 +119,7 @@ class ShlibDataSource : public perfetto::DataSourceBase {
   void OnStart(const StartArgs& args) override {
     if (type_.on_start_cb) {
       type_.on_start_cb(&type_, args.internal_instance_index, type_.cb_user_arg,
-                        inst_ctx_);
+                        inst_ctx_, nullptr);
     }
   }
 
