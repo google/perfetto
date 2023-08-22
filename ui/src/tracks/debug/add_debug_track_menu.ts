@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {findRef} from '../../base/dom_utils';
 import {EngineProxy} from '../../common/engine';
 import {Form, FormLabel} from '../../frontend/widgets/form';
 import {Select} from '../../frontend/widgets/select';
@@ -31,6 +32,8 @@ interface AddDebugTrackMenuAttrs {
   dataSource: SqlDataSource;
   engine: EngineProxy;
 }
+
+const TRACK_NAME_FIELD_REF = 'TRACK_NAME_FIELD';
 
 export class AddDebugTrackMenu implements
     m.ClassComponent<AddDebugTrackMenuAttrs> {
@@ -66,6 +69,19 @@ export class AddDebugTrackMenu implements
       dur: chooseDefaultOption('dur'),
       name: chooseDefaultOption('name'),
     };
+  }
+
+  oncreate({dom}: m.VnodeDOM<AddDebugTrackMenuAttrs>) {
+    this.focusTrackNameField(dom);
+  }
+
+  private focusTrackNameField(dom: Element) {
+    const element = findRef(dom, TRACK_NAME_FIELD_REF);
+    if (element) {
+      if (element instanceof HTMLInputElement) {
+        element.focus();
+      }
+    }
   }
 
   view(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
@@ -120,6 +136,7 @@ export class AddDebugTrackMenu implements
           'Track name'),
         m(TextInput, {
           id: 'track_name',
+          ref: TRACK_NAME_FIELD_REF,
           onkeydown: (e: KeyboardEvent) => {
             // Allow Esc to close popup.
             if (e.key === 'Escape') return;
