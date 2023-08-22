@@ -228,7 +228,10 @@ class TracingMuxerImpl : public TracingMuxer {
     void StartDataSource(DataSourceInstanceID,
                          const DataSourceConfig&) override;
     void StopDataSource(DataSourceInstanceID) override;
-    void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
+    void Flush(FlushRequestID,
+               const DataSourceInstanceID*,
+               size_t,
+               FlushFlags) override;
     void ClearIncrementalState(const DataSourceInstanceID*, size_t) override;
 
     bool SweepDeadServices();
@@ -511,7 +514,8 @@ class TracingMuxerImpl : public TracingMuxer {
                                const FindDataSourceRes&);
   bool FlushDataSource_AsyncBegin(TracingBackendId,
                                   DataSourceInstanceID,
-                                  FlushRequestID);
+                                  FlushRequestID,
+                                  FlushFlags);
   void FlushDataSource_AsyncEnd(TracingBackendId,
                                 uint32_t backend_connection_id,
                                 DataSourceInstanceID,

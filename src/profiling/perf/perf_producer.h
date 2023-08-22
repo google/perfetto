@@ -78,7 +78,8 @@ class PerfProducer : public Producer,
   void StopDataSource(DataSourceInstanceID instance_id) override;
   void Flush(FlushRequestID flush_id,
              const DataSourceInstanceID* data_source_ids,
-             size_t num_data_sources) override;
+             size_t num_data_sources,
+             FlushFlags) override;
   void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
                              size_t num_data_sources) override;
 

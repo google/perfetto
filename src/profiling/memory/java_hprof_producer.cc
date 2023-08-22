@@ -163,7 +163,8 @@ void JavaHprofProducer::StopDataSource(DataSourceInstanceID id) {
 
 void JavaHprofProducer::Flush(FlushRequestID flush_id,
                               const DataSourceInstanceID*,
-                              size_t) {
+                              size_t,
+                              FlushFlags) {
   endpoint_->NotifyFlushComplete(flush_id);
 }
 
