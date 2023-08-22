@@ -163,27 +163,35 @@ export interface PluginContext {
 // Similar to PluginContext but with additional properties to operate on the
 // currently loaded trace. Passed to trace-relevant hooks instead of
 // PluginContext.
-export interface TracePluginContext<T = unknown> extends PluginContext {
+export interface TracePluginContext<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
 }
 
-export interface Plugin<T = unknown> {
-  // Function to migrate the persistent state.
-  migrate?(initialState: unknown): T;
-
+export interface BasePlugin<State> {
   // Lifecycle methods.
   onActivate(ctx: PluginContext): void;
-  onTraceLoad?(ctx: TracePluginContext<T>): Promise<void>;
-  onTraceUnload?(ctx: TracePluginContext<T>): Promise<void>;
+  onTraceLoad?(ctx: TracePluginContext<State>): Promise<void>;
+  onTraceUnload?(ctx: TracePluginContext<State>): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
   commands?(ctx: PluginContext): Command[];
-  traceCommands?(ctx: TracePluginContext<T>): Command[];
+  traceCommands?(ctx: TracePluginContext<State>): Command[];
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
-  findPotentialTracks?(ctx: TracePluginContext<T>): Promise<TrackInfo[]>;
+  findPotentialTracks?(ctx: TracePluginContext<State>): Promise<TrackInfo[]>;
 }
+
+export interface StatefulPlugin<State> extends BasePlugin<State> {
+  // Function to migrate the persistent state.
+  migrate(initialState: unknown): State;
+}
+
+// Generic interface all plugins must implement.
+// If a state type is passed, the plugin must implement migrate(). Otherwise if
+// the state type is omitted, migrate need not be defined.
+export type Plugin<State = undefined> =
+    State extends undefined ? BasePlugin<State>: StatefulPlugin<State>;
 
 // This interface defines what a plugin factory should look like.
 // This can be defined in the plugin class definition by defining a constructor
@@ -231,7 +239,7 @@ export interface TrackTags {
 // implementations.
 export type PluginFactory<T> = PluginClass<T>|Plugin<T>|(() => Plugin<T>);
 
-export interface PluginInfo<T = unknown> {
+export interface PluginInfo<T = undefined> {
   // A unique string for your plugin. To ensure the name is unique you
   // may wish to use a URL with reversed components in the manner of
   // Java package names.

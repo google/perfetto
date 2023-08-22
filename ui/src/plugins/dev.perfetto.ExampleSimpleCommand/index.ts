@@ -16,6 +16,7 @@ import {
   Command,
   Plugin,
   PluginContext,
+  PluginInfo,
 } from '../../public';
 
 // This is just an example plugin, used to prove that the plugin system works.
@@ -35,7 +36,7 @@ class ExampleSimpleCommand implements Plugin {
   }
 }
 
-export const plugin = {
+export const plugin: PluginInfo = {
   pluginId: 'dev.perfetto.ExampleSimpleCommand',
   plugin: ExampleSimpleCommand,
 };

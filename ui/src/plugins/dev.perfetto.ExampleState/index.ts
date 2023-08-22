@@ -27,12 +27,13 @@ interface State {
 // This example plugin shows using state that is persisted in the
 // permalink.
 class ExampleState implements Plugin<State> {
-  migrate(_initialState: unknown): State {
-    // TODO(hjd): Show validation example.
-
-    return {
-      counter: 0,
-    };
+  migrate(initialState: unknown): State {
+    if (initialState && typeof initialState === 'object' &&
+        'counter' in initialState && typeof initialState.counter === 'number') {
+      return {counter: initialState.counter};
+    } else {
+      return {counter: 0};
+    }
   }
 
   onActivate(_: PluginContext): void {
@@ -56,7 +57,7 @@ class ExampleState implements Plugin<State> {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginInfo<State> = {
   pluginId: 'dev.perfetto.ExampleState',
   plugin: ExampleState,
 };
