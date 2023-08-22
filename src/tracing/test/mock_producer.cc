@@ -192,23 +192,32 @@ std::unique_ptr<TraceWriter> MockProducer::CreateTraceWriter(
   return service_endpoint_->CreateTraceWriter(buf_id);
 }
 
-void MockProducer::ExpectFlush(TraceWriter* writer_to_flush, bool reply) {
+void MockProducer::ExpectFlush(TraceWriter* writer_to_flush,
+                               bool reply,
+                               FlushFlags expected_flags) {
   std::vector<TraceWriter*> writers;
   if (writer_to_flush)
     writers.push_back(writer_to_flush);
-  ExpectFlush(writers, reply);
+  ExpectFlush(writers, reply, expected_flags);
 }
 
 void MockProducer::ExpectFlush(std::vector<TraceWriter*> writers_to_flush,
-                               bool reply) {
-  auto& expected_call = EXPECT_CALL(*this, Flush(_, _, _));
-  expected_call.WillOnce(Invoke(
-      [this, writers_to_flush, reply](FlushRequestID flush_req_id,
-                                      const DataSourceInstanceID*, size_t) {
-        for (auto* writer : writers_to_flush)
+                               bool reply,
+                               FlushFlags expected_flags) {
+  auto& expected_call = EXPECT_CALL(*this, Flush(_, _, _, _));
+  expected_call.WillOnce(
+      Invoke([this, writers_to_flush, reply, expected_flags](
+                 FlushRequestID flush_req_id, const DataSourceInstanceID*,
+                 size_t, FlushFlags actual_flags) {
+        if (expected_flags.flags()) {
+          EXPECT_EQ(actual_flags, expected_flags);
+        }
+        for (auto* writer : writers_to_flush) {
           writer->Flush();
-        if (reply)
+        }
+        if (reply) {
           service_endpoint_->NotifyFlushComplete(flush_req_id);
+        }
       }));
 }
 

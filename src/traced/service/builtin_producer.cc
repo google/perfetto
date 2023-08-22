@@ -284,7 +284,8 @@ void BuiltinProducer::MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
 
 void BuiltinProducer::Flush(FlushRequestID flush_id,
                             const DataSourceInstanceID* ds_ids,
-                            size_t num_ds_ids) {
+                            size_t num_ds_ids,
+                            FlushFlags) {
   for (size_t i = 0; i < num_ds_ids; i++) {
     auto meta_it = metatrace_.writers.find(ds_ids[i]);
     if (meta_it != metatrace_.writers.end()) {

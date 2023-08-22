@@ -209,11 +209,12 @@ void TestHelper::DisableTracing() {
   endpoint_->DisableTracing();
 }
 
-void TestHelper::FlushAndWait(uint32_t timeout_ms) {
+void TestHelper::FlushAndWait(uint32_t timeout_ms, FlushFlags flush_flags) {
   static int flush_num = 0;
   std::string checkpoint_name = "flush." + std::to_string(flush_num++);
   auto checkpoint = CreateCheckpoint(checkpoint_name);
-  endpoint_->Flush(timeout_ms, [checkpoint](bool) { checkpoint(); });
+  endpoint_->Flush(
+      timeout_ms, [checkpoint](bool) { checkpoint(); }, flush_flags);
   RunUntilCheckpoint(checkpoint_name, timeout_ms + 1000);
 }
 

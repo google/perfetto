@@ -73,7 +73,7 @@ class MockProducer : public Producer {
   MOCK_METHOD(void, OnTracingSetup, (), (override));
   MOCK_METHOD(void,
               Flush,
-              (FlushRequestID, const DataSourceInstanceID*, size_t),
+              (FlushRequestID, const DataSourceInstanceID*, size_t, FlushFlags),
               (override));
   MOCK_METHOD(void,
               ClearIncrementalState,
@@ -525,13 +525,18 @@ TEST_F(TracingIntegrationTestWithSMBScrapingProducer, ScrapeOnFlush) {
   // Ask the service to flush, but don't flush our trace writer. This should
   // cause our uncommitted SMB chunk to be scraped.
   auto on_flush_complete = task_runner_->CreateCheckpoint("on_flush_complete");
-  consumer_endpoint_->Flush(5000, [on_flush_complete](bool success) {
-    EXPECT_TRUE(success);
-    on_flush_complete();
-  });
-  EXPECT_CALL(producer_, Flush(_, _, _))
+  FlushFlags flush_flags(FlushFlags::Initiator::kConsumerSdk,
+                         FlushFlags::Reason::kExplicit);
+  consumer_endpoint_->Flush(
+      5000,
+      [on_flush_complete](bool success) {
+        EXPECT_TRUE(success);
+        on_flush_complete();
+      },
+      flush_flags);
+  EXPECT_CALL(producer_, Flush(_, _, _, flush_flags))
       .WillOnce(Invoke([this](FlushRequestID flush_req_id,
-                              const DataSourceInstanceID*, size_t) {
+                              const DataSourceInstanceID*, size_t, FlushFlags) {
         producer_endpoint_->NotifyFlushComplete(flush_req_id);
       }));
   task_runner_->RunUntilCheckpoint("on_flush_complete");

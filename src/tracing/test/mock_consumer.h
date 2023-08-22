@@ -56,7 +56,10 @@ class MockConsumer : public Consumer {
   void DisableTracing();
   void FreeBuffers();
   void WaitForTracingDisabled(uint32_t timeout_ms = 3000);
-  FlushRequest Flush(uint32_t timeout_ms = 10000);
+  FlushRequest Flush(
+      uint32_t timeout_ms = 10000,
+      FlushFlags = FlushFlags(FlushFlags::Initiator::kConsumerSdk,
+                              FlushFlags::Reason::kExplicit));
   std::vector<protos::gen::TracePacket> ReadBuffers();
   void GetTraceStats();
   TraceStats WaitForTraceStats(bool success);

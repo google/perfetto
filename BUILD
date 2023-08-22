@@ -849,6 +849,7 @@ perfetto_filegroup(
         "include/perfetto/tracing/core/chrome_config.h",
         "include/perfetto/tracing/core/data_source_config.h",
         "include/perfetto/tracing/core/data_source_descriptor.h",
+        "include/perfetto/tracing/core/flush_flags.h",
         "include/perfetto/tracing/core/trace_config.h",
         "include/perfetto/tracing/core/tracing_service_capabilities.h",
         "include/perfetto/tracing/core/tracing_service_state.h",
