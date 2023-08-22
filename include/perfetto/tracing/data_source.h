@@ -33,6 +33,7 @@
 
 #include "perfetto/protozero/message_handle.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
+#include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
 #include "perfetto/tracing/internal/basic_types.h"
 #include "perfetto/tracing/internal/data_source_internal.h"
@@ -160,6 +161,9 @@ class PERFETTO_EXPORT_COMPONENT DataSourceBase {
 
     // The index of this data source instance (0..kMaxDataSourceInstances - 1).
     uint32_t internal_instance_index = 0;
+
+    // The reason and initiator of the flush. See flush_flags.h .
+    FlushFlags flush_flags;
   };
   // Called when the tracing service requests a Flush. Users can override this
   // to tell other threads to flush their TraceContext for this data source

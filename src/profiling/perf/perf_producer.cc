@@ -561,7 +561,8 @@ void PerfProducer::StopDataSource(DataSourceInstanceID ds_id) {
 // the SMB.
 void PerfProducer::Flush(FlushRequestID flush_id,
                          const DataSourceInstanceID* data_source_ids,
-                         size_t num_data_sources) {
+                         size_t num_data_sources,
+                         FlushFlags) {
   // Flush metatracing if requested.
   for (size_t i = 0; i < num_data_sources; i++) {
     auto ds_id = data_source_ids[i];

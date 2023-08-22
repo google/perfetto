@@ -76,10 +76,13 @@ class MockProducer : public Producer {
 
   // Expect a flush. Flushes |writer_to_flush| if non-null. If |reply| is true,
   // replies to the flush request, otherwise ignores it and doesn't reply.
-  void ExpectFlush(TraceWriter* writer_to_flush, bool reply = true);
+  void ExpectFlush(TraceWriter* writer_to_flush,
+                   bool reply = true,
+                   FlushFlags expected_flags = FlushFlags());
   // Same as above, but with a vector of writers.
   void ExpectFlush(std::vector<TraceWriter*> writers_to_flush,
-                   bool reply = true);
+                   bool reply = true,
+                   FlushFlags expected_flags = FlushFlags());
 
   TracingService::ProducerEndpoint* endpoint() {
     return service_endpoint_.get();
@@ -100,7 +103,7 @@ class MockProducer : public Producer {
   MOCK_METHOD(void, OnTracingSetup, (), (override));
   MOCK_METHOD(void,
               Flush,
-              (FlushRequestID, const DataSourceInstanceID*, size_t),
+              (FlushRequestID, const DataSourceInstanceID*, size_t, FlushFlags),
               (override));
   MOCK_METHOD(void,
               ClearIncrementalState,
