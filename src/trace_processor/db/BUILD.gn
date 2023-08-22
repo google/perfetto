@@ -59,6 +59,7 @@ perfetto_unittest_source_set("unittests") {
     "column_storage_overlay_unittest.cc",
     "compare_unittest.cc",
     "query_executor_unittest.cc",
+    "runtime_table_unittest.cc",
     "view_unittest.cc",
   ]
   deps = [

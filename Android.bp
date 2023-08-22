@@ -9798,6 +9798,7 @@ filegroup {
         "src/trace_processor/db/column_storage_overlay_unittest.cc",
         "src/trace_processor/db/compare_unittest.cc",
         "src/trace_processor/db/query_executor_unittest.cc",
+        "src/trace_processor/db/runtime_table_unittest.cc",
         "src/trace_processor/db/view_unittest.cc",
     ],
 }
