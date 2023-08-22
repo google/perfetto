@@ -2308,6 +2308,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/experimental/proto_path.sql",
         "src/trace_processor/perfetto_sql/stdlib/experimental/slices.sql",
         "src/trace_processor/perfetto_sql/stdlib/experimental/thread_executing_span.sql",
+        "src/trace_processor/perfetto_sql/stdlib/experimental/thread_state_flattened.sql",
     ],
 )
 

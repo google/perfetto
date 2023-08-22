@@ -21,5 +21,6 @@ perfetto_sql_source_set("experimental") {
     "proto_path.sql",
     "slices.sql",
     "thread_executing_span.sql",
+    "thread_state_flattened.sql",
   ]
 }
