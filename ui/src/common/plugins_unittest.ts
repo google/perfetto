@@ -12,36 +12,96 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Plugin, PluginContext} from '../public';
+import {globals} from '../frontend/globals';
+import {Plugin} from '../public';
 
+import {createEmptyState} from './empty_state';
+import {Engine} from './engine';
 import {PluginManager, PluginRegistry} from './plugins';
 import {ViewerImpl} from './viewer';
 
-const viewer = new ViewerImpl();
+class FakeEngine extends Engine {
+  id: string = 'TestEngine';
 
-class FooPlugin implements Plugin {
-  onActivate(_: PluginContext): void {}
+  rpcSendRequestBytes(_data: Uint8Array) {}
 }
 
-test('can activate plugin', () => {
-  const registry = new PluginRegistry();
-  registry.register({
-    pluginId: 'foo',
-    plugin: FooPlugin,
-  });
-  const manager = new PluginManager(registry);
-  manager.activatePlugin('foo', viewer);
-  expect(manager.isActive('foo')).toBe(true);
-});
+function makeMockPlugin(): Plugin {
+  return {
+    migrate: jest.fn(),
+    onActivate: jest.fn(),
+    onDeactivate: jest.fn(),
+    onTraceLoad: jest.fn(),
+    onTraceUnload: jest.fn(),
+  };
+}
 
-test('can deactivate plugin', () => {
-  const registry = new PluginRegistry();
-  registry.register({
-    pluginId: 'foo',
-    plugin: FooPlugin,
+const viewer = new ViewerImpl();
+const engine = new FakeEngine();
+globals.initStore(createEmptyState());
+
+// We use `any` here to avoid checking possibly undefined types in tests.
+let mockPlugin: any;
+let manager: any;
+
+describe('PluginManger', () => {
+  beforeEach(() => {
+    mockPlugin = makeMockPlugin();
+    const registry = new PluginRegistry();
+    registry.register({
+      pluginId: 'foo',
+      plugin: mockPlugin,
+    });
+    manager = new PluginManager(registry);
   });
-  const manager = new PluginManager(registry);
-  manager.activatePlugin('foo', viewer);
-  manager.deactivatePlugin('foo');
-  expect(manager.isActive('foo')).toBe(false);
+
+  it('can activate plugin', () => {
+    manager.activatePlugin('foo', viewer);
+
+    expect(manager.isActive('foo')).toBe(true);
+    expect(mockPlugin.onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('can deactivate plugin', () => {
+    manager.activatePlugin('foo', viewer);
+    manager.deactivatePlugin('foo');
+
+    expect(manager.isActive('foo')).toBe(false);
+    expect(mockPlugin.onDeactivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceLoad when trace is loaded', () => {
+    manager.activatePlugin('foo', viewer);
+    manager.onTraceLoad(engine);
+
+    expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceLoad when plugin activated while trace loaded', () => {
+    manager.onTraceLoad(engine);
+    manager.activatePlugin('foo', viewer);
+
+    expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceUnload when plugin deactivated while trace loaded', () => {
+    manager.activatePlugin('foo', viewer);
+    manager.onTraceLoad(engine);
+    manager.deactivatePlugin('foo');
+
+    expect(mockPlugin.onTraceUnload).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not invoke migrate at activation time', () => {
+    manager.activatePlugin('foo', viewer);
+
+    expect(mockPlugin.migrate).not.toHaveBeenCalled();
+  });
+
+  it('invokes migrate when trace is loaded', () => {
+    manager.activatePlugin('foo', viewer);
+    manager.onTraceLoad(engine);
+
+    expect(mockPlugin.migrate).toHaveBeenCalledTimes(1);
+  });
 });

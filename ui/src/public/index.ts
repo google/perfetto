@@ -163,16 +163,11 @@ export interface PluginContext {
 // Similar to PluginContext but with additional properties to operate on the
 // currently loaded trace. Passed to trace-relevant hooks instead of
 // PluginContext.
-// TODO(stevegolton): I'm not entirely sold on this approach. For one, it means
-// commands don't get to access the engine as they only get a PluginContext,
-// whereas if they got a TracePluginContext they could only get evaluated
-// when a trace is loaded. Thus, this needs a rethink.
 export interface TracePluginContext<T = unknown> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
 }
 
-// All trace plugins must implement this interface.
 export interface Plugin<T = unknown> {
   // Function to migrate the persistent state.
   migrate?(initialState: unknown): T;
@@ -183,7 +178,7 @@ export interface Plugin<T = unknown> {
   onTraceUnload?(ctx: TracePluginContext<T>): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
-  // Legacy extension points.
+  // Extension points.
   commands?(ctx: PluginContext): Command[];
   traceCommands?(ctx: TracePluginContext<T>): Command[];
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
