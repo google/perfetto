@@ -205,6 +205,10 @@ message FreeBuffersResponse {}
 // Arguments for rpc Flush().
 message FlushRequest {
   optional uint32 timeout_ms = 1;
+
+  // More details such as flush reason and originator. Introduced in v38 / V.
+  // See FlushFlags in include/perfetto/ext/tracing/core/flush_flags.h.
+  optional uint64 flags = 2;
 }
 
 message FlushResponse {}
