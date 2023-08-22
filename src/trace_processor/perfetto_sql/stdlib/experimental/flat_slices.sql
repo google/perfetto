@@ -88,7 +88,13 @@ WITH
       events.track_id
     FROM events
   )
-SELECT * FROM data WHERE depth != -1;
+SELECT data.slice_id, data.ts, data.dur, data.depth,
+ data.name, data.track_id, thread.utid, thread.tid, thread.name as thread_name,
+ process.upid, process.pid, process.name as process_name
+ FROM data JOIN thread_track ON data.track_id = thread_track.id
+JOIN thread USING(utid)
+JOIN process USING(upid)
+WHERE depth != -1;
 
 CREATE
   INDEX experimental_slice_flattened_id_idx

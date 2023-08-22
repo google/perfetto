@@ -12,31 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  Command,
-  Plugin,
-  PluginContext,
-  PluginInfo,
-} from '../../public';
+import {Color} from '../../common/colorizer';
 
-// This is just an example plugin, used to prove that the plugin system works.
-class ExampleSimpleCommand implements Plugin {
-  onActivate(_: PluginContext): void {
-    //
-  }
+export const RED_COLOR: Color = {
+  c: '#C41E3A',
+  h: 196,
+  s: 30,
+  l: 58,
+};
 
-  commands(_: PluginContext): Command[] {
-    return [
-      {
-        id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
-        name: 'Log "Hello, world!"',
-        callback: () => console.log('Hello, world!'),
-      },
-    ];
-  }
-}
-
-export const plugin: PluginInfo = {
-  pluginId: 'dev.perfetto.ExampleSimpleCommand',
-  plugin: ExampleSimpleCommand,
+export const DEEP_RED_COLOR: Color = {
+  c: '#880808',
+  h: 136,
+  s: 8,
+  l: 8,
 };

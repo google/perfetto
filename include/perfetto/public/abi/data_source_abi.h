@@ -50,6 +50,10 @@ typedef uint32_t PerfettoDsInstanceIndex;
 // PerfettoDsImplRegister().
 PERFETTO_SDK_EXPORT struct PerfettoDsImpl* PerfettoDsImplCreate(void);
 
+// Opaque handle used to perform operations from the OnSetup callback. Unused
+// for now.
+struct PerfettoDsOnSetupArgs;
+
 // Called when a data source instance of a specific type is created. `ds_config`
 // points to a serialized perfetto.protos.DataSourceConfig message,
 // `ds_config_size` bytes long. `user_arg` is the value passed to
@@ -60,7 +64,12 @@ typedef void* (*PerfettoDsOnSetupCb)(struct PerfettoDsImpl*,
                                      PerfettoDsInstanceIndex inst_id,
                                      void* ds_config,
                                      size_t ds_config_size,
-                                     void* user_arg);
+                                     void* user_arg,
+                                     struct PerfettoDsOnSetupArgs* args);
+
+// Opaque handle used to perform operations from the OnSetup callback. Unused
+// for now.
+struct PerfettoDsOnStartArgs;
 
 // Called when tracing starts for a data source instance. `user_arg` is the
 // value passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return
@@ -68,12 +77,13 @@ typedef void* (*PerfettoDsOnSetupCb)(struct PerfettoDsImpl*,
 typedef void (*PerfettoDsOnStartCb)(struct PerfettoDsImpl*,
                                     PerfettoDsInstanceIndex inst_id,
                                     void* user_arg,
-                                    void* inst_ctx);
+                                    void* inst_ctx,
+                                    struct PerfettoDsOnStartArgs* args);
 
-// Internal handle used to perform operations from the OnStop callback.
+// Opaque handle used to perform operations from the OnStop callback.
 struct PerfettoDsOnStopArgs;
 
-// Internal handle used to signal when the data source stop operation is
+// Opaque handle used to signal when the data source stop operation is
 // complete.
 struct PerfettoDsAsyncStopper;
 
@@ -106,10 +116,10 @@ typedef void (*PerfettoDsOnDestroyCb)(struct PerfettoDsImpl*,
                                       void* user_arg,
                                       void* inst_ctx);
 
-// Internal handle used to perform operations from the OnFlush callback.
+// Opaque handle used to perform operations from the OnFlush callback.
 struct PerfettoDsOnFlushArgs;
 
-// Internal handle used to signal when the data source flush operation is
+// Opaque handle used to signal when the data source flush operation is
 // complete.
 struct PerfettoDsAsyncFlusher;
 
@@ -124,8 +134,9 @@ PerfettoDsOnFlushArgsPostpone(struct PerfettoDsOnFlushArgs*);
 // PerfettoDsOnFlushArgsPostpone).
 PERFETTO_SDK_EXPORT void PerfettoDsFlushDone(struct PerfettoDsAsyncFlusher*);
 
-// Called when tracing stops for a data source instance. `user_arg` is the value
-// passed to PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
+// Called when the tracing service requires all the pending tracing data to be
+// flushed for a data source instance. `user_arg` is the value passed to
+// PerfettoDsSetCbUserArg(). `inst_ctx` is the return value of
 // PerfettoDsOnSetupCb. `args` can be used to postpone stopping this data source
 // instance.
 typedef void (*PerfettoDsOnFlushCb)(struct PerfettoDsImpl*,
