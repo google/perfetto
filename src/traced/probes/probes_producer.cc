@@ -502,7 +502,8 @@ void ProbesProducer::OnTracingSetup() {
 
 void ProbesProducer::Flush(FlushRequestID flush_request_id,
                            const DataSourceInstanceID* data_source_ids,
-                           size_t num_data_sources) {
+                           size_t num_data_sources,
+                           FlushFlags) {
   PERFETTO_DLOG("ProbesProducer::Flush(%" PRIu64 ") begin", flush_request_id);
   PERFETTO_DCHECK(flush_request_id);
   auto log_on_exit = base::OnScopeExit([&] {

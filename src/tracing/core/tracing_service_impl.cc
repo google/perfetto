@@ -1748,7 +1748,8 @@ void TracingServiceImpl::DisableTracingNotifyConsumerAndFlushFile(
 
 void TracingServiceImpl::Flush(TracingSessionID tsid,
                                uint32_t timeout_ms,
-                               ConsumerEndpoint::FlushCallback callback) {
+                               ConsumerEndpoint::FlushCallback callback,
+                               FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   TracingSession* tracing_session = GetTracingSession(tsid);
   if (!tracing_session) {
@@ -1794,7 +1795,7 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
     ProducerID producer_id = kv.first;
     ProducerEndpointImpl* producer = GetProducer(producer_id);
     const std::vector<DataSourceInstanceID>& data_sources = kv.second;
-    producer->Flush(flush_request_id, data_sources);
+    producer->Flush(flush_request_id, data_sources, flush_flags);
     pending_flush.producers.insert(producer_id);
   }
 
@@ -2001,27 +2002,32 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   PERFETTO_DLOG("Triggering final flush for %" PRIu64, tsid);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  Flush(tsid, 0, [weak_this, tsid](bool success) {
-    // This was a DLOG up to Jun 2021 (v16, Android S).
-    PERFETTO_LOG("FlushAndDisableTracing(%" PRIu64 ") done, success=%d", tsid,
-                 success);
-    if (!weak_this)
-      return;
-    TracingSession* session = weak_this->GetTracingSession(tsid);
-    session->final_flush_outcome = success ? TraceStats::FINAL_FLUSH_SUCCEEDED
+  Flush(
+      tsid, 0,
+      [weak_this, tsid](bool success) {
+        // This was a DLOG up to Jun 2021 (v16, Android S).
+        PERFETTO_LOG("FlushAndDisableTracing(%" PRIu64 ") done, success=%d",
+                     tsid, success);
+        if (!weak_this)
+          return;
+        TracingSession* session = weak_this->GetTracingSession(tsid);
+        session->final_flush_outcome = success
+                                           ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                            : TraceStats::FINAL_FLUSH_FAILED;
-    if (session->consumer_maybe_null) {
-      // If the consumer is still attached, just disable the session but give it
-      // a chance to read the contents.
-      weak_this->DisableTracing(tsid);
-    } else {
-      // If the consumer detached, destroy the session. If the consumer did
-      // start the session in long-tracing mode, the service will have saved
-      // the contents to the passed file. If not, the contents will be
-      // destroyed.
-      weak_this->FreeBuffers(tsid);
-    }
-  });
+        if (session->consumer_maybe_null) {
+          // If the consumer is still attached, just disable the session but
+          // give it a chance to read the contents.
+          weak_this->DisableTracing(tsid);
+        } else {
+          // If the consumer detached, destroy the session. If the consumer did
+          // start the session in long-tracing mode, the service will have saved
+          // the contents to the passed file. If not, the contents will be
+          // destroyed.
+          weak_this->FreeBuffers(tsid);
+        }
+      },
+      FlushFlags(FlushFlags::Initiator::kTraced,
+                 FlushFlags::Reason::kTraceStop));
 }
 
 void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
@@ -2045,10 +2051,14 @@ void TracingServiceImpl::PeriodicFlushTask(TracingSessionID tsid,
     return;
 
   PERFETTO_DLOG("Triggering periodic flush for trace session %" PRIu64, tsid);
-  Flush(tsid, 0, [](bool success) {
-    if (!success)
-      PERFETTO_ELOG("Periodic flush timed out");
-  });
+  Flush(
+      tsid, 0,
+      [](bool success) {
+        if (!success)
+          PERFETTO_ELOG("Periodic flush timed out");
+      },
+      FlushFlags(FlushFlags::Initiator::kTraced,
+                 FlushFlags::Reason::kPeriodic));
 }
 
 void TracingServiceImpl::PeriodicClearIncrementalStateTask(
@@ -3591,6 +3601,7 @@ size_t TracingServiceImpl::PurgeExpiredAndCountTriggerInWindow(
 void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
                                               TracingSessionID tsid) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
+  auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
   if (tsid == kBugreportSessionId) {
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
@@ -3600,21 +3611,26 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
       return;
     }
     tsid = session->id;
+    clone_target = FlushFlags::CloneTarget::kBugreport;
   }
 
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   auto weak_consumer = consumer->GetWeakPtr();
-  Flush(tsid, 0, [weak_this, tsid, weak_consumer](bool final_flush_outcome) {
-    PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d", tsid,
-                 final_flush_outcome);
-    if (!weak_this || !weak_consumer)
-      return;
-    base::Uuid uuid;
-    base::Status result = weak_this->DoCloneSession(&*weak_consumer, tsid,
-                                                    final_flush_outcome, &uuid);
-    weak_consumer->consumer_->OnSessionCloned(
-        {result.ok(), result.message(), uuid});
-  });
+  Flush(
+      tsid, 0,
+      [weak_this, tsid, weak_consumer](bool final_flush_outcome) {
+        PERFETTO_LOG("FlushAndCloneSession(%" PRIu64 ") started, success=%d",
+                     tsid, final_flush_outcome);
+        if (!weak_this || !weak_consumer)
+          return;
+        base::Uuid uuid;
+        base::Status result = weak_this->DoCloneSession(
+            &*weak_consumer, tsid, final_flush_outcome, &uuid);
+        weak_consumer->consumer_->OnSessionCloned(
+            {result.ok(), result.message(), uuid});
+      },
+      FlushFlags(FlushFlags::Initiator::kTraced,
+                 FlushFlags::Reason::kTraceClone, clone_target));
 }
 
 base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
@@ -3826,13 +3842,14 @@ void TracingServiceImpl::ConsumerEndpointImpl::FreeBuffers() {
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::Flush(uint32_t timeout_ms,
-                                                     FlushCallback callback) {
+                                                     FlushCallback callback,
+                                                     FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   if (!tracing_session_id_) {
     PERFETTO_LOG("Consumer called Flush() but tracing was not active");
     return;
   }
-  service_->Flush(tracing_session_id_, timeout_ms, callback);
+  service_->Flush(tracing_session_id_, timeout_ms, callback, flush_flags);
 }
 
 void TracingServiceImpl::ConsumerEndpointImpl::Detach(const std::string& key) {
@@ -4319,15 +4336,17 @@ void TracingServiceImpl::ProducerEndpointImpl::OnTracingSetup() {
 
 void TracingServiceImpl::ProducerEndpointImpl::Flush(
     FlushRequestID flush_request_id,
-    const std::vector<DataSourceInstanceID>& data_sources) {
+    const std::vector<DataSourceInstanceID>& data_sources,
+    FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
-  task_runner_->PostTask([weak_this, flush_request_id, data_sources] {
-    if (weak_this) {
-      weak_this->producer_->Flush(flush_request_id, data_sources.data(),
-                                  data_sources.size());
-    }
-  });
+  task_runner_->PostTask(
+      [weak_this, flush_request_id, data_sources, flush_flags] {
+        if (weak_this) {
+          weak_this->producer_->Flush(flush_request_id, data_sources.data(),
+                                      data_sources.size(), flush_flags);
+        }
+      });
 }
 
 void TracingServiceImpl::ProducerEndpointImpl::SetupDataSource(

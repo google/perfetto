@@ -506,7 +506,8 @@ void ProducerIPCService::RemoteProducer::SendSetupTracing() {
 void ProducerIPCService::RemoteProducer::Flush(
     FlushRequestID flush_request_id,
     const DataSourceInstanceID* data_source_ids,
-    size_t num_data_sources) {
+    size_t num_data_sources,
+    FlushFlags flush_flags) {
   if (!async_producer_commands.IsBound()) {
     PERFETTO_DLOG(
         "The Service tried to request a flush but the remote Producer has not "
@@ -518,6 +519,7 @@ void ProducerIPCService::RemoteProducer::Flush(
   for (size_t i = 0; i < num_data_sources; i++)
     cmd->mutable_flush()->add_data_source_ids(data_source_ids[i]);
   cmd->mutable_flush()->set_request_id(flush_request_id);
+  cmd->mutable_flush()->set_flags(flush_flags.flags());
   async_producer_commands.Resolve(std::move(cmd));
 }
 
