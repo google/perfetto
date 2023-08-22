@@ -22,6 +22,7 @@ import {globals} from '../frontend/globals';
 import {TrackCreator} from '../frontend/track';
 import {trackRegistry} from '../frontend/track_registry';
 import {
+  BasePlugin,
   Command,
   EngineProxy,
   MetricVisualisation,
@@ -29,6 +30,7 @@ import {
   PluginClass,
   PluginContext,
   PluginInfo,
+  StatefulPlugin,
   Store,
   TracePluginContext,
   TrackInfo,
@@ -115,8 +117,8 @@ export class PluginRegistry extends Registry<PluginInfo<unknown>> {
 
 interface PluginDetails<T> {
   plugin: Plugin<T>;
-  context: PluginContextImpl;
-  traceContext?: TracePluginContextImpl<T>;
+  context: PluginContext&Disposable;
+  traceContext?: TracePluginContext<T>&Disposable;
 }
 
 function isPluginClass<T>(v: unknown): v is PluginClass<T> {
@@ -254,28 +256,45 @@ export class PluginManager {
   }
 }
 
-function doPluginTraceLoad(
-    pluginDetails: PluginDetails<unknown>, engine: Engine, pluginId: string):
-    void {
+function isStatefulPlugin<T>(plugin: BasePlugin<T>|
+                             StatefulPlugin<T>): plugin is StatefulPlugin<T> {
+  return 'migrate' in plugin;
+}
+
+function doPluginTraceLoad<T>(
+    pluginDetails: PluginDetails<T>, engine: Engine, pluginId: string): void {
   const {plugin, context} = pluginDetails;
 
+  const engineProxy = engine.getProxy(pluginId);
+
   // Migrate state & write back to store.
-  if (plugin.migrate) {
+  if (isStatefulPlugin(plugin)) {
     const initialState = globals.store.state.plugins[pluginId];
     const migratedState = plugin.migrate(initialState);
     globals.store.edit((draft) => {
       draft.plugins[pluginId] = migratedState;
     });
+
+    const proxyStore = globals.store.createProxy<T>(['plugins', pluginId]);
+    const traceCtx =
+        new TracePluginContextImpl(context, proxyStore, engineProxy);
+    pluginDetails.traceContext = traceCtx;
+
+    // TODO(stevegolton): Await onTraceLoad.
+    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
+  } else {
+    // Stateless plugin i.e. the plugin's state type is undefined.
+    // Just provide a store proxy over this plugin's state, the plugin can work
+    // the state out for itself if it wants to, but we're not going to help it
+    // out by calling migrate().
+    const proxyStore = globals.store.createProxy<T>(['plugins', pluginId]);
+    const traceCtx =
+        new TracePluginContextImpl(context, proxyStore, engineProxy);
+    pluginDetails.traceContext = traceCtx;
+
+    // TODO(stevegolton): Await onTraceLoad.
+    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
   }
-
-  // Create proxies & trace context.
-  const proxyStore = globals.store.createProxy<unknown>(['plugins', pluginId]);
-  const engineProxy = engine.getProxy(pluginId);
-  const traceCtx = new TracePluginContextImpl(context, proxyStore, engineProxy);
-  pluginDetails.traceContext = traceCtx;
-
-  // TODO(stevegolton): Await onTraceLoad.
-  plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
 }
 
 function maybeDoPluginTraceUnload(pluginDetails: PluginDetails<unknown>): void {
