@@ -41,7 +41,6 @@ SELECT
 FROM hw_irq_runtime;
 
 DROP VIEW IF EXISTS sw_irq_runtime;
-
 CREATE VIEW sw_irq_runtime
 AS
 SELECT ts, dur, name
@@ -49,6 +48,7 @@ FROM irq_runtime_all
 WHERE name NOT GLOB 'IRQ (*)'
 ORDER BY dur DESC;
 
+DROP VIEW IF EXISTS sw_irq_runtime_statistics;
 CREATE VIEW sw_irq_runtime_statistics
 AS
 SELECT

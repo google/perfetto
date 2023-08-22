@@ -43,7 +43,7 @@ USING SPAN_JOIN(
 
 -- Materialized to avoid span-joining once per core type.
 DROP TABLE IF EXISTS mcycles_per_core_type_per_launch;
-CREATE TABLE mcycles_per_core_type_per_launch AS
+CREATE PERFETTO TABLE mcycles_per_core_type_per_launch AS
 SELECT
   startup_id,
   IFNULL(core_type_per_cpu.core_type, 'unknown') AS core_type,
@@ -55,7 +55,7 @@ GROUP BY 1, 2;
 
 -- Given a launch id and core type, returns the number of mcycles consumed
 -- on CPUs of that core type during the launch.
-CREATE PERFETTO FUNCTION MCYCLES_FOR_LAUNCH_AND_CORE_TYPE(startup_id INT, core_type STRING)
+CREATE PERFETTO FUNCTION mcycles_for_launch_and_core_type(startup_id INT, core_type STRING)
 RETURNS INT AS
 SELECT mcycles
 FROM mcycles_per_core_type_per_launch m
@@ -65,7 +65,7 @@ WHERE m.startup_id = $startup_id AND m.core_type = $core_type;
 -- *excluding the process being started*.
 -- Materialized to avoid span-joining once per launch.
 DROP TABLE IF EXISTS top_mcyles_process_excluding_started_per_launch;
-CREATE TABLE top_mcyles_process_excluding_started_per_launch AS
+CREATE PERFETTO TABLE top_mcyles_process_excluding_started_per_launch AS
 WITH mcycles_per_launch_and_process AS MATERIALIZED (
   SELECT
     startup_id,
@@ -93,7 +93,7 @@ WHERE mcycles_rank <= 5;
 
 -- Given a launch id, returns the name of the processes consuming the most
 -- mcycles during the launch excluding the process being started.
-CREATE PERFETTO FUNCTION N_MOST_ACTIVE_PROCESS_NAMES_FOR_LAUNCH(startup_id INT)
+CREATE PERFETTO FUNCTION n_most_active_process_names_for_launch(startup_id INT)
 RETURNS STRING AS
 SELECT RepeatedField(process_name)
 FROM (
@@ -105,7 +105,7 @@ FROM (
 );
 
 -- Given a launch id, returns the most active process name.
-CREATE PERFETTO FUNCTION MOST_ACTIVE_PROCESS_FOR_LAUNCH(startup_id INT)
+CREATE PERFETTO FUNCTION most_active_process_for_launch(startup_id INT)
 RETURNS STRING AS
 SELECT process.name AS process_name
 FROM top_mcyles_process_excluding_started_per_launch

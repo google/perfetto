@@ -12,21 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable} from '../base/disposable';
+import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
 import {Command} from '../public';
 
 export interface CommandSource {
   commands(): Command[];
 }
 
-export class CommandManager {
-  private commandSources: CommandSource[] = [];
+export interface CommandWithMatchInfo extends Command {
+  segments: FuzzySegment[];
+}
 
-  registerCommandSource(cs: CommandSource) {
-    this.commandSources.push(cs);
+export class CommandManager {
+  private commandSources = new Set<CommandSource>();
+
+  registerCommandSource(cs: CommandSource): Disposable {
+    this.commandSources.add(cs);
+    return {
+      dispose: () => {
+        this.commandSources.delete(cs);
+      },
+    };
   }
 
   get commands(): Command[] {
-    return this.commandSources.flatMap((source) => source.commands());
+    const sourcesArray = Array.from(this.commandSources);
+    return sourcesArray.flatMap((source) => source.commands());
   }
 
   runCommand(id: string, ...args: any[]): void {
@@ -38,14 +50,13 @@ export class CommandManager {
     }
   }
 
-  fuzzyFilterCommands(searchTerm: string): Command[] {
-    // searchTerm matches name if (ignoring case) all characters from
-    // searchTerm appear in name in the same order although not necessarily
-    // contiguously.
-    const escape = (c: string) => c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(Array.from(searchTerm).map(escape).join('.*'), 'i');
-    return this.commands.filter(({name}) => {
-      return name.match(re);
+  // Returns a list of commands that match the search term, along with a list
+  // of segments which describe which parts of the command name match and
+  // which don't.
+  fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
+    const finder = new FuzzyFinder(this.commands, ({name}) => name);
+    return finder.find(searchTerm).map((result) => {
+      return {segments: result.segments, ...result.item};
     });
   }
 }

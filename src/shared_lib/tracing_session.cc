@@ -45,6 +45,13 @@ void PerfettoTracingSessionSetup(struct PerfettoTracingSessionImpl* session,
   ts->Setup(cfg);
 }
 
+void PerfettoTracingSessionSetStopCb(struct PerfettoTracingSessionImpl* session,
+                                     PerfettoTracingSessionStopCb cb,
+                                     void* user_arg) {
+  auto* ts = reinterpret_cast<perfetto::TracingSession*>(session);
+  ts->SetOnStopCallback([session, cb, user_arg]() { cb(session, user_arg); });
+}
+
 void PerfettoTracingSessionStartAsync(
     struct PerfettoTracingSessionImpl* session) {
   auto* ts = reinterpret_cast<perfetto::TracingSession*>(session);

@@ -70,6 +70,10 @@ template <typename, const internal::TrackEventCategoryRegistry*>
 class TrackEventDataSource;
 }  // namespace internal
 
+namespace shlib {
+class TrackEvent;
+}  // namespace shlib
+
 namespace test {
 class DataSourceInternalForTest;
 }  // namespace test
@@ -465,6 +469,7 @@ class DataSource : public DataSourceBase {
 
  private:
   friend ::perfetto::test::DataSourceInternalForTest;
+  friend ::perfetto::shlib::TrackEvent;
   // Traits for customizing the behavior of a specific trace point.
   struct DefaultTracePointTraits {
     // By default, every call to DataSource::Trace() will record trace events
@@ -538,13 +543,12 @@ class DataSource : public DataSourceBase {
   // destructors) that we need to defer to the embedder. In chromium's platform
   // implementation, for instance, the tls slot is implemented using
   // chromium's base::ThreadLocalStorage.
-  static PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState* tls_state_;
+  static thread_local internal::DataSourceThreadLocalState* tls_state_;
 };
 
 // static
 template <typename T, typename D>
-PERFETTO_THREAD_LOCAL internal::DataSourceThreadLocalState*
-    DataSource<T, D>::tls_state_;
+thread_local internal::DataSourceThreadLocalState* DataSource<T, D>::tls_state_;
 
 }  // namespace perfetto
 

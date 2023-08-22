@@ -22,6 +22,7 @@
 #include <string_view>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -426,13 +427,14 @@ int GetSqliteToken(const unsigned char* z, SqliteTokenType* tokenType) {
 
 }  // namespace
 
-SqliteTokenizer::SqliteTokenizer(const char* sql) : ptr_(sql) {}
+SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {}
 
 SqliteTokenizer::Token SqliteTokenizer::Next() {
   Token token;
-  const char* start = ptr_;
-  int n = GetSqliteToken(unsigned_ptr(), &token.token_type);
-  ptr_ += n;
+  const char* start = source_.sql().data() + offset_;
+  int n = GetSqliteToken(reinterpret_cast<const unsigned char*>(start),
+                         &token.token_type);
+  offset_ += static_cast<uint32_t>(n);
   token.str = std::string_view(start, static_cast<uint32_t>(n));
   return token;
 }
@@ -450,6 +452,22 @@ SqliteTokenizer::Token SqliteTokenizer::NextTerminal() {
     tok = Next();
   }
   return tok;
+}
+
+SqlSource SqliteTokenizer::Substr(Token start, Token end) const {
+  uint32_t offset =
+      static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
+  uint32_t len = static_cast<uint32_t>(end.str.data() - start.str.data());
+  return source_.Substr(offset, len);
+}
+
+std::string SqliteTokenizer::AsTraceback(Token token) const {
+  PERFETTO_CHECK(source_.sql().c_str() <= token.str.data());
+  PERFETTO_CHECK(token.str.data() <=
+                 source_.sql().c_str() + source_.sql().size());
+  uint32_t offset =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  return source_.AsTraceback(offset);
 }
 
 }  // namespace trace_processor

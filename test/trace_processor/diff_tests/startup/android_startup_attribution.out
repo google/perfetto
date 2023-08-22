@@ -76,6 +76,15 @@ android_startup {
     }
     long_binder_transactions {
       duration {
+        dur_ns: 40000000
+        dur_ms: 40.0
+      }
+      destination_process: "system_server"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
+    }
+    long_binder_transactions {
+      duration {
         dur_ns: 100000000
         dur_ms: 100.0
       }

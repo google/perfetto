@@ -35,7 +35,7 @@ SELECT
   upid,
   process.name AS process_name,
   thread.name AS thread_name,
-  CAST(SUM(sched.dur) / 1e3 as INT64) AS cpu_time_us,
+  CAST(SUM(sched.dur) as INT64) AS cpu_time_ns,
   COUNT(DISTINCT utid) AS num_threads
 FROM sched
 JOIN thread USING(utid)
@@ -63,7 +63,7 @@ CREATE VIEW codec_total_per_process_cpu_use AS
 SELECT
   upid,
   process_name,
-  CAST(SUM(sched.dur) / 1e3 as INT64) AS media_process_cpu_time_us
+  CAST(SUM(sched.dur) as INT64) AS media_process_cpu_time_ns
 FROM sched
 JOIN thread using(utid)
 JOIN android_codec_process using(upid)
@@ -83,7 +83,7 @@ JOIN codec_per_thread_cpu_use using(process_name);
 
 -- Utility function to trim codec trace string: extract the string demilited
 -- by the limiter.
-CREATE PERFETTO FUNCTION EXTRACT_CODEC_STRING(slice_name STRING, limiter STRING)
+CREATE PERFETTO FUNCTION extract_codec_string(slice_name STRING, limiter STRING)
 RETURNS STRING AS
 SELECT CASE
   -- Delimit with the first occurrence
@@ -111,7 +111,7 @@ insert into trace_trait_table (trace_trait) values
 DROP VIEW IF EXISTS codec_slices;
 CREATE VIEW codec_slices AS
 SELECT
-  DISTINCT EXTRACT_CODEC_STRING(slice.name, '@') as codec_slice_string
+  DISTINCT extract_codec_string(slice.name, '@') as codec_slice_string
 FROM slice
 JOIN trace_trait_table ON slice.name glob  '*' || trace_trait || '*';
 
@@ -119,7 +119,7 @@ JOIN trace_trait_table ON slice.name glob  '*' || trace_trait || '*';
 DROP VIEW IF EXISTS slice_with_utid;
 CREATE VIEW slice_with_utid AS
 SELECT
-  EXTRACT_CODEC_STRING(slice.name, '@') as codec_string,
+  extract_codec_string(slice.name, '@') as codec_string,
   ts,
   dur,
   upid,
@@ -177,7 +177,7 @@ SELECT AndroidCodecMetrics(
       AndroidCodecMetrics_CpuUsage(
         'process_name', process_name,
         'thread_name', thread_name,
-        'thread_cpu_us', CAST((cpu_time_us) as INT64),
+        'thread_cpu_ns', CAST((cpu_time_ns) as INT64),
         'num_threads', num_threads,
         'core_data', core_type_proto_per_thread_name.proto
       )

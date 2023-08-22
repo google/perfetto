@@ -15,12 +15,11 @@
 import m from 'mithril';
 
 import {EngineProxy} from '../../common/engine';
-import {Button} from '../../frontend/widgets/button';
-import {Form, FormButtonBar, FormLabel} from '../../frontend/widgets/form';
+import {Form, FormLabel} from '../../frontend/widgets/form';
 import {Select} from '../../frontend/widgets/select';
 import {TextInput} from '../../frontend/widgets/text_input';
 
-import {addDebugTrack, SliceColumns} from './slice_track';
+import {addDebugTrack, SliceColumns, SqlDataSource} from './slice_track';
 
 export const ARG_PREFIX = 'arg_';
 
@@ -29,8 +28,7 @@ export function uuidToViewName(uuid: string): string {
 }
 
 interface AddDebugTrackMenuAttrs {
-  sqlViewName: string;
-  columns: string[];
+  dataSource: SqlDataSource;
   engine: EngineProxy;
 }
 
@@ -46,13 +44,13 @@ export class AddDebugTrackMenu implements
   };
 
   constructor(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
-    this.columns = [...vnode.attrs.columns];
+    this.columns = [...vnode.attrs.dataSource.columns];
 
     const chooseDefaultOption = (name: string) => {
-      for (const column of vnode.attrs.columns) {
+      for (const column of this.columns) {
         if (column === name) return column;
       }
-      for (const column of vnode.attrs.columns) {
+      for (const column of this.columns) {
         if (column.endsWith(`_${name}`)) return column;
       }
       // Debug tracks support data without dur, in which case it's treated as
@@ -60,7 +58,7 @@ export class AddDebugTrackMenu implements
       if (name === 'dur') {
         return '0';
       }
-      return vnode.attrs.columns[0];
+      return this.columns[0];
     };
 
     this.sliceColumns = {
@@ -73,7 +71,7 @@ export class AddDebugTrackMenu implements
   view(vnode: m.Vnode<AddDebugTrackMenuAttrs>) {
     const renderSelect = (name: 'ts'|'dur'|'name') => {
       const options = [];
-      for (const column of vnode.attrs.columns) {
+      for (const column of this.columns) {
         options.push(
             m('option',
               {
@@ -105,6 +103,17 @@ export class AddDebugTrackMenu implements
     };
     return m(
         Form,
+        {
+          onSubmit: () => {
+            addDebugTrack(
+                vnode.attrs.engine,
+                vnode.attrs.dataSource,
+                this.name,
+                this.sliceColumns,
+                this.columns);
+          },
+          submitLabel: 'Show',
+        },
         m(FormLabel,
           {for: 'track_name',
           },
@@ -114,7 +123,6 @@ export class AddDebugTrackMenu implements
           onkeydown: (e: KeyboardEvent) => {
             // Allow Esc to close popup.
             if (e.key === 'Escape') return;
-            e.stopPropagation();
           },
           oninput: (e: KeyboardEvent) => {
             if (!e.target) return;
@@ -124,22 +132,6 @@ export class AddDebugTrackMenu implements
         renderSelect('ts'),
         renderSelect('dur'),
         renderSelect('name'),
-        m(
-            FormButtonBar,
-            m(Button, {
-              label: 'Show',
-              dismissPopup: true,
-              onclick: (e: Event) => {
-                e.preventDefault();
-                addDebugTrack(
-                    vnode.attrs.engine,
-                    vnode.attrs.sqlViewName,
-                    this.name,
-                    this.sliceColumns,
-                    vnode.attrs.columns);
-              },
-            }),
-            ),
     );
   }
 }

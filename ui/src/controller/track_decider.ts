@@ -119,6 +119,8 @@ const POWER_RAILS_REGEX = new RegExp('^power.');
 const FREQUENCY_GROUP = 'Frequency Scaling';
 const TEMPERATURE_REGEX = new RegExp('^.* Temperature$');
 const TEMPERATURE_GROUP = 'Temperature';
+const IRQ_GROUP = 'IRQs';
+const IRQ_REGEX = new RegExp('^Irq Cpu.*');
 const CHROME_TRACK_REGEX = new RegExp('^Chrome.*|^InputLatency::.*');
 const CHROME_TRACK_GROUP = 'Chrome Global Tracks';
 const MISC_GROUP = 'Misc Global Tracks';
@@ -492,6 +494,17 @@ class TrackDecider {
     }
   }
 
+  async addCpuFreqLimitCounterTracks(engine: EngineProxy): Promise<void> {
+    const cpuFreqLimitCounterTracksSql = `
+      select name, id
+      from cpu_counter_track
+      where name glob "Cpu * Freq Limit"
+      order by name asc
+    `;
+
+    this.addCpuCounterTracks(engine, cpuFreqLimitCounterTracksSql);
+  }
+
   async addCpuPerfCounterTracks(engine: EngineProxy): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
@@ -499,11 +512,16 @@ class TrackDecider {
     // it. This might look surprising in the UI, but placeholder tracks are
     // wasteful as there's no way of collapsing global counter tracks at the
     // moment.
-    const result = await engine.query(`
+    const addCpuPerfCounterTracksSql = `
       select printf("Cpu %u %s", cpu, name) as name, id
       from perf_counter_track as pct
       order by perf_session_id asc, pct.name asc, cpu asc
-  `);
+    `;
+    this.addCpuCounterTracks(engine, addCpuPerfCounterTracksSql);
+  }
+
+  async addCpuCounterTracks(engine: EngineProxy, sql: string): Promise<void> {
+    const result = await engine.query(sql);
 
     const it = result.iter({
       name: STR,
@@ -1690,6 +1708,7 @@ class TrackDecider {
       thread.tid as tid,
       process.name as processName,
       thread.name as threadName,
+      package_list.debuggable as isDebuggable,
       ifnull((
         select group_concat(string_value)
         from args
@@ -1775,6 +1794,7 @@ class TrackDecider {
     ) using (upid)
     left join thread using(utid)
     left join process using(upid)
+    left join package_list using(uid)
     order by
       chromeProcessRank desc,
       hasHeapProfiles desc,
@@ -1796,6 +1816,7 @@ class TrackDecider {
       processName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
+      isDebuggable: NUM_NULL,
       chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
@@ -1807,6 +1828,7 @@ class TrackDecider {
       const processName = it.processName;
       const hasSched = !!it.hasSched;
       const hasHeapProfiles = !!it.hasHeapProfiles;
+      const isDebuggable = !!it.isDebuggable;
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1828,7 +1850,13 @@ class TrackDecider {
               PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
               PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
           name: `${upid === null ? tid : pid} summary`,
-          config: {pidForColor, upid, utid, tid},
+          config: {
+            pidForColor,
+            upid,
+            utid,
+            tid,
+            isDebuggable: isDebuggable ?? undefined,
+          },
           labels: it.chromeProcessLabels.split(','),
         });
 
@@ -1932,6 +1960,8 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addGlobalAsyncTracks'));
     await this.addGpuFreqTracks(
         this.engine.getProxy('TrackDecider::addGpuFreqTracks'));
+    await this.addCpuFreqLimitCounterTracks(
+          this.engine.getProxy('TrackDecider::addCpuFreqLimitCounterTracks'));
     await this.addCpuPerfCounterTracks(
         this.engine.getProxy('TrackDecider::addCpuPerfCounterTracks'));
     await this.addPluginTracks();
@@ -1952,6 +1982,7 @@ class TrackDecider {
     await this.groupFrequencyTracks(FREQUENCY_GROUP);
     await this.groupTracksByRegex(POWER_RAILS_REGEX, POWER_RAILS_GROUP);
     await this.groupTracksByRegex(TEMPERATURE_REGEX, TEMPERATURE_GROUP);
+    await this.groupTracksByRegex(IRQ_REGEX, IRQ_GROUP);
     await this.groupTracksByRegex(CHROME_TRACK_REGEX, CHROME_TRACK_GROUP);
     await this.groupMiscNonAllowlistedTracks(MISC_GROUP);
 

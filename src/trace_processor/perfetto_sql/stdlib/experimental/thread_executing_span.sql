@@ -44,21 +44,26 @@ FROM thread_state
 WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
    AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
--- Similar to |internal_runnable_state| but finds the runnable states at thread fork.
-CREATE VIEW internal_fork_runnable_state
+-- Similar to |internal_runnable_state| but finds the first runnable state at thread.
+CREATE VIEW internal_first_runnable_state
 AS
+WITH
+  first_state AS (
+    SELECT
+      MIN(thread_state.id) AS id
+    FROM thread_state
+    GROUP BY utid
+  )
 SELECT
   thread_state.id,
   thread_state.ts,
   thread_state.dur,
   thread_state.state,
   thread_state.utid,
-  thread_state.waker_utid,
-  thread.start_ts = thread_state.ts AS is_fork
+  thread_state.waker_utid
 FROM thread_state
-JOIN thread USING(utid)
-WHERE thread_state.dur != -1 AND thread_state.waker_utid IS NOT NULL
-   AND thread.start_ts = thread_state.ts;
+JOIN first_state USING (id)
+WHERE thread_state.dur != -1 AND thread_state.state = 'R';
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
@@ -72,7 +77,7 @@ SELECT
   thread_state.blocked_function,
   thread_state.utid
 FROM thread_state
-WHERE dur != -1 AND (state = 'S' OR state = 'D');
+WHERE dur != -1 AND (state = 'S' OR state = 'D' OR state = 'I');
 
 --
 -- Finds the last execution for every thread to end executing_spans without a Sleep.
@@ -86,19 +91,20 @@ FROM thread_state
 WHERE dur != -1
 GROUP BY utid;
 
--- Similar to |internal_sleep_state| but finds the first sleep state after thread fork.
-CREATE VIEW internal_fork_sleep_state
+-- Similar to |internal_sleep_state| but finds the first sleep state in a thread.
+CREATE VIEW internal_first_sleep_state
 AS
 SELECT
-  MIN(thread_state.id) AS id,
-  thread_state.ts,
-  thread_state.dur,
-  thread_state.state,
-  thread_state.blocked_function,
-  thread_state.utid
-FROM thread_state
-WHERE dur != -1 AND (state = 'S' OR state = 'D')
-GROUP BY utid;
+  MIN(s.id) AS id,
+  s.ts,
+  s.dur,
+  s.state,
+  s.blocked_function,
+  s.utid
+FROM internal_sleep_state s
+JOIN internal_runnable_state r
+  ON s.utid = r.utid AND (s.ts + s.dur = r.ts)
+GROUP BY s.utid;
 
 --
 -- Finds all neighbouring ('Sleeping', 'Runnable') thread_states pairs from the same thread.
@@ -136,8 +142,7 @@ GROUP BY utid;
 -- end_ts           = S1_ts.
 -- end_dur          = S1_dur.
 -- end_state        = 'S' or 'D'.
-CREATE TABLE internal_wakeup
-AS
+CREATE TABLE internal_wakeup AS
   SELECT
   LAG(r.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_id,
   LAG(r.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS prev_start_ts,
@@ -154,7 +159,6 @@ AS
   r.state AS start_state,
   r.utid AS utid,
   r.waker_utid,
-  0 AS is_fork,
   LEAD(s.id, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_id,
   IFNULL(LEAD(s.ts, 1) OVER (PARTITION BY r.utid ORDER BY r.ts), thread_end.end_ts)  AS end_ts,
   LEAD(s.dur, 1) OVER (PARTITION BY r.utid ORDER BY r.ts) AS end_dur,
@@ -181,15 +185,15 @@ UNION ALL
   r.state AS start_state,
   r.utid AS utid,
   r.waker_utid,
-  r.is_fork,
   s.id AS end_id,
-  s.ts AS end_ts,
+  IFNULL(s.ts, thread_end.end_ts)  AS end_ts,
   s.dur AS end_dur,
   s.state AS end_state,
   s.blocked_function AS blocked_function
-FROM internal_fork_runnable_state r
-JOIN internal_fork_sleep_state s
-  ON s.utid = r.utid;
+FROM internal_first_runnable_state r
+LEFT JOIN internal_first_sleep_state s
+  ON s.utid = r.utid
+LEFT JOIN internal_thread_end_ts thread_end USING(utid);
 
 -- Improves performance of |internal_wakeup_chain| computation.
 CREATE
@@ -227,7 +231,7 @@ FROM internal_wakeup
 JOIN internal_wakeup_root_id
   ON internal_wakeup_root_id.id = internal_wakeup.start_id;
 
-CREATE TABLE internal_wakeup_leaf AS
+CREATE PERFETTO TABLE internal_wakeup_leaf AS
 WITH
   internal_wakeup_leaf_id AS (
     SELECT DISTINCT start_id AS id FROM internal_wakeup_chain
@@ -241,7 +245,7 @@ JOIN internal_wakeup_leaf_id
 
 --
 -- Merges the roots and the rest of the chain.
-CREATE TABLE internal_wakeup_graph
+CREATE PERFETTO TABLE internal_wakeup_graph
 AS
 SELECT internal_wakeup_chain.*, 0 AS is_root, (internal_wakeup_leaf.start_id IS NOT NULL) AS is_leaf
 FROM internal_wakeup_chain
@@ -271,8 +275,7 @@ SELECT *, 1 AS is_root, 0 AS is_leaf FROM internal_wakeup_root;
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
 -- @column blocked_function   Kernel blocking function of thread state before waking up.
-CREATE TABLE experimental_thread_executing_span_graph
-AS
+CREATE TABLE experimental_thread_executing_span_graph AS
 SELECT
   graph.parent_id,
   graph.start_id AS id,
@@ -389,35 +392,41 @@ WITH chain AS (
 SELECT * FROM chain
 ');
 
--- All thread_executing_spans that are ancestors of |leaf_id|
+-- All thread_executing_spans that are ancestors of |leaf_id|.
 --
--- @arg leaf_id INT           Thread state id to start recursion
+-- @arg leaf_id INT                Thread state id to start recursion.
+-- @arg leaf_utid INT              Thread utid to start recursion from.
 --
--- @column parent_id          Id of thread_executing_span that directly woke |id|
--- @column id                 Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                 Timestamp of first thread_state in thread_executing_span.
--- @column dur                Duration of thread_executing_span.
--- @column tid                Tid of thread with thread_state.
--- @column pid                Pid of process with thread_state.
--- @column utid               Utid of thread with thread_state.
--- @column upid               Upid of process with thread_state.
--- @column thread_name        Name of thread with thread_state.
--- @column process_name       Name of process with thread_state.
--- @column waker_tid          Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid          Pid of process that woke the first thread_state in thread_executing_span.
--- @column waker_utid         Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid         Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name  Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name Name of process that woke the first thread_state in thread_executing_span.
--- @column blocked_dur        Duration of blocking thread state before waking up.
--- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function   Kernel blocking function of thread state before waking up.
--- @column is_root            Whether this span is the root in the slice tree.
--- @column is_leaf            Whether this span is the leaf in the slice tree.
--- @column height             Tree height from |leaf_id|
--- @column leaf_id            Thread state id used to start the recursion. Helpful for SQL JOINs
+-- @column parent_id               Id of thread_executing_span that directly woke |id|.
+-- @column id                      Id of the first (runnable) thread state in thread_executing_span.
+-- @column ts                      Timestamp of first thread_state in thread_executing_span.
+-- @column dur                     Duration of thread_executing_span.
+-- @column tid                     Tid of thread with thread_state.
+-- @column pid                     Pid of process with thread_state.
+-- @column utid                    Utid of thread with thread_state.
+-- @column upid                    Upid of process with thread_state.
+-- @column thread_name             Name of thread with thread_state.
+-- @column process_name            Name of process with thread_state.
+-- @column waker_tid               Tid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_pid               Pid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_utid              Utid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_upid              Upid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_thread_name       Name of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_process_name      Name of process that woke the first thread_state in thread_executing_span.
+-- @column blocked_dur             Duration of blocking thread state before waking up.
+-- @column blocked_state           Thread state ('D' or 'S') of blocked thread_state before waking up.
+-- @column blocked_function        Kernel blocking function of thread state before waking up.
+-- @column is_root                 Whether this span is the root in the slice tree.
+-- @column is_leaf                 Whether this span is the leaf in the slice tree.
+-- @column height                  Tree height from |leaf_id|.
+-- @column leaf_id                 Thread state id used to start the recursion. Helpful for SQL JOINs.
+-- @column leaf_ts                 Thread state timestamp of the |leaf_id|.
+-- @column leaf_utid               Thread Utid of the |leaf_id|.
+-- @column leaf_blocked_dur        Thread state duration blocked of the |leaf_id|.
+-- @column leaf_blocked_state      Thread state of the |leaf_id|.
+-- @column leaf_blocked_function   Thread state blocked_function of the |leaf_id|.
 SELECT CREATE_VIEW_FUNCTION(
-'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT)',
+'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT, leaf_utid INT)',
 '
   parent_id LONG,
   id LONG,
@@ -441,7 +450,12 @@ SELECT CREATE_VIEW_FUNCTION(
   is_root INT,
   is_leaf INT,
   height INT,
-  leaf_id INT
+  leaf_id INT,
+  leaf_ts LONG,
+  leaf_utid INT,
+  leaf_blocked_dur LONG,
+  leaf_blocked_state STRING,
+  leaf_blocked_function STRING
 ',
 '
 WITH
@@ -451,25 +465,160 @@ chain AS (
     0 AS height,
     id AS leaf_id,
     ts AS leaf_ts,
+    utid AS leaf_utid,
     blocked_dur AS leaf_blocked_dur,
+    blocked_state AS leaf_blocked_state,
     blocked_function AS leaf_blocked_function
   FROM experimental_thread_executing_span_graph
-  WHERE ($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL AND is_leaf)
+  WHERE (($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL))
+    AND (($leaf_utid IS NOT NULL AND utid = $leaf_utid) OR ($leaf_utid IS NULL))
   UNION ALL
   SELECT
     graph.*,
     chain.height + 1 AS height,
     chain.leaf_id,
     chain.leaf_ts,
+    chain.leaf_utid,
     chain.leaf_blocked_dur,
+    chain.leaf_blocked_state,
     chain.leaf_blocked_function
   FROM experimental_thread_executing_span_graph graph
   JOIN chain ON chain.parent_id = graph.id AND chain.ts >= (leaf_ts - leaf_blocked_dur)
-) SELECT
+)
+SELECT * FROM chain
+');
+
+-- Gets the thread_executing_span id a thread_state belongs to. Returns NULL if thread state is
+-- sleeping and not blocked on an interrupt.
+--
+-- @arg thread_state_id INT   Id of the thread_state to get the thread_executing_span id for
+-- @ret INT                   thread_executing_span id
+CREATE PERFETTO FUNCTION
+experimental_thread_executing_span_id_from_thread_state_id(thread_state_id INT)
+RETURNS INT AS
+WITH executing AS (
+  SELECT
+    ts,
+    utid
+  FROM thread_state
+  WHERE
+    id = $thread_state_id
+)
+SELECT
+  MAX(start_id) AS thread_executing_span_id
+FROM internal_wakeup wakeup, executing
+WHERE executing.utid = wakeup.utid AND executing.ts >= wakeup.start_ts AND executing.ts < wakeup.end_ts;
+
+-- Gets the next thread_executing_span id after a sleeping state. Returns NULL if there is no
+-- thread_executing_span after the |thread_state_id|.
+--
+-- @arg thread_state_id INT   Id of the thread_state to get the next thread_executing_span id for
+-- @ret INT                   thread_executing_span id
+CREATE PERFETTO FUNCTION
+experimental_thread_executing_span_following_thread_state_id(thread_state_id INT)
+RETURNS INT AS
+WITH
+  sleeping AS (
+  SELECT
+    ts,
+    utid
+  FROM thread_state
+  WHERE
+    id = $thread_state_id AND (state = 'S' OR state = 'D' OR state = 'I')
+  )
+SELECT MIN(start_id) AS thread_executing_span_id
+FROM internal_wakeup wakeup, sleeping
+WHERE sleeping.utid = wakeup.utid AND sleeping.ts < wakeup.start_ts;
+
+-- Computes the start of each thread_executing_span in the critical path.
+
+-- It finds the MAX between the start of the critical span and the start
+-- of the blocked region. This ensures that the critical path doesn't overlap
+-- the preceding thread_executing_span before the blocked region.
+CREATE PERFETTO FUNCTION internal_critical_path_start_ts(ts LONG, leaf_ts LONG, leaf_blocked_dur LONG)
+RETURNS LONG AS SELECT MAX($ts, IFNULL($leaf_ts - $leaf_blocked_dur, $ts));
+
+-- Critical path of thread_executing_spans blocking the thread_executing_span with id,
+-- |thread_executing_span_id|. For a given thread state span, its duration in the critical path
+-- is the range between the start of the thread_executing_span and the start of the next span in the
+-- critical path.
+--
+-- @arg thread_executing_span_id INT        Id of blocked thread_executing_span.
+-- @arg utid INT                            Thread utid to pre-filter critical paths for.
+--
+-- @column parent_id                        Id of thread_executing_span that directly woke |id|.
+-- @column id                               Id of the first (runnable) thread state in thread_executing_span.
+-- @column ts                               Timestamp of first thread_state in thread_executing_span.
+-- @column dur                              Duration of thread_executing_span within the critical path.
+-- @column tid                              Tid of thread with thread_state.
+-- @column pid                              Pid of process with thread_state.
+-- @column utid                             Utid of thread with thread_state.
+-- @column upid                             Upid of process with thread_state.
+-- @column thread_name                      Name of thread with thread_state.
+-- @column process_name                     Name of process with thread_state.
+-- @column waker_tid                        Tid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_pid                        Pid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_utid                       Utid of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_upid                       Upid of process that woke the first thread_state in thread_executing_span.
+-- @column waker_thread_name                Name of thread that woke the first thread_state in thread_executing_span.
+-- @column waker_process_name               Name of process that woke the first thread_state in thread_executing_span.
+-- @column blocked_dur                      Duration of blocking thread state before waking up.
+-- @column blocked_state                    Thread state ('D' or 'S') of blocked thread_state before waking up.
+-- @column blocked_function                 Kernel blocking function of thread state before waking up.
+-- @column is_root                          Whether this span is the root in the slice tree.
+-- @column is_leaf                          Whether this span is the leaf in the slice tree.
+-- @column height                           Tree height from |leaf_id|.
+-- @column leaf_id                          Thread state id used to start the recursion. Helpful for SQL JOINs.
+-- @column leaf_ts                          Thread state timestamp of the |leaf_id|.
+-- @column leaf_utid                        Thread Utid of the |leaf_id|. Helpful for post-filtering the critical path to those originating from a thread.
+-- @column leaf_blocked_dur                 Thread state duration blocked of the |leaf_id|.
+-- @column leaf_blocked_state               Thread state of the |leaf_id|.
+-- @column leaf_blocked_function            Thread state blocked_function of the |leaf_id|.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(thread_executing_span_id INT, leaf_utid INT)
+RETURNS TABLE(
+  parent_id LONG,
+  id LONG,
+  ts LONG,
+  dur LONG,
+  tid INT,
+  pid INT,
+  utid INT,
+  upid INT,
+  thread_name STRING,
+  process_name STRING,
+  waker_tid INT,
+  waker_pid INT,
+  waker_utid INT,
+  waker_upid INT,
+  waker_thread_name STRING,
+  waker_process_name STRING,
+  blocked_dur LONG,
+  blocked_state STRING,
+  blocked_function STRING,
+  is_root INT,
+  is_leaf INT,
+  height INT,
+  leaf_id INT,
+  leaf_ts LONG,
+  leaf_utid INT,
+  leaf_blocked_dur LONG,
+  leaf_blocked_state STRING,
+  leaf_blocked_function STRING
+) AS
+ SELECT
     parent_id,
     id,
-    ts,
-    dur,
+    -- Here we compute the real ts and dur of a span in the critical_path.
+    -- For the ts, we simply use the internal_critical_path_start_ts helper function.
+    internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS ts,
+    -- For the dur, it is the MIN between the end of the current span and the start of
+    -- the next span in the critical path. This ensures that the critical paths don't overlap.
+    -- We are simply doing a MIN(real_ts + dur, lead(ts) - ts). It's written inline here for
+    -- performance reasons. Note that we don't need the real_ts in the lead() because the real_ts
+    -- is really only needed for the first ts in the critical path.
+    MIN(internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) + dur,
+        IFNULL(LEAD(ts) OVER (PARTITION BY leaf_id ORDER BY height DESC), trace_bounds.end_ts))
+    - internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS dur,
     tid,
     pid,
     utid,
@@ -488,27 +637,11 @@ chain AS (
     is_root,
     is_leaf,
     height,
-    leaf_id
-  FROM chain;
-');
-
--- Gets the thread_executing_span id a thread_state belongs to. Returns NULL if thread state is
--- sleeping and not blocked on an interrupt.
---
--- @arg thread_state_id INT   Id of the thread_state to get the thread_executing_span id for
--- @ret INT                   thread_executing_span id
-CREATE PERFETTO FUNCTION
-EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(thread_state_id INT)
-RETURNS INT AS
-WITH t AS (
-  SELECT
-    ts,
-    utid
-  FROM thread_state
-  WHERE
-    id = $thread_state_id
-)
-SELECT
-  MAX(start_id) AS thread_executing_span_id
-FROM internal_wakeup w, t
-WHERE t.utid = w.utid AND t.ts >= w.start_ts AND t.ts < w.end_ts;
+    leaf_id,
+    leaf_ts,
+    leaf_utid,
+    leaf_blocked_dur,
+    leaf_blocked_state,
+    leaf_blocked_function
+  FROM experimental_thread_executing_span_ancestors($thread_executing_span_id, $leaf_utid),
+    trace_bounds;

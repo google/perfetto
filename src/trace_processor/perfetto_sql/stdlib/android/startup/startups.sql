@@ -17,7 +17,7 @@ SELECT IMPORT('common.slices');
 SELECT IMPORT('android.process_metadata');
 
 -- All activity startup events.
-CREATE TABLE internal_startup_events AS
+CREATE PERFETTO TABLE internal_startup_events AS
 SELECT
   ts,
   dur,
@@ -54,12 +54,12 @@ SELECT IMPORT('android.startup.internal_startups_minsdk33');
 -- @column dur          Startup duration.
 -- @column package      Package name.
 -- @column startup_type Startup type.
-CREATE TABLE android_startups AS
+CREATE PERFETTO TABLE android_startups AS
 SELECT startup_id, ts, ts_end, dur, package, startup_type FROM
 internal_all_startups WHERE ( CASE
-  WHEN SLICE_COUNT('launchingActivity#*:*') > 0
+  WHEN slice_count('launchingActivity#*:*') > 0
     THEN sdk = "minsdk33"
-  WHEN SLICE_COUNT('MetricsLogger:*') > 0
+  WHEN slice_count('MetricsLogger:*') > 0
     THEN sdk = "minsdk29"
   ELSE sdk = "maxsdk28"
   END);
@@ -70,12 +70,12 @@ internal_all_startups WHERE ( CASE
 
 -- Create a table containing only the slices which are necessary for determining
 -- whether a startup happened.
-CREATE TABLE internal_startup_indicator_slices AS
+CREATE PERFETTO TABLE internal_startup_indicator_slices AS
 SELECT ts, name, track_id
 FROM slice
 WHERE name IN ('bindApplication', 'activityStart', 'activityResume');
 
-CREATE PERFETTO FUNCTION INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(start_ts LONG,
+CREATE PERFETTO FUNCTION INTERNAL_STARTUP_INDICATOR_slice_count(start_ts LONG,
                                                                 end_ts LONG,
                                                                 utid INT,
                                                                 name STRING)
@@ -97,7 +97,7 @@ WHERE
 -- @column startup_id   Startup id.
 -- @column upid         Upid of process on which activity started.
 -- @column startup_type Type of the startup.
-CREATE TABLE android_startup_processes AS
+CREATE PERFETTO TABLE android_startup_processes AS
 -- This is intentionally a materialized query. For some reason, if we don't
 -- materialize, we end up with a query which is an order of magnitude slower :(
 WITH startup_with_type AS MATERIALIZED (
@@ -117,9 +117,9 @@ WITH startup_with_type AS MATERIALIZED (
       l.startup_id,
       l.startup_type,
       p.upid,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
-      INTERNAL_STARTUP_INDICATOR_SLICE_COUNT(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'bindApplication') AS bind_app,
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'activityStart') AS a_start,
+      INTERNAL_STARTUP_INDICATOR_slice_count(l.ts, l.ts_end, t.utid, 'activityResume') AS a_resume
     FROM android_startups l
     JOIN android_process_metadata p ON (
       l.package = p.package_name
@@ -249,7 +249,7 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups
@@ -262,7 +262,7 @@ WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION ANDROID_SUM_DUR_ON_MAIN_THREAD_FOR_STARTUP_AND_SLICE(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups

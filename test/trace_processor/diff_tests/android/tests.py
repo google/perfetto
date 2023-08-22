@@ -14,10 +14,10 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
-
+from python.generators.diff_tests.testing import PrintProfileProto
 
 class Android(TestSuite):
 
@@ -480,6 +480,37 @@ class Android(TestSuite):
         query=Metric('android_monitor_contention'),
         out=Path('android_monitor_contention.out'))
 
+  def test_monitor_contention_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+        SELECT IMPORT('android.monitor_contention');
+
+        SELECT HEX(pprof) FROM android_monitor_contention_graph(303)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        Sample:
+        Values: 29604
+        Stack:
+        android.bg:android.os.MessageQueue.nativeWake (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+
+        Sample:
+        Values: 66924
+        Stack:
+        android.bg:android.os.MessageQueue.enqueueMessage (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+
+        Sample:
+        Values: 73265
+        Stack:
+        main:android.os.MessageQueue.enqueueMessage (0x0)
+        fg:android.os.MessageQueue.next (0x0)
+        """))
+
   def test_thread_creation_spam(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
@@ -523,7 +554,7 @@ class Android(TestSuite):
       SELECT * FROM android_io_f2fs_counter_stats;
       """,
         out=Csv("""
-        "counter_name","counter_sum","counter_max","counter_min","counter_dur","counter_count","counter_avg"
+        "name","sum","max","min","dur","count","avg"
         "read_app_total",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
         "read_app_buffered",580966.000000,567184.000000,13782.000000,2515275969,2,290483.000000
         "write_cp_node",94208.000000,94208.000000,0.000000,2515275969,2,47104.000000
@@ -542,10 +573,6 @@ class Android(TestSuite):
         "write_sync_meta_avg",1.000000,1.000000,0.000000,2515276848,2,0.500000
         "write_sync_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "write_sync_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
-        "write_gc_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
-        "write_gc_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
-        "write_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
-        "write_cp_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "write_async_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "write_async_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "write_async_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
@@ -555,21 +582,25 @@ class Android(TestSuite):
         "write_async_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "write_async_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "write_async_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
-        "write_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_node_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_node_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_node_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_meta_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_meta_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_meta_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "read_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
+        "write_gc_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_gc_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_cp_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
+        "write_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_fs_node",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_fs_meta",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_fs_gdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_fs_data",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_fs_cdata",0.000000,0.000000,0.000000,2515275969,2,0.000000
-        "read_data_peak",0.000000,0.000000,0.000000,2515276848,2,0.000000
-        "read_data_cnt",0.000000,0.000000,0.000000,2515276848,2,0.000000
-        "read_data_avg",0.000000,0.000000,0.000000,2515276848,2,0.000000
         "read_app_mapped",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "read_app_direct",0.000000,0.000000,0.000000,2515275969,2,0.000000
         "other_fs_discard",0.000000,0.000000,0.000000,2515275969,2,0.000000
@@ -599,6 +630,20 @@ class Android(TestSuite):
         3516,"fg",3487,"com.android.providers.media.module",2425,65077,8,8
         3548,"AsyncTask #1",3487,"com.android.providers.media.module",2643,65077,8,8
       """))
+
+  def test_f2fs_aggregate_write_stats(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
+        SELECT IMPORT('android.io');
+        SELECT total_write_count, distinct_processes, total_bytes_written,
+               distinct_device_count, distict_inode_count, distinct_thread_count
+        FROM android_io_f2fs_aggregate_write_stats
+        """,
+        out=Csv("""
+        "total_write_count","distinct_processes","total_bytes_written","distinct_device_count","distict_inode_count","distinct_thread_count"
+        203,3,375180,1,13,6
+        """))
 
   def test_binder_async_txns(self):
     return DiffTestBlueprint(
@@ -671,3 +716,312 @@ class Android(TestSuite):
         "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281131360,25281145719
         "AIDL::cpp::IInstalld::prepareAppProfile::cppServer","system_server","/system/bin/installd","system_server",641,548,1,-1000,-1000,25281273755,25281315273
       """))
+
+  def test_binder_outgoing_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT HEX(pprof) FROM ANDROID_BINDER_OUTGOING_GRAPH(259)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/surfaceflinger (0x0)
+        binder:446_1 (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        stealReceiveChannel (0x0)
+        IDisplayEventConnection (0x0)
+        /system/bin/surfaceflinger (0x0)
+        binder:446_1 (0x0)
+        """))
+
+  def test_binder_incoming_graph(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT HEX(pprof) FROM ANDROID_BINDER_INCOMING_GRAPH(296)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        Sample:
+        Values: 1764197
+        Stack:
+        fixupAppData (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 202423
+        Stack:
+        rmdex (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 438512
+        Stack:
+        cleanupInvalidPackageDirs (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 4734897
+        Stack:
+        invalidateMounts (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 7448312
+        Stack:
+        prepareAppProfile (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 91238713
+        Stack:
+        createAppDataBatched (0x0)
+        IInstalld (0x0)
+        system_server (0x0)
+        """))
+
+  def test_binder_graph_invalid_oom(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT HEX(pprof) FROM ANDROID_BINDER_GRAPH(2000, 2000, 2000, 2000)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        """))
+
+  def test_binder_graph_valid_oom(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_binder_metric_trace.atr'),
+        query="""
+        SELECT IMPORT('android.binder');
+        SELECT HEX(pprof) FROM ANDROID_BINDER_GRAPH(-1000, 1000, -1000, 1000)
+      """,
+      out=BinaryProto(
+        message_type="perfetto.third_party.perftools.profiles.Profile",
+        post_processing=PrintProfileProto,
+        contents="""
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/apexd (0x0)
+        /system/bin/servicemanager (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/bootanimation (0x0)
+        /system/bin/surfaceflinger (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/cameraserver (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/storaged (0x0)
+        /vendor/bin/hw/android.hardware.health-service.cuttlefish (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/surfaceflinger (0x0)
+        /system/bin/bootanimation (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        /system/bin/surfaceflinger (0x0)
+        /vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        media.metrics (0x0)
+        /system/bin/audioserver (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        system_server (0x0)
+        /system/bin/servicemanager (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        system_server (0x0)
+        /system/bin/surfaceflinger (0x0)
+
+        Sample:
+        Values: 105827054
+        Stack:
+        /system/bin/installd (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 11316
+        Stack:
+        system_server (0x0)
+        /apex/com.android.os.statsd/bin/statsd (0x0)
+
+        Sample:
+        Values: 12567639
+        Stack:
+        /system/bin/servicemanager (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 137623
+        Stack:
+        /vendor/bin/hw/android.hardware.lights-service.example (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 140719
+        Stack:
+        system_server (0x0)
+        /system/bin/storaged (0x0)
+
+        Sample:
+        Values: 150044
+        Stack:
+        /vendor/bin/hw/android.hardware.input.processor-service.example (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 1877718
+        Stack:
+        /system/bin/surfaceflinger (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 19303
+        Stack:
+        system_server (0x0)
+        /vendor/bin/hw/android.hardware.sensors-service.example (0x0)
+
+        Sample:
+        Values: 210889
+        Stack:
+        /system/bin/servicemanager (0x0)
+        /apex/com.android.os.statsd/bin/statsd (0x0)
+
+        Sample:
+        Values: 21505514
+        Stack:
+        /system/bin/idmap2d (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 25394
+        Stack:
+        /system/bin/servicemanager (0x0)
+        /system/bin/surfaceflinger (0x0)
+
+        Sample:
+        Values: 2552696
+        Stack:
+        /system/bin/hwservicemanager (0x0)
+        /system/bin/cameraserver (0x0)
+
+        Sample:
+        Values: 273686
+        Stack:
+        /vendor/bin/hw/android.hardware.sensors-service.example (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 28045
+        Stack:
+        /apex/com.android.os.statsd/bin/statsd (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 297647
+        Stack:
+        /system/bin/hwservicemanager (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 3483649
+        Stack:
+        system_server (0x0)
+        /system/bin/audioserver (0x0)
+
+        Sample:
+        Values: 3677545
+        Stack:
+        /system/bin/servicemanager (0x0)
+        /system/bin/audioserver (0x0)
+
+        Sample:
+        Values: 3991341
+        Stack:
+        /system/bin/servicemanager (0x0)
+        /system/bin/cameraserver (0x0)
+
+        Sample:
+        Values: 41164
+        Stack:
+        system_server (0x0)
+        /vendor/bin/hw/android.hardware.health-service.cuttlefish (0x0)
+
+        Sample:
+        Values: 4948091
+        Stack:
+        system_server (0x0)
+        /system/bin/cameraserver (0x0)
+
+        Sample:
+        Values: 502254
+        Stack:
+        /vendor/bin/hw/android.hardware.health-service.cuttlefish (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 629626
+        Stack:
+        /apex/com.android.hardware.vibrator/bin/hw/android.hardware.vibrator-service.example (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 78428525
+        Stack:
+        /vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu (0x0)
+        /system/bin/surfaceflinger (0x0)
+
+        Sample:
+        Values: 81216
+        Stack:
+        /system/bin/vold (0x0)
+        system_server (0x0)
+
+        Sample:
+        Values: 837989
+        Stack:
+        /system/bin/servicemanager (0x0)
+        /system/bin/storaged (0x0)
+        """))

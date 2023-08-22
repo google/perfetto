@@ -20,6 +20,8 @@
 #include "src/base/test/test_task_runner.h"
 #include "test/gtest_and_gmock.h"
 
+#include "protos/perfetto/config/android/android_sdk_sysprop_guard_config.gen.h"
+
 namespace perfetto {
 namespace {
 
@@ -27,6 +29,20 @@ constexpr char kHeapprofdDataSourceName[] = "android.heapprofd";
 constexpr char kTracedPerfDataSourceName[] = "linux.perf";
 constexpr char kLazyHeapprofdPropertyName[] = "traced.lazy.heapprofd";
 constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
+
+constexpr char kAndroidSdkSyspropGuardDataSourceName[] =
+    "android.sdk_sysprop_guard";
+constexpr char kPerfettoSdkSyspropGuardGenerationPropertyName[] =
+    "debug.perfetto.sdk_sysprop_guard_generation";
+constexpr char kHwuiSkiaBroadTracingPropertyName[] =
+    "debug.hwui.skia_tracing_enabled";
+constexpr char kHwuiSkiaUsePerfettoPropertyName[] =
+    "debug.hwui.skia_use_perfetto_track_events";
+constexpr char kHwuiSkiaPropertyPackageSeparator[] = ".";
+constexpr char kSurfaceFlingerSkiaBroadTracingPropertyName[] =
+    "debug.renderengine.skia_tracing_enabled";
+constexpr char kSurfaceFlingerSkiaUsePerfettoPropertyName[] =
+    "debug.renderengine.skia_use_perfetto_track_events";
 
 using ::testing::_;
 using ::testing::InvokeWithoutArgs;
@@ -161,6 +177,137 @@ TEST(BuiltinProducerTest, LazyRefCountsIndependent) {
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(&p);
 }
+
+class AndroidSdkSyspropGuardParameterizedTestFixture
+    : public ::testing::TestWithParam<bool> {
+ public:
+  static constexpr int ITERATIONS = 3;
+};
+
+TEST_P(AndroidSdkSyspropGuardParameterizedTestFixture, SurfaceFlinger) {
+  bool should_enable = GetParam();
+
+  // Set SF flag in config
+  protos::gen::AndroidSdkSyspropGuardConfig sysprop_guard;
+  sysprop_guard.set_surfaceflinger_skia_track_events(should_enable);
+
+  base::TestTaskRunner task_runner;
+  StrictMock<MockBuiltinProducer> p(&task_runner);
+  DataSourceConfig cfg;
+  cfg.set_name(kAndroidSdkSyspropGuardDataSourceName);
+  cfg.set_android_sdk_sysprop_guard_config_raw(
+      sysprop_guard.SerializeAsString());
+
+  // Expect SF props set
+  EXPECT_CALL(p, SetAndroidProperty(kSurfaceFlingerSkiaBroadTracingPropertyName,
+                                    "true"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+  EXPECT_CALL(
+      p, SetAndroidProperty(kSurfaceFlingerSkiaUsePerfettoPropertyName, "true"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(
+                     kPerfettoSdkSyspropGuardGenerationPropertyName, "1"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+
+  // Sysprops should only be set once given the same config
+  for (int i = 0; i < ITERATIONS; i++) {
+    p.SetupDataSource(1, cfg);
+    p.StopDataSource(1);
+    task_runner.RunUntilIdle();
+  }
+  Mock::VerifyAndClearExpectations(&p);
+}
+
+TEST_P(AndroidSdkSyspropGuardParameterizedTestFixture, HwuiGlobal) {
+  bool should_enable = GetParam();
+
+  // Set HWUI flag in config.
+  // The package filter is left BLANK so this applies GLOBALLY.
+  protos::gen::AndroidSdkSyspropGuardConfig sysprop_guard;
+  sysprop_guard.set_hwui_skia_track_events(should_enable);
+
+  base::TestTaskRunner task_runner;
+  StrictMock<MockBuiltinProducer> p(&task_runner);
+  DataSourceConfig cfg;
+  cfg.set_name(kAndroidSdkSyspropGuardDataSourceName);
+  cfg.set_android_sdk_sysprop_guard_config_raw(
+      sysprop_guard.SerializeAsString());
+
+  // Expect GLOBAL props set for HWUI.
+  EXPECT_CALL(p, SetAndroidProperty(kHwuiSkiaBroadTracingPropertyName, "true"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(kHwuiSkiaUsePerfettoPropertyName, "true"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+  EXPECT_CALL(p, SetAndroidProperty(
+                     kPerfettoSdkSyspropGuardGenerationPropertyName, "1"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+
+  // Sysprops should only be set once given the same config
+  for (int i = 0; i < ITERATIONS; i++) {
+    p.SetupDataSource(1, cfg);
+    p.StopDataSource(1);
+    task_runner.RunUntilIdle();
+  }
+  Mock::VerifyAndClearExpectations(&p);
+}
+
+TEST_P(AndroidSdkSyspropGuardParameterizedTestFixture, HwuiPackageFiltered) {
+  bool should_enable = GetParam();
+
+  std::string packages[] = {"test1", "com.android.systemui", "test3"};
+  // Set HWUI flag in config. Package filter left blank.
+  // The package filter is SET so this applies SELECTIVELY.
+  protos::gen::AndroidSdkSyspropGuardConfig sysprop_guard;
+  sysprop_guard.set_hwui_skia_track_events(should_enable);
+  for (std::string package : packages) {
+    sysprop_guard.add_hwui_package_name_filter(package);
+  }
+
+  base::TestTaskRunner task_runner;
+  StrictMock<MockBuiltinProducer> p(&task_runner);
+  DataSourceConfig cfg;
+  cfg.set_name(kAndroidSdkSyspropGuardDataSourceName);
+  cfg.set_android_sdk_sysprop_guard_config_raw(
+      sysprop_guard.SerializeAsString());
+
+  // Expect APP-SPECIFIC props set for HWUI.
+  for (std::string package : packages) {
+    EXPECT_CALL(
+        p, SetAndroidProperty(kHwuiSkiaBroadTracingPropertyName +
+                                  (kHwuiSkiaPropertyPackageSeparator + package),
+                              "true"))
+        .Times(should_enable ? 1 : 0)
+        .WillOnce(Return(true));
+    EXPECT_CALL(
+        p, SetAndroidProperty(kHwuiSkiaUsePerfettoPropertyName +
+                                  (kHwuiSkiaPropertyPackageSeparator + package),
+                              "true"))
+        .Times(should_enable ? 1 : 0)
+        .WillOnce(Return(true));
+  }
+  EXPECT_CALL(p, SetAndroidProperty(
+                     kPerfettoSdkSyspropGuardGenerationPropertyName, "1"))
+      .Times(should_enable ? 1 : 0)
+      .WillOnce(Return(true));
+
+  // Sysprops should only be set once given the same config
+  for (int i = 0; i < ITERATIONS; i++) {
+    p.SetupDataSource(1, cfg);
+    p.StopDataSource(1);
+    task_runner.RunUntilIdle();
+  }
+  Mock::VerifyAndClearExpectations(&p);
+}
+
+INSTANTIATE_TEST_SUITE_P(BuiltinProducerTest,
+                         AndroidSdkSyspropGuardParameterizedTestFixture,
+                         testing::Values(true, false));
 
 }  // namespace
 }  // namespace perfetto

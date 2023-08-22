@@ -19,7 +19,7 @@ SELECT IMPORT('common.timestamps');
 --
 -- @arg counter_track_id  INT Id of a counter track with a counter.
 -- @ret LONG                  Timestamp of first counter value. Null if doesn't exist.
-CREATE PERFETTO FUNCTION EARLIEST_TIMESTAMP_FOR_COUNTER_TRACK(counter_track_id INT)
+CREATE PERFETTO FUNCTION earliest_timestamp_for_counter_track(counter_track_id INT)
 RETURNS LONG AS
 SELECT MIN(ts) FROM counter WHERE counter.track_id = $counter_track_id;
 
@@ -48,7 +48,7 @@ SELECT CREATE_VIEW_FUNCTION(
   '
     SELECT
         ts,
-        LEAD(ts, 1, TRACE_END()) OVER(ORDER BY ts) - ts AS dur,
+        LEAD(ts, 1, trace_end()) OVER(ORDER BY ts) - ts AS dur,
         value,
         track.id AS track_id,
         track.name AS track_name,

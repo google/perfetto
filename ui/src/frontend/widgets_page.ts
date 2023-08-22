@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Hotkey, Platform} from '../base/hotkeys';
 import {raf} from '../core/raf_scheduler';
 
 import {Anchor} from './anchor';
@@ -28,7 +29,8 @@ import {Callout} from './widgets/callout';
 import {Checkbox} from './widgets/checkbox';
 import {Editor} from './widgets/editor';
 import {EmptyState} from './widgets/empty_state';
-import {Form, FormButtonBar, FormLabel} from './widgets/form';
+import {Form, FormLabel} from './widgets/form';
+import {HotkeyGlyphs} from './widgets/hotkey_glyphs';
 import {Icon} from './widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
 import {
@@ -323,17 +325,33 @@ function ControlledPopup() {
 }
 
 type Options = {
-  [key: string]: EnumOption|boolean
+  [key: string]: EnumOption|boolean|string;
 };
-
-interface WidgetShowcaseAttrs {
-  initialOpts?: Options;
-  renderWidget: (options: any) => any;
-  wide?: boolean;
-}
 
 class EnumOption {
   constructor(public initial: string, public options: string[]) {}
+}
+
+
+interface WidgetTitleAttrs {
+  label: string;
+}
+
+class WidgetTitle implements m.ClassComponent<WidgetTitleAttrs> {
+  view({attrs}: m.CVnode<WidgetTitleAttrs>) {
+    const {label} = attrs;
+    const id = label.replaceAll(' ', '').toLowerCase();
+    const href = `#!/widgets#${id}`;
+    return m(Anchor, {id, href}, m('h2', label));
+  }
+}
+
+interface WidgetShowcaseAttrs {
+  label: string;
+  description?: string;
+  initialOpts?: Options;
+  renderWidget: (options: any) => any;
+  wide?: boolean;
 }
 
 // A little helper class to render any vnode with a dynamic set of options
@@ -363,13 +381,16 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
             this.optValues[key] = option.initial;
           } else if (typeof option === 'boolean') {
             this.optValues[key] = option;
+          } else if (typeof option === 'string') {
+            this.optValues[key] = option;
           }
         }
       }
     }
   }
 
-  view({attrs: {renderWidget, wide}}: m.CVnode<WidgetShowcaseAttrs>) {
+  view({attrs}: m.CVnode<WidgetShowcaseAttrs>) {
+    const {renderWidget, wide, label, description} = attrs;
     const listItems = [];
 
     if (this.opts) {
@@ -381,6 +402,8 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
     }
 
     return [
+      m(WidgetTitle, {label}),
+      description && m('p', description),
       m(
           '.widget-block',
           m(
@@ -405,6 +428,8 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return this.renderEnumOption(key, value);
     } else if (typeof value === 'boolean') {
       return this.renderBooleanOption(key);
+    } else if (typeof value === 'string') {
+      return this.renderStringOption(key);
     } else {
       return null;
     }
@@ -416,6 +441,17 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       label: key,
       onchange: () => {
         this.optValues[key] = !this.optValues[key];
+        raf.scheduleFullRedraw();
+      },
+    });
+  }
+
+  private renderStringOption(key: string) {
+    return m(TextInput, {
+      placeholder: key,
+      value: this.optValues[key],
+      oninput: (e: Event) => {
+        this.optValues[key] = (e.target as HTMLInputElement).value;
         raf.scheduleFullRedraw();
       },
     });
@@ -444,8 +480,8 @@ export const WidgetsPage = createPage({
     return m(
         '.widgets-page',
         m('h1', 'Widgets'),
-        m('h2', 'Button'),
         m(WidgetShowcase, {
+          label: 'Button',
           renderWidget: ({label, icon, rightIcon, ...rest}) => m(Button, {
             icon: icon ? 'send' : undefined,
             rightIcon: rightIcon ? 'arrow_forward' : undefined,
@@ -462,15 +498,15 @@ export const WidgetsPage = createPage({
             compact: false,
           },
         }),
-        m('h2', 'Checkbox'),
         m(WidgetShowcase, {
+          label: 'Checkbox',
           renderWidget: (opts) => m(Checkbox, {label: 'Checkbox', ...opts}),
           initialOpts: {
             disabled: false,
           },
         }),
-        m('h2', 'Switch'),
         m(WidgetShowcase, {
+          label: 'Switch',
           renderWidget: ({label, ...rest}: any) =>
               m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
           initialOpts: {
@@ -478,8 +514,8 @@ export const WidgetsPage = createPage({
             disabled: false,
           },
         }),
-        m('h2', 'Text Input'),
         m(WidgetShowcase, {
+          label: 'Text Input',
           renderWidget: ({placeholder, ...rest}) => m(TextInput, {
             placeholder: placeholder ? 'Placeholder...' : '',
             ...rest,
@@ -489,8 +525,8 @@ export const WidgetsPage = createPage({
             disabled: false,
           },
         }),
-        m('h2', 'Select'),
         m(WidgetShowcase, {
+          label: 'Select',
           renderWidget: (opts) =>
               m(Select,
                 opts,
@@ -503,16 +539,16 @@ export const WidgetsPage = createPage({
             disabled: false,
           },
         }),
-        m('h2', 'Filterable Select'),
         m(WidgetShowcase, {
+          label: 'Filterable Select',
           renderWidget: () =>
               m(FilterableSelect, {
                 values: ['foo', 'bar', 'baz'],
                 onSelected: () => {},
               }),
         }),
-        m('h2', 'Empty State'),
         m(WidgetShowcase, {
+          label: 'Empty State',
           renderWidget: ({header, content}) =>
               m(EmptyState,
                 {
@@ -524,8 +560,8 @@ export const WidgetsPage = createPage({
             content: true,
           },
         }),
-        m('h2', 'Anchor'),
         m(WidgetShowcase, {
+          label: 'Anchor',
           renderWidget: ({icon}) => m(
               Anchor,
               {
@@ -539,13 +575,15 @@ export const WidgetsPage = createPage({
             icon: true,
           },
         }),
-        m('h2', 'Table'),
         m(WidgetShowcase,
-          {renderWidget: () => m(TableShowcase), initialOpts: {}, wide: true}),
-        m('h2', 'Portal'),
-        m('p', `A portal is a div rendered out of normal flow of the
-        hierarchy.`),
+          {
+            label: 'Table',
+            renderWidget: () => m(TableShowcase), initialOpts: {}, wide: true,
+        }),
         m(WidgetShowcase, {
+          label: 'Portal',
+          description: `A portal is a div rendered out of normal flow
+          of the hierarchy.`,
           renderWidget: (opts) => m(PortalButton, opts),
           initialOpts: {
             absolute: true,
@@ -553,11 +591,11 @@ export const WidgetsPage = createPage({
             top: true,
           },
         }),
-        m('h2', 'Popup'),
-        m('p', `A popup is a nicely styled portal element whose position is
-        dynamically updated to appear to float alongside a specific element on
-        the page, even as the element is moved and scrolled around.`),
         m(WidgetShowcase, {
+          label: 'Popup',
+          description: `A popup is a nicely styled portal element whose position is
+        dynamically updated to appear to float alongside a specific element on
+        the page, even as the element is moved and scrolled around.`,
           renderWidget: (opts) => m(
               Popup,
               {
@@ -575,26 +613,26 @@ export const WidgetsPage = createPage({
             closeOnOutsideClick: true,
           },
         }),
-        m('h2', 'Controlled Popup'),
-        m('p', `The open/close state of a controlled popup is passed in via
+        m(WidgetShowcase, {
+          label: 'Controlled Popup',
+        description: `The open/close state of a controlled popup is passed in via
         the 'isOpen' attribute. This means we can get open or close the popup
         from wherever we like. E.g. from a button inside the popup.
         Keeping this state external also means we can modify other parts of the
         page depending on whether the popup is open or not, such as the text
         on this button.
         Note, this is the same component as the popup above, but used in
-        controlled mode.`),
-        m(WidgetShowcase, {
+        controlled mode.`,
           renderWidget: (opts) => m(ControlledPopup, opts),
           initialOpts: {},
         }),
-        m('h2', 'Icon'),
         m(WidgetShowcase, {
+          label: 'Icon',
           renderWidget: (opts) => m(Icon, {icon: 'star', ...opts}),
           initialOpts: {filled: false},
         }),
-        m('h2', 'MultiSelect panel'),
         m(WidgetShowcase, {
+          label: 'MultiSelect panel',
           renderWidget: ({...rest}) => m(MultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
@@ -616,8 +654,8 @@ export const WidgetsPage = createPage({
             fixedSize: false,
           },
         }),
-        m('h2', 'Popup with MultiSelect'),
         m(WidgetShowcase, {
+          label: 'Popup with MultiSelect',
           renderWidget: ({icon, ...rest}) => m(PopupMultiSelect, {
             options: Object.entries(options).map(([key, value]) => {
               return {
@@ -643,8 +681,8 @@ export const WidgetsPage = createPage({
             repeatCheckedItemsAtTop: false,
           },
         }),
-        m('h2', 'PopupMenu'),
         m(WidgetShowcase, {
+          label: 'PopupMenu',
           renderWidget: () => {
             return m(PopupMenuButton, {
               icon: 'description',
@@ -667,8 +705,8 @@ export const WidgetsPage = createPage({
             });
           },
         }),
-        m('h2', 'Menu'),
         m(WidgetShowcase, {
+          label: 'Menu',
           renderWidget: () => m(
               Menu,
               m(MenuItem, {label: 'New', icon: 'add'}),
@@ -699,8 +737,8 @@ export const WidgetsPage = createPage({
               ),
 
         }),
-        m('h2', 'PopupMenu2'),
         m(WidgetShowcase, {
+          label: 'PopupMenu2',
           renderWidget: (opts) => m(
               PopupMenu2,
               {
@@ -743,10 +781,10 @@ export const WidgetsPage = createPage({
                 ),
           },
         }),
-        m('h2', 'Spinner'),
-        m('p', `Simple spinner, rotates forever. Width and height match the font
-         size.`),
         m(WidgetShowcase, {
+          label: 'Spinner',
+          description: `Simple spinner, rotates forever.
+            Width and height match the font size.`,
           renderWidget: ({fontSize, easing}) =>
               m('', {style: {fontSize}}, m(Spinner, {easing})),
           initialOpts: {
@@ -757,8 +795,8 @@ export const WidgetsPage = createPage({
             easing: false,
           },
         }),
-        m('h2', 'Tree'),
         m(WidgetShowcase, {
+          label: 'Tree',
           renderWidget: (opts) => m(
             Tree,
             opts,
@@ -831,32 +869,15 @@ export const WidgetsPage = createPage({
               },
             }),
             ),
-          initialOpts: {
-            hideControls: false,
-          },
           wide: true,
         }),
-        m('h2', 'Form'),
         m(
           WidgetShowcase, {
-            renderWidget: () => m(
-              Form,
-              m(FormLabel, {for: 'foo'}, 'Foo'),
-              m(TextInput, {id: 'foo'}),
-              m(FormLabel, {for: 'bar'}, 'Bar'),
-              m(Select, {id: 'bar'}, [
-                m('option', {value: 'foo', label: 'Foo'}),
-                m('option', {value: 'bar', label: 'Bar'}),
-                m('option', {value: 'baz', label: 'Baz'}),
-              ]),
-              m(FormButtonBar,
-                m(Button, {label: 'Submit', rightIcon: 'chevron_right'}),
-                m(Button, {label: 'Cancel', minimal: true}),
-              )),
+            label: 'Form',
+            renderWidget: () => renderForm('form'),
           }),
-        m('h2', 'Nested Popups'),
-        m(
-          WidgetShowcase, {
+        m(WidgetShowcase, {
+            label: 'Nested Popups',
             renderWidget: () => m(
               Popup,
               {
@@ -875,9 +896,9 @@ export const WidgetsPage = createPage({
               }),
             ),
           }),
-          m('h2', 'Callout'),
           m(
             WidgetShowcase, {
+              label: 'Callout',
               renderWidget: () => m(
                 Callout,
                 {
@@ -889,12 +910,12 @@ export const WidgetsPage = createPage({
                 'finibus est.',
               ),
             }),
-          m('h2', 'Editor'),
           m(WidgetShowcase, {
+            label: 'Editor',
             renderWidget: () => m(Editor),
           }),
-          m('h2', 'VegaView'),
           m(WidgetShowcase, {
+            label: 'VegaView',
             renderWidget: (opt) => m(VegaView, {
               spec: getExampleSpec(opt.exampleSpec),
               data: getExampleData(opt.exampleData),
@@ -911,6 +932,73 @@ export const WidgetsPage = createPage({
 
             },
           }),
+          m(
+            WidgetShowcase, {
+              label: 'Form within PopupMenu2',
+              description: `A form placed inside a popup menu works just fine,
+              and the cancel/submit buttons also dismiss the popup. A bit more
+              margin is added around it too, which improves the look and feel.`,
+              renderWidget: () => m(
+                PopupMenu2,
+                {
+                  trigger: m(Button, {label: 'Popup!'}),
+                },
+                m(MenuItem,
+                  {
+                    label: 'Open form...',
+                  },
+                  renderForm('popup-form'),
+                ),
+              ),
+            }),
+          m(
+            WidgetShowcase, {
+              label: 'Hotkey',
+              renderWidget: (opts) => {
+                if (opts.platform === 'auto') {
+                  return m(HotkeyGlyphs, {hotkey: opts.hotkey as Hotkey});
+                } else {
+                  const platform = opts.platform as Platform;
+                  return m(HotkeyGlyphs, {
+                    hotkey: opts.hotkey as Hotkey,
+                    spoof: platform,
+                  });
+                }
+              },
+              initialOpts: {
+                hotkey: 'Mod+Shift+P',
+                platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
+              },
+            }),
     );
   },
 });
+
+function renderForm(id: string) {
+  return m(
+      Form,
+      {
+        submitLabel: 'Submit',
+        submitIcon: 'send',
+        cancelLabel: 'Cancel',
+        resetLabel: 'Reset',
+        onSubmit: () => window.alert('Form submitted!'),
+      },
+      m(FormLabel,
+        {for: `${id}-foo`,
+        },
+        'Foo'),
+      m(TextInput, {id: `${id}-foo`}),
+      m(FormLabel,
+        {for: `${id}-bar`,
+        },
+        'Bar'),
+      m(Select,
+        {id: `${id}-bar`},
+        [
+          m('option', {value: 'foo', label: 'Foo'}),
+          m('option', {value: 'bar', label: 'Bar'}),
+          m('option', {value: 'baz', label: 'Baz'}),
+        ]),
+  );
+}

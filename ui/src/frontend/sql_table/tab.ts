@@ -15,11 +15,13 @@
 import m from 'mithril';
 
 import {exists} from '../../base/utils';
+import {AddDebugTrackMenu} from '../../tracks/debug/add_debug_track_menu';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from '../bottom_tab';
 import {copyToClipboard} from '../clipboard';
 import {Icons} from '../semantic_icons';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
+import {Popup, PopupPosition} from '../widgets/popup';
 
 import {SqlTableState} from './state';
 import {SqlTable} from './table';
@@ -66,6 +68,20 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         minimal: true,
       }),
     ];
+    const {selectStatement, columns} = this.state.buildSqlSelectStatement();
+    const addDebugTrack =
+        m(Popup,
+          {
+            trigger: m(Button, {label: 'Show debug track'}),
+            position: PopupPosition.Top,
+          },
+          m(AddDebugTrackMenu, {
+            dataSource: {
+              sqlSource: selectStatement,
+              columns: columns,
+            },
+            engine: this.engine,
+          }));
 
     return m(
         DetailsShell,
@@ -74,6 +90,7 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
           description: this.getDisplayName(),
           buttons: [
             ...navigation,
+            addDebugTrack,
             m(Button, {
               label: 'Copy SQL query',
               onclick: () =>

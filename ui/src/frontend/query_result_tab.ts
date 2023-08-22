@@ -33,7 +33,8 @@ import {
 } from './bottom_tab';
 import {QueryTable} from './query_table';
 import {Button} from './widgets/button';
-import {Popup, PopupPosition} from './widgets/popup';
+import {PopupMenu2} from './widgets/menu';
+import {PopupPosition} from './widgets/popup';
 
 export function runQueryInNewTab(query: string, title: string, tag?: string) {
   return addTab({
@@ -109,14 +110,16 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
       contextButtons: [
         this.sqlViewName === undefined ?
             null :
-            m(Popup,
+            m(PopupMenu2,
               {
                 trigger: m(Button, {label: 'Show debug track', minimal: true}),
-                position: PopupPosition.Top,
+                popupPosition: PopupPosition.Top,
               },
               m(AddDebugTrackMenu, {
-                sqlViewName: this.sqlViewName,
-                columns: assertExists(this.queryResponse).columns,
+                dataSource: {
+                  sqlSource: `select * from ${this.sqlViewName}`,
+                  columns: assertExists(this.queryResponse).columns,
+                },
                 engine: this.engine,
               })),
       ],

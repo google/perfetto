@@ -219,3 +219,20 @@ class TestSuite:
         for method in methods
         if method.__name__.startswith('test_')
     ]
+
+def PrintProfileProto(profile):
+  locations = {l.id: l for l in profile.location}
+  functions = {f.id: f for f in profile.function}
+  samples = []
+  for s in profile.sample:
+    stack = []
+    for location in [locations[id] for id in s.location_id]:
+      for function in [functions[l.function_id] for l in location.line]:
+        stack.append("{name} ({address})".format(
+            name=profile.string_table[function.name],
+            address=hex(location.address)))
+      if len(location.line) == 0:
+        stack.append("({address})".format(address=hex(location.address)))
+    samples.append('Sample:\nValues: {values}\nStack:\n{stack}'.format(
+        values=', '.join(map(str, s.value)), stack='\n'.join(stack)))
+  return '\n\n'.join(sorted(samples)) + '\n'

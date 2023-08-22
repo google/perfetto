@@ -13,18 +13,19 @@
 // limitations under the License.
 
 import {defer, Deferred} from '../base/deferred';
+import {Disposable} from '../base/disposable';
 import {assertExists, assertTrue} from '../base/logging';
 import {Span, Time} from '../common/time';
-import {perfetto} from '../gen/protos';
-
-import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
   DisableAndReadMetatraceResult,
   QueryArgs,
   ResetTraceProcessorArgs,
-} from './protos';
+} from '../core/protos';
+import {perfetto} from '../gen/protos';
+
+import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
   createQueryResult,
   LONG,
@@ -467,25 +468,37 @@ export abstract class Engine {
 
 // Lightweight wrapper over Engine exposing only `query` method and annotating
 // all queries going through it with a tag.
-export class EngineProxy {
+export class EngineProxy implements Disposable {
   private engine: Engine;
   private tag: string;
+  private isAlive: boolean;
 
   constructor(engine: Engine, tag: string) {
     this.engine = engine;
     this.tag = tag;
+    this.isAlive = true;
   }
 
-  query(sqlQuery: string, tag?: string): Promise<QueryResult>&QueryResult {
-    return this.engine.query(sqlQuery, tag || this.tag);
+  query(query: string, tag?: string): Promise<QueryResult>&QueryResult {
+    if (!this.isAlive) {
+      throw new Error(`EngineProxy ${this.tag} was disposed.`);
+    }
+    return this.engine.query(query, tag || this.tag);
   }
 
   async computeMetric(metrics: string[], format: 'json'|'prototext'|'proto'):
       Promise<string|Uint8Array> {
+    if (!this.isAlive) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
+    }
     return this.engine.computeMetric(metrics, format);
   }
 
   get engineId(): string {
     return this.engine.id;
+  }
+
+  dispose() {
+    this.isAlive = false;
   }
 }

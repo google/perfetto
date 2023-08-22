@@ -18,22 +18,22 @@
 --
 -- A subset of the slice table containing statsd atom instant events.
 --
--- @column id,
--- @column type,
--- @column ts,
--- @column dur,
--- @column arg_set_id,
--- @column thread_instruction_count,
--- @column thread_instruction_delta,
--- @column track_id,
--- @column category,
--- @column name,
--- @column depth,
--- @column stack_id,
--- @column parent_stack_id,
--- @column parent_id,
--- @column thread_ts,
--- @column thread_dur,
+-- @column id                        Unique identifier for this slice.
+-- @column type                      The name of the "most-specific" child table containing this row.
+-- @column ts                        The timestamp at the start of the slice (in nanoseconds).
+-- @column dur                       The duration of the slice (in nanoseconds).
+-- @column arg_set_id                The id of the argument set associated with this slice.
+-- @column thread_instruction_count  The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
+-- @column thread_instruction_delta  The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
+-- @column track_id                  The id of the track this slice is located on.
+-- @column category                  The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
+-- @column name                      The name of the slice. The name describes what was happening during the slice.
+-- @column depth                     The depth of the slice in the current stack of slices.
+-- @column stack_id                  A unique identifier obtained from the names of all slices in this stack. This is rarely useful and kept around only for legacy reasons.
+-- @column parent_stack_id           The stack_id for the parent of this slice. Rarely useful.
+-- @column parent_id                 The id of the parent (i.e. immediate ancestor) slice for this slice.
+-- @column thread_ts                 The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
+-- @column thread_dur                The thread time used by this slice. This column will only be populated if thread timestamp collection is enabled with track_event.
 CREATE VIEW android_statsd_atoms AS
 SELECT
   slice.id AS id,

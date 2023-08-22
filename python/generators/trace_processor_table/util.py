@@ -185,7 +185,7 @@ def _create_implicit_columns_for_root(table: Table) -> List[ParsedColumn]:
       ParsedColumn(
           Column('id', CppSelfTableId(), ColumnFlag.SORTED),
           _to_column_doc(id_doc) if id_doc else ColumnDoc(
-              doc=f'Unique idenitifier for this {sql_name}.'),
+              doc=f'Unique identifier for this {sql_name}.'),
           is_implicit_id=True),
       ParsedColumn(
           Column('type', CppString(), ColumnFlag.NONE),

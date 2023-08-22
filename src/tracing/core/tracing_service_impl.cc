@@ -21,6 +21,7 @@
 #include <string.h>
 
 #include <cinttypes>
+#include <limits>
 #include <optional>
 #include <regex>
 #include <unordered_set>
@@ -2226,6 +2227,19 @@ bool TracingServiceImpl::IsWaitingForTrigger(TracingSession* tracing_session) {
         "ReadBuffers(): tracing session has not received a trigger yet.");
     return true;
   }
+
+  // Traces with CLONE_SNAPSHOT triggers are a special case of the above. They
+  // can be read only via a CloneSession() request. This is to keep the
+  // behavior consistent with the STOP_TRACING+triggers case and avoid periodic
+  // finalizations and uploads of the main CLONE_SNAPSHOT triggers.
+  if (GetTriggerMode(tracing_session->config) ==
+      TraceConfig::TriggerConfig::CLONE_SNAPSHOT) {
+    PERFETTO_DLOG(
+        "ReadBuffers(): skipping because the tracing session has "
+        "CLONE_SNAPSHOT triggers defined");
+    return true;
+  }
+
   return false;
 }
 
@@ -3680,7 +3694,16 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
 
   // Copy over relevant state that we want to persist in the cloned session.
   // Mostly stats and metadata that is emitted in the trace file by the service.
-  cloned_session->received_triggers = src->received_triggers;
+  // Also clear the received trigger list in the main tracing session. A
+  // CLONE_SNAPSHOT session can go in ring buffer mode for several hours and get
+  // snapshotted several times. This causes two issues with `received_triggers`:
+  // 1. Adding noise in the cloned trace emitting triggers that happened too
+  //    far back (see b/290799105).
+  // 2. Bloating memory (see b/290798988).
+  cloned_session->should_emit_stats = true;
+  cloned_session->received_triggers = std::move(src->received_triggers);
+  src->received_triggers.clear();
+  src->num_triggers_emitted_into_trace = 0;
   cloned_session->lifecycle_events =
       std::vector<TracingSession::LifecycleEvent>(src->lifecycle_events);
   cloned_session->initial_clock_snapshot = src->initial_clock_snapshot;
@@ -4135,8 +4158,24 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     if (page_idx >= shmem_abi_.num_pages())
       continue;  // A buggy or malicious producer.
 
-    SharedMemoryABI::Chunk chunk =
-        shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
+    SharedMemoryABI::Chunk chunk;
+    bool commit_data_over_ipc = entry.has_data();
+    if (PERFETTO_UNLIKELY(commit_data_over_ipc)) {
+      // Chunk data is passed over the wire. Create a chunk using the serialized
+      // protobuf message.
+      const std::string& data = entry.data();
+      if (data.size() > SharedMemoryABI::Chunk::kMaxSize) {
+        PERFETTO_DFATAL("IPC data commit too large: %zu", data.size());
+        continue;  // A malicious or buggy producer
+      }
+      // |data| is not altered, but we need to const_cast becasue Chunk data
+      // members are non-const.
+      chunk = SharedMemoryABI::MakeChunkFromSerializedData(
+          reinterpret_cast<uint8_t*>(const_cast<char*>(data.data())),
+          static_cast<uint16_t>(entry.data().size()),
+          static_cast<uint8_t>(entry.chunk()));
+    } else
+      chunk = shmem_abi_.TryAcquireChunkForReading(page_idx, entry.chunk());
     if (!chunk.is_valid()) {
       PERFETTO_DLOG("Asked to move chunk %d:%d, but it's not complete",
                     entry.page(), entry.chunk());
@@ -4161,8 +4200,10 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
         chunk_flags,
         /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
 
-    // This one has release-store semantics.
-    shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+    if (!commit_data_over_ipc) {
+      // This one has release-store semantics.
+      shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+    }
   }  // for(chunks_to_move)
 
   service_->ApplyChunkPatches(id_, req_untrusted.chunks_to_patch());
@@ -4191,10 +4232,12 @@ void TracingServiceImpl::ProducerEndpointImpl::SetupSharedMemory(
 
   shmem_abi_.Initialize(reinterpret_cast<uint8_t*>(shared_memory_->start()),
                         shared_memory_->size(),
-                        shared_buffer_page_size_kb() * 1024);
+                        shared_buffer_page_size_kb() * 1024,
+                        SharedMemoryABI::ShmemMode::kDefault);
   if (in_process_) {
     inproc_shmem_arbiter_.reset(new SharedMemoryArbiterImpl(
         shared_memory_->start(), shared_memory_->size(),
+        SharedMemoryABI::ShmemMode::kDefault,
         shared_buffer_page_size_kb_ * 1024, this, task_runner_));
     inproc_shmem_arbiter_->SetDirectSMBPatchingSupportedByService();
   }

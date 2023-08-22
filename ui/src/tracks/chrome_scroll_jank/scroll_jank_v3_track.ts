@@ -92,7 +92,8 @@ export async function addScrollJankV3ScrollTrack(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scroll_janks')`);
+  await engine.query(
+      `SELECT IMPORT('chrome.scroll_jank.scroll_jank_intervals')`);
 
   result.tracksToAdd.push({
     id: uuidv4(),

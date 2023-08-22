@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <type_traits>
 
-#include "perfetto/base/build_config.h"
 #include "perfetto/public/compiler.h"
 
 // __has_attribute is supported only by clang and recent versions of GCC.
@@ -73,16 +72,6 @@
   __attribute__((__format__(__printf__, x, y)))
 #else
 #define PERFETTO_PRINTF_FORMAT(x, y)
-#endif
-
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_IOS)
-// TODO(b/158814068): For iOS builds, thread_local is only supported since iOS
-// 8. We'd have to use pthread for thread local data instead here. For now, just
-// define it to nothing since we don't support running perfetto or the client
-// lib on iOS right now.
-#define PERFETTO_THREAD_LOCAL
-#else
-#define PERFETTO_THREAD_LOCAL thread_local
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)

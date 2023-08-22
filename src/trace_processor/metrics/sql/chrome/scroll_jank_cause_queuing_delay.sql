@@ -36,7 +36,7 @@ WHERE
 -- TODO(243897379): switch this back to a view once we understand why rolling SQLite to
 -- 3.39.2 causes slowdowns.
 DROP TABLE IF EXISTS chrome_annotated_threads_and_processes;
-CREATE TABLE chrome_annotated_threads_and_processes AS
+CREATE PERFETTO TABLE chrome_annotated_threads_and_processes AS
 SELECT
   thread_track.id AS track_id,
   chrome_thread.canonical_name AS thread_name,
@@ -56,7 +56,7 @@ ORDER BY
 -- TODO(243897379): switch this back to a view once we understand why rolling SQLite to
 -- 3.39.2 causes slowdowns.
 DROP TABLE IF EXISTS blocking_chrome_tasks_without_threadpool;
-CREATE TABLE blocking_chrome_tasks_without_threadpool AS
+CREATE PERFETTO TABLE blocking_chrome_tasks_without_threadpool AS
 SELECT
   slice.*,
   annotations.thread_name AS thread_name,
@@ -77,7 +77,7 @@ WHERE
 -- implies its a "ThreadController active" slice because we removed it
 -- previously).
 DROP TABLE IF EXISTS blocking_tasks_queuing_delay;
-CREATE TABLE blocking_tasks_queuing_delay AS
+CREATE PERFETTO TABLE blocking_tasks_queuing_delay AS
 SELECT
   EXTRACT_ARG(slice.arg_set_id, "task.posted_from.file_name") AS file,
   EXTRACT_ARG(slice.arg_set_id, "task.posted_from.function_name") AS function,
@@ -150,7 +150,7 @@ FROM
   descendant_slice(base.id) AS descendant;
 
 DROP TABLE IF EXISTS all_descendant_blocking_tasks_queuing_delay_with_cpu_time;
-CREATE TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
+CREATE PERFETTO TABLE all_descendant_blocking_tasks_queuing_delay_with_cpu_time AS
 SELECT
   cpu.thread_dur AS descendant_thread_dur,
   CAST(cpu.thread_dur AS REAL) / descendant.thread_dur
@@ -325,7 +325,7 @@ ORDER BY descendant_cpu_percentage DESC;
 -- Function prototype: takes a - separated list of slice names (formed by
 -- the GROUP_CONCAT above) and returns the first slice if any or NULL
 -- otherwise.
-CREATE PERFETTO FUNCTION GetFirstSliceNameOrNull(name STRING)
+CREATE PERFETTO FUNCTION get_first_slice_name_or_null(name STRING)
 -- Returns the first slice name or NULL
 RETURNS STRING AS
 -- Performs the actual string modification, takes the either the whole string
@@ -339,8 +339,8 @@ SELECT SUBSTR($name, 0,
 
 -- Function prototype: takes a - separated list of slice names (formed by
 -- the GROUP_CONCAT above) and checks for certain important view names and
--- falls back on GetFirstSliceNameOrNull if it can't find one.
-CREATE PERFETTO FUNCTION GetJavaSliceSummaryOrNull(name STRING)
+-- falls back on get_first_slice_name_or_null if it can't find one.
+CREATE PERFETTO FUNCTION get_java_slice_summary_or_null(name STRING)
 -- Returns the summary of the provided list of java slice names.
 RETURNS STRING AS
 -- Performs a bunch of GLOB matches in an order, now there could be multiple
@@ -384,14 +384,14 @@ SELECT
   WHEN $name GLOB "*TabListRecyclerView*" THEN
     "TabListRecyclerView"
   ELSE
-    GetFirstSliceNameOrNull($name)
+    get_first_slice_name_or_null($name)
   END;
 
 -- Function prototype: takes slice name, category and descendant_name and
 -- determines if this event should be classified as unknown or not.
 --
 -- Returns either "-UnknownEvent" or "".
-CREATE PERFETTO FUNCTION UnknownEventOrEmptyString(name STRING,
+CREATE PERFETTO FUNCTION unknown_event_or_empty_string(name STRING,
                                                    cat STRING,
                                                    has_descendant STRING)
 RETURNS STRING AS
@@ -412,7 +412,7 @@ SELECT
 -- if we should use the slice name, or if its a RunTask event uses the
 -- function & file name, however if the RunTask posted from is one of the
 -- simple_watcher paths we collapse them for attributation.
-CREATE PERFETTO FUNCTION TopLevelName(name STRING, function STRING, file STRING)
+CREATE PERFETTO FUNCTION top_level_name(name STRING, function STRING, file STRING)
 RETURNS STRING AS
 -- The difference for the mojom functions are:
 --  1) PostDispatchNextMessageFromPipe:
@@ -443,15 +443,15 @@ SELECT
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_temp;
 CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
 SELECT
-  TopLevelName(name, function, file) || COALESCE(
+  top_level_name(name, function, file) || COALESCE(
     "-" || descendant_name, "") AS location,
-  TopLevelName(name, function, file) || COALESCE(
-    "-" || GetFirstSliceNameOrNull(mojom_name)
+  top_level_name(name, function, file) || COALESCE(
+    "-" || get_first_slice_name_or_null(mojom_name)
     || COALESCE("(ipc=" || mojom_ipc_hash || ")", ""),
-    "-" || GetFirstSliceNameOrNull(toplevel_name)
+    "-" || get_first_slice_name_or_null(toplevel_name)
     || COALESCE("(ipc=" || mojom_ipc_hash || ")", ""),
-    "-" || GetJavaSliceSummaryOrNull(java_name),
-    UnknownEventOrEmptyString(name, category, descendant_name)
+    "-" || get_java_slice_summary_or_null(java_name),
+    unknown_event_or_empty_string(name, category, descendant_name)
   ) AS restricted_location,
   base.*
 FROM descendant_blocking_tasks_queuing_delay base;

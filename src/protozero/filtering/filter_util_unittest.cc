@@ -36,15 +36,16 @@ perfetto::base::TempFile MkTemp(const char* str) {
 
 std::string FilterToText(FilterUtil& filter,
                          std::optional<std::string> bytecode = {}) {
-  perfetto::base::TempFile tmp = perfetto::base::TempFile::Create();
+  std::string tmp_path = perfetto::base::TempFile::Create().path();
   {
-    perfetto::base::ScopedFstream tmp_stream(fopen(tmp.path().c_str(), "w"));
+    perfetto::base::ScopedFstream tmp_stream(fopen(tmp_path.c_str(), "wb"));
+    PERFETTO_CHECK(!!tmp_stream);
     filter.set_print_stream_for_testing(*tmp_stream);
     filter.PrintAsText(bytecode);
     filter.set_print_stream_for_testing(stdout);
   }
   std::string output;
-  PERFETTO_CHECK(perfetto::base::ReadFile(tmp.path(), &output));
+  PERFETTO_CHECK(perfetto::base::ReadFile(tmp_path, &output));
   // Make the output a bit more compact.
   output = std::regex_replace(output, std::regex(" +"), " ");
   return std::regex_replace(output, std::regex(" +\\n"), "\n");

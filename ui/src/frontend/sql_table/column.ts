@@ -47,7 +47,7 @@ export function columnFromSqlTableColumn(c: RegularSqlTableColumn): Column {
 }
 
 export function argColumn(c: ArgSetIdColumn, argName: string): Column {
-  const escape = (name: string) => name.replace(/\.|\[|\]/g, '_');
+  const escape = (name: string) => name.replace(/[^A-Za-z0-9]/g, '_');
   return {
     expression: `extract_arg(${c.name}, ${sqliteString(argName)})`,
     alias: `_arg_${c.name}_${escape(argName)}`,
@@ -55,12 +55,32 @@ export function argColumn(c: ArgSetIdColumn, argName: string): Column {
   };
 }
 
+// A single instruction from a select part of the SQL statement, i.e.
+// select `expression` as `alias`.
+export type SqlProjection = {
+  expression: string,
+  alias: string,
+};
+
+export function formatSqlProjection(p: SqlProjection): string {
+  return `${p.expression} as ${p.alias}`;
+}
+
 // Returns a list of projections (i.e. parts of the SELECT clause) that should
 // be added to the query fetching the data to be able to display the given
 // column (e.g. `foo` or `f(bar) as baz`).
 // Some table columns are backed by multiple SQL columns (e.g. slice_id is
 // backed by id, ts, dur and track_id), so we need to return a list.
-export function sqlProjectionsForColumn(column: Column): string[] {
-  return [`${column.expression} as ${column.alias}`].concat(
-      dependendentColumns(column.display).map((c) => `${c} as ${c}`));
+export function sqlProjectionsForColumn(column: Column): SqlProjection[] {
+  const result: SqlProjection[] = [{
+    expression: column.expression,
+    alias: column.alias,
+  }];
+  for (const dependency of dependendentColumns(column.display)) {
+    result.push({
+      expression: dependency,
+      alias: dependency,
+    });
+  }
+  return result;
 }

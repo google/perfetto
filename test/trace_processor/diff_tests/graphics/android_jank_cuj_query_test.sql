@@ -23,7 +23,7 @@ CREATE VIEW android_jank_cuj_query_test_binder AS
 SELECT * FROM android_jank_cuj_slice
 WHERE name = 'binder transaction';
 
-SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE('MainThread', 'android_jank_cuj_query_test_binder') AS suppress_query_output;
+SELECT android_jank_correlate_frame_slice('MainThread', 'android_jank_cuj_query_test_binder') AS suppress_query_output;
 
 
 -- Second query to look at `JIT compiling` slices on JIT threadpool
@@ -33,7 +33,7 @@ CREATE VIEW android_jank_cuj_query_test_jit AS
 SELECT * FROM android_jank_cuj_slice
 WHERE name GLOB 'JIT compiling*';
 
-SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('App threads', 'android_jank_cuj_query_test_jit', 'jank_query_jit') AS suppress_query_output;
+SELECT android_jank_correlate_frame_slice_impl('App threads', 'android_jank_cuj_query_test_jit', 'jank_query_jit') AS suppress_query_output;
 
 --- Third query to look at 'sf binder' slices on SF main thread
 
@@ -42,7 +42,7 @@ CREATE VIEW android_jank_cuj_query_test_sf_binder AS
 SELECT * FROM android_jank_cuj_sf_slice
 WHERE name = 'sf binder';
 
-SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('SF MainThread', 'android_jank_cuj_query_test_sf_binder', 'jank_query_sf_binder') AS suppress_query_output;
+SELECT android_jank_correlate_frame_slice_impl('SF MainThread', 'android_jank_cuj_query_test_sf_binder', 'jank_query_sf_binder') AS suppress_query_output;
 
 
 --- Fourth query to look at 'shader compile' slices on SF RenderEngine
@@ -52,7 +52,7 @@ CREATE VIEW android_jank_cuj_query_test_re AS
 SELECT * FROM android_jank_cuj_sf_slice
 WHERE name = 'shader compile';
 
-SELECT ANDROID_JANK_CORRELATE_FRAME_SLICE_IMPL('SF RenderEngine', 'android_jank_cuj_query_test_re', 'jank_query_re') AS suppress_query_output;
+SELECT android_jank_correlate_frame_slice_impl('SF RenderEngine', 'android_jank_cuj_query_test_re', 'jank_query_re') AS suppress_query_output;
 
 
 -- UNION ALL results from all queries.

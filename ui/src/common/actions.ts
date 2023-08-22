@@ -28,6 +28,7 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
+import {TrackTags} from '../public/index';
 import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 import {randomColor} from './colorizer';
@@ -54,6 +55,7 @@ import {
   FtraceFilterPatch,
   LoadedConfig,
   NewEngineMode,
+  OmniboxMode,
   OmniboxState,
   Pagination,
   PendingDeeplinkState,
@@ -87,6 +89,7 @@ export interface AddTrackArgs {
   trackSortKey: TrackSortKey;
   trackGroup?: string;
   config: {};
+  tags?: TrackTags;
 }
 
 export interface PostedTrace {
@@ -238,8 +241,19 @@ export const StateActions = {
   addTracks(state: StateDraft, args: {tracks: AddTrackArgs[]}) {
     args.tracks.forEach((track) => {
       const id = track.id === undefined ? generateNextId(state) : track.id;
-      track.id = id;
-      state.tracks[id] = track as TrackState;
+      const name = track.name;
+      const tags = track.tags ?? {name};
+      state.tracks[id] = {
+        id,
+        engineId: track.engineId,
+        kind: track.kind,
+        name,
+        trackSortKey: track.trackSortKey,
+        trackGroup: track.trackGroup,
+        tags,
+        config: track.config,
+        labels: track.labels,
+      };
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         state.scrollingTracks.push(id);
@@ -257,26 +271,8 @@ export const StateActions = {
     state.utidToThreadSortKey = args.threadOrderingMetadata;
   },
 
-  addTrack(state: StateDraft, args: {
-    id?: string; engineId: string; kind: string; name: string;
-    trackGroup?: string; config: {}; trackSortKey: TrackSortKey;
-  }): void {
-    const id = args.id !== undefined ? args.id : generateNextId(state);
-    state.tracks[id] = {
-      id,
-      engineId: args.engineId,
-      kind: args.kind,
-      name: args.name,
-      trackSortKey: args.trackSortKey,
-      trackGroup: args.trackGroup,
-      config: args.config,
-    };
-    this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
-    if (args.trackGroup === SCROLLING_TRACK_GROUP) {
-      state.scrollingTracks.push(id);
-    } else if (args.trackGroup !== undefined) {
-      assertExists(state.trackGroups[args.trackGroup]).tracks.push(id);
-    }
+  addTrack(state: StateDraft, args: AddTrackArgs): void {
+    this.addTracks(state, {tracks: [args]});
   },
 
   addTrackGroup(
@@ -929,6 +925,10 @@ export const StateActions = {
     state.omniboxState = args;
   },
 
+  setOmniboxMode(state: StateDraft, args: {mode: OmniboxMode}): void {
+    state.omniboxState.mode = args.mode;
+  },
+
   selectArea(state: StateDraft, args: {area: Area}): void {
     const {start, end, tracks} = args.area;
     assertTrue(start <= end);
@@ -1003,40 +1003,12 @@ export const StateActions = {
     state.lastRecordingError = undefined;
   },
 
-  requestSelectedMetric(state: StateDraft, _: {}): void {
-    if (!state.metrics.availableMetrics) throw Error('No metrics available');
-    if (state.metrics.selectedIndex === undefined) {
-      throw Error('No metric selected');
-    }
-    state.metrics.requestedMetric =
-        state.metrics.availableMetrics[state.metrics.selectedIndex];
-  },
-
-  resetMetricRequest(state: StateDraft, args: {name: string}): void {
-    if (state.metrics.requestedMetric !== args.name) return;
-    state.metrics.requestedMetric = undefined;
-  },
-
-  setAvailableMetrics(state: StateDraft, args: {availableMetrics: string[]}):
-      void {
-        state.metrics.availableMetrics = args.availableMetrics;
-        if (args.availableMetrics.length > 0) state.metrics.selectedIndex = 0;
-      },
-
-  setMetricSelectedIndex(state: StateDraft, args: {index: number}): void {
-    if (!state.metrics.availableMetrics ||
-        args.index >= state.metrics.availableMetrics.length) {
-      throw Error('metric selection out of bounds');
-    }
-    state.metrics.selectedIndex = args.index;
-  },
-
   togglePerfDebug(state: StateDraft, _: {}): void {
     state.perfDebug = !state.perfDebug;
   },
 
-  toggleSidebar(state: StateDraft, _: {}): void {
-    state.sidebarVisible = !state.sidebarVisible;
+  setSidebar(state: StateDraft, args: {visible: boolean}): void {
+    state.sidebarVisible = args.visible;
   },
 
   setHoveredUtidAndPid(state: StateDraft, args: {utid: number, pid: number}) {

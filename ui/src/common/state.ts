@@ -22,6 +22,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
+import {TrackTags} from '../public/index';
 
 import {Direction} from './event_set';
 import {duration, Time, time} from './time';
@@ -115,7 +116,10 @@ export const MAX_TIME = 180;
 // 33. Add plugins state.
 // 34. Add additional pendingDeeplink fields (query, pid).
 // 35. Add force to OmniboxState
-export const STATE_VERSION = 35;
+// 36. Remove metrics
+// 37. Add additional pendingDeeplink fields (visStart, visEnd).
+// 38. Add track tags.
+export const STATE_VERSION = 38;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -247,6 +251,7 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
+  tags: TrackTags;
   config: {
     trackId?: number;
     trackIds?: number[];
@@ -428,12 +433,6 @@ export interface AggregationState {
   sorting?: Sorting;
 }
 
-export interface MetricsState {
-  availableMetrics?: string[];  // Undefined until list is loaded.
-  selectedIndex?: number;
-  requestedMetric?: string;  // Unset after metric request is handled.
-}
-
 // Auxiliary metadata needed to parse the query result, as well as to render it
 // correctly. Generated together with the text of query and passed without the
 // change to the query response.
@@ -534,6 +533,8 @@ export interface PendingDeeplinkState {
   tid?: string;
   pid?: string;
   query?: string;
+  visStart?: string;
+  visEnd?: string;
 }
 
 export interface State {
@@ -566,7 +567,6 @@ export interface State {
   debugTrackId?: string;
   lastTrackReloadRequest?: number;
   queries: ObjectById<QueryConfig>;
-  metrics: MetricsState;
   permalink: PermalinkConfig;
   notes: ObjectById<Note|AreaNote>;
   status: Status;

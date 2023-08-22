@@ -56,7 +56,7 @@ export function base64Encode(buffer: Uint8Array): string {
 
 export function base64Decode(str: string): Uint8Array {
   // if the string is in base64url format, convert to base64
-  const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+  const b64 = str.replaceAll('-', '+').replaceAll('_', '/');
   const arr = new Uint8Array(b64Len(b64));
   const written = b64Decode(b64, arr, 0);
   assertTrue(written === arr.length);
@@ -113,5 +113,13 @@ export function binaryDecode(str: string): Uint8Array {
 // The purpose of this function is to use in simple comparisons, to escape
 // strings used in GLOB clauses see escapeQuery function.
 export function sqliteString(str: string): string {
-  return `'${str.replace(/'/g, '\'\'')}'`;
+  return `'${str.replaceAll('\'', '\'\'')}'`;
+}
+
+// Chat apps (including G Chat) sometimes replace ASCII characters with similar
+// looking unicode characters that break code snippets.
+// This function attempts to undo these replacements.
+export function undoCommonChatAppReplacements(str: string): string {
+  // Replace non-breaking spaces with normal spaces.
+  return str.replaceAll('\u00A0', ' ');
 }

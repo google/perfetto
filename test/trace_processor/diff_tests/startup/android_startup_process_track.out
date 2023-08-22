@@ -8,7 +8,7 @@ android_startup {
       dur_ns: 7
       main_thread_by_task_state {
         running_dur_ns: 0
-        runnable_dur_ns: 0
+        runnable_dur_ns: 4
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
         uninterruptible_io_sleep_dur_ns: 0
@@ -66,6 +66,7 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     startup_type: "cold"
+    slow_start_reason: "Main Thread - Time spent in Runnable state"
   }
   startup {
     startup_id: 2
@@ -76,7 +77,7 @@ android_startup {
       dur_ns: 7
       main_thread_by_task_state {
         running_dur_ns: 0
-        runnable_dur_ns: 0
+        runnable_dur_ns: 4
         uninterruptible_sleep_dur_ns: 0
         interruptible_sleep_dur_ns: 0
         uninterruptible_io_sleep_dur_ns: 0
@@ -134,5 +135,6 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     startup_type: "cold"
+    slow_start_reason: "Main Thread - Time spent in Runnable state"
   }
 }

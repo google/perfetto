@@ -109,7 +109,6 @@ import {
 import {FtraceController} from './ftrace_controller';
 import {LoadingManager} from './loading_manager';
 import {LogsController} from './logs_controller';
-import {MetricsController} from './metrics_controller';
 import {
   PIVOT_TABLE_REDUX_FLAG,
   PivotTableController,
@@ -337,8 +336,7 @@ export class TraceController extends Controller<States> {
             Child('ftrace', FtraceController, {engine, app: globals}));
 
         childControllers.push(
-          Child('traceError', TraceErrorController, {engine}));
-        childControllers.push(Child('metrics', MetricsController, {engine}));
+            Child('traceError', TraceErrorController, {engine}));
 
         return childControllers;
 
@@ -386,7 +384,7 @@ export class TraceController extends Controller<States> {
     }
     this.engine = engine;
 
-    pluginManager.onTraceLoad(globals.store, engine);
+    pluginManager.onTraceLoad(engine);
 
     if (isMetatracingEnabled()) {
       this.engine.enableMetatrace(
@@ -542,6 +540,11 @@ export class TraceController extends Controller<States> {
     if (pendingDeeplink !== undefined) {
       globals.dispatch(Actions.clearPendingDeeplink({}));
       await this.selectPendingDeeplink(pendingDeeplink);
+      if (pendingDeeplink.visStart !== undefined &&
+          pendingDeeplink.visEnd !== undefined) {
+        this.zoomPendingDeeplink(
+            pendingDeeplink.visStart, pendingDeeplink.visEnd);
+      }
       if (pendingDeeplink.query !== undefined) {
         runQueryInNewTab(pendingDeeplink.query, 'Deeplink Query');
       }
@@ -632,6 +635,7 @@ export class TraceController extends Controller<States> {
       from slice
       where ${conditions.join(' and ')}
     ;`;
+
 
     const result = await assertExists(this.engine).query(query);
     if (result.numRows() > 0) {
@@ -853,7 +857,6 @@ export class TraceController extends Controller<States> {
     for (const it = metricsResult.iter({name: STR}); it.valid(); it.next()) {
       availableMetrics.push(it.name);
     }
-    globals.dispatch(Actions.setAvailableMetrics({availableMetrics}));
 
     const availableMetricsSet = new Set<string>(availableMetrics);
     for (const [flag, metric] of FLAGGED_METRICS) {
@@ -975,6 +978,26 @@ export class TraceController extends Controller<States> {
     globals.dispatch(Actions.updateStatus({
       msg,
       timestamp: Date.now() / 1000,
+    }));
+  }
+
+  private zoomPendingDeeplink(visStart: string, visEnd: string) {
+    const visualStart = Time.fromRaw(BigInt(visStart));
+    const visualEnd = Time.fromRaw(BigInt(visEnd));
+    const traceTime = globals.stateTraceTimeTP();
+
+    if (!(visualStart < visualEnd && traceTime.start <= visualStart &&
+          visualEnd <= traceTime.end)) {
+      return;
+    }
+
+    const res = (visualEnd - visualStart) / 1000n;
+
+    globals.dispatch(Actions.setVisibleTraceTime({
+      start: visualStart,
+      end: visualEnd,
+      resolution: BigintMath.max(res, 1n),
+      lastUpdate: Date.now() / 1000,
     }));
   }
 }

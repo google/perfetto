@@ -42,6 +42,7 @@ namespace perfetto {
 namespace {
 
 using ChunkHeader = SharedMemoryABI::ChunkHeader;
+using ShmemMode = SharedMemoryABI::ShmemMode;
 using ::protozero::ScatteredStreamWriter;
 using ::testing::AllOf;
 using ::testing::ElementsAre;
@@ -70,9 +71,9 @@ class TraceWriterImplTest : public AlignedBufferTest {
         SharedMemoryABI::PageLayout::kPageDiv4);
     AlignedBufferTest::SetUp();
     task_runner_.reset(new base::TestTaskRunner());
-    arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                               &mock_producer_endpoint_,
-                                               task_runner_.get()));
+    arbiter_.reset(new SharedMemoryArbiterImpl(
+        buf(), buf_size(), ShmemMode::kDefault, page_size(),
+        &mock_producer_endpoint_, task_runner_.get()));
     ON_CALL(mock_producer_endpoint_, CommitData)
         .WillByDefault([&](const CommitDataRequest& req,
                            MockProducerEndpoint::CommitDataCallback cb) {

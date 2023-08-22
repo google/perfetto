@@ -88,7 +88,16 @@ enum class SockPeerCredMode {
 // - @abstract_name  : for abstract AF_UNIX sockets.
 // - 1.2.3.4:8080    : for Inet sockets.
 // - [::1]:8080      : for Inet6 sockets.
+// - vsock://-1:3000 : for VM sockets.
 SockFamily GetSockFamily(const char* addr);
+
+// Returns whether inter-process shared memory is supported for the socket.
+inline bool SockShmemSupported(SockFamily sock_family) {
+  return sock_family == SockFamily::kUnix;
+}
+inline bool SockShmemSupported(const char* addr) {
+  return SockShmemSupported(GetSockFamily(addr));
+}
 
 // UnixSocketRaw is a basic wrapper around sockets. It exposes wrapper
 // methods that take care of most common pitfalls (e.g., marking fd as
@@ -126,6 +135,7 @@ class UnixSocketRaw {
   void SetBlocking(bool);
   void DcheckIsBlocking(bool expected) const;  // No-op on release and Win.
   void SetRetainOnExec(bool retain);
+  std::string GetSockAddr() const;
   SockType type() const { return type_; }
   SockFamily family() const { return family_; }
   SocketHandle fd() const { return *fd_; }
@@ -331,6 +341,9 @@ class PERFETTO_EXPORT_COMPONENT UnixSocket {
   void SetRxTimeout(uint32_t timeout_ms) {
     PERFETTO_CHECK(sock_raw_.SetRxTimeout(timeout_ms));
   }
+
+  std::string GetSockAddr() const { return sock_raw_.GetSockAddr(); }
+
   // Returns true is the message was queued, false if there was no space in the
   // output buffer, in which case the client should retry or give up.
   // If any other error happens the socket will be shutdown and

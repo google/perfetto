@@ -33,7 +33,7 @@ import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {SqlRef} from '../../frontend/widgets/sql_ref';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {dictToTreeNodes, Tree} from '../../frontend/widgets/tree';
+import {dictToTreeNodes, Tree, TreeNode} from '../../frontend/widgets/tree';
 
 interface Data {
   // Scroll ID.
@@ -46,8 +46,14 @@ interface Data {
 
 interface Metrics {
   inputEventCount?: number;
-  // TODO - add pixels scrolled, number of frame updates, number of frames
-  // presented, number of frames total.
+  frameCount?: number;
+  presentedFrameCount?: number;
+  jankyFrameCount?: number;
+  jankyFramePercent?: number;
+  missedVsyncs?: number;
+  maxDelayDur?: duration;
+  maxDelayVsync?: number;
+  // TODO(b/279581028): add pixels scrolled.
 }
 
 export class ScrollDetailsPanel extends
@@ -101,12 +107,19 @@ export class ScrollDetailsPanel extends
   }
 
   private async loadMetrics() {
+    await this.loadInputEventCount();
+    await this.loadFrameStats();
+    await this.loadMaxDelay();
+  }
+
+  private async loadInputEventCount() {
     if (exists(this.data)) {
       const queryResult = await this.engine.query(`
         SELECT
           COUNT(*) AS inputEventCount
         FROM slice s
-        WHERE s.name = "InputLatency::TouchMove"
+        WHERE s.name = "EventLatency"
+          AND EXTRACT_ARG(arg_set_id, 'event_latency.event_type') = 'TOUCH_MOVED'
           AND s.ts >= ${this.data.ts}
           AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
       `);
@@ -119,10 +132,89 @@ export class ScrollDetailsPanel extends
     }
   }
 
+  private async loadFrameStats() {
+    if (exists(this.data)) {
+      const queryResult = await this.engine.query(`
+        SELECT
+          IFNULL(frame_count, 0) AS frameCount,
+          IFNULL(missed_vsyncs, 0) AS missedVsyncs,
+          IFNULL(presented_frame_count, 0) AS presentedFrameCount,
+          IFNULL(janky_frame_count, 0) AS jankyFrameCount,
+          ROUND(IFNULL(janky_frame_percent, 0), 2) AS jankyFramePercent
+        FROM chrome_scroll_stats
+        WHERE scroll_id = ${this.data.id}
+      `);
+      const iter = queryResult.iter({
+        frameCount: NUM,
+        missedVsyncs: NUM,
+        presentedFrameCount: NUM,
+        jankyFrameCount: NUM,
+        jankyFramePercent: NUM,
+      });
+
+      for (; iter.valid(); iter.next()) {
+        this.metrics.frameCount = iter.frameCount;
+        this.metrics.missedVsyncs = iter.missedVsyncs;
+        this.metrics.presentedFrameCount = iter.presentedFrameCount;
+        this.metrics.jankyFrameCount = iter.jankyFrameCount;
+        this.metrics.jankyFramePercent = iter.jankyFramePercent;
+        return;
+      }
+    }
+  }
+
+  private async loadMaxDelay() {
+    if (exists(this.data)) {
+      const queryResult = await this.engine.query(`
+        SELECT
+          IFNULL(MAX(dur), 0) AS maxDelayDur,
+          IFNULL(delayed_frame_count, 0) AS maxDelayVsync
+        FROM chrome_janky_frame_presentation_intervals s
+        WHERE s.ts >= ${this.data.ts}
+          AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
+      `);
+
+      const iter = queryResult.firstRow({
+        maxDelayDur: LONG,
+        maxDelayVsync: NUM,
+      });
+
+      if (iter.maxDelayDur > 0) {
+        this.metrics.maxDelayDur = iter.maxDelayDur;
+        this.metrics.maxDelayVsync = iter.maxDelayVsync;
+      }
+    }
+  }
+
   private renderMetricsDictionary(): m.Child[] {
     const metrics: {[key: string]: m.Child} = {};
-    if (this.metrics.inputEventCount !== undefined) {
-      metrics['Input Event Count'] = this.metrics.inputEventCount;
+    metrics['Total Finger Input Event Count'] = this.metrics.inputEventCount;
+    metrics['Total Vsyncs within Scrolling period'] = this.metrics.frameCount;
+    metrics['Total Chrome Presented Frames'] = this.metrics.presentedFrameCount;
+    metrics['Total Janky Frames'] = this.metrics.jankyFrameCount;
+    metrics['Number of Vsyncs Janky Frames were Delayed by'] =
+        this.metrics.missedVsyncs;
+
+    if (this.metrics.jankyFramePercent !== undefined) {
+      metrics['Janky Frame Percentage (Total Janky Frames / Total Chrome Presented Frames)'] =
+          sqlValueToString(`${this.metrics.jankyFramePercent}%`);
+    }
+
+    if (this.metrics.maxDelayDur !== undefined &&
+        this.metrics.maxDelayVsync !== undefined) {
+      // TODO(b/278844325): replace this with a link to the actual scroll slice.
+      metrics['Max Frame Presentation Delay'] =
+          m(Tree,
+            m(TreeNode, {
+              left: 'Duration',
+              right: m(DurationWidget, {dur: this.metrics.maxDelayDur}),
+            }),
+            m(TreeNode, {
+              left: 'Vsyncs Missed',
+              right: this.metrics.maxDelayVsync,
+            }));
+    } else {
+      metrics['Max Frame Presentation Delay'] = sqlValueToString('None');
     }
 
     return dictToTreeNodes(metrics);
@@ -131,18 +223,18 @@ export class ScrollDetailsPanel extends
   private getDescriptionText(): m.Child {
     return m(
         `div[style='white-space:pre-wrap']`,
-        `The interval during which the user has started a scroll ending after 
-        their finger leaves the screen and any resulting fling animations have 
+        `The interval during which the user has started a scroll ending after
+        their finger leaves the screen and any resulting fling animations have
         finished.{new_lines}
 
-        Note: This can contain periods of time where the finger is down and not 
+        Note: This can contain periods of time where the finger is down and not
         moving and no active scrolling is occurring.{new_lines}
 
-        Note: Sometimes if a user touches the screen quickly after letting go 
-        or Chrome was hung and got into a bad state. A new scroll will start 
-        which will result in a slightly overlapping scroll. This can occur due 
-        to the last scroll still outputting frames (to get caught up) and the 
-        "new" scroll having started producing frames after the user has started 
+        Note: Sometimes if a user touches the screen quickly after letting go
+        or Chrome was hung and got into a bad state. A new scroll will start
+        which will result in a slightly overlapping scroll. This can occur due
+        to the last scroll still outputting frames (to get caught up) and the
+        "new" scroll having started producing frames after the user has started
         scrolling again.`.replace(/\s\s+/g, ' ')
             .replace(/{new_lines}/g, '\n\n')
             .replace(/ Note:/g, 'Note:'),
@@ -150,14 +242,14 @@ export class ScrollDetailsPanel extends
   }
 
   viewTab() {
-    if (this.data === undefined) {
+    if (this.isLoading() || this.data == undefined) {
       return m('h2', 'Loading');
     }
 
     const details = dictToTreeNodes({
       'Scroll ID': sqlValueToString(this.data.id),
       'Start time': m(Timestamp, {ts: this.data.ts}),
-      'DurationWidget': m(DurationWidget, {dur: this.data.dur}),
+      'Duration': m(DurationWidget, {dur: this.data.dur}),
       'SQL ID': m(SqlRef, {table: 'chrome_scrolls', id: this.config.id}),
     });
 

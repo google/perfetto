@@ -13,6 +13,30 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
+// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
+
+// Blocking call on the main thread.
+message AndroidBlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
+    // Total duration within the CUJ in nanoseconds
+    optional int64 total_dur_ns = 6;
+    // Maximal duration within the CUJ in nanoseconds
+    optional int64 max_dur_ns = 7;
+    // Minimal duration within the CUJ in nanoseconds
+    optional int64 min_dur_ns = 8;
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_call.proto
+
 // Begin of protos/perfetto/metrics/android/process_metadata.proto
 
 message AndroidProcessMetadata {
@@ -49,29 +73,6 @@ message AndroidProcessMetadata {
 }
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
-
-// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
-
-// Blocking call on the main thread.
-message AndroidBlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
-    // Total duration within the CUJ in nanoseconds
-    optional int64 total_dur_ns = 6;
-    // Maximal duration within the CUJ in nanoseconds
-    optional int64 max_dur_ns = 7;
-    // Minimal duration within the CUJ in nanoseconds
-    optional int64 min_dur_ns = 8;
-}
-// End of protos/perfetto/metrics/android/android_blocking_call.proto
 
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
@@ -409,6 +410,7 @@ message AndroidCpuMetric {
   // Next id: 8
   message Process {
     optional string name = 1;
+    optional AndroidProcessMetadata process = 8;
     optional Metrics metrics = 4;
 
     // Breakdowns of above metrics.
@@ -463,8 +465,10 @@ message AndroidCodecMetrics {
     optional string process_name = 1;
     // name of the codec thread
     optional string thread_name = 2;
+    // was thread_cpu_us
+    reserved 3;
     // total cpu usage of the codec thread
-    optional int64 thread_cpu_us = 3;
+    optional int64 thread_cpu_ns = 6;
     // can be number of codec framework thread
     optional uint32 num_threads = 4;
     // core type data info used by codec thread
@@ -475,6 +479,7 @@ message AndroidCodecMetrics {
   repeated CodecFunction codec_function = 2;
 
 }
+
 // End of protos/perfetto/metrics/android/codec_metrics.proto
 
 // Begin of protos/perfetto/metrics/android/display_metrics.proto
@@ -894,6 +899,59 @@ message AndroidHwuiMetric {
 }
 
 // End of protos/perfetto/metrics/android/hwui_metric.proto
+
+// Begin of protos/perfetto/metrics/android/io_metric.proto
+
+// Measure Android IO stats in a trace.
+// Note: This is an aggregated metric, for unaggregated metrics look at AndroidIoUnaggregated
+// in io_unagg_metric.proto.
+message AndroidIo {
+  // Next id: 3
+  // Stats for Counters in an f2fs file system.
+  // Counters are available for various operations.
+  message F2fsCounterStats {
+    optional string name = 1;
+    optional double max = 2;
+    optional double sum = 3;
+    optional double min = 5;
+    optional int64 dur = 6;
+    optional int64 count = 7;
+    optional double avg = 8;
+  }
+  // Aggregated stats for write operations in an f2fs file system.
+  message F2fsWriteStats {
+    optional int64 total_write_count = 1;
+    optional int64 distinct_processes = 2;
+    optional int64 total_bytes_written = 3;
+    optional int64 distinct_device_count = 4;
+    optional int64 distict_inode_count = 5;
+    optional int64 distinct_thread_count = 6;
+  }
+  repeated F2fsCounterStats f2fs_counter_stats = 1;
+  repeated F2fsWriteStats f2fs_write_stats = 2;
+}
+
+// End of protos/perfetto/metrics/android/io_metric.proto
+
+// Begin of protos/perfetto/metrics/android/io_unagg_metric.proto
+
+// IO metrics on Android in unaggregated form.
+// Note: this generates a lot of data so should not be requested unless it
+// is clear that this data is necessary.
+message AndroidIoUnaggregated {
+    // Next id: 2
+    message F2fsWriteUnaggreagatedStat {
+      optional uint32 tid = 1;
+      optional string thread_name = 2;
+      optional uint32 pid = 3;
+      optional string process_name = 4;
+      optional int64 ino = 5;
+      optional int64 dev = 6;
+    }
+    // F2fs write stats which are grouped by thread and inode.
+    repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
+}
+// End of protos/perfetto/metrics/android/io_unagg_metric.proto
 
 // Begin of protos/perfetto/metrics/android/ion_metric.proto
 
@@ -2161,7 +2219,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 52
+// Next id: 55
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2302,6 +2360,14 @@ message TraceMetrics {
 
   // Metrics to track codec framework.
   optional AndroidCodecMetrics codec_metrics = 52;
+
+  // Metric to track Android IO.
+  optional AndroidIo android_io = 53;
+
+  // IO metrics on Android in unaggregated form.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidIoUnaggregated android_io_unagg = 54;
 
   // Demo extensions.
   extensions 450 to 499;

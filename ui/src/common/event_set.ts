@@ -188,7 +188,7 @@ export abstract class OptimisingEventSet<P extends KeySet> implements
 
   // OptimisingEventSet provides the synchronous refinement methods.
   // The basic pattern is to construct a 'NaiveFoo' EventSet which will
-  // do the the given operation (filter, sort, union, intersection) in
+  // do the given operation (filter, sort, union, intersection) in
   // JavaScript then call optimise(). Optimse then tries to improve the
   // EventSet tree - and avoid having to use the fallback naive
   // implementaion.
