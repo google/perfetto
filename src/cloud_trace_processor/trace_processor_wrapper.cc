@@ -149,7 +149,8 @@ TraceProcessorWrapper::Query(const std::string& query) {
   }
   return base::RunOnThreadPool<StatusOrResponse>(
       thread_pool_,
-      QueryRunner(trace_processor_, query, trace_path_, statefulness_));
+      QueryRunner(trace_processor_, query, trace_path_, statefulness_),
+      [tp = trace_processor_] { tp->InterruptQuery(); });
 }
 
 }  // namespace cloud_trace_processor
