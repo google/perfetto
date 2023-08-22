@@ -281,9 +281,11 @@ class TraceBuffer {
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const;
 
+  void set_read_only() { read_only_ = true; }
   const WriterStatsMap& writer_stats() const { return writer_stats_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
+  OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
 
  private:
   friend class TraceBufferTest;

@@ -52,6 +52,14 @@ message TraceConfig {
       DISCARD = 2;
     }
     optional FillPolicy fill_policy = 4;
+
+    // When true the buffer is moved (rather than copied) onto the cloned
+    // session, and an empty buffer of the same size is allocated in the source
+    // tracing session. This feature will likely get deprecated in the future.
+    // It been introduced mainly to support the surfaceflinger snapshot dump
+    // for bugreports, where SF can dumps O(400MB) into the bugreport trace. In
+    // that case we don't want to retain another in-memory copy of the buffer.
+    optional bool transfer_on_clone = 5;
   }
   repeated BufferConfig buffers = 1;
 
