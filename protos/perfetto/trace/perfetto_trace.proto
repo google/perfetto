@@ -7991,6 +7991,18 @@ message RegulatorSetVoltageCompleteFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/regulator.proto
 
+// Begin of protos/perfetto/trace/ftrace/samsung.proto
+
+message SamsungTracingMarkWriteFtraceEvent {
+  optional int32 pid = 1;
+  optional string trace_name = 2;
+  optional uint32 trace_begin = 3;
+  optional uint32 trace_type = 4;
+  optional int32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/samsung.proto
+
 // Begin of protos/perfetto/trace/ftrace/sched.proto
 
 message SchedSwitchFtraceEvent {
@@ -9158,6 +9170,7 @@ message FtraceEvent {
     SuspendResumeMinimalFtraceEvent suspend_resume_minimal = 481;
     MaliMaliCSFINTERRUPTSTARTFtraceEvent mali_mali_CSF_INTERRUPT_START = 482;
     MaliMaliCSFINTERRUPTENDFtraceEvent mali_mali_CSF_INTERRUPT_END = 483;
+    SamsungTracingMarkWriteFtraceEvent samsung_tracing_mark_write = 484;
   }
 }
 
