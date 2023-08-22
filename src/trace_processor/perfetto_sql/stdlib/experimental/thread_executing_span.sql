@@ -13,6 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+SELECT IMPORT('common.slices');
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed
@@ -647,3 +648,161 @@ RETURNS TABLE(
     leaf_blocked_function
   FROM experimental_thread_executing_span_ancestors($thread_executing_span_id, $leaf_utid),
     trace_bounds;
+
+-- Critical path of thread_executing_spans 'span joined' with their thread states.
+-- See |experimental_thread_executing_span_critical_path|.
+--
+-- @arg leaf_utid INT                       Thread utid to filter critical paths for.
+--
+-- @column id                               Id of the first (runnable) thread state in thread_executing_span.
+-- @column thread_state_id                  Id of thread_state in the critical path.
+-- @column ts                               Timestamp of thread_state in the critical path.
+-- @column dur                              Duration of thread_state in the critical path.
+-- @column tid                              Tid of thread with thread_state.
+-- @column pid                              Pid of process with thread_state.
+-- @column utid                             Utid of thread with thread_state.
+-- @column upid                             Upid of process with thread_state.
+-- @column thread_name                      Name of thread with thread_state.
+-- @column process_name                     Name of process with thread_state.
+-- @column state                            Thread state of thread in the critical path.
+-- @column blocked_function                 Blocked function of thread in the critical path.
+-- @column height                           Tree height of thread_executing_span thread_state belongs to.
+-- @column leaf_utid                        Thread Utid the critical path was filtered to.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_thread_states(leaf_utid INT)
+RETURNS TABLE(
+  id INT,
+  thread_state_id INT,
+  ts LONG,
+  dur LONG,
+  tid INT,
+  pid INT,
+  utid INT,
+  upid INT,
+  thread_name STRING,
+  process_name STRING,
+  state STRING,
+  blocked_function STRING,
+  height INT,
+  leaf_utid INT
+) AS
+WITH
+  span_starts AS (
+    SELECT
+      span.id,
+      thread_state.id AS thread_state_id,
+      MAX(thread_state.ts, span.ts) AS ts,
+      span.ts + span.dur AS span_end_ts,
+      thread_state.ts + thread_state.dur AS thread_state_end_ts,
+      span.tid,
+      span.pid,
+      span.utid,
+      span.upid,
+      span.thread_name,
+      span.process_name,
+      thread_state.state,
+      thread_state.blocked_function,
+      span.height,
+      span.leaf_utid
+    FROM experimental_thread_executing_span_critical_path(NULL, $leaf_utid) span
+    JOIN thread_state
+      ON
+        thread_state.utid = span.utid
+        AND ((thread_state.ts BETWEEN span.ts AND span.ts + span.dur)
+             OR (span.ts BETWEEN thread_state.ts AND thread_state.ts + thread_state.dur))
+  )
+SELECT
+  id,
+  thread_state_id,
+  ts,
+  MIN(span_end_ts, thread_state_end_ts) - ts AS dur,
+  tid,
+  pid,
+  utid,
+  upid,
+  thread_name,
+  process_name,
+  state,
+  blocked_function,
+  height,
+  leaf_utid
+FROM span_starts
+WHERE MIN(span_end_ts, thread_state_end_ts) - ts > 0;
+
+-- Critical path of thread_executing_spans 'span joined' with their slices.
+-- See |experimental_thread_executing_span_critical_path|.
+--
+-- @arg leaf_utid INT                       Thread utid to filter critical paths for.
+--
+-- @column id                               Id of the first (runnable) thread state in thread_executing_span.
+-- @column slice_id                         Id of slice in the critical path.
+-- @column ts                               Timestamp of slice in the critical path.
+-- @column dur                              Duration of slice in the critical path.
+-- @column tid                              Tid of thread that emitted the slice.
+-- @column pid                              Pid of process that emitted the slice.
+-- @column utid                             Utid of thread that emitted the slice.
+-- @column upid                             Upid of process that emitted the slice.
+-- @column thread_name                      Name of thread that emitted the slice.
+-- @column process_name                     Name of process that emitted the slice.
+-- @column slice_name                       Name of slice in the critical path.
+-- @column slice_depth                      Depth of slice in its slice stack in the critical path.
+-- @column height                           Tree height of thread_executing_span the slice belongs to.
+-- @column leaf_utid                        Thread Utid the critical path was filtered to.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_slices(leaf_utid INT)
+RETURNS TABLE(
+  id INT,
+  slice_id INT,
+  ts LONG,
+  dur LONG,
+  tid INT,
+  pid INT,
+  utid INT,
+  upid INT,
+  thread_name STRING,
+  process_name STRING,
+  slice_name STRING,
+  slice_depth INT,
+  height INT,
+  leaf_utid INT
+) AS
+WITH
+  span_start AS (
+    SELECT
+      span.id,
+      slice.id AS slice_id,
+      MAX(slice.ts, span.ts) AS ts,
+      span.ts + span.dur AS span_end_ts,
+      slice.ts + slice.dur AS slice_end_ts,
+      span.tid,
+      span.pid,
+      span.utid,
+      span.upid,
+      span.thread_name,
+      span.process_name,
+      slice.name AS slice_name,
+      slice.depth AS slice_depth,
+      span.height,
+      span.leaf_utid
+    FROM experimental_thread_executing_span_critical_path(NULL, $leaf_utid) span
+    JOIN thread_slice slice
+      ON
+        slice.utid = span.utid
+        AND ((slice.ts BETWEEN span.ts AND span.ts + span.dur)
+             OR (span.ts BETWEEN slice.ts AND slice.ts + slice.dur))
+  )
+SELECT
+  id,
+  slice_id,
+  ts,
+  MIN(span_end_ts, slice_end_ts) - ts AS dur,
+  tid,
+  pid,
+  utid,
+  upid,
+  thread_name,
+  process_name,
+  slice_name,
+  slice_depth,
+  height,
+  leaf_utid
+FROM span_start
+WHERE MIN(span_end_ts, slice_end_ts) - ts > 0;
