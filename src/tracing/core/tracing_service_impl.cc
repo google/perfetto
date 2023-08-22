@@ -3614,6 +3614,48 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     clone_target = FlushFlags::CloneTarget::kBugreport;
   }
 
+  TracingSession* session = GetTracingSession(tsid);
+  if (!session) {
+    consumer->consumer_->OnSessionCloned(
+        {false, "Tracing session not found", {}});
+    return;
+  }
+
+  // If any of the buffers are marked as clear_before_clone, reset them before
+  // issuing the Flush(kCloneReason).
+  size_t buf_idx = 0;
+  for (BufferID src_buf_id : session->buffers_index) {
+    if (!session->config.buffers()[buf_idx++].clear_before_clone())
+      continue;
+    auto buf_iter = buffers_.find(src_buf_id);
+    PERFETTO_CHECK(buf_iter != buffers_.end());
+    std::unique_ptr<TraceBuffer>& buf = buf_iter->second;
+
+    // No need to reset the buffer if nothing has been written into it yet.
+    // This is the canonical case if producers behive nicely and don't timeout
+    // the handling of writes during the flush.
+    // This check avoids a useless re-mmap upon every Clone() if the buffer is
+    // already empty (when used in combination with `transfer_on_clone`).
+    if (!buf->has_data())
+      continue;
+
+    // Some leftover data was left in the buffer. Recreate it to empty it.
+    const auto buf_policy = buf->overwrite_policy();
+    const auto buf_size = buf->size();
+    std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
+    buf = TraceBuffer::Create(buf_size, buf_policy);
+    if (!buf) {
+      // This is extremely rare but could happen on 32-bit. If the new buffer
+      // allocation failed, put back the buffer where it was and fail the clone.
+      // We cannot leave the original tracing session buffer-less as it would
+      // cause crashes when data sources commit new data.
+      buf = std::move(old_buf);
+      consumer->consumer_->OnSessionCloned(
+          {false, "Buffer allocation failed while attempting to clone", {}});
+      return;
+    }
+  }
+
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(

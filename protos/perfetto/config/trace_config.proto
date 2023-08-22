@@ -60,6 +60,13 @@ message TraceConfig {
     // for bugreports, where SF can dumps O(400MB) into the bugreport trace. In
     // that case we don't want to retain another in-memory copy of the buffer.
     optional bool transfer_on_clone = 5;
+
+    // Used in conjuction with transfer_on_clone. When true the buffer is
+    // cleared before issuing the Flush(reason=kTraceClone). This is to ensure
+    // that if the data source took too long to write the data in a previous
+    // clone-related flush, we don't end up with a mixture of leftovers from
+    // the previous write and new data.
+    optional bool clear_before_clone = 6;
   }
   repeated BufferConfig buffers = 1;
 
