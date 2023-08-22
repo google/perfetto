@@ -1264,13 +1264,17 @@ void PerfettoCmd::SetupCtrlCSignalHandler() {
       return;
     PERFETTO_LOG("SIGINT/SIGTERM received: disabling tracing.");
     weak_this->ctrl_c_evt_.Clear();
-    weak_this->consumer_endpoint_->Flush(0, [weak_this](bool flush_success) {
-      if (!weak_this)
-        return;
-      if (!flush_success)
-        PERFETTO_ELOG("Final flush unsuccessful.");
-      weak_this->consumer_endpoint_->DisableTracing();
-    });
+    weak_this->consumer_endpoint_->Flush(
+        0,
+        [weak_this](bool flush_success) {
+          if (!weak_this)
+            return;
+          if (!flush_success)
+            PERFETTO_ELOG("Final flush unsuccessful.");
+          weak_this->consumer_endpoint_->DisableTracing();
+        },
+        FlushFlags(FlushFlags::Initiator::kPerfettoCmd,
+                   FlushFlags::Reason::kTraceStop));
   });
 }
 
@@ -1305,13 +1309,17 @@ void PerfettoCmd::OnAttach(bool success, const TraceConfig& trace_config) {
 
   if (stop_trace_once_attached_) {
     auto weak_this = weak_factory_.GetWeakPtr();
-    consumer_endpoint_->Flush(0, [weak_this](bool flush_success) {
-      if (!weak_this)
-        return;
-      if (!flush_success)
-        PERFETTO_ELOG("Final flush unsuccessful.");
-      weak_this->consumer_endpoint_->DisableTracing();
-    });
+    consumer_endpoint_->Flush(
+        0,
+        [weak_this](bool flush_success) {
+          if (!weak_this)
+            return;
+          if (!flush_success)
+            PERFETTO_ELOG("Final flush unsuccessful.");
+          weak_this->consumer_endpoint_->DisableTracing();
+        },
+        FlushFlags(FlushFlags::Initiator::kPerfettoCmd,
+                   FlushFlags::Reason::kTraceStop));
   }
 }
 

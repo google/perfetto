@@ -66,7 +66,7 @@ class ConsumerIPCClientImpl : public TracingService::ConsumerEndpoint,
   void DisableTracing() override;
   void ReadBuffers() override;
   void FreeBuffers() override;
-  void Flush(uint32_t timeout_ms, FlushCallback) override;
+  void Flush(uint32_t timeout_ms, FlushCallback, FlushFlags) override;
   void Detach(const std::string& key) override;
   void Attach(const std::string& key) override;
   void GetTraceStats() override;
