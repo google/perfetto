@@ -84,13 +84,15 @@ class MockDs2Callbacks : testing::Mock {
                PerfettoDsInstanceIndex inst_id,
                void* ds_config,
                size_t ds_config_size,
-               void* user_arg));
+               void* user_arg,
+               struct PerfettoDsOnSetupArgs* args));
   MOCK_METHOD(void,
               OnStart,
               (struct PerfettoDsImpl*,
                PerfettoDsInstanceIndex inst_id,
                void* user_arg,
-               void* inst_ctx));
+               void* inst_ctx,
+               struct PerfettoDsOnStartArgs* args));
   MOCK_METHOD(void,
               OnStop,
               (struct PerfettoDsImpl*,
@@ -232,17 +234,20 @@ class SharedLibDataSourceTest : public testing::Test {
     struct PerfettoDsParams params = PerfettoDsParamsDefault();
     params.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
                             PerfettoDsInstanceIndex inst_id, void* ds_config,
-                            size_t ds_config_size, void* user_arg) -> void* {
+                            size_t ds_config_size, void* user_arg,
+                            struct PerfettoDsOnSetupArgs* args) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnSetup(ds_impl, inst_id, ds_config,
-                                          ds_config_size, thiz->ds2_user_arg_);
+                                          ds_config_size, thiz->ds2_user_arg_,
+                                          args);
     };
     params.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
                             PerfettoDsInstanceIndex inst_id, void* user_arg,
-                            void* inst_ctx) -> void {
+                            void* inst_ctx,
+                            struct PerfettoDsOnStartArgs* args) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
-                                          inst_ctx);
+                                          inst_ctx, args);
     };
     params.on_stop_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
@@ -464,9 +469,10 @@ TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   void* const kInstancePtr = reinterpret_cast<void*>(0x44);
   testing::InSequence seq;
   PerfettoDsInstanceIndex setup_inst, start_inst, stop_inst;
-  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg))
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg, _))
       .WillOnce(DoAll(SaveArg<1>(&setup_inst), Return(kInstancePtr)));
-  EXPECT_CALL(ds2_callbacks_, OnStart(_, _, kDataSource2UserArg, kInstancePtr))
+  EXPECT_CALL(ds2_callbacks_,
+              OnStart(_, _, kDataSource2UserArg, kInstancePtr, _))
       .WillOnce(SaveArg<1>(&start_inst));
 
   TracingSession tracing_session =
