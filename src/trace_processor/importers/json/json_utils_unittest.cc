@@ -52,8 +52,29 @@ TEST(JsonTraceUtilsTest, CoerceToTs) {
   ASSERT_EQ(CoerceToTs(Json::Value("42.0")).value_or(-1), 42000);
   ASSERT_EQ(CoerceToTs(Json::Value("0.2")).value_or(-1), 200);
   ASSERT_EQ(CoerceToTs(Json::Value("0.2e-1")).value_or(-1), 20);
+  ASSERT_EQ(CoerceToTs(Json::Value("0.2e-2")).value_or(-1), 2);
+  ASSERT_EQ(CoerceToTs(Json::Value("0.2e-3")).value_or(-1), 0);
+  ASSERT_EQ(CoerceToTs(Json::Value("1.692108548132154500e+15")).value_or(-1),
+            1'692'108'548'132'154'500);
+  ASSERT_EQ(CoerceToTs(Json::Value("1692108548132154.500")).value_or(-1),
+            1'692'108'548'132'154'500);
+  ASSERT_EQ(CoerceToTs(Json::Value("1.692108548132154501e+15")).value_or(-1),
+            1'692'108'548'132'154'501);
+  ASSERT_EQ(CoerceToTs(Json::Value("1692108548132154.501")).value_or(-1),
+            1'692'108'548'132'154'501);
+  ASSERT_EQ(CoerceToTs(Json::Value("-1.692108548132154500E+15")).value_or(-1),
+            -1'692'108'548'132'154'500);
+  ASSERT_EQ(CoerceToTs(Json::Value("-1692108548132154.500")).value_or(-1),
+            -1'692'108'548'132'154'500);
+  ASSERT_EQ(CoerceToTs(Json::Value("-1.692108548132154501E+15")).value_or(-1),
+            -1'692'108'548'132'154'501);
+  ASSERT_EQ(CoerceToTs(Json::Value("-1692108548132154.501")).value_or(-1),
+            -1'692'108'548'132'154'501);
+  ASSERT_EQ(CoerceToTs(Json::Value("-0")).value_or(-1), 0);
+  ASSERT_EQ(CoerceToTs(Json::Value("0")).value_or(-1), 0);
   ASSERT_EQ(CoerceToTs(Json::Value(".")).value_or(-1), 0);
   ASSERT_FALSE(CoerceToTs(Json::Value("1234!")).has_value());
+  ASSERT_FALSE(CoerceToTs(Json::Value("123e4!")).has_value());
 }
 
 }  // namespace
