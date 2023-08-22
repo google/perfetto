@@ -26,7 +26,7 @@ class FakeEngine extends Engine {
   rpcSendRequestBytes(_data: Uint8Array) {}
 }
 
-function makeMockPlugin(): Plugin {
+function makeMockPlugin(): Plugin<any> {
   return {
     migrate: jest.fn(),
     onActivate: jest.fn(),
