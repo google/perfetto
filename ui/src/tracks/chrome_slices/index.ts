@@ -15,7 +15,10 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
-import {colorForThreadIdleSlice, hslForSlice} from '../../common/colorizer';
+import {
+  colorForThreadIdleSlice,
+  getColorForSlice,
+} from '../../common/colorizer';
 import {HighPrecisionTime} from '../../common/high_precision_time';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
 import {duration, Span, Time, time} from '../../common/time';
@@ -236,17 +239,15 @@ export class ChromeSliceTrack extends Track<Config, Data> {
           currentSelection.kind === 'CHROME_SLICE' &&
           currentSelection.id !== undefined && currentSelection.id === sliceId;
 
-      const name = title.replace(/( )?\d+/g, '');
       const highlighted = titleId === this.hoveredTitleId ||
           globals.state.highlightedSliceId === sliceId;
 
       const hasFocus = highlighted || isSelected;
-
-      const [hue, saturation, lightness] = hslForSlice(name, hasFocus);
+      const colorObj = getColorForSlice(title, hasFocus);
 
       let color: string;
       if (colorOverride === undefined) {
-        color = cachedHsluvToHex(hue, saturation, lightness);
+        color = colorObj.c;
       } else {
         color = colorOverride;
       }
@@ -269,7 +270,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
             ctx.save();
             ctx.translate(0, INNER_CHEVRON_OFFSET);
             ctx.scale(INNER_CHEVRON_SCALE, INNER_CHEVRON_SCALE);
-            ctx.fillStyle = cachedHsluvToHex(hue, 100, 10);
+            ctx.fillStyle = cachedHsluvToHex(colorObj.h, 100, 10);
 
             this.drawChevron(ctx);
             ctx.restore();
@@ -299,8 +300,8 @@ export class ChromeSliceTrack extends Track<Config, Data> {
         const firstPartWidth = rect.width * cpuTimeRatio;
         const secondPartWidth = rect.width * (1 - cpuTimeRatio);
         ctx.fillRect(rect.left, rect.top, firstPartWidth, SLICE_HEIGHT);
-        ctx.fillStyle =
-            colorForThreadIdleSlice(hue, saturation, lightness, hasFocus);
+        ctx.fillStyle = colorForThreadIdleSlice(
+            colorObj.h, colorObj.s, colorObj.l, hasFocus);
         ctx.fillRect(
             rect.left + firstPartWidth,
             rect.top,
@@ -313,7 +314,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
-          ctx.strokeStyle = cachedHsluvToHex(hue, 100, 10);
+          ctx.strokeStyle = cachedHsluvToHex(colorObj.h, 100, 10);
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
@@ -324,7 +325,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
       // Don't render text when we have less than 5px to play with.
       if (rect.width >= 5) {
-        ctx.fillStyle = lightness > 65 ? '#404040' : 'white';
+        ctx.fillStyle = colorObj.l > 65 ? '#404040' : 'white';
         const displayText = cropText(title, charWidth, rect.width);
         const rectXCenter = rect.left + rect.width / 2;
         ctx.textBaseline = 'middle';
