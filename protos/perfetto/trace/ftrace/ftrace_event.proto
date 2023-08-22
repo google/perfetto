@@ -61,6 +61,7 @@ import "protos/perfetto/trace/ftrace/power.proto";
 import "protos/perfetto/trace/ftrace/printk.proto";
 import "protos/perfetto/trace/ftrace/raw_syscalls.proto";
 import "protos/perfetto/trace/ftrace/regulator.proto";
+import "protos/perfetto/trace/ftrace/samsung.proto";
 import "protos/perfetto/trace/ftrace/sched.proto";
 import "protos/perfetto/trace/ftrace/scm.proto";
 import "protos/perfetto/trace/ftrace/sde.proto";
@@ -597,5 +598,6 @@ message FtraceEvent {
     SuspendResumeMinimalFtraceEvent suspend_resume_minimal = 481;
     MaliMaliCSFINTERRUPTSTARTFtraceEvent mali_mali_CSF_INTERRUPT_START = 482;
     MaliMaliCSFINTERRUPTENDFtraceEvent mali_mali_CSF_INTERRUPT_END = 483;
+    SamsungTracingMarkWriteFtraceEvent samsung_tracing_mark_write = 484;
   }
 }
