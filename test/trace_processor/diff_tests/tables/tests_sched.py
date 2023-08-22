@@ -507,3 +507,69 @@ class TablesSched(TestSuite):
         1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",30,0,1737061943856,1572057416,"S","[NULL]"
         1735490039439,570799,544,527,"adbd","/apex/com.android.adbd/bin/adbd","init","/system/bin/init","[NULL]","[NULL]","[NULL]",0,1,1735490039439,"[NULL]","[NULL]","[NULL]"
         """))
+
+  def test_thread_executing_span_critical_path_thread_states(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          state,
+          blocked_function,
+          height
+        FROM experimental_thread_executing_span_critical_path_thread_states(257)
+        ORDER BY ts
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","state","blocked_function","height"
+        1736109621029,34116,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
+        1736109655145,680044,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
+        1736110335189,83413,657,642,"binder:642_1","system_server","R","[NULL]",1
+        1736110418602,492287,657,642,"binder:642_1","system_server","Running","[NULL]",1
+        1736110910889,122878,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
+        1736111033767,282646,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
+        1736111316413,19907,657,642,"binder:642_1","system_server","R","[NULL]",1
+        1736111336320,370659,657,642,"binder:642_1","system_server","Running","[NULL]",1
+        1736111706979,44391,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
+        1736111751370,143860,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
+        """))
+
+  def test_thread_executing_span_critical_path_slices(self):
+    return DiffTestBlueprint(
+        trace=DataPath('sched_wakeup_trace.atr'),
+        query="""
+        SELECT IMPORT('experimental.thread_executing_span');
+        SELECT
+          ts,
+          dur,
+          tid,
+          pid,
+          thread_name,
+          process_name,
+          slice_name,
+          slice_depth,
+          height
+        FROM experimental_thread_executing_span_critical_path_slices(257)
+        ORDER BY ts
+        LIMIT 10
+        """,
+        out=Csv("""
+        "ts","dur","tid","pid","thread_name","process_name","slice_name","slice_depth","height"
+        1736110278076,57113,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
+        1736110435876,462664,657,642,"binder:642_1","system_server","binder reply",0,1
+        1736110692464,135281,657,642,"binder:642_1","system_server","AIDL::java::INetworkStatsService::getMobileIfaces::server",1,1
+        1736110910889,132674,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
+        1736111274404,42009,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
+        1736111340019,361607,657,642,"binder:642_1","system_server","binder reply",0,1
+        1736111417370,249758,657,642,"binder:642_1","system_server","AIDL::java::INetworkStatsService::getIfaceStats::server",1,1
+        1736111706979,48463,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
+        1736111874030,21200,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
+        1736111923740,159330,657,642,"binder:642_1","system_server","binder reply",0,1
+        """))
