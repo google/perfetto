@@ -89,8 +89,14 @@ SELECT
 -- names. For example, LongTaskTracker slices may have associated IPC
 -- metadata, or InterestingTask slices for input may have associated IPC to
 -- determine whether the task is fling/etc.
+--
+-- @arg name STRING            The name of slice.
+-- @column interface_name      Name of the interface of the IPC call.
+-- @column ipc_hash            Hash of the IPC call.
+-- @column message_type        Message type (e.g. reply).
+-- @column id                  The slice ID.
 SELECT CREATE_VIEW_FUNCTION(
-  'SELECT_LONG_TASK_SLICES(name STRING)',
+  'CHROME_SELECT_LONG_TASK_SLICES(name STRING)',
   'interface_name STRING, ipc_hash INT, message_type STRING, id INT',
   'SELECT
       EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
