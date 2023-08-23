@@ -64,7 +64,7 @@ import {
   VisibleState,
 } from './state';
 import {TPDuration, TPTime} from './time';
-import { STR } from './query_result';
+import {STR} from './query_result';
 
 export const DEBUG_SLICE_TRACK_KIND = 'DebugSliceTrack';
 
@@ -165,32 +165,13 @@ function removeTrackGroup(state: StateDraft, groupId: string) {
   delete state.trackGroups[groupId];
   state.pinnedTracks = state.pinnedTracks.filter((id) => id !== groupId);
 }
-
-function hasRemovable<T extends AddTrackLikeArgs>(item: T): item is T & {isRemovable: boolean} {
-  return 'isRemovable' in item && typeof item.isRemovable === 'boolean';
-}
-
-function wasFiltered<T extends TrackState|TrackGroupState>(item: T): item is T & {wasFiltered?: true} {
-  return 'wasFiltered' in item && item.wasFiltered === true;
-}
-
-function isFilteredTrack(track: Partial<AddTrackArgs>): boolean {
-  return globals.trackFilteringEnabled && globals.filteredTracks
-      .some(filtered => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
-}
-
 // Query whether an |other| track matches enough details of a |track| as
 // to represent the same track
 function isSameTrack(track: AddTrackArgs, other: Partial<AddTrackArgs>): boolean {
-  return track.kind === other.kind
-      && track.trackGroup == other.trackGroup
+  return track.kind === other.kind &&
+      track.trackGroup == other.trackGroup &&
       // TODO: This may not be reliable. May need to deep-compare the config object
-      && track.name == other.name;
-}
-
-function isFilteredTrackGroup(trackGroup: Partial<AddTrackGroupArgs>): boolean {
-  return globals.trackFilteringEnabled && globals.filteredTracks
-    .some(filtered => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
+      track.name == other.name;
 }
 
 function unfilterTracklike(predicate: (tracklike: AddTrackLikeArgs) => boolean) {
@@ -201,17 +182,12 @@ function unfilterTracklike(predicate: (tracklike: AddTrackLikeArgs) => boolean) 
 }
 
 function unfilterTrack(track: TrackState) {
-  track.isRemovable = true;
-  (track as any).wasFiltered = true;
-  unfilterTracklike(filtered => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
+  unfilterTracklike((filtered) => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
 }
 
 function unfilterTrackGroup(trackGroup: TrackGroupState) {
-  trackGroup.isRemovable = true;
-  (trackGroup as any).wasFiltered = true;
-  unfilterTracklike(filtered => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
+  unfilterTracklike((filtered) => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
 }
-
 // A helper to delete the private tables and views created by a track.
 // TODO: These should recorded by each track that creates them and cleaned up
 //       by an explicit disposable-track protocol.
@@ -378,14 +354,7 @@ export const StateActions = {
       trackGroup: args.trackGroup,
       config: args.config,
     };
-
-    // A track group is removable if that was explicitly requested
-    // or if it is currently filtered out of view
-    if (hasRemovable(args)) {
-      state.tracks[id].isRemovable = args.isRemovable;
-    } else if (isFilteredTrack(args)) {
-      unfilterTrack(state.tracks[id]);
-    }
+    unfilterTrack(state.tracks[id]);
 
     this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
     if (args.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -410,14 +379,7 @@ export const StateActions = {
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],
     };
-
-    // A track group is removable if that was explicitly requested
-    // or if it is currently filtered out of view
-    if (hasRemovable(args)) {
-      state.trackGroups[args.id].isRemovable = args.isRemovable;
-    } else if (isFilteredTrackGroup(args)) {
-      unfilterTrackGroup(state.trackGroups[args.id]);
-    }
+    unfilterTrackGroup(state.trackGroups[args.id]);
   },
 
   addTrackLike(state: StateDraft, args: AddTrackLikeArgs): void {
@@ -454,30 +416,24 @@ export const StateActions = {
     removeTrack(state, args.trackId);
   },
 
-  // Remove a track if it is removable as indicated by the
-  // |isRemovable| property of its state.
   removeTrack(state: StateDraft, args: {trackId: string}): void {
     const track = state.tracks[args.trackId];
-    if(!track){
+    if (!track) {
       return;
     }
-    assertTrue(track.isRemovable ?? false);
     removeTrack(state, args.trackId);
 
     this.cleanUiTrackIdByTraceTrackId(state, track as TrackState, args.trackId);
-
-    if (wasFiltered(track)) {
-      delete track.wasFiltered;
 
       // Don't assume that we can reuse the track's ID, unless
       // it's a group summary track that has a fixed explicit ID.
       // Note that (some, at least) summary tracks don't reference
       // their group
-      const id = track.trackGroup !== SCROLLING_TRACK_GROUP
-              && Object.values(state.trackGroups).some(group => group.tracks.length && group.tracks[0] === track.id)
-          ? { id: track.id }
-          : {};
-      
+      const id = track.trackGroup !== SCROLLING_TRACK_GROUP &&
+              Object.values(state.trackGroups).some((group) => group.tracks.length && group.tracks[0] === track.id) ?
+          {id: track.id} :
+          {};
+
       globals.filteredTracks.push({
         ...id,
         kind: track.kind,
@@ -486,34 +442,26 @@ export const StateActions = {
         trackSortKey: track.trackSortKey,
         trackGroup: track.trackGroup,
         labels: track.labels,
-        config: current(track.config)
+        config: current(track.config),
       });
-    }
-    
+
     dropTables(track.engineId, track.id);
   },
 
-  // Remove a track group if it is removable as indicated by the
-  // |isRemovable| property of its state.
   removeTrackGroup(state: StateDraft, args: {id: string, summaryTrackId: string}): void {
     const trackGroup = state.trackGroups[args.id];
-    if(!trackGroup){
+    if (!trackGroup) {
       return;
     }
-    assertTrue(trackGroup.isRemovable ?? false);
 
     removeTrackGroup(state, args.id);
-
-    if (wasFiltered(trackGroup)) {
-      delete trackGroup.wasFiltered;
       globals.filteredTracks.push({
         id: trackGroup.id,
         engineId: trackGroup.engineId,
         name: trackGroup.name,
         collapsed: trackGroup.collapsed,
-        summaryTrackId: args.summaryTrackId
+        summaryTrackId: args.summaryTrackId,
       });
-    }
   },
 
   removeVisualisedArgTracks(state: StateDraft, args: {trackIds: string[]}) {

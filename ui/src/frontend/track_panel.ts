@@ -196,15 +196,13 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
   getTrackShellButtons(attrs: TrackShellAttrs): m.Vnode<TrackButtonAttrs>[] {
     const result = [...attrs.track.getTrackShellButtons()];
-    if (attrs.trackState.isRemovable ?? false) {
       result.push(m(TrackButton, {
-        action: () => globals.dispatch(Actions.removeTrack({ trackId: attrs.trackState.id })),
+        action: () => globals.dispatch(Actions.removeTrack({trackId: attrs.trackState.id})),
         i: 'delete',
         tooltip: 'Remove track',
         showButton: false, // Only show on roll-over
-        fullHeight: true
+        fullHeight: true,
       }));
-    }
     return result;
   }
 }

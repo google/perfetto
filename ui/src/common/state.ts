@@ -242,7 +242,6 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  isRemovable?: boolean;
   config: {
     trackId?: number;
     trackIds?: number[];
@@ -254,7 +253,6 @@ export interface TrackGroupState {
   engineId: string;
   name: string;
   collapsed: boolean;
-  isRemovable?: boolean;
   tracks: string[];  // Child track ids.
 }
 
