@@ -329,6 +329,9 @@ base::Status ProtoToArgsParser::ParseSimpleField(
     case FieldDescriptorProto::TYPE_FLOAT:
       delegate.AddDouble(key_prefix_, static_cast<double>(field.as_float()));
       return base::OkStatus();
+    case FieldDescriptorProto::TYPE_BYTES:
+      delegate.AddBytes(key_prefix_, field.as_bytes());
+      return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
       delegate.AddString(key_prefix_, field.as_string());
       return base::OkStatus();
