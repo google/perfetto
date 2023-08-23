@@ -2978,6 +2978,13 @@ message TraceConfig {
       // consumer.
       STOP_TRACING = 2;
 
+      // 3 was taken by CLONE_SNAPSHOT but that has been moved to 4.
+      // The early implementation of CLONE_SNAPSHOT had various bugs
+      // (b/290798988, b/290799105) and made it into Android U. The number
+      // change is to make sure nobody rolls out a config that hits the broken
+      // behaviour.
+      reserved 3;
+
       // When this mode is chosen, this causes a snapshot of the current tracing
       // session to be created after |stop_delay_ms| while the current tracing
       // session continues undisturbed (% an extra flush). This mode can be
@@ -2989,10 +2996,10 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 3;
+      CLONE_SNAPSHOT = 4;
 
-      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android U+
-      // (14+) / Perfetto v34+. A bug in older versions of the tracing service
+      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
+      // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
     }
     optional TriggerMode trigger_mode = 1;
@@ -3005,7 +3012,11 @@ message TraceConfig {
     // versions of Android and fall back to STOP_TRACING on older versions where
     // CLONE_SNAPSHOT did not exist.
     // When using this flag, trigger_mode must be set to STOP_TRACING.
-    optional bool use_clone_snapshot_if_available = 4;
+    optional bool use_clone_snapshot_if_available = 5;
+
+    // DEPRECATED, was use_clone_snapshot_if_available in U. See the comment
+    // around CLONE_SNAPSHOT.
+    reserved 4;
 
     message Trigger {
       // The producer must specify this name to activate the trigger.
