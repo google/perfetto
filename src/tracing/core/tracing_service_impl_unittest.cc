@@ -4762,6 +4762,184 @@ TEST_F(TracingServiceImplTest, CloneSessionAcrossUidForBugreport) {
   task_runner.RunUntilCheckpoint("clone_done");
 }
 
+TEST_F(TracingServiceImplTest, TransferOnClone) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  // Create two data sources, as we'll write on two distinct buffers.
+  producer->RegisterDataSource("ds_1");
+  producer->RegisterDataSource("ds_2");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(1024);  // Buf 0.
+  auto* buf1_cfg = trace_config.add_buffers();    // Buf 1 (transfer_on_clone).
+  buf1_cfg->set_size_kb(1024);
+  buf1_cfg->set_transfer_on_clone(true);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(0);
+  ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_2");
+  ds_cfg->set_target_buffer(1);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceSetup("ds_2");
+
+  producer->WaitForDataSourceStart("ds_1");
+  producer->WaitForDataSourceStart("ds_2");
+
+  std::unique_ptr<TraceWriter> writers[] = {
+      producer->CreateTraceWriter("ds_1"),
+      producer->CreateTraceWriter("ds_2"),
+  };
+
+  // Write once in the first buffer. This is expected persist across clones.
+  static constexpr int kNumTestPackets = 10;
+  for (int n = 0; n < kNumTestPackets; n++) {
+    auto tp = writers[0]->NewTracePacket();
+    base::StackString<64> payload("persistent_%d", n);
+    tp->set_for_testing()->set_str(payload.c_str(), payload.len());
+  }
+
+  const int kLastIteration = 3;
+  for (int iteration = 1; iteration <= kLastIteration; iteration++) {
+    // The consumer the creates the initial tracing session.
+    std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+    clone_consumer->Connect(svc.get());
+
+    // Add some new data to the 2nd buffer, which is transferred.
+    // Omit the writing the last iteration to test we get an empty buffer.
+    for (int n = 0; n < kNumTestPackets && iteration != kLastIteration; n++) {
+      auto tp = writers[1]->NewTracePacket();
+      base::StackString<64> payload("transferred_%d_%d", iteration, n);
+      tp->set_for_testing()->set_str(payload.c_str(), payload.len());
+    }
+
+    std::string clone_checkpoint_name = "clone_" + std::to_string(iteration);
+    auto clone_done = task_runner.CreateCheckpoint(clone_checkpoint_name);
+    base::Uuid clone_uuid;
+    EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+        .WillOnce(InvokeWithoutArgs(clone_done));
+    clone_consumer->CloneSession(1);
+
+    // CloneSession() will implicitly issue a flush. Linearize with that.
+    producer->ExpectFlush({writers[0].get(), writers[1].get()});
+    task_runner.RunUntilCheckpoint(clone_checkpoint_name);
+
+    auto packets = clone_consumer->ReadBuffers();
+    std::vector<std::string> actual_payloads;
+    for (const auto& packet : packets) {
+      if (packet.has_for_testing())
+        actual_payloads.emplace_back(packet.for_testing().str());
+    }
+    std::vector<std::string> expected_payloads;
+    for (int n = 0; n < kNumTestPackets; n++) {
+      base::StackString<64> expected_payload("persistent_%d", n);
+      expected_payloads.emplace_back(expected_payload.ToStdString());
+    }
+    for (int n = 0; n < kNumTestPackets && iteration != kLastIteration; n++) {
+      base::StackString<64> expected_payload("transferred_%d_%d", iteration, n);
+      expected_payloads.emplace_back(expected_payload.ToStdString());
+    }
+    ASSERT_THAT(actual_payloads, ElementsAreArray(expected_payloads));
+  }  // for (iteration)
+
+  consumer->DisableTracing();
+  producer->WaitForDataSourceStop("ds_1");
+  producer->WaitForDataSourceStop("ds_2");
+  consumer->WaitForTracingDisabled();
+
+  // Read the data from the primary (non-cloned) tracing session. Check that
+  // it doesn't have any "transferred_xxx" payload but only the "persistent_xxx"
+  // coming from the standard non-transferred buffer.
+  auto packets = consumer->ReadBuffers();
+  EXPECT_THAT(packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             HasSubstr("transferred_"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  HasSubstr("persistent_")))));
+}
+
+TEST_F(TracingServiceImplTest, ClearBeforeClone) {
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds_1");
+
+  TraceConfig trace_config;
+  // Unused. This buffer is created only to make the test less trivial and cover
+  // the case of the clear-bufferd to be the beyond the 0th entry.
+  trace_config.add_buffers()->set_size_kb(32);
+
+  auto* buf_cfg = trace_config.add_buffers();
+  buf_cfg->set_size_kb(1024);
+  buf_cfg->set_clear_before_clone(true);
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds_1");
+  ds_cfg->set_target_buffer(1);
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds_1");
+  producer->WaitForDataSourceStart("ds_1");
+
+  std::unique_ptr<TraceWriter> writer = producer->CreateTraceWriter("ds_1");
+
+  // These packets, emitted before the clone, should be dropped.
+  for (int i = 0; i < 3; i++) {
+    writer->NewTracePacket()->set_for_testing()->set_str("before_clone");
+  }
+  auto flush_request = consumer->Flush();
+  producer->ExpectFlush(writer.get());
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  // The consumer the creates the initial tracing session.
+  std::unique_ptr<MockConsumer> clone_consumer = CreateMockConsumer();
+  clone_consumer->Connect(svc.get());
+
+  auto clone_done = task_runner.CreateCheckpoint("clone_done");
+  EXPECT_CALL(*clone_consumer, OnSessionCloned(_))
+      .WillOnce(InvokeWithoutArgs(clone_done));
+  clone_consumer->CloneSession(1);
+
+  // CloneSession() will implicitly issue a flush. Write some other packets
+  // in that callback. Those are the only ones that should survive in the cloned
+  // session.
+  FlushFlags flush_flags(FlushFlags::Initiator::kTraced,
+                         FlushFlags::Reason::kTraceClone);
+  EXPECT_CALL(*producer, Flush(_, _, _, flush_flags))
+      .WillOnce(Invoke([&](FlushRequestID flush_req_id,
+                           const DataSourceInstanceID*, size_t, FlushFlags) {
+        writer->NewTracePacket()->set_for_testing()->set_str("after_clone");
+        writer->Flush(
+            [&] { producer->endpoint()->NotifyFlushComplete(flush_req_id); });
+      }));
+
+  task_runner.RunUntilCheckpoint("clone_done");
+
+  auto packets = clone_consumer->ReadBuffers();
+  EXPECT_THAT(packets,
+              Not(Contains(Property(&protos::gen::TracePacket::for_testing,
+                                    Property(&protos::gen::TestEvent::str,
+                                             HasSubstr("before_clone"))))));
+  EXPECT_THAT(packets, Contains(Property(&protos::gen::TracePacket::for_testing,
+                                         Property(&protos::gen::TestEvent::str,
+                                                  HasSubstr("after_clone")))));
+}
+
 TEST_F(TracingServiceImplTest, InvalidBufferSizes) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
