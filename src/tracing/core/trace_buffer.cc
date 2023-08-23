@@ -110,6 +110,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
     return;
   }
 
+  has_data_ = true;
 #if PERFETTO_DCHECK_IS_ON()
   changed_since_last_read_ = true;
 #endif
