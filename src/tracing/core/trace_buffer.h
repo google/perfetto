@@ -213,6 +213,7 @@ class TraceBuffer {
                           bool chunk_complete,
                           const uint8_t* src,
                           size_t size);
+
   // Applies a batch of |patches| to the given chunk, if the given chunk is
   // still in the buffer. Does nothing if the given ChunkID is gone.
   // Returns true if the chunk has been found and patched, false otherwise.
@@ -281,9 +282,12 @@ class TraceBuffer {
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const;
 
+  void set_read_only() { read_only_ = true; }
   const WriterStatsMap& writer_stats() const { return writer_stats_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
+  OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
+  bool has_data() const { return has_data_; }
 
  private:
   friend class TraceBufferTest;
@@ -708,6 +712,11 @@ class TraceBuffer {
 
   // Per-{Producer, Writer} statistics.
   WriterStatsMap writer_stats_;
+
+  // Set to true upon the very first call to CopyChunkUntrusted() and never
+  // cleared. This is used to tell if the buffer has never been used since its
+  // creation (which in turn is used to optimize `clear_before_clone`).
+  bool has_data_ = false;
 
 #if PERFETTO_DCHECK_IS_ON()
   bool changed_since_last_read_ = false;

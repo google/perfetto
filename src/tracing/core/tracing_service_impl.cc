@@ -3614,6 +3614,48 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
     clone_target = FlushFlags::CloneTarget::kBugreport;
   }
 
+  TracingSession* session = GetTracingSession(tsid);
+  if (!session) {
+    consumer->consumer_->OnSessionCloned(
+        {false, "Tracing session not found", {}});
+    return;
+  }
+
+  // If any of the buffers are marked as clear_before_clone, reset them before
+  // issuing the Flush(kCloneReason).
+  size_t buf_idx = 0;
+  for (BufferID src_buf_id : session->buffers_index) {
+    if (!session->config.buffers()[buf_idx++].clear_before_clone())
+      continue;
+    auto buf_iter = buffers_.find(src_buf_id);
+    PERFETTO_CHECK(buf_iter != buffers_.end());
+    std::unique_ptr<TraceBuffer>& buf = buf_iter->second;
+
+    // No need to reset the buffer if nothing has been written into it yet.
+    // This is the canonical case if producers behive nicely and don't timeout
+    // the handling of writes during the flush.
+    // This check avoids a useless re-mmap upon every Clone() if the buffer is
+    // already empty (when used in combination with `transfer_on_clone`).
+    if (!buf->has_data())
+      continue;
+
+    // Some leftover data was left in the buffer. Recreate it to empty it.
+    const auto buf_policy = buf->overwrite_policy();
+    const auto buf_size = buf->size();
+    std::unique_ptr<TraceBuffer> old_buf = std::move(buf);
+    buf = TraceBuffer::Create(buf_size, buf_policy);
+    if (!buf) {
+      // This is extremely rare but could happen on 32-bit. If the new buffer
+      // allocation failed, put back the buffer where it was and fail the clone.
+      // We cannot leave the original tracing session buffer-less as it would
+      // cause crashes when data sources commit new data.
+      buf = std::move(old_buf);
+      consumer->consumer_->OnSessionCloned(
+          {false, "Buffer allocation failed while attempting to clone", {}});
+      return;
+    }
+  }
+
   auto weak_this = weak_ptr_factory_.GetWeakPtr();
   auto weak_consumer = consumer->GetWeakPtr();
   Flush(
@@ -3663,13 +3705,31 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   // happens bail out early before creating any session.
   std::vector<std::pair<BufferID, std::unique_ptr<TraceBuffer>>> buf_snaps;
   buf_snaps.reserve(src->num_buffers());
+  PERFETTO_DCHECK(src->num_buffers() == src->config.buffers().size());
   bool buf_clone_failed = false;
+  size_t buf_idx = 0;
   for (BufferID src_buf_id : src->buffers_index) {
-    TraceBuffer* src_buf = GetBufferByID(src_buf_id);
-    std::unique_ptr<TraceBuffer> buf_snap = src_buf->CloneReadOnly();
+    auto buf_iter = buffers_.find(src_buf_id);
+    PERFETTO_CHECK(buf_iter != buffers_.end());
+    std::unique_ptr<TraceBuffer>& src_buf = buf_iter->second;
+    std::unique_ptr<TraceBuffer> new_buf;
+    if (src->config.buffers()[buf_idx].transfer_on_clone()) {
+      const auto buf_policy = src_buf->overwrite_policy();
+      const auto buf_size = src_buf->size();
+      new_buf = std::move(src_buf);
+      src_buf = TraceBuffer::Create(buf_size, buf_policy);
+      if (!src_buf) {
+        // If the allocation fails put the buffer back and let the code below
+        // handle the failure gracefully.
+        src_buf = std::move(new_buf);
+      }
+    } else {
+      new_buf = src_buf->CloneReadOnly();
+    }
     BufferID buf_global_id = buffer_ids_.Allocate();
-    buf_clone_failed |= !buf_snap.get() || !buf_global_id;
-    buf_snaps.emplace_back(buf_global_id, std::move(buf_snap));
+    buf_clone_failed |= !new_buf.get() || !buf_global_id;
+    buf_snaps.emplace_back(buf_global_id, std::move(new_buf));
+    ++buf_idx;
   }
 
   // Free up allocated IDs in case of failure. No need to free the TraceBuffers,
@@ -3703,6 +3763,11 @@ base::Status TracingServiceImpl::DoCloneSession(ConsumerEndpointImpl* consumer,
   for (auto& kv : buf_snaps) {
     BufferID buf_global_id = kv.first;
     std::unique_ptr<TraceBuffer>& buf = kv.second;
+    // This is only needed for transfer_on_clone. Other buffers are already
+    // marked as read-only by CloneReadOnly(). We cannot do this early because
+    // in case of an allocation failure we will put std::move() the original
+    // buffer back in its place and in that case should not be made read-only.
+    buf->set_read_only();
     buffers_.emplace(buf_global_id, std::move(buf));
     cloned_session->buffers_index.emplace_back(buf_global_id);
   }
