@@ -10884,8 +10884,11 @@ message TrackEvent {
   // Contact perfetto-dev@googlegroups.com if you are interested in a subrange
   // for your project.
 
+  // Extension range reserved for chromium:
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+  extensions 1000 to 1999;
   // Extension range for future use.
-  extensions 1000 to 9899;
+  extensions 2000 to 9899;
   // Reserved for Perfetto unit and integration tests.
   extensions 9900 to 10000;
 
