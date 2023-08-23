@@ -73,6 +73,14 @@ def main():
       modules.append((path, sql, parsed))
 
   for path, sql, parsed in modules:
+    lines = [l.strip() for l in sql.split('\n')]
+    for line in lines:
+      if line.startswith('--'):
+        continue
+      if 'RUN_METRIC' in line:
+        errors.append(f"RUN_METRIC is banned in standard library.\n"
+                      f"Offending file: {path}\n")
+
     errors += parsed.errors
     errors += check_banned_words(sql, path)
     errors += check_banned_create_table_as(sql,
