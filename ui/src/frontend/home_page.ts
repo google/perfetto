@@ -42,9 +42,9 @@ export class Hints implements m.ClassComponent {
               m(Anchor,
                 {
                   href:
-                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-pallete',
+                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-palette',
                 },
-                'command pallete,'),
+                'command palette,'),
               ' press ',
               m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
               '.'),
