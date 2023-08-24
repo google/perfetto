@@ -19,6 +19,7 @@ assert(enable_perfetto_trace_processor_sqlite)
 
 perfetto_sql_source_set("android") {
   sources = [
+    "android_anr.sql",
     "android_batt.sql",
     "android_binder.sql",
     "android_blocking_calls_cuj_metric.sql",
@@ -60,6 +61,7 @@ perfetto_sql_source_set("android") {
     "android_task_names.sql",
     "android_trace_quality.sql",
     "android_trusty_workqueues.sql",
+    "anr/anrs.sql",
     "codec_metrics.sql",
     "composer_execution.sql",
     "composition_layers.sql",

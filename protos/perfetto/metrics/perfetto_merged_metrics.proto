@@ -191,6 +191,31 @@ message AndroidTrustyWorkqueues {}
 
 // End of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
+// Begin of protos/perfetto/metrics/android/anr_metric.proto
+
+ message AndroidAnrMetric {
+  repeated Anr anr = 1;
+
+  // Next id: 12
+  message Anr {
+    // UUID that identifies the ANR.
+    optional string error_id = 1;
+
+    // Name of the process that ANRed.
+    optional string process_name = 2;
+
+    // PID of the ANRing process.
+    optional int32 pid = 3;
+
+    // ANR subject line.
+    optional string subject = 4;
+
+    // Timestamp of the ANR in the trace.
+    optional int64 ts = 5;
+  }
+}
+// End of protos/perfetto/metrics/android/anr_metric.proto
+
 // Begin of protos/perfetto/metrics/android/batt_metric.proto
 
 message AndroidBatteryMetric {
@@ -2219,7 +2244,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 55
+// Next id: 56
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2368,6 +2393,9 @@ message TraceMetrics {
   // Note: this generates a lot of data so should not be requested unless it
   // is clear that this data is necessary.
   optional AndroidIoUnaggregated android_io_unagg = 54;
+
+  // Metrics for App Not Responding (ANR) errors.
+  optional AndroidAnrMetric android_anr = 55;
 
   // Demo extensions.
   extensions 450 to 499;
