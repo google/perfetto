@@ -36,9 +36,6 @@ const SLICE_HEIGHT = 18;
 const TRACK_PADDING = 2;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
-const INNER_CHEVRON_OFFSET = -3;
-const INNER_CHEVRON_SCALE =
-    (SLICE_HEIGHT - 2 * INNER_CHEVRON_OFFSET) / SLICE_HEIGHT;
 
 export interface Config {
   maxDepth: number;
@@ -266,14 +263,13 @@ export class ChromeSliceTrack extends Track<Config, Data> {
             ctx.save();
             ctx.translate(rect.left, rect.top);
 
-            // Draw outer chevron as dark border
-            ctx.save();
-            ctx.translate(0, INNER_CHEVRON_OFFSET);
-            ctx.scale(INNER_CHEVRON_SCALE, INNER_CHEVRON_SCALE);
-            ctx.fillStyle = cachedHsluvToHex(colorObj.h, 100, 10);
-
-            this.drawChevron(ctx);
-            ctx.restore();
+            // Draw a rectangle around the selected slice
+            ctx.strokeStyle = cachedHsluvToHex(colorObj.h, 100, 10);
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            ctx.strokeRect(
+                -HALF_CHEVRON_WIDTH_PX, 0, CHEVRON_WIDTH_PX, SLICE_HEIGHT);
+            ctx.closePath();
 
             // Draw inner chevron as interior
             ctx.fillStyle = color;
