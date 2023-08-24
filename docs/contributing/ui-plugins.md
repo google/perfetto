@@ -63,13 +63,14 @@ They can be accessed via the omnibox.
 
 Follow the [create a plugin](#create-a-plugin) to get an initial
 skeleton for your plugin.
-To add your first command edit the command method.
+To add your first command edit either the `commands()` or `traceCommands()`
+methods.
 
 ```typescript
-class MyPlugin implements TracePlugin {
+class MyPlugin implements Plugin {
   // ...
 
-  commands(): Command[] {
+  commands(ctx: PluginContext): Command[] {
     return [
        {
          id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
@@ -78,8 +79,31 @@ class MyPlugin implements TracePlugin {
        },
     ];
   }
+
+  traceCommands(ctx: TracePluginContext): Command[] {
+    return [
+       {
+         id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloWorld',
+         name: 'Log hello trace',
+         callback: () => console.log('Hello, trace!'),
+       },
+    ];
+  }
 }
 ```
+
+Commands are polled whenever the command list must be updated. When no trace is
+loaded, only the `commands()` method is called, whereas when a trace is loaded,
+both the `commands()` and the `traceCommands()` methods are called, and their
+outputs are concatenated.
+
+The difference between the two is that commands defined in `commands()` only
+have access to the viewer API, whereas commands defined in `traceCommands()` may
+access the store and the engine in addition to the viewer API.
+
+The tradeoff is that commands defined in `traceCommands()` are only available
+when a trace is loaded, whereas commands defined in `commands()` are available
+all the time.
 
 Here `id` is a unique string which identifies this command.
 The `id` should be prefixed with the plugin id followed by a `#`.
@@ -153,34 +177,38 @@ interface MyState {
 }
 ```
 
-This interface will be used as type parameter in two methods on your
-`TracePlugin`.
+This interface will be used as type parameter to the `Plugin` and
+`TracePluginContext` interfaces.
 ```typescript
-class MyPlugin implements TracePlugin {
+class MyPlugin implements Plugin<MyState> {
 
-  static migrate(initialState: unknown): MyState {
+  migrate(initialState: unknown): MyState {
     // ...
   }
 
-  constructor(store: Store<MyState>, [...]) {
-    // ...
+  async onTraceLoad(ctx: TracePluginContext<MyState>): Promise<void> {
+    // You can access the store on ctx.store
+  }
+
+  async onTraceUnload(ctx: TracePluginContext<MyState>): Promise<void> {
+    // You can access the store on ctx.store
   }
 
   // ...
 }
 ```
 
-`migrate()` is called after trace load but before construction of
-`TracePlugin`. There are two cases to consider:
+`migrate()` is called after `onActivate()` just before `onTraceLoad()`. There
+are two cases to consider:
 - Loading a new trace
 - Loading from a permalink
 
 In case of a new trace `migrate()` is called with `undefined`. In this
 case you should return a default version of `MyState`:
-```
-class MyPlugin implements TracePlugin {
+```typescript
+class MyPlugin implements Plugin<MyState> {
 
-  static migrate(initialState: unknown): MyState {
+  migrate(initialState: unknown): MyState {
     if (initialState === undefined) {
       return {
         favouriteSlices: [];
