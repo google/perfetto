@@ -91,6 +91,13 @@ class ProtoToArgsParserTest : public ::testing::Test,
     args_.push_back(ss.str());
   }
 
+  void AddBytes(const Key& key, const protozero::ConstBytes& value) override {
+    std::stringstream ss;
+    ss << key.flat_key << " " << key.key << " <bytes size=" << value.size
+       << ">";
+    args_.push_back(ss.str());
+  }
+
   void AddDouble(const Key& key, double value) override {
     std::stringstream ss;
     ss << key.flat_key << " " << key.key << " " << value;
@@ -176,6 +183,7 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
   msg->add_repeated_int32(-1);
   msg->add_repeated_int32(100);
   msg->add_repeated_int32(2000000);
+  msg->set_field_bytes({0, 1, 2});
 
   auto binary_proto = msg.SerializeAsArray();
 
@@ -212,7 +220,8 @@ TEST_F(ProtoToArgsParserTest, BasicSingleLayerProto) {
           "repeated_int32 repeated_int32[0] 1",
           "repeated_int32 repeated_int32[1] -1",
           "repeated_int32 repeated_int32[2] 100",
-          "repeated_int32 repeated_int32[3] 2000000"));
+          "repeated_int32 repeated_int32[3] 2000000",
+          "field_bytes field_bytes <bytes size=3>"));
 }
 
 TEST_F(ProtoToArgsParserTest, NestedProto) {

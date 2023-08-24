@@ -87,6 +87,12 @@ class ProtoToArgsParser {
     virtual void AddDouble(const Key& key, double value) = 0;
     virtual void AddPointer(const Key& key, const void* value) = 0;
     virtual void AddBoolean(const Key& key, bool value) = 0;
+    virtual void AddBytes(const Key& key, const protozero::ConstBytes& value) {
+      // In the absence of a better implementation default to showing
+      // bytes as string with the size:
+      std::string msg = "<bytes size=" + std::to_string(value.size) + ">";
+      AddString(key, msg);
+    }
     // Returns whether an entry was added or not.
     virtual bool AddJson(const Key& key,
                          const protozero::ConstChars& value) = 0;
@@ -137,10 +143,6 @@ class ProtoToArgsParser {
   // |type| must be the fully qualified name, but with a '.' added to the
   // beginning. I.E. ".perfetto.protos.TrackEvent". And must match one of the
   // descriptors already added through |AddProtoFileDescriptor|.
-  //
-  // IMPORTANT: currently bytes fields are not supported.
-  //
-  // TODO(b/145578432): Add support for byte fields.
   base::Status ParseMessage(const protozero::ConstBytes& cb,
                             const std::string& type,
                             const std::vector<uint32_t>* allowed_fields,
