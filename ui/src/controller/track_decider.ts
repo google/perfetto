@@ -71,7 +71,7 @@ import {
 import {addLatenciesTrack} from '../tracks/scroll_jank/event_latency_track';
 import {addTopLevelScrollTrack} from '../tracks/scroll_jank/scroll_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
-import { shouldCreateTrack, shouldCreateTrackGroup } from './track_filter';
+import {shouldCreateTrack, shouldCreateTrackGroup} from './track_filter';
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
@@ -114,15 +114,6 @@ const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
   [ENTITY_RESIDENCY_REGEX, 'RATE'],
 ];
 
-/**
- * Tuple of the actions to create tracks and track groups
- * and those that were rejected by filters.
- */
-export type TrackDecision = {
-  actions: DeferredAction[];
-  rejected: AddTrackLikeArgs[];
-}
-
 function getCounterScale(name: string): CounterScaleOptions|undefined {
   for (const [re, scale] of COUNTER_REGEX) {
     if (name.match(re)) {
@@ -132,21 +123,10 @@ function getCounterScale(name: string): CounterScaleOptions|undefined {
   return undefined;
 }
 
-/** Decide tracks without filtering. */
 export async function decideTracks(
-  engineId: string, engine: Engine): Promise<DeferredAction[]>;
-/** Decide tracks without filtering. */
-export async function decideTracks(
-  engineId: string, engine: Engine, filter: false): Promise<DeferredAction[]>;
-/** Decide tracks with filtering. */
-export async function decideTracks(
-    engineId: string, engine: Engine, filter: true): Promise<TrackDecision>;
-
-export async function decideTracks(
-    engineId: string, engine: Engine, filter: boolean = false): Promise<DeferredAction[]|TrackDecision> {
-  
-  const result = await (new TrackDecider(engineId, engine)).decideTracks(filter);
-  return filter ? result : result.actions;
+    engineId: string, engine: Engine,
+    filterTracks = false): Promise<DeferredAction[]> {
+  return (new TrackDecider(engineId, engine)).decideTracks(filterTracks);
 }
 
 class TrackDecider {
@@ -1769,7 +1749,7 @@ class TrackDecider {
     }
   }
 
-  async decideTracks(filterTracks = false): Promise<TrackDecision> {
+  async decideTracks(filterTracks = false): Promise<DeferredAction[]> {
     await this.defineMaxLayoutDepthSqlFunction();
 
     // Add first the global tracks that don't require per-process track groups.
@@ -1851,7 +1831,12 @@ class TrackDecider {
     }
 
     const actions: DeferredAction[] = [];
-    const rejected = filterTracks ? this.filterTracks() : [];
+    if (filterTracks) {
+      const rejected = this.filterTracks();
+      actions.push(Actions.setFilteredTracks({
+        filteredTracks: rejected,
+      }));
+    }
 
     actions.push(
         ...this.trackGroupsToAdd.map(Actions.addTrackGroup));
@@ -1862,7 +1847,7 @@ class TrackDecider {
 
     this.applyDefaultCounterScale();
 
-    return { actions, rejected };
+    return actions;
   }
 
   /**
@@ -1870,8 +1855,9 @@ class TrackDecider {
    * group are themselves excluded regardless of track-specific filters.
    * Any tracks not otherwise excluded that belong to an included group
    * are implicitly included.
-   * 
-   * @returns the tracks and track groups rejected by the filter
+   *
+   * @return {AddTrackLikeArgs[]} the tracks and track groups rejected
+   *   by the filter
    */
   private filterTracks(): AddTrackLikeArgs[] {
     const rejected: AddTrackLikeArgs[] = [];
@@ -1881,7 +1867,7 @@ class TrackDecider {
     const includedTrackGroupSummaryTrackIds = new Set<string>();
     const excludedTrackGroupSummaryTrackIds = new Set<string>();
 
-    this.trackGroupsToAdd = this.trackGroupsToAdd.filter(group => {
+    this.trackGroupsToAdd = this.trackGroupsToAdd.filter((group) => {
       const included = shouldCreateTrackGroup(group);
       if (included) {
         includedTrackGroupIds.add(group.id);
@@ -1898,10 +1884,10 @@ class TrackDecider {
         track.trackGroup !== undefined && track.trackGroup !== SCROLLING_TRACK_GROUP;
     const hasId = (track: AddTrackArgs): track is AddTrackArgs & {id: string} =>
         track.id !== undefined;
-    const includedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && includedTrackGroupIds.has(track.trackGroup))
-        || (hasId(track) && includedTrackGroupSummaryTrackIds.has(track.id));
-    const excludedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && excludedTrackGroupIds.has(track.trackGroup))
-        || (hasId(track) && excludedTrackGroupSummaryTrackIds.has(track.id));
+    const includedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && includedTrackGroupIds.has(track.trackGroup)) ||
+        (hasId(track) && includedTrackGroupSummaryTrackIds.has(track.id));
+    const excludedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && excludedTrackGroupIds.has(track.trackGroup)) ||
+        (hasId(track) && excludedTrackGroupSummaryTrackIds.has(track.id));
     const trackFilter = (track: AddTrackArgs) => {
       const included = shouldCreateTrack(track, includedByGroup) && !excludedByGroup(track);
       if (!included) {

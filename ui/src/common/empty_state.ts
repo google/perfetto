@@ -167,5 +167,7 @@ export function createEmptyState(): State {
       textEntry: '',
       hideNonMatching: true,
     },
+
+    filteredTracks: [],
   };
 }

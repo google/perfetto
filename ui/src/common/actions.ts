@@ -174,19 +174,21 @@ function isSameTrack(track: AddTrackArgs, other: Partial<AddTrackArgs>): boolean
       track.name == other.name;
 }
 
-function unfilterTracklike(predicate: (tracklike: AddTrackLikeArgs) => boolean) {
-  const index = globals.filteredTracks.findIndex(predicate);
+function unfilterTracklike(
+    state: StateDraft,
+    predicate: (tracklike: AddTrackLikeArgs) => boolean) {
+  const index = state.filteredTracks.findIndex(predicate);
   if (index >= 0) {
-    globals.filteredTracks.splice(index, 1);
+    state.filteredTracks.splice(index, 1);
   }
 }
 
-function unfilterTrack(track: TrackState) {
-  unfilterTracklike((filtered) => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
+function unfilterTrack(state: StateDraft, track: TrackState) {
+  unfilterTracklike(state, (filtered) => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
 }
 
-function unfilterTrackGroup(trackGroup: TrackGroupState) {
-  unfilterTracklike((filtered) => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
+function unfilterTrackGroup(state: StateDraft, trackGroup: TrackGroupState) {
+  unfilterTracklike(state, (filtered) => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
 }
 // A helper to delete the private tables and views created by a track.
 // TODO: These should recorded by each track that creates them and cleaned up
@@ -354,7 +356,7 @@ export const StateActions = {
       trackGroup: args.trackGroup,
       config: args.config,
     };
-    unfilterTrack(state.tracks[id]);
+    unfilterTrack(state, state.tracks[id]);
 
     this.fillUiTrackIdByTraceTrackId(state, state.tracks[id], id);
     if (args.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -379,7 +381,7 @@ export const StateActions = {
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],
     };
-    unfilterTrackGroup(state.trackGroups[args.id]);
+    unfilterTrackGroup(state, state.trackGroups[args.id]);
   },
 
   addTrackLike(state: StateDraft, args: AddTrackLikeArgs): void {
@@ -433,8 +435,7 @@ export const StateActions = {
               Object.values(state.trackGroups).some((group) => group.tracks.length && group.tracks[0] === track.id) ?
           {id: track.id} :
           {};
-
-      globals.filteredTracks.push({
+      state.filteredTracks.push({
         ...id,
         kind: track.kind,
         engineId: track.engineId,
@@ -455,7 +456,7 @@ export const StateActions = {
     }
 
     removeTrackGroup(state, args.id);
-      globals.filteredTracks.push({
+      state.filteredTracks.push({
         id: trackGroup.id,
         engineId: trackGroup.engineId,
         name: trackGroup.name,
@@ -1351,6 +1352,12 @@ export const StateActions = {
   toggleCollapseByTextEntry(state: StateDraft, _: {}) {
     state.logFilteringCriteria.hideNonMatching =
         !state.logFilteringCriteria.hideNonMatching;
+  },
+
+  setFilteredTracks(
+      state: StateDraft,
+      args: {filteredTracks: AddTrackLikeArgs[]}) {
+    state.filteredTracks = [...args.filteredTracks];
   },
 };
 

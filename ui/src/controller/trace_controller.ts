@@ -594,13 +594,7 @@ export class TraceController extends Controller<States> {
   }
 
   private async getAddTrackActions(engine: Engine): Promise<DeferredAction[]> {
-    if (!globals.trackFilteringEnabled) {
-      return decideTracks(this.engineId, engine);
-    }
-
-    const result = await decideTracks(this.engineId, engine, true);
-    globals.filteredTracks = result.rejected;
-    return result.actions;
+    return decideTracks(this.engineId, engine, globals.trackFilteringEnabled);
   }
 
   private async listThreads() {
