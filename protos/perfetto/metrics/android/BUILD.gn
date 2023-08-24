@@ -25,6 +25,7 @@ perfetto_proto_library("@TYPE@") {
     "android_frame_timeline_metric.proto",
     "android_sysui_notifications_blocking_calls_metric.proto",
     "android_trusty_workqueues.proto",
+    "anr_metric.proto",
     "batt_metric.proto",
     "binder_metric.proto",
     "camera_metric.proto",
