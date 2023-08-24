@@ -1382,6 +1382,25 @@ message AndroidMemoryUnaggregatedMetric {
 
 // End of protos/perfetto/metrics/android/mem_unagg_metric.proto
 
+// Begin of protos/perfetto/metrics/android/monitor_contention_agg_metric.proto
+
+ // This metric provides aggregated information about monitor contention graph
+ // in a trace
+message AndroidMonitorContentionAggMetric {
+  // Next id: 2
+  // Stats for Monitor contention aggregated by process.
+  message ProcessAggregation {
+    optional string name = 1;
+    optional int64 total_contention_count = 2;
+    optional int64 total_contention_dur = 3;
+    optional int64 main_thread_contention_count = 4;
+    optional int64 main_thread_contention_dur = 5;
+  }
+  repeated ProcessAggregation process_aggregation = 1;
+}
+
+// End of protos/perfetto/metrics/android/monitor_contention_agg_metric.proto
+
 // Begin of protos/perfetto/metrics/android/monitor_contention_metric.proto
 
 // This metric provides information about the monitor contention graph in a
@@ -2244,7 +2263,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 56
+// Next id: 57
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2396,6 +2415,8 @@ message TraceMetrics {
 
   // Metrics for App Not Responding (ANR) errors.
   optional AndroidAnrMetric android_anr = 55;
+  // Aggregated Android Monitor Contention metrics
+  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
 
   // Demo extensions.
   extensions 450 to 499;
