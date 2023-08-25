@@ -486,6 +486,41 @@ class Android(TestSuite):
         query=Metric('android_monitor_contention'),
         out=Path('android_monitor_contention.out'))
 
+  def test_monitor_contention_agg_metric(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query=Metric('android_monitor_contention_agg'),
+        out=TextProto(r"""
+        android_monitor_contention_agg {
+          process_aggregation {
+            name: "android.process.media"
+            total_contention_count: 12
+            total_contention_dur: 12893198
+            main_thread_contention_count: 12
+            main_thread_contention_dur: 12893198
+          }
+          process_aggregation {
+            name: "com.android.providers.media.module"
+            total_contention_count: 7
+            total_contention_dur: 169793
+          }
+          process_aggregation {
+            name: "com.android.systemui"
+            total_contention_count: 8
+            total_contention_dur: 9445959
+            main_thread_contention_count: 5
+            main_thread_contention_dur: 9228582
+          }
+          process_aggregation {
+            name: "system_server"
+            total_contention_count: 354
+            total_contention_dur: 358898613
+            main_thread_contention_count: 27
+            main_thread_contention_dur: 36904702
+          }
+        }
+        """))
+
   def test_monitor_contention_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
