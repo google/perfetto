@@ -19,6 +19,7 @@ import {EngineProxy} from '../common/engine';
 import {TrackState} from '../common/state';
 import {duration, Span, time} from '../common/time';
 import {TrackData} from '../common/track_data';
+import {TrackLike} from '../public';
 
 import {checkerboard} from './checkerboard';
 import {globals} from './globals';
@@ -53,7 +54,8 @@ export interface SliceRect {
 }
 
 // The abstract class that needs to be implemented by all tracks.
-export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
+export abstract class Track<Config = {}, Data extends TrackData = TrackData>
+    implements TrackLike {
   // The UI-generated track ID (not to be confused with the SQL track.id).
   protected readonly trackId: string;
   protected readonly engine: EngineProxy;

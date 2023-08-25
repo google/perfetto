@@ -57,7 +57,6 @@ import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames';
-import {FTRACE_RAW_TRACK_KIND} from '../tracks/ftrace';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
@@ -84,6 +83,11 @@ const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
       'Show V1 tracks side by side with V2 tracks. Does nothing if TracksV2 is not enabled.',
   defaultValue: false,
 });
+
+// Special kind reserved for plugin tracks.
+// There is no significance to this value, it simply something that's unlikely
+// to be used as a key in the trackRegistry.
+const PLUGIN_TRACK_KIND = 'PLUGIN_TRACK';
 
 function showV2(): boolean {
   return TRACKS_V2_FLAG.get();
@@ -916,11 +920,12 @@ class TrackDecider {
       }
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: FTRACE_RAW_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         name: `Ftrace Events Cpu ${it.cpu}`,
         trackGroup: groupUuid,
-        config: {cpu: it.cpu},
+        config: {},
+        id: `perfetto.FtraceRaw#cpu${it.cpu}`,
       });
     }
 
