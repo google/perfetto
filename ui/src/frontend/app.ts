@@ -20,12 +20,20 @@ import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {Actions} from '../common/actions';
-import {setTimestampFormat, TimestampFormat} from '../common/time';
+import {
+  duration,
+  setTimestampFormat,
+  Span,
+  Time,
+  time,
+  TimeSpan,
+  TimestampFormat,
+} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 
 import {addTab} from './bottom_tab';
-import {onClickCopy} from './clipboard';
+import {copyToClipboard, onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
@@ -90,6 +98,7 @@ export class App implements m.ClassComponent {
   private queryText = '';
   private omniboxSelectionIndex = 0;
   private focusOmniboxNextRender = false;
+  private pendingCursorPlacement = -1;
   private pendingPrompt?: Prompt;
   static readonly OMNIBOX_INPUT_REF = 'omnibox';
   private omniboxInputEl?: HTMLInputElement;
@@ -263,6 +272,32 @@ export class App implements m.ClassComponent {
       name: 'Show help',
       callback: () => toggleHelp(),
       defaultHotkey: '?',
+    },
+    {
+      id: 'perfetto.RunQueryInSelectedTimeWindow',
+      name: `Run query in selected time window`,
+      callback:
+          () => {
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            if (window) {
+              this.enterQueryMode();
+              this.queryText =
+                  `select  where ts >= ${window.start} and ts < ${window.end}`;
+              this.pendingCursorPlacement = 7;
+            }
+          },
+    },
+    {
+      id: 'perfetto.CopyTimeWindow',
+      name: `Copy selected time window to clipboard`,
+      callback:
+          () => {
+            const window = getTimeSpanOfSelectionOrVisibleWindow();
+            if (window) {
+              const query = `ts >= ${window.start} and ts < ${window.end}`;
+              copyToClipboard(query);
+            }
+          },
     },
   ];
 
@@ -579,11 +614,29 @@ export class App implements m.ClassComponent {
 
   private maybeFocusOmnibar() {
     if (this.focusOmniboxNextRender) {
-      if (this.omniboxInputEl) {
-        this.omniboxInputEl.focus();
-        this.omniboxInputEl.select();
+      const omniboxEl = this.omniboxInputEl;
+      if (omniboxEl) {
+        omniboxEl.focus();
+        if (this.pendingCursorPlacement === -1) {
+          omniboxEl.select();
+        } else {
+          omniboxEl.setSelectionRange(
+              this.pendingCursorPlacement, this.pendingCursorPlacement);
+          this.pendingCursorPlacement = -1;
+        }
       }
       this.focusOmniboxNextRender = false;
     }
+  }
+}
+
+// Returns the time span of the current selection, or the visible window if
+// there is no current selection.
+function getTimeSpanOfSelectionOrVisibleWindow(): Span<time, duration> {
+  const range = globals.findTimeRangeOfSelection();
+  if (range.end !== Time.INVALID && range.start !== Time.INVALID) {
+    return new TimeSpan(range.start, range.end);
+  } else {
+    return globals.stateVisibleTime();
   }
 }
