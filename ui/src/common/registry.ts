@@ -16,6 +16,13 @@ import {Disposable} from '../base/disposable';
 
 export interface HasKind { kind: string; }
 
+export class RegistryError extends Error {
+  constructor(message?: string) {
+    super(message);
+    this.name = this.constructor.name;
+  }
+}
+
 export class Registry<T> {
   private key: (t: T) => string;
   protected registry: Map<string, T>;
@@ -32,7 +39,8 @@ export class Registry<T> {
   register(registrant: T): Disposable {
     const kind = this.key(registrant);
     if (this.registry.has(kind)) {
-      throw new Error(`Registrant ${kind} already exists in the registry`);
+      throw new RegistryError(
+          `Registrant ${kind} already exists in the registry`);
     }
     this.registry.set(kind, registrant);
 
@@ -48,7 +56,7 @@ export class Registry<T> {
   get(kind: string): T {
     const registrant = this.registry.get(kind);
     if (registrant === undefined) {
-      throw new Error(`${kind} has not been registered.`);
+      throw new RegistryError(`${kind} has not been registered.`);
     }
     return registrant;
   }
