@@ -51,6 +51,7 @@ perfetto_proto_library("@TYPE@") {
     "lmk_reason_metric.proto",
     "mem_metric.proto",
     "mem_unagg_metric.proto",
+    "monitor_contention_agg_metric.proto",
     "monitor_contention_metric.proto",
     "multiuser_metric.proto",
     "network_metric.proto",
