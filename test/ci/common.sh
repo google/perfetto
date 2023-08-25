@@ -32,3 +32,7 @@ fi
 tools/gn gen out/tmp.protoc --args="is_debug=false cc_wrapper=\"ccache\""
 tools/gen_all --check-only out/tmp.protoc
 rm -rf out/tmp.protoc
+
+# Performs checks on SQL files.
+tools/check_sql_modules.py
+tools/check_sql_metrics.py
