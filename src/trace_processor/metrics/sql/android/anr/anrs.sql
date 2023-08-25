@@ -15,7 +15,7 @@
 
 -- One row per ANR that occurred in the trace.
 DROP TABLE IF EXISTS android_anr_anrs;
-CREATE TABLE android_anr_anrs AS
+CREATE PERFETTO TABLE android_anr_anrs AS
 -- Process and PID that ANRed.
 WITH anr_process AS (
   SELECT
