@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {Hotkey} from '../base/hotkeys';
 import {EngineProxy} from '../common/engine';
+import {duration, Span, time} from '../common/time';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
-import {TrackCreator} from '../frontend/track';
+import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {SliceRect, TrackCreator} from '../frontend/track';
+import {TrackButtonAttrs} from '../frontend/track_panel';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -160,12 +165,46 @@ export interface PluginContext {
   registerTrack(track: TrackCreator): void;
 }
 
+// TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
+// interface to `Track`.
+export interface TrackLike {
+  render(ctx: CanvasRenderingContext2D): void;
+  onFullRedraw(): void;
+  getSliceRect(
+      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
+      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
+      |undefined;
+  getHeight(): number;
+  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>>;
+  getContextMenu(): m.Vnode<any>|null;
+  onMouseMove(_position: {x: number, y: number}): void;
+  onMouseClick(_position: {x: number, y: number}): boolean;
+  onMouseOut(): void;
+  onDestroy(): void;
+}
+
+export interface PluginTrackInfo {
+  // A unique identifier for the track. This must be unique within all tracks.
+  uri: string;
+
+  // A human friendly name for this track. Used when displaying the list of
+  // tracks to the user. E.g. when adding a new track to the workspace.
+  displayName: string;
+
+  // A factory function returning the track object.
+  trackFactory: () => TrackLike;
+}
+
 // Similar to PluginContext but with additional properties to operate on the
 // currently loaded trace. Passed to trace-relevant hooks instead of
 // PluginContext.
 export interface TracePluginContext<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
+
+  // Add a new track from this plugin. The track is just made available here,
+  // it's not automatically shown until it's added to a workspace.
+  addTrack(trackDetails: PluginTrackInfo): void;
 }
 
 export interface BasePlugin<State> {

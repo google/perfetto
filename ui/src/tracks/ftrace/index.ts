@@ -15,16 +15,24 @@
 import {Vnode} from 'mithril';
 
 import {colorForString} from '../../common/colorizer';
-import {LONG, STR} from '../../common/query_result';
+import {LONG, NUM, STR} from '../../common/query_result';
 import {duration, Time, time} from '../../common/time';
-import {LIMIT, TrackData} from '../../common/track_data';
 import {
-  TrackController,
-} from '../../controller/track_controller';
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
+import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  EngineProxy,
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  TracePluginContext,
+} from '../../public';
 
 
 export interface Data extends TrackData {
@@ -42,7 +50,7 @@ const MARGIN = 2;
 const RECT_HEIGHT = 18;
 const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
 
-class FtraceRawTrackController extends TrackController<Config, Data> {
+class FtraceRawTrackController extends TrackControllerAdapter<Config, Data> {
   static readonly kind = FTRACE_RAW_TRACK_KIND;
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -85,7 +93,7 @@ class FtraceRawTrackController extends TrackController<Config, Data> {
   }
 }
 
-export class FtraceRawTrack extends Track<Config, Data> {
+export class FtraceRawTrack extends TrackAdapter<Config, Data> {
   static readonly kind = FTRACE_RAW_TRACK_KIND;
   constructor(args: NewTrackArgs) {
     super(args);
@@ -151,9 +159,42 @@ export class FtraceRawTrack extends Track<Config, Data> {
 }
 
 class FtraceRawPlugin implements Plugin {
-  onActivate(ctx: PluginContext) {
-    ctx.registerTrack(FtraceRawTrack);
-    ctx.registerTrackController(FtraceRawTrackController);
+  onActivate(_: PluginContext) {}
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    const cpus = await this.lookupCpuCores(ctx.engine);
+    for (const cpuNum of cpus) {
+      const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
+      const config: Config = {cpu: cpuNum};
+
+      ctx.addTrack({
+        uri,
+        displayName: `Ftrace Track for CPU ${cpuNum}`,
+        trackFactory: () => {
+          return new TrackWithControllerAdapter<Config, Data>(
+              ctx.engine,
+              uri,
+              config,
+              FtraceRawTrack,
+              FtraceRawTrackController);
+        },
+      });
+    }
+  }
+
+  private async lookupCpuCores(engine: EngineProxy): Promise<number[]> {
+    const query = 'select distinct cpu from ftrace_event';
+
+    const result = await engine.query(query);
+    const it = result.iter({cpu: NUM});
+
+    const cpuCores: number[] = [];
+
+    for (; it.valid(); it.next()) {
+      cpuCores.push(it.cpu);
+    }
+
+    return cpuCores;
   }
 }
 
