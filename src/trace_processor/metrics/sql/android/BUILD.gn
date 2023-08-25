@@ -45,6 +45,7 @@ perfetto_sql_source_set("android") {
     "android_lmk_reason.sql",
     "android_mem.sql",
     "android_mem_unagg.sql",
+    "android_monitor_contention_agg.sql",
     "android_monitor_contention.sql",
     "android_multiuser.sql",
     "android_multiuser_populator.sql",
