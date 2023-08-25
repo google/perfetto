@@ -384,8 +384,6 @@ export class TraceController extends Controller<States> {
     }
     this.engine = engine;
 
-    pluginManager.onTraceLoad(engine);
-
     if (isMetatracingEnabled()) {
       this.engine.enableMetatrace(
         assertExists(getEnabledMetatracingCategories()));
@@ -470,6 +468,8 @@ export class TraceController extends Controller<States> {
         window.localStorage.setItem(SHOWN_JSON_WARNING_KEY, 'true');
       }
     }
+
+    pluginManager.onTraceLoad(engine);
 
     const emptyOmniboxState = {
       omnibox: '',
