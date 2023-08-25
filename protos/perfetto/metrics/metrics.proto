@@ -62,6 +62,7 @@ import "protos/perfetto/metrics/android/android_trusty_workqueues.proto";
 import "protos/perfetto/metrics/android/unsymbolized_frames.proto";
 import "protos/perfetto/metrics/android/binder_metric.proto";
 import "protos/perfetto/metrics/android/monitor_contention_metric.proto";
+import "protos/perfetto/metrics/android/monitor_contention_agg_metric.proto";
 
 // Trace processor metadata
 message TraceMetadata {
@@ -107,7 +108,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 56
+// Next id: 57
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -259,6 +260,8 @@ message TraceMetrics {
 
   // Metrics for App Not Responding (ANR) errors.
   optional AndroidAnrMetric android_anr = 55;
+  // Aggregated Android Monitor Contention metrics
+  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
 
   // Demo extensions.
   extensions 450 to 499;
