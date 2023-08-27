@@ -101,15 +101,16 @@ export class DebugSliceDetailsTab extends
   }
 
   private async maybeLoadThreadState(
-      id: number|undefined, ts: time, dur: duration,
+      id: number|undefined, ts: time, dur: duration, table: string|undefined,
       utid?: Utid): Promise<ThreadState|undefined> {
     if (id === undefined) return undefined;
     if (utid === undefined) return undefined;
 
     const threadState = await getThreadState(this.engine, id);
     if (threadState === undefined) return undefined;
-    if (threadState.ts === ts && threadState.dur === dur &&
-        threadState.thread?.utid === utid) {
+    if ((table === 'thread_state') ||
+        (threadState.ts === ts && threadState.dur === dur &&
+         threadState.thread?.utid === utid)) {
       return threadState;
     } else {
       return undefined;
@@ -132,15 +133,16 @@ export class DebugSliceDetailsTab extends
   }
 
   private async maybeLoadSlice(
-      id: number|undefined, ts: time, dur: duration,
+      id: number|undefined, ts: time, dur: duration, table: string|undefined,
       sqlTrackId?: number): Promise<SliceDetails|undefined> {
     if (id === undefined) return undefined;
-    if (sqlTrackId === undefined) return undefined;
+    if ((table !== 'slice') && sqlTrackId === undefined) return undefined;
 
     const slice = await getSlice(this.engine, asSliceSqlId(id));
     if (slice === undefined) return undefined;
-    if (slice.ts === ts && slice.dur === dur &&
-        slice.sqlTrackId === sqlTrackId) {
+    if ((table === 'slice') ||
+        (slice.ts === ts && slice.dur === dur &&
+         slice.sqlTrackId === sqlTrackId)) {
       return slice;
     } else {
       return undefined;
@@ -189,6 +191,7 @@ export class DebugSliceDetailsTab extends
         sqlValueToNumber(this.data.args['id']),
         this.data.ts,
         this.data.dur,
+        sqlValueToString(this.data.args['table_name']),
         sqlValueToUtid(this.data.args['utid']));
 
     this.slice = await this.maybeLoadSlice(
@@ -196,6 +199,7 @@ export class DebugSliceDetailsTab extends
             sqlValueToNumber(this.data.args['slice_id']),
         this.data.ts,
         this.data.dur,
+        sqlValueToString(this.data.args['table_name']),
         sqlValueToNumber(this.data.args['track_id']));
 
     raf.scheduleRedraw();
