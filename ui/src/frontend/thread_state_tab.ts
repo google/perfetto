@@ -230,6 +230,43 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       name,
     });
     const sliceColumns = {ts: 'ts', dur: 'dur', name: 'thread_name'};
+    const sliceSliceColumns = {ts: 'ts', dur: 'dur', name: 'slice_name'};
+    const sliceColumnNames = [
+      'ts',
+      'dur',
+      'id',
+      'utid',
+      'thread_name',
+      'process_name',
+      'height',
+      'table_name',
+    ];
+
+    const sliceColumnThreadStateNames = [
+      'ts',
+      'dur',
+      'id',
+      'utid',
+      'thread_name',
+      'process_name',
+      'state',
+      'blocked_function',
+      'height',
+      'table_name'
+    ];
+
+    const sliceColumnSliceNames = [
+      'ts',
+      'dur',
+      'id',
+      'utid',
+      'thread_name',
+      'process_name',
+      'slice_name',
+      'slice_depth',
+      'height',
+      'table_name',
+    ];
 
     const nameForNextOrPrev = (state: ThreadState) =>
         `${state.state} for ${Duration.humanise(state.dur)}`;
@@ -277,15 +314,54 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                   {
                     sqlSource:
                   `
-                     SELECT ts, dur, thread_name, process_name, height
+                   SELECT ts, dur, id, utid, thread_name, process_name, height,
+                   "thread_state" AS table_name
                      FROM experimental_thread_executing_span_critical_path(
                        NULL, ${this.state?.thread?.utid})
                   `,
-                  columns: ['ts', 'dur', 'thread_name', 'process_name', 'height'],
+                  columns: sliceColumnNames,
                   },
                `${this.state?.thread?.name}`,
                   sliceColumns,
-                  ['ts', 'dur', 'thread_name', 'process_name', 'height'])),
+                  sliceColumnNames)),
+      },
+      ), m(Button,
+           {
+          label: 'Critical path thread states',
+          onclick: () => runQuery(`SELECT IMPORT('experimental.thread_executing_span');`, this.engine)
+              .then(() => addDebugTrack(
+              this.engine,
+                  {
+                    sqlSource:
+                  `
+                   SELECT ts, dur, thread_state_id AS id, utid, thread_name, process_name, state, blocked_function, height,
+                   "thread_state" AS table_name
+                     FROM experimental_thread_executing_span_critical_path_thread_states(${this.state?.thread?.utid})
+                  `,
+                  columns: sliceColumnThreadStateNames,
+                  },
+               `${this.state?.thread?.name}`,
+                  sliceColumns,
+                  sliceColumnThreadStateNames)),
+      },
+      ), m(Button,
+           {
+          label: 'Critical path slices',
+          onclick: () => runQuery(`SELECT IMPORT('experimental.thread_executing_span');`, this.engine)
+              .then(() => addDebugTrack(
+              this.engine,
+                  {
+                    sqlSource:
+                  `
+                   SELECT ts, dur, slice_id AS id, utid, thread_name, process_name, slice_name, slice_depth, height,
+                   "slice" AS table_name
+                     FROM experimental_thread_executing_span_critical_path_slices(${this.state?.thread?.utid})
+                  `,
+                  columns: sliceColumnSliceNames,
+                  },
+               `${this.state?.thread?.name}`,
+                  sliceSliceColumns,
+                  sliceColumnSliceNames)),
       },
       )];
   }
