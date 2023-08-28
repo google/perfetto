@@ -42,5 +42,8 @@ trace.add_atrace_instant(
     tid=2,
     pid=2,
     buf='launchingActivity#2:completed-hot:com.google.android.calendar')
+# Emulate a hot start (and therefore that we only see activityResume).
+trace.add_atrace_begin(ts=221, tid=3, pid=3, buf='activityResume')
+trace.add_atrace_end(ts=225, tid=3, pid=3)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())

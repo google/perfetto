@@ -47,6 +47,10 @@ android_startup {
         uninterruptible_non_io_sleep_dur_ns: 0
       }
       other_processes_spawned_count: 0
+      time_activity_resume {
+        dur_ns: 4
+        dur_ms: 4e-06
+      }
       dur_ms: 1e-05
     }
     activity_hosting_process_count: 1
