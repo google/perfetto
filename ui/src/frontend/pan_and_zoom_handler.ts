@@ -298,8 +298,6 @@ export class PanAndZoomHandler implements Disposable {
   }
 
   private onKeyUp(e: KeyboardEvent) {
-    if (elementIsEditable(e.target)) return;
-
     this.updateShift(e.shiftKey);
 
     // Handle key events that are not pan or zoom.
