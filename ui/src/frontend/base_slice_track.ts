@@ -56,7 +56,7 @@ function filterVisibleSlices<S extends Slice>(
     slices: S[], start: time, end: time): S[] {
   // Here we aim to reduce the number of slices we have to draw
   // by ignoring those that are not visible. A slice is visible iff:
-  //   slice.start + slice.duration >= start && slice.start <= end
+  //   slice.endNsQ >= start && slice.startNsQ <= end
   // It's allowable to include slices which aren't visible but we
   // must not exclude visible slices.
   // We could filter this.slices using this condition but since most
@@ -94,16 +94,17 @@ function filterVisibleSlices<S extends Slice>(
   // that slice.start <= end.
 
   // One specific edge case that will come up often is when:
-  // For all slice in slices: slice.startS > endS (e.g. all slices are to the
-  // right). Since the slices are sorted by startS we can check this easily:
+  // For all slice in slices: slice.startNsQ > end (e.g. all slices are
+  // to the right).
+  // Since the slices are sorted by startS we can check this easily:
   const maybeFirstSlice: S|undefined = slices[0];
-  if (maybeFirstSlice && maybeFirstSlice.start > end) {
+  if (maybeFirstSlice && maybeFirstSlice.startNsQ > end) {
     return [];
   }
   // It's not possible to easily check the analogous edge case where all slices
   // are to the left:
-  // For all slice in slices: slice.startS + slice.durationS < startS
-  // as the slices are not ordered by 'endS'.
+  // For all slice in slices: slice.endNsQ < startS
+  // as the slices are not ordered by 'endNsQ'.
 
   // As described above you could do some clever binary search combined with
   // iteration however that seems quite complicated and error prone so instead
@@ -116,15 +117,13 @@ function filterVisibleSlices<S extends Slice>(
   let endIdx = slices.length;
   for (; startIdx < endIdx; ++startIdx) {
     const slice = slices[startIdx];
-    const sliceEndS = slice.start + slice.duration;
-    if (sliceEndS >= start && slice.start <= end) {
+    if (slice.endNsQ >= start && slice.startNsQ <= end) {
       break;
     }
   }
   for (; startIdx < endIdx; --endIdx) {
     const slice = slices[endIdx - 1];
-    const sliceEndS = slice.start + slice.duration;
-    if (sliceEndS >= start && slice.start <= end) {
+    if (slice.endNsQ >= start && slice.startNsQ <= end) {
       break;
     }
   }
@@ -342,6 +341,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       selection = null;
     }
     const selectedId = selection ? (selection as {id: number}).id : undefined;
+    if (selectedId === undefined) {
+      this.selectedSlice = undefined;
+    }
     let discoveredSelection: CastInternal<T['slice']>|undefined;
 
     // Believe it or not, doing 4xO(N) passes is ~2x faster than trying to draw
@@ -364,8 +366,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       // partially visible. This might end up with a negative x if the
       // slice starts before the visible time or with a width that overflows
       // pxEnd.
-      slice.x = timeScale.timeToPx(slice.start);
-      slice.w = timeScale.durationToPx(slice.duration);
+      slice.x = timeScale.timeToPx(slice.startNsQ);
+      slice.w = timeScale.durationToPx(slice.durNsQ);
+
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         // In the case of an instant slice, set the slice geometry on the
         // bounding box that will contain the chevron.
@@ -449,16 +452,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       ctx.fillText(subTitle, rectXCenter, yMidPoint);
     }
 
-    // Update the selectedSlice if required.
+    // Here we need to ensure we never draw a slice that hasn't been
+    // updated via the math above so we don't use this.selectedSlice
+    // directly.
     if (discoveredSelection !== undefined) {
       this.selectedSlice = discoveredSelection;
-    } else if (selectedId === undefined) {
-      this.selectedSlice = undefined;
-    }
 
-    // Draw a thicker border around the selected slice (or chevron).
-    if (this.selectedSlice !== undefined) {
-      const slice = this.selectedSlice;
+      // Draw a thicker border around the selected slice (or chevron).
+      const slice = discoveredSelection;
       const color = slice.color;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       ctx.strokeStyle = cachedHsluvToHex(color.h, 100, 10);
@@ -672,6 +673,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   private rowToSliceInternal(row: T['row']): CastInternal<T['slice']> {
     const slice = this.rowToSlice(row) as CastInternal<T['slice']>;
+
+    // If this is a more updated version of the selected slice throw
+    // away the old one.
+    if (this.selectedSlice?.id === slice.id) {
+      this.selectedSlice = undefined;
+    }
+
     slice.x = -1;
     slice.w = -1;
     return slice;
@@ -680,6 +688,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   rowToSlice(row: T['row']): T['slice'] {
     const startNsQ = Time.fromRaw(row.tsq);
     const endNsQ = Time.fromRaw(row.tsqEnd);
+    const ts = Time.fromRaw(row.ts);
+    const dur: duration = row.dur;
+
     let flags = 0;
     if (row.dur === -1n) {
       flags |= SLICE_FLAGS_INCOMPLETE;
@@ -689,8 +700,11 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     return {
       id: row.id,
-      start: startNsQ,
-      duration: endNsQ - startNsQ,
+      startNsQ,
+      endNsQ,
+      durNsQ: endNsQ - startNsQ,
+      ts,
+      dur,
       flags,
       depth: row.depth,
       title: '',
