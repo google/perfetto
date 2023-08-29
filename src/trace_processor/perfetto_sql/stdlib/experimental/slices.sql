@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT IMPORT('common.slices');
+INCLUDE PERFETTO MODULE common.slices;
 
 -- All slices with related process and thread info if available. Unlike
 -- `thread_slice` and `process_slice`, this view contains all slices,

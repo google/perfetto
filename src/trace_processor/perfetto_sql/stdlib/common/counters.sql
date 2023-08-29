@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT IMPORT('common.timestamps');
+INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Timestamp of first counter value in a counter.
 --

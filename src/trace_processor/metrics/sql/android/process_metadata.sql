@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.process_metadata');
+INCLUDE PERFETTO MODULE android.process_metadata;
 
 DROP VIEW IF EXISTS process_metadata_table;
 CREATE VIEW process_metadata_table AS

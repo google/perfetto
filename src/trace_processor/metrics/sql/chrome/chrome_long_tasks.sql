@@ -17,7 +17,7 @@
 --          active development and the values & meaning might change without
 --          notice.
 
-SELECT IMPORT("chrome.tasks");
+INCLUDE PERFETTO MODULE chrome.tasks;
 
 -- Extract mojo information for the long-task-tracking scenario for specific
 -- names. For example, LongTaskTracker slices may have associated IPC

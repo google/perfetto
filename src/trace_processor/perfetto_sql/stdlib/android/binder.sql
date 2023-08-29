@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('common.timestamps');
+INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Count Binder transactions per process.
 --

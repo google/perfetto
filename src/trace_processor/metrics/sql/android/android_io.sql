@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.io');
+INCLUDE PERFETTO MODULE android.io;
 
 DROP VIEW IF EXISTS android_io_output;
 CREATE VIEW android_io_output AS

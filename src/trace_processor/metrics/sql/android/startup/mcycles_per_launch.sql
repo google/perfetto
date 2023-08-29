@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Create the base CPU span join table.
 SELECT RUN_METRIC('android/android_cpu_agg.sql');

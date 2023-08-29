@@ -21,7 +21,7 @@
 --   b. The event rate for the thread is at or above 75p.
 -- Note: this metric considers only chrome processes and their threads, i.e. the ones coming
 -- from track_event's.
-SELECT IMPORT('common.metadata');
+INCLUDE PERFETTO MODULE common.metadata;
 
 DROP VIEW IF EXISTS chrome_event_stats_per_thread;
 

@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT import('experimental.flat_slices');
+INCLUDE PERFETTO MODULE experimental.flat_slices;
 
 -- Create a table which joins the thread state across the flattened slices.
 CREATE VIRTUAL TABLE internal_experimental_span_joined_thread USING

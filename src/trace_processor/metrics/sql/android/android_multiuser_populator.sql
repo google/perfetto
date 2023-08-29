@@ -15,7 +15,7 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT IMPORT ('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Collect the important timestamps for Multiuser events.
 DROP VIEW IF EXISTS multiuser_events;
