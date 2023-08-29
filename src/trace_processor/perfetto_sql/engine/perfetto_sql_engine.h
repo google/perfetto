@@ -32,6 +32,7 @@
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_engine.h"
 #include "src/trace_processor/sqlite/sqlite_utils.h"
+#include "src/trace_processor/util/sql_modules.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -128,9 +129,24 @@ class PerfettoSqlEngine {
 
   SqliteEngine* sqlite_engine() { return engine_.get(); }
 
+  // Makes new SQL module available to import.
+  void RegisterModule(const std::string& name,
+                      sql_modules::RegisteredModule module) {
+    modules_.Insert(name, std::move(module));
+  }
+
+  // Fetches registered SQL module.
+  sql_modules::RegisteredModule* FindModule(const std::string& name) {
+    return modules_.Find(name);
+  }
+
  private:
   base::StatusOr<SqlSource> ExecuteCreateFunction(
-      const PerfettoSqlParser::CreateFunction&);
+      const PerfettoSqlParser::CreateFunction&,
+      const PerfettoSqlParser& parser);
+
+  base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
+                              const PerfettoSqlParser& parser);
 
   // Registers a SQL-defined trace processor C++ table with SQLite.
   base::Status RegisterRuntimeTable(std::string name, SqlSource sql);
@@ -140,6 +156,7 @@ class PerfettoSqlEngine {
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
+  base::FlatHashMap<std::string, sql_modules::RegisteredModule> modules_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 
