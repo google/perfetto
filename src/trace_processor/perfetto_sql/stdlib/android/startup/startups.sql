@@ -132,6 +132,8 @@ WITH startup_with_type AS MATERIALIZED (
       )
       )
     JOIN thread t ON (p.upid = t.upid AND t.is_main_thread)
+    -- Filter out the non-startup processes with the same package name as that of a startup.
+    WHERE a_resume > 0
   )
 )
 SELECT *
