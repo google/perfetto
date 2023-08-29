@@ -21,10 +21,16 @@ import {
 import {Slice} from './slice';
 
 function slice(start: number, duration: number): Slice {
+  const startNsQ = Time.fromRaw(BigInt(start));
+  const durNsQ = Time.fromRaw(BigInt(duration));
+  const endNsQ = Time.fromRaw(startNsQ + durNsQ);
   return {
     id: 42,
-    start: Time.fromRaw(BigInt(start)),
-    duration: Time.fromRaw(BigInt(duration)),
+    startNsQ,
+    endNsQ,
+    durNsQ,
+    ts: startNsQ,
+    dur: durNsQ,
     depth: 0,
     flags: 0,
     title: '',
