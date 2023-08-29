@@ -32,6 +32,7 @@ Try the following visualisation with the Android example trace:
       "field": "cpu"
     },
     "y": {"aggregate": "sum", "field": "dur"}
+  }
 }
 ```
 
