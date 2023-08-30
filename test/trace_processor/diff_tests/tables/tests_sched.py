@@ -125,7 +125,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -161,7 +161,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -186,7 +186,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT COUNT(*) AS count FROM internal_runnable_state WHERE state = 'Running'
         """,
         out=Csv("""
@@ -198,7 +198,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT ts,dur FROM experimental_thread_executing_span_graph
           WHERE dur IS NULL OR ts IS NULL
         """,
@@ -210,7 +210,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_switch_original.pb'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT COUNT(*) AS count FROM experimental_thread_executing_span_graph
         """,
         out=Csv("""
@@ -222,7 +222,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -259,7 +259,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -301,7 +301,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           thread_name,
           waker_thread_name,
@@ -322,7 +322,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           thread_name,
           waker_thread_name,
@@ -340,7 +340,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(12394) AS thread_executing_span_id
         """,
         out=Csv("""
@@ -352,7 +352,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(15173) AS thread_executing_span_id
         """,
         out=Csv("""
@@ -364,7 +364,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173) AS thread_executing_span_id
         """,
         out=Csv("""
@@ -376,7 +376,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(12394) AS thread_executing_span_id
         """,
         out=Csv("""
@@ -388,7 +388,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -430,7 +430,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,
@@ -471,7 +471,7 @@ class TablesSched(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
           ts,
           dur,

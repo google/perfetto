@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 DROP VIEW IF EXISTS thread_state_extended;
 CREATE VIEW thread_state_extended AS

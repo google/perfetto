@@ -16,7 +16,7 @@
 -- A collection of metrics related to janky scrolling. Please refer to the
 -- corresponding `chrome/scroll_jank_v2.proto` for more details.
 
-SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
+INCLUDE PERFETTO MODULE chrome.scroll_jank.event_latency_scroll_jank_cause;
 
 DROP VIEW IF EXISTS __chrome_scroll_jank_v2_scroll_processing;
 

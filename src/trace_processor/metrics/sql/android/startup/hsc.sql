@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Must be invoked after populating launches table in android_startup.
 DROP VIEW IF EXISTS functions;

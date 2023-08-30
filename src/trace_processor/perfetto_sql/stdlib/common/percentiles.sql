@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT IMPORT('common.counters');
-SELECT IMPORT('common.timestamps');
+INCLUDE PERFETTO MODULE common.counters;
+INCLUDE PERFETTO MODULE common.timestamps;
 
 SELECT CREATE_VIEW_FUNCTION(
     'INTERNAL_NUMBER_GENERATOR(to INT)',

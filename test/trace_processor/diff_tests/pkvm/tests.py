@@ -25,7 +25,7 @@ class Pkvm(TestSuite):
     return DiffTestBlueprint(
         trace=Path('pkvm_hypervisor_events.textproto'),
         query="""
-        SELECT IMPORT("pkvm.hypervisor");
+        INCLUDE PERFETTO MODULE pkvm.hypervisor;
         SELECT
           cpu,
           ts,
@@ -47,7 +47,7 @@ class Pkvm(TestSuite):
     return DiffTestBlueprint(
         trace=Path('pkvm_hypervisor_events.textproto'),
         query="""
-        SELECT IMPORT("pkvm.hypervisor");
+        INCLUDE PERFETTO MODULE pkvm.hypervisor;
         SELECT
           pkvm_hyp.cpu as cpu,
           pkvm_hyp.ts as ts,
@@ -71,7 +71,7 @@ class Pkvm(TestSuite):
     return DiffTestBlueprint(
         trace=Path('pkvm_hypervisor_events.textproto'),
         query="""
-        SELECT IMPORT("pkvm.hypervisor");
+        INCLUDE PERFETTO MODULE pkvm.hypervisor;
         SELECT
           pkvm_hyp.cpu as cpu,
           pkvm_hyp.ts as ts,
@@ -95,7 +95,7 @@ class Pkvm(TestSuite):
     return DiffTestBlueprint(
         trace=Path('pkvm_hypervisor_events.textproto'),
         query="""
-        SELECT IMPORT("pkvm.hypervisor");
+        INCLUDE PERFETTO MODULE pkvm.hypervisor;
         SELECT
           pkvm_hyp.cpu as cpu,
           pkvm_hyp.ts as ts,

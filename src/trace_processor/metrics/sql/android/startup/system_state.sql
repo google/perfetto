@@ -17,7 +17,7 @@
 -- Functions useful for filling the SystemState proto which gives
 -- context to what was happening on the system during a startup.
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Given a launch id and process name glob, returns the sched.dur if a process with
 -- that name was running on a CPU concurrent to that launch.
