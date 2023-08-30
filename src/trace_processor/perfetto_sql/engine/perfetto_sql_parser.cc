@@ -65,7 +65,7 @@ bool TokenIsCustomKeyword(std::string_view keyword, SqliteTokenizer::Token t) {
 
 bool IsValidModuleWord(const std::string& word) {
   for (const char& c : word) {
-    if (!std::isalnum(c) & (c != '_') & !std::islower(c)) {
+    if (!std::isalnum(c) && (c != '_') && !std::islower(c)) {
       return false;
     }
   }
