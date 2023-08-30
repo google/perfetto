@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.monitor_contention');
+INCLUDE PERFETTO MODULE android.monitor_contention;
 
 DROP VIEW IF EXISTS amc_process_agg;
 CREATE VIEW amc_process_agg AS

@@ -19,8 +19,8 @@
 -- containing bounds of jank CUJs.
 SELECT RUN_METRIC('android/android_jank_cuj.sql');
 
-SELECT IMPORT('android.slices');
-SELECT IMPORT('android.binder');
+INCLUDE PERFETTO MODULE android.slices;
+INCLUDE PERFETTO MODULE android.binder;
 
 -- Jank "J<*>" and latency "L<*>" cujs are put together in android_cujs table.
 -- They are computed separately as latency ones are slightly different, don't

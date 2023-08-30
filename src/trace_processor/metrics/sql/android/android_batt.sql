@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT IMPORT('android.battery');
-SELECT IMPORT('android.battery_stats');
+INCLUDE PERFETTO MODULE android.battery;
+INCLUDE PERFETTO MODULE android.battery_stats;
 
 DROP VIEW IF EXISTS battery_view;
 CREATE VIEW battery_view AS
