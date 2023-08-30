@@ -58,33 +58,11 @@ base::Status Import::Run(Import::Context* ctx,
 
   const char* import_key =
       reinterpret_cast<const char*>(sqlite3_value_text(import_val));
-  PERFETTO_TP_TRACE(
-      metatrace::Category::TOPLEVEL, "Import",
-      [import_key](metatrace::Record* r) { r->AddArg("Import", import_key); });
-
-  std::string module_name = sql_modules::GetModuleName(import_key);
-  auto module = ctx->modules->Find(module_name);
-  if (!module)
-    return base::ErrStatus("IMPORT: Unknown module name provided - %s",
-                           import_key);
-
-  auto module_file = module->import_key_to_file.Find(import_key);
-  if (!module_file) {
-    return base::ErrStatus("IMPORT: Unknown filename provided - %s",
-                           import_key);
-  }
-  // IMPORT is noop for already imported files.
-  if (module_file->imported) {
-    return base::OkStatus();
-  }
-
-  auto it = ctx->engine->Execute(
-      SqlSource::FromModuleImport(module_file->sql, import_key));
-  RETURN_IF_ERROR(it.status());
-  if (it->statement_count_with_output > 0)
-    return base::ErrStatus("IMPORT: Imported file returning values.");
-  module_file->imported = true;
-  return base::OkStatus();
+  base::StackString<1024> create("INCLUDE PERFETTO MODULE %s;", import_key);
+  return ctx->engine
+      ->Execute(
+          SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
+      .status();
 }
 
 }  // namespace trace_processor

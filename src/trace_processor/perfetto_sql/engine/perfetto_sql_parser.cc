@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 
 #include <algorithm>
+#include <functional>
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -37,6 +38,8 @@ using Statement = PerfettoSqlParser::Statement;
 enum class State {
   kStmtStart,
   kCreate,
+  kInclude,
+  kIncludePerfetto,
   kCreateOr,
   kCreateOrReplace,
   kCreateOrReplacePerfetto,
@@ -60,6 +63,21 @@ bool TokenIsCustomKeyword(std::string_view keyword, SqliteTokenizer::Token t) {
   return t.token_type == SqliteTokenType::TK_ID && KeywordEqual(keyword, t.str);
 }
 
+bool IsValidModuleWord(const std::string& word) {
+  for (const char& c : word) {
+    if (!std::isalnum(c) & (c != '_') & !std::islower(c)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool ValidateModuleName(const std::string& name) {
+  std::vector<std::string> packages = base::SplitString(name, ".");
+  return std::find_if(packages.begin(), packages.end(),
+                      std::not_fn(IsValidModuleWord)) == packages.end();
+}
+
 }  // namespace
 
 PerfettoSqlParser::PerfettoSqlParser(SqlSource sql)
@@ -81,8 +99,8 @@ bool PerfettoSqlParser::Next() {
       // If we have a non-space character we've seen, just return all the stuff
       // after that point.
       if (first_non_space_token) {
-        statement_ =
-            SqliteSql{tokenizer_.Substr(*first_non_space_token, token)};
+        statement_ = SqliteSql{};
+        statement_sql_ = tokenizer_.Substr(*first_non_space_token, token);
         return true;
       }
       // This means we've seen a semi-colon without any non-space content. Just
@@ -104,9 +122,29 @@ bool PerfettoSqlParser::Next() {
       case State::kPassthrough:
         break;
       case State::kStmtStart:
-        state = TokenIsSqliteKeyword("create", token) ? State::kCreate
-                                                      : State::kPassthrough;
+        if (TokenIsSqliteKeyword("create", token)) {
+          state = State::kCreate;
+        } else if (TokenIsCustomKeyword("include", token)) {
+          state = State::kInclude;
+        } else {
+          state = State::kPassthrough;
+        }
         break;
+      case State::kInclude:
+        if (TokenIsCustomKeyword("perfetto", token)) {
+          state = State::kIncludePerfetto;
+        } else {
+          return ErrorAtToken(token,
+                              "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
+        }
+        break;
+      case State::kIncludePerfetto:
+        if (TokenIsCustomKeyword("module", token)) {
+          return ParseIncludePerfettoModule(*first_non_space_token);
+        } else {
+          return ErrorAtToken(token,
+                              "Use 'INCLUDE PERFETTO MODULE {include_key}'.");
+        }
       case State::kCreate:
         if (TokenIsSqliteKeyword("trigger", token)) {
           // TODO(lalitm): add this to the "errors" documentation page
@@ -135,11 +173,11 @@ bool PerfettoSqlParser::Next() {
       case State::kCreateOrReplacePerfetto:
       case State::kCreatePerfetto:
         if (TokenIsCustomKeyword("function", token)) {
-          return ParseCreatePerfettoFunction(state ==
-                                             State::kCreateOrReplacePerfetto);
+          return ParseCreatePerfettoFunction(
+              state == State::kCreateOrReplacePerfetto, *first_non_space_token);
         }
         if (TokenIsSqliteKeyword("table", token)) {
-          return ParseCreatePerfettoTable();
+          return ParseCreatePerfettoTable(*first_non_space_token);
         }
         base::StackString<1024> err(
             "Expected 'FUNCTION' or 'TABLE' after 'CREATE PERFETTO', received "
@@ -150,7 +188,26 @@ bool PerfettoSqlParser::Next() {
   }
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoTable() {
+bool PerfettoSqlParser::ParseIncludePerfettoModule(
+    Token first_non_space_token) {
+  auto tok = tokenizer_.NextNonWhitespace();
+  auto terminal = tokenizer_.NextTerminal();
+  std::string key = tokenizer_.Substr(tok, terminal).sql();
+
+  if (!ValidateModuleName(key)) {
+    base::StackString<1024> err(
+        "Only alphanumeric characters, dots and underscores allowed in include "
+        "keys: '%s'",
+        key.c_str());
+    return ErrorAtToken(tok, err.c_str());
+  }
+
+  statement_ = Include{key};
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
+  return true;
+}
+
+bool PerfettoSqlParser::ParseCreatePerfettoTable(Token first_non_space_token) {
   Token table_name = tokenizer_.NextNonWhitespace();
   if (table_name.token_type != SqliteTokenType::TK_ID) {
     base::StackString<1024> err("Invalid table name %.*s",
@@ -170,12 +227,15 @@ bool PerfettoSqlParser::ParseCreatePerfettoTable() {
   }
 
   Token first = tokenizer_.NextNonWhitespace();
-  statement_ = CreateTable{std::move(name),
-                           tokenizer_.Substr(first, tokenizer_.NextTerminal())};
+  Token terminal = tokenizer_.NextTerminal();
+  statement_ = CreateTable{std::move(name), tokenizer_.Substr(first, terminal)};
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
   return true;
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
+bool PerfettoSqlParser::ParseCreatePerfettoFunction(
+    bool replace,
+    Token first_non_space_token) {
   std::string prototype;
   Token function_name = tokenizer_.NextNonWhitespace();
   if (function_name.token_type != SqliteTokenType::TK_ID) {
@@ -234,9 +294,10 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(bool replace) {
   }
 
   Token first = tokenizer_.NextNonWhitespace();
-  statement_ = CreateFunction{
-      replace, std::move(prototype), std::move(ret),
-      tokenizer_.Substr(first, tokenizer_.NextTerminal()), table_return};
+  Token terminal = tokenizer_.NextTerminal();
+  statement_ = CreateFunction{replace, std::move(prototype), std::move(ret),
+                              tokenizer_.Substr(first, terminal), table_return};
+  statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
   return true;
 }
 

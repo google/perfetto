@@ -44,8 +44,9 @@ class SqlSource {
   static SqlSource FromMetricFile(std::string sql,
                                   const std::string& metric_file);
 
-  // Creates a SqlSource instance wrapping SQL executed when importing a module.
-  static SqlSource FromModuleImport(std::string sql, const std::string& module);
+  // Creates a SqlSource instance wrapping SQL executed when including a module.
+  static SqlSource FromModuleInclude(std::string sql,
+                                     const std::string& module);
 
   // Creates a SqlSource instance wrapping SQL which is an internal
   // implementation detail of trace processor.
