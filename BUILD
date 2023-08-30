@@ -1877,7 +1877,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/android/android_task_names.sql",
         "src/trace_processor/metrics/sql/android/android_trace_quality.sql",
         "src/trace_processor/metrics/sql/android/android_trusty_workqueues.sql",
-        "src/trace_processor/metrics/sql/android/anr/anrs.sql",
         "src/trace_processor/metrics/sql/android/codec_metrics.sql",
         "src/trace_processor/metrics/sql/android/composer_execution.sql",
         "src/trace_processor/metrics/sql/android/composition_layers.sql",
@@ -2249,6 +2248,7 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_android_android",
     srcs = [
+        "src/trace_processor/perfetto_sql/stdlib/android/anrs.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/battery_stats.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
