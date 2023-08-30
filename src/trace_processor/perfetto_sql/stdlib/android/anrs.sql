@@ -1,5 +1,5 @@
 --
--- Copyright 2022 The Android Open Source Project
+-- Copyright 2023 The Android Open Source Project
 --
 -- Licensed under the Apache License, Version 2.0 (the "License");
 -- you may not use this file except in compliance with the License.
@@ -12,12 +12,19 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
+--
 
--- One row per ANR that occurred in the trace.
-DROP TABLE IF EXISTS android_anr_anrs;
-CREATE PERFETTO TABLE android_anr_anrs AS
+-- List of all ANRs that occurred in the trace (one row per ANR).
+--
+-- @column process_name  Name of the process that triggered the ANR.
+-- @column pid           PID of the process that triggered the ANR.
+-- @column upid          UPID of the process that triggered the ANR.
+-- @column error_id      UUID of the ANR (generated on the platform).
+-- @column ts            Timestamp of the ANR.
+-- @column subject       Subject line of the ANR.
+CREATE VIEW android_anrs AS
 -- Process and PID that ANRed.
-WITH anr_process AS (
+WITH anr AS (
   SELECT
     -- Counter formats:
     -- v1: "ErrorId:<process_name>#<UUID>"
@@ -33,7 +40,7 @@ WITH anr_process AS (
     AND process.name = 'system_server'
 ),
 -- ANR subject line.
-anr_subject AS (
+subject AS (
   --- Counter format:
   --- "Subject(for ErrorId <UUID>):<subject>"
   SELECT
@@ -45,6 +52,13 @@ anr_subject AS (
   WHERE process_counter_track.name GLOB 'Subject(for ErrorId *'
   AND process.name = 'system_server'
 )
-SELECT *
-FROM anr_process
-LEFT JOIN anr_subject USING (error_id);
+SELECT
+    anr.process_name,
+    anr.pid,
+    process.upid,
+    anr.error_id,
+    anr.ts,
+    subject
+FROM anr
+LEFT JOIN subject USING (error_id)
+LEFT JOIN process ON (process.pid = anr.pid);
