@@ -882,7 +882,7 @@ class TrackEventDataSource
     const Category* static_category =
         CatTraits::GetStaticCategory(Registry, category);
 
-    const TrackEventTlsState& tls_state = *ctx.GetCustomTlsState();
+    TrackEventTlsState& tls_state = *ctx.GetCustomTlsState();
     TraceWriterBase* trace_writer = ctx.tls_inst_->trace_writer.get();
     // Make sure incremental state is valid.
     TrackEventIncrementalState* incr_state = ctx.GetIncrementalState();
