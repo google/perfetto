@@ -129,6 +129,11 @@ def check_banned_words(sql: str, path: str) -> List[str]:
       errors.append('CREATE_FUNCTION is deprecated in trace processor. '
                     'Use CREATE PERFETTO FUNCTION instead.\n'
                     f'Offending file: {path}')
+
+    if 'import(' in line.casefold():
+      errors.append('SELECT IMPORT is deprecated in trace processor. '
+                    'Use INCLUDE PERFETTO MODULE instead.\n'
+                    f'Offending file: {path}')
   return errors
 
 
