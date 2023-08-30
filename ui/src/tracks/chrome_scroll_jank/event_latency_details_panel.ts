@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {exists} from '../../base/utils';
+import {NUM} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -33,11 +34,21 @@ import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {Tree, TreeNode} from '../../frontend/widgets/tree';
 
+import {
+  getScrollJankSlices,
+  getSliceForTrack,
+  ScrollJankSlice,
+} from './scroll_jank_slice';
+import {ScrollJankV3Track} from './scroll_jank_v3_track';
+
 export class EventLatencySliceDetailsPanel extends
     BottomTab<GenericSliceDetailsTabConfig> {
   static readonly kind = 'dev.perfetto.EventLatencySliceDetailsPanel';
 
+  private loaded = false;
+
   private sliceDetails?: SliceDetails;
+  private jankySlice?: ScrollJankSlice;
 
   static create(args: NewBottomTabArgs): EventLatencySliceDetailsPanel {
     return new EventLatencySliceDetailsPanel(args);
@@ -46,14 +57,101 @@ export class EventLatencySliceDetailsPanel extends
   constructor(args: NewBottomTabArgs) {
     super(args);
 
-    // Start loading the slice details
-    this.loadSlice();
+    this.loadData();
+  }
+
+  async loadData() {
+    await this.loadSlice();
+    await this.loadJankSlice();
+    this.loaded = true;
   }
 
   async loadSlice() {
     this.sliceDetails =
         await getSlice(this.engine, asSliceSqlId(this.config.id));
     raf.scheduleRedraw();
+  }
+
+  async loadJankSlice() {
+    if (exists(this.sliceDetails)) {
+      // Get the id for the top-level EventLatency slice (this or parent), as
+      // this id is used in the ScrollJankV3 track to identify the corresponding
+      // janky interval.
+      let eventLatencyId = -1;
+      if (this.sliceDetails.name == 'EventLatency') {
+        eventLatencyId = this.sliceDetails.id;
+      } else {
+        const queryResult = await this.engine.query(`
+          SELECT
+            id
+          FROM ancestor_slice(${this.sliceDetails.id})
+          WHERE name = 'EventLatency'
+        `);
+        const it = queryResult.iter({
+          id: NUM,
+        });
+        for (; it.valid(); it.next()) {
+          eventLatencyId = it.id;
+          break;
+        }
+      }
+
+      const possibleSlices =
+          await getScrollJankSlices(this.engine, eventLatencyId);
+      // We may not get any slices if the EventLatency doesn't indicate any
+      // jank occurred.
+      if (possibleSlices.length > 0) {
+        this.jankySlice = possibleSlices[0];
+      }
+    }
+  }
+
+  private getLinksSection(): m.Child {
+    return m(
+        Section,
+        {title: 'Quick links'},
+        m(
+            Tree,
+            m(TreeNode, {
+              left: exists(this.sliceDetails) ?
+                  sliceRef(
+                      this.sliceDetails,
+                      'EventLatency in context of other Input events') :
+                  'EventLatency in context of other Input events',
+              right: exists(this.sliceDetails) ? '' : 'N/A',
+            }),
+            m(TreeNode, {
+              left: exists(this.jankySlice) ? getSliceForTrack(
+                                                  this.jankySlice,
+                                                  ScrollJankV3Track.kind,
+                                                  'Jank Interval') :
+                                              'Jank Interval',
+              right: exists(this.jankySlice) ? '' : 'N/A',
+            }),
+            ),
+    );
+  }
+
+  private getDescriptionText(): m.Child {
+    return m(
+        `div[style='white-space:pre-wrap']`,
+        `EventLatency tracks the latency of handling a given input event
+        (Scrolls, Touchs, Taps, etc). Ideally from when the input was read by
+        the hardware to when it was reflected on the screen.{new_lines}
+
+        Note however the concept of coalescing or terminating early. This occurs
+        when we receive multiple events or handle them quickly by converting
+        the into a different event. Such as a TOUCH_MOVE being converted into a
+        GESTURE_SCROLL_UPDATE type, or a multiple GESTURE_SCROLL_UPDATE events
+        being formed into a single frame at the end of the
+        RendererCompositorQueuingDelay.{new_lines}
+
+        *Important:* On some platforms (MacOS) we do not get feedback on when
+        something is presented on the screen so the timings are only accurate
+        for what we know on a given platform.`.replace(/\s\s+/g, ' ')
+            .replace(/{new_lines}/g, '\n\n')
+            .replace(/ Note:/g, 'Note:'),
+    );
   }
 
   viewTab() {
@@ -66,26 +164,14 @@ export class EventLatencySliceDetailsPanel extends
             description: slice.name,
           },
           m(GridLayout,
-            m(
-                GridLayoutColumn,
-                renderDetails(slice),
-                ),
             m(GridLayoutColumn,
-              renderArguments(this.engine, slice),
-              m(
-                  Section,
-                  {title: 'Quick links'},
-                  // TODO(hbolaria): add a link to the jank interval if this
-                  // slice is a janky latency.
-                  m(
-                      Tree,
-                      m(TreeNode, {
-                        left: sliceRef(
-                            this.sliceDetails, 'Original EventLatency'),
-                        right: '',
-                      }),
-                      ),
-                  ))),
+              renderDetails(slice),
+              renderArguments(this.engine, slice)),
+            m(GridLayoutColumn,
+              m(Section,
+                {title: 'Description'},
+                m('.div', this.getDescriptionText())),
+              this.getLinksSection())),
       );
     } else {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
@@ -93,7 +179,7 @@ export class EventLatencySliceDetailsPanel extends
   }
 
   isLoading() {
-    return !exists(this.sliceDetails);
+    return !this.loaded;
   }
 
   getTitle(): string {
