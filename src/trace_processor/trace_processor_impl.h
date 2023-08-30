@@ -125,8 +125,6 @@ class TraceProcessorImpl : public TraceProcessor,
 
   DescriptorPool pool_;
 
-  // Map from module name to module contents. Used for IMPORT function.
-  base::FlatHashMap<std::string, sql_modules::RegisteredModule> sql_modules_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
 
