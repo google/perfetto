@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {exists} from '../../base/utils';
-import {LONG, NUM} from '../../common/query_result';
+import {LONG, NUM, STR} from '../../common/query_result';
 import {duration, Time, time} from '../../common/time';
 import {raf} from '../../core/raf_scheduler';
 import {
@@ -27,13 +27,31 @@ import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
 import {sqlValueToString} from '../../frontend/sql_utils';
+import {
+  ColumnDescriptor,
+  numberColumn,
+  Table,
+  TableData,
+} from '../../frontend/tables/table';
 import {DetailsShell} from '../../frontend/widgets/details_shell';
 import {DurationWidget} from '../../frontend/widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
 import {Section} from '../../frontend/widgets/section';
 import {SqlRef} from '../../frontend/widgets/sql_ref';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {dictToTreeNodes, Tree, TreeNode} from '../../frontend/widgets/tree';
+import {dictToTreeNodes, Tree} from '../../frontend/widgets/tree';
+
+import {
+  getScrollJankSlices,
+  getSliceForTrack,
+  ScrollJankSlice,
+} from './scroll_jank_slice';
+import {ScrollJankV3Track} from './scroll_jank_v3_track';
+
+function widgetColumn<T>(
+    name: string, getter: (t: T) => m.Child): ColumnDescriptor<T> {
+  return new ColumnDescriptor<T>(name, getter);
+}
 
 interface Data {
   // Scroll ID.
@@ -51,9 +69,14 @@ interface Metrics {
   jankyFrameCount?: number;
   jankyFramePercent?: number;
   missedVsyncs?: number;
-  maxDelayDur?: duration;
-  maxDelayVsync?: number;
   // TODO(b/279581028): add pixels scrolled.
+}
+
+interface JankSliceDetails {
+  cause: string;
+  jankSlice: ScrollJankSlice;
+  delayDur: duration;
+  delayVsync: number;
 }
 
 export class ScrollDetailsPanel extends
@@ -62,6 +85,7 @@ export class ScrollDetailsPanel extends
   loaded = false;
   data: Data|undefined;
   metrics: Metrics = {};
+  maxJankSlices: JankSliceDetails[] = [];
 
   static create(args: NewBottomTabArgs): ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
@@ -166,22 +190,45 @@ export class ScrollDetailsPanel extends
   private async loadMaxDelay() {
     if (exists(this.data)) {
       const queryResult = await this.engine.query(`
+        WITH max_delay_tbl AS (
+          SELECT
+            MAX(dur) AS max_dur
+          FROM chrome_janky_frame_presentation_intervals s
+          WHERE s.ts >= ${this.data.ts}
+            AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
+        )
         SELECT
+          IFNULL(sub_cause_of_jank, IFNULL(cause_of_jank, 'Unknown')) AS cause,
+          IFNULL(event_latency_id, 0) AS eventLatencyId,
           IFNULL(MAX(dur), 0) AS maxDelayDur,
           IFNULL(delayed_frame_count, 0) AS maxDelayVsync
         FROM chrome_janky_frame_presentation_intervals s
         WHERE s.ts >= ${this.data.ts}
           AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
+          AND dur IN (SELECT max_dur FROM max_delay_tbl)
+        GROUP BY eventLatencyId, cause;
       `);
 
-      const iter = queryResult.firstRow({
+      const iter = queryResult.iter({
+        cause: STR,
+        eventLatencyId: NUM,
         maxDelayDur: LONG,
         maxDelayVsync: NUM,
       });
 
-      if (iter.maxDelayDur > 0) {
-        this.metrics.maxDelayDur = iter.maxDelayDur;
-        this.metrics.maxDelayVsync = iter.maxDelayVsync;
+      for (; iter.valid(); iter.next()) {
+        if (iter.maxDelayDur <= 0) {
+          break;
+        }
+        const jankSlices =
+            await getScrollJankSlices(this.engine, iter.eventLatencyId);
+
+        this.maxJankSlices.push({
+          cause: iter.cause,
+          jankSlice: jankSlices[0],
+          delayDur: iter.maxDelayDur,
+          delayVsync: iter.maxDelayVsync,
+        });
       }
     }
   }
@@ -200,24 +247,42 @@ export class ScrollDetailsPanel extends
           sqlValueToString(`${this.metrics.jankyFramePercent}%`);
     }
 
-    if (this.metrics.maxDelayDur !== undefined &&
-        this.metrics.maxDelayVsync !== undefined) {
-      // TODO(b/278844325): replace this with a link to the actual scroll slice.
-      metrics['Max Frame Presentation Delay'] =
-          m(Tree,
-            m(TreeNode, {
-              left: 'Duration',
-              right: m(DurationWidget, {dur: this.metrics.maxDelayDur}),
-            }),
-            m(TreeNode, {
-              left: 'Vsyncs Missed',
-              right: this.metrics.maxDelayVsync,
-            }));
-    } else {
-      metrics['Max Frame Presentation Delay'] = sqlValueToString('None');
-    }
-
     return dictToTreeNodes(metrics);
+  }
+
+  private getMaxDelayTable(): m.Child {
+    if (this.maxJankSlices.length > 0) {
+      interface DelayData {
+        jankLink: m.Child;
+        dur: m.Child;
+        delayedVSyncs: number;
+      }
+      ;
+
+      const columns: ColumnDescriptor<DelayData>[] = [
+        widgetColumn<DelayData>('Cause', (x) => x.jankLink),
+        widgetColumn<DelayData>('Duration', (x) => x.dur),
+        numberColumn<DelayData>('Delayed Vsyncs', (x) => x.delayedVSyncs),
+      ];
+      const data: DelayData[] = [];
+      for (const jankSlice of this.maxJankSlices) {
+        data.push({
+          jankLink: getSliceForTrack(
+              jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
+          dur: m(DurationWidget, {dur: jankSlice.delayDur}),
+          delayedVSyncs: jankSlice.delayVsync,
+        });
+      }
+
+      const tableData = new TableData(data);
+
+      return m(Table, {
+        data: tableData,
+        columns: columns,
+      });
+    } else {
+      return sqlValueToString('None');
+    }
   }
 
   private getDescriptionText(): m.Child {
@@ -267,7 +332,12 @@ export class ScrollDetailsPanel extends
                 ),
             m(Section,
               {title: 'Slice Metrics'},
-              m(Tree, this.renderMetricsDictionary()))),
+              m(Tree, this.renderMetricsDictionary())),
+            m(
+                Section,
+                {title: 'Max Frame Presentation Delay'},
+                this.getMaxDelayTable(),
+                )),
           m(
               GridLayoutColumn,
               m(
