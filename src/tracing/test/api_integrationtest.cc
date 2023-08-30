@@ -4208,6 +4208,58 @@ TEST_P(PerfettoApiTest, CustomIncrementalState) {
       ClearDataSourceTlsStateOnReset<TestIncrementalDataSource>();
 }
 
+const void* const kKey1 = &kKey1;
+const void* const kKey2 = &kKey2;
+
+TEST_P(PerfettoApiTest, TrackEventUserData) {
+  // Create a new trace session.
+  auto* tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+  perfetto::TrackEventTlsStateUserData* data_1_ptr = nullptr;
+  perfetto::TrackEventTlsStateUserData* data_2_ptr = nullptr;
+
+  TRACE_EVENT_BEGIN(
+      "foo", "E", [&data_1_ptr, &data_2_ptr](perfetto::EventContext& ctx) {
+        EXPECT_EQ(nullptr, ctx.GetTlsUserData(kKey1));
+        EXPECT_EQ(nullptr, ctx.GetTlsUserData(kKey2));
+        std::unique_ptr<perfetto::TrackEventTlsStateUserData> data_1 =
+            std::make_unique<perfetto::TrackEventTlsStateUserData>();
+        data_1_ptr = data_1.get();
+        std::unique_ptr<perfetto::TrackEventTlsStateUserData> data_2 =
+            std::make_unique<perfetto::TrackEventTlsStateUserData>();
+        data_2_ptr = data_2.get();
+        ctx.SetTlsUserData(kKey1, std::move(data_1));
+        ctx.SetTlsUserData(kKey2, std::move(data_2));
+        EXPECT_EQ(data_1_ptr, ctx.GetTlsUserData(kKey1));
+        EXPECT_EQ(data_2_ptr, ctx.GetTlsUserData(kKey2));
+      });
+  TRACE_EVENT_END("foo");
+  TRACE_EVENT_BEGIN("foo", "F",
+                    [&data_1_ptr, &data_2_ptr](perfetto::EventContext& ctx) {
+                      EXPECT_EQ(data_1_ptr, ctx.GetTlsUserData(kKey1));
+                      EXPECT_EQ(data_2_ptr, ctx.GetTlsUserData(kKey2));
+                    });
+  TRACE_EVENT_END("foo");
+
+  std::vector<char> raw_trace = StopSessionAndReturnBytes(tracing_session);
+
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace),
+              ElementsAre("B:foo.E", "E", "B:foo.F", "E"));
+
+  // Expect that the TLS User Data is cleared between tracing sessions.
+  tracing_session = NewTraceWithCategories({"foo"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("foo", "E", [](perfetto::EventContext& ctx) {
+    EXPECT_EQ(nullptr, ctx.GetTlsUserData(kKey1));
+    EXPECT_EQ(nullptr, ctx.GetTlsUserData(kKey2));
+  });
+  TRACE_EVENT_END("foo");
+
+  raw_trace = StopSessionAndReturnBytes(tracing_session);
+  EXPECT_THAT(ReadSlicesFromTrace(raw_trace), ElementsAre("B:foo.E", "E"));
+}
+
 TEST_P(PerfettoApiTest, OnFlush) {
   auto* data_source = &data_sources_["my_data_source"];
 
