@@ -108,6 +108,11 @@ struct TracingInitArgs {
   // delay, i.e. commits will be sent to the service at the next opportunity.
   uint32_t shmem_batch_commits_duration_ms = 0;
 
+  // [Optional] Enables direct producer-side patching of chunks that have not
+  // yet been committed to the service. This flag will only have an effect
+  // if the service supports direct patching, otherwise it will be ignored.
+  bool shmem_direct_patching_enabled = false;
+
   // [Optional] If set, the policy object is notified when certain SDK events
   // occur and may apply policy decisions, such as denying connections. The
   // embedder is responsible for ensuring the object remains alive for the
