@@ -277,6 +277,21 @@ class Android(TestSuite):
         """,
         out=Path('android_network_activity.out'))
 
+  def test_anrs(self):
+    return DiffTestBlueprint(
+        trace=Path('android_anr_metric.py'),
+        query="""
+        INCLUDE PERFETTO MODULE android.anrs;
+        SELECT *
+        FROM android_anrs;
+      """,
+        out=Csv("""
+        "process_name","pid","upid","error_id","ts","subject"
+        "com.google.android.app1",11167,"[NULL]","da24554c-452a-4ae1-b74a-fb898f6e0982",1000,"Test ANR subject 1"
+        "com.google.android.app2","[NULL]","[NULL]","8612fece-c2f1-4aeb-9d45-8e6d9d0201cf",2000,"Test ANR subject 2"
+        "com.google.android.app3","[NULL]","[NULL]","c25916a0-a8f0-41f3-87df-319e06471a0f",3000,"[NULL]"
+      """))
+
   def test_anr_metric(self):
     return DiffTestBlueprint(
         trace=Path('android_anr_metric.py'),
