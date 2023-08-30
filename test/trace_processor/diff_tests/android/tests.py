@@ -153,7 +153,7 @@ class Android(TestSuite):
         }
         """),
         query="""
-        SELECT IMPORT('android.battery_stats');
+        INCLUDE PERFETTO MODULE android.battery_stats;
         SELECT * FROM android_battery_stats_event_slices
         ORDER BY str_value;
         """,
@@ -190,7 +190,7 @@ class Android(TestSuite):
         }
         """),
         query="""
-        SELECT IMPORT('android.battery_stats');
+        INCLUDE PERFETTO MODULE android.battery_stats;
         SELECT * FROM android_battery_stats_state
         ORDER BY ts, track_name;
         """,
@@ -287,7 +287,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT
           aidl_name,
           binder_txn_id,
@@ -323,7 +323,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-      SELECT IMPORT('android.binder');
+      INCLUDE PERFETTO MODULE android.binder;
       SELECT
         binder_txn_id,
         client_ts,
@@ -354,7 +354,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-      SELECT IMPORT('android.binder');
+      INCLUDE PERFETTO MODULE android.binder;
       SELECT
         binder_txn_id,
         client_ts,
@@ -397,7 +397,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=Path('android_slice_standardization.py'),
         query="""
-        SELECT IMPORT('android.slices');
+        INCLUDE PERFETTO MODULE android.slices;
         SELECT ANDROID_STANDARDIZE_SLICE_NAME(slice.name) name
         FROM slice
         ORDER BY name;
@@ -414,7 +414,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.monitor_contention');
+      INCLUDE PERFETTO MODULE android.monitor_contention;
       SELECT
         blocking_method,
         blocked_method,
@@ -434,7 +434,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.monitor_contention');
+      INCLUDE PERFETTO MODULE android.monitor_contention;
       SELECT
         *
       FROM android_monitor_contention_chain_blocked_functions_by_txn
@@ -450,7 +450,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.monitor_contention');
+      INCLUDE PERFETTO MODULE android.monitor_contention;
       SELECT
         *
       FROM android_monitor_contention_chain_thread_state_by_txn
@@ -469,7 +469,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.monitor_contention');
+      INCLUDE PERFETTO MODULE android.monitor_contention;
       SELECT * FROM android_monitor_contention_chain
         WHERE parent_id IS NOT NULL
       ORDER BY dur DESC
@@ -525,14 +525,14 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-        SELECT IMPORT('android.monitor_contention');
+        INCLUDE PERFETTO MODULE android.monitor_contention;
 
         SELECT HEX(pprof) FROM android_monitor_contention_graph(303)
       """,
-      out=BinaryProto(
-        message_type="perfetto.third_party.perftools.profiles.Profile",
-        post_processing=PrintProfileProto,
-        contents="""
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
         Sample:
         Values: 29604
         Stack:
@@ -556,7 +556,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.thread');
+      INCLUDE PERFETTO MODULE android.thread;
       SELECT * FROM ANDROID_THREAD_CREATION_SPAM(1e9, 1e9);
       """,
         out=Csv("""
@@ -591,7 +591,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.io');
+      INCLUDE PERFETTO MODULE android.io;
       SELECT * FROM android_io_f2fs_counter_stats;
       """,
         out=Csv("""
@@ -651,7 +651,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-      SELECT IMPORT('android.io');
+      INCLUDE PERFETTO MODULE android.io;
       SELECT tid, thread_name, pid, process_name, ino, dev, bytes, write_count FROM android_io_f2fs_write_stats;
       """,
         out=Csv("""
@@ -676,7 +676,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
         query="""
-        SELECT IMPORT('android.io');
+        INCLUDE PERFETTO MODULE android.io;
         SELECT total_write_count, distinct_processes, total_bytes_written,
                distinct_device_count, distict_inode_count, distinct_thread_count
         FROM android_io_f2fs_aggregate_write_stats
@@ -690,7 +690,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT
           aidl_name,
           client_process,
@@ -726,7 +726,7 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT
           aidl_name,
           client_process,
@@ -762,13 +762,13 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT HEX(pprof) FROM ANDROID_BINDER_OUTGOING_GRAPH(259)
       """,
-      out=BinaryProto(
-        message_type="perfetto.third_party.perftools.profiles.Profile",
-        post_processing=PrintProfileProto,
-        contents="""
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
         Sample:
         Values: 0
         Stack:
@@ -788,13 +788,13 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT HEX(pprof) FROM ANDROID_BINDER_INCOMING_GRAPH(296)
       """,
-      out=BinaryProto(
-        message_type="perfetto.third_party.perftools.profiles.Profile",
-        post_processing=PrintProfileProto,
-        contents="""
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
         Sample:
         Values: 1764197
         Stack:
@@ -842,26 +842,26 @@ class Android(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT HEX(pprof) FROM ANDROID_BINDER_GRAPH(2000, 2000, 2000, 2000)
       """,
-      out=BinaryProto(
-        message_type="perfetto.third_party.perftools.profiles.Profile",
-        post_processing=PrintProfileProto,
-        contents="""
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
         """))
 
   def test_binder_graph_valid_oom(self):
     return DiffTestBlueprint(
         trace=DataPath('android_binder_metric_trace.atr'),
         query="""
-        SELECT IMPORT('android.binder');
+        INCLUDE PERFETTO MODULE android.binder;
         SELECT HEX(pprof) FROM ANDROID_BINDER_GRAPH(-1000, 1000, -1000, 1000)
       """,
-      out=BinaryProto(
-        message_type="perfetto.third_party.perftools.profiles.Profile",
-        post_processing=PrintProfileProto,
-        contents="""
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
         Sample:
         Values: 0
         Stack:

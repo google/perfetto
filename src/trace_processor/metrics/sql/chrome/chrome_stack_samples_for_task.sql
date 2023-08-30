@@ -23,7 +23,7 @@
 -- @task_name: a task name following chrome_tasks.sql naming convention to
 -- find stack samples on.
 
-SELECT IMPORT('chrome.tasks');
+INCLUDE PERFETTO MODULE chrome.tasks;
 
 CREATE PERFETTO FUNCTION describe_symbol(symbol STRING, frame_name STRING)
 RETURNS STRING AS

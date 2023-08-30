@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT("common.slices");
+INCLUDE PERFETTO MODULE common.slices;
 
 -- Returns the mojo ipc hash for a given task, looking it up from the
 -- argument of descendant ScopedSetIpcHash slice.

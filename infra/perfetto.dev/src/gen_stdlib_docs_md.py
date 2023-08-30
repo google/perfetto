@@ -160,7 +160,7 @@ def main():
   with open(args.output, 'w') as f:
     f.write("# SQL standard library\n"
             "To import any function, view_function, view or table simply run "
-            "`SELECT IMPORT({import key});` in your SQL query.\n"
+            "`INCLUDE PERFETTO MODULE {import key};` in your SQL query.\n"
             "## Summary\n")
 
     summary_objs = [common_module.summary_objs

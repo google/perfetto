@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
-SELECT IMPORT('common.slices');
+INCLUDE PERFETTO MODULE common.slices;
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed

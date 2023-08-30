@@ -15,7 +15,7 @@
 
 -- This metric will be deprecated soon. All of the tables have been
 -- migrated to SQL standard library and can be imported from:
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 
 DROP VIEW IF EXISTS launches;

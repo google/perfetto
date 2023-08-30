@@ -12,9 +12,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT IMPORT('chrome.chrome_scrolls');
-SELECT IMPORT('chrome.scroll_jank.scroll_jank_v3');
-SELECT IMPORT('common.slices');
+INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
+INCLUDE PERFETTO MODULE common.slices;
 
 -- Selects EventLatency slices that correspond with janks in a scroll. This is
 -- based on the V3 version of scroll jank metrics.

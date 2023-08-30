@@ -23,9 +23,9 @@
 --          active development and the values & meaning might change without
 --          notice.
 
-SELECT IMPORT('chrome.scroll_jank.utils');
-SELECT IMPORT('chrome.scroll_jank.event_latency_to_breakdowns');
-SELECT IMPORT('chrome.vsync_intervals');
+INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
+INCLUDE PERFETTO MODULE chrome.scroll_jank.event_latency_to_breakdowns;
+INCLUDE PERFETTO MODULE chrome.vsync_intervals;
 
 -- Creates table view where each EventLatency event has its upid.
 CREATE VIEW internal_event_latency_with_track

@@ -30,8 +30,8 @@
 -- Note: In traces without the "Java" category there will be no VSync
 --       TraceEvents and this table will be empty.
 
-SELECT IMPORT('chrome.scroll_jank.utils');
-SELECT IMPORT('chrome.vsync_intervals');
+INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
+INCLUDE PERFETTO MODULE chrome.vsync_intervals;
 
 -- Get all the "begin" and "end" events. We take their IDs to group them
 -- together into gestures later and the timestamp and duration to compute the
