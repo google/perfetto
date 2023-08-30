@@ -73,6 +73,7 @@ export class ScrollJankV3Track extends
         'id',
         'ts',
         'dur',
+        'event_latency_id',
       ],
       sqlTableName: 'chrome_janky_frame_presentation_intervals',
     };
