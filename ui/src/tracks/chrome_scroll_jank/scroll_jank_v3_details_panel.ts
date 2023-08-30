@@ -276,7 +276,7 @@ export class ScrollJankV3DetailsPanel extends
           left: getSliceForTrack(
               this.eventLatencySliceDetails,
               EventLatencyTrack.kind,
-              'Event Latency'),
+              'Input EventLatency in context of ScrollUpdates'),
           right: '',
         }));
       } else {
