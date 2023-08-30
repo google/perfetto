@@ -83,6 +83,18 @@ class PERFETTO_EXPORT_COMPONENT TrackEventSessionObserver {
       const DataSourceBase::ClearIncrementalStateArgs&);
 };
 
+// A class that the embedder can store arbitrary data user data per thread.
+class PERFETTO_EXPORT_COMPONENT TrackEventTlsStateUserData {
+ public:
+  TrackEventTlsStateUserData() = default;
+  // Not clonable.
+  TrackEventTlsStateUserData(const TrackEventTlsStateUserData&) = delete;
+  TrackEventTlsStateUserData& operator=(const TrackEventTlsStateUserData&) =
+      delete;
+
+  virtual ~TrackEventTlsStateUserData();
+};
+
 namespace internal {
 class TrackEventCategoryRegistry;
 
@@ -104,6 +116,7 @@ struct TrackEventTlsState {
   bool filter_dynamic_event_names = false;
   uint64_t timestamp_unit_multiplier = 1;
   uint32_t default_clock;
+  std::map<const void*, std::unique_ptr<TrackEventTlsStateUserData>> user_data;
 };
 
 struct TrackEventIncrementalState {
@@ -206,7 +219,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventInternal {
   static perfetto::EventContext WriteEvent(
       TraceWriterBase*,
       TrackEventIncrementalState*,
-      const TrackEventTlsState& tls_state,
+      TrackEventTlsState& tls_state,
       const Category* category,
       perfetto::protos::pbzero::TrackEvent::Type,
       const TraceTimestamp& timestamp,
