@@ -13,9 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- Create the base table (`android_anr_anrs`) containing all ANRs found
--- in the trace.
-SELECT RUN_METRIC('android/anr/anrs.sql');
+INCLUDE PERFETTO MODULE android.anrs;
 
 DROP VIEW IF EXISTS android_anr_output;
 CREATE VIEW android_anr_output AS
@@ -29,6 +27,6 @@ SELECT
           'subject', subject,
           'error_id', error_id,
           'ts', ts))
-      FROM android_anr_anrs
+      FROM android_anrs
     )
   );
