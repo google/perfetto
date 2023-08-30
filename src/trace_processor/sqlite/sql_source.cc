@@ -80,9 +80,9 @@ SqlSource SqlSource::FromMetricFile(std::string sql, const std::string& name) {
   return SqlSource(std::move(sql), "Metric file \"" + name + "\"", false);
 }
 
-SqlSource SqlSource::FromModuleImport(std::string sql,
-                                      const std::string& module) {
-  return SqlSource(std::move(sql), "Module import \"" + module + "\"", false);
+SqlSource SqlSource::FromModuleInclude(std::string sql,
+                                       const std::string& module) {
+  return SqlSource(std::move(sql), "Module include \"" + module + "\"", false);
 }
 
 SqlSource SqlSource::FromTraceProcessorImplementation(std::string sql) {

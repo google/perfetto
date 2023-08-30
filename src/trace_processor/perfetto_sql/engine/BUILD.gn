@@ -41,6 +41,7 @@ source_set("engine") {
     "../../types",
     "../../util",
     "../../util:sql_argument",
+    "../../util:stdlib",
   ]
 }
 

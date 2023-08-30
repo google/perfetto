@@ -1183,7 +1183,7 @@ base::Status IncludeSqlModule(std::string root, bool allow_override) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
 
     std::string import_key =
-        module_name + "." + sql_modules::GetImportKey(path);
+        module_name + "." + sql_modules::GetIncludeKey(path);
     modules.Insert(module_name, {})
         .first->push_back({import_key, file_contents});
   }
@@ -1219,7 +1219,7 @@ base::Status LoadOverridenStdlib(std::string root) {
     if (!base::ReadFile(filename, &file_contents)) {
       return base::ErrStatus("Cannot read file %s", filename.c_str());
     }
-    std::string import_key = sql_modules::GetImportKey(path);
+    std::string import_key = sql_modules::GetIncludeKey(path);
     std::string module = sql_modules::GetModuleName(import_key);
     modules.Insert(module, {}).first->push_back({import_key, file_contents});
   }
