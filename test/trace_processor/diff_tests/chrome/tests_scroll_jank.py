@@ -550,7 +550,7 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=Path('chrome_scroll_check.py'),
         query="""
-        SELECT IMPORT('chrome.chrome_scrolls');
+        INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
 
         SELECT
           id,
@@ -573,7 +573,7 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=Path('chrome_scroll_check.py'),
         query="""
-        SELECT IMPORT('chrome.chrome_scrolls');
+        INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
 
         SELECT
           id,

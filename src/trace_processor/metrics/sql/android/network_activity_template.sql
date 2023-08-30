@@ -13,7 +13,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT IMPORT('android.network_packets');
+INCLUDE PERFETTO MODULE android.network_packets;
 
 -- Creates a view of aggregated network activity. It is common among networking
 -- to have the interface active for some time after network use. For example, in

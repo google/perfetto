@@ -22,7 +22,7 @@
 --          notice.
 
 
-SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank');
+INCLUDE PERFETTO MODULE chrome.scroll_jank.event_latency_scroll_jank;
 
 -- Calculating the jank delta for EventLatency events which are janky relatevly to its next EventLatency event.
 -- For breakdowns that exist in the current EventLatency but not the next EventLatency

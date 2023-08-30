@@ -15,13 +15,13 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 -- Define the helper functions which will be used throught the remainder
 -- of the metric.
 SELECT RUN_METRIC('android/startup/slice_functions.sql');
-SELECT IMPORT('common.timestamps');
+INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Run all the HSC metrics.
 SELECT RUN_METRIC('android/startup/hsc.sql');
