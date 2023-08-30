@@ -14,12 +14,12 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('common.slices');
+INCLUDE PERFETTO MODULE common.slices;
 
 -- Hardware info is useful when using sql metrics for analysis
 -- in BTP.
-SELECT IMPORT('chrome.metadata');
-SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
+INCLUDE PERFETTO MODULE chrome.metadata;
+INCLUDE PERFETTO MODULE chrome.scroll_jank.event_latency_scroll_jank_cause;
 
 -- Grabs all gesture updates that were not coalesced with their
 -- respective scroll ids and start/end timestamps.

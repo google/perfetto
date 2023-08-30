@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.binder');
+INCLUDE PERFETTO MODULE android.binder;
 
 -- Count Binder transactions per process
 DROP VIEW IF EXISTS binder_metrics_by_process;

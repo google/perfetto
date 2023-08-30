@@ -1,4 +1,4 @@
-SELECT IMPORT('chrome.speedometer');
+INCLUDE PERFETTO MODULE chrome.speedometer;
 
 SELECT
   iteration,

@@ -20,7 +20,7 @@
 -- The final table includes the time between the arrival of gesture update
 -- input timestamp, and the time it started being processed by CrBrowserMain.
 
-SELECT IMPORT("chrome.tasks");
+INCLUDE PERFETTO MODULE chrome.tasks;
 
 SELECT RUN_METRIC(
   'chrome/chrome_input_to_browser_intervals_base.sql',

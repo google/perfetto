@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.monitor_contention');
+INCLUDE PERFETTO MODULE android.monitor_contention;
 
 DROP VIEW IF EXISTS android_monitor_contention_output;
 CREATE VIEW android_monitor_contention_output AS

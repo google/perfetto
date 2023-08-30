@@ -36,7 +36,7 @@ class Power(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('cpu_powerups_1.pb'),
         query="""
-        SELECT IMPORT("chrome.cpu_powerups");
+        INCLUDE PERFETTO MODULE chrome.cpu_powerups;
         SELECT * FROM chrome_cpu_power_first_toplevel_slice_after_powerup;
         """,
         out=Csv("""

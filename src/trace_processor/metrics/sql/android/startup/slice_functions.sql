@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Helper function to build a Slice proto from a duration.
 CREATE PERFETTO FUNCTION startup_slice_proto(dur INT)
