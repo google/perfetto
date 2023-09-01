@@ -252,6 +252,10 @@ async function main() {
     bundleJs('rollup.config.js');
     copyCSSAndWASM();
     genServiceWorkerManifestJson();
+    
+    // In order to install multiple copies of this package, it
+    // cannot just symlink the compiled code
+    addTask(resorbLink, [pjoin(ROOT_DIR, 'ui/out')]);
 
     // Watches the /dist. When changed:
     // - Notifies the HTTP live reload clients.
@@ -866,6 +870,18 @@ function mklink(src, dst) {
     }
   }
   fs.symlinkSync(src, dst);
+}
+
+// Given a putative link, replace it with a copy of what it is
+// linking to. If it's not a link, leave it because we just don't
+// want a link.
+function resorbLink(link) {
+  const stat = fs.lstatSync(link, { throwIfNoEntry: false });
+  if (stat?.isSymbolicLink()) {
+    const src = fs.readlinkSync(link);
+    fs.unlinkSync(link);
+    cpR(src, link);
+  }
 }
 
 main();
