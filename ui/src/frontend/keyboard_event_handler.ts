@@ -14,7 +14,6 @@
 
 import {Actions} from '../common/actions';
 import {Area} from '../common/state';
-import {time, Time} from '../common/time';
 
 import {Flow, globals} from './globals';
 import {
@@ -22,8 +21,6 @@ import {
   verticalScrollToTrack,
 } from './scroll_helper';
 
-const INSTANT_FOCUS_DURATION = 1n;
-const INCOMPLETE_SLICE_DURATION = 30_000n;
 type Direction = 'Forward'|'Backward';
 
 // Handles all key events than are not handled by the
@@ -189,71 +186,14 @@ function moveByFocusedFlow(direction: Direction): void {
   }
 }
 
-function findTimeRangeOfSelection(): {startTs: time, endTs: time} {
-  const selection = globals.state.currentSelection;
-  let startTs = Time.INVALID;
-  let endTs = Time.INVALID;
-  if (selection === null) {
-    return {startTs, endTs};
-  } else if (selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
-    const slice = globals.sliceDetails;
-    if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
-      startTs = slice.ts;
-      endTs = Time.add(startTs, slice.dur);
-    } else if (slice.ts) {
-      startTs = slice.ts;
-      // This will handle either:
-      // a)slice.dur === -1 -> unfinished slice
-      // b)slice.dur === 0  -> instant event
-      endTs = slice.dur === -1n ? Time.add(startTs, INCOMPLETE_SLICE_DURATION) :
-                                  Time.add(startTs, INSTANT_FOCUS_DURATION);
-    }
-  } else if (selection.kind === 'THREAD_STATE') {
-    const threadState = globals.threadStateDetails;
-    if (threadState.ts && threadState.dur) {
-      startTs = threadState.ts;
-      endTs = Time.add(startTs, threadState.dur);
-    }
-  } else if (selection.kind === 'COUNTER') {
-    startTs = selection.leftTs;
-    endTs = selection.rightTs;
-  } else if (selection.kind === 'AREA') {
-    const selectedArea = globals.state.areas[selection.areaId];
-    if (selectedArea) {
-      startTs = selectedArea.start;
-      endTs = selectedArea.end;
-    }
-  } else if (selection.kind === 'NOTE') {
-    const selectedNote = globals.state.notes[selection.id];
-    // Notes can either be default or area notes. Area notes are handled
-    // above in the AREA case.
-    if (selectedNote && selectedNote.noteType === 'DEFAULT') {
-      startTs = selectedNote.timestamp;
-      endTs = Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION);
-    }
-  } else if (selection.kind === 'LOG') {
-    // TODO(hjd): Make focus selection work for logs.
-  } else if (selection.kind === 'GENERIC_SLICE') {
-    startTs = selection.start;
-    if (selection.duration > 0) {
-      endTs = Time.add(startTs, selection.duration);
-    } else {
-      endTs = Time.add(startTs, INSTANT_FOCUS_DURATION);
-    }
-  }
-
-  return {startTs, endTs};
-}
-
-
 function lockSliceSpan(persistent = false) {
-  const range = findTimeRangeOfSelection();
-  if (range.startTs !== -1n && range.endTs !== -1n &&
+  const range = globals.findTimeRangeOfSelection();
+  if (range.start !== -1n && range.end !== -1n &&
       globals.state.currentSelection !== null) {
     const tracks = globals.state.currentSelection.trackId ?
         [globals.state.currentSelection.trackId] :
         [];
-    const area: Area = {start: range.startTs, end: range.endTs, tracks};
+    const area: Area = {start: range.start, end: range.end, tracks};
     globals.dispatch(Actions.markArea({area, persistent}));
   }
 }
@@ -262,9 +202,9 @@ export function findCurrentSelection() {
   const selection = globals.state.currentSelection;
   if (selection === null) return;
 
-  const range = findTimeRangeOfSelection();
-  if (range.startTs !== -1n && range.endTs !== -1n) {
-    focusHorizontalRange(range.startTs, range.endTs);
+  const range = globals.findTimeRangeOfSelection();
+  if (range.start !== -1n && range.end !== -1n) {
+    focusHorizontalRange(range.start, range.end);
   }
 
   if (selection.trackId) {
