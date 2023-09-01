@@ -58,6 +58,9 @@ import {SliceSqlId} from './sql_types';
 import {createStore, Store} from './store';
 import {PxSpan, TimeScale} from './time_scale';
 
+const INSTANT_FOCUS_DURATION = 1n;
+const INCOMPLETE_SLICE_DURATION = 30_000n;
+
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
 type QueryResultsStore = Map<string, {}|undefined>;
@@ -737,6 +740,63 @@ class Globals {
   // Convert absolute time to domain time.
   toDomainTime(ts: time): time {
     return Time.sub(ts, this.timestampOffset());
+  }
+
+  findTimeRangeOfSelection(): {start: time, end: time} {
+    const selection = this.state.currentSelection;
+    let start = Time.INVALID;
+    let end = Time.INVALID;
+    if (selection === null) {
+      return {start, end};
+    } else if (
+        selection.kind === 'SLICE' || selection.kind === 'CHROME_SLICE') {
+      const slice = this.sliceDetails;
+      if (slice.ts && slice.dur !== undefined && slice.dur > 0) {
+        start = slice.ts;
+        end = Time.add(start, slice.dur);
+      } else if (slice.ts) {
+        start = slice.ts;
+        // This will handle either:
+        // a)slice.dur === -1 -> unfinished slice
+        // b)slice.dur === 0  -> instant event
+        end = slice.dur === -1n ? Time.add(start, INCOMPLETE_SLICE_DURATION) :
+                                  Time.add(start, INSTANT_FOCUS_DURATION);
+      }
+    } else if (selection.kind === 'THREAD_STATE') {
+      const threadState = this.threadStateDetails;
+      if (threadState.ts && threadState.dur) {
+        start = threadState.ts;
+        end = Time.add(start, threadState.dur);
+      }
+    } else if (selection.kind === 'COUNTER') {
+      start = selection.leftTs;
+      end = selection.rightTs;
+    } else if (selection.kind === 'AREA') {
+      const selectedArea = this.state.areas[selection.areaId];
+      if (selectedArea) {
+        start = selectedArea.start;
+        end = selectedArea.end;
+      }
+    } else if (selection.kind === 'NOTE') {
+      const selectedNote = this.state.notes[selection.id];
+      // Notes can either be default or area notes. Area notes are handled
+      // above in the AREA case.
+      if (selectedNote && selectedNote.noteType === 'DEFAULT') {
+        start = selectedNote.timestamp;
+        end = Time.add(selectedNote.timestamp, INSTANT_FOCUS_DURATION);
+      }
+    } else if (selection.kind === 'LOG') {
+      // TODO(hjd): Make focus selection work for logs.
+    } else if (selection.kind === 'GENERIC_SLICE') {
+      start = selection.start;
+      if (selection.duration > 0) {
+        end = Time.add(start, selection.duration);
+      } else {
+        end = Time.add(start, INSTANT_FOCUS_DURATION);
+      }
+    }
+
+    return {start, end};
   }
 }
 
