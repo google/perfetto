@@ -95,6 +95,11 @@ export class App implements m.ClassComponent {
   private omniboxInputEl?: HTMLInputElement;
   private recentCommands: string[] = [];
 
+  constructor() {
+    const unreg = globals.commandManager.registerCommandSource(this);
+    this.trash.add(unreg);
+  }
+
   private enterCommandMode(): void {
     this.omniboxMode = OmniboxMode.Command;
     this.resetOmnibox();
@@ -553,9 +558,6 @@ export class App implements m.ClassComponent {
   }
 
   oncreate({dom}: m.VnodeDOM) {
-    const unreg = globals.commandManager.registerCommandSource(this);
-    this.trash.add(unreg);
-
     this.updateOmniboxInputRef(dom);
     this.maybeFocusOmnibar();
   }
