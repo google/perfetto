@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "perfetto/base/status.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/stream.h"
@@ -60,6 +61,7 @@ class Orchestrator {
   // process or even on another machine); the returned manager will gracefully
   // handle this.
   static std::unique_ptr<Orchestrator> CreateInProcess(
+      base::TaskRunner*,
       std::vector<std::unique_ptr<Worker>> workers);
 
   // Creates a TracePool with the specified arguments.

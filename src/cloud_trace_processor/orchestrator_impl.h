@@ -18,10 +18,14 @@
 #define SRC_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_IMPL_H_
 
 #include <memory>
+#include <optional>
 #include <vector>
 
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/threading/future.h"
+#include "perfetto/ext/base/threading/spawn.h"
 #include "perfetto/ext/cloud_trace_processor/orchestrator.h"
 
 namespace perfetto {
@@ -33,7 +37,8 @@ namespace cloud_trace_processor {
 
 class OrchestratorImpl : public Orchestrator {
  public:
-  explicit OrchestratorImpl(std::vector<std::unique_ptr<Worker>> workers);
+  explicit OrchestratorImpl(base::TaskRunner*,
+                            std::vector<std::unique_ptr<Worker>>);
 
   base::StatusOrStream<protos::TracePoolQueryResponse> TracePoolQuery(
       const protos::TracePoolQueryArgs&) override;
@@ -49,10 +54,23 @@ class OrchestratorImpl : public Orchestrator {
 
  private:
   struct TracePool {
-    std::vector<std::string> loaded_traces;
+    std::vector<std::string> traces;
   };
+  struct Trace {
+    Worker* worker = nullptr;
+    uint32_t refcount = 0;
+  };
+  void ExecuteSyncWorkers();
+  void ExecuteForceSyncWorkers();
+  base::StatusFuture SyncWorkers();
+
+  base::TaskRunner* task_runner_ = nullptr;
+  base::PeriodicTask periodic_sync_task_;
+  std::optional<base::SpawnHandle> periodic_sync_handle_;
+
   std::vector<std::unique_ptr<Worker>> workers_;
   base::FlatHashMap<std::string, TracePool> pools_;
+  base::FlatHashMap<std::string, Trace> traces_;
 };
 
 }  // namespace cloud_trace_processor
