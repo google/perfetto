@@ -17,9 +17,14 @@
 #ifndef SRC_CLOUD_TRACE_PROCESSOR_WORKER_IMPL_H_
 #define SRC_CLOUD_TRACE_PROCESSOR_WORKER_IMPL_H_
 
+#include <memory>
+#include <optional>
+#include <variant>
 #include <vector>
 
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/threading/spawn.h"
 #include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/cloud_trace_processor/environment.h"
 #include "perfetto/ext/cloud_trace_processor/worker.h"
@@ -38,27 +43,25 @@ namespace cloud_trace_processor {
 
 class WorkerImpl : public Worker {
  public:
-  explicit WorkerImpl(CtpEnvironment*, base::ThreadPool*);
+  explicit WorkerImpl(base::TaskRunner*, CtpEnvironment*, base::ThreadPool*);
 
-  base::StatusOrFuture<protos::TracePoolShardCreateResponse>
-  TracePoolShardCreate(const protos::TracePoolShardCreateArgs&) override;
+  // Synchronize the state of the traces in the worker to the orchestrator.
+  base::StatusOrStream<protos::SyncTraceStateResponse> SyncTraceState(
+      const protos::SyncTraceStateArgs&) override;
 
-  base::StatusOrStream<protos::TracePoolShardSetTracesResponse>
-  TracePoolShardSetTraces(const protos::TracePoolShardSetTracesArgs&) override;
-
-  base::StatusOrStream<protos::TracePoolShardQueryResponse> TracePoolShardQuery(
-      const protos::TracePoolShardQueryArgs&) override;
-
-  base::StatusOrFuture<protos::TracePoolShardDestroyResponse>
-  TracePoolShardDestroy(const protos::TracePoolShardDestroyArgs&) override;
+  // Executes a SQL query on the specified trace.
+  base::StatusOrStream<protos::QueryTraceResponse> QueryTrace(
+      const protos::QueryTraceArgs&) override;
 
  private:
-  struct TracePoolShard {
-    std::vector<std::unique_ptr<TraceProcessorWrapper>> tps;
+  struct Trace {
+    std::unique_ptr<TraceProcessorWrapper> wrapper;
+    base::SpawnHandle load_handle;
   };
+  base::TaskRunner* const task_runner_;
   CtpEnvironment* const environment_;
   base::ThreadPool* const thread_pool_;
-  base::FlatHashMap<std::string, TracePoolShard> shards_;
+  base::FlatHashMap<std::string, Trace> traces_;
 };
 
 }  // namespace cloud_trace_processor

@@ -19,87 +19,41 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/trace_processor/trace_processor.proto";
-import "protos/perfetto/cloud_trace_processor/common.proto";
 
 // Interface for a CloudTraceProcessor "Worker".
 //
-// Workers are are owned by a |Orchestrator| who assigns groups of traces to
-// them (known as a PoolShards) and forwards any requests from end users.
-// Workers are reponsible for loading assigned traces with TraceProcessor and
-// executing the requests.
+// Workers are owned by an |Orchestrator| which assigns traces and forwards any
+// requests from end users. Workers are responsible for loading assigned traces
+// with TraceProcessor and executing the requests.
 service CloudTraceProcessorWorker {
-  // Creates a TracePoolShard which will be owned by this worker and returns
-  // whether it was successfully created.
-  //
-  // Orchestrators are responsible for handling groups of traces which the user
-  // has requested to be loaded: these are known as TracePools. The orchestrator
-  // then breaks these pools into pieces and shards them out to workers, each of
-  // which is known as a TracePoolShard.
-  //
-  // Thus, a TracePoolShard is unique identified by the tuple (worker, pool id).
-  rpc TracePoolShardCreate(TracePoolShardCreateArgs)
-      returns (TracePoolShardCreateResponse);
+  // Synchronize the state of the traces in the worker to the orchestrator. The
+  // orchestrator uses this method to ensure the worker is always fully up to
+  // date with the state according to the orchestrator. This makes the system
+  // resilient to worker restarts (i.e. loss of local state).
+  rpc SyncTraceState(SyncTraceStateArgs)
+      returns (stream SyncTraceStateResponse);
 
-  // Associates the provided list of traces to this TracePoolShard and returns
-  // a stream with each element indicating the successful load of one trace
-  // (which allows monitoring the progress of loads) or a terminal error if the
-  // assignment of any trace failed.
-  //
-  // If this operation completes successfully, any future requests to this pool
-  // shard will refer to this set of traces.
-  rpc TracePoolShardSetTraces(TracePoolShardSetTracesArgs)
-      returns (stream TracePoolShardSetTracesResponse);
-
-  // Executes a SQL query on the specified TracePoolShard and returns a stream
-  // with each element being the response for executing the query on the
-  // associated trace.
-  //
-  // Note that each trace can return >1 result due to chunking of protos at the
+  // Executes a SQL query on the specified trace and returns a stream of
+  // execution responses. Note that this method returns a stream because each
+  // trace can return >1 result due to chunking of protos at the
   // TraceProcessor::QueryResult level.
-  rpc TracePoolShardQuery(TracePoolShardQueryArgs)
-      returns (stream TracePoolShardQueryResponse);
-
-  // Destroys the TracePoolShard with the specified id.
-  //
-  // Any future requests to this shard id will return an error. However, the
-  // same pool id can be used to create a new shard.
-  rpc TracePoolShardDestroy(TracePoolShardDestroyArgs)
-      returns (TracePoolShardDestroyResponse);
+  rpc QueryTrace(QueryTraceArgs) returns (stream QueryTraceResponse);
 }
 
-// Request/Response for Worker::TracePoolShardCreate.
-message TracePoolShardCreateArgs {
-  optional string pool_id = 1;
-  optional TracePoolType pool_type = 2;
+// Request/Response for Worker::Sync.
+message SyncTraceStateArgs {
+  repeated string traces = 1;
 }
-message TracePoolShardCreateResponse {}
-
-// Request/Response for Worker::TracePoolShardSetTraces.
-message TracePoolShardSetTracesArgs {
-  optional string pool_id = 1;
-
-  // The list of traces which should be associated with this shard. The existing
-  // loaded trace list will be diffed against this list. Traces not present in
-  // this list and loaded will be unloaded while traces present in this list
-  // and unloaded will be loaded.
-  repeated string traces = 2;
+message SyncTraceStateResponse {
+  optional double load_progress = 1;
 }
-message TracePoolShardSetTracesResponse {
+
+// Request/Response for Worker::TraceQuery.
+message QueryTraceArgs {
   optional string trace = 1;
-}
-
-// Request/Response for Worker::TracePoolShardQuery.
-message TracePoolShardQueryArgs {
-  optional string pool_id = 1;
   optional string sql_query = 2;
 }
-message TracePoolShardQueryResponse {
+message QueryTraceResponse {
   optional string trace = 1;
   optional QueryResult result = 2;
 }
-
-// Request/Response for Worker::TracePoolShardDestroy.
-message TracePoolShardDestroyArgs {
-  optional string pool_id = 1;
-}
-message TracePoolShardDestroyResponse {}
