@@ -19,7 +19,6 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/trace_processor/trace_processor.proto";
-import "protos/perfetto/cloud_trace_processor/common.proto";
 
 // RPC interface for a CloudTraceProcessor Orchestrator.
 //
@@ -32,20 +31,16 @@ service CloudTraceProcessorOrchestrator {
   // A TracePool is a logical group of traces which can be addressed with a
   // single id.
   //
-  // Pools can be "shared" or "dedicated":
-  //  a) a shared pool has the trace processor instances backing the pool shared
-  //  among a group of users. This implicitly means that the pools are
-  //  "stateless" (i.e. do not preserve trace processor state between RPCs) as
-  //  the state of one user should not interfere with the state of another.
-  //  b) a dedicated pool belongs to a single user and can only be accessed
-  //  by that user. These pools are "stateful" i.e. preserve trace processor
-  //  state between RPCs.
+  // Pools are shared: the trace processor instances backing the pool are shared
+  // among a group of users. This implicitly means that the pools are
+  // "stateless" (i.e. do not preserve trace processor state between RPCs) as
+  // the state of one user should not interfere with the state of another.
   rpc TracePoolCreate(TracePoolCreateArgs) returns (TracePoolCreateResponse);
 
   // Changes the set of traces associated with the specified TracePool.
   //
   // If this operation completes successfully, any future requests to this pool
-  // shard will refer to this set of traces.
+  // will refer to this set of traces.
   rpc TracePoolSetTraces(TracePoolSetTracesArgs)
       returns (TracePoolSetTracesResponse);
 
@@ -61,22 +56,19 @@ service CloudTraceProcessorOrchestrator {
   // Destroys the TracePool with the specified id.
   //
   // Any future requests to this pool will return an error. However, the
-  // same pool id (if a named pool) can be used to create a new pool.
+  // same pool id can be used to create a new pool.
   rpc TracePoolDestroy(TracePoolDestroyArgs) returns (TracePoolDestroyResponse);
 }
 
 // Request/Response for Orchestrator::TracePoolCreate.
 message TracePoolCreateArgs {
-  optional TracePoolType pool_type = 1;
-
-  // If |pool_type| == SHARED, the name which should be refer to the pool. This
-  // name will form part of |pool_id|.
-  optional string shared_pool_name = 2;
+  // The name which should be refer to the pool. This name will form part of
+  // |pool_id|.
+  optional string pool_name = 2;
 }
 message TracePoolCreateResponse {
   // The id of the pool which should be used to reference the pool in all future
-  // RPCs. For shared pools, this id is expected to be a stable transformation
-  // of |shared_pool_name|.
+  // RPCs. This id is expected to be a stable transformation of |pool_name|.
   optional string pool_id = 1;
 }
 

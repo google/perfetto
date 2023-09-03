@@ -26,7 +26,7 @@
 namespace perfetto {
 namespace protos {
 
-class TracePoolShardQueryResponse;
+class QueryTraceResponse;
 
 }  // namespace protos
 }  // namespace perfetto
@@ -58,7 +58,7 @@ class TraceProcessorWrapper {
 
   // Executes the given query on the trace processor and returns the results
   // as a stream.
-  base::StatusOrStream<protos::TracePoolShardQueryResponse> Query(
+  base::StatusOrStream<protos::QueryTraceResponse> Query(
       const std::string& sql);
 
  private:

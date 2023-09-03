@@ -55,10 +55,11 @@ class PolledFuture;
 class SpawnHandle {
  public:
   SpawnHandle(TaskRunner* task_runner, std::function<Future<FVoid>()> fn);
-  ~SpawnHandle();
 
   SpawnHandle(SpawnHandle&&) = default;
   SpawnHandle& operator=(SpawnHandle&&) = default;
+
+  ~SpawnHandle();
 
  private:
   SpawnHandle(const SpawnHandle&) = delete;

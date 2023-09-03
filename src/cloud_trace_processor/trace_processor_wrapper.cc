@@ -62,7 +62,7 @@ struct QueryRunner {
         trace_path(std::move(_trace_path)),
         statefulness(_statefulness) {}
 
-  std::optional<protos::TracePoolShardQueryResponse> operator()() {
+  std::optional<protos::QueryTraceResponse> operator()() {
     if (!has_more) {
       if (statefulness == Statefulness::kStateless) {
         tp->RestoreInitialTables();
@@ -74,7 +74,7 @@ struct QueryRunner {
     EnsureSerializerExists();
     has_more = serializer->Serialize(&result);
 
-    protos::TracePoolShardQueryResponse resp;
+    protos::QueryTraceResponse resp;
     *resp.mutable_trace() = trace_path;
     resp.mutable_result()->ParseFromArray(result.data(),
                                           static_cast<int>(result.size()));
@@ -121,28 +121,30 @@ base::StatusFuture TraceProcessorWrapper::LoadTrace(
   }
   return std::move(file_stream)
       .MapFuture(
-          [this](base::StatusOr<std::vector<uint8_t>> d) -> base::StatusFuture {
+          [thread_pool = thread_pool_, tp = trace_processor_](
+              base::StatusOr<std::vector<uint8_t>> d) -> base::StatusFuture {
             RETURN_IF_ERROR(d.status());
             return base::RunOnceOnThreadPool<base::Status>(
-                thread_pool_, [res = std::move(*d), tp = trace_processor_] {
+                thread_pool, [res = std::move(*d), tp = std::move(tp)] {
                   return tp->Parse(TraceBlobView(
                       TraceBlob::CopyFrom(res.data(), res.size())));
                 });
           })
       .Collect(base::AllOkCollector())
-      .ContinueWith([this](base::Status status) -> base::StatusFuture {
+      .ContinueWith([thread_pool = thread_pool_, tp = trace_processor_](
+                        base::Status status) -> base::StatusFuture {
         RETURN_IF_ERROR(status);
         return base::RunOnceOnThreadPool<base::Status>(
-            thread_pool_, [tp = trace_processor_] {
+            thread_pool, [tp = std::move(tp)] {
               tp->NotifyEndOfFile();
               return base::OkStatus();
             });
       });
 }
 
-base::StatusOrStream<protos::TracePoolShardQueryResponse>
-TraceProcessorWrapper::Query(const std::string& query) {
-  using StatusOrResponse = base::StatusOr<protos::TracePoolShardQueryResponse>;
+base::StatusOrStream<protos::QueryTraceResponse> TraceProcessorWrapper::Query(
+    const std::string& query) {
+  using StatusOrResponse = base::StatusOr<protos::QueryTraceResponse>;
   if (trace_processor_.use_count() != 1) {
     return base::StreamOf<StatusOrResponse>(
         base::ErrStatus("Request is already in flight"));
