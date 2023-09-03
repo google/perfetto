@@ -16,11 +16,13 @@
 
 #include "src/cloud_trace_processor/trace_processor_wrapper.h"
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/flat_set.h"
 #include "perfetto/base/platform_handle.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
@@ -59,17 +61,25 @@ std::vector<base::StatusOr<std::vector<uint8_t>>> SimpleSystraceChunked() {
 }
 
 template <typename T>
-T WaitForFutureReady(base::Future<T>& future) {
+std::optional<T> WaitForFutureReady(base::Future<T>& future,
+                                    std::optional<uint32_t> timeout_ms) {
   base::FlatSet<base::PlatformHandle> ready;
   base::FlatSet<base::PlatformHandle> interested;
   base::PollContext ctx(&interested, &ready);
   auto res = future.Poll(&ctx);
   for (; res.IsPending(); res = future.Poll(&ctx)) {
     PERFETTO_CHECK(interested.size() == 1);
-    base::BlockUntilReadableFd(*interested.begin());
+    if (!base::BlockUntilReadableFd(*interested.begin(), timeout_ms)) {
+      return std::nullopt;
+    }
     interested = {};
   }
   return res.item();
+}
+
+template <typename T>
+T WaitForFutureReady(base::Future<T>& future) {
+  return *WaitForFutureReady(future, std::nullopt);
 }
 
 template <typename T>
@@ -197,6 +207,35 @@ TEST(TraceProcessorWrapperUnittest, Chunked) {
     ASSERT_EQ(result.batch(0).varint_cells(1), 3000);
 
     ASSERT_FALSE(WaitForStreamReady(stream).has_value());
+  }
+}
+
+TEST(TraceProcessorWrapperUnittest, Interrupt) {
+  base::ThreadPool pool(1);
+  TraceProcessorWrapper wrapper("foobar", &pool, SF::kStateful);
+
+  // Create a query which will run ~forever. When this stream is dropped we
+  // should propogate to the TP instance to also stop running the query.
+  {
+    auto stream = wrapper.Query(
+        "WITH RECURSIVE nums AS ( "
+        "SELECT 1 num "
+        "UNION "
+        "SELECT num + 1 from nums WHERE num < 100000000000000) "
+        "SELECT COUNT(num) FROM nums");
+
+    // Wait for a bit for the thread to start running. To do something better
+    // we would need a way to figure out that the thread has started executing
+    // so we could stop. Unfortunately, this is quite a difficult problem to
+    // solve and probably not worth doing.
+    base::SleepMicroseconds(10 * 1000);
+  }
+
+  // Verify that we are able to run something on the thread pool in a reasonable
+  // amount of time.
+  {
+    auto future = base::RunOnceOnThreadPool<int>(&pool, []() { return 1; });
+    ASSERT_EQ(WaitForFutureReady(future, 250), 1);
   }
 }
 
