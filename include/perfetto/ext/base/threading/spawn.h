@@ -57,31 +57,15 @@ class SpawnHandle {
   SpawnHandle(TaskRunner* task_runner, std::function<Future<FVoid>()> fn);
   ~SpawnHandle();
 
+  SpawnHandle(SpawnHandle&&) = default;
+  SpawnHandle& operator=(SpawnHandle&&) = default;
+
  private:
   SpawnHandle(const SpawnHandle&) = delete;
   SpawnHandle& operator=(const SpawnHandle&) = delete;
 
   TaskRunner* task_runner_ = nullptr;
   std::shared_ptr<std::unique_ptr<PolledFuture>> polled_future_;
-};
-
-// Specialization of SpawnHandle used by Futures/Streams which return T.
-//
-// Values of T are returned through a Channel<T> which allows reading these
-// values on a different thread to where the polling happens.
-template <typename T>
-class ResultSpawnHandle {
- public:
-  ResultSpawnHandle(TaskRunner* task_runner,
-                    std::shared_ptr<Channel<T>> channel,
-                    std::function<Future<FVoid>()> fn)
-      : handle_(task_runner, std::move(fn)), channel_(std::move(channel)) {}
-
-  Channel<T>* channel() const { return channel_.get(); }
-
- private:
-  SpawnHandle handle_;
-  std::shared_ptr<Channel<T>> channel_;
 };
 
 // "Spawns" a Future<FVoid> on the given TaskRunner and returns an RAII
@@ -103,10 +87,20 @@ PERFETTO_WARN_UNUSED_RESULT inline SpawnHandle SpawnFuture(
 
 // Variant of |SpawnFuture| for a Stream<T> allowing returning items of T.
 //
-// See ResultSpawnHandle for how elements from the stream can be consumed.
+// The Stream<T> returned by this function can be consumed on any thread, not
+// just the thread which ran this function.
+//
+// Dropping the returned stream does not affect the polling of the underlying
+// stream (i.e. the stream returned by |fn|); the polled values will simply be
+// dropped.
+//
+// Dropping the returned SpawnHandle causes the underlying stream to be
+// cancelled and dropped ASAP (this happens on the TaskRunner thread so there
+// can be some delay). The returned channel will return all the values that were
+// produced by the underlying stream before the cancellation.
 template <typename T>
-PERFETTO_WARN_UNUSED_RESULT inline ResultSpawnHandle<T> SpawnResultStream(
-    TaskRunner* task_runner,
+PERFETTO_WARN_UNUSED_RESULT std::pair<SpawnHandle, Stream<T>> SpawnResultStream(
+    TaskRunner* runner,
     std::function<Stream<T>()> fn) {
   class AllVoidCollector : public Collector<FVoid, FVoid> {
    public:
@@ -114,28 +108,38 @@ PERFETTO_WARN_UNUSED_RESULT inline ResultSpawnHandle<T> SpawnResultStream(
     FVoid OnDone() override { return FVoid(); }
   };
   auto channel = std::make_shared<Channel<T>>(4);
-  return ResultSpawnHandle<T>(
-      task_runner, channel, [c = channel, fn = std::move(fn)]() {
-        return fn()
-            .MapFuture([c](T value) {
-              return WriteChannelFuture(c.get(), std::move(value));
-            })
-            .Concat(OnDestroyStream<FVoid>([c]() { c->Close(); }))
-            .Collect(std::unique_ptr<Collector<FVoid, FVoid>>(
-                new AllVoidCollector()));
-      });
+  auto control = std::make_shared<Channel<FVoid>>(1);
+  SpawnHandle handle(runner, [channel, control, fn = std::move(fn)]() {
+    return fn()
+        .MapFuture([channel, control](T value) mutable {
+          if (control->ReadNonBlocking().is_closed) {
+            return base::Future<base::FVoid>(base::FVoid());
+          }
+          return WriteChannelFuture(channel.get(), std::move(value));
+        })
+        .Concat(OnDestroyStream<FVoid>([c = channel]() { c->Close(); }))
+        .template Collect<base::FVoid>(std::make_unique<AllVoidCollector>());
+  });
+  Stream<T> stream = ReadChannelStream(channel.get())
+                         .Concat(OnDestroyStream<T>([channel, control]() {
+                           // Close the control stream and drain an element from
+                           // the channel to unblock it in case it was blocked.
+                           // NOTE: the ordering here is important as we could
+                           // deadlock if it was the other way around!
+                           control->Close();
+                           base::ignore_result(channel->ReadNonBlocking());
+                         }));
+  return std::make_pair(std::move(handle), std::move(stream));
 }
 
-// Variant of |SpawnFuture| for a Future<T> allowing returning items of T.
-//
-// See ResultSpawnHandle for how elements from the future can be consumed.
+// Variant of |SpawnResultStream| but for Future<T>.
 template <typename T>
-PERFETTO_WARN_UNUSED_RESULT inline ResultSpawnHandle<T> SpawnResultFuture(
-    TaskRunner* task_runner,
-    std::function<Future<T>()> fn) {
-  return SpawnResultStream<T>(task_runner, [fn = std::move(fn)]() {
-    return StreamFromFuture(std::move(fn()));
-  });
+PERFETTO_WARN_UNUSED_RESULT inline std::pair<SpawnHandle, Future<T>>
+SpawnResultFuture(TaskRunner* task_runner, std::function<Future<T>()> fn) {
+  auto [handle, stream] = SpawnResultStream<T>(
+      task_runner, [fn = std::move(fn)]() { return StreamFromFuture(fn()); });
+  return std::make_pair(std::move(handle), std::move(stream).Collect(
+                                               ToFutureCheckedCollector<T>()));
 }
 
 }  // namespace base
