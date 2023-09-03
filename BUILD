@@ -3463,7 +3463,6 @@ perfetto_cc_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_cloud_trace_processor_protos",
     srcs = [
-        "protos/perfetto/cloud_trace_processor/common.proto",
         "protos/perfetto/cloud_trace_processor/orchestrator.proto",
         "protos/perfetto/cloud_trace_processor/worker.proto",
     ],

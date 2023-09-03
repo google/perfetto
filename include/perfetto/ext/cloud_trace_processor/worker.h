@@ -20,6 +20,7 @@
 #include <memory>
 #include <vector>
 
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/stream.h"
 
@@ -30,17 +31,11 @@ class ThreadPool;
 }
 
 namespace protos {
-class TracePoolShardCreateArgs;
-class TracePoolShardCreateResponse;
+class SyncTraceStateArgs;
+class SyncTraceStateResponse;
 
-class TracePoolShardSetTracesArgs;
-class TracePoolShardSetTracesResponse;
-
-class TracePoolShardQueryArgs;
-class TracePoolShardQueryResponse;
-
-class TracePoolShardDestroyArgs;
-class TracePoolShardDestroyResponse;
+class QueryTraceArgs;
+class QueryTraceResponse;
 }  // namespace protos
 
 namespace cloud_trace_processor {
@@ -58,24 +53,17 @@ class Worker {
   // |CtpEnvironment| and a |ThreadPool|. The |CtpEnvironment| will be used to
   // perform any interaction with the OS (e.g. opening and reading files) and
   // the |ThreadPool| will be used to dispatch requests to TraceProcessor.
-  static std::unique_ptr<Worker> CreateInProcesss(CtpEnvironment*,
+  static std::unique_ptr<Worker> CreateInProcesss(base::TaskRunner*,
+                                                  CtpEnvironment*,
                                                   base::ThreadPool*);
 
-  // Creates a TracePoolShard which will be owned by this worker.
-  virtual base::StatusOrFuture<protos::TracePoolShardCreateResponse>
-  TracePoolShardCreate(const protos::TracePoolShardCreateArgs&) = 0;
+  // Synchronize the state of the traces in the worker to the orchestrator.
+  virtual base::StatusOrStream<protos::SyncTraceStateResponse> SyncTraceState(
+      const protos::SyncTraceStateArgs&) = 0;
 
-  // Associates the provided list of traces to this TracePoolShard.
-  virtual base::StatusOrStream<protos::TracePoolShardSetTracesResponse>
-  TracePoolShardSetTraces(const protos::TracePoolShardSetTracesArgs&) = 0;
-
-  // Executes a SQL query on the specified TracePoolShard.
-  virtual base::StatusOrStream<protos::TracePoolShardQueryResponse>
-  TracePoolShardQuery(const protos::TracePoolShardQueryArgs&) = 0;
-
-  // Destroys the TracePoolShard with the specified id.
-  virtual base::StatusOrFuture<protos::TracePoolShardDestroyResponse>
-  TracePoolShardDestroy(const protos::TracePoolShardDestroyArgs&) = 0;
+  // Executes a SQL query on the specified trace.
+  virtual base::StatusOrStream<protos::QueryTraceResponse> QueryTrace(
+      const protos::QueryTraceArgs&) = 0;
 };
 
 }  // namespace cloud_trace_processor
