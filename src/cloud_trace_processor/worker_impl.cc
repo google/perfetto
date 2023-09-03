@@ -18,11 +18,16 @@
 
 #include <memory>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/base/task_runner.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/ext/base/threading/future.h"
+#include "perfetto/ext/base/threading/spawn.h"
 #include "perfetto/ext/base/threading/stream.h"
+#include "perfetto/ext/base/threading/util.h"
 #include "perfetto/ext/base/uuid.h"
-#include "protos/perfetto/cloud_trace_processor/common.pb.h"
+#include "perfetto/ext/cloud_trace_processor/worker.h"
 #include "protos/perfetto/cloud_trace_processor/orchestrator.pb.h"
 #include "protos/perfetto/cloud_trace_processor/worker.pb.h"
 #include "src/cloud_trace_processor/trace_processor_wrapper.h"
@@ -33,85 +38,60 @@ namespace cloud_trace_processor {
 
 Worker::~Worker() = default;
 
-std::unique_ptr<Worker> Worker::CreateInProcesss(CtpEnvironment* environment,
+std::unique_ptr<Worker> Worker::CreateInProcesss(base::TaskRunner* runner,
+                                                 CtpEnvironment* environment,
                                                  base::ThreadPool* pool) {
-  return std::make_unique<WorkerImpl>(environment, pool);
+  return std::make_unique<WorkerImpl>(runner, environment, pool);
 }
 
-WorkerImpl::WorkerImpl(CtpEnvironment* environment, base::ThreadPool* pool)
-    : environment_(environment), thread_pool_(pool) {}
+WorkerImpl::WorkerImpl(base::TaskRunner* runner,
+                       CtpEnvironment* environment,
+                       base::ThreadPool* pool)
+    : task_runner_(runner), environment_(environment), thread_pool_(pool) {}
 
-base::StatusOrFuture<protos::TracePoolShardCreateResponse>
-WorkerImpl::TracePoolShardCreate(const protos::TracePoolShardCreateArgs& args) {
-  if (args.pool_type() == protos::TracePoolType::DEDICATED) {
-    return base::ErrStatus("Dedicated pools are not currently supported");
-  }
-  auto it_and_inserted = shards_.Insert(args.pool_id(), TracePoolShard());
-  if (!it_and_inserted.second) {
-    return base::ErrStatus("Shard for pool %s already exists",
-                           args.pool_id().c_str());
-  }
-  return base::StatusOr(protos::TracePoolShardCreateResponse());
-}
-
-base::StatusOrStream<protos::TracePoolShardSetTracesResponse>
-WorkerImpl::TracePoolShardSetTraces(
-    const protos::TracePoolShardSetTracesArgs& args) {
-  using Response = protos::TracePoolShardSetTracesResponse;
-  using StatusOrResponse = base::StatusOr<Response>;
-
-  TracePoolShard* shard = shards_.Find(args.pool_id());
-  if (!shard) {
-    return base::StreamOf<StatusOrResponse>(base::ErrStatus(
-        "Unable to find shard for pool %s", args.pool_id().c_str()));
-  }
-
-  std::vector<base::StatusOrStream<Response>> streams;
+base::StatusOrStream<protos::SyncTraceStateResponse> WorkerImpl::SyncTraceState(
+    const protos::SyncTraceStateArgs& args) {
+  base::FlatHashMap<std::string, Trace> new_traces;
+  std::vector<base::StatusStream> streams;
   for (const std::string& trace : args.traces()) {
-    // TODO(lalitm): add support for stateful trace processor in dedicated
-    // pools.
+    if (auto* ptr = traces_.Find(trace); ptr) {
+      auto it_and_inserted = new_traces.Insert(trace, std::move(*ptr));
+      PERFETTO_CHECK(it_and_inserted.second);
+      continue;
+    }
+    auto [handle, stream] =
+        base::SpawnResultFuture<base::Status>(task_runner_, [this, trace] {
+          auto t = traces_.Find(trace);
+          if (!t) {
+            return base::StatusFuture(
+                base::ErrStatus("%s: trace not found", trace.c_str()));
+          }
+          return t->wrapper->LoadTrace(environment_->ReadFile(trace));
+        });
     auto tp = std::make_unique<TraceProcessorWrapper>(
         trace, thread_pool_, TraceProcessorWrapper::Statefulness::kStateless);
-    auto load_trace_future =
-        tp->LoadTrace(environment_->ReadFile(trace))
-            .ContinueWith(
-                [trace](base::Status status) -> base::Future<StatusOrResponse> {
-                  RETURN_IF_ERROR(status);
-                  protos::TracePoolShardSetTracesResponse resp;
-                  *resp.mutable_trace() = trace;
-                  return resp;
-                });
-    streams.emplace_back(base::StreamFromFuture(std::move(load_trace_future)));
-    shard->tps.emplace_back(std::move(tp));
+    streams.emplace_back(base::StreamFromFuture(std::move(stream)));
+    new_traces.Insert(trace, Trace{std::move(tp), std::move(handle)});
   }
-  return base::FlattenStreams(std::move(streams));
+  traces_ = std::move(new_traces);
+  return base::FlattenStreams(std::move(streams))
+      .MapFuture([](base::Status status) {
+        if (!status.ok()) {
+          return base::StatusOrFuture<protos::SyncTraceStateResponse>(status);
+        }
+        return base::StatusOrFuture<protos::SyncTraceStateResponse>(
+            protos::SyncTraceStateResponse());
+      });
 }
 
-base::StatusOrStream<protos::TracePoolShardQueryResponse>
-WorkerImpl::TracePoolShardQuery(const protos::TracePoolShardQueryArgs& args) {
-  using Response = protos::TracePoolShardQueryResponse;
-  using StatusOrResponse = base::StatusOr<Response>;
-  TracePoolShard* shard = shards_.Find(args.pool_id());
-  if (!shard) {
-    return base::StreamOf<StatusOrResponse>(base::ErrStatus(
-        "Unable to find shard for pool %s", args.pool_id().c_str()));
+base::StatusOrStream<protos::QueryTraceResponse> WorkerImpl::QueryTrace(
+    const protos::QueryTraceArgs& args) {
+  auto* tp = traces_.Find(args.trace());
+  if (!tp) {
+    return base::StreamOf<base::StatusOr<protos::QueryTraceResponse>>(
+        base::ErrStatus("%s: trace not found", args.trace().c_str()));
   }
-  std::vector<base::StatusOrStream<Response>> streams;
-  streams.reserve(shard->tps.size());
-  for (std::unique_ptr<TraceProcessorWrapper>& tp : shard->tps) {
-    streams.emplace_back(tp->Query(args.sql_query()));
-  }
-  return base::FlattenStreams(std::move(streams));
-}
-
-base::StatusOrFuture<protos::TracePoolShardDestroyResponse>
-WorkerImpl::TracePoolShardDestroy(
-    const protos::TracePoolShardDestroyArgs& args) {
-  if (!shards_.Erase(args.pool_id())) {
-    return base::ErrStatus("Unable to find shard for pool %s",
-                           args.pool_id().c_str());
-  }
-  return base::StatusOr(protos::TracePoolShardDestroyResponse());
+  return tp->wrapper->Query(args.sql_query());
 }
 
 }  // namespace cloud_trace_processor
