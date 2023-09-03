@@ -2486,7 +2486,6 @@ cc_test {
 genrule {
     name: "perfetto_protos_perfetto_cloud_trace_processor_lite_gen",
     srcs: [
-        "protos/perfetto/cloud_trace_processor/common.proto",
         "protos/perfetto/cloud_trace_processor/orchestrator.proto",
         "protos/perfetto/cloud_trace_processor/worker.proto",
     ],
@@ -2495,7 +2494,6 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
-        "external/perfetto/protos/perfetto/cloud_trace_processor/common.pb.cc",
         "external/perfetto/protos/perfetto/cloud_trace_processor/orchestrator.pb.cc",
         "external/perfetto/protos/perfetto/cloud_trace_processor/worker.pb.cc",
     ],
@@ -2505,7 +2503,6 @@ genrule {
 genrule {
     name: "perfetto_protos_perfetto_cloud_trace_processor_lite_gen_headers",
     srcs: [
-        "protos/perfetto/cloud_trace_processor/common.proto",
         "protos/perfetto/cloud_trace_processor/orchestrator.proto",
         "protos/perfetto/cloud_trace_processor/worker.proto",
     ],
@@ -2514,7 +2511,6 @@ genrule {
     ],
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --cpp_out=lite=true:$(genDir)/external/perfetto/ $(in)",
     out: [
-        "external/perfetto/protos/perfetto/cloud_trace_processor/common.pb.h",
         "external/perfetto/protos/perfetto/cloud_trace_processor/orchestrator.pb.h",
         "external/perfetto/protos/perfetto/cloud_trace_processor/worker.pb.h",
     ],
