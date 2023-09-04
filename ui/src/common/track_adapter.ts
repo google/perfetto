@@ -16,13 +16,12 @@ import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {EngineProxy} from '../common/engine';
-import {duration, Span, Time, time} from '../common/time';
-import {TrackData} from '../common/track_data';
-import {globals} from '../frontend/globals';
+import {duration, Span, time} from '../common/time';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {NewTrackArgs, SliceRect} from '../frontend/track';
 import {TrackButtonAttrs} from '../frontend/track_panel';
-import {TrackLike} from '../public';
+
+import {BasicAsyncTrack} from './basic_async_track';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -37,30 +36,29 @@ export {Store} from '../frontend/store';
 
 // This is an adapter to convert old style controller based tracks to new style
 // tracks.
-export class TrackWithControllerAdapter<Config, Data> implements TrackLike {
+export class TrackWithControllerAdapter<Config, Data> extends
+    BasicAsyncTrack<Data> {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
-  private requestingData = false;
-  private queuedRequest = false;
-  private currentState?: TrackData;
 
   constructor(
       engine: EngineProxy, id: string, config: Config,
       Track: TrackAdapterClass<Config, Data>,
       Controller: TrackControllerAdapterClass<Config, Data>) {
+    super();
     const args: NewTrackArgs = {
       trackId: id,
       engine,
     };
     this.track = new Track(args);
     this.track.setConfig(config);
+    this.track.setDataSource(() => this.data);
     this.controller = new Controller(config, engine);
   }
 
   onDestroy(): void {
-    this.queuedRequest = false;
-    this.currentState = undefined;
     this.track.onDestroy();
+    super.onDestroy();
   }
 
   getSliceRect(
@@ -99,67 +97,12 @@ export class TrackWithControllerAdapter<Config, Data> implements TrackLike {
     this.track.onFullRedraw();
   }
 
-  render(ctx: CanvasRenderingContext2D): void {
-    if (this.shouldLoadNewData()) {
-      this.loadData(ctx);
-    }
+  onBoundsChange(start: time, end: time, resolution: duration): Promise<Data> {
+    return this.controller.onBoundsChange(start, end, resolution);
+  }
 
+  renderCanvas(ctx: CanvasRenderingContext2D): void {
     this.track.renderCanvas(ctx);
-  }
-
-  private loadData(ctx: CanvasRenderingContext2D): void {
-    if (this.requestingData) {
-      this.queuedRequest = true;
-      return;
-    }
-
-    const ts = globals.frontendLocalState.visibleTimeSpan;
-    const resolution = globals.getCurResolution();
-
-    const start = Time.sub(ts.start, ts.duration);
-    const end = Time.add(ts.end, ts.duration);
-
-    this.currentState = {
-      start,
-      end,
-      resolution,
-      length: 0,
-    };
-
-    this.controller.onBoundsChange(start, end, resolution).then((data) => {
-      this.requestingData = false;
-      this.track.setData(data);
-
-      if (this.queuedRequest) {
-        this.queuedRequest = false;
-        this.loadData(ctx);
-      } else {
-        this.track.renderCanvas(ctx);
-      }
-    });
-
-    this.requestingData = true;
-  }
-
-  private shouldLoadNewData(): boolean {
-    if (!this.currentState) {
-      return true;
-    }
-
-    const ts = globals.frontendLocalState.visibleTimeSpan;
-    if (ts.start < this.currentState.start) {
-      return true;
-    }
-
-    if (ts.end > this.currentState.end) {
-      return true;
-    }
-
-    if (globals.getCurResolution() !== this.currentState.resolution) {
-      return true;
-    }
-
-    return false;
   }
 }
 
@@ -167,7 +110,7 @@ export class TrackWithControllerAdapter<Config, Data> implements TrackLike {
 // implementations with `TrackWithControllerAdapter`.
 export abstract class TrackAdapter<Config, Data> {
   private _config?: Config;
-  private _data?: Data;
+  private dataSource?: () => Data | undefined;
 
   get config(): Config {
     return assertExists(this._config);
@@ -177,12 +120,13 @@ export abstract class TrackAdapter<Config, Data> {
     this._config = config;
   }
 
-  data(): undefined|Data {
-    return this._data;
+  data(): Data|undefined {
+    return this.dataSource && this.dataSource();
   }
 
-  setData(data: Data) {
-    this._data = data;
+  // A callback used to fetch the latest data
+  setDataSource(dataSource: () => Data | undefined) {
+    this.dataSource = dataSource;
   }
 
   constructor(_args: NewTrackArgs) {}
@@ -220,10 +164,7 @@ export abstract class TrackAdapter<Config, Data> {
 
   onFullRedraw(): void {}
 
-  onDestroy(): void {
-    // Drop this potentially large object
-    this._data = undefined;
-  }
+  onDestroy(): void {}
 }
 
 type TrackAdapterClass<Config, Data> = {
