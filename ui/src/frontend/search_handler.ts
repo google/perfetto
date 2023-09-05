@@ -85,14 +85,22 @@ function selectCurrentSearchResult() {
   if (currentId === undefined) return;
 
   if (source === 'cpu') {
-    globals.dispatch(
-        Actions.selectSlice({id: currentId, trackId, scroll: true}));
+    globals.makeSelection(
+        Actions.selectSlice({id: currentId, trackId, scroll: true}),
+        {clearSearch: false},
+    );
   } else if (source === 'log') {
-    globals.dispatch(Actions.selectLog({id: currentId, trackId, scroll: true}));
+    globals.makeSelection(
+        Actions.selectLog({id: currentId, trackId, scroll: true}),
+        {clearSearch: false},
+    );
   } else {
     // Search results only include slices from the slice table for now.
     // When we include annotations we need to pass the correct table.
-    globals.dispatch(Actions.selectChromeSlice(
-        {id: currentId, trackId, table: 'slice', scroll: true}));
+    globals.makeSelection(
+        Actions.selectChromeSlice(
+            {id: currentId, trackId, table: 'slice', scroll: true}),
+        {clearSearch: false},
+    );
   }
 }
