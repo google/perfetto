@@ -50,7 +50,7 @@ export class FlowEventsPanel extends Panel {
         globals.makeSelection(
             Actions.selectChromeSlice(
                 {id: sliceId, trackId: uiTrackId, table: 'slice'}),
-            'bound_flows');
+            {tab: 'bound_flows'});
       }
     };
 
