@@ -139,7 +139,7 @@ function setupContentSecurityPolicy() {
       'https://*.google.com',
       'https://*.googleusercontent.com',
       'https://www.googletagmanager.com',
-      'https://www.google-analytics.com',
+      'https://*.google-analytics.com',
     ],
     'object-src': ['none'],
     'connect-src': [
@@ -147,7 +147,7 @@ function setupContentSecurityPolicy() {
       'http://127.0.0.1:9001',  // For trace_processor_shell --httpd.
       'ws://127.0.0.1:9001',    // Ditto, for the websocket RPC.
       'ws://127.0.0.1:8037',    // For the adb websocket server.
-      'https://www.google-analytics.com',
+      'https://*.google-analytics.com',
       'https://*.googleapis.com',  // For Google Cloud Storage fetches.
       'blob:',
       'data:',
@@ -156,7 +156,7 @@ function setupContentSecurityPolicy() {
       `'self'`,
       'data:',
       'blob:',
-      'https://www.google-analytics.com',
+      'https://*.google-analytics.com',
       'https://www.googletagmanager.com',
       'https://*.googleapis.com',
     ],
