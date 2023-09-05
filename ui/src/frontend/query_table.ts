@@ -157,7 +157,7 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
       trackId: uiTrackId,
       table: 'slice',
     });
-    globals.makeSelection(action, nextTab);
+    globals.makeSelection(action, {tab: nextTab});
   }
 }
 

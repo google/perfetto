@@ -221,6 +221,16 @@ function getRoot() {
   return root;
 }
 
+// Options for globals.makeSelection().
+export interface MakeSelectionOpts {
+  // The ID of the next tab to reveal, or null to keep the current tab.
+  // If undefined, the 'current_selection' tab will be revealed.
+  tab?: string|null;
+
+  // Whether to cancel the current search selection. Default = true.
+  clearSearch?: boolean;
+}
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -602,15 +612,21 @@ class Globals {
     this._ftracePanelData = data;
   }
 
-  makeSelection(
-      action: DeferredAction<{}>, tab: string|null = 'current_selection') {
+  makeSelection(action: DeferredAction<{}>, opts: MakeSelectionOpts = {}) {
+    const {
+      tab = 'current_selection',
+      clearSearch = true,
+    } = opts;
+
     const previousState = this.state;
+
     // A new selection should cancel the current search selection.
-    globals.dispatch(Actions.setSearchIndex({index: -1}));
+    clearSearch && globals.dispatch(Actions.setSearchIndex({index: -1}));
+
     if (action.type === 'deselect') {
       globals.dispatch(Actions.setCurrentTab({tab: undefined}));
     } else if (tab !== null) {
-      globals.dispatch(Actions.setCurrentTab({tab: tab}));
+      globals.dispatch(Actions.setCurrentTab({tab}));
     }
     globals.dispatch(action);
 
