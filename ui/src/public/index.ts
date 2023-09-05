@@ -58,6 +58,8 @@ export interface Viewer {
     // Creates a new tab running the provided query.
     openQuery(query: string, title: string): void;
   }
+
+  commands: {run(name: string, ...args: any[]): void;}
 }
 
 export interface Command {
