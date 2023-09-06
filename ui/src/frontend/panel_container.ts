@@ -64,6 +64,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
   private parentHeight = 0;
   private scrollTop = 0;
   private panelInfos: PanelInfo[] = [];
+  private panelContainerLeft = 0;
   private panelContainerTop = 0;
   private panelContainerHeight = 0;
   private panelByKey = new Map<string, AnyAttrsVnode>();
@@ -103,7 +104,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     const panels: AnyAttrsVnode[] = [];
     for (let i = 0; i < this.panelInfos.length; i++) {
       const pos = this.panelInfos[i];
-      const realPosX = pos.x - TRACK_SHELL_WIDTH;
+      const realPosX = pos.x - this.panelContainerLeft;
       if (realPosX + pos.width >= minX && realPosX <= maxX &&
           pos.y + pos.height >= minY && pos.y <= maxY &&
           pos.vnode.attrs.selectable) {
@@ -339,6 +340,7 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
     this.panelInfos = [];
     this.totalPanelHeight = 0;
     const domRect = dom.getBoundingClientRect();
+    this.panelContainerLeft = domRect.x;
     this.panelContainerTop = domRect.y;
     this.panelContainerHeight = domRect.height;
 
