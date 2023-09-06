@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
 import {getContainingTrackId} from '../common/state';
-import {time} from '../common/time';
 
 import {globals} from './globals';
 

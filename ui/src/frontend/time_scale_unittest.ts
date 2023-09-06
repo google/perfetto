@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {HighPrecisionTime} from '../common/high_precision_time';
-import {Time} from '../common/time';
 
 import {PxSpan, TimeScale} from './time_scale';
 

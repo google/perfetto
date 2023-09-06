@@ -15,9 +15,9 @@
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
+import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
 import {TrackState} from '../common/state';
-import {duration, Span, time} from '../common/time';
 import {TrackData} from '../common/track_data';
 import {TrackLike} from '../public';
 

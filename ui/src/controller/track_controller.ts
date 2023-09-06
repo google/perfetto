@@ -14,16 +14,16 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
-import {Engine} from '../common/engine';
-import {Registry} from '../common/registry';
-import {RESOLUTION_DEFAULT, TraceTime, TrackState} from '../common/state';
 import {
   Duration,
   duration,
   time,
   Time,
   TimeSpan,
-} from '../common/time';
+} from '../base/time';
+import {Engine} from '../common/engine';
+import {Registry} from '../common/registry';
+import {RESOLUTION_DEFAULT, TraceTime, TrackState} from '../common/state';
 import {LIMIT, TrackData} from '../common/track_data';
 import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';

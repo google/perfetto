@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   HighPrecisionTime,
@@ -25,7 +26,6 @@ import {
   Timestamped,
   VisibleState,
 } from '../common/state';
-import {duration, Span, Time, time, TimeSpan} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';

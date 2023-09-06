@@ -13,11 +13,6 @@
 // limitations under the License.
 
 import {sqliteString} from '../base/string_utils';
-import {Engine} from '../common/engine';
-import {LONG, NUM, STR} from '../common/query_result';
-import {escapeSearchQuery} from '../common/query_utils';
-import {CurrentSearchResults, SearchSummary} from '../common/search_data';
-import {OmniboxState} from '../common/state';
 import {
   Duration,
   duration,
@@ -25,7 +20,12 @@ import {
   time,
   Time,
   TimeSpan,
-} from '../common/time';
+} from '../base/time';
+import {Engine} from '../common/engine';
+import {LONG, NUM, STR} from '../common/query_result';
+import {escapeSearchQuery} from '../common/query_utils';
+import {CurrentSearchResults, SearchSummary} from '../common/search_data';
+import {OmniboxState} from '../common/state';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
 

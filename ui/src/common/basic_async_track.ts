@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 
+import {duration, Span, Time, time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect} from '../frontend/track';
 import {TrackButtonAttrs} from '../frontend/track_panel';
 import {TrackLike} from '../public';
 
-import {duration, Span, Time, time} from './time';
 import {TrackData} from './track_data';
 
 export {Store} from '../frontend/store';

@@ -14,15 +14,15 @@
 
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
-import {EngineProxy} from '../common/engine';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
-import {translateState} from '../common/thread_state';
 import {
   duration,
   Time,
   time,
-} from '../common/time';
+} from '../base/time';
+import {Actions} from '../common/actions';
+import {EngineProxy} from '../common/engine';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
+import {translateState} from '../common/thread_state';
 
 import {Anchor} from './anchor';
 import {globals} from './globals';

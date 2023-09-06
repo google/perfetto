@@ -14,15 +14,14 @@
 
 import m from 'mithril';
 
-import {hueForCpu} from '../common/colorizer';
 import {
   duration,
   Span,
   Time,
   time,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {hueForCpu} from '../common/colorizer';
+import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,

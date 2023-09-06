@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {searchSegment} from '../../base/binary_search';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {LONG} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
-import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';

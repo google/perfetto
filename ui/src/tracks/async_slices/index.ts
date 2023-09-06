@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {duration, time} from '../../base/time';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {duration, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,
