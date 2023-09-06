@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {duration, time} from '../common/time';
+import {duration, time} from '../base/time';
 
 import {globals, SliceDetails} from './globals';
 import {Panel} from './panel';

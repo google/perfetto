@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {BigintMath} from '../../base/bigint_math';
+import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
@@ -25,7 +26,6 @@ import {
   STR,
   STR_NULL,
 } from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {Anchor} from '../anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';

@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM, STR} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,

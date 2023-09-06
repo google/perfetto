@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Brand} from './brand';
+import {Brand} from '../base/brand';
 
 // Type-safe aliases for various flavours of ints Trace Processor exposes
 // (e.g. timestamp or ids into a given SQL table) and functions to work with

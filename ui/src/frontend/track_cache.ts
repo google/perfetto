@@ -14,7 +14,7 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {assertTrue} from '../base/logging';
-import {duration, time, Time} from '../common/time';
+import {duration, time, Time} from '../base/time';
 
 export const BUCKETS_PER_PIXEL = 2;
 

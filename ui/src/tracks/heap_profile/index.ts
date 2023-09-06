@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {searchSegment} from '../../base/binary_search';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {LONG, STR} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
-import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {profileType} from '../../controller/flamegraph_controller';
 import {TrackController} from '../../controller/track_controller';

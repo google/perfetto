@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {duration, Span, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {cropText, drawIncompleteSlice} from '../../common/canvas_utils';
 import {
@@ -21,7 +22,6 @@ import {
 } from '../../common/colorizer';
 import {HighPrecisionTime} from '../../common/high_precision_time';
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {duration, Span, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';

@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {LONG, NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
-import {Time} from '../common/time';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../frontend/sql_types';

@@ -15,6 +15,7 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {
   cropText,
@@ -23,7 +24,6 @@ import {
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {LONG, NUM} from '../../common/query_result';
-import {Duration, duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,

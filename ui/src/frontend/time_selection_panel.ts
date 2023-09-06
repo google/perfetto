@@ -21,9 +21,8 @@ import {
   time,
   Time,
   TimeSpan,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
 
 import {
   BACKGROUND_COLOR,
