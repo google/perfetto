@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Time} from '../common/time';
+import {Time} from '../base/time';
 
 import {CacheKey, TrackCache} from './track_cache';
 

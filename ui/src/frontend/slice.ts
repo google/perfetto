@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {duration, time} from '../base/time';
 import {Color} from '../common/colorizer';
-import {duration, time} from '../common/time';
 
 export interface Slice {
   // These properties are updated only once per query result when the Slice

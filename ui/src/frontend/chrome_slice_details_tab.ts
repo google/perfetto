@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 
+import {duration, Time} from '../base/time';
 import {exists} from '../base/utils';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
-import {duration, Time} from '../common/time';
 import {addDebugTrack} from '../tracks/debug/slice_track';
 
 import {

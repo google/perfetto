@@ -19,16 +19,15 @@ import {findRef} from '../base/dom_utils';
 import {FuzzyFinder} from '../base/fuzzy';
 import {assertExists} from '../base/logging';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {Actions} from '../common/actions';
 import {
   duration,
-  setTimestampFormat,
   Span,
   Time,
   time,
   TimeSpan,
-  TimestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {Actions} from '../common/actions';
+import {setTimestampFormat, TimestampFormat} from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 

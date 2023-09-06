@@ -17,9 +17,8 @@ import m from 'mithril';
 import {
   Time,
   time,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';

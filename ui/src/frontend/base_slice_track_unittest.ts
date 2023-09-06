@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {GRAY_COLOR} from '../common/colorizer';
-import {Time} from '../common/time';
 
 import {
   filterVisibleSlicesForTesting as filterVisibleSlices,

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {duration, time} from './time';
+import {duration, time} from '../base/time';
 
 // TODO(hjd): Refactor into method on TrackController
 export const LIMIT = 10000;

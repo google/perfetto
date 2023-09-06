@@ -15,6 +15,14 @@
 import {BigintMath} from '../base/bigint_math';
 import {assertExists, assertTrue} from '../base/logging';
 import {
+  Duration,
+  duration,
+  Span,
+  time,
+  Time,
+  TimeSpan,
+} from '../base/time';
+import {
   Actions,
   DeferredAction,
 } from '../common/actions';
@@ -47,14 +55,6 @@ import {
   PendingDeeplinkState,
   ProfileType,
 } from '../common/state';
-import {
-  Duration,
-  duration,
-  Span,
-  time,
-  Time,
-  TimeSpan,
-} from '../common/time';
 import {resetEngineWorker, WasmEngineProxy} from '../common/wasm_engine_proxy';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {

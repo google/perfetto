@@ -14,9 +14,9 @@
 
 import {BigintMath} from '../../base/bigint_math';
 import {assertFalse} from '../../base/logging';
+import {duration, Time, time} from '../../base/time';
 import {colorForTid} from '../../common/colorizer';
 import {NUM} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';

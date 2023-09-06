@@ -14,11 +14,11 @@
 
 import {defer} from '../base/deferred';
 import {assertExists, reportError, setErrorHandler} from '../base/logging';
+import {time} from '../base/time';
 import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import {time} from '../common/time';
 import traceconv from '../gen/traceconv';
 
 const selfWorker = self as {} as Worker;

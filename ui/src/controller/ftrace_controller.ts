@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Span, Time} from '../base/time';
 import {Engine} from '../common/engine';
 import {
   HighPrecisionTime,
@@ -19,7 +20,6 @@ import {
 } from '../common/high_precision_time';
 import {LONG, NUM, STR, STR_NULL} from '../common/query_result';
 import {FtraceFilterState, Pagination} from '../common/state';
-import {Span, Time} from '../common/time';
 import {FtraceEvent, globals} from '../frontend/globals';
 import {publishFtracePanelData} from '../frontend/publish';
 import {ratelimit} from '../frontend/rate_limiters';

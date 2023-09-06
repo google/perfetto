@@ -15,10 +15,10 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {colorForThread} from '../../common/colorizer';
 import {LONG, NUM, QueryResult} from '../../common/query_result';
-import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';

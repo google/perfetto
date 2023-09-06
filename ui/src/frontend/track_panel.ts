@@ -15,11 +15,11 @@
 import {hex} from 'color-convert';
 import m from 'mithril';
 
+import {duration, Span, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
 import {RegistryError} from '../common/registry';
 import {TrackState} from '../common/state';
-import {duration, Span, time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 import {TrackLike} from '../public';
 

@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {duration, Time, time} from '../../base/time';
 import {LONG, NUM} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {
   TrackController,
