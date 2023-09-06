@@ -15,8 +15,8 @@
 import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
+import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
-import {duration, Span, time} from '../common/time';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
 import {PxSpan, TimeScale} from '../frontend/time_scale';

@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM} from '../../common/query_result';
-import {duration, time, Time} from '../../common/time';
 import {Anchor} from '../../frontend/anchor';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';

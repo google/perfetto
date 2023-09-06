@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {createEmptyRecordConfig} from '../controller/record_config_types';
 import {
   Aggregation,
@@ -29,7 +30,6 @@ import {
   State,
   STATE_VERSION,
 } from './state';
-import {Time} from './time';
 
 const AUTOLOAD_STARTED_CONFIG_FLAG = featureFlags.register({
   id: 'autoloadStartedConfig',

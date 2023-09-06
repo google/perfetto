@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {duration, Span, time} from '../base/time';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {duration, Span, time} from '../common/time';
 
 export class TimeScale {
   private _start: HighPrecisionTime;

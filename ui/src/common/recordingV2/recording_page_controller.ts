@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../../base/logging';
+import {currentDateHourAndMinute} from '../../base/time';
 import {TraceConfig} from '../../core/protos';
 import {raf} from '../../core/raf_scheduler';
 import {globals} from '../../frontend/globals';
@@ -26,7 +27,6 @@ import {
 } from '../../frontend/recording/reset_interface_modal';
 import {Actions} from '../actions';
 import {TRACE_SUFFIX} from '../constants';
-import {currentDateHourAndMinute} from '../time';
 
 import {genTraceConfig} from './recording_config_utils';
 import {RecordingError, showRecordingModal} from './recording_error_handling';

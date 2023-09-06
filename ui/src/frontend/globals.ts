@@ -14,6 +14,13 @@
 
 import {BigintMath} from '../base/bigint_math';
 import {assertExists} from '../base/logging';
+import {
+  duration,
+  Span,
+  Time,
+  time,
+  TimeSpan,
+} from '../base/time';
 import {Actions, DeferredAction} from '../common/actions';
 import {AggregateData} from '../common/aggregation_data';
 import {Args} from '../common/arg_types';
@@ -37,15 +44,7 @@ import {
   RESOLUTION_DEFAULT,
   State,
 } from '../common/state';
-import {
-  duration,
-  Span,
-  Time,
-  time,
-  TimeSpan,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 

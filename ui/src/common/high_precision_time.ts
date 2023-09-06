@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-
-import {Span, Time, time} from './time';
+import {Span, Time, time} from '../base/time';
 
 export type RoundMode = 'round'|'floor'|'ceil';
 export type Timeish = HighPrecisionTime|time;

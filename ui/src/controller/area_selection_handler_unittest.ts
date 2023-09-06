@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {createEmptyState} from '../common/empty_state';
 import {AreaById} from '../common/state';
-import {Time} from '../common/time';
 import {globals} from '../frontend/globals';
 
 import {AreaSelectionHandler} from './area_selection_handler';

@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {time, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
 import {StringListPatch} from '../common/state';
-import {time, Time} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';

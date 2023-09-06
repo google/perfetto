@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Duration, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {Engine} from '../common/engine';
 import {
@@ -27,7 +28,6 @@ import {
 } from '../common/flamegraph_util';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
-import {Duration, time} from '../common/time';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {

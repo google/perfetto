@@ -20,7 +20,7 @@ import {NewTrackArgs, Track} from '../../frontend/track';
 import {ChromeSliceTrack} from '../chrome_slices';
 
 import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {duration, time} from '../../common/time';
+import {duration, time} from '../../base/time';
 import {
   TrackController,
 } from '../../controller/track_controller';
