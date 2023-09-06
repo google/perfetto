@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {
-  Command,
   Plugin,
   PluginContext,
   PluginInfo,
@@ -21,18 +20,12 @@ import {
 
 // This is just an example plugin, used to prove that the plugin system works.
 class ExampleSimpleCommand implements Plugin {
-  onActivate(_: PluginContext): void {
-    //
-  }
-
-  commands(_: PluginContext): Command[] {
-    return [
-      {
-        id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
-        name: 'Log "Hello, world!"',
-        callback: () => console.log('Hello, world!'),
-      },
-    ];
+  onActivate(ctx: PluginContext): void {
+    ctx.addCommand({
+      id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
+      name: 'Log "Hello, world!"',
+      callback: () => console.log('Hello, world!'),
+    });
   }
 }
 
