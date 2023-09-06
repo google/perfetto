@@ -35,6 +35,7 @@ import {
   isGetCategoriesResponse,
 } from '../controller/chrome_proxy_record_controller';
 import {raf} from '../core/raf_scheduler';
+import {setScheduleFullRedraw} from '../widgets/raf';
 
 import {App} from './app';
 import {initCssConstants} from './css_constants';
@@ -177,6 +178,9 @@ function setupContentSecurityPolicy() {
 }
 
 function main() {
+  // Wire up raf for widgets.
+  setScheduleFullRedraw(() => raf.scheduleFullRedraw());
+
   setupContentSecurityPolicy();
 
   // Load the css. The load is asynchronous and the CSS is not ready by the time

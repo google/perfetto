@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {hasChildren} from '../../base/mithril_utils';
-import {raf} from '../../core/raf_scheduler';
+import {scheduleFullRedraw} from '../../widgets/raf';
 import {classNames} from '../classnames';
 
 // Heirachical tree layout but right values are horizontally aligned.
@@ -81,7 +81,7 @@ export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
           onclick: () => {
             this.collapsed = !this.isCollapsed(vnode);
             onCollapseChanged(this.collapsed, attrs);
-            raf.scheduleFullRedraw();
+            scheduleFullRedraw();
           },
         }),
         m(
@@ -210,19 +210,19 @@ export class LazyTreeNode implements m.ClassComponent<LazyTreeNodeAttrs> {
               // Expanding
               if (this.renderChildren) {
                 this.collapsed = false;
-                raf.scheduleFullRedraw();
+                scheduleFullRedraw();
               } else {
                 this.loading = true;
                 fetchData().then((result) => {
                   this.loading = false;
                   this.collapsed = false;
                   this.renderChildren = result;
-                  raf.scheduleFullRedraw();
+                  scheduleFullRedraw();
                 });
               }
             }
             this.collapsed = collapsed;
-            raf.scheduleFullRedraw();
+            scheduleFullRedraw();
           },
         },
         this.renderChildren && this.renderChildren());
