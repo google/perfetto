@@ -124,7 +124,6 @@ class MetricsController {
   }
 
   get resultAsJson(): any {
-    console.log(this._json);
     return this._json;
   }
 
