@@ -611,8 +611,12 @@ export const StateActions = {
   toggleTrackGroupCollapsed(state: StateDraft, args: {trackGroupId: string}):
       void {
         const id = args.trackGroupId;
-        const trackGroup = assertExists(state.trackGroups[id]);
-        trackGroup.collapsed = !trackGroup.collapsed;
+        const trackGroup = state.trackGroups[id];
+        // If the track group was deleted in the interim, then
+        // we've nothing to collapse and that's fine
+        if (trackGroup) {
+          trackGroup.collapsed = !trackGroup.collapsed;
+        }
       },
 
   requestTrackReload(state: StateDraft, _: {}) {

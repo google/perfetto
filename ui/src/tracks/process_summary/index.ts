@@ -136,8 +136,8 @@ class ProcessSummaryTrackController extends TrackController<Config, Data> {
 
   onDestroy(): void {
     if (this.setup) {
-      this.query(`drop table ${this.tableName('window')}`);
-      this.query(`drop table ${this.tableName('span')}`);
+      this.query(`drop table if exists ${this.tableName('window')}`);
+      this.query(`drop table if exists ${this.tableName('span')}`);
       this.setup = false;
     }
   }

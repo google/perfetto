@@ -93,7 +93,7 @@ class TablesCache {
       // TODO(hjd): This should be LRU.
       if (this.cache.size > this.cacheSizeLimit) {
         for (const name of this.cache.values()) {
-          await this.engine.query(`drop table ${name}`);
+          await this.engine.query(`drop table if exists ${name}`);
         }
         this.cache.clear();
       }

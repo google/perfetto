@@ -51,6 +51,11 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private backgroundColor = '#ffffff';  // Updated from CSS later.
   private summaryTrack: Track|undefined;
 
+  // Caches the last state.trackGroups[this.trackGroupId].
+  // This is to deal with track group deletion. See comments
+  // in trackGroupState() below.
+  private lastTrackGroupState: TrackGroupState;
+
   constructor({attrs}: m.CVnode<Attrs>) {
     super();
     this.trackGroupId = attrs.trackGroupId;
@@ -61,10 +66,24 @@ export class TrackGroupPanel extends Panel<Attrs> {
       this.summaryTrack =
           trackCreator.create({trackId: this.summaryTrackState.id, engine});
     }
+    this.lastTrackGroupState = assertExists(
+      globals.state.trackGroups[this.trackGroupId]);
   }
 
   get trackGroupState(): TrackGroupState {
-    return assertExists(globals.state.trackGroups[this.trackGroupId]);
+    // We can end up in a state where a Track Group is still in the mithril
+    // renderer tree but its corresponding state has been deleted. This can
+    // happen in the interval of time between a group being removed from the
+    // state and the next animation frame that would remove the group object.
+    // If a mouse event is dispatched in the meanwhile (or a promise is
+    // resolved), we need to be able to access the state. Hence the caching
+    // logic here.
+    const result = globals.state.trackGroups[this.trackGroupId];
+    if (result === undefined) {
+      return this.lastTrackGroupState;
+    }
+    this.lastTrackGroupState = result;
+    return result;
   }
 
   get summaryTrackState(): TrackState {
