@@ -16,8 +16,8 @@ import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
+import {Duration, duration, time} from '../base/time';
 import {exists} from '../base/utils';
-import {Duration, duration, time} from '../common/time';
 
 import {Anchor} from './anchor';
 import {addTab} from './bottom_tab';

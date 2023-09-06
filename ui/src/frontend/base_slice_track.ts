@@ -13,6 +13,12 @@
 // limitations under the License.
 
 import {assertExists} from '../base/logging';
+import {
+  duration,
+  Span,
+  Time,
+  time,
+} from '../base/time';
 import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {
@@ -21,12 +27,6 @@ import {
 } from '../common/colorizer';
 import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
-import {
-  duration,
-  Span,
-  Time,
-  time,
-} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {checkerboardExcept} from './checkerboard';

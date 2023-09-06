@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {Duration, duration} from '../../common/time';
+import {Duration, duration} from '../../base/time';
 
 interface DurationWidgetAttrs {
   dur: duration;

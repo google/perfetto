@@ -13,17 +13,19 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
 import {Engine} from '../common/engine';
 import {
+  durationFromSql,
   LONG,
   NUM,
   NUM_NULL,
   STR,
   STR_NULL,
+  timeFromSql,
 } from '../common/query_result';
 import {ChromeSliceSelection} from '../common/state';
-import {Duration, Time, time} from '../common/time';
 import {
   CounterDetails,
   globals,
@@ -180,10 +182,10 @@ export class SelectionController extends Controller<'main'> {
         case 'id':
           break;
         case 'ts':
-          ts = Time.fromSql(v);
+          ts = timeFromSql(v);
           break;
         case 'thread_ts':
-          threadTs = Time.fromSql(v);
+          threadTs = timeFromSql(v);
           break;
         case 'absTime':
           if (v) absTime = `${v}`;
@@ -192,10 +194,10 @@ export class SelectionController extends Controller<'main'> {
           name = `${v}`;
           break;
         case 'dur':
-          dur = Duration.fromSql(v);
+          dur = durationFromSql(v);
           break;
         case 'thread_dur':
-          threadDur = Duration.fromSql(v);
+          threadDur = durationFromSql(v);
           break;
         case 'category':
         case 'cat':

@@ -15,7 +15,7 @@
 import {defer, Deferred} from '../base/deferred';
 import {Disposable} from '../base/disposable';
 import {assertExists, assertTrue} from '../base/logging';
-import {Span, Time} from '../common/time';
+import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {
   ComputeMetricArgs,
   ComputeMetricResult,
@@ -36,7 +36,6 @@ import {
   STR,
   WritableQueryResult,
 } from './query_result';
-import {duration, time, TimeSpan} from './time';
 
 import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
 import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;

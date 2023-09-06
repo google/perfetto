@@ -12,23 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {globals} from '../frontend/globals';
-
-import {createEmptyState} from './empty_state';
 import {
-
   Duration,
   Time,
   Timecode,
   TimeSpan,
-} from './time';
-
-beforeAll(() => {
-  globals.initStore(createEmptyState());
-  globals.store.edit((draft) => {
-    draft.traceTime.start = Time.fromRaw(0n);
-  });
-});
+} from '../base/time';
 
 test('Duration.format', () => {
   expect(Duration.format(0n)).toEqual('0s');

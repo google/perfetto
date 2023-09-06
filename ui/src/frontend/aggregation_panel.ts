@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Duration} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   AggregateData,
@@ -22,7 +23,6 @@ import {
 } from '../common/aggregation_data';
 import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
-import {Duration} from '../common/time';
 
 import {globals} from './globals';
 import {Panel} from './panel';

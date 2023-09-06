@@ -14,10 +14,10 @@
 
 
 import {searchSegment} from '../../base/binary_search';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
 import {LONG, NUM} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
   TrackController,

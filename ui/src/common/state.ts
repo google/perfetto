@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
+import {duration, Time, time} from '../base/time';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   GenericSliceDetailsTabConfigBase,
@@ -25,7 +26,6 @@ import {
 import {TrackTags} from '../public/index';
 
 import {Direction} from './event_set';
-import {duration, Time, time} from './time';
 
 /**
  * A plain js object, holding objects of type |Class| keyed by string id.

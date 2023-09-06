@@ -16,10 +16,10 @@
 import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
+import {Duration, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
-import {Duration, Time} from '../common/time';
 
 import {Anchor} from './anchor';
 import {copyToClipboard, queryResponseToClipboard} from './clipboard';

@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time, time} from '../base/time';
+
 import {
   HighPrecisionTime as HPTime,
   HighPrecisionTimeSpan as HPTimeInterval,
 } from './high_precision_time';
-import {Time, time} from './time';
 
 // Quick 'n' dirty function to convert a string to a HPtime
 // Used to make tests more readable

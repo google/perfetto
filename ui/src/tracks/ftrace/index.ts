@@ -14,9 +14,9 @@
 
 import {Vnode} from 'mithril';
 
+import {duration, Time, time} from '../../base/time';
 import {colorForString} from '../../common/colorizer';
 import {LONG, NUM, STR} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {
   TrackAdapter,
   TrackControllerAdapter,

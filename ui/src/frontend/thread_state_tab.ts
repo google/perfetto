@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
+import {Duration, time} from '../base/time';
 import {runQuery} from '../common/queries';
-import {Duration, time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 import {addDebugTrack} from '../tracks/debug/slice_track';
 
@@ -252,7 +252,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       'state',
       'blocked_function',
       'height',
-      'table_name'
+      'table_name',
     ];
 
     const sliceColumnSliceNames = [
