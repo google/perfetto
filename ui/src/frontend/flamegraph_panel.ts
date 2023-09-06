@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {findRef} from '../base/dom_utils';
 import {assertExists, assertTrue} from '../base/logging';
+import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
@@ -29,7 +30,6 @@ import {
   FlamegraphStateViewingOption,
   ProfileType,
 } from '../common/state';
-import {Time} from '../common/time';
 import {profileType} from '../controller/flamegraph_controller';
 import {raf} from '../core/raf_scheduler';
 

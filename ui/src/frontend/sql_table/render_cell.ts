@@ -15,8 +15,8 @@
 import m from 'mithril';
 
 import {sqliteString} from '../../base/string_utils';
+import {duration, Duration, Time} from '../../base/time';
 import {Row, SqlValue} from '../../common/query_result';
-import {duration, Duration, Time} from '../../common/time';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
 import {Icons} from '../semantic_icons';

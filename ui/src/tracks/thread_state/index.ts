@@ -15,12 +15,12 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search} from '../../base/binary_search';
 import {assertFalse} from '../../base/logging';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
-import {duration, Time, time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';

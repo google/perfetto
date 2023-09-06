@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {Time} from '../common/time';
+import {Time} from '../base/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';

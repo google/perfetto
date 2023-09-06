@@ -12,11 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {BigintMath} from '../base/bigint_math';
-import {assertTrue} from '../base/logging';
-import {Brand} from '../frontend/brand';
-
-import {ColumnType} from './query_result';
+import {BigintMath} from './bigint_math';
+import {Brand} from './brand';
+import {assertTrue} from './logging';
 
 // The |time| type represents trace time in the same units and domain as trace
 // processor (i.e. typically boot time in nanoseconds, but most of the UI should
@@ -58,20 +56,6 @@ export class Time {
   static fromRaw(v?: bigint): time|undefined;
   static fromRaw(v?: bigint): time|undefined {
     return v as (time | undefined);
-  }
-
-  // Throws if the value cannot be reasonably converted to a bigint.
-  // Assumes value is in native time units.
-  static fromSql(value: ColumnType): time {
-    if (typeof value === 'bigint') {
-      return Time.fromRaw(value);
-    } else if (typeof value === 'number') {
-      return Time.fromRaw(BigInt(Math.floor(value)));
-    } else if (value === null) {
-      return Time.ZERO;
-    } else {
-      throw Error(`Refusing to create time from unrelated type ${value}`);
-    }
   }
 
   // Create a time from seconds.
@@ -146,20 +130,6 @@ export class Duration {
 
   static fromMillis(millis: number) {
     return BigInt(Math.floor((millis / 1e3) * TIME_UNITS_PER_SEC));
-  }
-
-  // Throws if the value cannot be reasonably converted to a bigint.
-  // Assumes value is in nanoseconds.
-  static fromSql(value: ColumnType): duration {
-    if (typeof value === 'bigint') {
-      return value;
-    } else if (typeof value === 'number') {
-      return BigInt(Math.floor(value));
-    } else if (value === null) {
-      return Duration.ZERO;
-    } else {
-      throw Error(`Refusing to create duration from unrelated type ${value}`);
-    }
   }
 
   // Convert time to seconds as a number.
@@ -339,35 +309,4 @@ export class TimeSpan implements Span<time, duration> {
     return new TimeSpan(
         Time.sub(this.start, padding), Time.add(this.end, padding));
   }
-}
-
-export enum TimestampFormat {
-  Timecode = 'timecode',
-  Raw = 'raw',
-  RawLocale = 'rawLocale',
-  Seconds = 'seconds',
-}
-
-let timestampFormatCached: TimestampFormat|undefined;
-
-const TIMESTAMP_FORMAT_KEY = 'timestampFormat';
-const DEFAULT_TIMESTAMP_FORMAT = TimestampFormat.Timecode;
-
-function isTimestampFormat(value: unknown): value is TimestampFormat {
-  return Object.values(TimestampFormat).includes(value as TimestampFormat);
-}
-
-export function timestampFormat(): TimestampFormat {
-  const storedFormat = localStorage.getItem(TIMESTAMP_FORMAT_KEY);
-  if (storedFormat && isTimestampFormat(storedFormat)) {
-    timestampFormatCached = storedFormat;
-  } else {
-    timestampFormatCached = DEFAULT_TIMESTAMP_FORMAT;
-  }
-  return timestampFormatCached;
-}
-
-export function setTimestampFormat(format: TimestampFormat) {
-  timestampFormatCached = format;
-  localStorage.setItem(TIMESTAMP_FORMAT_KEY, format);
 }

@@ -16,8 +16,8 @@ import m from 'mithril';
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';

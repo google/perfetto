@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {time, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {HighPrecisionTimeSpan} from '../common/high_precision_time';
 import {
@@ -22,7 +23,6 @@ import {
   LogEntries,
   LogEntriesKey,
 } from '../common/logs';
-import {time, Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';

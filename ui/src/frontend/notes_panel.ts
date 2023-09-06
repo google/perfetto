@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
-import {Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
 
 import {

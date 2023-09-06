@@ -14,13 +14,9 @@
 
 import m from 'mithril';
 
+import {time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {
-  time,
-  Time,
-  TimestampFormat,
-  timestampFormat,
-} from '../../common/time';
+import {TimestampFormat, timestampFormat} from '../../common/timestamp_format';
 import {Anchor} from '../anchor';
 import {copyToClipboard} from '../clipboard';
 import {globals} from '../globals';
