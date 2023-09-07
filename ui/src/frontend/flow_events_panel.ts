@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {BLANK_CHECKBOX, CHECKBOX} from '../base/icons';
+import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
 import {DurationWidget} from '../widgets/duration';
@@ -173,7 +173,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
               raf.scheduleFullRedraw();
             },
           },
-          allWasChecked ? CHECKBOX : BLANK_CHECKBOX)),
+          allWasChecked ? Icons.Checkbox : Icons.BlankCheckbox)),
     ]));
 
     categoryToFlowsNum.forEach((num, cat) => {
@@ -193,7 +193,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                 raf.scheduleFullRedraw();
               },
             },
-            wasChecked ? CHECKBOX : BLANK_CHECKBOX)),
+            wasChecked ? Icons.Checkbox : Icons.BlankCheckbox)),
       ];
       rows.push(m('tr', data));
     });
