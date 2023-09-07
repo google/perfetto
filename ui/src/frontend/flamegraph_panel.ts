@@ -32,6 +32,8 @@ import {
 } from '../common/state';
 import {profileType} from '../controller/flamegraph_controller';
 import {raf} from '../core/raf_scheduler';
+import {Button} from '../widgets/button';
+import {DurationWidget} from '../widgets/duration';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
@@ -41,8 +43,6 @@ import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
-import {Button} from './widgets/button';
-import {DurationWidget} from './widgets/duration';
 
 interface FlamegraphDetailsPanelAttrs {}
 

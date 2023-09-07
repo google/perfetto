@@ -14,8 +14,6 @@
 
 import m from 'mithril';
 
-import {GridLayout} from '../..//frontend/widgets/grid_layout';
-import {Section} from '../..//frontend/widgets/section';
 import {duration, Time, time} from '../../base/time';
 import {
   ColumnType,
@@ -52,15 +50,17 @@ import {
   ThreadState,
   threadStateRef,
 } from '../../frontend/thread_state';
-import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
+import {DetailsShell} from '../../widgets/details_shell';
+import {DurationWidget} from '../../widgets/duration';
+import {GridLayout} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
 import {
   dictToTree,
   dictToTreeNodes,
   Tree,
   TreeNode,
-} from '../../frontend/widgets/tree';
+} from '../../widgets/tree';
 
 import {ARG_PREFIX} from './add_debug_track_menu';
 

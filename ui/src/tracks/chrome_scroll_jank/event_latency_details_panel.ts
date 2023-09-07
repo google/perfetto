@@ -29,10 +29,10 @@ import {renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
 import {getSlice, SliceDetails, sliceRef} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
-import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
-import {Section} from '../../frontend/widgets/section';
-import {Tree, TreeNode} from '../../frontend/widgets/tree';
+import {DetailsShell} from '../../widgets/details_shell';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
+import {Tree, TreeNode} from '../../widgets/tree';
 
 import {
   getScrollJankSlices,

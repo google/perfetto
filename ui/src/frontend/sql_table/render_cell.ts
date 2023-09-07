@@ -14,17 +14,17 @@
 
 import m from 'mithril';
 
+import {copyToClipboard} from '../../base/clipboard';
+import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {duration, Duration, Time} from '../../base/time';
 import {Row, SqlValue} from '../../common/query_result';
-import {Anchor} from '../anchor';
-import {copyToClipboard} from '../clipboard';
-import {Icons} from '../semantic_icons';
+import {Anchor} from '../../widgets/anchor';
+import {Err} from '../../widgets/error';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {SliceRef} from '../sql/slice';
 import {asSliceSqlId} from '../sql_types';
 import {sqlValueToString} from '../sql_utils';
-import {Err} from '../widgets/error';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Timestamp} from '../widgets/timestamp';
 
 import {Column} from './column';

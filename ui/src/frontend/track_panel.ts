@@ -15,6 +15,7 @@
 import {hex} from 'color-convert';
 import m from 'mithril';
 
+import {BLANK_CHECKBOX, CHECKBOX, PIN} from '../base/icons';
 import {duration, Span, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
@@ -27,7 +28,6 @@ import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {BLANK_CHECKBOX, CHECKBOX, PIN} from './icons';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {PxSpan, TimeScale} from './time_scale';

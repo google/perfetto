@@ -23,8 +23,7 @@ import {EngineProxy} from '../../common/engine';
 import {getErrorMessage} from '../../common/errors';
 import {QueryError} from '../../common/query_result';
 import {scheduleFullRedraw} from '../../widgets/raf';
-
-import {Spinner} from './spinner';
+import {Spinner} from '../../widgets/spinner';
 
 function isVegaLite(spec: unknown): boolean {
   if (typeof spec === 'object') {

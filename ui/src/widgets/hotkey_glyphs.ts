@@ -20,7 +20,7 @@ import {
   Key,
   parseHotkey,
   Platform,
-} from '../../base/hotkeys';
+} from '../base/hotkeys';
 
 import {Icon} from './icon';
 

@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 
+import {BLANK_CHECKBOX, CHECKBOX} from '../base/icons';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
+import {DurationWidget} from '../widgets/duration';
 
 import {Flow, globals} from './globals';
-import {BLANK_CHECKBOX, CHECKBOX} from './icons';
 import {Panel, PanelSize} from './panel';
-import {DurationWidget} from './widgets/duration';
 
 export const ALL_CATEGORIES = '_all_';
 

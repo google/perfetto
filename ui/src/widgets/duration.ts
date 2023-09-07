@@ -13,20 +13,15 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
 
-interface SpinnerAttrs {
-  // Whether to use an ease-in-ease-out animation rather than a linear one.
-  // Defaults to false.
-  easing: boolean;
+import {Duration, duration} from '../base/time';
+
+interface DurationWidgetAttrs {
+  dur: duration;
 }
 
-export class Spinner implements m.ClassComponent<SpinnerAttrs> {
-  view({attrs}: m.Vnode<SpinnerAttrs, this>): void|m.Children {
-    const {
-      easing = false,
-    } = attrs;
-    const classes = classNames(easing && 'easing');
-    return m('.pf-spinner', {class: classes});
+export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
+  view(vnode: m.Vnode<DurationWidgetAttrs>) {
+    return Duration.format(vnode.attrs.dur);
   }
 }

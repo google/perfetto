@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {checkHotkey, Hotkey} from '../../base/hotkeys';
+import {checkHotkey, Hotkey} from '../base/hotkeys';
 
 export interface HotkeyConfig {
   hotkey: Hotkey;

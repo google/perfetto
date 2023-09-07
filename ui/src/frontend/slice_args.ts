@@ -14,23 +14,23 @@
 
 import m from 'mithril';
 
+import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
+import {Anchor} from '../widgets/anchor';
+import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {Section} from '../widgets/section';
+import {Tree, TreeNode} from '../widgets/tree';
 
-import {Anchor} from './anchor';
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
-import {Icons} from './semantic_icons';
 import {Arg} from './sql/args';
 import {SliceDetails} from './sql/slice';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
-import {MenuItem, PopupMenu2} from './widgets/menu';
-import {Section} from './widgets/section';
-import {Tree, TreeNode} from './widgets/tree';
 
 // Renders slice arguments (key/value pairs) into a Tree widget.
 export function renderArguments(

@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {classNames} from '../classnames';
+import {classNames} from '../base/classnames';
 
 import {Button} from './button';
 import {Popup} from './popup';

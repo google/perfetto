@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
-import {hasChildren} from '../../base/mithril_utils';
-import {classNames} from '../classnames';
+import {classNames} from '../base/classnames';
+import {hasChildren} from '../base/mithril_utils';
 
 import {Icon} from './icon';
 import {Popup, PopupAttrs, PopupPosition} from './popup';

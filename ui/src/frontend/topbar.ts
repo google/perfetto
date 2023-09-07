@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {classNames} from '../base/classnames';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
 
-import {classNames} from './classnames';
 import {globals} from './globals';
 import {taskTracker} from './task_tracker';
 

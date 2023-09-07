@@ -16,14 +16,14 @@ import m from 'mithril';
 
 import {ColumnType} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
+import {DetailsShell} from '../widgets/details_shell';
+import {GridLayout} from '../widgets/grid_layout';
+import {Section} from '../widgets/section';
+import {SqlRef} from '../widgets/sql_ref';
+import {dictToTree, Tree, TreeNode} from '../widgets/tree';
 
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {sqlValueToString} from './sql_utils';
-import {DetailsShell} from './widgets/details_shell';
-import {GridLayout} from './widgets/grid_layout';
-import {Section} from './widgets/section';
-import {SqlRef} from './widgets/sql_ref';
-import {dictToTree, Tree, TreeNode} from './widgets/tree';
 
 export interface ColumnConfig {
   displayName?: string;
