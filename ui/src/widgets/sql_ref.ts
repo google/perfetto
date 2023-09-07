@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
-import {Anchor} from '../anchor';
-import {copyToClipboard} from '../clipboard';
-import {Icons} from '../semantic_icons';
+import {copyToClipboard} from '../base/clipboard';
+import {Icons} from '../base/semantic_icons';
 
+import {Anchor} from './anchor';
 import {MenuItem, PopupMenu2} from './menu';
 
 // This widget provides common styling and popup menu options for a SQL row,

@@ -14,14 +14,14 @@
 
 import m from 'mithril';
 
+import {Icons} from '../../base/semantic_icons';
 import {EngineProxy} from '../../common/engine';
 import {Row} from '../../common/query_result';
-import {Anchor} from '../anchor';
-import {Icons} from '../semantic_icons';
-import {BasicTable} from '../widgets/basic_table';
-import {Button} from '../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
-import {Spinner} from '../widgets/spinner';
+import {Anchor} from '../../widgets/anchor';
+import {BasicTable} from '../../widgets/basic_table';
+import {Button} from '../../widgets/button';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Spinner} from '../../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
 import {argColumn, Column, columnFromSqlTableColumn} from './column';

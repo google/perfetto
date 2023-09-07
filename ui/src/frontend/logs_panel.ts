@@ -24,14 +24,14 @@ import {
   LogEntriesKey,
 } from '../common/logs';
 import {raf} from '../core/raf_scheduler';
+import {DetailsShell} from '../widgets/details_shell';
+import {VirtualScrollContainer} from '../widgets/virtual_scroll_container';
 
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
 import {Panel} from './panel';
-import {DetailsShell} from './widgets/details_shell';
 import {Timestamp} from './widgets/timestamp';
-import {VirtualScrollContainer} from './widgets/virtual_scroll_container';
 
 const ROW_H = 20;
 

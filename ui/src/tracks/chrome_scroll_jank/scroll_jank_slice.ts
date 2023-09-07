@@ -14,19 +14,19 @@
 
 import m from 'mithril';
 
+import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM} from '../../common/query_result';
-import {Anchor} from '../../frontend/anchor';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
-import {Icons} from '../../frontend/semantic_icons';
 import {SliceSqlId} from '../../frontend/sql_types';
 import {
   constraintsToQuerySuffix,
   SQLConstraints,
 } from '../../frontend/sql_utils';
+import {Anchor} from '../../widgets/anchor';
 
 import {EventLatencyTrack} from './event_latency_track';
 import {ScrollJankPluginState, ScrollJankTrackSpec} from './index';

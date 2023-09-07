@@ -15,6 +15,13 @@
 import {hex} from 'color-convert';
 import m from 'mithril';
 
+import {
+  BLANK_CHECKBOX,
+  CHECKBOX,
+  EXPAND_DOWN,
+  EXPAND_UP,
+  INDETERMINATE_CHECKBOX,
+} from '../base/icons';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {
@@ -25,13 +32,6 @@ import {
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {
-  BLANK_CHECKBOX,
-  CHECKBOX,
-  EXPAND_DOWN,
-  EXPAND_UP,
-  INDETERMINATE_CHECKBOX,
-} from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TrackChips, TrackContent} from './track_panel';
