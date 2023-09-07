@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {classNames} from '../classnames';
+import {classNames} from '../base/classnames';
 
 export interface TextInputAttrs {
   [htmlAttrs: string]: any;

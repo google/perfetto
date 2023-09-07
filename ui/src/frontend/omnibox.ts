@@ -14,14 +14,13 @@
 
 import m from 'mithril';
 
+import {classNames} from '../base/classnames';
 import {FuzzySegment} from '../base/fuzzy';
 import {exists} from '../base/utils';
 import {raf} from '../core/raf_scheduler';
-
-import {classNames} from './classnames';
-import {EmptyState} from './widgets/empty_state';
-import {KeycapGlyph} from './widgets/hotkey_glyphs';
-import {Popup} from './widgets/popup';
+import {EmptyState} from '../widgets/empty_state';
+import {KeycapGlyph} from '../widgets/hotkey_glyphs';
+import {Popup} from '../widgets/popup';
 
 interface OmniboxOptionRowAttrs {
   // Human readable display name for the option.

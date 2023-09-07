@@ -33,13 +33,13 @@ import {
   Table,
   TableData,
 } from '../../frontend/tables/table';
-import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
-import {Section} from '../../frontend/widgets/section';
-import {SqlRef} from '../../frontend/widgets/sql_ref';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {dictToTreeNodes, Tree} from '../../frontend/widgets/tree';
+import {DetailsShell} from '../../widgets/details_shell';
+import {DurationWidget} from '../../widgets/duration';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
+import {SqlRef} from '../../widgets/sql_ref';
+import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
 import {
   getScrollJankSlices,

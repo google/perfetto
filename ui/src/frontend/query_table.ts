@@ -16,21 +16,22 @@
 import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
+import {copyToClipboard} from '../base/clipboard';
 import {Duration, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../common/query_result';
+import {Anchor} from '../widgets/anchor';
+import {Button} from '../widgets/button';
+import {Callout} from '../widgets/callout';
+import {DetailsShell} from '../widgets/details_shell';
 
-import {Anchor} from './anchor';
-import {copyToClipboard, queryResponseToClipboard} from './clipboard';
+import {queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
 import {Panel} from './panel';
 import {Router} from './router';
 import {reveal} from './scroll_helper';
-import {Button} from './widgets/button';
-import {Callout} from './widgets/callout';
-import {DetailsShell} from './widgets/details_shell';
 
 interface QueryTableRowAttrs {
   row: Row;

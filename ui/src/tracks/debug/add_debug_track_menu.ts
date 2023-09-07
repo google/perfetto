@@ -16,9 +16,9 @@ import m from 'mithril';
 
 import {findRef} from '../../base/dom_utils';
 import {EngineProxy} from '../../common/engine';
-import {Form, FormLabel} from '../../frontend/widgets/form';
-import {Select} from '../../frontend/widgets/select';
-import {TextInput} from '../../frontend/widgets/text_input';
+import {Form, FormLabel} from '../../widgets/form';
+import {Select} from '../../widgets/select';
+import {TextInput} from '../../widgets/text_input';
 
 import {addDebugTrack, SliceColumns, SqlDataSource} from './slice_track';
 
