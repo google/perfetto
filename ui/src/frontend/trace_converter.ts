@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {download} from '../base/clipboard';
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
@@ -19,7 +20,6 @@ import {
   ConversionJobStatus,
 } from '../common/conversion_jobs';
 
-import {download} from './clipboard';
 import {maybeShowErrorDialog} from './error_dialog';
 import {globals} from './globals';
 import {openBufferWithLegacyTraceViewer} from './legacy_trace_viewer';

@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
+
+import {classNames} from '../base/classnames';
 
 export interface IconAttrs {
   // The material icon name.

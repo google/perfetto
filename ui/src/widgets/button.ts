@@ -13,7 +13,9 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
+
+import {classNames} from '../base/classnames';
+
 import {Icon} from './icon';
 import {Popup} from './popup';
 

@@ -14,14 +14,14 @@
 
 import m from 'mithril';
 
+import {copyToClipboard} from '../../base/clipboard';
+import {Icons} from '../../base/semantic_icons';
 import {exists} from '../../base/utils';
 import {AddDebugTrackMenu} from '../../tracks/debug/add_debug_track_menu';
+import {Button} from '../../widgets/button';
+import {DetailsShell} from '../../widgets/details_shell';
+import {Popup, PopupPosition} from '../../widgets/popup';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from '../bottom_tab';
-import {copyToClipboard} from '../clipboard';
-import {Icons} from '../semantic_icons';
-import {Button} from '../widgets/button';
-import {DetailsShell} from '../widgets/details_shell';
-import {Popup, PopupPosition} from '../widgets/popup';
 
 import {SqlTableState} from './state';
 import {SqlTable} from './table';

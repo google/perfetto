@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {findRef, toHTMLElement} from '../../base/dom_utils';
+import {findRef, toHTMLElement} from '../base/dom_utils';
 
 interface VirtualScrollContainerAttrs {
   // Called when the scrolling element is created, updates, or scrolls.

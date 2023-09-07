@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {BigintMath} from '../../base/bigint_math';
+import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
@@ -26,10 +27,9 @@ import {
   STR,
   STR_NULL,
 } from '../../common/query_result';
-import {Anchor} from '../anchor';
+import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
-import {Icons} from '../semantic_icons';
 import {
   asArgSetId,
   asSliceSqlId,

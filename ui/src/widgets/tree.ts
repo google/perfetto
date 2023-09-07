@@ -14,9 +14,10 @@
 
 import m from 'mithril';
 
-import {hasChildren} from '../../base/mithril_utils';
-import {scheduleFullRedraw} from '../../widgets/raf';
-import {classNames} from '../classnames';
+import {classNames} from '../base/classnames';
+import {hasChildren} from '../base/mithril_utils';
+
+import {scheduleFullRedraw} from './raf';
 
 // Heirachical tree layout but right values are horizontally aligned.
 // Example:

@@ -18,8 +18,15 @@ import {Duration, time} from '../base/time';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
 import {addDebugTrack} from '../tracks/debug/slice_track';
+import {Anchor} from '../widgets/anchor';
+import {Button} from '../widgets/button';
+import {DetailsShell} from '../widgets/details_shell';
+import {DurationWidget} from '../widgets/duration';
+import {GridLayout} from '../widgets/grid_layout';
+import {Section} from '../widgets/section';
+import {SqlRef} from '../widgets/sql_ref';
+import {Tree, TreeNode} from '../widgets/tree';
 
-import {Anchor} from './anchor';
 import {BottomTab, bottomTabRegistry, NewBottomTabArgs} from './bottom_tab';
 import {SchedSqlId, ThreadStateSqlId} from './sql_types';
 import {
@@ -35,14 +42,7 @@ import {
   ThreadState,
   ThreadStateRef,
 } from './thread_state';
-import {Button} from './widgets/button';
-import {DetailsShell} from './widgets/details_shell';
-import {DurationWidget} from './widgets/duration';
-import {GridLayout} from './widgets/grid_layout';
-import {Section} from './widgets/section';
-import {SqlRef} from './widgets/sql_ref';
 import {Timestamp} from './widgets/timestamp';
-import {Tree, TreeNode} from './widgets/tree';
 
 interface ThreadStateTabConfig {
   // Id into |thread_state| sql table.

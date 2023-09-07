@@ -14,14 +14,20 @@
 
 import m from 'mithril';
 
-import {Duration, duration} from '../../base/time';
+import {classNames} from '../base/classnames';
 
-interface DurationWidgetAttrs {
-  dur: duration;
+interface SpinnerAttrs {
+  // Whether to use an ease-in-ease-out animation rather than a linear one.
+  // Defaults to false.
+  easing: boolean;
 }
 
-export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
-  view(vnode: m.Vnode<DurationWidgetAttrs>) {
-    return Duration.format(vnode.attrs.dur);
+export class Spinner implements m.ClassComponent<SpinnerAttrs> {
+  view({attrs}: m.Vnode<SpinnerAttrs, this>): void|m.Children {
+    const {
+      easing = false,
+    } = attrs;
+    const classes = classNames(easing && 'easing');
+    return m('.pf-spinner', {class: classes});
   }
 }

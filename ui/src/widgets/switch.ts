@@ -13,43 +13,36 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
 
-export interface CheckboxAttrs {
-  // Optional text to show to the right of the checkbox.
+import {classNames} from '../base/classnames';
+
+export interface SwitchAttrs {
+  // Optional text to show to the right of the switch.
+  // If omitted, no text will be shown.
   label?: string;
-  // Whether the label is checked or not, defaults to false.
-  // If omitted, the checkbox will be uncontrolled.
+  // Whether the switch is checked or not.
+  // If omitted, the switch will be uncontrolled.
   checked?: boolean;
-  // Make the checkbox appear greyed out block any interaction with it. No
-  // events will be fired.
+  // Make the switch appear greyed out block any interaction with it.
+  // No events will be fired when interacting with it.
   // Defaults to false.
   disabled?: boolean;
-  // Extra classes
-  classes?: string|string[];
   // Remaining attributes forwarded to the underlying HTML <label>.
   [htmlAttrs: string]: any;
 }
 
-export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
-  view({attrs}: m.CVnode<CheckboxAttrs>) {
-    const {
-      label,
-      checked,
-      disabled = false,
-      classes: extraClasses,
-      ...htmlAttrs
-    } = attrs;
+export class Switch implements m.ClassComponent<SwitchAttrs> {
+  view({attrs}: m.CVnode<SwitchAttrs>) {
+    const {label, checked, disabled = false, ...htmlAttrs} = attrs;
 
     const classes = classNames(
         disabled && 'pf-disabled',
-        extraClasses,
     );
 
     // The default checkbox is removed and an entirely new one created inside
     // the span element in CSS.
     return m(
-        'label.pf-checkbox',
+        'label.pf-switch',
         {class: classes, ...htmlAttrs},
         m('input[type=checkbox]', {disabled, checked}),
         m('span'),
