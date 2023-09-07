@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 
-import {scheduleFullRedraw} from '../../widgets/raf';
-import {DESELECT, SELECT_ALL} from '../icons';
+import {DESELECT, SELECT_ALL} from '../base/icons';
 
 import {Button} from './button';
 import {Checkbox} from './checkbox';
 import {EmptyState} from './empty_state';
 import {Popup, PopupPosition} from './popup';
+import {scheduleFullRedraw} from './raf';
 import {TextInput} from './text_input';
 
 export interface Option {

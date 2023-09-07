@@ -16,10 +16,10 @@ import m from 'mithril';
 
 import {EngineProxy} from '../common/engine';
 import {raf} from '../core/raf_scheduler';
+import {Editor} from '../widgets/editor';
 
 import {globals} from './globals';
 import {createPage} from './pages';
-import {Editor} from './widgets/editor';
 import {VegaView} from './widgets/vega_view';
 
 function getEngine(): EngineProxy|undefined {

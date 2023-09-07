@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Icons} from '../base/semantic_icons';
 import {
   duration,
   Time,
@@ -23,11 +24,10 @@ import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
+import {Anchor} from '../widgets/anchor';
 
-import {Anchor} from './anchor';
 import {globals} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
-import {Icons} from './semantic_icons';
 import {
   asUtid,
   SchedSqlId,

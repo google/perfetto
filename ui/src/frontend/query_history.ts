@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {STAR} from './icons';
+import {STAR} from '../base/icons';
 
 import {
   arrayOf,
@@ -25,7 +25,7 @@ import {
   ValidatedType,
 } from '../base/validators';
 import {assertTrue} from '../base/logging';
-import {Icon} from './widgets/icon';
+import {Icon} from '../widgets/icon';
 import {raf} from '../core/raf_scheduler';
 
 const QUERY_HISTORY_KEY = 'queryHistory';
