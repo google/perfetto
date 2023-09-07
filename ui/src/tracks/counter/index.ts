@@ -490,9 +490,14 @@ class CounterTrack extends Track<Config, Data> {
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
-    const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
-        data.totalDeltas :
-        data.lastValues;
+    let values = data.lastValues;
+    if (this.config.scale === 'DELTA_FROM_PREVIOUS') {
+      values = data.totalDeltas;
+    }
+    if (this.config.scale === 'RATE') {
+      values = data.rate;
+    }
+
     const [left, right] = searchSegment(data.timestamps, time.toTime());
     this.hoveredTs =
         left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);
