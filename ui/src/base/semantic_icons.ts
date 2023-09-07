@@ -27,4 +27,14 @@ export class Icons {
   static readonly Close = 'close';
   static readonly Hide = 'visibility_off';
   static readonly Filter = 'filter_list';
+  static readonly BlankCheckbox = 'check_box_outline_blank';
+  static readonly Checkbox = 'check_box';
+  static readonly IndeterminateCheckbox = 'indeterminate_check_box';
+  static readonly ExpandDown = 'expand_more';
+  static readonly ExpandUp = 'expand_less';
+  static readonly Pin = 'push_pin';
+  static readonly LibraryAddCheck = 'library_add_check';
+  static readonly SelectAll = 'select_all';
+  static readonly Deselect = 'deselect';
+  static readonly Star = 'star';
 }
