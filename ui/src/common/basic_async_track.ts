@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {duration, Span, Time, time} from '../base/time';
+import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect} from '../frontend/track';
@@ -89,13 +90,13 @@ export abstract class BasicAsyncTrack<Data> implements TrackLike {
 
   render(ctx: CanvasRenderingContext2D): void {
     if (this.shouldLoadNewData()) {
-      this.loadData(ctx);
+      this.loadData();
     }
 
     this.renderCanvas(ctx);
   }
 
-  private loadData(ctx: CanvasRenderingContext2D): void {
+  private loadData(): void {
     if (this.requestingData) {
       this.queuedRequest = true;
       return;
@@ -120,9 +121,9 @@ export abstract class BasicAsyncTrack<Data> implements TrackLike {
 
       if (this.queuedRequest) {
         this.queuedRequest = false;
-        this.loadData(ctx);
+        this.loadData();
       } else {
-        this.renderCanvas(ctx);
+        raf.scheduleRedraw();
       }
     });
 
