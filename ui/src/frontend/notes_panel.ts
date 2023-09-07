@@ -14,11 +14,13 @@
 
 import m from 'mithril';
 
+import {Icons} from '../base/semantic_icons';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {Button} from '../widgets/button';
 
 import {
   BottomTab,
@@ -35,9 +37,7 @@ import {
   timeScaleForVisibleWindow,
 } from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {Icons} from './semantic_icons';
 import {isTraceLoaded} from './sidebar';
-import {Button} from './widgets/button';
 import {Timestamp} from './widgets/timestamp';
 
 const FLAG_WIDTH = 16;

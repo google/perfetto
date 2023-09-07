@@ -27,11 +27,11 @@ import {pluginManager, PluginManager} from '../common/plugins';
 import {STR} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
 import {MetricVisualisation} from '../public';
+import {Select} from '../widgets/select';
+import {Spinner} from '../widgets/spinner';
 
 import {globals} from './globals';
 import {createPage} from './pages';
-import {Select} from './widgets/select';
-import {Spinner} from './widgets/spinner';
 import {VegaView} from './widgets/vega_view';
 
 type Format = 'json'|'prototext'|'proto';

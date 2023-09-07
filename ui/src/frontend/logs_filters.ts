@@ -15,11 +15,11 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {Button} from '../widgets/button';
+import {Select} from '../widgets/select';
+import {TextInput} from '../widgets/text_input';
 
 import {globals} from './globals';
-import {Button} from './widgets/button';
-import {Select} from './widgets/select';
-import {TextInput} from './widgets/text_input';
 
 export const LOG_PRIORITIES =
     ['-', '-', 'Verbose', 'Debug', 'Info', 'Warn', 'Error', 'Fatal'];

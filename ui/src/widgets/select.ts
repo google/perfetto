@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
-import {exists} from '../../base/utils';
-import {scheduleFullRedraw} from '../../widgets/raf';
+import {exists} from '../base/utils';
 
 import {Menu, MenuItem} from './menu';
+import {scheduleFullRedraw} from './raf';
 import {TextInput} from './text_input';
 
 export interface SelectAttrs {
