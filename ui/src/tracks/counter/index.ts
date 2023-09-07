@@ -23,8 +23,6 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {Button} from '../../frontend/widgets/button';
-import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
 import {
   LONG,
   LONG_NULL,
@@ -36,6 +34,8 @@ import {
   TracePluginContext,
   TrackInfo,
 } from '../../public';
+import {Button} from '../../widgets/button';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 

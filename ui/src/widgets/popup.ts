@@ -16,10 +16,10 @@ import {createPopper, Instance, OptionsGeneric} from '@popperjs/core';
 import type {Modifier, StrictModifiers} from '@popperjs/core';
 import m from 'mithril';
 import {MountOptions, Portal, PortalAttrs} from './portal';
-import {classNames} from '../classnames';
-import {findRef, isOrContains, toHTMLElement} from '../../base/dom_utils';
-import {assertExists} from '../../base/logging';
-import {scheduleFullRedraw} from '../../widgets/raf';
+import {classNames} from '../base/classnames';
+import {findRef, isOrContains, toHTMLElement} from '../base/dom_utils';
+import {assertExists} from '../base/logging';
+import {scheduleFullRedraw} from './raf';
 
 type CustomModifier = Modifier<'sameWidth', {}>;
 type ExtendedModifiers = StrictModifiers|CustomModifier;

@@ -18,18 +18,18 @@ import {time, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {colorForString} from '../common/colorizer';
 import {StringListPatch} from '../common/state';
-
-import {globals} from './globals';
-import {Panel} from './panel';
-import {DetailsShell} from './widgets/details_shell';
+import {DetailsShell} from '../widgets/details_shell';
 import {
   MultiSelectDiff,
   Option as MultiSelectOption,
   PopupMultiSelect,
-} from './widgets/multiselect';
-import {PopupPosition} from './widgets/popup';
+} from '../widgets/multiselect';
+import {PopupPosition} from '../widgets/popup';
+import {VirtualScrollContainer} from '../widgets/virtual_scroll_container';
+
+import {globals} from './globals';
+import {Panel} from './panel';
 import {Timestamp} from './widgets/timestamp';
-import {VirtualScrollContainer} from './widgets/virtual_scroll_container';
 
 const ROW_H = 20;
 const PAGE_SIZE = 250;

@@ -13,7 +13,8 @@
 // limitations under the License.
 
 import m from 'mithril';
-import {classNames} from '../classnames';
+
+import {classNames} from '../base/classnames';
 
 interface DetailsShellAttrs {
   title: m.Children;
