@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {STAR} from '../base/icons';
+import {Icons} from '../base/semantic_icons';
 
 import {
   arrayOf,
@@ -76,7 +76,7 @@ export class HistoryItemComponent implements
                   raf.scheduleFullRedraw();
                 },
               },
-              m(Icon, {icon: STAR, filled: vnode.attrs.entry.starred}),
+              m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
               ),
           m('button',
             {

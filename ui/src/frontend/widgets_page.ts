@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 import {Hotkey, Platform} from '../base/hotkeys';
-import {LIBRARY_ADD_CHECK} from '../base/icons';
 import {Icons} from '../base/semantic_icons';
 import {raf} from '../core/raf_scheduler';
 import {Anchor} from '../widgets/anchor';
@@ -666,7 +665,7 @@ export const WidgetsPage = createPage({
             }),
             popupPosition: PopupPosition.Top,
             label: 'Multi Select',
-            icon: icon ? LIBRARY_ADD_CHECK : undefined,
+            icon: icon ? Icons.LibraryAddCheck : undefined,
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;
