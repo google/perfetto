@@ -37,7 +37,7 @@ import {
 } from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {isTraceLoaded} from './sidebar';
-import { customButtonRegistry } from './button_registry';
+import {customButtonRegistry} from './button_registry';
 
 const FLAG_WIDTH = 16;
 const AREA_TRIANGLE_WIDTH = 10;
@@ -85,6 +85,10 @@ export class NotesPanel extends Panel {
             this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
             e.stopPropagation();
           },
+          oncontextmenu: (e: PerfettoMouseEvent)=>{
+            this.onRightClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+            e.stopPropagation();
+          },
         },
         isTraceLoaded() ?
             [
@@ -109,7 +113,7 @@ export class NotesPanel extends Panel {
                 m('i.material-icons',
                   {title: 'Clear all pinned tracks'},
                   'clear_all')),
-              this.renderCustomButtons()
+              this.renderCustomButtons(),
             ] :
             '');
     }
@@ -118,20 +122,20 @@ export class NotesPanel extends Panel {
       const mithrilButtons: m.Vnode<any, any>[] = [];
       const values = customButtonRegistry.values();
       let result = values.next();
-      while(!result.done){
-        if(!result.value){
+      while (!result.done) {
+        if (!result.value) {
           break;
         }
-        let savedValue = result.value;
+        const savedValue = result.value;
         const htmlButton = m(
           'button',
           {
               onclick: (e: Event) => {
                   e.preventDefault();
                   savedValue.callback();
-              }
+              },
           },
-          m('i.material-icons', { title: result.value.title }, result.value.icon)
+          m('i.material-icons', {title: result.value.title}, result.value.icon),
         );
         mithrilButtons.push(htmlButton);
         result =values.next();
@@ -293,11 +297,11 @@ export class NotesPanel extends Panel {
 
 
   private onClick(x: number, _: number) {
-    if (x < 0) return;
+    if (x < 0 || !this.hoveredX) return;
     const {visibleTimeScale} = globals.frontendLocalState;
     const timestamp = visibleTimeScale.pxToHpTime(x).toTPTime();
     for (const note of Object.values(globals.state.notes)) {
-      if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
+      if (this.mouseOverNote(this.hoveredX, note)) {
         if (note.noteType === 'AREA') {
           globals.makeSelection(
               Actions.reSelectArea({areaId: note.areaId, noteId: note.id}));
@@ -309,6 +313,16 @@ export class NotesPanel extends Panel {
     }
     const color = randomColor();
     globals.makeSelection(Actions.addNote({timestamp, color}));
+  }
+
+  private onRightClick(x: number, _: number) {
+    if (x < 0 || !this.hoveredX) return;
+    for (const note of Object.values(globals.state.notes)) {
+      if (note.noteType !== 'AREA' && this.mouseOverNote(this.hoveredX, note)) {
+        globals.dispatch(Actions.removeNote(note));
+        return;
+      }
+    }
   }
 
   private mouseOverNote(x: number, note: AreaNote|Note): boolean {
