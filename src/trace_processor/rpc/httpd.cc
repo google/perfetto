@@ -126,17 +126,21 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     last_req_id = seq_id;
   }
 
-  // This is the default. Overridden by the /query handler for chunked replies.
-  char transfer_encoding_hdr[255] = "Transfer-Encoding: identity";
-  std::initializer_list<const char*> headers = {
+  // This is the default.
+  std::initializer_list<const char*> default_headers = {
       "Cache-Control: no-cache",               //
       "Content-Type: application/x-protobuf",  //
-      transfer_encoding_hdr,                   //
+  };
+  // Used by the /query and /rpc handlers for chunked replies.
+  std::initializer_list<const char*> chunked_headers = {
+      "Cache-Control: no-cache",               //
+      "Content-Type: application/x-protobuf",  //
+      "Transfer-Encoding: chunked",            //
   };
 
   if (req.uri == "/status") {
     auto status = trace_processor_rpc_.GetStatus();
-    return conn.SendResponse("200 OK", headers, Vec2Sv(status));
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(status));
   }
 
   if (req.uri == "/websocket" && req.is_websocket_handshake) {
@@ -155,9 +159,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
 
   if (req.uri == "/rpc") {
     // Start the chunked reply.
-    base::StringCopy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
-                     sizeof(transfer_encoding_hdr));
-    conn.SendResponseHeaders("200 OK", headers,
+    conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
     PERFETTO_CHECK(g_cur_conn == nullptr);
     g_cur_conn = req.conn;
@@ -179,18 +181,18 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     if (!status.ok()) {
       result->set_error(status.c_message());
     }
-    return conn.SendResponse("200 OK", headers,
+    return conn.SendResponse("200 OK", default_headers,
                              Vec2Sv(result.SerializeAsArray()));
   }
 
   if (req.uri == "/notify_eof") {
     trace_processor_rpc_.NotifyEndOfFile();
-    return conn.SendResponse("200 OK", headers);
+    return conn.SendResponse("200 OK", default_headers);
   }
 
   if (req.uri == "/restore_initial_tables") {
     trace_processor_rpc_.RestoreInitialTables();
-    return conn.SendResponse("200 OK", headers);
+    return conn.SendResponse("200 OK", default_headers);
   }
 
   // New endpoint, returns data in batches using chunked transfer encoding.
@@ -201,9 +203,7 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
     std::vector<uint8_t> response;
 
     // Start the chunked reply.
-    base::StringCopy(transfer_encoding_hdr, "Transfer-Encoding: chunked",
-                     sizeof(transfer_encoding_hdr));
-    conn.SendResponseHeaders("200 OK", headers,
+    conn.SendResponseHeaders("200 OK", chunked_headers,
                              base::HttpServerConnection::kOmitContentLength);
 
     // |on_result_chunk| will be called nested within the same callstack of the
@@ -226,21 +226,21 @@ void Httpd::OnHttpRequest(const base::HttpRequest& req) {
   if (req.uri == "/compute_metric") {
     std::vector<uint8_t> res = trace_processor_rpc_.ComputeMetric(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
-    return conn.SendResponse("200 OK", headers, Vec2Sv(res));
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
   if (req.uri == "/enable_metatrace") {
     trace_processor_rpc_.EnableMetatrace(
         reinterpret_cast<const uint8_t*>(req.body.data()), req.body.size());
-    return conn.SendResponse("200 OK", headers);
+    return conn.SendResponse("200 OK", default_headers);
   }
 
   if (req.uri == "/disable_and_read_metatrace") {
     std::vector<uint8_t> res = trace_processor_rpc_.DisableAndReadMetatrace();
-    return conn.SendResponse("200 OK", headers, Vec2Sv(res));
+    return conn.SendResponse("200 OK", default_headers, Vec2Sv(res));
   }
 
-  return conn.SendResponseAndClose("404 Not Found", headers);
+  return conn.SendResponseAndClose("404 Not Found", default_headers);
 }
 
 void Httpd::OnWebsocketMessage(const base::WebsocketMessage& msg) {
