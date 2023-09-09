@@ -41,21 +41,20 @@
 
 * [Trace analysis](#)
   * [Trace Processor](analysis/trace-processor.md)
-  * [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
   * [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
-  * [PerfettoSQL Tables](analysis/sql-tables.autogen)
-  * [PerfettoSQL Built-ins](analysis/builtin.md)
+  * [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
+  * [PerfettoSQL Prelude](analysis/sql-tables.autogen)
   * [PerfettoSQL Common Queries](analysis/common-queries.md)
+  * [PerfettoSQL Built-ins](analysis/builtin.md)
   * [Trace-based metrics](analysis/metrics.md)
   * [Batch Trace Processor](analysis/batch-trace-processor.md)
-  * [Stats table](analysis/sql-stats.autogen)
-  * [Pivot tables](analysis/pivot-tables.md)
 
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
   * [Visualising large traces](visualization/large-traces.md)
   * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
   * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
+  * [Pivot tables](analysis/pivot-tables.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
@@ -71,6 +70,7 @@
   * [heap_profile cmdline](reference/heap_profile-cli.md)
   * [Synthetic TrackEvent](reference/synthetic-track-event.md)
   * [Android Version Notes](reference/android-version-notes.md)
+  * [Stats table](analysis/sql-stats.autogen)
 
 * [Contributing](#)
     * [Getting started](contributing/getting-started.md)
