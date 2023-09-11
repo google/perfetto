@@ -76,11 +76,34 @@ struct Exp : public SqlFunction {
   }
 };
 
+struct Sqrt : public SqlFunction {
+  static base::Status Run(Context*,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors&) {
+    PERFETTO_CHECK(argc == 1);
+    switch (sqlite3_value_numeric_type(argv[0])) {
+      case SQLITE_INTEGER:
+      case SQLITE_FLOAT:
+        out = SqlValue::Double(std::sqrt(sqlite3_value_double(argv[0])));
+        break;
+      case SqlValue::kNull:
+      case SqlValue::kString:
+      case SqlValue::kBytes:
+        break;
+    }
+
+    return base::OkStatus();
+  }
+};
+
 }  // namespace
 
 base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
   RETURN_IF_ERROR(engine.RegisterCppFunction<Ln>("ln", 1, nullptr, true));
-  return engine.RegisterCppFunction<Exp>("exp", 1, nullptr, true);
+  RETURN_IF_ERROR(engine.RegisterCppFunction<Exp>("exp", 1, nullptr, true));
+  return engine.RegisterCppFunction<Sqrt>("sqrt", 1, nullptr, true);
 }
 
 }  // namespace perfetto::trace_processor
