@@ -20,6 +20,7 @@ service traced /system/bin/traced
     user nobody
     group nobody
     task_profiles ServiceCapacityLow
+    priority -10
 
 service traced_probes /system/bin/traced_probes
     class late_start
@@ -34,6 +35,7 @@ service traced_probes /system/bin/traced_probes
     onrestart exec_background - nobody shell -- /system/bin/traced_probes --cleanup-after-crash
     file /dev/kmsg w
     capabilities DAC_READ_SEARCH
+    priority -10
 
 on property:persist.device_config.global_settings.sys_traced=1
     setprop persist.traced.enable 1
