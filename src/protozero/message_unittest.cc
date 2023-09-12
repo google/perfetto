@@ -236,6 +236,28 @@ TEST_F(MessageTest, AppendScatteredBytes) {
   EXPECT_EQ("42424242", GetNextSerializedBytes(4));
 }
 
+TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
+  Message* root_msg = NewMessage();
+
+  uint8_t buffer[42];
+  memset(buffer, 0x42, sizeof(buffer));
+
+  FakeChildMessage* nested_msg =
+      root_msg->BeginNestedMessage<FakeChildMessage>(9001 /* field_id */);
+  nested_msg->AppendVarInt(4 /* field_id */, 2);
+  uint8_t* nested_msg_size_field = nested_msg->size_field();
+
+  EXPECT_FALSE(nested_msg->is_finalized());
+  EXPECT_EQ(0u, *nested_msg_size_field);
+
+  ContiguousMemoryRange ranges[] = {{buffer, buffer + sizeof(buffer)}};
+  root_msg->AppendScatteredBytes(1 /* field_id */, ranges, 1);
+
+  // Nested message should have been finalized as a side effect of appending
+  // scattered bytes.
+  EXPECT_EQ(0x82u, *nested_msg_size_field);
+}
+
 // Checks that the size field of root and nested messages is properly written
 // on finalization.
 TEST_F(MessageTest, BackfillSizeOnFinalization) {
