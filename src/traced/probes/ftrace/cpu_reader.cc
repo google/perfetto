@@ -178,21 +178,21 @@ CpuReader::CpuReader(size_t cpu,
 CpuReader::~CpuReader() = default;
 
 size_t CpuReader::ReadCycle(
-    uint8_t* parsing_buf,
-    size_t parsing_buf_size_pages,
+    ParsingBuffers* parsing_bufs,
     size_t max_pages,
     const std::set<FtraceDataSource*>& started_data_sources) {
-  PERFETTO_DCHECK(max_pages > 0 && parsing_buf_size_pages > 0);
+  PERFETTO_DCHECK(max_pages > 0 && parsing_bufs->ftrace_data_buf_pages() > 0);
   metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                              metatrace::FTRACE_CPU_READ_CYCLE);
 
   // Work in batches to keep cache locality, and limit memory usage.
   size_t total_pages_read = 0;
   for (bool is_first_batch = true;; is_first_batch = false) {
-    size_t batch_pages =
-        std::min(parsing_buf_size_pages, max_pages - total_pages_read);
+    size_t batch_pages = std::min(parsing_bufs->ftrace_data_buf_pages(),
+                                  max_pages - total_pages_read);
     size_t pages_read = ReadAndProcessBatch(
-        parsing_buf, batch_pages, is_first_batch, started_data_sources);
+        parsing_bufs->ftrace_data_buf(), batch_pages, is_first_batch,
+        parsing_bufs->compact_sched_buf(), started_data_sources);
 
     PERFETTO_DCHECK(pages_read <= batch_pages);
     total_pages_read += pages_read;
@@ -218,6 +218,7 @@ size_t CpuReader::ReadAndProcessBatch(
     uint8_t* parsing_buf,
     size_t max_pages,
     bool first_batch_in_cycle,
+    CompactSchedBuffer* compact_sched_buf,
     const std::set<FtraceDataSource*>& started_data_sources) {
   size_t pages_read = 0;
   {
@@ -294,8 +295,9 @@ size_t CpuReader::ReadAndProcessBatch(
   for (FtraceDataSource* data_source : started_data_sources) {
     size_t pages_parsed_ok = ProcessPagesForDataSource(
         data_source->trace_writer(), data_source->mutable_metadata(), cpu_,
-        data_source->parsing_config(), parsing_buf, pages_read, table_,
-        symbolizer_, ftrace_clock_snapshot_, ftrace_clock_);
+        data_source->parsing_config(), parsing_buf, pages_read,
+        compact_sched_buf, table_, symbolizer_, ftrace_clock_snapshot_,
+        ftrace_clock_);
     // If this happens, it means that we did not know how to parse the kernel
     // binary format. This is a bug in either perfetto or the kernel, and must
     // be investigated. Hence we abort instead of recording a bit in the ftrace
@@ -337,7 +339,7 @@ void CpuReader::Bundler::FinalizeAndRunSymbolizer() {
   }
 
   if (compact_sched_enabled_) {
-    compact_sched_buffer_.WriteAndReset(bundle_);
+    compact_sched_buf_->WriteAndReset(bundle_);
   }
 
   bundle_->Finalize();
@@ -408,13 +410,14 @@ size_t CpuReader::ProcessPagesForDataSource(
     const FtraceDataSourceConfig* ds_config,
     const uint8_t* parsing_buf,
     const size_t pages_read,
+    CompactSchedBuffer* compact_sched_buf,
     const ProtoTranslationTable* table,
     LazyKernelSymbolizer* symbolizer,
     const FtraceClockSnapshot* ftrace_clock_snapshot,
     protos::pbzero::FtraceClock ftrace_clock) {
   Bundler bundler(trace_writer, metadata,
                   ds_config->symbolize_ksyms ? symbolizer : nullptr, cpu,
-                  ftrace_clock_snapshot, ftrace_clock,
+                  ftrace_clock_snapshot, ftrace_clock, compact_sched_buf,
                   ds_config->compact_sched.enabled);
 
   size_t pages_parsed = 0;
@@ -441,7 +444,7 @@ size_t CpuReader::ProcessPagesForDataSource(
     //   interning lookups cheap again.
     bool interner_past_threshold =
         compact_sched_enabled &&
-        bundler.compact_sched_buffer()->interner().interned_comms_size() >
+        bundler.compact_sched_buf()->interner().interned_comms_size() >
             kCompactSchedInternerThreshold;
 
     if (page_header->lost_events || interner_past_threshold) {
@@ -630,7 +633,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
               return 0;
 
             ParseSchedSwitchCompact(start, timestamp, &sched_switch_format,
-                                    bundler->compact_sched_buffer(), metadata);
+                                    bundler->compact_sched_buf(), metadata);
 
             // compact sched_waking
           } else if (compact_sched_enabled &&
@@ -639,7 +642,7 @@ size_t CpuReader::ParsePagePayload(const uint8_t* start_of_payload,
               return 0;
 
             ParseSchedWakingCompact(start, timestamp, &sched_waking_format,
-                                    bundler->compact_sched_buffer(), metadata);
+                                    bundler->compact_sched_buf(), metadata);
 
           } else if (ftrace_print_filter_enabled &&
                      ftrace_event_id == ds_config->print_filter->event_id()) {
