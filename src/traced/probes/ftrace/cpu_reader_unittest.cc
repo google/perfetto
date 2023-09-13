@@ -143,7 +143,7 @@ class ProtoProvider {
   // to parse the buffer as a FtraceEventBundle. Returns the FtraceEventBundle
   // on success and nullptr on failure.
   std::unique_ptr<ProtoT> ParseProto() {
-    auto bundle = std::unique_ptr<ProtoT>(new ProtoT());
+    auto bundle = std::make_unique<ProtoT>();
     std::vector<uint8_t> buffer = writer_.SerializeAsArray();
     if (!bundle->ParseFromArray(buffer.data(), buffer.size()))
       return nullptr;
@@ -394,11 +394,12 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
   CpuReader::Bundler* CreateBundler(const FtraceDataSourceConfig& ds_config) {
     PERFETTO_CHECK(!bundler_.has_value());
     writer_.emplace();
+    compact_sched_buf_ = std::make_unique<CompactSchedBuffer>();
     bundler_.emplace(&writer_.value(), &metadata_, /*symbolizer=*/nullptr,
                      /*cpu=*/0,
                      /*ftrace_clock_snapshot=*/nullptr,
-                     /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
-                     ds_config.compact_sched.enabled);
+                     protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
+                     compact_sched_buf_.get(), ds_config.compact_sched.enabled);
     return &bundler_.value();
   }
 
@@ -424,6 +425,7 @@ class CpuReaderParsePagePayloadTest : public testing::Test {
 
   FtraceMetadata metadata_;
   std::optional<TraceWriterForTesting> writer_;
+  std::unique_ptr<CompactSchedBuffer> compact_sched_buf_;
   std::optional<CpuReader::Bundler> bundler_;
 };
 
@@ -870,6 +872,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
     void* dest = buf.get() + (i * base::kPageSize);
     memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
   }
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
 
   {
     FtraceMetadata metadata{};
@@ -887,7 +890,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
     TraceWriterForTesting trace_writer;
     size_t processed_pages = CpuReader::ProcessPagesForDataSource(
         &trace_writer, &metadata, /*cpu=*/1, &with_filter, buf.get(),
-        kTestPages, table, /*symbolizer=*/nullptr,
+        kTestPages, compact_sched_buf.get(), table, /*symbolizer=*/nullptr,
         /*ftrace_clock_snapshot=*/nullptr,
         protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
@@ -907,7 +910,7 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
     TraceWriterForTesting trace_writer;
     size_t processed_pages = CpuReader::ProcessPagesForDataSource(
         &trace_writer, &metadata, /*cpu=*/1, &without_filter, buf.get(),
-        kTestPages, table, /*symbolizer=*/nullptr,
+        kTestPages, compact_sched_buf.get(), table, /*symbolizer=*/nullptr,
         /*ftrace_clock_snapshot=*/nullptr,
         protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
@@ -1046,9 +1049,9 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
   EXPECT_LT(0u, evt_bytes);
 
   // sched switch fields were buffered:
-  EXPECT_LT(0u, bundler_->compact_sched_buffer()->sched_switch().size());
+  EXPECT_LT(0u, bundler_->compact_sched_buf()->sched_switch().size());
   EXPECT_LT(0u,
-            bundler_->compact_sched_buffer()->interner().interned_comms_size());
+            bundler_->compact_sched_buf()->interner().interned_comms_size());
 
   // Write the buffer out & check the serialized format:
   auto bundle = GetBundle();
@@ -1161,10 +1164,10 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
   EXPECT_LT(0u, evt_bytes);
 
   // sched fields were buffered:
-  EXPECT_LT(0u, bundler_->compact_sched_buffer()->sched_switch().size());
-  EXPECT_LT(0u, bundler_->compact_sched_buffer()->sched_waking().size());
+  EXPECT_LT(0u, bundler_->compact_sched_buf()->sched_switch().size());
+  EXPECT_LT(0u, bundler_->compact_sched_buf()->sched_waking().size());
   EXPECT_LT(0u,
-            bundler_->compact_sched_buffer()->interner().interned_comms_size());
+            bundler_->compact_sched_buf()->interner().interned_comms_size());
 
   // Write the buffer out & check the serialized format:
   auto bundle = GetBundle();
@@ -1622,9 +1625,11 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   TraceWriterForTesting trace_writer;
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   size_t processed_pages = CpuReader::ProcessPagesForDataSource(
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
-      table, /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      compact_sched_buf.get(), table, /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
   ASSERT_EQ(processed_pages, kTestPages);
@@ -1670,9 +1675,11 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceError) {
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
 
   TraceWriterForTesting trace_writer;
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   size_t processed_pages = CpuReader::ProcessPagesForDataSource(
       &trace_writer, &metadata, /*cpu=*/1, &ds_config, buf.get(), kTestPages,
-      table, /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      compact_sched_buf.get(), table, /*symbolizer=*/nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
   EXPECT_EQ(processed_pages, 3u);
@@ -2983,7 +2990,6 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroLengthDataLoc) {
       table->EventToFtraceId(GroupAndName("dpu", "tracing_mark_write")));
 
   FtraceMetadata metadata{};
-  std::unique_ptr<CompactSchedBuffer> compact_buffer(new CompactSchedBuffer());
   const uint8_t* parse_pos = page.get();
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
