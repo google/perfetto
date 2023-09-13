@@ -165,6 +165,9 @@ export interface PluginContext {
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
   registerTrack(track: TrackCreator): void;
+
+  // Add a command.
+  addCommand(command: Command): void;
 }
 
 // TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
@@ -217,8 +220,6 @@ export interface BasePlugin<State> {
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
-  commands?(ctx: PluginContext): Command[];
-  traceCommands?(ctx: TracePluginContext<State>): Command[];
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
   findPotentialTracks?(ctx: TracePluginContext<State>): Promise<TrackInfo[]>;
 }
