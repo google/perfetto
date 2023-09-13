@@ -31,7 +31,7 @@ overlap.
 This is corresponds to the following protos:
 ```
 # Emit this packet once *before* you emit the first event for this process.
-packet: {
+packet {
   track_descriptor: {
     uuid: 894893984                     # 64-bit random number.
     process: {
@@ -42,7 +42,7 @@ packet: {
 }
 
 # Emit this packet once *before* you emit the first event for this thread.
-packet: {
+packet {
   track_descriptor: {
     uuid: 49083589894                   # 64-bit random number.
     parent_uuid: 894893984              # UUID from above.
@@ -55,7 +55,7 @@ packet: {
 }
 
 # The events for this thread.
-packet: {
+packet {
   timestamp: 200
   track_event: {
     type: TYPE_SLICE_BEGIN
@@ -64,7 +64,7 @@ packet: {
   }
   trusted_packet_sequence_id: 3903809   # Generate *once*, use throughout.
 }
-packet: {
+packet {
   timestamp: 250
   track_event: {
     type: TYPE_SLICE_BEGIN
@@ -81,7 +81,7 @@ packet {
   }
   trusted_packet_sequence_id: 3903809
 }
-packet: {
+packet {
   timestamp: 290
   track_event: {
     type: TYPE_SLICE_END
@@ -89,7 +89,7 @@ packet: {
   }
   trusted_packet_sequence_id: 3903809
 }
-packet: {
+packet {
   timestamp: 300
   track_event: {
     type: TYPE_SLICE_END
