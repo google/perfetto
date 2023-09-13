@@ -23,7 +23,7 @@ import {
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {PluginContext} from '../../common/plugin_api';
-import {LONG, NUM} from '../../common/query_result';
+import {LONG, NUM, NUM_NULL} from '../../common/query_result';
 import {
   TPDuration,
   TPTime,
@@ -81,7 +81,15 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     const queryLastSlice = await this.query(`
     select max(id) as lastSliceId from ${this.tableName('sched')}
     `);
-    this.lastRowId = queryLastSlice.firstRow({lastSliceId: NUM}).lastSliceId;
+    const lastRowId = queryLastSlice.firstRow({lastSliceId: NUM_NULL})
+      .lastSliceId;
+    if (lastRowId === null) {
+      // There are no slices whatsoever to present.
+      this.lastRowId = -1;
+      this.maxDur = 0n;
+      return;
+    }
+    this.lastRowId = lastRowId;
 
     const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
     this.maxDur = row.maxDur;
