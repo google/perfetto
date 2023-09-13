@@ -29,7 +29,6 @@ import {DetailsShell} from '../widgets/details_shell';
 import {queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
-import {Panel} from './panel';
 import {Router} from './router';
 import {reveal} from './scroll_helper';
 
@@ -202,7 +201,7 @@ interface QueryTableAttrs {
   fillParent: boolean;
 }
 
-export class QueryTable extends Panel<QueryTableAttrs> {
+export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   view({attrs}: m.CVnode<QueryTableAttrs>) {
     const {
       resp,
@@ -276,6 +275,4 @@ export class QueryTable extends Panel<QueryTableAttrs> {
         m(QueryTableContent, {resp}),
     );
   }
-
-  renderCanvas() {}
 }
