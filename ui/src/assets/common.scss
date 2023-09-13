@@ -436,6 +436,10 @@ $bottom-tab-padding: 10px;
       width: 22px;
       font-size: 18px;
       opacity: 0;
+
+      &.disabled {
+        filter: saturate(0) opacity(35%);
+      }
     }
 
     .track-button.show {
@@ -447,7 +451,7 @@ $bottom-tab-padding: 10px;
       align-items: center;
       justify-content: center;
 
-      &:hover {
+      &:hover:not(.disabled) {
         background-color: #ebeef9;
       }
     }
@@ -683,6 +687,10 @@ button.query-ctrl {
       width: 22px;
       font-size: 18px;
       opacity: 0;
+
+      &.disabled {
+        filter: saturate(0) opacity(35%);
+      }
     }
   }
   &:hover .track-button.action {

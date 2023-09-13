@@ -203,21 +203,33 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   getTrackGroupActionButtons(): m.Vnode<any>[] {
     const result: m.Vnode<any>[] = [];
-      result.push(m('i.material-icons.track-button.action',
-        {
-          onclick: (e: MouseEvent) => {
-            globals.dispatchMultiple([
-              ...this.trackGroupState.tracks.map((trackId) => Actions.removeTrack({trackId})),
-              Actions.removeTrackGroup({
-                  id: this.trackGroupState.id,
-                  summaryTrackId: this.trackGroupState.tracks[0],
-                }),
-              ]);
-            e.stopPropagation();
-          },
-        },
-        'delete'));
+    const action = (e: MouseEvent) => {
+        globals.dispatchMultiple([
+          ...this.trackGroupState.tracks.map(
+            (trackId) => Actions.removeTrack({trackId})),
+          Actions.removeTrackGroup({
+              id: this.trackGroupState.id,
+              summaryTrackId: this.trackGroupState.tracks[0],
+            }),
+          ]);
+        e.stopPropagation();
+      };
+    const disabled = !this.canDeleteTrackGroup(this.trackGroupState);
+    result.push(m('i.material-icons.track-button.action',
+      {
+        class: disabled ? 'disabled' : '',
+        onclick: disabled ? null : action,
+      },
+      'delete'));
     return result;
+  }
+
+  // We cannot delete a track group while its tracks are loading,
+  // otherwise we'll try to read data from tables that have been dropped.
+  // We assume a track group may be loading if its engine is busy.
+  protected canDeleteTrackGroup(trackGroupState: TrackGroupState): boolean {
+    const engine = globals.engines.get(trackGroupState.engineId);
+    return !engine || !engine.hasDataPending;
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {

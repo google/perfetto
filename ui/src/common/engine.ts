@@ -449,6 +449,16 @@ export abstract class Engine {
   getProxy(tag: string): EngineProxy {
     return new EngineProxy(this, tag);
   }
+
+  // Query whether the engine has any data/query results pending.
+  get hasDataPending(): boolean {
+    return this.pendingParses.length > 0 ||
+      this.pendingEOFs.length > 0 ||
+      this.pendingResetTraceProcessors.length > 0 ||
+      this.pendingQueries.length > 0 ||
+      this.pendingRestoreTables.length > 0 ||
+      this.pendingComputeMetrics.length > 0;
+  }
 }
 
 // Lightweight wrapper over Engine exposing only `query` method and annotating

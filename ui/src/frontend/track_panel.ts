@@ -196,14 +196,24 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 
   getTrackShellButtons(attrs: TrackShellAttrs): m.Vnode<TrackButtonAttrs>[] {
     const result = [...attrs.track.getTrackShellButtons()];
-      result.push(m(TrackButton, {
-        action: () => globals.dispatch(Actions.removeTrack({trackId: attrs.trackState.id})),
-        i: 'delete',
-        tooltip: 'Remove track',
-        showButton: false, // Only show on roll-over
-        fullHeight: true,
-      }));
+    result.push(m(TrackButton, {
+      action: () => globals.dispatch(
+        Actions.removeTrack({trackId: attrs.trackState.id})),
+      i: 'delete',
+      tooltip: 'Remove track',
+      showButton: false, // Only show on roll-over
+      fullHeight: true,
+      disabled: !this.canDeleteTrack(attrs.trackState),
+    }));
     return result;
+  }
+
+  // We cannot delete a track while it is loading, otherwise
+  // we'll try to read data from tables that have been dropped.
+  // We assume it may be loading if its engine is busy.
+  protected canDeleteTrack(trackState: TrackState): boolean {
+    const engine = globals.engines.get(trackState.engineId);
+    return !engine || !engine.hasDataPending;
   }
 }
 
@@ -301,6 +311,7 @@ export interface TrackButtonAttrs {
   showButton: boolean;
   fullHeight?: boolean;
   filledIcon?: boolean;
+  disabled?: boolean;
 }
 export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
   view({attrs}: m.CVnode<TrackButtonAttrs>) {
@@ -311,9 +322,9 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
             (attrs.showButton ? 'show' : ''),
             (attrs.fullHeight ? 'full-height' : ''),
             (attrs.filledIcon ? 'material-icons-filled' : 'material-icons'),
-          ].filter(Boolean)
-                     .join(' '),
-          onclick: attrs.action,
+            (attrs.disabled) ? 'disabled' : '',
+          ].filter(Boolean).join(' '),
+          onclick: attrs.disabled ? null : attrs.action,
           title: attrs.tooltip,
         },
         attrs.i);
