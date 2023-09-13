@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {
-  Command,
   Plugin,
   PluginContext,
   PluginInfo,
@@ -40,20 +39,18 @@ class ExampleState implements Plugin<State> {
     //
   }
 
-  traceCommands(ctx: TracePluginContext<State>): Command[] {
+  async onTraceLoad(ctx: TracePluginContext<State>): Promise<void> {
     const {viewer, store} = ctx;
-    return [
-      {
-        id: 'dev.perfetto.ExampleState#ShowCounter',
-        name: 'Show ExampleState counter',
-        callback: () => {
-          const counter = store.state.counter;
-          viewer.tabs.openQuery(
-              `SELECT ${counter} as counter;`, `Show counter ${counter}`);
-          store.edit((draft) => ++draft.counter);
-        },
+    ctx.addCommand({
+      id: 'dev.perfetto.ExampleState#ShowCounter',
+      name: 'Show ExampleState counter',
+      callback: () => {
+        const counter = store.state.counter;
+        viewer.tabs.openQuery(
+            `SELECT ${counter} as counter;`, `Show counter ${counter}`);
+        store.edit((draft) => ++draft.counter);
       },
-    ];
+    });
   }
 }
 

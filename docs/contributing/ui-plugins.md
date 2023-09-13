@@ -63,53 +63,52 @@ They can be accessed via the omnibox.
 
 Follow the [create a plugin](#create-a-plugin) to get an initial
 skeleton for your plugin.
-To add your first command edit either the `commands()` or `traceCommands()`
-methods.
+
+To add your first command, add a call to `ctx.addCommand()` in either your
+`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
+commands in `onActivate()` by default unless they require something from
+`TracePluginContext` which is not available on `PluginContext`.
+
+The tradeoff is that commands registered in `onTraceLoad()` are only available
+while a trace is loaded, whereas commands registered in `onActivate()` are
+available all the time the plugin is active.
 
 ```typescript
 class MyPlugin implements Plugin {
-  // ...
-
-  commands(ctx: PluginContext): Command[] {
-    return [
+  onActivate(ctx: PluginContext): void {
+    ctx.addCommand(
        {
-         id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
-         name: 'Log hello world',
-         callback: () => console.log('Hello, world!'),
+         id: 'dev.perfetto.ExampleSimpleCommand#LogHelloPlugin',
+         name: 'Log "Hello, plugin!"',
+         callback: () => console.log('Hello, plugin!'),
        },
-    ];
+    );
   }
 
-  traceCommands(ctx: TracePluginContext): Command[] {
-    return [
+  onTraceLoad(ctx: TracePluginContext): void {
+    ctx.addCommand(
        {
-         id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloWorld',
-         name: 'Log hello trace',
+         id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloTrace',
+         name: 'Log "Hello, trace!"',
          callback: () => console.log('Hello, trace!'),
        },
-    ];
+    );
   }
 }
 ```
 
-Commands are polled whenever the command list must be updated. When no trace is
-loaded, only the `commands()` method is called, whereas when a trace is loaded,
-both the `commands()` and the `traceCommands()` methods are called, and their
-outputs are concatenated.
-
-The difference between the two is that commands defined in `commands()` only
-have access to the viewer API, whereas commands defined in `traceCommands()` may
-access the store and the engine in addition to the viewer API.
-
-The tradeoff is that commands defined in `traceCommands()` are only available
-when a trace is loaded, whereas commands defined in `commands()` are available
-all the time.
-
 Here `id` is a unique string which identifies this command.
-The `id` should be prefixed with the plugin id followed by a `#`.
-`name` is a human readable name for the command.
+The `id` should be prefixed with the plugin id followed by a `#`. All command
+`id`s must be unique system-wide.
+`name` is a human readable name for the command, which is shown in the command
+palette.
 Finally `callback()` is the callback which actually performs the
 action.
+
+Commands are removed automatically when their context disappears. Commands
+registered with the `PluginContext` are removed when the plugin is deactivated,
+and commands registered with the `TracePluginContext` are removed when the trace
+is unloaded.
 
 Examples:
 - [dev.perfetto.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleSimpleCommand/index.ts).
