@@ -71,6 +71,7 @@ void Message::AppendString(uint32_t field_id, const char* str) {
 }
 
 void Message::AppendBytes(uint32_t field_id, const void* src, size_t size) {
+  PERFETTO_DCHECK(field_id);
   if (nested_message_)
     EndNestedMessage();
 
@@ -90,6 +91,7 @@ void Message::AppendBytes(uint32_t field_id, const void* src, size_t size) {
 size_t Message::AppendScatteredBytes(uint32_t field_id,
                                      ContiguousMemoryRange* ranges,
                                      size_t num_ranges) {
+  PERFETTO_DCHECK(field_id);
   if (nested_message_)
     EndNestedMessage();
 
@@ -143,6 +145,7 @@ uint32_t Message::Finalize() {
 }
 
 Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
+  PERFETTO_DCHECK(field_id);
   if (nested_message_)
     EndNestedMessage();
 
