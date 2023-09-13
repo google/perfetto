@@ -13,19 +13,14 @@
 // limitations under the License.
 
 import {
-  Command,
   Plugin,
   PluginContext,
   PluginInfo,
 } from '../../public';
 
 class LargeScreensPerf implements Plugin {
-  onActivate(_: PluginContext): void {
-    //
-  }
-
-  commands(ctx: PluginContext): Command[] {
-    return [{
+  onActivate(ctx: PluginContext): void {
+    ctx.addCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
@@ -37,7 +32,7 @@ class LargeScreensPerf implements Plugin {
               tags.name == 'Waiting for KeyguardDrawnCallback#onDrawn';
         });
       },
-    }];
+    });
   }
 }
 

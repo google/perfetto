@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {
-  Command,
   MetricVisualisation,
   Plugin,
   PluginContext,
@@ -46,14 +45,6 @@ class Skeleton implements Plugin<State> {
 
   onDeactivate(_: PluginContext): void {
     //
-  }
-
-  commands(_: PluginContext): Command[] {
-    return [];
-  }
-
-  traceCommands(_: TracePluginContext<State>): Command[] {
-    return [];
   }
 
   async findPotentialTracks(_: TracePluginContext<State>):
