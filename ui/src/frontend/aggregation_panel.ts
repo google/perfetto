@@ -25,14 +25,13 @@ import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';
-import {Panel} from './panel';
-
 export interface AggregationPanelAttrs {
   data: AggregateData;
   kind: string;
 }
 
-export class AggregationPanel extends Panel<AggregationPanelAttrs> {
+export class AggregationPanel implements
+    m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     return m(
         '.details-panel',
@@ -137,6 +136,4 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     }
     return m('.states', states);
   }
-
-  renderCanvas() {}
 }

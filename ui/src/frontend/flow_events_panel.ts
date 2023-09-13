@@ -20,7 +20,6 @@ import {raf} from '../core/raf_scheduler';
 import {DurationWidget} from '../widgets/duration';
 
 import {Flow, globals} from './globals';
-import {Panel, PanelSize} from './panel';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -37,7 +36,7 @@ export function getFlowCategories(flow: Flow): string[] {
   return categories;
 }
 
-export class FlowEventsPanel extends Panel {
+export class FlowEventsPanel implements m.ClassComponent {
   view() {
     const selection = globals.state.currentSelection;
     if (!selection || selection.kind !== 'CHROME_SLICE') {
@@ -118,11 +117,9 @@ export class FlowEventsPanel extends Panel {
       m('.flow-events-table', m('table', rows)),
     ]);
   }
-
-  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }
 
-export class FlowEventsAreaSelectedPanel extends Panel {
+export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
   view() {
     const selection = globals.state.currentSelection;
     if (!selection || selection.kind !== 'AREA') {
@@ -203,6 +200,4 @@ export class FlowEventsAreaSelectedPanel extends Panel {
       m('.flow-events-table', m('table', rows)),
     ]);
   }
-
-  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }

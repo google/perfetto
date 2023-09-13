@@ -30,12 +30,11 @@ import {VirtualScrollContainer} from '../widgets/virtual_scroll_container';
 import {SELECTED_LOG_ROWS_COLOR} from './css_constants';
 import {globals} from './globals';
 import {LOG_PRIORITIES, LogsFilters} from './logs_filters';
-import {Panel} from './panel';
 import {Timestamp} from './widgets/timestamp';
 
 const ROW_H = 20;
 
-export class LogPanel extends Panel<{}> {
+export class LogPanel implements m.ClassComponent {
   private bounds?: LogBounds;
   private entries?: LogEntries;
 
@@ -64,7 +63,7 @@ export class LogPanel extends Panel<{}> {
     this.entries = globals.trackDataStore.get(LogEntriesKey) as LogEntries;
   }
 
-  onbeforeupdate(_: m.CVnodeDOM) {
+  onbeforeupdate(_: m.CVnode) {
     // TODO(stevegolton): Type assersions are a source of bugs.
     // Let's try to find another way of doing this.
     this.bounds = globals.trackDataStore.get(LogBoundsKey) as LogBounds;
@@ -176,6 +175,4 @@ export class LogPanel extends Panel<{}> {
             ),
     );
   }
-
-  renderCanvas() {}
 }
