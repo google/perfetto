@@ -252,7 +252,7 @@ async function main() {
     bundleJs('rollup.config.js');
     copyCSSAndWASM();
     genServiceWorkerManifestJson();
-    
+
     // In order to install multiple copies of this package, it
     // cannot just symlink the compiled code
     addTask(resorbLink, [pjoin(ROOT_DIR, 'ui/out')]);
@@ -856,7 +856,7 @@ function cpR(src, dst) {
     console.log(
         'cp -r', path.relative(ROOT_DIR, src), '->', path.relative(ROOT_DIR, dst));
   }
-  fs.cpSync(src, dst, {recursive: true})
+  fs.cpSync(src, dst, {recursive: true});
 }
 
 function mklink(src, dst) {
@@ -865,8 +865,11 @@ function mklink(src, dst) {
   if (fs.existsSync(dst)) {
     if (fs.lstatSync(dst).isSymbolicLink() && fs.readlinkSync(dst) === src) {
       return;
-    } else {
+    } else if (fs.lstatSync(dst).isSymbolicLink()) {
       fs.unlinkSync(dst);
+    } else {
+      // It may have been a symlink that was resorbed
+      fs.rmSync(dst, {recursive: true});
     }
   }
   fs.symlinkSync(src, dst);
@@ -876,7 +879,7 @@ function mklink(src, dst) {
 // linking to. If it's not a link, leave it because we just don't
 // want a link.
 function resorbLink(link) {
-  const stat = fs.lstatSync(link, { throwIfNoEntry: false });
+  const stat = fs.lstatSync(link, {throwIfNoEntry: false});
   if (stat?.isSymbolicLink()) {
     const src = fs.readlinkSync(link);
     fs.unlinkSync(link);

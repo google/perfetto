@@ -105,7 +105,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         m(
             'h1',
             {
-              title: attrs.trackState.name,
+              title: attrs.trackState.description,
               style: {
                 'font-size': getTitleSize(attrs.trackState.name),
               },

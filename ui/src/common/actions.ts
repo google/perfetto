@@ -75,6 +75,7 @@ export interface AddTrackArgs {
   engineId: string;
   kind: string;
   name: string;
+  description?: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
@@ -85,6 +86,7 @@ export interface AddTrackGroupArgs {
   id: string;
   engineId: string;
   name: string;
+  description?: string;
   summaryTrackId: string;
   collapsed: boolean;
 }
@@ -327,6 +329,9 @@ export const StateActions = {
     args.tracks.forEach((track) => {
       const id = track.id === undefined ? generateNextId(state) : track.id;
       track.id = id;
+      track.description = track.description ?
+        `${track.name}\n\n${track.description}` :
+        track.name;
       state.tracks[id] = track as TrackState;
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -345,13 +350,18 @@ export const StateActions = {
   addTrack(state: StateDraft, args: {
     id?: string; engineId: string; kind: string; name: string;
     trackGroup?: string; config: {}; trackSortKey: TrackSortKey;
+    description?: string;
   }): void {
     const id = args.id !== undefined ? args.id : generateNextId(state);
+    const description = args.description ?
+      `${args.name}\n\n${args.description}` :
+      args.name;
     state.tracks[id] = {
       id,
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
+      description,
       trackSortKey: args.trackSortKey,
       trackGroup: args.trackGroup,
       config: args.config,
@@ -372,11 +382,15 @@ export const StateActions = {
       // the reducer.
       args: {
         engineId: string; name: string; id: string; summaryTrackId: string;
-        collapsed: boolean;
+        collapsed: boolean; description?: string;
       }): void {
+    const description = args.description ?
+      `${args.name}\n\n${args.description}` :
+      args.name;
     state.trackGroups[args.id] = {
       engineId: args.engineId,
       name: args.name,
+      description,
       id: args.id,
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],

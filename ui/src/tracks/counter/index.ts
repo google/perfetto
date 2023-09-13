@@ -24,6 +24,7 @@ import {
   NUM,
   PluginContext,
   STR,
+  STR_NULL,
   TrackInfo,
 } from '../../common/plugin_api';
 import {TPDuration, TPTime, tpTimeToSeconds} from '../../common/time';
@@ -524,13 +525,13 @@ class CounterTrack extends Track<Config, Data> {
 
 async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
   const result = await engine.query(`
-    select name, id
+    select name, id, description
     from (
-      select name, id
+      select name, id, description
       from counter_track
       where type = 'counter_track'
       union
-      select name, id
+      select name, id, description
       from gpu_counter_track
       where name != 'gpufreq'
     )
@@ -541,15 +542,18 @@ async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
   const it = result.iter({
     name: STR,
     id: NUM,
+    description: STR_NULL,
   });
 
   const tracks: TrackInfo[] = [];
   for (; it.valid(); it.next()) {
     const name = it.name;
     const trackId = it.id;
+    const description = it.description?.trim() ?? undefined;
     tracks.push({
       trackKind: COUNTER_TRACK_KIND,
       name,
+      description,
       config: {
         name,
         trackId,

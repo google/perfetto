@@ -150,7 +150,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
               this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
           m('.title-wrapper',
             m('h1.track-title',
-              {title: name},
+              {title: trackGroup.description},
               name,
               ('namespace' in this.summaryTrackState.config) &&
                   m('span.chip', 'metric')),

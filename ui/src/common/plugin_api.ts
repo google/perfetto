@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { TrackFilter, TrackGroupFilter } from 'src/controller/track_filter';
+import {TrackFilter, TrackGroupFilter} from 'src/controller/track_filter';
 import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {TrackCreator} from '../frontend/track';
 import {Selection} from './state';
-import { CustomButtonArgs } from '../frontend/button_registry';
+import {CustomButtonArgs} from '../frontend/button_registry';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -37,6 +37,11 @@ export interface TrackInfo {
   // A human readable name for this specific track. It will normally be
   // displayed on the left-hand-side of the track.
   name: string;
+
+  // An optional human readable description for this specific track.
+  // If provided, it will be included in the hover tooltip on the
+  // track name on the left-hand side of the track.
+  description?: string;
 
   // An opaque config for the track.
   config: {};

@@ -202,6 +202,93 @@ class TrackDecider {
     return 'Unknown';
   }
 
+  // Decorate an optional track description with additional contextual
+  // information. The base |description| itself may originate in the
+  // trace database or hard-coded in software.
+  static decorateTrackDescription(description: string | undefined,
+      args: Partial<{
+        upid: number|null,
+        processName: string|null,
+        numThreads: number|null,
+      }>): string | undefined {
+    const {upid, processName, numThreads} = args;
+
+    const hasProcessName = !!processName && upid !== undefined && upid !== null;
+    const hasNumThreads = numThreads !== undefined && numThreads !== null;
+
+    let suffix = '';
+    if (hasProcessName) {
+      suffix = `Process: ${processName} [${upid}]`;
+    } else if (hasNumThreads) {
+      suffix = numThreads === 1 ? '1 thread' : `${numThreads} threads`;
+    }
+
+    const hasDescription = !!description;
+    const hasSuffix = !!suffix;
+
+    if (hasDescription && hasSuffix) {
+      return `${description}\n\n${suffix}`;
+    } else if (hasSuffix) {
+      return suffix;
+    } else {
+      return description;
+    }
+  }
+
+  // Infer a human-readable label (name) for a process counter track, from
+  // information including the track name (as recorded in the trace database).
+  static labelProcessCounter(args: Partial<{
+        trackName: string|null,
+      }>): string {
+    const {trackName} = args;
+
+    const hasTrackName = !!trackName;
+
+    if (hasTrackName) {
+      switch (trackName.toLowerCase()) {
+        case 'mem.rss': return 'Memory - Resident Set Size';
+        case 'mem.rss.anon': return 'Memory - Resident Anonymous';
+        case 'mem.rss.file': return 'Memory - Resident File-backed';
+        case 'mem.rss.shmem': return 'Memory - Resident Shared';
+        case 'mem.rss.watermark': return 'Memory - Resident High Water Mark';
+        case 'mem.locked': return 'Memory - Locked';
+        case 'mem.swap': return 'Memory - Swapped Out';
+        case 'mem.virt': return 'Memory - Virtual Memory Size';
+        case 'oom_score_adj': return 'Memory - Out-of-memory Badness Adjustment';
+        default: return trackName;
+      }
+    }
+
+    return trackName ?? '';
+  }
+
+  // Infer a human-readable description for a process counter track, from
+  // information including the track name (as recorded in the trace database).
+  static describeProcessCounter(args: Partial<{
+        trackName: string|null,
+      }>): string | undefined {
+    const {trackName} = args;
+
+    const hasTrackName = !!trackName;
+
+    if (hasTrackName) {
+      switch (trackName.toLowerCase()) {
+        case 'mem.rss': return 'Resident Set Size: total amount of resident memory for the process. This is the sum of anonymous, file-backed, and shared resident memory.';
+        case 'mem.rss.anon': return 'Size of resident anonymous memory for the process.';
+        case 'mem.rss.file': return 'Size of resident file mappings for the process.';
+        case 'mem.rss.shmem': return 'Size of resident shared memory for the process, including System V shared memory, mappings from tmpfs, and shared anonymous mappings.';
+        case 'mem.rss.watermark': return 'Peak resident set size for the process. As an historical maximum, it never decreases.';
+        case 'mem.locked': return 'Size of physical pages that are locked into memory.';
+        case 'mem.swap': return 'Size of virtual memory that is swapped out, not including shared-memory swap usage.';
+        case 'mem.virt': return 'Total allocated virtual memory for the process.';
+        case 'oom_score_adj': return 'Adjustment to the badness heuristic of the process for out-of-memory conditions. This value is added to the calculated badness of a process before determining which processes to kill. Scores range from 0 (never kill) to 1000 (always kill) and the adjustment recorded in this counter may vary from -1000 to 1000.';
+        default: return undefined;
+      }
+    }
+
+    return undefined;
+  }
+
   async guessCpuSizes(): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await this.engine.query(`
@@ -290,7 +377,8 @@ class TrackDecider {
           where name = 'cpuidle'
           and cpu = ${cpu}
           limit 1
-        ) as cpuIdleId
+        ) as cpuIdleId,
+        description
       from cpu_counter_track
       where name = 'cpufreq' and cpu = ${cpu}
       limit 1;
@@ -300,15 +388,18 @@ class TrackDecider {
         const row = cpuFreqIdleResult.firstRow({
           cpuFreqId: NUM,
           cpuIdleId: NUM_NULL,
+          description: STR_NULL,
         });
         const freqTrackId = row.cpuFreqId;
         const idleTrackId = row.cpuIdleId === null ? undefined : row.cpuIdleId;
+        const description = row.description ?? 'Values of the cpufreq counter for the CPU, along with CPU idle events.';
 
         this.tracksToAdd.push({
           engineId: this.engineId,
           kind: CPU_FREQ_TRACK_KIND,
           trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
           name: `Cpu ${cpu} Frequency`,
+          description,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
             cpu,
@@ -450,17 +541,19 @@ class TrackDecider {
       // Only add a gpu freq track if we have
       // gpu freq data.
       const freqExistsResult = await engine.query(`
-      select id
+      select id, description
       from gpu_counter_track
       where name = 'gpufreq' and gpu_id = ${gpu}
       limit 1;
     `);
       if (freqExistsResult.numRows() > 0) {
-        const trackId = freqExistsResult.firstRow({id: NUM}).id;
+        const {id: trackId, description} = freqExistsResult.firstRow(
+          {id: NUM, description: STR_NULL});
         this.tracksToAdd.push({
           engineId: this.engineId,
           kind: COUNTER_TRACK_KIND,
           name: `Gpu ${gpu} Frequency`,
+          description: description ?? 'Values of the gpufreq counter.',
           trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
           trackGroup: SCROLLING_TRACK_GROUP,
           config: {
@@ -480,7 +573,7 @@ class TrackDecider {
     // wasteful as there's no way of collapsing global counter tracks at the
     // moment.
     const result = await engine.query(`
-      select printf("Cpu %u %s", cpu, name) as name, id
+      select printf("Cpu %u %s", cpu, name) as name, id, description
       from perf_counter_track as pct
       order by perf_session_id asc, pct.name asc, cpu asc
   `);
@@ -488,15 +581,18 @@ class TrackDecider {
     const it = result.iter({
       name: STR,
       id: NUM,
+      description: STR_NULL,
     });
 
     for (; it.valid(); it.next()) {
       const name = it.name;
       const trackId = it.id;
+      const description = it.description ?? 'Values of counter samples for the CPU, from the traced_perf profiler.';
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind: COUNTER_TRACK_KIND,
         name,
+        description,
         trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {
@@ -912,6 +1008,7 @@ class TrackDecider {
         tid,
         upid,
         pid,
+        process.name as processName,
         thread.name as threadName
       from
         thread_state
@@ -925,12 +1022,14 @@ class TrackDecider {
       upid: NUM_NULL,
       tid: NUM_NULL,
       pid: NUM_NULL,
+      processName: STR_NULL,
       threadName: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const tid = it.tid;
       const upid = it.upid;
+      const processName = it.processName;
       const threadName = it.threadName;
       const uuid = this.getUuidUnchecked(utid, upid);
       if (uuid === undefined) {
@@ -944,6 +1043,9 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name: TrackDecider.getTrackName({utid, tid, threadName, kind}),
+        description: TrackDecider.decorateTrackDescription(
+          'Scheduling state of the thread.',
+          {processName, upid}),
         trackGroup: uuid,
         trackSortKey: {
           utid,
@@ -999,8 +1101,10 @@ class TrackDecider {
     const result = await engine.query(`
     select
       thread_counter_track.name as trackName,
+      thread_counter_track.description as description,
       utid,
       upid,
+      process.name as processName,
       tid,
       thread.name as threadName,
       thread_counter_track.id as trackId,
@@ -1014,8 +1118,10 @@ class TrackDecider {
 
     const it = result.iter({
       trackName: STR_NULL,
+      description: STR_NULL,
       utid: NUM,
       upid: NUM_NULL,
+      processName: STR_NULL,
       tid: NUM_NULL,
       threadName: STR_NULL,
       startTs: LONG_NULL,
@@ -1026,8 +1132,10 @@ class TrackDecider {
       const utid = it.utid;
       const tid = it.tid;
       const upid = it.upid;
+      const processName = it.processName;
       const trackId = it.trackId;
       const trackName = it.trackName;
+      const description = it.description?.trim() ?? undefined;
       const threadName = it.threadName;
       const uuid = this.getUuid(utid, upid);
       const startTs = it.startTs === null ? undefined : it.startTs;
@@ -1039,6 +1147,9 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        description: TrackDecider.decorateTrackDescription(
+          description,
+          {processName, upid}),
         trackSortKey: {
           utid,
           priority: InThreadTrackSortKey.ORDINARY,
@@ -1246,7 +1357,8 @@ class TrackDecider {
           tid,
           thread.name as threadName,
           max(slice.depth) as maxDepth,
-          process.upid as upid
+          process.upid as upid,
+          process.name as processName
         from slice
         join thread_track on slice.track_id = thread_track.id
         join thread using(utid)
@@ -1263,6 +1375,7 @@ class TrackDecider {
       threadName: STR_NULL,
       maxDepth: NUM,
       upid: NUM_NULL,
+      processName: STR_NULL,
     });
     for (; it.valid(); it.next()) {
       const utid = it.utid;
@@ -1273,6 +1386,7 @@ class TrackDecider {
       const tid = it.tid;
       const threadName = it.threadName;
       const upid = it.upid;
+      const processName = it.processName;
       const maxDepth = it.maxDepth;
 
       const uuid = this.getUuid(utid, upid);
@@ -1284,6 +1398,9 @@ class TrackDecider {
         engineId: this.engineId,
         kind,
         name,
+        description: TrackDecider.decorateTrackDescription(
+          'Slices from userspace that explain what the thread was doing during the trace',
+          {processName, upid}),
         trackGroup: uuid,
         trackSortKey: {
           utid,
@@ -1321,6 +1438,7 @@ class TrackDecider {
     select
       process_counter_track.id as trackId,
       process_counter_track.name as trackName,
+      process_counter_track.description as description,
       upid,
       process.pid,
       process.name as processName,
@@ -1332,6 +1450,7 @@ class TrackDecider {
     const it = result.iter({
       trackId: NUM,
       trackName: STR_NULL,
+      description: STR_NULL,
       upid: NUM,
       pid: NUM_NULL,
       processName: STR_NULL,
@@ -1343,6 +1462,7 @@ class TrackDecider {
       const upid = it.upid;
       const trackId = it.trackId;
       const trackName = it.trackName;
+      const description = it.description?.trim() ?? undefined;
       const processName = it.processName;
       const uuid = this.getUuid(0, upid);
       const startTs = it.startTs === null ? undefined : it.startTs;
@@ -1353,7 +1473,10 @@ class TrackDecider {
       this.tracksToAdd.push({
         engineId: this.engineId,
         kind,
-        name,
+        name: TrackDecider.labelProcessCounter({trackName}),
+        description: TrackDecider.decorateTrackDescription(
+          description ?? TrackDecider.describeProcessCounter({trackName}),
+          {processName, upid}),
         trackSortKey: await this.resolveTrackSortKeyForProcessCounterTrack(
             upid, trackName || undefined),
         trackGroup: uuid,
@@ -1500,6 +1623,8 @@ class TrackDecider {
   }
 
   async addProcessTrackGroups(engine: EngineProxy): Promise<void> {
+    const processTrackGroups = new Map<string, AddTrackGroupArgs>();
+
     // We want to create groups of tracks in a specific order.
     // The tracks should be grouped:
     //    by upid
@@ -1617,7 +1742,7 @@ class TrackDecider {
       the_tracks.upid asc nulls last,
       threadName asc nulls last,
       the_tracks.utid asc nulls last;
-  `);
+    `);
 
     const it = result.iter({
       utid: NUM,
@@ -1666,16 +1791,60 @@ class TrackDecider {
 
         const name = TrackDecider.getTrackName(
             {utid, processName, pid, threadName, tid, upid});
-        this.trackGroupsToAdd.push({
+        const trackGroup: AddTrackGroupArgs = {
           engineId: this.engineId,
           summaryTrackId,
           name,
+          description: name,
           id: pUuid,
           // Perf profiling tracks remain collapsed, otherwise we would have too
           // many expanded process tracks for some perf traces, leading to
           // jankyness.
           collapsed: !hasHeapProfiles,
-        });
+        };
+        this.trackGroupsToAdd.push(trackGroup);
+        processTrackGroups.set(pUuid, trackGroup);
+      }
+    }
+
+    // Count threads per process
+    const threadsPerProcess = await engine.query(`
+    select
+      count(distinct the_tracks.utid) as threads,
+      the_tracks.upid as upid
+    from (
+      select upid, utid from thread_counter_track join thread using(utid)
+      union
+      select upid, utid from thread_track join thread using(utid)
+      union
+      select upid, utid from sched join thread using(utid) group by utid
+      union
+      select upid, utid from (
+        select distinct(utid) from cpu_profile_stack_sample
+      ) join thread using(utid)
+    ) the_tracks
+    where
+      the_tracks.upid is not null and
+      the_tracks.utid is not null
+    group by
+      the_tracks.upid
+    `);
+
+    // Update process group descriptions with thread counts
+    const tppIt = threadsPerProcess.iter({
+      threads: NUM,
+      upid: NUM,
+    });
+    for (; tppIt.valid(); tppIt.next()) {
+      const numThreads = tppIt.threads;
+      const upid = tppIt.upid;
+
+      const uuid = this.upidToUuid.get(upid);
+      const trackGroup = processTrackGroups.get(uuid ?? '');
+      if (trackGroup && trackGroup.id === uuid) {
+        trackGroup.description = TrackDecider.decorateTrackDescription(
+          undefined,
+          {numThreads});
       }
     }
   }
@@ -1739,6 +1908,7 @@ class TrackDecider {
           engineId: this.engineId,
           kind: info.trackKind,
           name: info.name,
+          description: info.description,
           // TODO(hjd): Fix how sorting works. Plugins should expose
           // 'sort keys' which the user can use to choose a sort order.
           trackSortKey: PrimaryTrackSortKey.COUNTER_TRACK,

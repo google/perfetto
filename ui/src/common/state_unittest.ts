@@ -28,6 +28,7 @@ test('getContainingTrackId', () => {
     engineId: 'engine',
     kind: 'Foo',
     name: 'a track',
+    description: 'this is a track',
     trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
     config: {},
   };
@@ -37,6 +38,7 @@ test('getContainingTrackId', () => {
     engineId: 'engine',
     kind: 'Foo',
     name: 'b track',
+    description: 'this is another track',
     trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
     config: {},
     trackGroup: 'containsB',

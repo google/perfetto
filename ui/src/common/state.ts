@@ -240,6 +240,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
+  description: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
@@ -253,6 +254,7 @@ export interface TrackGroupState {
   id: string;
   engineId: string;
   name: string;
+  description: string;
   collapsed: boolean;
   tracks: string[];  // Child track ids.
 }
