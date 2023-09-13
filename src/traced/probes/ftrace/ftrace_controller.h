@@ -153,7 +153,7 @@ class FtraceController {
 
   base::TaskRunner* const task_runner_;
   Observer* const observer_;
-  base::PagedMemory parsing_mem_;
+  CpuReader::ParsingBuffers parsing_mem_;
   LazyKernelSymbolizer symbolizer_;
   FtraceConfigId next_cfg_id_ = 1;
   int generation_ = 0;

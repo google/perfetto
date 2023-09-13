@@ -59,17 +59,6 @@ constexpr int kMaxDrainPeriodMs = 1000 * 60;
 // tasks get some cpu time before continuing reading.
 constexpr size_t kMaxPagesPerCpuPerReadTick = 256;  // 1 MB per cpu
 
-// When reading and parsing data for a particular cpu, we do it in batches of
-// this many pages. In other words, we'll read up to
-// |kParsingBufferSizePages| into memory, parse them, and then repeat if we
-// still haven't caught up to the writer. A working set of 32 pages is 128k of
-// data, which should fit in a typical L2D cache. Furthermore, the batching
-// limits the memory usage of traced_probes.
-//
-// TODO(rsavitski): consider making buffering & parsing page counts independent,
-// should be a single counter in the cpu_reader, similar to lost_events case.
-constexpr size_t kParsingBufferSizePages = 32;
-
 uint32_t ClampDrainPeriodMs(uint32_t drain_period_ms) {
   if (drain_period_ms == 0) {
     return kDefaultDrainPeriodMs;
@@ -213,10 +202,7 @@ void FtraceController::StartIfNeeded(FtraceInstanceState* instance) {
 
   // Lazily allocate the memory used for reading & parsing ftrace. In the case
   // of multiple ftrace instances, this might already be valid.
-  if (!parsing_mem_.IsValid()) {
-    parsing_mem_ =
-        base::PagedMemory::Allocate(base::kPageSize * kParsingBufferSizePages);
-  }
+  parsing_mem_.AllocateIfNeeded();
 
   PERFETTO_DCHECK(instance->per_cpu.empty());
   size_t num_cpus = instance->ftrace_procfs->NumberOfCpus();
@@ -347,7 +333,6 @@ bool FtraceController::ReadTickForInstance(FtraceInstanceState* instance) {
 #endif
 
   bool all_cpus_done = true;
-  uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
   for (size_t i = 0; i < instance->per_cpu.size(); i++) {
     size_t orig_quota = instance->per_cpu[i].period_page_quota;
     if (orig_quota == 0)
@@ -355,9 +340,8 @@ bool FtraceController::ReadTickForInstance(FtraceInstanceState* instance) {
 
     size_t max_pages = std::min(orig_quota, kMaxPagesPerCpuPerReadTick);
     CpuReader& cpu_reader = *instance->per_cpu[i].reader;
-    size_t pages_read =
-        cpu_reader.ReadCycle(parsing_buf, kParsingBufferSizePages, max_pages,
-                             instance->started_data_sources);
+    size_t pages_read = cpu_reader.ReadCycle(&parsing_mem_, max_pages,
+                                             instance->started_data_sources);
 
     size_t new_quota = (pages_read >= orig_quota) ? 0 : orig_quota - pages_read;
     instance->per_cpu[i].period_page_quota = new_quota;
@@ -418,10 +402,8 @@ void FtraceController::FlushForInstance(FtraceInstanceState* instance) {
   // events.
   size_t per_cpubuf_size_pages =
       instance->ftrace_config_muxer->GetPerCpuBufferSizePages();
-  uint8_t* parsing_buf = reinterpret_cast<uint8_t*>(parsing_mem_.Get());
   for (size_t i = 0; i < instance->per_cpu.size(); i++) {
-    instance->per_cpu[i].reader->ReadCycle(parsing_buf, kParsingBufferSizePages,
-                                           per_cpubuf_size_pages,
+    instance->per_cpu[i].reader->ReadCycle(&parsing_mem_, per_cpubuf_size_pages,
                                            instance->started_data_sources);
   }
 }
@@ -452,9 +434,8 @@ void FtraceController::StopIfNeeded(FtraceInstanceState* instance) {
   }
   retain_ksyms_on_stop_ = false;
 
-  if (parsing_mem_.IsValid()) {
-    parsing_mem_.AdviseDontNeed(parsing_mem_.Get(), parsing_mem_.size());
-  }
+  // Note: might have never been allocated if data sources were rejected.
+  parsing_mem_.Release();
 }
 
 bool FtraceController::AddDataSource(FtraceDataSource* data_source) {
