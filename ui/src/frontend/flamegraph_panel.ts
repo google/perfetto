@@ -38,7 +38,7 @@ import {DurationWidget} from '../widgets/duration';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Modal, ModalDefinition} from './modal';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
@@ -64,7 +64,8 @@ const RENDER_OBJ_COUNT: NodeRendering = {
   totalSize: 'Subtree objects',
 };
 
-export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
+export class FlamegraphDetailsPanel implements
+    m.ClassComponent<FlamegraphDetailsPanelAttrs> {
   private profileType?: ProfileType = undefined;
   private ts = Time.ZERO;
   private pids: number[] = [];
@@ -295,10 +296,6 @@ export class FlamegraphDetailsPanel extends Panel<FlamegraphDetailsPanelAttrs> {
       }
     }
   };
-
-  renderCanvas() {
-    // No-op
-  }
 
   private renderLocalCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     this.changeFlamegraphData();

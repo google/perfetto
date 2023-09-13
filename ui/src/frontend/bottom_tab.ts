@@ -23,7 +23,7 @@ import {Registry} from '../common/registry';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
-import {Panel, PanelSize, PanelVNode} from './panel';
+import {PanelSize, PanelVNode} from './panel';
 
 export interface NewBottomTabArgs {
   engine: EngineProxy;
@@ -136,13 +136,7 @@ interface BottomTabAdapterAttrs {
   panel: BottomTab;
 }
 
-class BottomTabAdapter extends Panel<BottomTabAdapterAttrs> {
-  renderCanvas(
-      ctx: CanvasRenderingContext2D, size: PanelSize,
-      vnode: PanelVNode<BottomTabAdapterAttrs>): void {
-    vnode.attrs.panel.renderTabCanvas(ctx, size);
-  }
-
+class BottomTabAdapter implements m.ClassComponent<BottomTabAdapterAttrs> {
   view(vnode: m.CVnode<BottomTabAdapterAttrs>): void|m.Children {
     return vnode.attrs.panel.viewTab();
   }
