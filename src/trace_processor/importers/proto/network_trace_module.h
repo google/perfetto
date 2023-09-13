@@ -77,8 +77,12 @@ class NetworkTraceModule : public ProtoImporterModule {
   const StringId net_arg_uid_;
   const StringId net_arg_local_port_;
   const StringId net_arg_remote_port_;
+  const StringId net_arg_icmp_type_;
+  const StringId net_arg_icmp_code_;
   const StringId net_ipproto_tcp_;
   const StringId net_ipproto_udp_;
+  const StringId net_ipproto_icmp_;
+  const StringId net_ipproto_icmpv6_;
   const StringId packet_count_;
 };
 
