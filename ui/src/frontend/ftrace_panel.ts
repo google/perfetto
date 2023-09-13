@@ -28,7 +28,6 @@ import {PopupPosition} from '../widgets/popup';
 import {VirtualScrollContainer} from '../widgets/virtual_scroll_container';
 
 import {globals} from './globals';
-import {Panel} from './panel';
 import {Timestamp} from './widgets/timestamp';
 
 const ROW_H = 20;
@@ -51,7 +50,7 @@ const PAGE_SIZE = 250;
 // Another call to view() can come at any time, as a reusult of the controller
 // giving us some data.
 //
-export class FtracePanel extends Panel<{}> {
+export class FtracePanel implements m.ClassComponent {
   private page: number = 0;
   private pageCount: number = 0;
 
@@ -204,6 +203,4 @@ export class FtracePanel extends Panel<{}> {
       return m('.rows', rows);
     }
   }
-
-  renderCanvas() {}
 }
