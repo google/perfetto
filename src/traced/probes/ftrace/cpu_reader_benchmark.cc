@@ -832,10 +832,11 @@ void DoParse(const ExamplePage& test_case,
              benchmark::State& state) {
   NullTraceWriter writer;
   FtraceMetadata metadata{};
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   CpuReader::Bundler bundler(
       &writer, &metadata, /*symbolizer=*/nullptr, /*cpu=*/0,
       /*ftrace_clock_snapshot=*/nullptr,
-      /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED,
+      protos::pbzero::FTRACE_CLOCK_UNSPECIFIED, compact_sched_buf.get(),
       /*compact_sched_enabled=*/false);
 
   ProtoTranslationTable* table = GetTable(test_case.name);
@@ -961,10 +962,11 @@ void DoProcessPages(const ExamplePage& test_case,
   }
 
   FtraceMetadata metadata{};
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   while (state.KeepRunning()) {
     CpuReader::ProcessPagesForDataSource(
         &writer, &metadata, /*cpu=*/0, &ds_config, repeated_pages.get(),
-        page_repetition, table,
+        page_repetition, compact_sched_buf.get(), table,
         /*symbolizer=*/nullptr, /*ftrace_clock_snapshot=*/nullptr,
         /*ftrace_clock=*/protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 
