@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Disposable, Trash} from '../base/disposable';
+import {assertFalse} from '../base/logging';
 import {ViewerImpl, ViewerProxy} from '../common/viewer';
 import {
   TrackControllerFactory,
@@ -50,8 +51,25 @@ export class PluginContextImpl implements PluginContext, Disposable {
   private trash = new Trash();
   private alive = true;
 
-  constructor(readonly pluginId: string, readonly viewer: ViewerProxy) {
+  constructor(
+      readonly pluginId: string, readonly viewer: ViewerProxy,
+      private commandRegistry: Map<string, Command>) {
     this.trash.add(viewer);
+  }
+
+  addCommand(cmd: Command): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const {id} = cmd;
+    assertFalse(this.commandRegistry.has(id));
+    this.commandRegistry.set(id, cmd);
+
+    this.trash.add({
+      dispose: () => {
+        this.commandRegistry.delete(id);
+      },
+    });
   }
 
   registerTrackController(track: TrackControllerFactory): void {
@@ -83,7 +101,8 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
   constructor(
       private ctx: PluginContext, readonly store: Store<T>,
       readonly engine: EngineProxy,
-      private trackRegistry: Map<string, PluginTrackInfo>) {
+      private trackRegistry: Map<string, PluginTrackInfo>,
+      private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
     this.trash.add(store);
   }
@@ -98,6 +117,21 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
     // Silently ignore if context is dead.
     if (!this.alive) return;
     this.ctx.registerTrack(track);
+  }
+
+  addCommand(cmd: Command): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const {id} = cmd;
+    assertFalse(this.commandRegistry.has(id));
+    this.commandRegistry.set(id, cmd);
+
+    this.trash.add({
+      dispose: () => {
+        this.commandRegistry.delete(id);
+      },
+    });
   }
 
   get viewer(): Viewer {
@@ -164,6 +198,7 @@ export class PluginManager {
   private plugins: Map<string, PluginDetails<unknown>>;
   private engine?: Engine;
   readonly trackRegistry = new Map<string, PluginTrackInfo>();
+  readonly commandRegistry = new Map<string, Command>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -179,7 +214,8 @@ export class PluginManager {
     const plugin = makePlugin(pluginInfo);
 
     const viewerProxy = viewer.getProxy(id);
-    const context = new PluginContextImpl(id, viewerProxy);
+    const context =
+        new PluginContextImpl(id, viewerProxy, this.commandRegistry);
 
     plugin.onActivate && plugin.onActivate(context);
 
@@ -246,20 +282,7 @@ export class PluginManager {
   }
 
   commands(): Command[] {
-    return Array.from(this.plugins.values()).flatMap((ctx) => {
-      const plugin = ctx.plugin;
-      let commands: Command[] = [];
-
-      if (plugin.commands) {
-        commands = commands.concat(plugin.commands(ctx.context));
-      }
-
-      if (ctx.traceContext && plugin.traceCommands) {
-        commands = commands.concat(plugin.traceCommands(ctx.traceContext));
-      }
-
-      return commands;
-    });
+    return Array.from(this.commandRegistry.values());
   }
 
   metricVisualisations(): MetricVisualisation[] {
@@ -296,7 +319,11 @@ export class PluginManager {
 
       const proxyStore = globals.store.createProxy<T>(['plugins', pluginId]);
       const traceCtx = new TracePluginContextImpl(
-          context, proxyStore, engineProxy, this.trackRegistry);
+          context,
+          proxyStore,
+          engineProxy,
+          this.trackRegistry,
+          this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 
       // TODO(stevegolton): Await onTraceLoad.
@@ -308,7 +335,11 @@ export class PluginManager {
       // help it out by calling migrate().
       const proxyStore = globals.store.createProxy<T>(['plugins', pluginId]);
       const traceCtx = new TracePluginContextImpl(
-          context, proxyStore, engineProxy, this.trackRegistry);
+          context,
+          proxyStore,
+          engineProxy,
+          this.trackRegistry,
+          this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 
       // TODO(stevegolton): Await onTraceLoad.
