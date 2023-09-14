@@ -161,3 +161,29 @@ SELECT
 FROM descendant_slice($parent_id) s
 WHERE s.name = $child_name
 LIMIT 1;
+
+-- Finds all slices with a direct parent with the given parent_id.
+-- @arg parent_id INT Id of the parent slice.
+-- @column id   slice id of the direct child slice.
+-- @column name name of the direct child slice.
+-- @column dur  duration of the direct child slice in nanoseconds.
+CREATE PERFETTO FUNCTION slices_with_direct_parent(parent_id LONG)
+RETURNS TABLE(id LONG, name STRING, dur LONG) AS
+SELECT
+  id,
+  name,
+  dur
+FROM slice
+WHERE parent_id = $parent_id;
+
+-- Given a slice id, returns the name of the slice.
+-- @arg id LONG the slice id which we need the name for.
+-- @ret STRING the name of slice with the given id.
+CREATE PERFETTO FUNCTION get_slice_name_with_id(
+  id LONG
+)
+RETURNS STRING AS
+SELECT
+  name
+FROM slice
+WHERE $id = id;
