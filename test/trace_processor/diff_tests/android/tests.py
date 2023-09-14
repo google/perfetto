@@ -1173,3 +1173,16 @@ class Android(TestSuite):
         /system/bin/servicemanager (0x0)
         /system/bin/storaged (0x0)
         """))
+
+  def test_android_boot(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query=Metric('android_boot'),
+        out=TextProto(r"""
+        android_boot {
+          system_server_durations {
+            total_dur: 267193980530
+            uninterruptible_sleep_dur: 3843119529
+          }
+        }
+        """))
