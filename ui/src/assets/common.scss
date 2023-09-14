@@ -523,10 +523,9 @@ canvas.main-canvas {
   position: relative; // Otherwise canvas covers panel dom.
 
   &.sticky {
-    // TODO(stevegolton): Get sticky working again.
-    // position: sticky;
+    position: sticky;
     z-index: 3;
-    // top: 0;
+    top: 0;
     background-color: hsl(215, 22%, 19%);
   }
 }
