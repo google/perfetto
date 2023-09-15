@@ -197,12 +197,13 @@ function unfilterTrackGroup(state: StateDraft, trackGroup: TrackGroupState) {
 //       by an explicit disposable-track protocol.
 async function dropTables(engineId: string, trackId: string) {
   const engine = assertExists(globals.engines.get(engineId));
-  const suffix = trackId.split('-').join('_');
+  const suffix = '_' + trackId.split('-').join('_');
+
   const result = await engine.query(`
       select name, type from sqlite_schema
-      where name like '%_${suffix}'
+      where substr(name, ${-suffix.length}) = '${suffix}'
       union select name, type from sqlite_temp_schema
-      where name like '%_${suffix}'`);
+      where substr(name, ${-suffix.length}) = '${suffix}'`);
 
   const it = result.iter({name: STR, type: STR});
   const dropStmts: string[] = [];
