@@ -27,6 +27,8 @@
 #include "perfetto/tracing/traced_value_forward.h"
 
 #include <memory>
+#include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -145,6 +147,7 @@ class PERFETTO_EXPORT_COMPONENT TracedValue {
   void WriteString(const char*) &&;
   void WriteString(const char*, size_t len) &&;
   void WriteString(const std::string&) &&;
+  void WriteString(std::string_view) &&;
   void WritePointer(const void* value) &&;
   template <typename MessageType>
   TracedProto<MessageType> WriteProto() &&;
@@ -623,6 +626,15 @@ template <>
 struct TraceFormatTraits<std::string> {
   inline static void WriteIntoTrace(TracedValue context,
                                     const std::string& value) {
+    std::move(context).WriteString(value);
+  }
+};
+
+// Specialisation for C++ string_views.
+template <>
+struct TraceFormatTraits<std::string_view> {
+  inline static void WriteIntoTrace(TracedValue context,
+                                    std::string_view value) {
     std::move(context).WriteString(value);
   }
 };
