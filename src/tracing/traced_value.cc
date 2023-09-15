@@ -78,6 +78,11 @@ void TracedValue::WriteString(const std::string& value) && {
   annotation_->set_string_value(value);
 }
 
+void TracedValue::WriteString(std::string_view value) && {
+  PERFETTO_DCHECK(checked_scope_.is_active());
+  annotation_->set_string_value(value.data(), value.size());
+}
+
 void TracedValue::WritePointer(const void* value) && {
   PERFETTO_DCHECK(checked_scope_.is_active());
   annotation_->set_pointer_value(reinterpret_cast<uint64_t>(value));
