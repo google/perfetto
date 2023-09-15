@@ -164,22 +164,52 @@ LIMIT 1;
 
 -- Finds all slices with a direct parent with the given parent_id.
 -- @arg parent_id INT Id of the parent slice.
--- @column id   slice id of the direct child slice.
--- @column name name of the direct child slice.
--- @column dur  duration of the direct child slice in nanoseconds.
-CREATE PERFETTO FUNCTION slices_with_direct_parent(parent_id LONG)
-RETURNS TABLE(id LONG, name STRING, dur LONG) AS
+-- @column id                 Alias for `slice.id`.
+-- @column type               Alias for `slice.type`.
+-- @column ts                 Alias for `slice.ts`.
+-- @column dur                Alias for `slice.dur`.
+-- @column category           Alias for `slice.category`.
+-- @column name               Alias for `slice.name`.
+-- @column track_id           Alias for `slice.track_id`.
+-- @column depth              Alias for `slice.depth`.
+-- @column parent_id          Alias for `slice.parent_id`.
+-- @column arg_set_id         Alias for `slice.arg_set_id`.
+-- @column thread_ts          Alias for `slice.thread_ts`.
+-- @column thread_dur         Alias for `slice.thread_dur`.
+CREATE PERFETTO FUNCTION direct_children_slice(parent_id LONG)
+RETURNS TABLE(
+  id LONG,
+  type STRING,
+  ts LONG,
+  dur LONG,
+  category LONG,
+  name STRING,
+  track_id LONG,
+  depth LONG,
+  parent_id LONG,
+  arg_set_id LONG,
+  thread_ts LONG,
+  thread_dur LONG) AS
 SELECT
-  id,
-  name,
-  dur
+  slice.id,
+  slice.type,
+  slice.ts,
+  slice.dur,
+  slice.category,
+  slice.name,
+  slice.track_id,
+  slice.depth,
+  slice.parent_id,
+  slice.arg_set_id,
+  slice.thread_ts,
+  slice.thread_dur
 FROM slice
 WHERE parent_id = $parent_id;
 
 -- Given a slice id, returns the name of the slice.
 -- @arg id LONG the slice id which we need the name for.
 -- @ret STRING the name of slice with the given id.
-CREATE PERFETTO FUNCTION get_slice_name_with_id(
+CREATE PERFETTO FUNCTION slice_name_from_id(
   id LONG
 )
 RETURNS STRING AS
