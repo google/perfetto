@@ -33,8 +33,8 @@ import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {Button} from '../../frontend/widgets/button';
 import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
+import {TrackButton} from '../../frontend/track_panel';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -268,7 +268,15 @@ class CounterTrack extends Track<Config, Data> {
     return m(
         PopupMenu2,
         {
-          trigger: m(Button, {icon: 'show_chart', minimal: true}),
+          trigger: m('button',
+          m(TrackButton,
+            {
+              action: ()=>{},
+              i: 'show_chart',
+              tooltip: 'Change scale',
+              showButton: false,
+              fullHeight: true,
+            })),
         },
         menuItems,
     );

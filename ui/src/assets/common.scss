@@ -423,12 +423,14 @@ $bottom-tab-padding: 10px;
       color: var(--main-foreground-color);
       @include track_shell_title();
     }
+
     .track-buttons {
       grid-area: buttons;
       display: flex;
       height: 100%;
       align-items: center;
     }
+
     .track-button {
       @include transition();
       color: rgb(60, 86, 136);
@@ -450,9 +452,9 @@ $bottom-tab-padding: 10px;
       height: 100%;
       align-items: center;
       justify-content: center;
-
+      
       &:hover:not(.disabled) {
-        background-color: #ebeef9;
+        background-color: var(--alt-background-color);
       }
     }
 
@@ -672,6 +674,7 @@ button.query-ctrl {
   grid-template-rows: 1fr;
   transition: background-color 0.4s, color 0.4s;
   height: 40px;
+
   &::after {
     display: block;
     content: "";
@@ -679,8 +682,20 @@ button.query-ctrl {
     border-top: 1px solid var(--main-foreground-color);
     margin-top: -1px;
   }
+  .track-buttons {
+    grid-area: buttons;
+    display: flex;
+    height: 100%;
+    align-items: center;
+  }
+
   .track-button {
+    @include transition();
     color: rgb(60, 86, 136);
+    cursor: pointer;
+    width: 22px;
+    font-size: 18px;
+    opacity: 0;
     &.action {
       @include transition();
       cursor: pointer;
@@ -693,7 +708,22 @@ button.query-ctrl {
       }
     }
   }
-  &:hover .track-button.action {
+
+  .track-button.show {
+    opacity: 1;
+  }
+  .track-button.full-height {
+    display: flex;
+    height: 100%;
+    align-items: center;
+    justify-content: center;
+
+    &:hover {
+      background-color: var(--alt-background-color);
+    }
+  }
+
+  &:hover .track-button {
     opacity: 1;
   }
   &[collapsed="true"] {
@@ -717,10 +747,10 @@ button.query-ctrl {
     }
   }
   .shell {
-    padding: 4px 4px;
+    padding: 0px 4px;
     display: grid;
-    grid-template-areas: "fold-button title check";
-    grid-template-columns: 28px 1fr 20px;
+    grid-template-areas: "fold-button title buttons";
+    grid-template-columns: 28px 1fr auto;
     align-items: center;
     line-height: 1;
     width: var(--track-shell-width);
