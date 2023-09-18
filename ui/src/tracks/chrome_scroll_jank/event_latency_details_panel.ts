@@ -185,10 +185,6 @@ export class EventLatencySliceDetailsPanel extends
   getTitle(): string {
     return `Current Selection`;
   }
-
-  renderTabCanvas() {
-    return;
-  }
 }
 
 bottomTabRegistry.register(EventLatencySliceDetailsPanel);

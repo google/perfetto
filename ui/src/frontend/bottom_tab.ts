@@ -23,7 +23,6 @@ import {Registry} from '../common/registry';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
-import {PanelSize, PanelVNode} from './panel';
 
 export interface NewBottomTabArgs {
   engine: EngineProxy;
@@ -89,7 +88,7 @@ export abstract class BottomTabBase<Config = {}> {
   abstract getTitle(): string;
 
   // Generate a mithril node for this component.
-  abstract createPanelVnode(): PanelVNode;
+  abstract renderPanel(): m.Children;
 
   // API for the tab to notify the TabList that it's still preparing the data.
   // If true, adding a new tab will be delayed for a short while (~50ms) to
@@ -114,18 +113,13 @@ export abstract class BottomTab<Config = {}> extends BottomTabBase<Config> {
     super(args);
   }
 
-  // These methods are direct counterparts to renderCanvas and view with
-  // slightly changes names to prevent cases when `BottomTab` will
-  // be accidentally used a mithril component.
-  abstract renderTabCanvas(ctx: CanvasRenderingContext2D, size: PanelSize):
-      void;
   abstract viewTab(): void|m.Children;
 
   close(): void {
     closeTab(this.uuid);
   }
 
-  createPanelVnode(): m.Vnode<any, any> {
+  renderPanel(): m.Children {
     return m(
         BottomTabAdapter,
         {key: this.uuid, panel: this} as BottomTabAdapterAttrs);
