@@ -140,7 +140,7 @@ GPU_SLICE_TABLE = Table(
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
         doc='''''',
-        group='Events',
+        group='Slice',
         columns={
             'context_id': '''''',
             'render_target': '''''',
@@ -169,7 +169,7 @@ GRAPHICS_FRAME_SLICE_TABLE = Table(
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
         doc='''''',
-        group='Events',
+        group='Slice',
         columns={
             'frame_number': '''''',
             'layer_name': '''''',
@@ -191,7 +191,7 @@ EXPECTED_FRAME_TIMELINE_SLICE_TABLE = Table(
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
         doc='''''',
-        group='Events',
+        group='Slice',
         columns={
             'display_frame_token': '''''',
             'surface_frame_token': '''''',
@@ -218,7 +218,7 @@ ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
         doc='''''',
-        group='Events',
+        group='Slice',
         columns={
             'display_frame_token': '''''',
             'surface_frame_token': '''''',
@@ -252,7 +252,7 @@ EXPERIMENTAL_FLAT_SLICE_TABLE = Table(
           An experimental table which "flattens" stacks of slices to contain
           only the "deepest" slice at any point in time on each track.
         ''',
-        group='Events',
+        group='Slice',
         columns={
             'ts':
                 '''The timestamp at the start of the slice (in nanoseconds).''',
