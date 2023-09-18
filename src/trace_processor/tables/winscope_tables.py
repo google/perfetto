@@ -29,7 +29,7 @@ SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layers snapshot',
-        group='SurfaceFlinger layers snapshot',
+        group='Winscope',
         columns={
             'ts': 'Timestamp of the snapshot',
             'arg_set_id': 'Extra args parsed from the proto message',
@@ -45,7 +45,7 @@ SURFACE_FLINGER_LAYER_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger layer',
-        group='SurfaceFlinger layer',
+        group='Winscope',
         columns={
             'snapshot_id': 'The snapshot that generated this layer',
             'arg_set_id': 'Extra args parsed from the proto message',
@@ -61,7 +61,7 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='SurfaceFlinger transactions. Each row contains a set of transactions that SurfaceFlinger committed together.',
-        group='SurfaceFlinger transactions trace entry',
+        group='Winscope',
         columns={
             'ts': 'Timestamp of the transactions commit',
             'arg_set_id': 'Extra args parsed from the proto message',
