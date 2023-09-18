@@ -37,7 +37,6 @@ import {FtracePanel} from './ftrace_panel';
 import {globals} from './globals';
 import {LogPanel} from './logs_panel';
 import {NotesEditorTab} from './notes_panel';
-import {AnyAttrsVnode} from './panel_container';
 import {PivotTable} from './pivot_table';
 import {SliceDetailsPanel} from './slice_details_panel';
 import {ThreadStateTab} from './thread_state_tab';
@@ -259,7 +258,7 @@ export class DetailsPanel implements m.ClassComponent {
     interface DetailsPanel {
       key: string;
       name: string;
-      vnode: AnyAttrsVnode;
+      vnode: m.Children;
     }
 
     const detailsPanels: DetailsPanel[] = [];
@@ -269,7 +268,7 @@ export class DetailsPanel implements m.ClassComponent {
         detailsPanels.push({
           key: tab.tag ?? tab.uuid,
           name: tab.getTitle(),
-          vnode: tab.createPanelVnode(),
+          vnode: tab.renderPanel(),
         });
       }
     }

@@ -124,10 +124,6 @@ export class GenericSliceDetailsTab extends
   isLoading() {
     return this.data === undefined;
   }
-
-  renderTabCanvas() {
-    return;
-  }
 }
 
 bottomTabRegistry.register(GenericSliceDetailsTab);

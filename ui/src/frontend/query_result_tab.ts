@@ -130,8 +130,6 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
     return this.queryResponse === undefined;
   }
 
-  renderTabCanvas() {}
-
   async createViewForDebugTrack(uuid: string): Promise<string> {
     const viewId = uuidToViewName(uuid);
     // Assuming that the query results come from a SELECT query, try creating a

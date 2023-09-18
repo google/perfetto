@@ -370,8 +370,6 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
   isLoading() {
     return this.state === undefined || this.relatedStates === undefined;
   }
-
-  renderTabCanvas(): void {}
 }
 
 bottomTabRegistry.register(ThreadStateTab);
