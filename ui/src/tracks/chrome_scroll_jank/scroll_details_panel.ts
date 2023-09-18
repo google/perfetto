@@ -357,10 +357,6 @@ export class ScrollDetailsPanel extends
   isLoading() {
     return !this.loaded;
   }
-
-  renderTabCanvas() {
-    return;
-  }
 }
 
 bottomTabRegistry.register(ScrollDetailsPanel);

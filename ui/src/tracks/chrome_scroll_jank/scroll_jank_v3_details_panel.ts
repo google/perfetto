@@ -331,10 +331,6 @@ export class ScrollJankV3DetailsPanel extends
   isLoading() {
     return !this.loaded;
   }
-
-  renderTabCanvas() {
-    return;
-  }
 }
 
 bottomTabRegistry.register(ScrollJankV3DetailsPanel);

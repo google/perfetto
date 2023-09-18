@@ -107,8 +107,6 @@ export class SqlTableTab extends BottomTab<SqlTableTabConfig> {
         }));
   }
 
-  renderTabCanvas() {}
-
   getTitle(): string {
     const rowCount = this.state.getTotalRowCount();
     const rows = rowCount === undefined ? '' : ` (${rowCount})`;

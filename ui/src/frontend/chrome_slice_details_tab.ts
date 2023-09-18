@@ -35,7 +35,6 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {FlowPoint, globals} from './globals';
-import {PanelSize} from './panel';
 import {runQueryInNewTab} from './query_result_tab';
 import {renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
@@ -208,10 +207,6 @@ export class ChromeSliceDetailsTab extends
     const {id, table} = this.config;
     getSliceDetails(this.engine, id, table)
         .then((sliceDetails) => this.sliceDetails = sliceDetails);
-  }
-
-  renderTabCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize): void {
-    // No-op
   }
 
   getTitle(): string {
