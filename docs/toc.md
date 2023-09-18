@@ -1,6 +1,8 @@
-* [Overview](README.md)
+* [Introduction](README.md)
 
-* [Tracing 101](tracing-101.md)
+* [Overview](#)
+  * [Tracing 101](tracing-101.md)
+  * [FAQ](faq.md)
 
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
@@ -11,10 +13,8 @@
   * [Heap profiling](quickstart/heap-profiling.md)
   * [Callstack sampling on Android](quickstart/callstack-sampling.md)
 
-* [FAQ](faq.md)
-
 * [Case studies](#)
-  * [Android boot tracing](case-studies/android-boot-tracing.md)
+  * [Tracing Android boot](case-studies/android-boot-tracing.md)
   * [Debugging memory usage](case-studies/memory.md)
 
 * [Data sources](#)
@@ -40,13 +40,14 @@
   * [Interceptors](instrumentation/interceptors.md)
 
 * [Trace analysis](#)
-  * [Trace Processor (SQL)](analysis/trace-processor.md)
-  * [Batch Trace Processor](analysis/batch-trace-processor.md)
-  * [Standard library](analysis/stdlib-docs.autogen)
-  * [Built-in Functions](analysis/builtin.md)
+  * [Trace Processor](analysis/trace-processor.md)
+  * [PerfettoSQL Syntax](analysis/perfetto-sql-syntax.md)
+  * [PerfettoSQL Standard Library](analysis/stdlib-docs.autogen)
+  * [PerfettoSQL Tables](analysis/sql-tables.autogen)
+  * [PerfettoSQL Built-ins](analysis/builtin.md)
+  * [PerfettoSQL Common Queries](analysis/common-queries.md)
   * [Trace-based metrics](analysis/metrics.md)
-  * [Common queries](analysis/common-queries.md)
-  * [SQL tables](analysis/sql-tables.autogen)
+  * [Batch Trace Processor](analysis/batch-trace-processor.md)
   * [Stats table](analysis/sql-stats.autogen)
   * [Pivot tables](analysis/pivot-tables.md)
 

@@ -509,24 +509,6 @@ TIP: To see how to add to add a new metric to trace processor, see the checklist
 The metrics subsystem is a significant part of trace processor and thus is
 documented on its own [page](/docs/analysis/metrics.md).
 
-## Annotations
-
-TIP: To see how to add to add a new annotation to trace processor, see the
-checklist [here](/docs/contributing/common-tasks.md#new-annotation).
-
-Annotations attach a human-readable description to a slice in the trace. This
-can include information like the source of a slice, why a slice is important and
-links to documentation where the viewer can learn more about the slice.
-In essence, descriptions act as if an expert was telling the user what the slice
-means.
-
-For example, consider the `inflate` slice which occurs during view inflation in
-Android. We can add the following description and link:
-
-**Description**: Constructing a View hierarchy from pre-processed XML via
-LayoutInflater#layout. This includes constructing all of the View objects in the
-hierarchy, and applying styled attributes.
-
 ## Creating derived events
 
 TIP: To see how to add to add a new annotation to trace processor, see the
@@ -556,23 +538,6 @@ creates the exact `launching` slice we want to display in the UI.
 
 The other benefit of aligning the two is that changes in metrics are
 automatically kept in sync with what the user sees in the UI.
-
-## Alerts
-
-Alerts are used to draw the attention of the user to interesting parts of the
-trace; this are usually warnings or errors about anomalies which occurred in the
-trace.
-
-Currently, alerts are not implemented in the trace processor but the API to
-create derived events was designed with them in mind. We plan on adding another
-column `alert_type` (name to be finalized) to the annotations table which can
-have the value `warning`, `error` or `null`. Depending on this value, the
-Perfetto UI will flag these events to the user.
-
-NOTE: we do not plan on supporting case where alerts need to be added to
-      existing events. Instead, new events should be created using annotations
-      and alerts added on these instead; this is because the trace processor
-      storage is monotonic-append-only.
 
 ## Python API
 
