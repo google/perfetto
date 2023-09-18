@@ -29,9 +29,9 @@ class ModuleMd:
   def __init__(self, module_name: str, module_files: List[Dict[str,
                                                                Any]]) -> None:
     self.module_name = module_name
-    self.files_md = [
+    self.files_md = sorted([
         FileMd(module_name, file_dict) for file_dict in module_files
-    ]
+    ], key=lambda x: x.import_key)
     self.summary_objs = '\n'.join(
         file.summary_objs for file in self.files_md if file.summary_objs)
     self.summary_funs = '\n'.join(
@@ -41,10 +41,16 @@ class ModuleMd:
                                        if file.summary_view_funs)
 
   def print_description(self):
+    if not self.files_md:
+      return ''
+
     long_s = []
     long_s.append(f'## Module: {self.module_name}')
 
     for file in self.files_md:
+      if not file.objs and not file.funs and not file.view_funs:
+        continue
+
       long_s.append(f'### {file.import_key}')
       if file.objs:
         long_s.append('#### Views/Tables')
