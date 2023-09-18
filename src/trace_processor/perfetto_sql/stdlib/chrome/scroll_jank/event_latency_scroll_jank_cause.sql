@@ -24,12 +24,26 @@
 
 INCLUDE PERFETTO MODULE chrome.scroll_jank.event_latency_scroll_jank;
 
--- Calculating the jank delta for EventLatency events which are janky relatevly to its next EventLatency event.
+-- Add a jank indicator to each breakdown. Jank indicator is related to an entire EventLatency envent, not only to a breakdown.
+CREATE VIEW internal_event_latency_scroll_breakdowns_jank
+AS
+SELECT
+  chrome_event_latency_breakdowns.*,
+  chrome_scroll_event_latency_jank.jank,
+  chrome_scroll_event_latency_jank.next_jank,
+  chrome_scroll_event_latency_jank.prev_jank,
+  chrome_scroll_event_latency_jank.next_id as next_event_latency_id,
+  chrome_scroll_event_latency_jank.prev_id as prev_event_latency_id
+FROM chrome_event_latency_breakdowns JOIN chrome_scroll_event_latency_jank
+ON chrome_event_latency_breakdowns.event_latency_id = chrome_scroll_event_latency_jank.id
+WHERE chrome_event_latency_breakdowns.event_type in ("GESTURE_SCROLL_UPDATE", "FIRST_GESTURE_SCROLL_UPDATE", "INERTIAL_GESTURE_SCROLL_UPDATE");
+
+-- Calculating the jank delta for EventLatency events which are janky relatively to its next EventLatency event.
 -- For breakdowns that exist in the current EventLatency but not the next EventLatency
 -- we use a default of 0 so that the full duration is considered when looking for the maximum increase.
 -- Breakdowns that exist in the next EventLatency event, but not in the current EventLatency event,
 -- are ignored because they do not cause a jank anyway.
-CREATE VIEW internal_event_latency_scroll_breakdowns_next_jank_deltas
+CREATE PERFETTO TABLE internal_event_latency_scroll_breakdowns_next_jank_deltas
 AS
 SELECT
     cur_breakdowns.*,
@@ -42,7 +56,7 @@ ON cur_breakdowns.next_event_latency_id = next_breakdowns.event_latency_id AND
     cur_breakdowns.name = next_breakdowns.name
 WHERE cur_breakdowns.next_jank = 1;
 
--- Calculating the jank delta for EventLatency events which are janky relatevly to its prev EventLatency event.
+-- Calculating the jank delta for EventLatency events which are janky relatively to its prev EventLatency event.
 -- For breakdowns that exist in the current EventLatency but not the prev EventLatency
 -- we use a default of 0 so that the full duration is considered when looking for the maximum increase.
 -- Breakdowns that exist in the prev EventLatency event, but not in the current EventLatency event,
@@ -59,20 +73,6 @@ FROM internal_event_latency_scroll_breakdowns_jank as cur_breakdowns LEFT JOIN i
 ON cur_breakdowns.prev_event_latency_id = prev_breakdowns.event_latency_id AND
     cur_breakdowns.name = prev_breakdowns.name
 WHERE cur_breakdowns.prev_jank = 1;
-
--- Add a jank indicator to each breakdown. Jank indicator is related to an entire EventLatency envent, not only to a breakdown.
-CREATE VIEW internal_event_latency_scroll_breakdowns_jank
-AS
-SELECT
-  chrome_event_latency_breakdowns.*,
-  chrome_scroll_event_latency_jank.jank,
-  chrome_scroll_event_latency_jank.next_jank,
-  chrome_scroll_event_latency_jank.prev_jank,
-  chrome_scroll_event_latency_jank.next_id as next_event_latency_id,
-  chrome_scroll_event_latency_jank.prev_id as prev_event_latency_id
-FROM chrome_event_latency_breakdowns JOIN chrome_scroll_event_latency_jank
-ON chrome_event_latency_breakdowns.event_latency_id = chrome_scroll_event_latency_jank.id
-WHERE chrome_event_latency_breakdowns.event_type in ("GESTURE_SCROLL_UPDATE", "FIRST_GESTURE_SCROLL_UPDATE", "INERTIAL_GESTURE_SCROLL_UPDATE");
 
 -- Merge breakdowns from the |internal_event_latency_scroll_breakdowns_next_jank_deltas|
 -- and |internal_event_latency_scroll_breakdowns_prev_jank_deltas| tables and select the maximum |delta_dur_ns| of them.
