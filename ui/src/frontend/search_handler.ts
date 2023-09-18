@@ -32,7 +32,7 @@ function setToNext(current: number) {
 
 export function executeSearch(reverse = false) {
   const index = globals.state.searchIndex;
-  const vizWindow = globals.stateTraceTimeTP();
+  const vizWindow = globals.stateVisibleTime();
   const startNs = vizWindow.start;
   const endNs = vizWindow.end;
   const currentTs = globals.currentSearchResults.tsStarts[index];
