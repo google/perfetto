@@ -33,16 +33,16 @@ constexpr char kLazyTracedPerfPropertyName[] = "traced.lazy.traced_perf";
 constexpr char kAndroidSdkSyspropGuardDataSourceName[] =
     "android.sdk_sysprop_guard";
 constexpr char kPerfettoSdkSyspropGuardGenerationPropertyName[] =
-    "debug.tracing.perfetto.sdk_sysprop_guard_generation";
+    "debug.tracing.ctl.perfetto.sdk_sysprop_guard_generation";
 constexpr char kHwuiSkiaBroadTracingPropertyName[] =
-    "debug.tracing.hwui.skia_tracing_enabled";
+    "debug.tracing.ctl.hwui.skia_tracing_enabled";
 constexpr char kHwuiSkiaUsePerfettoPropertyName[] =
-    "debug.tracing.hwui.skia_use_perfetto_track_events";
+    "debug.tracing.ctl.hwui.skia_use_perfetto_track_events";
 constexpr char kHwuiSkiaPropertyPackageSeparator[] = ".";
 constexpr char kSurfaceFlingerSkiaBroadTracingPropertyName[] =
-    "debug.tracing.renderengine.skia_tracing_enabled";
+    "debug.tracing.ctl.renderengine.skia_tracing_enabled";
 constexpr char kSurfaceFlingerSkiaUsePerfettoPropertyName[] =
-    "debug.tracing.renderengine.skia_use_perfetto_track_events";
+    "debug.tracing.ctl.renderengine.skia_use_perfetto_track_events";
 
 using ::testing::_;
 using ::testing::InvokeWithoutArgs;
