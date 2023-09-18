@@ -325,7 +325,8 @@ function main() {
     graph += '\n```\n';
   }
 
-  let md = graph;
+  let title = '# PerfettoSQL Tables\n'
+  let md = title + graph;
   for (const tableGroup of tableGroups) {
     md += `## ${tableGroup}\n`
     for (const table of tablesByGroup[tableGroup]) {
