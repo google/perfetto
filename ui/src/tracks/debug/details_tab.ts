@@ -258,10 +258,6 @@ export class DebugSliceDetailsTab extends
   isLoading() {
     return this.data === undefined;
   }
-
-  renderTabCanvas() {
-    return;
-  }
 }
 
 bottomTabRegistry.register(DebugSliceDetailsTab);

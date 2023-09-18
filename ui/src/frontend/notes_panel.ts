@@ -316,8 +316,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
     super(args);
   }
 
-  renderTabCanvas() {}
-
   getTitle() {
     return 'Current Selection';
   }

@@ -38,13 +38,10 @@ import {DurationWidget} from '../widgets/duration';
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
 import {Modal, ModalDefinition} from './modal';
-import {PanelSize} from './panel';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
 import {convertTraceToPprofAndDownload} from './trace_converter';
-
-interface FlamegraphDetailsPanelAttrs {}
 
 const HEADER_HEIGHT = 30;
 
@@ -64,8 +61,7 @@ const RENDER_OBJ_COUNT: NodeRendering = {
   totalSize: 'Subtree objects',
 };
 
-export class FlamegraphDetailsPanel implements
-    m.ClassComponent<FlamegraphDetailsPanelAttrs> {
+export class FlamegraphDetailsPanel implements m.ClassComponent {
   private profileType?: ProfileType = undefined;
   private ts = Time.ZERO;
   private pids: number[] = [];
@@ -255,7 +251,7 @@ export class FlamegraphDetailsPanel implements
         this.nodeRendering(), flamegraphData, data.expandedCallsite);
   }
 
-  oncreate({dom}: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+  oncreate({dom}: m.CVnodeDOM) {
     this.canvas = FlamegraphDetailsPanel.findCanvasElement(dom);
     // TODO(stevegolton): If we truely want to be standalone, then we shouldn't
     // rely on someone else calling the rafScheduler when the window is resized,
@@ -263,11 +259,11 @@ export class FlamegraphDetailsPanel implements
     raf.addRedrawCallback(this.rafRedrawCallback);
   }
 
-  onupdate({dom}: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+  onupdate({dom}: m.CVnodeDOM) {
     this.canvas = FlamegraphDetailsPanel.findCanvasElement(dom);
   }
 
-  onremove(_vnode: m.CVnodeDOM<FlamegraphDetailsPanelAttrs>) {
+  onremove(_vnode: m.CVnodeDOM) {
     raf.removeRedrawCallback(this.rafRedrawCallback);
   }
 
@@ -291,13 +287,14 @@ export class FlamegraphDetailsPanel implements
         ctx.save();
         ctx.scale(devicePixelRatio, devicePixelRatio);
         const {offsetWidth: width, offsetHeight: height} = canvas;
-        this.renderLocalCanvas(ctx, {width, height});
+        this.renderLocalCanvas(ctx, width, height);
         ctx.restore();
       }
     }
   };
 
-  private renderLocalCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  private renderLocalCanvas(
+      ctx: CanvasRenderingContext2D, width: number, height: number) {
     this.changeFlamegraphData();
     const current = globals.state.currentFlamegraphState;
     if (current === null) return;
@@ -306,7 +303,7 @@ export class FlamegraphDetailsPanel implements
             current.viewingOption === ALLOC_SPACE_MEMORY_ALLOCATED_KEY ?
         'B' :
         '';
-    this.flamegraph.draw(ctx, size.width, size.height, 0, 0, unit);
+    this.flamegraph.draw(ctx, width, height, 0, 0, unit);
   }
 
   private onMouseClick({x, y}: {x: number, y: number}): boolean {
