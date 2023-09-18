@@ -47,7 +47,7 @@ PROCESS_TABLE = Table(
     wrapping_sql_view=WrappingSqlView(view_name='process',),
     tabledoc=TableDoc(
         doc='Contains information of processes seen during the trace',
-        group='Misc',
+        group='Metadata',
         skip_id_and_type=True,
         columns={
             'upid':
@@ -116,7 +116,7 @@ THREAD_TABLE = Table(
     wrapping_sql_view=WrappingSqlView(view_name='thread',),
     tabledoc=TableDoc(
         doc='Contains information of threads seen during the trace',
-        group='Misc',
+        group='Metadata',
         skip_id_and_type=True,
         columns={
             'utid':
@@ -254,7 +254,7 @@ METADATA_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='''''',
-        group='Misc',
+        group='Metadata',
         columns={
             'name': '''''',
             'key_type': '''''',
@@ -277,7 +277,7 @@ FILEDESCRIPTOR_TABLE = Table(
         doc='''
           Contains information of filedescriptors collected during the trace
         ''',
-        group='Misc',
+        group='Metadata',
         columns={
             'ufd':
                 '''Unique fd. This is != the OS fd.
@@ -311,7 +311,7 @@ EXP_MISSING_CHROME_PROC_TABLE = Table(
         doc='''
           Experimental table, subject to arbitrary breaking changes.
         ''',
-        group='Misc',
+        group='Chrome',
         columns={
             'upid': '''''',
             'reliable_from': ''''''
