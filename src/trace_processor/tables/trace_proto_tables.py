@@ -37,7 +37,7 @@ EXPERIMENTAL_PROTO_PATH_TABLE = Table(
         doc='''
           Experimental table, subject to arbitrary breaking changes.
         ''',
-        group='Misc',
+        group='Proto',
         columns={
             'parent_id': '''''',
             'field_type': '''''',
@@ -58,7 +58,7 @@ EXPERIMENTAL_PROTO_CONTENT_TABLE = Table(
     ],
     tabledoc=TableDoc(
         doc='''''',
-        group='Misc',
+        group='Proto',
         columns={
             'path': '''''',
             'path_id': '''''',
