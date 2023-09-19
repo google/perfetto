@@ -84,6 +84,9 @@ class FtraceParser {
   void ParseG2dTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);
+  void ParseSamsungTracingMarkWrite(int64_t timestamp,
+                                    uint32_t pid,
+                                    protozero::ConstBytes);
   void ParseMaliTracingMarkWrite(int64_t timestamp,
                                  uint32_t pid,
                                  protozero::ConstBytes);
