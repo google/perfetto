@@ -28,6 +28,7 @@ import {
   TimeSpan,
 } from '../base/time';
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
 import {setTimestampFormat, TimestampFormat} from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
@@ -301,6 +302,34 @@ export class App implements m.ClassComponent {
             if (window) {
               const query = `ts >= ${window.start} and ts < ${window.end}`;
               copyToClipboard(query);
+            }
+          },
+    },
+    {
+      id: 'perfetto.PrintTrackInfoToConsole',
+      name: 'Print track info to console',
+      callback:
+          async () => {
+            const tracks = Array.from(pluginManager.trackRegistry.values());
+            const options = tracks.map(({uri}): PromptOption => {
+              return {key: uri, displayName: uri};
+            });
+
+            // Sort tracks in a natural sort order
+            const collator = new Intl.Collator('en', {
+              numeric: true,
+              sensitivity: 'base',
+            });
+            const sortedOptions = options.sort((a, b) => {
+              return collator.compare(a.displayName, b.displayName);
+            });
+
+            try {
+              const uri = await this.prompt('Choose a track...', sortedOptions);
+              const trackDetails = pluginManager.resolveTrackInfo(uri);
+              console.log(trackDetails);
+            } catch {
+              // Prompt was probably cancelled - do nothing.
             }
           },
     },
