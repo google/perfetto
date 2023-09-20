@@ -190,7 +190,7 @@ export class ScrollJankV3DetailsPanel extends
       const queryResult = await this.engine.query(`
         SELECT
           COUNT(*) AS jankyFrames
-        FROM chrome_janky_frame_info_with_delay
+        FROM chrome_frame_info_with_delay
         WHERE delay_since_last_frame >
           (
             SELECT
