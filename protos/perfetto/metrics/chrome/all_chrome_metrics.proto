@@ -29,7 +29,6 @@ import "protos/perfetto/metrics/chrome/performance_mark_hashes.proto";
 import "protos/perfetto/metrics/chrome/reported_by_page.proto";
 import "protos/perfetto/metrics/chrome/slice_names.proto";
 import "protos/perfetto/metrics/chrome/scroll_jank.proto";
-import "protos/perfetto/metrics/chrome/scroll_jank_v2.proto";
 import "protos/perfetto/metrics/chrome/scroll_jank_v3.proto";
 import "protos/perfetto/metrics/chrome/test_chrome_metric.proto";
 import "protos/perfetto/metrics/chrome/touch_jank.proto";
@@ -53,6 +52,5 @@ extend TraceMetrics {
   optional ChromeSliceNames chrome_slice_names = 1013;
   optional ChromeUnsymbolizedArgs chrome_unsymbolized_args = 1014;
   optional ChromeArgsClassNames chrome_args_class_names = 1015;
-  optional ChromeScrollJankV2 chrome_scroll_jank_v2 = 1016;
   optional ChromeScrollJankV3 chrome_scroll_jank_v3 = 1017;
 }
