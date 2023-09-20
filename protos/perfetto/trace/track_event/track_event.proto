@@ -283,8 +283,10 @@ message TrackEvent {
   // Extension range reserved for chromium:
   // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
   extensions 1000 to 1999;
+  // Extension range reserved for https://b.corp.google.com/issues/301227627.
+  extensions 2000 to 2000;
   // Extension range for future use.
-  extensions 2000 to 9899;
+  extensions 2001 to 9899;
   // Reserved for Perfetto unit and integration tests.
   extensions 9900 to 10000;
 
