@@ -675,6 +675,7 @@ class ChromeScrollJank(TestSuite):
             scroll_jank_percentage: 1.9047619047619047
             max_delay_since_last_frame: 6.126221896383187
             scroll_jank_causes {
+              cause: "RendererCompositorQueueingDelay"
               delay_since_last_frame: 2.044354838709678
             }
             scroll_jank_causes {
