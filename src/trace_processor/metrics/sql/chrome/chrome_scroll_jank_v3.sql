@@ -32,7 +32,7 @@ CREATE VIEW chrome_scroll_jank_v3_intermediate AS
 SELECT
   -- MAX does not matter for these aggregations, since the values are the
   -- same across rows.
-  (SELECT COUNT(*) FROM chrome_janky_frame_info_with_delay)
+  (SELECT COUNT(*) FROM chrome_frame_info_with_delay)
     AS trace_num_frames,
   (SELECT COUNT(*) FROM chrome_janky_frames)
     AS trace_num_janky_frames,
