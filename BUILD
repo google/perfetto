@@ -1963,7 +1963,6 @@ perfetto_filegroup(
         "src/trace_processor/metrics/sql/chrome/chrome_reliable_range.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_inputs_per_frame.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_caused_by_scheduling.sql",
-        "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v2.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_scroll_jank_v3.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_slice_names.sql",
         "src/trace_processor/metrics/sql/chrome/chrome_stack_samples_for_task.sql",
@@ -2267,9 +2266,6 @@ perfetto_filegroup(
 perfetto_filegroup(
     name = "src_trace_processor_perfetto_sql_stdlib_chrome_scroll_jank_scroll_jank",
     srcs = [
-        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_scroll_jank.sql",
-        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_scroll_jank_cause.sql",
-        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/event_latency_to_breakdowns.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_v3.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_v3_cause.sql",
@@ -4147,7 +4143,6 @@ perfetto_proto_library(
         "protos/perfetto/metrics/chrome/performance_mark_hashes.proto",
         "protos/perfetto/metrics/chrome/reported_by_page.proto",
         "protos/perfetto/metrics/chrome/scroll_jank.proto",
-        "protos/perfetto/metrics/chrome/scroll_jank_v2.proto",
         "protos/perfetto/metrics/chrome/scroll_jank_v3.proto",
         "protos/perfetto/metrics/chrome/slice_names.proto",
         "protos/perfetto/metrics/chrome/test_chrome_metric.proto",

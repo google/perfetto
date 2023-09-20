@@ -44,27 +44,6 @@ class ChromeScrollJank(TestSuite):
         """,
         out=Path('scroll_jank.out'))
 
-  def test_event_latency_to_breakdowns(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_to_breakdowns');
-
-        SELECT
-          event_latency_ts,
-          event_latency_dur,
-          event_type,
-          GenerationToRendererCompositorNs,
-          GenerationToBrowserMainNs,
-          BrowserMainToRendererCompositorNs,
-          RendererCompositorQueueingDelayNs,
-          unknown_stages_seen
-        FROM chrome_event_latency_to_breakdowns
-        ORDER BY event_latency_id
-        LIMIT 30;
-        """,
-        out=Path('event_latency_to_breakdowns.out'))
-
   def test_chrome_frames_with_missed_vsyncs(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
@@ -91,53 +70,6 @@ class ChromeScrollJank(TestSuite):
         FROM chrome_janky_frames_percentage;
         """,
         out=Path('scroll_jank_v3_percentage.out'))
-
-  def test_event_latency_scroll_jank(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank');
-
-        SELECT
-          jank,
-          next_jank,
-          prev_jank,
-          gesture_begin_ts,
-          gesture_end_ts,
-          ts,
-          dur,
-          event_type,
-          next_ts,
-          next_dur,
-          prev_ts,
-          prev_dur
-        FROM chrome_scroll_event_latency_jank
-        ORDER BY jank DESC
-        LIMIT 10;
-        """,
-        out=Path('event_latency_scroll_jank.out'))
-
-  def test_event_latency_scroll_jank_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
-
-        SELECT
-          dur,
-          ts,
-          event_type,
-          next_jank,
-          prev_jank,
-          next_delta_dur_ns,
-          prev_delta_dur_ns,
-          cause_of_jank,
-          max_delta_dur_ns,
-          sub_cause_of_jank
-        FROM chrome_event_latency_scroll_jank_cause
-        ORDER by ts;
-        """,
-        out=Path('event_latency_scroll_jank_cause.out'))
 
   def test_scroll_flow_event(self):
     return DiffTestBlueprint(
@@ -192,34 +124,6 @@ class ChromeScrollJank(TestSuite):
           ) AS number_of_unique_steps;
         """,
         out=Path('scroll_flow_event_general_validation.out'))
-
-  def test_scroll_jank_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('chrome_scroll_without_vsync.pftrace'),
-        query="""
-        SELECT RUN_METRIC('chrome/scroll_jank_cause.sql');
-
-        SELECT
-          COUNT(*) AS total,
-          SUM(jank) AS total_jank,
-          SUM(explained_jank + unexplained_jank) AS sum_explained_and_unexplained,
-          SUM(
-            CASE WHEN explained_jank THEN
-              unexplained_jank
-              ELSE
-                CASE WHEN jank AND NOT unexplained_jank THEN
-                  1
-                  ELSE
-                    0
-                END
-            END
-          ) AS error_rows
-        FROM scroll_jank_cause;
-        """,
-        out=Csv("""
-        "total","total_jank","sum_explained_and_unexplained","error_rows"
-        139,7,7,0
-        """))
 
   def test_scroll_flow_event_queuing_delay(self):
     return DiffTestBlueprint(
@@ -587,76 +491,6 @@ class ChromeScrollJank(TestSuite):
         1,0,55000000
         2,60000000,50000000
         3,120000000,70000000
-        """))
-
-  def test_chrome_scroll_jank_v2_with_sub_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query=Metric('chrome_scroll_jank_v2'),
-        out=TextProto(r"""
-        [perfetto.protos.chrome_scroll_jank_v2] {
-          scroll_processing_ms: 12374.56
-          scroll_jank_processing_ms: 154.217
-          scroll_jank_percentage: 1.2462422906349802
-          num_scroll_janks: 4
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 39.44
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 35.485
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 43.838
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "StartDrawToSwapStart"
-            duration_ms: 35.454
-          }
-        }
-        """))
-
-  def test_chrome_scroll_jank_v2_without_sub_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query=Metric('chrome_scroll_jank_v2'),
-        out=TextProto(r"""
-        [perfetto.protos.chrome_scroll_jank_v2] {
-          scroll_processing_ms: 14434.053
-          scroll_jank_processing_ms: 550.359
-          scroll_jank_percentage: 3.8129207368159173
-          num_scroll_janks: 6
-          scroll_jank_causes_and_durations {
-            cause: "BrowserMainToRendererCompositor"
-            duration_ms: 60.05
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 131.289
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 115.174
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 99.18
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 83.038
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 61.628
-          }
-        }
         """))
 
   def test_chrome_scroll_jank_v3(self):
