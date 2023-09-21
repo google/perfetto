@@ -205,7 +205,11 @@ def find_imports(path):
 
 
 def path_to_id(path):
-  return path.replace('/', '_').replace('-', '_').replace('@', '_at_')
+  path = path.replace('/', '_')
+  path = path.replace('-', '_')
+  path = path.replace('@', '_at_')
+  path = path.replace('.', '_')
+  return path
 
 
 def is_external_dep(path):
@@ -276,6 +280,12 @@ def do_desc(options, graph):
     print(rule)
 
 
+def do_print(options, graph):
+  for node, edges in graph.items():
+    for edge in edges:
+      print("{}\t{}".format(node, edge))
+
+
 def do_dot(options, graph):
 
   def simplify(path):
@@ -318,6 +328,9 @@ def main():
 
   desc_command = subparsers.add_parser('desc', help='Print the rules')
   desc_command.set_defaults(func=do_desc)
+
+  print_command = subparsers.add_parser('print', help='Print all imports')
+  print_command.set_defaults(func=do_print)
 
   dot_command = subparsers.add_parser(
       'dot',
