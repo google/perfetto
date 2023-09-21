@@ -460,13 +460,13 @@ class ChromeScrollJank(TestSuite):
           id,
           ts,
           dur,
-          scroll_start_ts,
-          scroll_end_ts
+          gesture_scroll_begin_ts,
+          gesture_scroll_end_ts
         FROM chrome_scrolls
         ORDER by id;
         """,
         out=Csv("""
-        "id","ts","dur","scroll_start_ts","scroll_end_ts"
+        "id","ts","dur","gesture_scroll_begin_ts","gesture_scroll_end_ts"
         5678,0,55000000,0,45000000
         5679,60000000,40000000,60000000,90000000
         5680,80000000,30000000,80000000,100000000
