@@ -20,10 +20,14 @@ import {
   ComputeMetricArgs,
   ComputeMetricResult,
   DisableAndReadMetatraceResult,
+  EnableMetatraceArgs,
+  MetatraceCategories,
   QueryArgs,
+  QueryResult as ProtoQueryResult,
   ResetTraceProcessorArgs,
+  TraceProcessorRpc,
+  TraceProcessorRpcStream,
 } from '../core/protos';
-import {perfetto} from '../gen/protos';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
@@ -37,9 +41,7 @@ import {
   WritableQueryResult,
 } from './query_result';
 
-import TraceProcessorRpc = perfetto.protos.TraceProcessorRpc;
-import TraceProcessorRpcStream = perfetto.protos.TraceProcessorRpcStream;
-import TPM = perfetto.protos.TraceProcessorRpc.TraceProcessorMethod;
+import TPM = TraceProcessorRpc.TraceProcessorMethod;
 
 export interface LoadingTracker {
   beginLoading(): void;
@@ -133,23 +135,20 @@ export abstract class Engine {
     // 1. We avoid protobufjs decoding the TraceProcessorRpc.query_result field.
     // 2. We stash (a view of) the original buffer into the |rawQueryResult| so
     //    the `case TPM_QUERY_STREAMING` below can take it.
-    perfetto.protos.QueryResult.decode =
-        (reader: protobuf.Reader, length: number) => {
-          const res =
-              perfetto.protos.QueryResult.create() as {} as QueryResultBypass;
-          res.rawQueryResult =
-              reader.buf.subarray(reader.pos, reader.pos + length);
-          // All this works only if protobufjs returns the original ArrayBuffer
-          // from |rpcMsgEncoded|. It should be always the case given the
-          // current implementation. This check mainly guards against future
-          // behavioral changes of protobufjs. We don't want to accidentally
-          // hold onto some internal protobufjs buffer. We are fine holding
-          // onto |rpcMsgEncoded| because those come from ProtoRingBuffer which
-          // is buffer-retention-friendly.
-          assertTrue(res.rawQueryResult.buffer === rpcMsgEncoded.buffer);
-          reader.pos += length;
-          return res as {} as perfetto.protos.QueryResult;
-        };
+    ProtoQueryResult.decode = (reader: protobuf.Reader, length: number) => {
+      const res = ProtoQueryResult.create() as {} as QueryResultBypass;
+      res.rawQueryResult = reader.buf.subarray(reader.pos, reader.pos + length);
+      // All this works only if protobufjs returns the original ArrayBuffer
+      // from |rpcMsgEncoded|. It should be always the case given the
+      // current implementation. This check mainly guards against future
+      // behavioral changes of protobufjs. We don't want to accidentally
+      // hold onto some internal protobufjs buffer. We are fine holding
+      // onto |rpcMsgEncoded| because those come from ProtoRingBuffer which
+      // is buffer-retention-friendly.
+      assertTrue(res.rawQueryResult.buffer === rpcMsgEncoded.buffer);
+      reader.pos += length;
+      return res as {} as ProtoQueryResult;
+    };
 
     const rpc = TraceProcessorRpc.decode(rpcMsgEncoded);
 
@@ -352,11 +351,11 @@ export abstract class Engine {
     return this._isMetatracingEnabled;
   }
 
-  enableMetatrace(categories?: perfetto.protos.MetatraceCategories) {
+  enableMetatrace(categories?: MetatraceCategories) {
     const rpc = TraceProcessorRpc.create();
     rpc.request = TPM.TPM_ENABLE_METATRACE;
     if (categories) {
-      rpc.enableMetatraceArgs = new perfetto.protos.EnableMetatraceArgs();
+      rpc.enableMetatraceArgs = new EnableMetatraceArgs();
       rpc.enableMetatraceArgs.categories = categories;
     }
     this._isMetatracingEnabled = true;
