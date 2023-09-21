@@ -181,6 +181,8 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // The caller needs to guarantee that the appended data is properly
   // proto-encoded and each field has a proto preamble.
   void AppendRawProtoBytes(const void* data, size_t size) {
+    if (nested_message_)
+      EndNestedMessage();
     const uint8_t* src = reinterpret_cast<const uint8_t*>(data);
     WriteToStream(src, src + size);
   }
