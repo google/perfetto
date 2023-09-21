@@ -236,6 +236,27 @@ TEST_F(MessageTest, AppendScatteredBytes) {
   EXPECT_EQ("42424242", GetNextSerializedBytes(4));
 }
 
+TEST_F(MessageTest, AppendRawProtoBytesFinalizesNestedMessage) {
+  Message* root_msg = NewMessage();
+
+  uint8_t buffer[42];
+  memset(buffer, 0x42, sizeof(buffer));
+
+  FakeChildMessage* nested_msg =
+      root_msg->BeginNestedMessage<FakeChildMessage>(9001 /* field_id */);
+  nested_msg->AppendVarInt(4 /* field_id */, 2);
+  uint8_t* nested_msg_size_field = nested_msg->size_field();
+
+  EXPECT_FALSE(nested_msg->is_finalized());
+  EXPECT_EQ(0u, *nested_msg_size_field);
+
+  root_msg->AppendRawProtoBytes(buffer, sizeof(buffer));
+
+  // Nested message should have been finalized as a side effect of appending
+  // raw bytes.
+  EXPECT_EQ(0x82u, *nested_msg_size_field);
+}
+
 TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
   Message* root_msg = NewMessage();
 
