@@ -16,10 +16,9 @@ import {getCurrentChannel} from '../common/channels';
 import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
-import {Router} from './router';
 
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
-const ANALYTICS_ID = 'UA-137828855-1';
+const ANALYTICS_ID = 'G-BD89KT2P3C';
 const PAGE_TITLE = 'no-page-title';
 
 export function initAnalytics() {
@@ -90,7 +89,7 @@ class AnalyticsImpl implements Analytics {
     script.src = 'https://www.googletagmanager.com/gtag/js?id=' + ANALYTICS_ID;
     script.defer = true;
     document.head.appendChild(script);
-    const route = Router.parseUrl(window.location.href).page || '/';
+    const route = window.location.href;
     console.log(
         `GA initialized. route=${route}`,
         `isInternalUser=${globals.isInternalUser}`);
@@ -100,13 +99,13 @@ class AnalyticsImpl implements Analytics {
     gtagGlobals.gtag('config', ANALYTICS_ID, {
       allow_google_signals: false,
       anonymize_ip: true,
-      page_path: route,
+      page_location: route,
       referrer: document.referrer.split('?')[0],
       send_page_view: false,
       page_title: PAGE_TITLE,
-      dimension1: globals.isInternalUser ? '1' : '0',
-      dimension2: VERSION,
-      dimension3: getCurrentChannel(),
+      perfetto_is_internal_user: globals.isInternalUser ? '1' : '0',
+      perfetto_version: VERSION,
+      perfetto_channel: getCurrentChannel(),
     });
     this.updatePath(route);
   }
