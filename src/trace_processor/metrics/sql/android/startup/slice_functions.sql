@@ -138,17 +138,14 @@ CASE
   ELSE $loc
 END || ": " || $status || "/" || $filter_str || "/" || $reason;
 
-SELECT CREATE_VIEW_FUNCTION(
-  'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(startup_id INT, threshold DOUBLE)',
-  'name STRING',
-  '
-    SELECT reply.name AS name
-    FROM ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP($startup_id, $threshold) request
-    JOIN following_flow(request.id) arrow
-    JOIN slice reply ON reply.id = arrow.slice_in
-    WHERE reply.dur > $threshold AND request.is_main_thread
-  '
-);
+CREATE PERFETTO FUNCTION binder_transaction_reply_slices_for_launch(
+  startup_id INT, threshold DOUBLE)
+RETURNS TABLE(name STRING) AS
+SELECT reply.name AS name
+FROM android_binder_transaction_slices_for_startup($startup_id, $threshold) request
+JOIN following_flow(request.id) arrow
+JOIN slice reply ON reply.id = arrow.slice_in
+WHERE reply.dur > $threshold AND request.is_main_thread;
 
 -- Given a launch id, return if unlock is running by systemui during the launch.
 CREATE PERFETTO FUNCTION is_unlock_running_during_launch(startup_id LONG)

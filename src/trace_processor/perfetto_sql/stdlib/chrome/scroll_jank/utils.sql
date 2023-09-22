@@ -95,20 +95,22 @@ SELECT
 -- @column ipc_hash            Hash of the IPC call.
 -- @column message_type        Message type (e.g. reply).
 -- @column id                  The slice ID.
-SELECT CREATE_VIEW_FUNCTION(
-  'CHROME_SELECT_LONG_TASK_SLICES(name STRING)',
-  'interface_name STRING, ipc_hash INT, message_type STRING, id INT',
-  'SELECT
-      EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
-      EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
-      CASE
-        WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
-        ELSE "message"
-      END AS message_type,
-      s.id
-    FROM slice s
-    WHERE
-      category GLOB "*scheduler.long_tasks*"
-      AND name = $name
-  '
-);
+CREATE PERFETTO FUNCTION chrome_select_long_task_slices(name STRING)
+RETURNS TABLE(
+  interface_name STRING,
+  ipc_hash INT,
+  message_type STRING,
+  id INT
+) AS
+SELECT
+  EXTRACT_ARG(s.arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
+  EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
+  CASE
+    WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
+    ELSE "message"
+  END AS message_type,
+  s.id
+FROM slice s
+WHERE
+  category GLOB "*scheduler.long_tasks*"
+  AND name = $name;

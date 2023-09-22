@@ -230,14 +230,14 @@ class FunctionDocParser(AbstractDocParser):
     self._validate_only_contains_annotations(doc.annotations, {'@arg', '@ret'})
 
     ret_type, ret_desc = self._parse_ret(doc.annotations, ret)
-    name = self._parse_name(upper=True)
+    name = self._parse_name()
 
     if not is_snake_case(name):
       self._error('Function name %s is not snake_case (should be %s) ' %
                   (name, name.casefold()))
 
     return Function(
-        name=self._parse_name(upper=True),
+        name=name,
         desc=self._parse_desc_not_empty(doc.description),
         args=self._parse_args(doc.annotations, args),
         return_type=ret_type,
@@ -273,8 +273,14 @@ class ViewFunctionDocParser(AbstractDocParser):
 
     self._validate_only_contains_annotations(doc.annotations,
                                              {'@arg', '@column'})
+    name = self._parse_name()
+
+    if not is_snake_case(name):
+      self._error('Function name %s is not snake_case (should be %s) ' %
+                  (name, name.casefold()))
+
     return TableFunction(
-        name=self._parse_name(upper=True),
+        name=name,
         desc=self._parse_desc_not_empty(doc.description),
         cols=self._parse_columns(doc.annotations, columns),
         args=self._parse_args(doc.annotations, args),
