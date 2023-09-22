@@ -35,8 +35,6 @@ import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 
-const SIDEBAR_WIDTH = 256;
-
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
   name: 'Overview Panel',
@@ -119,7 +117,6 @@ class TraceViewer implements m.ClassComponent {
 
     this.zoomContent = new PanAndZoomHandler({
       element: panZoomEl,
-      contentOffsetX: SIDEBAR_WIDTH,
       onPanned: (pannedPx: number) => {
         const {
           visibleTimeScale,
