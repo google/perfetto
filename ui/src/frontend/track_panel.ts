@@ -15,6 +15,7 @@
 import {hex} from 'color-convert';
 import m from 'mithril';
 
+import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {duration, Span, time} from '../base/time';
 import {Actions} from '../common/actions';
@@ -25,7 +26,6 @@ import {raf} from '../core/raf_scheduler';
 import {TrackLike} from '../public';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
-import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
@@ -153,7 +153,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
           globals.state.currentSelection !== null &&
                   globals.state.currentSelection.kind === 'AREA' ?
               m(TrackButton, {
-                action: (e: PerfettoMouseEvent) => {
+                action: (e: MouseEvent) => {
                   globals.dispatch(Actions.toggleTrackSelection(
                       {id: attrs.trackState.id, isTrackGroup: false}));
                   e.stopPropagation();
@@ -231,32 +231,33 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
     return m(
         '.track-content',
         {
-          onmousemove: (e: PerfettoMouseEvent) => {
-            attrs.track.onMouseMove(
-                {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY});
+          onmousemove: (e: MouseEvent) => {
+            attrs.track.onMouseMove(currentTargetOffset(e));
             raf.scheduleRedraw();
           },
           onmouseout: () => {
             attrs.track.onMouseOut();
             raf.scheduleRedraw();
           },
-          onmousedown: (e: PerfettoMouseEvent) => {
-            this.mouseDownX = e.layerX;
-            this.mouseDownY = e.layerY;
+          onmousedown: (e: MouseEvent) => {
+            const {x, y} = currentTargetOffset(e);
+            this.mouseDownX = x;
+            this.mouseDownY = y;
           },
-          onmouseup: (e: PerfettoMouseEvent) => {
+          onmouseup: (e: MouseEvent) => {
             if (this.mouseDownX === undefined ||
                 this.mouseDownY === undefined) {
               return;
             }
-            if (Math.abs(e.layerX - this.mouseDownX) > 1 ||
-                Math.abs(e.layerY - this.mouseDownY) > 1) {
+            const {x, y} = currentTargetOffset(e);
+            if (Math.abs(x - this.mouseDownX) > 1 ||
+                Math.abs(y - this.mouseDownY) > 1) {
               this.selectionOccurred = true;
             }
             this.mouseDownX = undefined;
             this.mouseDownY = undefined;
           },
-          onclick: (e: PerfettoMouseEvent) => {
+          onclick: (e: MouseEvent) => {
             // This click event occurs after any selection mouse up/drag events
             // so we have to look if the mouse moved during this click to know
             // if a selection occurred.
@@ -265,8 +266,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
               return;
             }
             // Returns true if something was selected, so stop propagation.
-            if (attrs.track.onMouseClick(
-                    {x: e.layerX - TRACK_SHELL_WIDTH, y: e.layerY})) {
+            if (attrs.track.onMouseClick(currentTargetOffset(e))) {
               e.stopPropagation();
             }
             raf.scheduleRedraw();
@@ -308,7 +308,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
 }
 
 export interface TrackButtonAttrs {
-  action: (e: PerfettoMouseEvent) => void;
+  action: (e: MouseEvent) => void;
   i: string;
   tooltip: string;
   showButton: boolean;
