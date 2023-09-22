@@ -89,6 +89,7 @@ from diff_tests.startup.tests_metrics import StartupMetrics
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
+from diff_tests.time.tests import Time
 from diff_tests.track_event.tests import TrackEvent
 from diff_tests.translation.tests import Translation
 from diff_tests.ufs.tests import Ufs
@@ -178,6 +179,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *Tables(index_path, 'tables', 'Tables').fetch(),
       *TablesCounters(index_path, 'tables', 'TablesCounters').fetch(),
       *TablesSched(index_path, 'tables', 'TablesSched').fetch(),
+      *Time(index_path, 'time', 'Time').fetch(),
       *TrackEvent(index_path, 'track_event', 'TrackEvent').fetch(),
       *Translation(index_path, 'translation', 'Translation').fetch(),
       *WebView(index_path, 'webview', 'WebView').fetch(),
