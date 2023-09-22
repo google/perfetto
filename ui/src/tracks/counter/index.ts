@@ -562,6 +562,7 @@ async function globalTrackProvider(engine: EngineProxy): Promise<TrackInfo[]> {
       trackKind: COUNTER_TRACK_KIND,
       name,
       description,
+      group: 'GPU Counters',
       config: {
         name,
         trackId,

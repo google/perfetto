@@ -31,3 +31,14 @@ export function range(n: number): number[] {
 export function allUnique(x: string[]): boolean {
   return x.length == new Set(x).size;
 }
+
+// Remove an `item` from an `array`.
+// Return whether the `array` was modified by removal of the `item`.
+export function remove(array: unknown[], item: unknown): boolean {
+  const index = array.indexOf(item);
+  if (index >= 0) {
+    array.splice(index, 1);
+    return true;
+  }
+  return false;
+}

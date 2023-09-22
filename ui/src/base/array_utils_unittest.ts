@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {allUnique, range} from './array_utils';
+import {allUnique, range, remove} from './array_utils';
 
 describe('range', () => {
   it('returns array of elements in range [0; n)', () => {
@@ -47,5 +47,24 @@ describe('allUnique', () => {
 
   it('returns true on an array with one element', () => {
     expect(allUnique(['test'])).toBeTruthy();
+  });
+});
+
+describe('remove', () => {
+  it('returns false for an array that does not have the item', () => {
+    const items = ['a', 'b', 'c'];
+    expect(remove(items, 'd')).toBe(false);
+  });
+
+  it('returns true for an array that has the item', () => {
+    const items = ['a', 'b', 'c'];
+    expect(remove(items, 'b')).toBe(true);
+    expect(items).toEqual(['a', 'c']);
+  });
+
+  it('returns true for an array that has the item multiple times', () => {
+    const items = ['a', 'b', 'c', 'b'];
+    expect(remove(items, 'b')).toBe(true);
+    expect(items).toEqual(['a', 'c', 'b']);
   });
 });

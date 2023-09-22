@@ -256,6 +256,8 @@ export interface TrackGroupState {
   name: string;
   description: string;
   collapsed: boolean;
+  parentGroup?: string; // Parent group id, if a subgroup.
+  subgroups: string[]; // Child group ids.
   tracks: string[];  // Child track ids.
 }
 
@@ -948,15 +950,23 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
-export function getContainingTrackId(state: State, trackId: string): null|
-    string {
+export function getContainingTrackIds(state: State, trackId: string): null|
+    string[] {
   const track = state.tracks[trackId];
   if (!track) {
     return null;
   }
-  const parentId = track.trackGroup;
-  if (!parentId) {
+  let groupId = track.trackGroup;
+  if (!groupId) {
     return null;
   }
-  return parentId;
+
+  const result = [];
+  while (groupId) {
+    result.unshift(groupId);
+    const trackGroup: TrackGroupState = state.trackGroups[groupId];
+    groupId = trackGroup?.parentGroup;
+  }
+
+  return result;
 }

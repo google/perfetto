@@ -17,7 +17,7 @@ import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {getContainingTrackId} from '../common/state';
+import {getContainingTrackIds} from '../common/state';
 import {TPTime} from '../common/time';
 
 import {globals} from './globals';
@@ -121,10 +121,18 @@ export function verticalScrollToTrack(
     return;
   }
 
+  let trackGroupId: string | undefined;
+  let trackSubgroupId: string | undefined;
   let trackGroup = null;
-  const trackGroupId = getContainingTrackId(globals.state, trackIdString);
-  if (trackGroupId) {
+  let trackSubgroup = null;
+  const containingIds = getContainingTrackIds(globals.state, trackIdString);
+  if (containingIds) {
+    trackGroupId = containingIds[0];
+    trackSubgroupId = containingIds[1];
     trackGroup = document.querySelector('#track_' + trackGroupId);
+    if (trackSubgroupId) {
+      trackSubgroup = document.querySelector('#track_' + trackSubgroupId);
+    }
   }
 
   if (!trackGroupId || !trackGroup) {
@@ -138,9 +146,10 @@ export function verticalScrollToTrack(
     // After the track exists in the dom, it will be scrolled to.
     globals.frontendLocalState.scrollToTrackId = trackId;
     globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    // TODO(cwd): Handle the track subgroup
     return;
   } else {
-    trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    (trackSubgroup ?? trackGroup).scrollIntoView({behavior: 'smooth', block: 'nearest'});
   }
 }
 

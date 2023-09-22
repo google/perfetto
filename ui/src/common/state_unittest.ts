@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {createEmptyState} from './empty_state';
-import {getContainingTrackId, PrimaryTrackSortKey, State} from './state';
+import {getContainingTrackIds, PrimaryTrackSortKey, State} from './state';
 import {deserializeStateObject, serializeStateObject} from './upload_utils';
 
 test('createEmptyState', () => {
@@ -44,9 +44,9 @@ test('getContainingTrackId', () => {
     trackGroup: 'containsB',
   };
 
-  expect(getContainingTrackId(state, 'z')).toEqual(null);
-  expect(getContainingTrackId(state, 'a')).toEqual(null);
-  expect(getContainingTrackId(state, 'b')).toEqual('containsB');
+  expect(getContainingTrackIds(state, 'z')).toEqual(null);
+  expect(getContainingTrackIds(state, 'a')).toEqual(null);
+  expect(getContainingTrackIds(state, 'b')).toEqual(['containsB']);
 });
 
 test('state is serializable', () => {

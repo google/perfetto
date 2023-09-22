@@ -43,6 +43,10 @@ export interface TrackInfo {
   // track name on the left-hand side of the track.
   description?: string;
 
+  // An optional human readable group name for this track.
+  // Tracks of the same group name are collected into a group of that name.
+  group?: string;
+
   // An opaque config for the track.
   config: {};
 }

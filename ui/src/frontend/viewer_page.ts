@@ -33,6 +33,7 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
+import {TrackGroupState} from '../common/state';
 
 const SIDEBAR_WIDTH = 256;
 
@@ -202,7 +203,7 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
               visibleTimeScale.pxToHpTime(startPx).toTPTime('floor'),
               visibleTimeScale.pxToHpTime(endPx).toTPTime('ceil'),
           );
-          
+
           // we need to encount for the embedded scenario so we may not be at the very top
           // we remove the topbar height as it is added again in the rendering of the panel container
           const panelBounds = panZoomEl.getBoundingClientRect();
@@ -245,7 +246,7 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
     const scrollingPanels: AnyAttrsVnode[] = globals.state.scrollingTracks.map(
         (id) => m(TrackPanel, {key: id, id, selectable: true}));
 
-    for (const group of Object.values(globals.state.trackGroups)) {
+    const renderGroup = (group: TrackGroupState, panels: AnyAttrsVnode[]) => {
       const headerPanel = m(TrackGroupPanel, {
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
@@ -253,9 +254,14 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
       });
 
       const childTracks: AnyAttrsVnode[] = [];
-      // The first track is the summary track, and is displayed as part of the
-      // group panel, we don't want to display it twice so we start from 1.
       if (!group.collapsed) {
+        // Recursively render subgroups, first
+        group.subgroups.map((id) => globals.state.trackGroups[id])
+          .filter(Boolean)
+          .forEach((subgroup) => renderGroup(subgroup, childTracks));
+
+        // The first track is the summary track, and is displayed as part of the
+        // group panel, we don't want to display it twice so we start from 1.
         for (let i = 1; i < group.tracks.length; ++i) {
           const id = group.tracks[i];
           childTracks.push(m(TrackPanel, {
@@ -265,12 +271,16 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
           }));
         }
       }
-      scrollingPanels.push(m(TrackGroup, {
+      panels.push(m(TrackGroup, {
         header: headerPanel,
         collapsed: group.collapsed,
         childTracks,
       } as TrackGroupAttrs));
-    }
+    };
+
+    Object.values(globals.state.trackGroups)
+      .filter((group) => group.parentGroup === undefined)
+      .forEach((group) => renderGroup(group, scrollingPanels));
 
     const overviewPanel = [];
     if (OVERVIEW_PANEL_FLAG.get()) {
@@ -323,6 +333,6 @@ export function createViewerPage(attrs: TraceViewerAttrs) {
   return createPage({
     view() {
       return m(TraceViewer, attrs);
-    }
+    },
   });
 }
