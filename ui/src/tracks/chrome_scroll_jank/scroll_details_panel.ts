@@ -101,10 +101,11 @@ export class ScrollDetailsPanel extends
       WITH scrolls AS (
         SELECT
           id,
-          IFNULL(scroll_start_ts, ts) AS start_ts,
+          IFNULL(gesture_scroll_begin_ts, ts) AS start_ts,
           CASE
-            WHEN scroll_end_ts IS NOT NULL THEN scroll_end_ts
-            WHEN scroll_start_ts IS NOT NULL THEN scroll_start_ts + dur
+            WHEN gesture_scroll_end_ts IS NOT NULL THEN gesture_scroll_end_ts
+            WHEN gesture_scroll_begin_ts IS NOT NULL 
+              THEN gesture_scroll_begin_ts + dur
             ELSE ts + dur
           END AS end_ts
         FROM chrome_scrolls WHERE id = ${this.config.id})
