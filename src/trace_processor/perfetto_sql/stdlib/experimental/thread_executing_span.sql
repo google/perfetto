@@ -347,9 +347,8 @@ ON experimental_thread_executing_span_graph(parent_id);
 -- @column is_leaf            Whether this span is the leaf in the slice tree.
 -- @column depth              Tree depth from |root_id|
 -- @column root_id            Thread state id used to start the recursion. Helpful for SQL JOINs
-SELECT CREATE_VIEW_FUNCTION(
-'EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(root_id INT)',
-'
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_descendants(root_id INT)
+RETURNS TABLE(
   parent_id LONG,
   id LONG,
   ts LONG,
@@ -373,8 +372,7 @@ SELECT CREATE_VIEW_FUNCTION(
   is_leaf INT,
   depth INT,
   root_id INT
-',
-'
+) AS
 WITH chain AS (
   SELECT
     *,
@@ -390,8 +388,7 @@ WITH chain AS (
   FROM experimental_thread_executing_span_graph graph
   JOIN chain ON chain.id = graph.parent_id
 )
-SELECT * FROM chain
-');
+SELECT * FROM chain;
 
 -- All thread_executing_spans that are ancestors of |leaf_id|.
 --
@@ -426,9 +423,8 @@ SELECT * FROM chain
 -- @column leaf_blocked_dur        Thread state duration blocked of the |leaf_id|.
 -- @column leaf_blocked_state      Thread state of the |leaf_id|.
 -- @column leaf_blocked_function   Thread state blocked_function of the |leaf_id|.
-SELECT CREATE_VIEW_FUNCTION(
-'EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(leaf_id INT, leaf_utid INT)',
-'
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_ancestors(leaf_id INT, leaf_utid INT)
+RETURNS TABLE(
   parent_id LONG,
   id LONG,
   ts LONG,
@@ -457,8 +453,7 @@ SELECT CREATE_VIEW_FUNCTION(
   leaf_blocked_dur LONG,
   leaf_blocked_state STRING,
   leaf_blocked_function STRING
-',
-'
+) AS
 WITH
 chain AS (
   SELECT
@@ -486,8 +481,7 @@ chain AS (
   FROM experimental_thread_executing_span_graph graph
   JOIN chain ON chain.parent_id = graph.id AND chain.ts >= (leaf_ts - leaf_blocked_dur)
 )
-SELECT * FROM chain
-');
+SELECT * FROM chain;
 
 -- Gets the thread_executing_span id a thread_state belongs to. Returns NULL if thread state is
 -- sleeping and not blocked on an interrupt.

@@ -34,9 +34,8 @@ SELECT MIN(ts) FROM counter WHERE counter.track_id = $counter_track_id;
 -- @column track_name          Name of the counter track.
 -- @column track_arg_set_id    Counter track set id.
 -- @column arg_set_id          Counter arg set id.
-SELECT CREATE_VIEW_FUNCTION(
-  'COUNTER_WITH_DUR_FOR_TRACK(counter_track_id INT)',
-  '
+CREATE PERFETTO FUNCTION counter_with_dur_for_track(counter_track_id INT)
+RETURNS TABLE(
     ts LONG,
     dur LONG,
     value DOUBLE,
@@ -44,21 +43,18 @@ SELECT CREATE_VIEW_FUNCTION(
     track_name STRING,
     track_arg_set_id INT,
     arg_set_id INT
-  ',
-  '
-    SELECT
-        ts,
-        LEAD(ts, 1, trace_end()) OVER(ORDER BY ts) - ts AS dur,
-        value,
-        track.id AS track_id,
-        track.name AS track_name,
-        track.source_arg_set_id AS track_arg_set_id,
-        counter.arg_set_id AS arg_set_id
-    FROM counter
-    JOIN counter_track track ON track.id = counter.track_id
-    WHERE track.id = $counter_track_id
-  '
-);
+) AS
+SELECT
+  ts,
+  LEAD(ts, 1, trace_end()) OVER(ORDER BY ts) - ts AS dur,
+  value,
+  track.id AS track_id,
+  track.name AS track_name,
+  track.source_arg_set_id AS track_arg_set_id,
+  counter.arg_set_id AS arg_set_id
+FROM counter
+JOIN counter_track track ON track.id = counter.track_id
+WHERE track.id = $counter_track_id;
 
 -- COUNTER_WITH_DUR_FOR_TRACK but in a specified time.
 -- Does calculation over the table ends - creates an artificial counter value at
@@ -75,33 +71,30 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @column track_name          Name of the counter track.
 -- @column track_arg_set_id    Counter track set id.
 -- @column arg_set_id          Counter arg set id.
-SELECT CREATE_VIEW_FUNCTION(
-  'COUNTER_FOR_TIME_RANGE(counter_track_id INT, start_ts LONG, end_ts LONG)',
-  '
-    ts LONG,
-    dur LONG,
-    value DOUBLE,
-    track_id INT,
-    track_name STRING,
-    track_arg_set_id INT,
-    arg_set_id INT
-  ',
-  '
-  SELECT
-    IIF(ts < $start_ts, $start_ts, ts) AS ts,
-    IIF(
-      ts < $start_ts,
-      dur - ($start_ts - ts),
-      IIF(ts + dur > $end_ts, $end_ts - ts, dur)) AS dur,
-    value,
-    track_id,
-    track_name,
-    track_arg_set_id,
-    arg_set_id
-  FROM COUNTER_WITH_DUR_FOR_TRACK($counter_track_id)
-  WHERE TRUE
-    AND ts + dur >= $start_ts
-    AND ts < $end_ts
-  ORDER BY ts ASC;
-'
-);
+CREATE PERFETTO FUNCTION COUNTER_FOR_TIME_RANGE(
+  counter_track_id INT, start_ts LONG, end_ts LONG)
+RETURNS TABLE(
+  ts LONG,
+  dur LONG,
+  value DOUBLE,
+  track_id INT,
+  track_name STRING,
+  track_arg_set_id INT,
+  arg_set_id INT
+) AS
+SELECT
+  IIF(ts < $start_ts, $start_ts, ts) AS ts,
+  IIF(
+    ts < $start_ts,
+    dur - ($start_ts - ts),
+    IIF(ts + dur > $end_ts, $end_ts - ts, dur)) AS dur,
+  value,
+  track_id,
+  track_name,
+  track_arg_set_id,
+  arg_set_id
+FROM counter_with_dur_for_track($counter_track_id)
+WHERE TRUE
+  AND ts + dur >= $start_ts
+  AND ts < $end_ts
+ORDER BY ts ASC;

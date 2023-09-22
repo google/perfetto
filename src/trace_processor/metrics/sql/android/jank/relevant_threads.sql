@@ -25,22 +25,18 @@ WHERE
   -- Some CUJs use a dedicated thread for Choreographer callbacks
   OR (p.main_thread_override = thread.name);
 
-SELECT CREATE_VIEW_FUNCTION(
-  'ANDROID_JANK_CUJ_APP_THREAD(thread_name STRING)',
-  'cuj_id INT, upid INT, utid INT, name STRING, track_id INT',
-  '
-  SELECT
-    cuj_id,
-    cuj.upid,
-    utid,
-    thread.name,
-    thread_track.id AS track_id
-  FROM thread
-  JOIN android_jank_cuj cuj USING (upid)
-  JOIN thread_track USING (utid)
-  WHERE thread.name = $thread_name;
-  '
-);
+CREATE PERFETTO FUNCTION android_jank_cuj_app_thread(thread_name STRING)
+RETURNS TABLE(cuj_id INT, upid INT, utid INT, name STRING, track_id INT) AS
+SELECT
+  cuj_id,
+  cuj.upid,
+  utid,
+  thread.name,
+  thread_track.id AS track_id
+FROM thread
+JOIN android_jank_cuj cuj USING (upid)
+JOIN thread_track USING (utid)
+WHERE thread.name = $thread_name;
 
 DROP TABLE IF EXISTS android_jank_cuj_render_thread;
 CREATE PERFETTO TABLE android_jank_cuj_render_thread AS
@@ -68,17 +64,13 @@ JOIN android_jank_cuj_sf_process sf_process USING (upid)
 JOIN thread_track USING (utid)
 WHERE thread.is_main_thread;
 
-SELECT CREATE_VIEW_FUNCTION(
-  'ANDROID_JANK_CUJ_SF_THREAD(thread_name STRING)',
-  'upid INT, utid INT, name STRING, track_id INT',
-  '
-  SELECT upid, utid, thread.name, thread_track.id AS track_id
-  FROM thread
-  JOIN android_jank_cuj_sf_process sf_process USING (upid)
-  JOIN thread_track USING (utid)
-  WHERE thread.name = $thread_name;
-  '
-);
+CREATE PERFETTO FUNCTION android_jank_cuj_sf_thread(thread_name STRING)
+RETURNS TABLE(upid INT, utid INT, name STRING, track_id INT) AS
+SELECT upid, utid, thread.name, thread_track.id AS track_id
+FROM thread
+JOIN android_jank_cuj_sf_process sf_process USING (upid)
+JOIN thread_track USING (utid)
+WHERE thread.name = $thread_name;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_gpu_completion_thread;
 CREATE PERFETTO TABLE android_jank_cuj_sf_gpu_completion_thread AS
