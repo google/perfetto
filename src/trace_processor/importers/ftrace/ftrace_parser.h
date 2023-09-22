@@ -130,6 +130,12 @@ class FtraceParser {
   void ParseBinderTransactionReceived(int64_t timestamp,
                                       uint32_t pid,
                                       protozero::ConstBytes);
+  void ParseBinderCommand(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseBinderReturn(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
   void ParseBinderTransactionAllocBuf(int64_t timestamp,
                                       uint32_t pid,
                                       protozero::ConstBytes);
