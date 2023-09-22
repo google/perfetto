@@ -104,7 +104,7 @@ AS
 {ARGS_STR}
 {COLS_STR}
 SELECT CREATE_VIEW_FUNCTION(
-  'FOO_VIEW_FN({ARGS_SQL_STR})',
+  'foo_view_fn({ARGS_SQL_STR})',
   '{COLS_SQL_STR}',
   '{SQL_STR}'
 );
@@ -112,7 +112,7 @@ SELECT CREATE_VIEW_FUNCTION(
     self.assertListEqual(res.errors, [])
 
     fn = res.table_functions[0]
-    self.assertEqual(fn.name, 'FOO_VIEW_FN')
+    self.assertEqual(fn.name, 'foo_view_fn')
     self.assertEqual(fn.desc, 'First line. Second line.')
     self.assertEqual(
         fn.args, {
