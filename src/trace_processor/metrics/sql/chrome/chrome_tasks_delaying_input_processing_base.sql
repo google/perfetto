@@ -23,23 +23,20 @@
 -- browser interval. This may differ based on whether the scenario is for
 -- topLevel events or LongTask events.
 
-SELECT CREATE_VIEW_FUNCTION(
-  '{{function_prefix}}SELECT_SLOW_BROWSER_TASKS()',
-  'full_name STRING, dur INT, ts INT, id INT, upid INT, thread_dur INT',
-  'SELECT
-    task_table.full_name AS full_name,
-    task_table.dur AS dur,
-    task_table.ts AS ts,
-    task_table.id AS id,
-    task_table.upid AS upid,
-    thread_dur
-  FROM
-    {{task_table_name}} task_table
-  WHERE
-    task_table.dur >= {{duration_causing_jank_ms}} * 1e6
-    AND task_table.thread_name = "CrBrowserMain"
-  '
-);
+CREATE PERFETTO FUNCTION {{function_prefix}}SELECT_SLOW_BROWSER_TASKS()
+RETURNS TABLE(full_name STRING, dur INT, ts INT, id INT, upid INT, thread_dur INT) AS
+SELECT
+  task_table.full_name AS full_name,
+  task_table.dur AS dur,
+  task_table.ts AS ts,
+  task_table.id AS id,
+  task_table.upid AS upid,
+  thread_dur
+FROM
+  {{task_table_name}} task_table
+WHERE
+  task_table.dur >= {{duration_causing_jank_ms}} * 1e6
+  AND task_table.thread_name = "CrBrowserMain";
 
 -- Get the tasks that was running for more than 8ms within windows
 -- that we could have started processing input but did not on the

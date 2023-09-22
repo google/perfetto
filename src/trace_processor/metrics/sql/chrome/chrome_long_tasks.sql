@@ -23,30 +23,38 @@ INCLUDE PERFETTO MODULE chrome.tasks;
 -- names. For example, LongTaskTracker slices may have associated IPC
 -- metadata, or InterestingTask slices for input may have associated IPC to
 -- determine whether the task is fling/etc.
-SELECT CREATE_VIEW_FUNCTION(
-  'SELECT_LONG_TASK_SLICES(name STRING)',
-  'interface_name STRING, ipc_hash INT, message_type STRING, id INT, task_name STRING',
-  '
-    WITH slices_with_mojo_data AS (
-      SELECT
-          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
-          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
-          CASE
-            WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
-            ELSE "message"
-          END AS message_type,
-          id
-      FROM slice
-      WHERE
-        category GLOB "*scheduler.long_tasks*"
-        AND name = $name
-    )
-    SELECT
-      *,
-      printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
-    FROM slices_with_mojo_data;
-  '
-);
+CREATE PERFETTO FUNCTION select_long_task_slices(name STRING)
+RETURNS TABLE(
+  interface_name STRING,
+  ipc_hash INT,
+  message_type STRING,
+  id INT,
+  task_name STRING)
+AS
+WITH slices_with_mojo_data AS (
+  SELECT
+      EXTRACT_ARG(
+        arg_set_id,
+        "chrome_mojo_event_info.mojo_interface_tag"
+      ) AS interface_name,
+      EXTRACT_ARG(
+        arg_set_id,
+        "chrome_mojo_event_info.ipc_hash"
+      ) AS ipc_hash,
+      CASE
+        WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
+        ELSE "message"
+      END AS message_type,
+      id
+  FROM slice
+  WHERE
+    category GLOB "*scheduler.long_tasks*"
+    AND name = $name
+)
+SELECT
+  *,
+  printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
+FROM slices_with_mojo_data;
 
 CREATE PERFETTO FUNCTION is_long_choreographer_task(dur LONG)
 RETURNS BOOL AS

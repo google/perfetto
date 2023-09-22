@@ -211,15 +211,18 @@ WHERE slice.ts BETWEEN st.ts AND st.ts + st.dur;
 -- @column slice_dur      Duration of the slice.
 -- @column thread_name    Name of the thread with the slice.
 -- @column arg_set_id     Arg set id.
-SELECT CREATE_VIEW_FUNCTION(
-  'ANDROID_SLICES_FOR_STARTUP_AND_SLICE_NAME(startup_id INT, slice_name STRING)',
-  'slice_name STRING, slice_ts INT, slice_dur INT, thread_name STRING, arg_set_id INT',
-  '
-    SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
-    FROM android_thread_slices_for_all_startups
-    WHERE startup_id = $startup_id AND slice_name GLOB $slice_name
-  '
-);
+CREATE PERFETTO FUNCTION android_slices_for_startup_and_slice_name(
+  startup_id INT, slice_name STRING)
+RETURNS TABLE(
+  slice_name STRING,
+  slice_ts INT,
+  slice_dur INT,
+  thread_name STRING,
+  arg_set_id INT
+) AS
+SELECT slice_name, slice_ts, slice_dur, thread_name, arg_set_id
+FROM android_thread_slices_for_all_startups
+WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 
 -- Returns binder transaction slices for a given startup id with duration over threshold.
 --
@@ -231,18 +234,30 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @column process        Name of the process with slice.
 -- @column arg_set_id     Arg set id.
 -- @column is_main_thread Whether is main thread.
-SELECT CREATE_VIEW_FUNCTION(
-  'ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP(startup_id INT, threshold DOUBLE)',
-  'id INT, slice_dur INT, thread_name STRING, process STRING, arg_set_id INT, is_main_thread BOOL',
-  '
-    SELECT slice_id as id, slice_dur, thread_name, process.name as process, s.arg_set_id, is_main_thread
-    FROM android_thread_slices_for_all_startups s
-    JOIN process ON (
-      EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
-    )
-    WHERE startup_id = $startup_id AND slice_name GLOB "binder transaction" AND slice_dur > $threshold
-  '
-);
+CREATE PERFETTO FUNCTION android_binder_transaction_slices_for_startup(
+  startup_id INT, threshold DOUBLE)
+RETURNS TABLE(
+  id INT,
+  slice_dur INT,
+  thread_name STRING,
+  process STRING,
+  arg_set_id INT,
+  is_main_thread BOOL
+) AS
+SELECT
+  slice_id as id,
+  slice_dur,
+  thread_name,
+  process.name as process,
+  s.arg_set_id,
+  is_main_thread
+FROM android_thread_slices_for_all_startups s
+JOIN process ON (
+  EXTRACT_ARG(s.arg_set_id, "destination process") = process.pid
+)
+WHERE startup_id = $startup_id
+  AND slice_name GLOB "binder transaction"
+  AND slice_dur > $threshold;
 
 -- Returns duration of startup for slice name.
 --
@@ -251,11 +266,13 @@ SELECT CREATE_VIEW_FUNCTION(
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(
+  startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups
-WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
+WHERE startup_id = $startup_id
+  AND slice_name GLOB $slice_name;
 
 -- Returns duration of startup for slice name on main thread.
 --
@@ -264,8 +281,11 @@ WHERE startup_id = $startup_id AND slice_name GLOB $slice_name;
 -- @arg startup_id LONG   Startup id.
 -- @arg slice_name STRING Slice name.
 -- @ret INT               Sum of duration.
-CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(startup_id LONG, slice_name STRING)
+CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(
+  startup_id LONG, slice_name STRING)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups
-WHERE startup_id = $startup_id AND slice_name GLOB $slice_name AND is_main_thread;
+WHERE startup_id = $startup_id
+  AND slice_name GLOB $slice_name
+  AND is_main_thread;

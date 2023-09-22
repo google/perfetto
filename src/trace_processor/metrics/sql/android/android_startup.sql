@@ -43,20 +43,16 @@ SELECT RUN_METRIC('android/startup/system_state.sql');
 -- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
-SELECT CREATE_VIEW_FUNCTION(
-  'ZYGOTE_FORK_FOR_LAUNCH(startup_id INT)',
-  'ts INT, dur INT',
-  '
-    SELECT slice.ts, slice.dur
-    FROM android_startups l
-    JOIN slice ON (
-      l.ts < slice.ts AND
-      slice.ts + slice.dur < l.ts_end AND
-      STR_SPLIT(slice.name, ": ", 1) = l.package
-    )
-    WHERE l.startup_id = $startup_id AND slice.name GLOB "Start proc: *"
-  '
-);
+CREATE PERFETTO FUNCTION zygote_fork_for_launch(startup_id INT)
+RETURNS TABLE(ts INT, dur INT) AS
+SELECT slice.ts, slice.dur
+FROM android_startups l
+JOIN slice ON (
+  l.ts < slice.ts AND
+  slice.ts + slice.dur < l.ts_end AND
+  STR_SPLIT(slice.name, ': ', 1) = l.package
+)
+WHERE l.startup_id = $startup_id AND slice.name GLOB 'Start proc: *';
 
 -- Returns the fully drawn slice proto given a launch id.
 CREATE PERFETTO FUNCTION report_fully_drawn_for_launch(startup_id INT)
@@ -79,17 +75,14 @@ FROM (
 );
 
 -- Given a launch id and GLOB for a slice name, returns the N longest slice name and duration.
-SELECT CREATE_VIEW_FUNCTION(
-  'GET_LONG_SLICES_FOR_LAUNCH(startup_id INT, slice_name STRING, top_n INT)',
-  'slice_name STRING, slice_dur INT',
-  '
-    SELECT slice_name, slice_dur
-    FROM android_thread_slices_for_all_startups s
-    WHERE s.startup_id = $startup_id AND s.slice_name GLOB $slice_name
-    ORDER BY slice_dur DESC
-    LIMIT $top_n
-  '
-);
+CREATE PERFETTO FUNCTION get_long_slices_for_launch(
+  startup_id INT, slice_name STRING, top_n INT)
+RETURNS TABLE(slice_name STRING, slice_dur INT) AS
+SELECT slice_name, slice_dur
+FROM android_thread_slices_for_all_startups s
+WHERE s.startup_id = $startup_id AND s.slice_name GLOB $slice_name
+ORDER BY slice_dur DESC
+LIMIT $top_n;
 
 -- Define the view
 DROP VIEW IF EXISTS startup_view;
