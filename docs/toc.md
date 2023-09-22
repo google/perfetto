@@ -58,6 +58,7 @@
   * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
   * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
   * [Pivot tables](analysis/pivot-tables.md)
+  * [Debug tracks](analysis/debug-tracks.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
