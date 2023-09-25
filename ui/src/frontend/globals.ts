@@ -273,6 +273,8 @@ class Globals {
   private _ftraceCounters?: FtraceStat[] = undefined;
   private _ftracePanelData?: FtracePanelData = undefined;
   private _cmdManager?: CommandManager = undefined;
+  private _realtimeOffset = Time.ZERO;
+  private _utcOffset = Time.ZERO;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -736,16 +738,40 @@ class Globals {
     return assertExists(this._cmdManager);
   }
 
+
+  // This is the ts value at the time of the Unix epoch.
+  // Normally some large negative value, because the unix epoch is normally in
+  // the past compared to ts=0.
+  get realtimeOffset(): time {
+    return this._realtimeOffset;
+  }
+
+  set realtimeOffset(time: time) {
+    this._realtimeOffset = time;
+  }
+
+  // This is the timestamp that we should use for our offset when in UTC mode.
+  // Usually the most recent UTC midnight compared to the trace start time.
+  get utcOffset(): time {
+    return this._utcOffset;
+  }
+
+  set utcOffset(offset: time) {
+    this._utcOffset = offset;
+  }
+
   // Offset between t=0 and the configured time domain.
   timestampOffset(): time {
     const fmt = timestampFormat();
     switch (fmt) {
       case TimestampFormat.Timecode:
       case TimestampFormat.Seconds:
-        return globals.state.traceTime.start;
+        return this.state.traceTime.start;
       case TimestampFormat.Raw:
       case TimestampFormat.RawLocale:
         return Time.ZERO;
+      case TimestampFormat.UTC:
+        return this.utcOffset;
       default:
         const x: never = fmt;
         throw new Error(`Unsupported format ${x}`);
