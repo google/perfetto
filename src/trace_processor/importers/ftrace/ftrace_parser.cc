@@ -688,6 +688,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseBinderTransactionReceived(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kBinderCommandFieldNumber: {
+        ParseBinderCommand(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kBinderReturnFieldNumber: {
+        ParseBinderReturn(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
         ParseBinderTransactionAllocBuf(ts, pid, fld_bytes);
         break;
@@ -1817,6 +1825,22 @@ void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   BinderTracker::GetOrCreate(context_)->TransactionReceived(timestamp, pid,
                                                             transaction_id);
+}
+
+void FtraceParser::ParseBinderCommand(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::BinderCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->CommandToKernel(timestamp, pid,
+                                                        evt.cmd());
+}
+
+void FtraceParser::ParseBinderReturn(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderReturnFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->ReturnFromKernel(timestamp, pid,
+                                                         evt.cmd());
 }
 
 void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
