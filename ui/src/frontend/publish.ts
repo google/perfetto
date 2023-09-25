@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {AggregateData, isEmptyData} from '../common/aggregation_data';
 import {ConversionJobStatusUpdate} from '../common/conversion_jobs';
@@ -97,6 +98,12 @@ export function publishCpuProfileDetails(details: CpuProfileDetails) {
 
 export function publishFtraceCounters(counters: FtraceStat[]) {
   globals.ftraceCounters = counters;
+  globals.publishRedraw();
+}
+
+export function publishRealtimeOffset(offset: time, utcOffset: time) {
+  globals.realtimeOffset = offset;
+  globals.utcOffset = utcOffset;
   globals.publishRedraw();
 }
 
