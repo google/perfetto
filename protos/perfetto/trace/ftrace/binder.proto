@@ -39,3 +39,9 @@ message BinderTransactionAllocBufFtraceEvent {
   optional uint64 offsets_size = 3;
   optional uint64 extra_buffers_size = 4;
 }
+message BinderCommandFtraceEvent {
+  optional uint32 cmd = 1;
+}
+message BinderReturnFtraceEvent {
+  optional uint32 cmd = 1;
+}
