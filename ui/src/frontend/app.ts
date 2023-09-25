@@ -192,6 +192,7 @@ export class App implements m.ClassComponent {
           async () => {
             const options: PromptOption[] = [
               {key: TimestampFormat.Timecode, displayName: 'Timecode'},
+              {key: TimestampFormat.UTC, displayName: 'Realtime (UTC)'},
               {key: TimestampFormat.Seconds, displayName: 'Seconds'},
               {key: TimestampFormat.Raw, displayName: 'Raw'},
               {
