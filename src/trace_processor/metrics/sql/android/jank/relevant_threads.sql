@@ -25,7 +25,7 @@ WHERE
   -- Some CUJs use a dedicated thread for Choreographer callbacks
   OR (p.main_thread_override = thread.name);
 
-CREATE PERFETTO FUNCTION android_jank_cuj_app_thread(thread_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_app_thread(thread_name STRING)
 RETURNS TABLE(cuj_id INT, upid INT, utid INT, name STRING, track_id INT) AS
 SELECT
   cuj_id,
@@ -64,7 +64,7 @@ JOIN android_jank_cuj_sf_process sf_process USING (upid)
 JOIN thread_track USING (utid)
 WHERE thread.is_main_thread;
 
-CREATE PERFETTO FUNCTION android_jank_cuj_sf_thread(thread_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_sf_thread(thread_name STRING)
 RETURNS TABLE(upid INT, utid INT, name STRING, track_id INT) AS
 SELECT upid, utid, thread.name, thread_track.id AS track_id
 FROM thread
