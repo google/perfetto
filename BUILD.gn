@@ -42,7 +42,7 @@ if (enable_perfetto_platform_services) {
 }
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
-  all_targets += [ "src/cloud_trace_processor" ]
+  all_targets += [ "src/bigtrace" ]
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 

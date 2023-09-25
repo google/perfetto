@@ -20,12 +20,12 @@ package perfetto.protos;
 
 import "protos/perfetto/trace_processor/trace_processor.proto";
 
-// Interface for a CloudTraceProcessor "Worker".
+// Interface for a BigTrace "Worker".
 //
 // Workers are owned by an |Orchestrator| which assigns traces and forwards any
 // requests from end users. Workers are responsible for loading assigned traces
 // with TraceProcessor and executing the requests.
-service CloudTraceProcessorWorker {
+service BigTraceWorker {
   // Synchronize the state of the traces in the worker to the orchestrator. The
   // orchestrator uses this method to ensure the worker is always fully up to
   // date with the state according to the orchestrator. This makes the system
