@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/cloud_trace_processor/orchestrator_impl.h"
+#include "src/bigtrace/orchestrator_impl.h"
 
 #include <memory>
 #include <optional>
@@ -32,14 +32,14 @@
 #include "perfetto/ext/base/threading/poll.h"
 #include "perfetto/ext/base/threading/spawn.h"
 #include "perfetto/ext/base/threading/stream.h"
-#include "perfetto/ext/cloud_trace_processor/orchestrator.h"
-#include "perfetto/ext/cloud_trace_processor/worker.h"
-#include "protos/perfetto/cloud_trace_processor/orchestrator.pb.h"
-#include "protos/perfetto/cloud_trace_processor/worker.pb.h"
+#include "perfetto/ext/bigtrace/orchestrator.h"
+#include "perfetto/ext/bigtrace/worker.h"
+#include "protos/perfetto/bigtrace/orchestrator.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 namespace {
 
 base::Future<base::StatusOr<protos::TracePoolQueryResponse>>
@@ -212,5 +212,5 @@ base::StatusFuture OrchestratorImpl::SyncWorkers() {
       .Collect(base::AllOkCollector());
 }
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto

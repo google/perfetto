@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_CLOUD_TRACE_PROCESSOR_WORKER_IMPL_H_
-#define SRC_CLOUD_TRACE_PROCESSOR_WORKER_IMPL_H_
+#ifndef SRC_BIGTRACE_WORKER_IMPL_H_
+#define SRC_BIGTRACE_WORKER_IMPL_H_
 
 #include <memory>
 #include <optional>
@@ -26,9 +26,9 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/threading/spawn.h"
 #include "perfetto/ext/base/threading/thread_pool.h"
-#include "perfetto/ext/cloud_trace_processor/environment.h"
-#include "perfetto/ext/cloud_trace_processor/worker.h"
-#include "src/cloud_trace_processor/trace_processor_wrapper.h"
+#include "perfetto/ext/bigtrace/environment.h"
+#include "perfetto/ext/bigtrace/worker.h"
+#include "src/bigtrace/trace_processor_wrapper.h"
 
 namespace perfetto {
 namespace protos {
@@ -39,11 +39,11 @@ enum GroupType : int;
 }  // namespace perfetto
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 class WorkerImpl : public Worker {
  public:
-  explicit WorkerImpl(base::TaskRunner*, CtpEnvironment*, base::ThreadPool*);
+  explicit WorkerImpl(base::TaskRunner*, Environment*, base::ThreadPool*);
 
   // Synchronize the state of the traces in the worker to the orchestrator.
   base::StatusOrStream<protos::SyncTraceStateResponse> SyncTraceState(
@@ -59,12 +59,12 @@ class WorkerImpl : public Worker {
     base::SpawnHandle load_handle;
   };
   base::TaskRunner* const task_runner_;
-  CtpEnvironment* const environment_;
+  Environment* const environment_;
   base::ThreadPool* const thread_pool_;
   base::FlatHashMap<std::string, Trace> traces_;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // SRC_CLOUD_TRACE_PROCESSOR_WORKER_IMPL_H_
+#endif  // SRC_BIGTRACE_WORKER_IMPL_H_

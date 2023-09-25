@@ -20,12 +20,12 @@ package perfetto.protos;
 
 import "protos/perfetto/trace_processor/trace_processor.proto";
 
-// RPC interface for a CloudTraceProcessor Orchestrator.
+// RPC interface for a BigTrace Orchestrator.
 //
-// Each CloudTraceProcessor instance has a single Orchestrator which is
+// Each BigTrace instance has a single Orchestrator which is
 // responsible for receiving requests for loading and querying traces from
 // clients and shards these requests among a set of "Workers".
-service CloudTraceProcessorOrchestrator {
+service BigTraceOrchestrator {
   // Creates a TracePool with the specified arguments.
   //
   // A TracePool is a logical group of traces which can be addressed with a
