@@ -23,7 +23,7 @@ INCLUDE PERFETTO MODULE chrome.tasks;
 -- names. For example, LongTaskTracker slices may have associated IPC
 -- metadata, or InterestingTask slices for input may have associated IPC to
 -- determine whether the task is fling/etc.
-CREATE PERFETTO FUNCTION select_long_task_slices(name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION select_long_task_slices(name STRING)
 RETURNS TABLE(
   interface_name STRING,
   ipc_hash INT,
