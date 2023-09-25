@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_H_
-#define INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_H_
+#ifndef INCLUDE_PERFETTO_EXT_BIGTRACE_ORCHESTRATOR_H_
+#define INCLUDE_PERFETTO_EXT_BIGTRACE_ORCHESTRATOR_H_
 
 #include <memory>
 #include <vector>
@@ -43,13 +43,13 @@ class TracePoolDestroyResponse;
 }  // namespace perfetto
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 class Worker;
 
-// Interface for a CloudTraceProcessor "Orchestrator".
+// Interface for a BigTrace "Orchestrator".
 //
-// See CloudTraceProcessorOrchestrator RPC service for high-level documentation.
+// See BigTraceOrchestrator RPC service for high-level documentation.
 class Orchestrator {
  public:
   virtual ~Orchestrator();
@@ -81,7 +81,7 @@ class Orchestrator {
   TracePoolDestroy(const protos::TracePoolDestroyArgs&) = 0;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_H_
+#endif  // INCLUDE_PERFETTO_EXT_BIGTRACE_ORCHESTRATOR_H_
