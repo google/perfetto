@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/cloud_trace_processor/trace_processor_wrapper.h"
+#include "src/bigtrace/trace_processor_wrapper.h"
 
 #include <atomic>
 #include <memory>
@@ -37,13 +37,13 @@
 #include "perfetto/trace_processor/trace_blob.h"
 #include "perfetto/trace_processor/trace_blob_view.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "protos/perfetto/cloud_trace_processor/worker.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
 #include "src/protozero/proto_ring_buffer.h"
 #include "src/trace_processor/rpc/query_result_serializer.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 namespace {
 
 using trace_processor::QueryResultSerializer;
@@ -155,5 +155,5 @@ base::StatusOrStream<protos::QueryTraceResponse> TraceProcessorWrapper::Query(
       [tp = trace_processor_] { tp->InterruptQuery(); });
 }
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto

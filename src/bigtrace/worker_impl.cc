@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/cloud_trace_processor/worker_impl.h"
+#include "src/bigtrace/worker_impl.h"
 
 #include <memory>
 
@@ -27,25 +27,25 @@
 #include "perfetto/ext/base/threading/stream.h"
 #include "perfetto/ext/base/threading/util.h"
 #include "perfetto/ext/base/uuid.h"
-#include "perfetto/ext/cloud_trace_processor/worker.h"
-#include "protos/perfetto/cloud_trace_processor/orchestrator.pb.h"
-#include "protos/perfetto/cloud_trace_processor/worker.pb.h"
-#include "src/cloud_trace_processor/trace_processor_wrapper.h"
+#include "perfetto/ext/bigtrace/worker.h"
+#include "protos/perfetto/bigtrace/orchestrator.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
+#include "src/bigtrace/trace_processor_wrapper.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 Worker::~Worker() = default;
 
 std::unique_ptr<Worker> Worker::CreateInProcesss(base::TaskRunner* runner,
-                                                 CtpEnvironment* environment,
+                                                 Environment* environment,
                                                  base::ThreadPool* pool) {
   return std::make_unique<WorkerImpl>(runner, environment, pool);
 }
 
 WorkerImpl::WorkerImpl(base::TaskRunner* runner,
-                       CtpEnvironment* environment,
+                       Environment* environment,
                        base::ThreadPool* pool)
     : task_runner_(runner), environment_(environment), thread_pool_(pool) {}
 
@@ -94,5 +94,5 @@ base::StatusOrStream<protos::QueryTraceResponse> WorkerImpl::QueryTrace(
   return tp->wrapper->Query(args.sql_query());
 }
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto

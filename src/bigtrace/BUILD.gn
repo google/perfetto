@@ -18,13 +18,13 @@ import("../../gn/test.gni")
 assert(
     enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite)
 
-# The "core" business logic of cloud trace processor which is agnostic to the
+# The "core" business logic of BigTrace which is agnostic to the
 # RPC transport. Allows wrapping with any RPC framework capable of handling
 # protobufs.
-static_library("cloud_trace_processor") {
+static_library("bigtrace") {
   complete_static_lib = true
   deps = [ ":sources" ]
-  public_deps = [ "../../include/perfetto/ext/cloud_trace_processor" ]
+  public_deps = [ "../../include/perfetto/ext/bigtrace" ]
 }
 
 source_set("sources") {
@@ -38,8 +38,8 @@ source_set("sources") {
   ]
   deps = [
     "../../gn:default_deps",
-    "../../include/perfetto/ext/cloud_trace_processor",
-    "../../protos/perfetto/cloud_trace_processor:lite",
+    "../../include/perfetto/ext/bigtrace",
+    "../../protos/perfetto/bigtrace:lite",
     "../base",
     "../base/threading",
     "../protozero",
@@ -57,7 +57,7 @@ perfetto_unittest_source_set("unittests") {
     ":sources",
     "../../gn:default_deps",
     "../../gn:gtest_and_gmock",
-    "../../protos/perfetto/cloud_trace_processor:lite",
+    "../../protos/perfetto/bigtrace:lite",
     "../base",
     "../base/threading",
   ]

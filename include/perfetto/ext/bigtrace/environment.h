@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ENVIRONMENT_H_
-#define INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ENVIRONMENT_H_
+#ifndef INCLUDE_PERFETTO_EXT_BIGTRACE_ENVIRONMENT_H_
+#define INCLUDE_PERFETTO_EXT_BIGTRACE_ENVIRONMENT_H_
 
 #include <functional>
 #include <memory>
@@ -27,13 +27,13 @@
 #include "perfetto/ext/base/threading/stream.h"
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 // Shim interface allowing embedders to change how operations which interact
 // with the OS operate (e.g. IO, networking etc).
-class CtpEnvironment {
+class Environment {
  public:
-  virtual ~CtpEnvironment();
+  virtual ~Environment();
 
   // Opens the file at |path| and reads the contents in chunks, returning the
   // the chunks as a Stream. The size of the chunks is implementation defined
@@ -42,7 +42,7 @@ class CtpEnvironment {
       const std::string& path) = 0;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_ENVIRONMENT_H_
+#endif  // INCLUDE_PERFETTO_EXT_BIGTRACE_ENVIRONMENT_H_

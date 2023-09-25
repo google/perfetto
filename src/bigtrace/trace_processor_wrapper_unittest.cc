@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/cloud_trace_processor/trace_processor_wrapper.h"
+#include "src/bigtrace/trace_processor_wrapper.h"
 #include <cstdint>
 #include <optional>
 #include <vector>
@@ -29,11 +29,11 @@
 #include "perfetto/ext/base/threading/stream.h"
 #include "perfetto/ext/base/threading/thread_pool.h"
 #include "perfetto/ext/base/threading/util.h"
-#include "protos/perfetto/cloud_trace_processor/worker.pb.h"
+#include "protos/perfetto/bigtrace/worker.pb.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 namespace {
 
 using SF = TraceProcessorWrapper::Statefulness;
@@ -240,5 +240,5 @@ TEST(TraceProcessorWrapperUnittest, Interrupt) {
 }
 
 }  // namespace
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
