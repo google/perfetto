@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
@@ -42,12 +43,12 @@ export class TrackWithControllerAdapter<Config, Data> extends
   private controller: TrackControllerAdapter<Config, Data>;
 
   constructor(
-      engine: EngineProxy, id: string, config: Config,
+      engine: EngineProxy, trackInstanceId: string, config: Config,
       Track: TrackAdapterClass<Config, Data>,
       Controller: TrackControllerAdapterClass<Config, Data>) {
     super();
     const args: NewTrackArgs = {
-      trackId: id,
+      trackId: trackInstanceId,
       engine,
     };
     this.track = new Track(args);
@@ -56,8 +57,14 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.controller = new Controller(config, engine);
   }
 
+  onCreate(): void {
+    this.controller.onSetup();
+    super.onCreate();
+  }
+
   onDestroy(): void {
     this.track.onDestroy();
+    this.controller.onDestroy();
     super.onDestroy();
   }
 
@@ -111,6 +118,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
 export abstract class TrackAdapter<Config, Data> {
   private _config?: Config;
   private dataSource?: () => Data | undefined;
+  protected id: string;
 
   get config(): Config {
     return assertExists(this._config);
@@ -129,7 +137,9 @@ export abstract class TrackAdapter<Config, Data> {
     this.dataSource = dataSource;
   }
 
-  constructor(_args: NewTrackArgs) {}
+  constructor(args: NewTrackArgs) {
+    this.id = args.trackId;
+  }
 
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 
@@ -174,6 +184,11 @@ type TrackAdapterClass<Config, Data> = {
 // Extend from this class instead of `TrackController` to use existing track
 // controller implementations with `TrackWithControllerAdapter`.
 export abstract class TrackControllerAdapter<Config, Data> {
+  // This unique ID is just used to create the table names.
+  // In the future we should probably use the track instance ID, but for now we
+  // don't have access to it.
+  private uuid = uuidv4();
+
   constructor(protected config: Config, private engine: EngineProxy) {}
 
   protected async query(query: string) {
@@ -183,6 +198,18 @@ export abstract class TrackControllerAdapter<Config, Data> {
 
   abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
+
+  onSetup(): void {}
+  onDestroy(): void {}
+
+  // Returns a valid SQL table name with the given prefix that should be unique
+  // for each track.
+  tableName(prefix: string) {
+    // Derive table name from, since that is unique for each track.
+    // Track ID can be UUID but '-' is not valid for sql table name.
+    const idSuffix = this.uuid.split('-').join('_');
+    return `${prefix}_${idSuffix}`;
+  }
 }
 
 type TrackControllerAdapterClass<Config, Data> = {

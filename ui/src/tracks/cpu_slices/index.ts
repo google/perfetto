@@ -17,23 +17,31 @@ import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {Duration, duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
+import {calcCachedBucketSize} from '../../common/cache_utils';
 import {
   cropText,
   drawDoubleHeadedArrow,
   drawIncompleteSlice,
+  drawTrackHoverTooltip,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
-import {LONG, NUM} from '../../common/query_result';
-import {TrackData} from '../../common/track_data';
+import {LONG, NUM, STR_NULL} from '../../common/query_result';
 import {
-  TrackController,
-} from '../../controller/track_controller';
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
+import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
-
-export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  EngineProxy,
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  TracePluginContext,
+} from '../../public';
 
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
@@ -49,9 +57,7 @@ export interface Config {
   cpu: number;
 }
 
-class CpuSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = CPU_SLICE_TRACK_KIND;
-
+class CpuSliceTrackController extends TrackControllerAdapter<Config, Data> {
   private cachedBucketSize = BIMath.INT64_MAX;
   private maxDur: duration = 0n;
   private lastRowId = -1;
@@ -82,7 +88,7 @@ class CpuSliceTrackController extends TrackController<Config, Data> {
     const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
     this.maxDur = row.maxDur;
     const rowCount = row.rowCount;
-    const bucketSize = this.calcCachedBucketSize(rowCount);
+    const bucketSize = calcCachedBucketSize(rowCount);
     if (bucketSize === undefined) {
       return;
     }
@@ -196,8 +202,7 @@ const MARGIN_TOP = 3;
 const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
-class CpuSliceTrack extends Track<Config, Data> {
-  static readonly kind = CPU_SLICE_TRACK_KIND;
+class CpuSliceTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): CpuSliceTrack {
     return new CpuSliceTrack(args);
   }
@@ -397,13 +402,16 @@ class CpuSliceTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+    const maxHeight = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
-      const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
+      const tidText = `T: ${hoveredThread.threadName}
+      [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
-        const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        this.drawTrackHoverTooltip(ctx, this.mousePos, pidText, tidText);
+        const pidText = `P: ${hoveredThread.procName}
+        [${hoveredThread.pid}]`;
+        drawTrackHoverTooltip(ctx, this.mousePos, maxHeight, pidText, tidText);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.mousePos, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, maxHeight, tidText);
       }
     }
   }
@@ -444,6 +452,7 @@ class CpuSliceTrack extends Track<Config, Data> {
   }
 
   onMouseClick({x}: {x: number}) {
+    console.log(this.mousePos);
     const data = this.data();
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
@@ -451,16 +460,66 @@ class CpuSliceTrack extends Track<Config, Data> {
     const index = search(data.starts, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
     if (!id || this.utidHoveredInThisTrack === -1) return false;
-    globals.makeSelection(
-        Actions.selectSlice({id, trackId: this.trackState.id}));
+    globals.makeSelection(Actions.selectSlice({id, trackId: this.id}));
     return true;
   }
 }
 
 class CpuSlices implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(CpuSliceTrackController);
-    ctx.registerTrack(CpuSliceTrack);
+  onActivate(_ctx: PluginContext): void {
+    // No-op
+  }
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    const cpus = await ctx.engine.getCpus();
+    const cpuToSize = await this.guessCpuSizes(ctx.engine);
+
+    for (const cpu of cpus) {
+      const size = cpuToSize.get(cpu);
+      const uri = `perfetto.CpuSlices#cpu${cpu}`;
+      const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
+      const config: Config = {cpu};
+      ctx.addTrack({
+        uri,
+        displayName: name,
+        tags: {
+          cpu: `${cpu}`,
+          type: 'cpu_sched',
+        },
+        trackFactory: ({trackInstanceId}) => {
+          return new TrackWithControllerAdapter<Config, Data>(
+              ctx.engine,
+              trackInstanceId,
+              config,
+              CpuSliceTrack,
+              CpuSliceTrackController);
+        },
+      });
+    }
+  }
+
+  async guessCpuSizes(engine: EngineProxy): Promise<Map<number, string>> {
+    const cpuToSize = new Map<number, string>();
+    await engine.query(`
+      SELECT IMPORT('common.cpus');
+    `);
+    const result = await engine.query(`
+      SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
+    `);
+
+    const it = result.iter({
+      cpu: NUM,
+      size: STR_NULL,
+    });
+
+    for (; it.valid(); it.next()) {
+      const size = it.size;
+      if (size !== null) {
+        cpuToSize.set(it.cpu, size);
+      }
+    }
+
+    return cpuToSize;
   }
 }
 

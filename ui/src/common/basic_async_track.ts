@@ -46,6 +46,8 @@ export abstract class BasicAsyncTrack<Data> implements TrackLike {
   private currentState?: TrackData;
   protected data?: Data;
 
+  onCreate(): void {}
+
   onDestroy(): void {
     this.queuedRequest = false;
     this.currentState = undefined;

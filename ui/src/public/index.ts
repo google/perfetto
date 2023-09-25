@@ -170,9 +170,15 @@ export interface PluginContext {
   addCommand(command: Command): void;
 }
 
+export interface TrackContext {
+  // A unique ID for the instance of this track.
+  trackInstanceId: string;
+}
+
 // TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
 // interface to `Track`.
 export interface TrackLike {
+  onCreate(): void;
   render(ctx: CanvasRenderingContext2D): void;
   onFullRedraw(): void;
   getSliceRect(
@@ -182,8 +188,8 @@ export interface TrackLike {
   getHeight(): number;
   getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>>;
   getContextMenu(): m.Vnode<any>|null;
-  onMouseMove(_position: {x: number, y: number}): void;
-  onMouseClick(_position: {x: number, y: number}): boolean;
+  onMouseMove(position: {x: number, y: number}): void;
+  onMouseClick(position: {x: number, y: number}): boolean;
   onMouseOut(): void;
   onDestroy(): void;
 }
@@ -197,7 +203,10 @@ export interface PluginTrackInfo {
   displayName: string;
 
   // A factory function returning the track object.
-  trackFactory: () => TrackLike;
+  trackFactory: (ctx: TrackContext) => TrackLike;
+
+  // A list of tags used for sorting and grouping.
+  tags?: TrackTags;
 }
 
 // Similar to PluginContext but with additional properties to operate on the
