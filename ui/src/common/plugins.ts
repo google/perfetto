@@ -35,6 +35,7 @@ import {
   StatefulPlugin,
   Store,
   TracePluginContext,
+  TrackContext,
   TrackInfo,
   TrackLike,
   Viewer,
@@ -302,11 +303,12 @@ export class PluginManager {
     return this.trackRegistry.get(uri);
   }
 
-  // Create a new plugin track object from its ID.
+  // Create a new plugin track object from its URI.
   // Returns undefined if no such track is registered.
-  createTrack(id: string): TrackLike|undefined {
-    const trackInfo = pluginManager.trackRegistry.get(id);
-    return trackInfo && trackInfo.trackFactory();
+  createTrack(uri: string, trackInstanceId: string): TrackLike|undefined {
+    const trackInfo = pluginManager.trackRegistry.get(uri);
+    const trackContext: TrackContext = {trackInstanceId};
+    return trackInfo && trackInfo.trackFactory(trackContext);
   }
 
   private doPluginTraceLoad<T>(
