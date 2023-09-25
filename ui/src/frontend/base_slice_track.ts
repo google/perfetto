@@ -20,7 +20,11 @@ import {
   time,
 } from '../base/time';
 import {Actions} from '../common/actions';
-import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
+import {
+  cropText,
+  drawIncompleteSlice,
+  drawTrackHoverTooltip,
+} from '../common/canvas_utils';
 import {
   colorCompare,
   UNEXPECTED_PINK_COLOR,
@@ -489,12 +493,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     // If a slice is hovered, draw the tooltip.
     const tooltip = this.hoverTooltip;
+    const height = this.getHeight();
     if (this.hoveredSlice !== undefined && tooltip.length > 0 &&
         this.hoverPos !== undefined) {
       if (tooltip.length === 1) {
-        this.drawTrackHoverTooltip(ctx, this.hoverPos, tooltip[0]);
+        drawTrackHoverTooltip(ctx, this.hoverPos, height, tooltip[0]);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.hoverPos, tooltip[0], tooltip[1]);
+        drawTrackHoverTooltip(
+            ctx, this.hoverPos, height, tooltip[0], tooltip[1]);
       }
     }  // if (hoveredSlice)
   }

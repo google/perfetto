@@ -18,6 +18,7 @@ import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
+import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -447,7 +448,7 @@ class CounterTrack extends Track<Config, Data> {
       ctx.stroke();
 
       // Draw the tooltip.
-      this.drawTrackHoverTooltip(ctx, this.mousePos, text);
+      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
     }
 
     // Write the Y scale on the top left corner.
