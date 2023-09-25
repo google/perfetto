@@ -39,7 +39,6 @@ import {
   UtidToTrackSortKey,
 } from '../common/state';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
-import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
@@ -883,11 +882,12 @@ class TrackDecider {
     if (count > 0) {
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: ANDROID_LOGS_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         name: 'Android logs',
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {},
+        uri: 'perfetto.AndroidLog',
       });
     }
   }
