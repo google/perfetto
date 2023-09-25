@@ -97,17 +97,15 @@ AS
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
 
-  def test_valid_view_function(self):
+  def test_valid_table_function(self):
     res = parse_file(
         'foo/bar.sql', f'''
 {DESC}
 {ARGS_STR}
 {COLS_STR}
-SELECT CREATE_VIEW_FUNCTION(
-  'foo_view_fn({ARGS_SQL_STR})',
-  '{COLS_SQL_STR}',
-  '{SQL_STR}'
-);
+CREATE PERFETTO FUNCTION foo_view_fn({ARGS_SQL_STR})
+RETURNS TABLE({COLS_SQL_STR})
+AS {SQL_STR};
     '''.strip())
     self.assertListEqual(res.errors, [])
 

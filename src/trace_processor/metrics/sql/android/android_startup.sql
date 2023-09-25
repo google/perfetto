@@ -43,7 +43,7 @@ SELECT RUN_METRIC('android/startup/system_state.sql');
 -- Returns the slices for forked processes. Never present in hot starts.
 -- Prefer this over process start_ts, since the process might have
 -- been preforked.
-CREATE PERFETTO FUNCTION zygote_fork_for_launch(startup_id INT)
+CREATE OR REPLACE PERFETTO FUNCTION zygote_fork_for_launch(startup_id INT)
 RETURNS TABLE(ts INT, dur INT) AS
 SELECT slice.ts, slice.dur
 FROM android_startups l
@@ -75,7 +75,7 @@ FROM (
 );
 
 -- Given a launch id and GLOB for a slice name, returns the N longest slice name and duration.
-CREATE PERFETTO FUNCTION get_long_slices_for_launch(
+CREATE OR REPLACE PERFETTO FUNCTION get_long_slices_for_launch(
   startup_id INT, slice_name STRING, top_n INT)
 RETURNS TABLE(slice_name STRING, slice_dur INT) AS
 SELECT slice_name, slice_dur

@@ -138,7 +138,7 @@ CASE
   ELSE $loc
 END || ": " || $status || "/" || $filter_str || "/" || $reason;
 
-CREATE PERFETTO FUNCTION binder_transaction_reply_slices_for_launch(
+CREATE OR REPLACE PERFETTO FUNCTION binder_transaction_reply_slices_for_launch(
   startup_id INT, threshold DOUBLE)
 RETURNS TABLE(name STRING) AS
 SELECT reply.name AS name

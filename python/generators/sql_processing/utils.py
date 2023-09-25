@@ -48,16 +48,14 @@ CREATE_FUNCTION_PATTERN = (
     # Sql: Anything between ' and ');. We are catching \'.
     fr"{WS}({SQL});")
 
-CREATE_VIEW_FUNCTION_PATTERN = (
-    fr"SELECT{WS}CREATE_VIEW_FUNCTION\({WS}"
-    # Function name: we are matching everything [A-Z]* between ' and ).
-    fr"{WS}'{WS}({NAME}){WS}\({WS}"
-    # Args: anything before closing bracket with '.
-    fr"{WS}({ANY_WORDS}){WS}\){WS}'{WS},{WS}"
-    # Return columns: anything between two '.
-    fr"'{WS}({ANY_NON_QUOTE}){WS}',{WS}"
+CREATE_TABLE_FUNCTION_PATTERN = (
+    fr"CREATE{WS}PERFETTO{WS}FUNCTION{WS}({NAME}){WS}"
+    # Args: anything in the brackets.
+    fr"{WS}\({WS}({ANY_WORDS}){WS}\){WS}"
+    # Type: word after RETURNS.
+    fr"{WS}RETURNS{WS}TABLE\({WS}({ANY_WORDS}){WS}\){WS}AS{WS}"
     # Sql: Anything between ' and ');. We are catching \'.
-    fr"{WS}'{WS}({SQL}){WS}'{WS}\){WS};")
+    fr"{WS}({SQL});")
 
 COLUMN_ANNOTATION_PATTERN = fr'^\s*({NAME})\s*({ANY_WORDS})'
 
@@ -71,13 +69,13 @@ FUNCTION_RETURN_PATTERN = fr'^\s*({TYPE})\s+({ANY_WORDS})'
 class ObjKind(str, Enum):
   table_view = 'table_view'
   function = 'function'
-  view_function = 'view_function'
+  table_function = 'table_function'
 
 
 PATTERN_BY_KIND = {
     ObjKind.table_view: CREATE_TABLE_VIEW_PATTERN,
     ObjKind.function: CREATE_FUNCTION_PATTERN,
-    ObjKind.view_function: CREATE_VIEW_FUNCTION_PATTERN,
+    ObjKind.table_function: CREATE_TABLE_FUNCTION_PATTERN,
 }
 
 

@@ -190,7 +190,7 @@ JOIN android_jank_cuj_sf_process sf_process
 -- slice for each of the layers. GROUP BY to deduplicate these rows.
 GROUP BY cuj_id, app_upid, app_vsync, sf_upid, sf_vsync;
 
-CREATE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
+CREATE OR REPLACE PERFETTO FUNCTION find_android_jank_cuj_sf_main_thread_slice(
   slice_name_glob STRING)
 RETURNS TABLE(
   cuj_id INT, utid INT, vsync INT, id INT,
