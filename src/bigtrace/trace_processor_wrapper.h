@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_CLOUD_TRACE_PROCESSOR_TRACE_PROCESSOR_WRAPPER_H_
-#define SRC_CLOUD_TRACE_PROCESSOR_TRACE_PROCESSOR_WRAPPER_H_
+#ifndef SRC_BIGTRACE_TRACE_PROCESSOR_WRAPPER_H_
+#define SRC_BIGTRACE_TRACE_PROCESSOR_WRAPPER_H_
 
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/stream.h"
@@ -32,10 +32,10 @@ class QueryTraceResponse;
 }  // namespace perfetto
 
 namespace perfetto {
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 // Wrapper class around an instance of TraceProcessor to adapt it for the needs
-// of a CloudTraceProcessor Worker.
+// of a BigTrace Worker.
 class TraceProcessorWrapper {
  public:
   enum Statefulness {
@@ -76,7 +76,7 @@ class TraceProcessorWrapper {
   std::shared_ptr<TraceProcessor> trace_processor_;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // SRC_CLOUD_TRACE_PROCESSOR_TRACE_PROCESSOR_WRAPPER_H_
+#endif  // SRC_BIGTRACE_TRACE_PROCESSOR_WRAPPER_H_

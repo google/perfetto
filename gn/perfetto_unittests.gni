@@ -77,6 +77,6 @@ if (enable_perfetto_trace_processor) {
 
   if (enable_perfetto_trace_processor_sqlite) {
     perfetto_unittests_targets += [ "src/trace_processor/metrics:unittests" ]
-    perfetto_unittests_targets += [ "src/cloud_trace_processor:unittests" ]
+    perfetto_unittests_targets += [ "src/bigtrace:unittests" ]
   }
 }

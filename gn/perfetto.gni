@@ -310,8 +310,8 @@ declare_args() {
 
   # Enables gRPC in the Perfetto codebase. gRPC significantly increases build
   # times and the general footprint of Perfetto. As it only required for
-  # cloud trace processor and even then only to build the final ready-to-ship
-  # binary, don't enable this by default.
+  # BigTrace and even then only to build the final ready-to-ship binary, don't
+  # enable this by default.
   enable_perfetto_grpc = false
 }
 

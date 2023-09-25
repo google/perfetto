@@ -65,12 +65,12 @@ perfetto_cc_library(
     linkstatic = True,
 )
 
-# GN target: //src/cloud_trace_processor:cloud_trace_processor
+# GN target: //src/bigtrace:bigtrace
 perfetto_cc_library(
-    name = "cloud_trace_processor",
+    name = "bigtrace",
     srcs = [
         ":src_base_threading_threading",
-        ":src_cloud_trace_processor_sources",
+        ":src_bigtrace_sources",
         ":src_kernel_utils_syscall_table",
         ":src_protozero_proto_ring_buffer",
         ":src_trace_processor_db_db",
@@ -143,7 +143,7 @@ perfetto_cc_library(
         ":include_perfetto_base_base",
         ":include_perfetto_ext_base_base",
         ":include_perfetto_ext_base_threading_threading",
-        ":include_perfetto_ext_cloud_trace_processor_cloud_trace_processor",
+        ":include_perfetto_ext_bigtrace_bigtrace",
         ":include_perfetto_ext_trace_processor_demangle",
         ":include_perfetto_ext_trace_processor_export_json",
         ":include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
@@ -157,7 +157,7 @@ perfetto_cc_library(
         ":include_perfetto_trace_processor_trace_processor",
     ],
     deps = [
-               ":protos_perfetto_cloud_trace_processor_lite",
+               ":protos_perfetto_bigtrace_lite",
                ":protos_perfetto_common_lite",
                ":protos_perfetto_common_zero",
                ":protos_perfetto_config_android_zero",
@@ -650,13 +650,13 @@ perfetto_filegroup(
     ],
 )
 
-# GN target: //include/perfetto/ext/cloud_trace_processor:cloud_trace_processor
+# GN target: //include/perfetto/ext/bigtrace:bigtrace
 perfetto_filegroup(
-    name = "include_perfetto_ext_cloud_trace_processor_cloud_trace_processor",
+    name = "include_perfetto_ext_bigtrace_bigtrace",
     srcs = [
-        "include/perfetto/ext/cloud_trace_processor/environment.h",
-        "include/perfetto/ext/cloud_trace_processor/orchestrator.h",
-        "include/perfetto/ext/cloud_trace_processor/worker.h",
+        "include/perfetto/ext/bigtrace/environment.h",
+        "include/perfetto/ext/bigtrace/orchestrator.h",
+        "include/perfetto/ext/bigtrace/worker.h",
     ],
 )
 
@@ -1075,16 +1075,16 @@ perfetto_genrule(
     ],
 )
 
-# GN target: //src/cloud_trace_processor:sources
+# GN target: //src/bigtrace:sources
 perfetto_filegroup(
-    name = "src_cloud_trace_processor_sources",
+    name = "src_bigtrace_sources",
     srcs = [
-        "src/cloud_trace_processor/orchestrator_impl.cc",
-        "src/cloud_trace_processor/orchestrator_impl.h",
-        "src/cloud_trace_processor/trace_processor_wrapper.cc",
-        "src/cloud_trace_processor/trace_processor_wrapper.h",
-        "src/cloud_trace_processor/worker_impl.cc",
-        "src/cloud_trace_processor/worker_impl.h",
+        "src/bigtrace/orchestrator_impl.cc",
+        "src/bigtrace/orchestrator_impl.h",
+        "src/bigtrace/trace_processor_wrapper.cc",
+        "src/bigtrace/trace_processor_wrapper.h",
+        "src/bigtrace/worker_impl.cc",
+        "src/bigtrace/worker_impl.h",
     ],
 )
 
@@ -3448,20 +3448,20 @@ perfetto_py_proto_library(
     ],
 )
 
-# GN target: //protos/perfetto/cloud_trace_processor:lite
+# GN target: //protos/perfetto/bigtrace:lite
 perfetto_cc_proto_library(
-    name = "protos_perfetto_cloud_trace_processor_lite",
+    name = "protos_perfetto_bigtrace_lite",
     deps = [
-        ":protos_perfetto_cloud_trace_processor_protos",
+        ":protos_perfetto_bigtrace_protos",
     ],
 )
 
-# GN target: //protos/perfetto/cloud_trace_processor:source_set
+# GN target: //protos/perfetto/bigtrace:source_set
 perfetto_proto_library(
-    name = "protos_perfetto_cloud_trace_processor_protos",
+    name = "protos_perfetto_bigtrace_protos",
     srcs = [
-        "protos/perfetto/cloud_trace_processor/orchestrator.proto",
-        "protos/perfetto/cloud_trace_processor/worker.proto",
+        "protos/perfetto/bigtrace/orchestrator.proto",
+        "protos/perfetto/bigtrace/worker.proto",
     ],
     visibility = [
         PERFETTO_CONFIG.proto_library_visibility,
