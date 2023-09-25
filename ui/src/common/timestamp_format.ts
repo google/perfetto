@@ -17,6 +17,7 @@ export enum TimestampFormat {
   Raw = 'raw',
   RawLocale = 'rawLocale',
   Seconds = 'seconds',
+  UTC = 'utc',
 }
 
 let timestampFormatCached: TimestampFormat|undefined;

@@ -25,8 +25,9 @@ export type time = Brand<bigint, 'time'>;
 // |time|s. The domain is irrelevant because a duration is relative.
 export type duration = bigint;
 
-// The conversion factor for convering between time units and seconds.
+// The conversion factor for converting between different time units.
 const TIME_UNITS_PER_SEC = 1e9;
+const TIME_UNITS_PER_MILLISEC = 1e6;
 
 export class Time {
   // Negative time is never found in a trace - so -1 is commonly used as a flag
@@ -58,18 +59,63 @@ export class Time {
     return v as (time | undefined);
   }
 
-  // Create a time from seconds.
-  // Use this function with caution. Number does not have the full range of time
-  // so only use when stricy accuracy isn't required.
+  // Convert seconds (number) to a time value.
+  // Note: number -> BigInt conversion is relatively slow.
   static fromSeconds(seconds: number): time {
     return Time.fromRaw(BigInt(Math.floor(seconds * TIME_UNITS_PER_SEC)));
   }
 
   // Convert time value to seconds and return as a number (i.e. float).
-  // Use this function with caution. Not only does it lose precision, it's also
-  // surpsisingly slow. Avoid using it in the render loop.
+  // Warning: This function is lossy, i.e. precision is lost when converting
+  // BigInt -> number.
+  // Note: BigInt -> number conversion is relatively slow.
   static toSeconds(t: time): number {
     return Number(t) / TIME_UNITS_PER_SEC;
+  }
+
+  // Convert milliseconds (number) to a time value.
+  // Note: number -> BigInt conversion is relatively slow.
+  static fromMillis(millis: number): time {
+    return Time.fromRaw(BigInt(Math.floor(millis * TIME_UNITS_PER_MILLISEC)));
+  }
+
+  // Convert time value to milliseconds and return as a number (i.e. float).
+  // Warning: This function is lossy, i.e. precision is lost when converting
+  // BigInt -> number.
+  // Note: BigInt -> number conversion is relatively slow.
+  static toMillis(t: time): number {
+    return Number(t) / TIME_UNITS_PER_MILLISEC;
+  }
+
+  // Convert a Date object to a time value, given an offset from the unix epoch.
+  // Note: number -> BigInt conversion is relatively slow.
+  static fromDate(d: Date, offset: duration): time {
+    const millis = d.getTime();
+    const t = Time.fromMillis(millis);
+    return Time.add(t, offset);
+  }
+
+  // Convert time value to a Date object, given an offset from the unix epoch.
+  // Warning: This function is lossy, i.e. precision is lost when converting
+  // BigInt -> number.
+  // Note: BigInt -> number conversion is relatively slow.
+  static toDate(t: time, offset: duration): Date {
+    const timeSinceEpoch = Time.sub(t, offset);
+    const millis = Time.toMillis(timeSinceEpoch);
+    return new Date(millis);
+  }
+
+  // Find the closest previous midnight for a given time value.
+  static quantWholeDaysUTC(time: time, realtimeOffset: duration): time {
+    const date = Time.toDate(time, realtimeOffset);
+
+    const nearestWholeDay = new Date(Date.UTC(
+        date.getUTCFullYear(),
+        date.getUTCMonth(),
+        date.getUTCDate(),
+        ));
+
+    return Time.fromDate(nearestWholeDay, realtimeOffset);
   }
 
   static add(t: time, d: duration): time {
@@ -309,4 +355,13 @@ export class TimeSpan implements Span<time, duration> {
     return new TimeSpan(
         Time.sub(this.start, padding), Time.add(this.end, padding));
   }
+}
+
+// Print the date only for a given date in ISO format.
+export function toISODateOnly(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }
