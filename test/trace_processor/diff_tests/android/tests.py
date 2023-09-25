@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from python.generators.diff_tests.testing import Path, DataPath, Metric
+from python.generators.diff_tests.testing import Path, DataPath, Metric, Systrace
 from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
@@ -388,6 +388,98 @@ class Android(TestSuite):
         out=Csv("""
       "binder_txn_id","client_ts","client_tid","binder_reply_id","server_ts","server_tid","thread_state_type","blocked_function","blocked_function_dur","blocked_function_count"
       34382,25505818197,492,34383,25505891588,1596,"binder_reply","filemap_fault",864664,1
+      """))
+
+  def test_binder_txn_sync_good(self):
+    return DiffTestBlueprint(
+        trace=Systrace(
+"""          client-521390  [005] ..... 137012.464739: binder_command: cmd=0x40406300 BC_TRANSACTION
+          client-521390  [005] ..... 137012.464741: binder_transaction: transaction=5149 dest_node=5143 dest_proc=521383 dest_thread=0 reply=0 flags=0x0 code=0x3
+          server-521383  [004] ..... 137012.464771: binder_transaction_received: transaction=5149
+          server-521383  [004] ..... 137012.464772: binder_return: cmd=0x80407202 BR_TRANSACTION
+          server-521383  [004] ..... 137012.464815: binder_command: cmd=0x40086303 BC_FREE_BUFFER
+          server-521383  [004] ..... 137012.464823: binder_command: cmd=0x40406301 BC_REPLY
+          server-521383  [004] ..... 137012.464826: binder_transaction: transaction=5150 dest_node=0 dest_proc=521390 dest_thread=521390 reply=1 flags=0x20 code=0x3
+          server-521383  [004] ..... 137012.464837: binder_return: cmd=0x7206 BR_TRANSACTION_COMPLETE
+          client-521390  [005] ..... 137012.464847: binder_return: cmd=0x7206 BR_TRANSACTION_COMPLETE
+          client-521390  [005] ..... 137012.464848: binder_transaction_received: transaction=5150
+          client-521390  [005] ..... 137012.464849: binder_return: cmd=0x80407203 BR_REPLY
+          """),
+        query="""
+      SELECT
+        dur
+      FROM slice
+      ORDER BY dur;
+      """,
+        out=Csv("""
+      "dur"
+      55000
+      107000
+      """))
+
+  def test_binder_txn_sync_bad_request(self):
+    return DiffTestBlueprint(
+        trace=Systrace(
+"""          client-521349  [005] ..... 137004.281009: binder_command: cmd=0x40406300 BC_TRANSACTION
+          client-521349  [005] ..... 137004.281010: binder_transaction: transaction=5135 dest_node=5129 dest_proc=521347 dest_thread=0 reply=0 flags=0x0 code=0x3
+          client-521349  [005] ..... 137004.281410: binder_return: cmd=0x7211 BR_FAILED_REPLY
+          """),
+        query="""
+      SELECT
+        dur
+      FROM slice
+      ORDER BY dur;
+      """,
+        out=Csv("""
+      "dur"
+      400000
+      """))
+
+  def test_binder_txn_sync_bad_reply(self):
+    return DiffTestBlueprint(
+        trace=Systrace(
+"""          client-521332  [007] ..... 136996.112660: binder_command: cmd=0x40406300 BC_TRANSACTION
+          client-521332  [007] ..... 136996.112662: binder_transaction: transaction=5120 dest_node=5114 dest_proc=521330 dest_thread=0 reply=0 flags=0x0 code=0x3
+          server-521330  [000] ..... 136996.112714: binder_transaction_received: transaction=5120
+          server-521330  [000] ..... 136996.112715: binder_return: cmd=0x80407202 BR_TRANSACTION
+          server-521330  [000] ..... 136996.112752: binder_command: cmd=0x40086303 BC_FREE_BUFFER
+          server-521330  [000] ..... 136996.112758: binder_command: cmd=0x40406301 BC_REPLY
+          server-521330  [000] ..... 136996.112760: binder_transaction: transaction=5121 dest_node=0 dest_proc=521332 dest_thread=521332 reply=1 flags=0x20 code=0x3
+          server-521330  [000] ..... 136996.113163: binder_return: cmd=0x7206 BR_TRANSACTION_COMPLETE
+          client-521332  [007] ..... 136996.113201: binder_return: cmd=0x7206 BR_TRANSACTION_COMPLETE
+          client-521332  [007] ..... 136996.113201: binder_return: cmd=0x7211 BR_FAILED_REPLY
+          """),
+        query="""
+      SELECT
+        dur
+      FROM slice
+      ORDER BY dur;
+      """,
+        out=Csv("""
+      "dur"
+      46000
+      539000
+      """))
+
+  def test_binder_txn_oneway_good(self):
+    return DiffTestBlueprint(
+        trace=Systrace(
+"""          client-521406  [003] ..... 137020.679833: binder_command: cmd=0x40406300 BC_TRANSACTION
+          client-521406  [003] ..... 137020.679834: binder_transaction: transaction=5161 dest_node=5155 dest_proc=521404 dest_thread=0 reply=0 flags=0x1 code=0x3
+          client-521406  [003] ..... 137020.679843: binder_return: cmd=0x7206 BR_TRANSACTION_COMPLETE
+          server-521404  [006] ..... 137020.679890: binder_transaction_received: transaction=5161
+          server-521404  [006] ..... 137020.679890: binder_return: cmd=0x80407202 BR_TRANSACTION
+          """),
+        query="""
+      SELECT
+        dur
+      FROM slice
+      ORDER BY dur;
+      """,
+        out=Csv("""
+      "dur"
+      0
+      0
       """))
 
   def test_binder_metric(self):

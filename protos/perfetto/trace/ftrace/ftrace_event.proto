@@ -599,5 +599,7 @@ message FtraceEvent {
     MaliMaliCSFINTERRUPTSTARTFtraceEvent mali_mali_CSF_INTERRUPT_START = 482;
     MaliMaliCSFINTERRUPTENDFtraceEvent mali_mali_CSF_INTERRUPT_END = 483;
     SamsungTracingMarkWriteFtraceEvent samsung_tracing_mark_write = 484;
+    BinderCommandFtraceEvent binder_command = 485;
+    BinderReturnFtraceEvent binder_return = 486;
   }
 }
