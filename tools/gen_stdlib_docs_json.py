@@ -92,7 +92,7 @@ def main():
             'return_type': function.return_type,
             'return_desc': function.return_desc,
         } for function in docs.functions],
-        'view_functions': [{
+        'table_functions': [{
             'name': function.name,
             'desc': function.desc,
             'args': function.args,
