@@ -144,7 +144,7 @@ class ChromeProcesses(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_scroll_without_vsync.pftrace'),
         query="""
-        SELECT upid, pid, reliable_from
+        SELECT pid, reliable_from
         FROM
           experimental_missing_chrome_processes
         JOIN
@@ -153,7 +153,7 @@ class ChromeProcesses(TestSuite):
         ORDER BY upid;
         """,
         out=Csv("""
-        "upid","pid","reliable_from"
+        "pid","reliable_from"
         """))
 
   def test_chrome_missing_processes(self):
@@ -197,7 +197,7 @@ class ChromeProcesses(TestSuite):
         }
         """),
         query="""
-        SELECT upid, pid, reliable_from
+        SELECT pid, reliable_from
         FROM
           experimental_missing_chrome_processes
         JOIN
@@ -206,9 +206,9 @@ class ChromeProcesses(TestSuite):
         ORDER BY upid;
         """,
         out=Csv("""
-        "upid","pid","reliable_from"
-        2,100,1000000000
-        3,1000,"[NULL]"
+        "pid","reliable_from"
+        100,1000000000
+        1000,"[NULL]"
         """))
 
   def test_chrome_missing_processes_args(self):
@@ -252,7 +252,7 @@ class ChromeProcesses(TestSuite):
         }
         """),
         query="""
-        SELECT arg_set_id, key, int_value
+        SELECT slice.name, key, int_value
         FROM
           slice
         JOIN
@@ -261,10 +261,10 @@ class ChromeProcesses(TestSuite):
         ORDER BY arg_set_id, key;
         """,
         out=Csv("""
-        "arg_set_id","key","int_value"
-        2,"chrome_active_processes.pid[0]",10
-        2,"chrome_active_processes.pid[1]",100
-        2,"chrome_active_processes.pid[2]",1000
+        "name","key","int_value"
+        "ActiveProcesses","chrome_active_processes.pid[0]",10
+        "ActiveProcesses","chrome_active_processes.pid[1]",100
+        "ActiveProcesses","chrome_active_processes.pid[2]",1000
         """))
 
   def test_chrome_missing_processes_2(self):
@@ -308,7 +308,7 @@ class ChromeProcesses(TestSuite):
         }
         """),
         query="""
-        SELECT upid, pid, reliable_from
+        SELECT pid, reliable_from
         FROM
           experimental_missing_chrome_processes
         JOIN
@@ -317,9 +317,9 @@ class ChromeProcesses(TestSuite):
         ORDER BY upid;
         """,
         out=Csv("""
-        "upid","pid","reliable_from"
-        2,100,1000000000
-        3,1000,"[NULL]"
+        "pid","reliable_from"
+        100,1000000000
+        1000,"[NULL]"
         """))
 
   def test_chrome_missing_processes_extension_args(self):
@@ -363,7 +363,7 @@ class ChromeProcesses(TestSuite):
         }
         """),
         query="""
-        SELECT arg_set_id, key, int_value
+        SELECT slice.name, key, int_value
         FROM
           slice
         JOIN
@@ -372,8 +372,8 @@ class ChromeProcesses(TestSuite):
         ORDER BY arg_set_id, key;
         """,
         out=Csv("""
-        "arg_set_id","key","int_value"
-        2,"active_processes.pid[0]",10
-        2,"active_processes.pid[1]",100
-        2,"active_processes.pid[2]",1000
+        "name","key","int_value"
+        "ActiveProcesses","active_processes.pid[0]",10
+        "ActiveProcesses","active_processes.pid[1]",100
+        "ActiveProcesses","active_processes.pid[2]",1000
         """))
