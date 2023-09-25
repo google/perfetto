@@ -119,7 +119,7 @@ class FileMd:
         self.funs.append('\n\n')
 
     # Add table functions if in file
-    for data in file_dict['view_functions']:
+    for data in file_dict['table_functions']:
       # Anchor
       anchor = rf'''view_fun/{module_name}/{data['name']}'''
       # Add summary of imported view function
