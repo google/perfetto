@@ -90,6 +90,7 @@ export interface AddTrackArgs {
   trackGroup?: string;
   config: {};
   tags?: TrackTags;
+  uri?: string;  // Only used for new PLUGIN_TRACK tracks
 }
 
 export interface PostedTrace {
@@ -253,6 +254,7 @@ export const StateActions = {
         tags,
         config: track.config,
         labels: track.labels,
+        uri: track.uri,
       };
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {

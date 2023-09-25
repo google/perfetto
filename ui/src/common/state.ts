@@ -256,6 +256,7 @@ export interface TrackState {
     trackId?: number;
     trackIds?: number[];
   };
+  uri?: string;
 }
 
 export interface TrackGroupState {
