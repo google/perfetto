@@ -14,16 +14,21 @@
 
 import {duration, Time, time} from '../../base/time';
 import {LONG, NUM} from '../../common/query_result';
-import {LIMIT, TrackData} from '../../common/track_data';
 import {
-  TrackController,
-} from '../../controller/track_controller';
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
+import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
-
-export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  TracePluginContext,
+} from '../../public';
 
 export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.
@@ -56,9 +61,7 @@ const MARGIN_TOP = 2;
 const RECT_HEIGHT = 35;
 const EVT_PX = 2;  // Width of an event tick in pixels.
 
-class AndroidLogTrackController extends TrackController<Config, Data> {
-  static readonly kind = ANDROID_LOGS_TRACK_KIND;
-
+class AndroidLogTrackController extends TrackControllerAdapter<Config, Data> {
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const queryRes = await this.query(`
@@ -93,8 +96,7 @@ class AndroidLogTrackController extends TrackController<Config, Data> {
   }
 }
 
-class AndroidLogTrack extends Track<Config, Data> {
-  static readonly kind = ANDROID_LOGS_TRACK_KIND;
+class AndroidLogTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): AndroidLogTrack {
     return new AndroidLogTrack(args);
   }
@@ -143,9 +145,27 @@ class AndroidLogTrack extends Track<Config, Data> {
 }
 
 class AndroidLog implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(AndroidLogTrack);
-    ctx.registerTrackController(AndroidLogTrackController);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    const result =
+        await ctx.engine.query(`select count(1) as cnt from android_logs`);
+    const count = result.firstRow({cnt: NUM}).cnt;
+    if (count > 0) {
+      ctx.addTrack({
+        uri: 'perfetto.AndroidLog',
+        displayName: 'Android logs',
+        tags: {type: 'counter'},
+        trackFactory: ({trackInstanceId}) => {
+          return new TrackWithControllerAdapter<Config, Data>(
+              ctx.engine,
+              trackInstanceId,
+              {},
+              AndroidLogTrack,
+              AndroidLogTrackController);
+        },
+      });
+    }
   }
 }
 
