@@ -175,6 +175,11 @@ export interface TrackContext {
   trackInstanceId: string;
 }
 
+export interface TrackContext {
+  // A unique ID for the instance of this track.
+  trackInstanceId: string;
+}
+
 // TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
 // interface to `Track`.
 export interface TrackLike {
