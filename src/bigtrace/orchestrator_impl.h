@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_IMPL_H_
-#define SRC_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_IMPL_H_
+#ifndef SRC_BIGTRACE_ORCHESTRATOR_IMPL_H_
+#define SRC_BIGTRACE_ORCHESTRATOR_IMPL_H_
 
 #include <memory>
 #include <optional>
@@ -26,14 +26,14 @@
 #include "perfetto/ext/base/periodic_task.h"
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/spawn.h"
-#include "perfetto/ext/cloud_trace_processor/orchestrator.h"
+#include "perfetto/ext/bigtrace/orchestrator.h"
 
 namespace perfetto {
 namespace protos {
 class TracePoolShardCreateArgs;
 }
 
-namespace cloud_trace_processor {
+namespace bigtrace {
 
 class OrchestratorImpl : public Orchestrator {
  public:
@@ -73,7 +73,7 @@ class OrchestratorImpl : public Orchestrator {
   base::FlatHashMap<std::string, Trace> traces_;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // SRC_CLOUD_TRACE_PROCESSOR_ORCHESTRATOR_IMPL_H_
+#endif  // SRC_BIGTRACE_ORCHESTRATOR_IMPL_H_

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_
-#define INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_
+#ifndef INCLUDE_PERFETTO_EXT_BIGTRACE_WORKER_H_
+#define INCLUDE_PERFETTO_EXT_BIGTRACE_WORKER_H_
 
 #include <memory>
 #include <vector>
@@ -38,23 +38,23 @@ class QueryTraceArgs;
 class QueryTraceResponse;
 }  // namespace protos
 
-namespace cloud_trace_processor {
+namespace bigtrace {
 
-class CtpEnvironment;
+class Environment;
 
-// Interface for a CloudTraceProcessor "Worker".
+// Interface for a BigTrace "Worker".
 //
-// See CloudTraceProcessorWorker RPC service for high-level documentation.
+// See BigTraceWorker RPC service for high-level documentation.
 class Worker {
  public:
   virtual ~Worker();
 
   // Returns an in-process implementation of the Worker given an instance of
-  // |CtpEnvironment| and a |ThreadPool|. The |CtpEnvironment| will be used to
+  // |Environment| and a |ThreadPool|. The |Environment| will be used to
   // perform any interaction with the OS (e.g. opening and reading files) and
   // the |ThreadPool| will be used to dispatch requests to TraceProcessor.
   static std::unique_ptr<Worker> CreateInProcesss(base::TaskRunner*,
-                                                  CtpEnvironment*,
+                                                  Environment*,
                                                   base::ThreadPool*);
 
   // Synchronize the state of the traces in the worker to the orchestrator.
@@ -66,7 +66,7 @@ class Worker {
       const protos::QueryTraceArgs&) = 0;
 };
 
-}  // namespace cloud_trace_processor
+}  // namespace bigtrace
 }  // namespace perfetto
 
-#endif  // INCLUDE_PERFETTO_EXT_CLOUD_TRACE_PROCESSOR_WORKER_H_
+#endif  // INCLUDE_PERFETTO_EXT_BIGTRACE_WORKER_H_
