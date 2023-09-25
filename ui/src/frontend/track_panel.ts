@@ -352,8 +352,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     if (!trackState) return;
 
-    const {id} = trackState;
-    this.track = loadTrack(trackState, id) || pluginManager.createTrack(id);
+    const {id, uri} = trackState;
+    this.track =
+        uri ? pluginManager.createTrack(uri, id) : loadTrack(trackState, id);
+    this.track?.onCreate();
     this.trackState = trackState;
   }
 

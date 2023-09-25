@@ -53,7 +53,6 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND, CounterScaleOptions} from '../tracks/counter';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
-import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames';
@@ -263,13 +262,12 @@ class TrackDecider {
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: CPU_SLICE_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         name,
         trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
-          cpu,
-        },
+        config: {},
+        uri: `perfetto.CpuSlices#cpu${cpu}`,
       });
     }
   }
@@ -925,7 +923,7 @@ class TrackDecider {
         name: `Ftrace Events Cpu ${it.cpu}`,
         trackGroup: groupUuid,
         config: {},
-        id: `perfetto.FtraceRaw#cpu${it.cpu}`,
+        uri: `perfetto.FtraceRaw#cpu${it.cpu}`,
       });
     }
 

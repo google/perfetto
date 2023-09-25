@@ -17,6 +17,8 @@ import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
+import {calcCachedBucketSize} from '../../common/cache_utils';
+import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {LONG, NUM, QueryResult} from '../../common/query_result';
 import {TrackData} from '../../common/track_data';
@@ -71,7 +73,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     this.maxDur = result.maxDur;
 
     const rowCount = result.count;
-    const bucketSize = this.calcCachedBucketSize(rowCount);
+    const bucketSize = calcCachedBucketSize(rowCount);
     if (bucketSize === undefined) {
       return;
     }
@@ -263,13 +265,14 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+    const height = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        this.drawTrackHoverTooltip(ctx, this.mousePos, pidText, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, height, pidText, tidText);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.mousePos, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, height, tidText);
       }
     }
   }
