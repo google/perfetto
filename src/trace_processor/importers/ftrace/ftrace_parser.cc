@@ -66,6 +66,7 @@
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
+#include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
@@ -799,6 +800,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseG2dTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kSamsungTracingMarkWriteFieldNumber: {
+        ParseSamsungTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kDpuTracingMarkWriteFieldNumber: {
         ParseDpuTracingMarkWrite(ts, pid, fld_bytes);
         break;
@@ -1373,6 +1378,22 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
+                                                uint32_t pid,
+                                                ConstBytes blob) {
+  protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                                  blob.size);
+  if (!evt.has_trace_type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, static_cast<char>(evt.trace_type()),
+      false /*trace_begin*/, evt.trace_name(), tgid, evt.value());
 }
 
 void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
