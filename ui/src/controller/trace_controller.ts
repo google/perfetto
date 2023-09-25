@@ -69,6 +69,7 @@ import {
   publishFtraceCounters,
   publishMetricError,
   publishOverviewData,
+  publishRealtimeOffset,
   publishThreads,
 } from '../frontend/publish';
 import {runQueryInNewTab} from '../frontend/query_result_tab';
@@ -526,6 +527,65 @@ export class TraceController extends Controller<States> {
         counters.push({name: it.name, count: it.cnt});
       }
       publishFtraceCounters(counters);
+    }
+
+    {
+      // Find the first REALTIME or REALTIME_COARSE clock snapshot.
+      // Prioritize REALTIME over REALTIME_COARSE.
+      const query = `select
+            ts,
+            clock_value as clockValue,
+            clock_name as clockName
+          from clock_snapshot
+          where
+            snapshot_id = 0 AND
+            clock_name in ('REALTIME', 'REALTIME_COARSE')
+          `;
+      const result = await assertExists(this.engine).query(query);
+      const it = result.iter({
+        ts: LONG,
+        clockValue: LONG,
+        clockName: STR,
+      });
+
+      let snapshot = {
+        clockName: '',
+        ts: Time.ZERO,
+        clockValue: Time.ZERO,
+      };
+
+      // Find the most suitable snapshot
+      for (let row = 0; it.valid(); it.next(), row++) {
+        if (it.clockName === 'REALTIME') {
+          snapshot = {
+            clockName: it.clockName,
+            ts: Time.fromRaw(it.ts),
+            clockValue: Time.fromRaw(it.clockValue),
+          };
+          break;
+        } else if (it.clockName === 'REALTIME_COARSE') {
+          if (snapshot.clockName !== 'REALTIME') {
+            snapshot = {
+              clockName: it.clockName,
+              ts: Time.fromRaw(it.ts),
+              clockValue: Time.fromRaw(it.clockValue),
+            };
+          }
+        }
+      }
+
+      // This is the offset between the unix epoch and ts in the ts domain.
+      // I.e. the value of ts at the time of the unix epoch - usually some large
+      // negative value.
+      const realtimeOffset = Time.sub(snapshot.ts, snapshot.clockValue);
+
+      // Find the previous closest midnight from the trace start time.
+      const utcOffset = Time.quantWholeDaysUTC(
+          globals.state.traceTime.start,
+          realtimeOffset,
+      );
+
+      publishRealtimeOffset(realtimeOffset, utcOffset);
     }
 
     globals.dispatch(Actions.sortThreadTracks({}));
