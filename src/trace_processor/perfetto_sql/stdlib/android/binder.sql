@@ -423,9 +423,9 @@ SELECT *, 0 AS is_sync FROM android_async_binder_metrics_by_txn;
 -- thread -> server_process -> AIDL interface -> AIDL method.
 -- The weights of each node represent the wall execution time in the server_process.
 --
--- @arg upid STRING   Upid of process to generate an outgoing graph for.
--- @ret pprof BYTES   Pprof of outgoing binder txns.
-CREATE PERFETTO FUNCTION ANDROID_BINDER_OUTGOING_GRAPH(upid INT)
+-- @arg upid STRING      Upid of process to generate an outgoing graph for.
+-- @column pprof BYTES   Pprof of outgoing binder txns.
+CREATE PERFETTO FUNCTION android_binder_outgoing_graph(upid INT)
 RETURNS TABLE(pprof BYTES) AS
 WITH threads AS (
   SELECT binder_txn_id, CAT_STACKS(client_thread) AS stack
@@ -453,9 +453,9 @@ WITH threads AS (
 -- client_process -> AIDL interface -> AIDL method.
 -- The weights of each node represent the wall execution time in the server_process.
 --
--- @arg upid STRING   Upid of process to generate an outgoing graph for.
--- @ret pprof BYTES   Pprof of outgoing binder txns.
-CREATE PERFETTO FUNCTION ANDROID_BINDER_INCOMING_GRAPH(upid INT)
+-- @arg upid STRING      Upid of process to generate an outgoing graph for.
+-- @column pprof BYTES   Pprof of outgoing binder txns.
+CREATE PERFETTO FUNCTION android_binder_incoming_graph(upid INT)
 RETURNS TABLE(pprof BYTES) AS
 WITH client_process AS (
   SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
@@ -482,8 +482,8 @@ WITH client_process AS (
 -- @arg max_client_oom_score INT   Matches txns from client_processes less than or equal to the OOM score.
 -- @arg min_server_oom_score INT   Matches txns to server_processes greater than or equal to the OOM score.
 -- @arg max_server_oom_score INT   Matches txns to server_processes less than or equal to the OOM score.
--- @ret pprof BYTES                Pprof of binder txns.
-CREATE PERFETTO FUNCTION ANDROID_BINDER_GRAPH(min_client_oom_score INT, max_client_oom_score INT, min_server_oom_score INT, max_server_oom_score INT)
+-- @column pprof BYTES             Pprof of binder txns.
+CREATE PERFETTO FUNCTION android_binder_graph(min_client_oom_score INT, max_client_oom_score INT, min_server_oom_score INT, max_server_oom_score INT)
 RETURNS TABLE(pprof BYTES) AS
 WITH clients AS (
   SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
