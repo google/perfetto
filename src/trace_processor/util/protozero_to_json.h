@@ -32,16 +32,29 @@ enum Flags {
   kNone = 0,
 
   // Produce nice json (newlines, 1 space post :, 2 space indents)
-  kPretty = 1,
+  kPretty = 1 << 0,
 
   // Report errors as an extra key on the root json object. For example
   // the output with this flag might look like:
   // {
   //    "foo": { ... },
   //    "baz": { ... },
-  //    __error: "Failed to decode key 'bar' due to <some error>"
+  //    "__error": "Failed to decode key 'bar' due to <some error>"
   // }
-  kInlineErrors = 2,
+  kInlineErrors = 1 << 1,
+
+  // Report annotations as an extra key on the root json object. For example
+  // the output with this flag might look like:
+  // {
+  //    "foo": { ... },
+  //    "baz": { ... },
+  //    "__annotations": {
+  //      "foo": {
+  //        "__field_options": { "unit": "ms_smallerIsBetter" }
+  //      }
+  //    }
+  // }
+  kInlineAnnotations = 1 << 2,
 };
 
 // Given a protozero message |protobytes| which is of fully qualified name

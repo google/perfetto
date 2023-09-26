@@ -5436,8 +5436,6 @@ perfetto_cc_binary(
         ":src_trace_processor_util_zip_reader",
         ":src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
-        "src/trace_processor/util/proto_to_json.cc",
-        "src/trace_processor/util/proto_to_json.h",
     ],
     visibility = [
         "//visibility:public",
