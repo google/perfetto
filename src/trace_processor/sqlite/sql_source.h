@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_SQL_SOURCE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_SQL_SOURCE_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
