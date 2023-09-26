@@ -13295,7 +13295,6 @@ cc_binary {
         ":perfetto_src_trace_processor_util_zip_reader",
         ":perfetto_src_trace_processor_views_views",
         "src/trace_processor/trace_processor_shell.cc",
-        "src/trace_processor/util/proto_to_json.cc",
     ],
     static_libs: [
         "perfetto_src_trace_processor_demangle",

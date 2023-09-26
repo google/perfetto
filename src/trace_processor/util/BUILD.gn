@@ -281,6 +281,12 @@ source_set("unittests") {
     "../storage",
     "../types",
   ]
+  if (perfetto_build_standalone) {
+    deps += [
+      "../../../protos/perfetto/metrics/chrome:lite",
+      "../metrics:gen_cc_all_chrome_metrics_descriptor",
+    ]
+  }
   if (enable_perfetto_zlib) {
     sources += [ "gzip_utils_unittest.cc" ]
     deps += [ "../../../gn:zlib" ]

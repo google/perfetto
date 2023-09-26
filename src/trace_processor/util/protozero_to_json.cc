@@ -18,9 +18,12 @@
 
 #include <optional>
 #include <unordered_set>
+#include <utility>
+#include <vector>
 
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/protozero/field.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -38,11 +41,13 @@ using protozero::proto_utils::ProtoWireType;
 
 class JsonBuilder {
  public:
-  JsonBuilder(int flags) : flags_(flags) {}
+  explicit JsonBuilder(int flags) : flags_(flags) {}
 
   void OpenObject() {
-    if (is_array_scope() && !is_empty_scope()) {
-      Append(",");
+    if (is_array_scope()) {
+      if (!is_empty_scope()) {
+        Append(",");
+      }
       MaybeAppendNewline();
       MaybeAppendIndent();
     }
@@ -51,12 +56,6 @@ class JsonBuilder {
   }
 
   void CloseObject() {
-    // If we're closing the root object add errors if requested:
-    if (is_root_scope() && is_inline_errors() && !errors_.empty()) {
-      Key("__error");
-      StringValue(base::StringView(base::Join(errors_, "\n")));
-    }
-
     bool needs_newline = !is_empty_scope();
     stack_.pop_back();
     if (needs_newline) {
@@ -115,9 +114,13 @@ class JsonBuilder {
 
   std::string ToString() { return base::Join(parts_, ""); }
 
-  bool is_pretty() { return flags_ & Flags::kPretty; }
+  bool is_empty_scope() { return !stack_.empty() && stack_.back().is_empty; }
 
-  bool is_inline_errors() { return flags_ & Flags::kInlineErrors; }
+  bool is_pretty() const { return flags_ & Flags::kPretty; }
+
+  bool is_inline_errors() const { return flags_ & Flags::kInlineErrors; }
+
+  const std::vector<std::string>& errors() const { return errors_; }
 
  private:
   enum class ScopeContext {
@@ -136,19 +139,15 @@ class JsonBuilder {
   std::vector<std::string> errors_;
 
   bool is_object_scope() {
-    return stack_.size() > 0 && stack_.back().ctx == ScopeContext::kObject;
+    return !stack_.empty() && stack_.back().ctx == ScopeContext::kObject;
   }
 
   bool is_array_scope() {
-    return stack_.size() > 0 && stack_.back().ctx == ScopeContext::kArray;
+    return !stack_.empty() && stack_.back().ctx == ScopeContext::kArray;
   }
 
-  bool is_empty_scope() { return stack_.size() > 0 && stack_.back().is_empty; }
-
-  bool is_root_scope() { return stack_.size() == 1; }
-
   void MarkScopeAsNonEmpty() {
-    if (stack_.size() > 0) {
+    if (!stack_.empty()) {
       stack_.back().is_empty = false;
     }
   }
@@ -204,7 +203,7 @@ class JsonBuilder {
           result += R"(\b)";
           break;
         case '\f':
-          result += R"(\b)";
+          result += R"(\f)";
           break;
         case '\r':
           result += R"(\r)";
@@ -273,6 +272,15 @@ class JsonBuilder {
     return result;
   }
 };
+
+bool HasFieldOptions(const FieldDescriptor& field_desc) {
+  return !field_desc.options().empty();
+}
+
+std::string FulllyQualifiedFieldName(const ProtoDescriptor& desc,
+                                     const FieldDescriptor& field_desc) {
+  return desc.package_name().substr(1) + "." + field_desc.name();
+}
 
 bool IsTypeMatch(ProtoWireType wire, uint32_t type) {
   switch (wire) {
@@ -366,6 +374,7 @@ bool IsNumericFieldType(uint32_t type) {
 void MessageField(const DescriptorPool& pool,
                   const std::string& type,
                   protozero::ConstBytes protobytes,
+                  bool fully_qualify_extensions,
                   JsonBuilder* out);
 void EnumField(const DescriptorPool& pool,
                const FieldDescriptor& fd,
@@ -418,6 +427,7 @@ void PackedBoolField(const DescriptorPool&,
 void LengthField(const DescriptorPool& pool,
                  const FieldDescriptor* fd,
                  const protozero::Field& field,
+                 bool fully_qualify_extensions,
                  JsonBuilder* out) {
   uint32_t type = fd ? fd->type() : 0;
   switch (type) {
@@ -428,7 +438,8 @@ void LengthField(const DescriptorPool& pool,
       out->StringValue(field.as_string());
       return;
     case FieldDescriptorProto::TYPE_MESSAGE:
-      MessageField(pool, fd->resolved_type_name(), field.as_bytes(), out);
+      MessageField(pool, fd->resolved_type_name(), field.as_bytes(),
+                   fully_qualify_extensions, out);
       return;
     case FieldDescriptorProto::TYPE_DOUBLE:
       PackedField<ProtoWireType::kFixed64, double>(pool, *fd, field, out);
@@ -600,13 +611,14 @@ void RepeatedLengthField(const DescriptorPool& pool,
                          protozero::ConstBytes protobytes,
                          const FieldDescriptor* fd,
                          uint32_t id,
+                         bool fully_qualify_extensions,
                          JsonBuilder* out) {
   out->OpenArray();
   protozero::ProtoDecoder decoder(protobytes.data, protobytes.size);
   for (auto field = decoder.ReadField(); field.valid();
        field = decoder.ReadField()) {
     if (field.id() == id) {
-      LengthField(pool, fd, field, out);
+      LengthField(pool, fd, field, fully_qualify_extensions, out);
     }
   }
   out->CloseArray();
@@ -642,12 +654,11 @@ void RepeatedFixed32(protozero::ConstBytes protobytes,
   out->CloseArray();
 }
 
-void MessageField(const DescriptorPool& pool,
-                  const std::string& type,
-                  protozero::ConstBytes protobytes,
-                  JsonBuilder* out) {
-  out->OpenObject();
-
+void InnerMessageField(const DescriptorPool& pool,
+                       const std::string& type,
+                       protozero::ConstBytes protobytes,
+                       bool fully_qualify_extensions,
+                       JsonBuilder* out) {
   std::optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
   const ProtoDescriptor* opt_proto_descriptor =
       opt_proto_desc_idx ? &pool.descriptors()[*opt_proto_desc_idx] : nullptr;
@@ -668,7 +679,12 @@ void MessageField(const DescriptorPool& pool,
       if (fields_seen.count(field.id())) {
         continue;
       }
-      out->Key(opt_field_descriptor->name());
+      if (opt_field_descriptor->is_extension() && fully_qualify_extensions) {
+        out->Key(FulllyQualifiedFieldName(*opt_proto_descriptor,
+                                          *opt_field_descriptor));
+      } else {
+        out->Key(opt_field_descriptor->name());
+      }
     } else {
       out->Key(std::to_string(field.id()));
     }
@@ -686,10 +702,11 @@ void MessageField(const DescriptorPool& pool,
             // wire_type = length + field_type in
             // {u,s,}int{32,64}, float, double etc means this is the
             // packed case:
-            LengthField(pool, opt_field_descriptor, field, out);
+            LengthField(pool, opt_field_descriptor, field,
+                        fully_qualify_extensions, out);
           } else {
             RepeatedLengthField(pool, protobytes, opt_field_descriptor,
-                                field.id(), out);
+                                field.id(), fully_qualify_extensions, out);
           }
           break;
         case ProtoWireType::kFixed32:
@@ -705,7 +722,8 @@ void MessageField(const DescriptorPool& pool,
           VarIntField(pool, opt_field_descriptor, field, out);
           break;
         case ProtoWireType::kLengthDelimited:
-          LengthField(pool, opt_field_descriptor, field, out);
+          LengthField(pool, opt_field_descriptor, field,
+                      fully_qualify_extensions, out);
           break;
         case ProtoWireType::kFixed32:
           Fixed32Field(opt_field_descriptor, field, out);
@@ -720,8 +738,128 @@ void MessageField(const DescriptorPool& pool,
   if (decoder.bytes_left() != 0) {
     out->AddError(std::to_string(decoder.bytes_left()) + " extra bytes");
   }
+}
 
+void MessageField(const DescriptorPool& pool,
+                  const std::string& type,
+                  protozero::ConstBytes protobytes,
+                  bool fully_qualify_extensions,
+                  JsonBuilder* out) {
+  out->OpenObject();
+  InnerMessageField(pool, type, protobytes, fully_qualify_extensions, out);
   out->CloseObject();
+}
+
+// Prints all field options for non-empty fields of a message. Example:
+// --- Message definitions ---
+// FooMessage {
+//   repeated int64 foo = 1 [op1 = val1, op2 = val2];
+//   optional BarMessage bar = 2 [op3 = val3];
+// }
+//
+// BarMessage {
+//   optional int64 baz = 1 [op4 = val4];
+// }
+// --- MessageInstance ---
+// foo_msg = {  // (As JSON)
+//   foo: [23, 24, 25],
+//   bar: {
+//     baz: 42
+//   }
+// }
+// --- Output of MessageFieldOptionsToJson(foo_msg) ---
+//   foo: {
+//     __field_options: {
+//       op1: val1,
+//       op2: val2,
+//     },
+//     __repeated: true
+//   }
+//   bar: {
+//     __field_options: {
+//       op3 = val3,
+//     },
+//     baz: {
+//       __field_options: {
+//         op4 = val4
+//       },
+//     }
+//   }
+void MessageFieldOptionsToJson(
+    const DescriptorPool& pool,
+    const std::string& type,
+    const std::string field_prefix,
+    const std::unordered_set<std::string>& allowed_fields,
+    JsonBuilder* out) {
+  std::optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
+  if (!opt_proto_desc_idx) {
+    return;
+  }
+  const ProtoDescriptor& desc = pool.descriptors()[*opt_proto_desc_idx];
+  for (const auto& id_and_field : desc.fields()) {
+    const FieldDescriptor& field_desc = id_and_field.second;
+    std::string full_field_name = field_prefix + field_desc.name();
+    if (allowed_fields.find(full_field_name) == allowed_fields.end()) {
+      continue;
+    }
+    if (field_desc.is_extension()) {
+      out->Key(FulllyQualifiedFieldName(desc, field_desc));
+    } else {
+      out->Key(field_desc.name());
+    }
+    out->OpenObject();
+    if (HasFieldOptions(field_desc)) {
+      out->Key("__field_options");
+      MessageField(pool, ".google.protobuf.FieldOptions",
+                   protozero::ConstBytes{field_desc.options().data(),
+                                         field_desc.options().size()},
+                   false, out);
+    }
+    if (field_desc.type() == FieldDescriptorProto::Type::TYPE_MESSAGE) {
+      MessageFieldOptionsToJson(pool, field_desc.resolved_type_name(),
+                                full_field_name + ".", allowed_fields, out);
+    }
+    if (field_desc.is_repeated()) {
+      out->Key("__repeated");
+      out->BoolValue(true);
+    }
+    out->CloseObject();
+  }
+}
+
+bool PopulateAllowedFieldOptionsSet(
+    const DescriptorPool& pool,
+    const std::string& type,
+    const std::string& field_prefix,
+    protozero::ConstBytes protobytes,
+    std::unordered_set<std::string>& allowed_fields) {
+  std::optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
+  if (!opt_proto_desc_idx) {
+    return false;
+  }
+  const ProtoDescriptor& desc = pool.descriptors()[*opt_proto_desc_idx];
+  protozero::ProtoDecoder decoder(protobytes);
+  bool allowed = false;
+  for (auto field = decoder.ReadField(); field.valid();
+       field = decoder.ReadField()) {
+    auto* opt_field_descriptor = desc.FindFieldByTag(field.id());
+    if (!opt_field_descriptor) {
+      continue;
+    }
+    std::string full_field_name = field_prefix + opt_field_descriptor->name();
+    bool nested = false;
+    if (opt_field_descriptor->type() ==
+        protos::pbzero::FieldDescriptorProto::TYPE_MESSAGE) {
+      nested = PopulateAllowedFieldOptionsSet(
+          pool, opt_field_descriptor->resolved_type_name(),
+          full_field_name + ".", field.as_bytes(), allowed_fields);
+    }
+    if (nested || HasFieldOptions(*opt_field_descriptor)) {
+      allowed_fields.emplace(full_field_name);
+      allowed = true;
+    }
+  }
+  return allowed;
 }
 
 }  // namespace
@@ -731,7 +869,23 @@ std::string ProtozeroToJson(const DescriptorPool& pool,
                             protozero::ConstBytes protobytes,
                             int flags) {
   JsonBuilder builder(flags);
-  MessageField(pool, type, protobytes, &builder);
+  builder.OpenObject();
+  InnerMessageField(pool, type, protobytes, true, &builder);
+  if (builder.is_inline_errors() && !builder.errors().empty()) {
+    builder.Key("__error");
+    builder.StringValue(base::StringView(base::Join(builder.errors(), "\n")));
+  }
+  if (flags & kInlineAnnotations) {
+    std::unordered_set<std::string> allowed_fields;
+    PopulateAllowedFieldOptionsSet(pool, type, "", protobytes, allowed_fields);
+    if (!allowed_fields.empty()) {
+      builder.Key("__annotations");
+      builder.OpenObject();
+      MessageFieldOptionsToJson(pool, type, "", allowed_fields, &builder);
+      builder.CloseObject();
+    }
+  }
+  builder.CloseObject();
   return builder.ToString();
 }
 
