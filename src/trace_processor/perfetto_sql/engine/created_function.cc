@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 
+#include <cstddef>
 #include <queue>
 #include <stack>
 

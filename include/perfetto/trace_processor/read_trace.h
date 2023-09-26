@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_TRACE_PROCESSOR_READ_TRACE_H_
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_READ_TRACE_H_
 
+#include <cstdint>
 #include <functional>
 #include <vector>
 
