@@ -100,22 +100,16 @@ WHERE
   AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile";
 
 -- Given a launch id, returns if there is a main thread run-from-apk slice.
--- Add an exception if "split_config" is in parent slice's name(b/277809828).
--- TODO: remove the exception after Sep 2023 (b/78772867)
 CREATE PERFETTO FUNCTION run_from_apk_for_launch(launch_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice_name, startup_id, is_main_thread
-  FROM android_thread_slices_for_all_startups s
-  JOIN slice ON slice.id = s.slice_id
-  LEFT JOIN slice parent ON slice.parent_id = parent.id
+  FROM android_thread_slices_for_all_startups
   WHERE
     startup_id = $launch_id AND is_main_thread AND
     slice_name GLOB "location=* status=* filter=* reason=*" AND
     STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0)
-      GLOB ("*" || "run-from-apk" || "*") AND
-    (parent.name IS NULL OR
-      parent.name NOT GLOB ("OpenDexFilesFromOat(*split_config*apk)"))
+      GLOB ("*" || "run-from-apk" || "*")
 );
 
 CREATE PERFETTO FUNCTION summary_for_optimization_status(
