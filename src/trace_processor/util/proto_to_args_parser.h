@@ -67,7 +67,7 @@ class ProtoToArgsParser {
 
   struct Key {
     Key(const std::string& flat_key, const std::string& key);
-    Key(const std::string& key);
+    explicit Key(const std::string& key);
     Key();
     ~Key();
 
@@ -154,7 +154,7 @@ class ProtoToArgsParser {
   struct ScopedNestedKeyContext {
    public:
     ~ScopedNestedKeyContext();
-    ScopedNestedKeyContext(ScopedNestedKeyContext&&);
+    ScopedNestedKeyContext(ScopedNestedKeyContext&&) noexcept;
     ScopedNestedKeyContext(const ScopedNestedKeyContext&) = delete;
     ScopedNestedKeyContext& operator=(const ScopedNestedKeyContext&) = delete;
 
@@ -167,7 +167,7 @@ class ProtoToArgsParser {
    private:
     friend class ProtoToArgsParser;
 
-    ScopedNestedKeyContext(Key& old_value);
+    explicit ScopedNestedKeyContext(Key& old_value);
 
     struct ScopedStringAppender;
 
