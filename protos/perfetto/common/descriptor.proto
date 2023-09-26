@@ -82,6 +82,34 @@ message DescriptorProto {
   repeated string reserved_name = 10;
 }
 
+// A message representing a option the parser does not recognize. This only
+// appears in options protos created by the compiler::Parser class.
+// DescriptorPool resolves these when building Descriptor objects. Therefore,
+// options protos in descriptor objects (e.g. returned by Descriptor::options(),
+// or produced by Descriptor::CopyTo()) will never have UninterpretedOptions
+// in them.
+message UninterpretedOption {
+  // The name of the uninterpreted option.  Each string represents a segment in
+  // a dot-separated name.  is_extension is true iff a segment represents an
+  // extension (denoted with parentheses in options specs in .proto files).
+  // E.g.,{ ["foo", false], ["bar.baz", true], ["moo", false] } represents
+  // "foo.(bar.baz).moo".
+  message NamePart {
+    required string name_part = 1;
+    required bool is_extension = 2;
+  }
+  repeated NamePart name = 2;
+
+  // The value of the uninterpreted option, in whatever type the tokenizer
+  // identified it as during parsing. Exactly one of these should be set.
+  optional string identifier_value = 3;
+  optional uint64 positive_int_value = 4;
+  optional int64 negative_int_value = 5;
+  optional double double_value = 6;
+  optional bytes string_value = 7;
+  optional string aggregate_value = 8;
+}
+
 message FieldOptions {
   // The packed option can be enabled for repeated primitive fields to enable
   // a more efficient representation on the wire. Rather than repeatedly
@@ -89,6 +117,9 @@ message FieldOptions {
   // a single length-delimited blob. In proto3, only explicit setting it to
   // false will avoid using packed encoding.
   optional bool packed = 2;
+
+  // The parser stores options it doesn't recognize here. See above.
+  repeated UninterpretedOption uninterpreted_option = 999;
 }
 
 // Describes a field within a message.
