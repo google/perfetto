@@ -374,8 +374,8 @@ GROUP BY id, blocked_function;
 -- The weights of each node represent the cumulative wall time the node blocked
 -- other nodes connected to it.
 --
--- @arg upid INT      Upid of process to generate a lock graph for.
--- @ret pprof BYTES   Pprof of lock graph.
+-- @arg upid INT         Upid of process to generate a lock graph for.
+-- @column pprof BYTES   Pprof of lock graph.
 CREATE PERFETTO FUNCTION android_monitor_contention_graph(upid INT)
 RETURNS TABLE(pprof BYTES) AS
 WITH contention_chain AS (

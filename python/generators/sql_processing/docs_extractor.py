@@ -55,7 +55,7 @@ class DocsExtractor:
     extracted = []
     extracted += self._extract_for_kind(ObjKind.table_view)
     extracted += self._extract_for_kind(ObjKind.function)
-    extracted += self._extract_for_kind(ObjKind.view_function)
+    extracted += self._extract_for_kind(ObjKind.table_function)
     return extracted
 
   def _extract_for_kind(self, kind: ObjKind) -> List[Extract]:

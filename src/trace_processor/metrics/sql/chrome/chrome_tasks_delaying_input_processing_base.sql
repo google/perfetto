@@ -23,7 +23,7 @@
 -- browser interval. This may differ based on whether the scenario is for
 -- topLevel events or LongTask events.
 
-CREATE PERFETTO FUNCTION {{function_prefix}}SELECT_SLOW_BROWSER_TASKS()
+CREATE OR REPLACE PERFETTO FUNCTION {{function_prefix}}SELECT_SLOW_BROWSER_TASKS()
 RETURNS TABLE(full_name STRING, dur INT, ts INT, id INT, upid INT, thread_dur INT) AS
 SELECT
   task_table.full_name AS full_name,
