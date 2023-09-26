@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import protoNamespace from '../gen/protos';
+import {QueryResult as QueryResultProto} from '../core/protos';
 
 import {
   createQueryResult,
@@ -23,8 +23,7 @@ import {
   STR_NULL,
 } from './query_result';
 
-const T = protoNamespace.perfetto.protos.QueryResult.CellsBatch.CellType;
-const QueryResultProto = protoNamespace.perfetto.protos.QueryResult;
+const T = QueryResultProto.CellsBatch.CellType;
 
 test('QueryResult.SimpleOneRow', () => {
   const batch = QueryResultProto.CellsBatch.create({

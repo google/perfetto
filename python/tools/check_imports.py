@@ -56,6 +56,24 @@ class Failure(object):
     ])
 
 
+class AllowList(object):
+
+  def __init__(self, allowed, dst, reasoning):
+    self.allowed = allowed
+    self.dst = dst
+    self.reasoning = reasoning
+
+  def check(self, graph):
+    for node, edges in graph.items():
+      for edge in edges:
+        if re.match(self.dst, edge):
+          if not any(re.match(a, node) for a in self.allowed):
+            yield Failure([node, edge], self)
+
+  def __str__(self):
+    return f'Only items in the allowlist ({self.allowed}) may directly depend on "{self.dst}" ' + self.reasoning
+
+
 class NoDirectDep(object):
 
   def __init__(self, src, dst, reasoning):
@@ -114,6 +132,11 @@ class NoCircularDeps(object):
 # NoDep(a, b) = as above but 'a' may not even transitively import 'b'.
 # NoCircularDeps = forbid introduction of circular dependencies
 RULES = [
+    AllowList(
+        ['/core/protos'],
+        r'/gen/protos',
+        'protos should be re-exported from /core/protos without the nesting.',
+    ),
     NoDirectDep(
         r'/plugins/.*',
         r'/core/.*',
