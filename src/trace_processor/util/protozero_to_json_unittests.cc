@@ -20,12 +20,17 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
 
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
+
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"
+#endif
 
 namespace perfetto {
 namespace trace_processor {
@@ -116,6 +121,38 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
       ProtozeroToJson(pool, ".perfetto.protos.TrackEvent", binary_proto,
                       kNone));
 }
+
+// This test depends on the CustomOptions message in descriptor.proto which
+// is very tricky to point to on the non-standalone build.
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
+  using perfetto::protos::TestChromeMetric;
+  TestChromeMetric msg;
+  msg.set_test_value(1);
+  auto binary_proto = msg.SerializeAsString();
+  protozero::ConstBytes binary_proto_bytes{
+      reinterpret_cast<const uint8_t*>(binary_proto.data()),
+      binary_proto.size()};
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(
+      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size());
+  ASSERT_TRUE(status.ok());
+
+  EXPECT_EQ(R"({
+  "test_value": 1,
+  "__annotations": {
+    "test_value": {
+      "__field_options": {
+        "unit": "count_smallerIsBetter"
+      }
+    }
+  }
+})",
+            ProtozeroToJson(pool, ".perfetto.protos.TestChromeMetric",
+                            binary_proto_bytes, kPretty | kInlineAnnotations));
+}
+#endif
 
 // Sets up a descriptor pool with all the messages from
 // "src/protozero/test/example_proto/test_messages.proto"
