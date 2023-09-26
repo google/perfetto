@@ -894,7 +894,8 @@ base::Status TraceProcessorImpl::ComputeMetricText(
       *metrics_string = protozero_to_json::ProtozeroToJson(
           pool_, ".perfetto.protos.TraceMetrics",
           protozero::ConstBytes{metrics_proto.data(), metrics_proto.size()},
-          protozero_to_json::kPretty | protozero_to_json::kInlineErrors);
+          protozero_to_json::kPretty | protozero_to_json::kInlineErrors |
+              protozero_to_json::kInlineAnnotations);
       break;
   }
   return status;
