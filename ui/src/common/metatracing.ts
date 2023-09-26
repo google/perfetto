@@ -12,8 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PerfettoMetatrace, Trace, TracePacket} from '../core/protos';
-import {perfetto} from '../gen/protos';
+import {
+  MetatraceCategories,
+  PerfettoMetatrace,
+  Trace,
+  TracePacket,
+} from '../core/protos';
 
 import {featureFlags} from './feature_flags';
 
@@ -27,8 +31,6 @@ export enum MetatraceTrackId {
   // in the omnibox.
   kOmniboxStatus = 3,
 }
-
-import MetatraceCategories = perfetto.protos.MetatraceCategories;
 
 const AOMT_FLAG = featureFlags.register({
   id: 'alwaysOnMetatracing',
