@@ -249,13 +249,13 @@ class SharedLibDataSourceTest : public testing::Test {
       return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
                                           inst_ctx, args);
     };
-    params.on_stop_cb =
-        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
-           void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
-          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
-          return thiz->ds2_callbacks_.OnStop(
-              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
-        };
+    params.on_stop_cb = [](struct PerfettoDsImpl* ds_impl,
+                           PerfettoDsInstanceIndex inst_id, void* user_arg,
+                           void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
+      auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+      return thiz->ds2_callbacks_.OnStop(ds_impl, inst_id, thiz->ds2_user_arg_,
+                                         inst_ctx, args);
+    };
     params.on_destroy_cb = [](struct PerfettoDsImpl* ds_impl, void* user_arg,
                               void* inst_ctx) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -790,6 +790,71 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategory) {
                     ElementsAre(StringField("dyn1")))));
   }
   EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryMultipleSessions) {
+  TracingSession tracing_session1 = TracingSession::Builder()
+                                        .set_data_source_name("track_event")
+                                        .add_enabled_category("cat1")
+                                        .add_enabled_category("dyn1")
+                                        .add_disabled_category("dyn2")
+                                        .add_disabled_category("*")
+                                        .Build();
+
+  TracingSession tracing_session2 = TracingSession::Builder()
+                                        .set_data_source_name("track_event")
+                                        .add_enabled_category("cat1")
+                                        .add_enabled_category("dyn2")
+                                        .add_disabled_category("dyn1")
+                                        .add_disabled_category("*")
+                                        .Build();
+
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY,
+              PERFETTO_TE_INSTANT("interned_string"),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn1"));
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY,
+              PERFETTO_TE_INSTANT("interned_string"),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn2"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session1.StopBlocking();
+  std::vector<uint8_t> data1 = tracing_session1.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data1),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(AllOf(
+              Contains(PbField(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TrackEvent_categories_field_number,
+                      StringField("dyn1")))))),
+              Contains(PbField(
+                  perfetto_protos_TracePacket_interned_data_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_InternedData_event_names_field_number,
+                      MsgField(Contains(
+                          PbField(perfetto_protos_EventName_name_field_number,
+                                  StringField("interned_string"))))))))))))));
+  tracing_session2.StopBlocking();
+  std::vector<uint8_t> data2 = tracing_session2.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data2),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(AllOf(
+              Contains(PbField(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TrackEvent_categories_field_number,
+                      StringField("dyn2")))))),
+              Contains(PbField(
+                  perfetto_protos_TracePacket_interned_data_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_InternedData_event_names_field_number,
+                      MsgField(Contains(
+                          PbField(perfetto_protos_EventName_name_field_number,
+                                  StringField("interned_string"))))))))))))));
 }
 
 TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
