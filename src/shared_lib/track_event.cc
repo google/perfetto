@@ -856,10 +856,13 @@ static bool IsDynamicCategoryEnabled(
   return res;
 }
 
+// If the category `dyn_cat` is enabled on the data source instance pointed by
+// `ii`, returns immediately. Otherwise, advances `ii` to a data source instance
+// where `dyn_cat` is enabled. If there's no data source instance where
+// `dyn_cat` is enabled, `ii->instance` will be nullptr.
 static void AdvanceToFirstEnabledDynamicCategory(
     perfetto::internal::DataSourceType::InstancesIterator* ii,
     perfetto::internal::DataSourceThreadLocalState* tls_state,
-    perfetto::shlib::TrackEventIncrementalState* incr_state,
     struct PerfettoTeCategoryImpl* cat,
     const PerfettoTeCategoryDescriptor& dyn_cat) {
   perfetto::internal::DataSourceType* ds =
@@ -867,6 +870,9 @@ static void AdvanceToFirstEnabledDynamicCategory(
   for (; ii->instance;
        ds->NextIteration</*Traits=*/perfetto::shlib::TracePointTraits>(
            ii, tls_state, {cat})) {
+    auto* incr_state =
+        static_cast<perfetto::shlib::TrackEventIncrementalState*>(
+            ds->GetIncrementalState(ii->instance, ii->i));
     if (IsDynamicCategoryEnabled(ii->i, incr_state, dyn_cat)) {
       break;
     }
@@ -933,6 +939,13 @@ static void InstanceOp(
     ts = TrackEventInternal::GetTraceTime();
   }
 
+  if (PERFETTO_UNLIKELY(dynamic_cat)) {
+    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, cat, *dynamic_cat);
+    if (!ii->instance) {
+      return;
+    }
+  }
+
   const auto& track_event_tls =
       *static_cast<perfetto::shlib::TrackEventTlsState*>(
           ii->instance->data_source_custom_tls.get());
@@ -941,14 +954,6 @@ static void InstanceOp(
       ds->GetIncrementalState(ii->instance, ii->i));
   ResetIncrementalStateIfRequired(ii->instance->trace_writer.get(), incr_state,
                                   track_event_tls, ts);
-
-  if (PERFETTO_UNLIKELY(dynamic_cat)) {
-    AdvanceToFirstEnabledDynamicCategory(ii, tls_state, incr_state, cat,
-                                         *dynamic_cat);
-    if (!ii->instance) {
-      return;
-    }
-  }
 
   if (registered_track) {
     if (incr_state->seen_track_uuids.insert(registered_track->uuid).second) {
