@@ -123,4 +123,16 @@ static inline uint64_t PerfettoPbZigZagEncode64(int64_t value) {
          PERFETTO_STATIC_CAST(uint64_t, value >> 63);
 }
 
+static inline int32_t PerfettoPbZigZagDecode32(uint32_t value) {
+  uint32_t mask =
+      PERFETTO_STATIC_CAST(uint32_t, -PERFETTO_STATIC_CAST(int32_t, value & 1));
+  return PERFETTO_STATIC_CAST(int32_t, ((value >> 1) ^ mask));
+}
+
+static inline int64_t PerfettoPbZigZagDecode64(uint64_t value) {
+  uint64_t mask =
+      PERFETTO_STATIC_CAST(uint64_t, -PERFETTO_STATIC_CAST(int64_t, value & 1));
+  return PERFETTO_STATIC_CAST(int64_t, ((value >> 1) ^ mask));
+}
+
 #endif  // INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_
