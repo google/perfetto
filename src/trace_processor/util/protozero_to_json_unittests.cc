@@ -28,8 +28,8 @@
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
-#include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"
-#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
+#include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"  // nogncheck
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"  // nogncheck
 #endif
 
 namespace perfetto {
