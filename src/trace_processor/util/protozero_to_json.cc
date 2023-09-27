@@ -788,7 +788,7 @@ void MessageField(const DescriptorPool& pool,
 void MessageFieldOptionsToJson(
     const DescriptorPool& pool,
     const std::string& type,
-    const std::string field_prefix,
+    const std::string& field_prefix,
     const std::unordered_set<std::string>& allowed_fields,
     JsonBuilder* out) {
   std::optional<uint32_t> opt_proto_desc_idx = pool.FindDescriptorIdx(type);
