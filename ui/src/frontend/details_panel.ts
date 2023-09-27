@@ -85,7 +85,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   private height = 0;
   private previousHeight = this.height;
   private resize: (height: number) => void = () => {};
-  private isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
+  private isClosed = this.height <= 0;
   private isFullscreen = false;
   // We can't get real fullscreen height until the pan_and_zoom_handler exists.
   private fullscreenHeight = getDetailsHeight();
@@ -94,7 +94,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   oncreate({dom, attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
-    this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
+    this.isClosed = this.height <= 0;
     this.fullscreenHeight = getFullScreenHeight();
     const elem = dom as HTMLElement;
     this.trash.add(new DragGestureHandler(
@@ -107,7 +107,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   onupdate({attrs}: m.CVnodeDOM<DragHandleAttrs>) {
     this.resize = attrs.resize;
     this.height = attrs.height;
-    this.isClosed = this.height <= DRAG_HANDLE_HEIGHT_PX;
+    this.isClosed = this.height <= 0;
   }
 
   onremove(_: m.CVnodeDOM<DragHandleAttrs>) {
@@ -117,7 +117,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
   onDrag(_x: number, y: number) {
     const newHeight =
         Math.floor(this.dragStartHeight + (DRAG_HANDLE_HEIGHT_PX / 2) - y);
-    this.isClosed = newHeight <= DRAG_HANDLE_HEIGHT_PX;
+    this.isClosed = newHeight <= 0;
     this.isFullscreen = newHeight >= this.fullscreenHeight;
     this.resize(newHeight);
     raf.scheduleFullRedraw();
@@ -154,7 +154,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
               onclick: () => {
                 this.isClosed = false;
                 this.isFullscreen = true;
-                this.resize(this.fullscreenHeight - DRAG_HANDLE_HEIGHT_PX);
+                this.resize(this.fullscreenHeight);
                 raf.scheduleFullRedraw();
               },
               title: 'Open fullscreen',
@@ -164,7 +164,7 @@ class DragHandle implements m.ClassComponent<DragHandleAttrs> {
           m('i.material-icons',
             {
               onclick: () => {
-                if (this.height === DRAG_HANDLE_HEIGHT_PX) {
+                if (this.height === 0) {
                   this.isClosed = false;
                   if (this.previousHeight === 0) {
                     this.previousHeight = getDetailsHeight();
