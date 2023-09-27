@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {hsluvToHex} from 'hsluv';
+import {hexToHsluv, hsluvToHex} from 'hsluv';
 
 class HsluvCache {
   storage = new Map<number, string>();
@@ -36,4 +36,26 @@ const cache = new HsluvCache();
 export function cachedHsluvToHex(
     hue: number, saturation: number, lightness: number): string {
   return cache.get(hue, saturation, lightness);
+}
+
+// A mapping of slice colors to contrasting colors
+// suitable for rendering text on them. Keys and
+// values are both hex codes of the form #rrggbb.
+const contrastingTextColorCodeCache = new Map<string, string>();
+
+// Obtain a color code contrasting to the given |color|
+// that is suitable for painting text on it.
+// @param color hex code in the form #rrggbb of
+//   something like a slice rendered in the track
+// @returns a color hex code for contrasting text,
+//   which will either be white for a dark |color|
+//   or a dark grey-black for a light |color|
+export function contrastingTextColorCode(color: string): string {
+  let result = contrastingTextColorCodeCache.get(color);
+  if (!result) {
+    const lightness = hexToHsluv(color)[2];
+    result = lightness > 65 ? '#202020' : '#ffffff';
+    contrastingTextColorCodeCache.set(color, result);
+  }
+  return result;
 }

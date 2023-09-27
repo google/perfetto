@@ -42,7 +42,7 @@ export interface Data extends TrackData {
   isIncomplete: Uint16Array;
 }
 
-class AsyncSliceTrackController extends TrackController<Config, Data> {
+export class AsyncSliceTrackController extends TrackController<Config, Data> {
   static readonly kind = ASYNC_SLICE_TRACK_KIND;
   private maxDurNs: TPDuration = 0n;
 

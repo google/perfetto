@@ -27,9 +27,11 @@ export class Registry<T> {
     this.key = key;
   }
 
-  register(registrant: T) {
+  // Register a |registrant| with the option to |supersede|
+  // an existing registrant for the same key, if any.
+  register(registrant: T, supersede = false) {
     const kind = this.key(registrant);
-    if (this.registry.has(kind)) {
+    if (!supersede && this.registry.has(kind)) {
       throw new Error(`Registrant ${kind} already exists in the registry`);
     }
     this.registry.set(kind, registrant);

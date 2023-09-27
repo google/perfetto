@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import { TrackFilter, TrackGroupFilter, trackFilterRegistry } from '../controller/track_filter';
+import {TrackFilter, TrackGroupFilter, trackFilterRegistry} from '../controller/track_filter';
 import {Engine} from '../common/engine';
 import {
   TrackControllerFactory,
@@ -29,7 +29,7 @@ import {
 } from './plugin_api';
 import {Registry} from './registry';
 import {Selection} from './state';
-import { CustomButton, CustomButtonArgs, customButtonRegistry } from '../frontend/button_registry';
+import {CustomButton, CustomButtonArgs, customButtonRegistry} from '../frontend/button_registry';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
@@ -46,12 +46,12 @@ export class PluginContextImpl implements PluginContext {
 
   // ==================================================================
   // The plugin facing API of PluginContext:
-  registerTrackController(track: TrackControllerFactory): void {
-    trackControllerRegistry.register(track);
+  registerTrackController(track: TrackControllerFactory,
+      supersede = false): void {
+    trackControllerRegistry.register(track, supersede);
   }
-
-  registerTrack(track: TrackCreator): void {
-    trackRegistry.register(track);
+  registerTrack(track: TrackCreator, supersede = false): void {
+    trackRegistry.register(track, supersede);
   }
 
   registerTrackProvider(provider: TrackProvider) {
@@ -59,7 +59,7 @@ export class PluginContextImpl implements PluginContext {
   }
 
   registerTrackFilter(filter: TrackFilter | TrackGroupFilter): void {
-    trackFilterRegistry.register(filter);  
+    trackFilterRegistry.register(filter);
   }
 
   registerOnDetailsPanelSelectionChange(
