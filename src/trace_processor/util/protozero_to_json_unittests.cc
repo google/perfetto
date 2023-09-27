@@ -20,7 +20,6 @@
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "src/protozero/test/example_proto/test_messages.pbzero.h"
 #include "src/trace_processor/importers/proto/track_event.descriptor.h"
-#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #include "src/trace_processor/test_messages.descriptor.h"
 #include "src/trace_processor/util/descriptors.h"
 #include "test/gtest_and_gmock.h"
@@ -30,6 +29,7 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
 #include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"
 #endif
 
 namespace perfetto {
