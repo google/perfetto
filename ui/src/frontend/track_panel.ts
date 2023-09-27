@@ -345,8 +345,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   private track: TrackLike|undefined;
   private trackState: TrackState|undefined;
 
-  constructor(vnode: m.CVnode<TrackPanelAttrs>) {
-    super();
+  private tryLoadTrack(vnode: m.CVnode<TrackPanelAttrs>) {
     const trackId = vnode.attrs.id;
     const trackState = globals.state.tracks[trackId];
 
@@ -359,7 +358,11 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     this.trackState = trackState;
   }
 
-  view() {
+  view(vnode: m.CVnode<TrackPanelAttrs>) {
+    if (!this.track) {
+      this.tryLoadTrack(vnode);
+    }
+
     if (this.track === undefined || this.trackState === undefined) {
       return m('div', 'No such track');
     }
