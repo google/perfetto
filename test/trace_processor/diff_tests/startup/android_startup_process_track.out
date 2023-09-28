@@ -105,6 +105,7 @@ android_startup {
         dur_ns: 3
         dur_ms: 3e-06
       }
+
     }
     activity_hosting_process_count: 1
     process {
