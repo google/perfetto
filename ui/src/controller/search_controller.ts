@@ -21,13 +21,16 @@ import {
   Time,
   TimeSpan,
 } from '../base/time';
+import {exists} from '../base/utils';
 import {Engine} from '../common/engine';
+import {pluginManager} from '../common/plugins';
 import {LONG, NUM, STR} from '../common/query_result';
 import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {OmniboxState} from '../common/state';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
+import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 
 import {Controller} from './controller';
 
@@ -199,9 +202,12 @@ export class SearchController extends Controller<'main'> {
     // easier once the track table has entries for all the tracks.
     const cpuToTrackId = new Map();
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.kind === 'CpuSliceTrack') {
-        cpuToTrackId.set((track.config as {cpu: number}).cpu, track.id);
-        continue;
+      if (exists(track?.uri)) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+          const cpu = trackInfo?.tags?.cpu;
+          cpu && cpuToTrackId.set(cpu, track.id);
+        }
       }
     }
 
