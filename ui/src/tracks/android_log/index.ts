@@ -155,7 +155,6 @@ class AndroidLog implements Plugin {
       ctx.addTrack({
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
-        tags: {type: 'counter'},
         trackFactory: ({trackInstanceId}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
