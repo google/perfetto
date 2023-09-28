@@ -20,10 +20,13 @@ import {
   Time,
   time,
 } from '../base/time';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {EngineProxy} from '../common/engine';
+import {pluginManager} from '../common/plugins';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
+import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {Anchor} from '../widgets/anchor';
 
 import {globals} from './globals';
@@ -141,9 +144,14 @@ export async function getThreadState(
 export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
-    if (track.kind === 'CpuSliceTrack' &&
-        (track.config as {cpu: number}).cpu === cpu) {
-      trackId = track.id;
+    if (exists(track?.uri)) {
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
+        if (trackInfo?.tags?.cpu === cpu) {
+          trackId = track.id;
+          break;
+        }
+      }
     }
   }
   if (trackId === undefined) {

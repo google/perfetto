@@ -17,6 +17,7 @@ import {Engine} from '../../common/engine';
 import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {CPU_SLICE_TRACK_KIND} from '../../tracks/cpu_slices';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -25,12 +26,12 @@ export class CpuAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
-    const selectedCpus: (string|number)[] = [];
+    const selectedCpus: number[] = [];
     for (const trackId of area.tracks) {
       const track = globals.state.tracks[trackId];
       if (track?.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.type === 'cpu_sched') {
+        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
           const cpu = trackInfo?.tags?.cpu;
           cpu && selectedCpus.push(cpu);
         }

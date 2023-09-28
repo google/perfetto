@@ -43,6 +43,8 @@ import {
   TracePluginContext,
 } from '../../public';
 
+export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
+
 export interface Data extends TrackData {
   // Slices are stored in a columnar fashion. All fields have the same length.
   ids: Float64Array;
@@ -483,8 +485,8 @@ class CpuSlices implements Plugin {
         uri,
         displayName: name,
         tags: {
-          cpu: `${cpu}`,
-          type: 'cpu_sched',
+          cpu,
+          kind: CPU_SLICE_TRACK_KIND,
         },
         trackFactory: ({trackInstanceId}) => {
           return new TrackWithControllerAdapter<Config, Data>(
