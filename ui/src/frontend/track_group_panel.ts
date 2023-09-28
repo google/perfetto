@@ -16,7 +16,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
-import {Actions} from '../common/actions';
+import {Actions, DeferredAction} from '../common/actions';
 import {
   getContainingTrackIds,
   TrackGroupState,
@@ -220,23 +220,43 @@ export class TrackGroupPanel extends Panel<Attrs> {
       result.push(
         m(TrackButton, {
           action: (e: MouseEvent) => {
-            globals.dispatchMultiple([
-              ...this.trackGroupState.tracks.map(
-                (trackId) => Actions.removeTrack({trackId})),
-              Actions.removeTrackGroup({
-                  id: this.trackGroupState.id,
-                  summaryTrackId: this.trackGroupState.tracks[0],
-                }),
-              ]);
+            globals.dispatchMultiple(
+              this.collectRemoveTrackGroupActions());
             e.stopPropagation();
           },
           i: 'delete',
           disabled,
-          tooltip: 'Remove track',
+          tooltip: 'Remove track group',
           showButton: false, // Only show on roll-over
           fullHeight: true,
         }));
     return result;
+  }
+
+  // Collect, recursively, the nested track groups and tracks to remove
+  // along with the given trackGroup, as deferred actions to be dispatched
+  protected collectRemoveTrackGroupActions(
+      trackGroup = this.trackGroupState,
+      actions: DeferredAction[] = []): DeferredAction[] {
+    // First, recursively remove subgroups, if any
+    for (const subgroupId of trackGroup.subgroups) {
+      const subgroup = globals.state.trackGroups[subgroupId];
+      if (subgroup) {
+        this.collectRemoveTrackGroupActions(subgroup, actions);
+      }
+    }
+
+    // Then tracks
+    trackGroup.tracks.forEach(
+      (trackId) => actions.push(Actions.removeTrack({trackId})));
+
+    // The the group
+    actions.push(Actions.removeTrackGroup({
+        id: trackGroup.id,
+        summaryTrackId: trackGroup.tracks[0],
+      }));
+
+    return actions;
   }
 
   // We cannot delete a track group while its tracks are loading,
