@@ -14,15 +14,14 @@
 
 import m from 'mithril';
 
-import {hueForCpu} from '../common/colorizer';
 import {
   duration,
   Span,
   Time,
   time,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {hueForCpu} from '../common/colorizer';
+import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
@@ -248,6 +247,7 @@ function renderTimestamp(
     ): void {
   const fmt = timestampFormat();
   switch (fmt) {
+    case TimestampFormat.UTC:
     case TimestampFormat.Timecode:
       renderTimecode(ctx, time, x, y, minWidth);
       break;

@@ -14,11 +14,14 @@
 
 import m from 'mithril';
 
+import {currentTargetOffset} from '../base/dom_utils';
+import {Icons} from '../base/semantic_icons';
+import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {randomColor} from '../common/colorizer';
 import {AreaNote, Note} from '../common/state';
-import {Time} from '../common/time';
 import {raf} from '../core/raf_scheduler';
+import {Button} from '../widgets/button';
 
 import {
   BottomTab,
@@ -26,7 +29,6 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {TRACK_SHELL_WIDTH} from './css_constants';
-import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {
   getMaxMajorTicks,
@@ -35,9 +37,7 @@ import {
   timeScaleForVisibleWindow,
 } from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {Icons} from './semantic_icons';
 import {isTraceLoaded} from './sidebar';
-import {Button} from './widgets/button';
 import {Timestamp} from './widgets/timestamp';
 
 const FLAG_WIDTH = 16;
@@ -60,21 +60,6 @@ function getStartTimestamp(note: Note|AreaNote) {
 export class NotesPanel extends Panel {
   hoveredX: null|number = null;
 
-  oncreate({dom}: m.CVnodeDOM) {
-    dom.addEventListener('mousemove', (e: Event) => {
-      this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
-      raf.scheduleRedraw();
-    }, {passive: true});
-    dom.addEventListener('mouseenter', (e: Event) => {
-      this.hoveredX = (e as PerfettoMouseEvent).layerX - TRACK_SHELL_WIDTH;
-      raf.scheduleRedraw();
-    });
-    dom.addEventListener('mouseout', () => {
-      this.hoveredX = null;
-      globals.dispatch(Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
-    }, {passive: true});
-  }
-
   view() {
     const allCollapsed = Object.values(globals.state.trackGroups)
                              .every((group) => group.collapsed);
@@ -82,9 +67,23 @@ export class NotesPanel extends Panel {
     return m(
         '.notes-panel',
         {
-          onclick: (e: PerfettoMouseEvent) => {
-            this.onClick(e.layerX - TRACK_SHELL_WIDTH, e.layerY);
+          onclick: (e: MouseEvent) => {
+            const {x, y} = currentTargetOffset(e);
+            this.onClick(x - TRACK_SHELL_WIDTH, y);
             e.stopPropagation();
+          },
+          onmousemove: (e: MouseEvent) => {
+            this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
+            raf.scheduleRedraw();
+          },
+          mouseenter: (e: MouseEvent) => {
+            this.hoveredX = currentTargetOffset(e).x - TRACK_SHELL_WIDTH;
+            raf.scheduleRedraw();
+          },
+          onmouseout: () => {
+            this.hoveredX = null;
+            globals.dispatch(
+                Actions.setHoveredNoteTimestamp({ts: Time.INVALID}));
           },
         },
         isTraceLoaded() ?
@@ -315,8 +314,6 @@ export class NotesEditorTab extends BottomTab<NotesEditorTabConfig> {
   constructor(args: NewBottomTabArgs) {
     super(args);
   }
-
-  renderTabCanvas() {}
 
   getTitle() {
     return 'Current Selection';

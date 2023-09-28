@@ -66,3 +66,56 @@ SELECT
     WHEN ($ts1 > $ts2) AND ($ts1 + $dur1 > $ts2 + $dur2) THEN $ts2 + $dur2 - $ts1
     ELSE $dur2
   END;
+
+--
+-- Helpers for defining time durations.
+--
+
+-- Converts a duration in seconds to nanoseconds, which is the default representation
+-- of time durations in trace processor. Provided for consisensy with other functions.
+-- @arg nanos INT  Time duration in seconds.
+-- @ret INT        Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION ns(nanos INT) RETURNS INT AS
+SELECT $nanos;
+
+-- Converts a duration in microseconds to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg micros INT  Time duration in microseconds.
+-- @ret INT         Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION us(micros INT) RETURNS INT AS
+SELECT $micros * 1000;
+
+-- Converts a duration in millseconds to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg millis INT  Time duration in milliseconds.
+-- @ret INT         Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION ms(millis INT) RETURNS INT AS
+SELECT $millis * 1000 * 1000;
+
+-- Converts a duration in seconds to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg seconds INT  Time duration in seconds.
+-- @ret INT          Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION seconds(seconds INT) RETURNS INT AS
+SELECT $seconds * 1000 * 1000 * 1000;
+
+-- Converts a duration in minutes to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg minutes INT  Time duration in minutes.
+-- @ret INT          Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION minutes(minutes INT) RETURNS INT AS
+SELECT $minutes * 60 * 1000 * 1000 * 1000;
+
+-- Converts a duration in hours to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg hours INT  Time duration in hours.
+-- @ret INT        Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION hours(hours INT) RETURNS INT AS
+SELECT $hours * 60 * 60 * 1000 * 1000 * 1000;
+
+-- Converts a duration in days to nanoseconds, which is the default
+-- representation of time durations in trace processor.
+-- @arg days INT  Time duration in days.
+-- @ret INT       Time duration in nanoseconds.
+CREATE PERFETTO FUNCTION days(days INT) RETURNS INT AS
+SELECT $days * 24 * 60 * 60 * 1000 * 1000 * 1000;

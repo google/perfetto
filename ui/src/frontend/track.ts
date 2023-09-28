@@ -15,10 +15,11 @@
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
+import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
 import {TrackState} from '../common/state';
-import {duration, Span, time} from '../common/time';
 import {TrackData} from '../common/track_data';
+import {TrackLike} from '../public';
 
 import {checkerboard} from './checkerboard';
 import {globals} from './globals';
@@ -53,7 +54,8 @@ export interface SliceRect {
 }
 
 // The abstract class that needs to be implemented by all tracks.
-export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
+export abstract class Track<Config = {}, Data extends TrackData = TrackData>
+    implements TrackLike {
   // The UI-generated track ID (not to be confused with the SQL track.id).
   protected readonly trackId: string;
   protected readonly engine: EngineProxy;
@@ -72,6 +74,8 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
     this.engine = args.engine;
     this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
+
+  onCreate() {}
 
   // Last call the track will receive. Called just before the last reference to
   // this object is removed.
@@ -140,68 +144,6 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData> {
       checkerboard(ctx, this.getHeight(), startPx, endPx);
     } else {
       this.renderCanvas(ctx);
-    }
-  }
-
-  drawTrackHoverTooltip(
-      ctx: CanvasRenderingContext2D, pos: {x: number, y: number}, text: string,
-      text2?: string) {
-    ctx.font = '10px Roboto Condensed';
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-
-    // TODO(hjd): Avoid measuring text all the time (just use monospace?)
-    const textMetrics = ctx.measureText(text);
-    const text2Metrics = ctx.measureText(text2 || '');
-
-    // Padding on each side of the box containing the tooltip:
-    const paddingPx = 4;
-
-    // Figure out the width of the tool tip box:
-    let width = Math.max(textMetrics.width, text2Metrics.width);
-    width += paddingPx * 2;
-
-    // and the height:
-    let height = 0;
-    height += textMetrics.fontBoundingBoxAscent;
-    height += textMetrics.fontBoundingBoxDescent;
-    if (text2 !== undefined) {
-      height += text2Metrics.fontBoundingBoxAscent;
-      height += text2Metrics.fontBoundingBoxDescent;
-    }
-    height += paddingPx * 2;
-
-    let x = pos.x;
-    let y = pos.y;
-
-    // Move box to the top right of the mouse:
-    x += 10;
-    y -= 10;
-
-    // Ensure the box is on screen:
-    const endPx = globals.frontendLocalState.visibleTimeScale.pxSpan.end;
-    if (x + width > endPx) {
-      x -= x + width - endPx;
-    }
-    if (y < 0) {
-      y = 0;
-    }
-    if (y + height > this.getHeight()) {
-      y -= y + height - this.getHeight();
-    }
-
-    // Draw everything:
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.fillRect(x, y, width, height);
-
-    ctx.fillStyle = 'hsl(200, 50%, 40%)';
-    ctx.fillText(
-        text, x + paddingPx, y + paddingPx + textMetrics.fontBoundingBoxAscent);
-    if (text2 !== undefined) {
-      const yOffsetPx = textMetrics.fontBoundingBoxAscent +
-          textMetrics.fontBoundingBoxDescent +
-          text2Metrics.fontBoundingBoxAscent;
-      ctx.fillText(text2, x + paddingPx, y + paddingPx + yOffsetPx);
     }
   }
 

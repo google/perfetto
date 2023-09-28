@@ -14,22 +14,23 @@
 
 import m from 'mithril';
 
+import {Icons} from '../../base/semantic_icons';
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM} from '../../common/query_result';
-import {duration, time, Time} from '../../common/time';
-import {Anchor} from '../../frontend/anchor';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
-import {Icons} from '../../frontend/semantic_icons';
 import {SliceSqlId} from '../../frontend/sql_types';
 import {
   constraintsToQuerySuffix,
   SQLConstraints,
 } from '../../frontend/sql_utils';
+import {Anchor} from '../../widgets/anchor';
 
 import {EventLatencyTrack} from './event_latency_track';
 import {ScrollJankPluginState, ScrollJankTrackSpec} from './index';
+import {ScrollJankV3Track} from './scroll_jank_v3_track';
 
 interface BasicSlice {
   // ID of slice.
@@ -39,6 +40,7 @@ interface BasicSlice {
   // Duration of this slice in nanoseconds.
   dur: duration;
 }
+
 async function getSlicesFromTrack(
     engine: EngineProxy,
     track: ScrollJankTrackSpec,
@@ -65,6 +67,21 @@ async function getSlicesFromTrack(
     });
   }
   return result;
+}
+
+export type ScrollJankSlice = BasicSlice;
+export async function getScrollJankSlices(
+    engine: EngineProxy, id: number): Promise<ScrollJankSlice[]> {
+  const track =
+      ScrollJankPluginState.getInstance().getTrack(ScrollJankV3Track.kind);
+  if (track == undefined) {
+    throw new Error(`${ScrollJankV3Track.kind} track is not registered.`);
+  }
+
+  const slices = await getSlicesFromTrack(engine, track, {
+    filters: [`event_latency_id=${id}`],
+  });
+  return slices;
 }
 
 export type EventLatencySlice = BasicSlice;

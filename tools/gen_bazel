@@ -76,7 +76,7 @@ public_targets = [
 # exported publicly.
 default_targets = [
     '//src/base:perfetto_base_default_platform',
-    '//src/cloud_trace_processor:cloud_trace_processor',
+    '//src/bigtrace:bigtrace',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -90,7 +90,7 @@ default_targets = [
 # Proto targets are required by internal build rules but don't need to be
 # exported publicly.
 proto_default_targets = [
-  '//protos/perfetto/cloud_trace_processor:lite'
+  '//protos/perfetto/bigtrace:lite'
 ]
 
 # Proto target groups which will be made public.

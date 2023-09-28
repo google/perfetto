@@ -22,9 +22,8 @@ import {SimpleResizeObserver} from '../../base/resize_observer';
 import {EngineProxy} from '../../common/engine';
 import {getErrorMessage} from '../../common/errors';
 import {QueryError} from '../../common/query_result';
-import {raf} from '../../core/raf_scheduler';
-
-import {Spinner} from './spinner';
+import {scheduleFullRedraw} from '../../widgets/raf';
+import {Spinner} from '../../widgets/spinner';
 
 function isVegaLite(spec: unknown): boolean {
   if (typeof spec === 'object') {
@@ -227,7 +226,7 @@ class VegaWrapper {
     }
     this._status = Status.Done;
     this.pending = undefined;
-    raf.scheduleFullRedraw();
+    scheduleFullRedraw();
   }
 
   private handleError(pending: Promise<vega.View>, err: unknown) {
@@ -241,7 +240,7 @@ class VegaWrapper {
   private setError(err: unknown) {
     this._status = Status.Error;
     this._error = getErrorMessage(err);
-    raf.scheduleFullRedraw();
+    scheduleFullRedraw();
   }
 
   dispose() {

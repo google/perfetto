@@ -28,10 +28,10 @@ import {
   SortDirection,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {DurationWidget} from '../widgets/duration';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
-import {Panel} from './panel';
 import {
   aggregationIndex,
   areaFilters,
@@ -51,7 +51,6 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
-import {DurationWidget} from './widgets/duration';
 
 interface PathItem {
   tree: PivotTree;
@@ -107,9 +106,8 @@ export function markFirst(index: number) {
   return '';
 }
 
-export class PivotTable extends Panel<PivotTableAttrs> {
+export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   constructor() {
-    super();
     this.attributeModalHolder = new AttributeModalHolder((arg) => {
       globals.dispatch(Actions.setPivotTablePivotSelected({
         column: {kind: 'argument', argument: arg},
@@ -126,8 +124,6 @@ export class PivotTable extends Panel<PivotTableAttrs> {
   get constrainToArea() {
     return globals.state.nonSerializableState.pivotTable.constrainToArea;
   }
-
-  renderCanvas(): void {}
 
   renderDrillDownCell(area: Area, filters: DrillFilter[]) {
     return m(

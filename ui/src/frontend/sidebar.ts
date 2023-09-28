@@ -867,8 +867,14 @@ export class Sidebar implements m.ClassComponent {
           class: globals.state.sidebarVisible ? 'show-sidebar' : 'hide-sidebar',
           // 150 here matches --sidebar-timing in the css.
           // TODO(hjd): Should link to the CSS variable.
-          ontransitionstart: () => this._redrawWhileAnimating.start(150),
-          ontransitionend: () => this._redrawWhileAnimating.stop(),
+          ontransitionstart: (e: TransitionEvent) => {
+            if (e.target !== e.currentTarget) return;
+            this._redrawWhileAnimating.start(150);
+          },
+          ontransitionend: (e: TransitionEvent) => {
+            if (e.target !== e.currentTarget) return;
+            this._redrawWhileAnimating.stop();
+          },
         },
         shouldShowHiringBanner() ? m(HiringBanner) : null,
         m(

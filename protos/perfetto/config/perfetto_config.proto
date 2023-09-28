@@ -436,8 +436,8 @@ message AndroidSdkSyspropGuardConfig {
   // restarted.
   //
   // Specifically this sets the following system properties:
-  //   - debug.renderengine.skia_tracing_enabled
-  //   - debug.renderengine.skia_use_perfetto_track_events
+  //   - debug.tracing.ctl.renderengine.skia_tracing_enabled
+  //   - debug.tracing.ctl.renderengine.skia_use_perfetto_track_events
   //
   // Does not affect actual track_event data *collection*, which must be
   // configured seperately.
@@ -453,12 +453,12 @@ message AndroidSdkSyspropGuardConfig {
   //
   // ATTENTION: affects ALL HWUI APPS if hwui_package_name_filter is not set!
   // If filtering is NOT set, this controls these GLOBAL system properties:
-  //   - debug.hwui.skia_tracing_enabled
-  //   - debug.hwui.skia_use_perfetto_track_events
+  //   - debug.tracing.ctl.hwui.skia_tracing_enabled
+  //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events
   // If filtering IS set, this controls these APP-SPECIFIC system properties,
   // for each package listed in the filter:
-  //   - debug.hwui.skia_tracing_enabled.<package.name>
-  //   - debug.hwui.skia_use_perfetto_track_events.<package.name>
+  //   - debug.tracing.ctl.hwui.skia_tracing_enabled.<package.name>
+  //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events.<package.name>
   //
   // Does not affect actual track_event data *collection*, which must be
   // configured seperately.
@@ -548,7 +548,6 @@ message SurfaceFlingerLayersConfig {
     // occurs.
     MODE_ACTIVE = 1;
 
-    // Default mode (applied by SurfaceFlinger if no mode is specified).
     // Generate layers snapshots from the transactions kept in the
     // SurfaceFlinger's internal ring buffer.
     // The layers snapshots generation occurs when this data source is flushed.
@@ -556,6 +555,11 @@ message SurfaceFlingerLayersConfig {
 
     // Trace a single layers snapshot.
     MODE_DUMP = 3;
+
+    // Default mode (applied by SurfaceFlinger if no mode is specified).
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
+    // is taken.
+    MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
 
@@ -2873,6 +2877,21 @@ message TraceConfig {
       DISCARD = 2;
     }
     optional FillPolicy fill_policy = 4;
+
+    // When true the buffer is moved (rather than copied) onto the cloned
+    // session, and an empty buffer of the same size is allocated in the source
+    // tracing session. This feature will likely get deprecated in the future.
+    // It been introduced mainly to support the surfaceflinger snapshot dump
+    // for bugreports, where SF can dumps O(400MB) into the bugreport trace. In
+    // that case we don't want to retain another in-memory copy of the buffer.
+    optional bool transfer_on_clone = 5;
+
+    // Used in conjuction with transfer_on_clone. When true the buffer is
+    // cleared before issuing the Flush(reason=kTraceClone). This is to ensure
+    // that if the data source took too long to write the data in a previous
+    // clone-related flush, we don't end up with a mixture of leftovers from
+    // the previous write and new data.
+    optional bool clear_before_clone = 6;
   }
   repeated BufferConfig buffers = 1;
 
@@ -3120,6 +3139,13 @@ message TraceConfig {
       // consumer.
       STOP_TRACING = 2;
 
+      // 3 was taken by CLONE_SNAPSHOT but that has been moved to 4.
+      // The early implementation of CLONE_SNAPSHOT had various bugs
+      // (b/290798988, b/290799105) and made it into Android U. The number
+      // change is to make sure nobody rolls out a config that hits the broken
+      // behaviour.
+      reserved 3;
+
       // When this mode is chosen, this causes a snapshot of the current tracing
       // session to be created after |stop_delay_ms| while the current tracing
       // session continues undisturbed (% an extra flush). This mode can be
@@ -3131,10 +3157,10 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 3;
+      CLONE_SNAPSHOT = 4;
 
-      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android U+
-      // (14+) / Perfetto v34+. A bug in older versions of the tracing service
+      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
+      // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
     }
     optional TriggerMode trigger_mode = 1;
@@ -3147,7 +3173,11 @@ message TraceConfig {
     // versions of Android and fall back to STOP_TRACING on older versions where
     // CLONE_SNAPSHOT did not exist.
     // When using this flag, trigger_mode must be set to STOP_TRACING.
-    optional bool use_clone_snapshot_if_available = 4;
+    optional bool use_clone_snapshot_if_available = 5;
+
+    // DEPRECATED, was use_clone_snapshot_if_available in U. See the comment
+    // around CLONE_SNAPSHOT.
+    reserved 4;
 
     message Trigger {
       // The producer must specify this name to activate the trigger.

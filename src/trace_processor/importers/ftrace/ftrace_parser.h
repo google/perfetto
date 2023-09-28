@@ -84,6 +84,9 @@ class FtraceParser {
   void ParseG2dTracingMarkWrite(int64_t timestamp,
                                 uint32_t pid,
                                 protozero::ConstBytes);
+  void ParseSamsungTracingMarkWrite(int64_t timestamp,
+                                    uint32_t pid,
+                                    protozero::ConstBytes);
   void ParseMaliTracingMarkWrite(int64_t timestamp,
                                  uint32_t pid,
                                  protozero::ConstBytes);
@@ -130,6 +133,12 @@ class FtraceParser {
   void ParseBinderTransactionReceived(int64_t timestamp,
                                       uint32_t pid,
                                       protozero::ConstBytes);
+  void ParseBinderCommand(int64_t timestamp,
+                          uint32_t pid,
+                          protozero::ConstBytes);
+  void ParseBinderReturn(int64_t timestamp,
+                         uint32_t pid,
+                         protozero::ConstBytes);
   void ParseBinderTransactionAllocBuf(int64_t timestamp,
                                       uint32_t pid,
                                       protozero::ConstBytes);

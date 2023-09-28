@@ -15,6 +15,8 @@
 import m from 'mithril';
 
 import {BigintMath} from '../../base/bigint_math';
+import {Icons} from '../../base/semantic_icons';
+import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
@@ -25,11 +27,9 @@ import {
   STR,
   STR_NULL,
 } from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
-import {Anchor} from '../anchor';
+import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
-import {Icons} from '../semantic_icons';
 import {
   asArgSetId,
   asSliceSqlId,
@@ -209,7 +209,7 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
             globals.makeSelection(
                 Actions.selectChromeSlice(
                     {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}),
-                switchTab ? 'current_selection' : null);
+                {tab: switchTab ? 'current_selection' : null});
           },
         },
         vnode.attrs.name);

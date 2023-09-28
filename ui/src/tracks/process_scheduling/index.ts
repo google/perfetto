@@ -13,12 +13,14 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
-import {searchEq, searchRange, searchSegment} from '../../base/binary_search';
+import {searchEq, searchRange} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
+import {calcCachedBucketSize} from '../../common/cache_utils';
+import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {LONG, NUM, QueryResult} from '../../common/query_result';
-import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -71,7 +73,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
     this.maxDur = result.maxDur;
 
     const rowCount = result.count;
-    const bucketSize = this.calcCachedBucketSize(rowCount);
+    const bucketSize = calcCachedBucketSize(rowCount);
     if (bucketSize === undefined) {
       return;
     }
@@ -202,6 +204,7 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     const {
       visibleTimeScale,
       visibleWindowTime,
+      visibleTimeSpan,
     } = globals.frontendLocalState;
     const data = this.data();
 
@@ -220,20 +223,15 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     assertTrue(data.starts.length === data.ends.length);
     assertTrue(data.starts.length === data.utids.length);
 
-    const startTime = visibleWindowTime.start.toTime('floor');
-    const rawStartIdx = data.ends.findIndex((end) => end >= startTime);
-    const startIdx = rawStartIdx === -1 ? data.starts.length : rawStartIdx;
-
-
-    const endTime = visibleWindowTime.end.toTime('ceil');
-    const [, rawEndIdx] = searchSegment(data.starts, endTime);
-    const endIdx = rawEndIdx === -1 ? data.starts.length : rawEndIdx;
-
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
 
-    for (let i = startIdx; i < endIdx; i++) {
+    for (let i = 0; i < data.ends.length; i++) {
       const tStart = Time.fromRaw(data.starts[i]);
       const tEnd = Time.fromRaw(data.ends[i]);
+
+      // Cull slices that lie completely outside the visible window
+      if (!visibleTimeSpan.intersects(tStart, tEnd)) continue;
+
       const utid = data.utids[i];
       const cpu = data.cpus[i];
 
@@ -267,13 +265,14 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     }
 
     const hoveredThread = globals.threads.get(this.utidHoveredInThisTrack);
+    const height = this.getHeight();
     if (hoveredThread !== undefined && this.mousePos !== undefined) {
       const tidText = `T: ${hoveredThread.threadName} [${hoveredThread.tid}]`;
       if (hoveredThread.pid) {
         const pidText = `P: ${hoveredThread.procName} [${hoveredThread.pid}]`;
-        this.drawTrackHoverTooltip(ctx, this.mousePos, pidText, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, height, pidText, tidText);
       } else {
-        this.drawTrackHoverTooltip(ctx, this.mousePos, tidText);
+        drawTrackHoverTooltip(ctx, this.mousePos, height, tidText);
       }
     }
   }

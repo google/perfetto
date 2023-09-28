@@ -15,11 +15,11 @@
 import m from 'mithril';
 
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
+import {Anchor} from '../widgets/anchor';
+import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 
-import {Anchor} from './anchor';
 import {globals} from './globals';
 import {createPage} from './pages';
-import {HotkeyGlyphs} from './widgets/hotkey_glyphs';
 
 export class Hints implements m.ClassComponent {
   view() {
@@ -42,9 +42,9 @@ export class Hints implements m.ClassComponent {
               m(Anchor,
                 {
                   href:
-                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-pallete',
+                      'https://perfetto.dev/docs/visualization/perfetto-ui#command-palette',
                 },
-                'command pallete,'),
+                'command palette,'),
               ' press ',
               m(HotkeyGlyphs, {hotkey: '!Mod+Shift+P'}),
               '.'),

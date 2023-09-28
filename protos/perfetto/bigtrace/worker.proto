@@ -1,0 +1,59 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/trace_processor/trace_processor.proto";
+
+// Interface for a BigTrace "Worker".
+//
+// Workers are owned by an |Orchestrator| which assigns traces and forwards any
+// requests from end users. Workers are responsible for loading assigned traces
+// with TraceProcessor and executing the requests.
+service BigTraceWorker {
+  // Synchronize the state of the traces in the worker to the orchestrator. The
+  // orchestrator uses this method to ensure the worker is always fully up to
+  // date with the state according to the orchestrator. This makes the system
+  // resilient to worker restarts (i.e. loss of local state).
+  rpc SyncTraceState(SyncTraceStateArgs)
+      returns (stream SyncTraceStateResponse);
+
+  // Executes a SQL query on the specified trace and returns a stream of
+  // execution responses. Note that this method returns a stream because each
+  // trace can return >1 result due to chunking of protos at the
+  // TraceProcessor::QueryResult level.
+  rpc QueryTrace(QueryTraceArgs) returns (stream QueryTraceResponse);
+}
+
+// Request/Response for Worker::Sync.
+message SyncTraceStateArgs {
+  repeated string traces = 1;
+}
+message SyncTraceStateResponse {
+  optional double load_progress = 1;
+}
+
+// Request/Response for Worker::TraceQuery.
+message QueryTraceArgs {
+  optional string trace = 1;
+  optional string sql_query = 2;
+}
+message QueryTraceResponse {
+  optional string trace = 1;
+  optional QueryResult result = 2;
+}

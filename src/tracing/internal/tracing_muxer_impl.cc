@@ -167,10 +167,12 @@ struct CompareBackendByType {
 TracingMuxerImpl::ProducerImpl::ProducerImpl(
     TracingMuxerImpl* muxer,
     TracingBackendId backend_id,
-    uint32_t shmem_batch_commits_duration_ms)
+    uint32_t shmem_batch_commits_duration_ms,
+    bool shmem_direct_patching_enabled)
     : muxer_(muxer),
       backend_id_(backend_id),
-      shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms) {}
+      shmem_batch_commits_duration_ms_(shmem_batch_commits_duration_ms),
+      shmem_direct_patching_enabled_(shmem_direct_patching_enabled) {}
 
 TracingMuxerImpl::ProducerImpl::~ProducerImpl() {
   muxer_ = nullptr;
@@ -260,6 +262,9 @@ void TracingMuxerImpl::ProducerImpl::OnTracingSetup() {
   did_setup_tracing_ = true;
   service_->MaybeSharedMemoryArbiter()->SetBatchCommitsDuration(
       shmem_batch_commits_duration_ms_);
+  if (shmem_direct_patching_enabled_) {
+    service_->MaybeSharedMemoryArbiter()->EnableDirectSMBPatching();
+  }
 }
 
 void TracingMuxerImpl::ProducerImpl::OnStartupTracingSetup() {
@@ -296,14 +301,15 @@ void TracingMuxerImpl::ProducerImpl::StopDataSource(DataSourceInstanceID id) {
 void TracingMuxerImpl::ProducerImpl::Flush(
     FlushRequestID flush_id,
     const DataSourceInstanceID* instances,
-    size_t instance_count) {
+    size_t instance_count,
+    FlushFlags flush_flags) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
   bool all_handled = true;
   if (muxer_) {
     for (size_t i = 0; i < instance_count; i++) {
       DataSourceInstanceID ds_id = instances[i];
-      bool handled =
-          muxer_->FlushDataSource_AsyncBegin(backend_id_, ds_id, flush_id);
+      bool handled = muxer_->FlushDataSource_AsyncBegin(backend_id_, ds_id,
+                                                        flush_id, flush_flags);
       if (!handled) {
         pending_flushes_[flush_id].insert(ds_id);
         all_handled = false;
@@ -955,8 +961,9 @@ void TracingMuxerImpl::AddProducerBackend(TracingProducerBackend* backend,
   rb.backend = backend;
   rb.id = backend_id;
   rb.type = type;
-  rb.producer.reset(
-      new ProducerImpl(this, backend_id, args.shmem_batch_commits_duration_ms));
+  rb.producer.reset(new ProducerImpl(this, backend_id,
+                                     args.shmem_batch_commits_duration_ms,
+                                     args.shmem_direct_patching_enabled));
   rb.producer_conn_args.producer = rb.producer.get();
   rb.producer_conn_args.producer_name = platform_->GetCurrentProcessName();
   rb.producer_conn_args.task_runner = task_runner_.get();
@@ -1115,34 +1122,33 @@ void TracingMuxerImpl::RegisterInterceptor(
     InterceptorFactory factory,
     InterceptorBase::TLSFactory tls_factory,
     InterceptorBase::TracePacketCallback packet_callback) {
-  task_runner_->PostTask(
-      [this, descriptor, factory, tls_factory, packet_callback] {
-        // Ignore repeated registrations.
-        for (const auto& interceptor : interceptors_) {
-          if (interceptor.descriptor.name() == descriptor.name()) {
-            PERFETTO_DCHECK(interceptor.tls_factory == tls_factory);
-            PERFETTO_DCHECK(interceptor.packet_callback == packet_callback);
-            return;
-          }
-        }
-        // Only allow certain interceptors for now.
-        if (descriptor.name() != "test_interceptor" &&
-            descriptor.name() != "console" &&
-            descriptor.name() != "etwexport") {
-          PERFETTO_ELOG(
-              "Interceptors are experimental. If you want to use them, please "
-              "get in touch with the project maintainers "
-              "(https://perfetto.dev/docs/contributing/"
-              "getting-started#community).");
-          return;
-        }
-        interceptors_.emplace_back();
-        RegisteredInterceptor& interceptor = interceptors_.back();
-        interceptor.descriptor = descriptor;
-        interceptor.factory = factory;
-        interceptor.tls_factory = tls_factory;
-        interceptor.packet_callback = packet_callback;
-      });
+  task_runner_->PostTask([this, descriptor, factory, tls_factory,
+                          packet_callback] {
+    // Ignore repeated registrations.
+    for (const auto& interceptor : interceptors_) {
+      if (interceptor.descriptor.name() == descriptor.name()) {
+        PERFETTO_DCHECK(interceptor.tls_factory == tls_factory);
+        PERFETTO_DCHECK(interceptor.packet_callback == packet_callback);
+        return;
+      }
+    }
+    // Only allow certain interceptors for now.
+    if (descriptor.name() != "test_interceptor" &&
+        descriptor.name() != "console" && descriptor.name() != "etwexport") {
+      PERFETTO_ELOG(
+          "Interceptors are experimental. If you want to use them, please "
+          "get in touch with the project maintainers "
+          "(https://perfetto.dev/docs/contributing/"
+          "getting-started#community).");
+      return;
+    }
+    interceptors_.emplace_back();
+    RegisteredInterceptor& interceptor = interceptors_.back();
+    interceptor.descriptor = descriptor;
+    interceptor.factory = factory;
+    interceptor.tls_factory = tls_factory;
+    interceptor.packet_callback = packet_callback;
+  });
 }
 
 void TracingMuxerImpl::ActivateTriggers(
@@ -1629,7 +1635,8 @@ void TracingMuxerImpl::ClearDataSourceIncrementalState(
 bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
     TracingBackendId backend_id,
     DataSourceInstanceID instance_id,
-    FlushRequestID flush_id) {
+    FlushRequestID flush_id,
+    FlushFlags flush_flags) {
   PERFETTO_DLOG("Flushing data source %" PRIu64, instance_id);
   auto ds = FindDataSource(backend_id, instance_id);
   if (!ds) {
@@ -1640,6 +1647,7 @@ bool TracingMuxerImpl::FlushDataSource_AsyncBegin(
   uint32_t backend_connection_id = ds.internal_state->backend_connection_id;
 
   FlushArgsImpl flush_args;
+  flush_args.flush_flags = flush_flags;
   flush_args.internal_instance_index = ds.instance_idx;
   flush_args.async_flush_closure = [this, backend_id, backend_connection_id,
                                     instance_id, ds, flush_id] {
@@ -1924,7 +1932,11 @@ void TracingMuxerImpl::FlushTracingSession(TracingSessionGlobalID session_id,
     return;
   }
 
-  consumer->service_->Flush(timeout_ms, std::move(callback));
+  // For now we don't want to expose the flush reason to the consumer-side SDK
+  // users to avoid misuses until there is a strong need.
+  consumer->service_->Flush(timeout_ms, std::move(callback),
+                            FlushFlags(FlushFlags::Initiator::kConsumerSdk,
+                                       FlushFlags::Reason::kExplicit));
 }
 
 void TracingMuxerImpl::StopTracingSession(TracingSessionGlobalID session_id) {

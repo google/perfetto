@@ -12,11 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
 import {Hotkey} from '../base/hotkeys';
+import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
 import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
-import {TrackCreator} from '../frontend/track';
+import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {SliceRect, TrackCreator} from '../frontend/track';
+import {TrackButtonAttrs} from '../frontend/track_panel';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -53,6 +58,8 @@ export interface Viewer {
     // Creates a new tab running the provided query.
     openQuery(query: string, title: string): void;
   }
+
+  commands: {run(name: string, ...args: any[]): void;}
 }
 
 export interface Command {
@@ -158,6 +165,53 @@ export interface PluginContext {
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
   registerTrack(track: TrackCreator): void;
+
+  // Add a command.
+  addCommand(command: Command): void;
+}
+
+export interface TrackContext {
+  // A unique ID for the instance of this track.
+  trackInstanceId: string;
+}
+
+export interface TrackContext {
+  // A unique ID for the instance of this track.
+  trackInstanceId: string;
+}
+
+// TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
+// interface to `Track`.
+export interface TrackLike {
+  onCreate(): void;
+  render(ctx: CanvasRenderingContext2D): void;
+  onFullRedraw(): void;
+  getSliceRect(
+      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
+      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
+      |undefined;
+  getHeight(): number;
+  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>>;
+  getContextMenu(): m.Vnode<any>|null;
+  onMouseMove(position: {x: number, y: number}): void;
+  onMouseClick(position: {x: number, y: number}): boolean;
+  onMouseOut(): void;
+  onDestroy(): void;
+}
+
+export interface PluginTrackInfo {
+  // A unique identifier for the track. This must be unique within all tracks.
+  uri: string;
+
+  // A human friendly name for this track. Used when displaying the list of
+  // tracks to the user. E.g. when adding a new track to the workspace.
+  displayName: string;
+
+  // A factory function returning the track object.
+  trackFactory: (ctx: TrackContext) => TrackLike;
+
+  // A list of tags used for sorting and grouping.
+  tags?: TrackTags;
 }
 
 // Similar to PluginContext but with additional properties to operate on the
@@ -166,6 +220,10 @@ export interface PluginContext {
 export interface TracePluginContext<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
+
+  // Add a new track from this plugin. The track is just made available here,
+  // it's not automatically shown until it's added to a workspace.
+  addTrack(trackDetails: PluginTrackInfo): void;
 }
 
 export interface BasePlugin<State> {
@@ -176,8 +234,6 @@ export interface BasePlugin<State> {
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
-  commands?(ctx: PluginContext): Command[];
-  traceCommands?(ctx: TracePluginContext<State>): Command[];
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
   findPotentialTracks?(ctx: TracePluginContext<State>): Promise<TrackInfo[]>;
 }
@@ -224,15 +280,27 @@ export interface TrackInfo {
 // A predicate for selecting a groups of tracks.
 export type TrackPredicate = (info: TrackTags) => boolean;
 
-// An set of key/value pairs describing a given track. These
-// are used for selecting tracks to pin/unpin and (in future) the
-// sorting and grouping of tracks. The values are always strings.
-export interface TrackTags {
+interface WellKnownTrackTags {
   // A human readable name for this specific track.
-  name?: string;
+  name: string;
 
+  // This is where "XXX_TRACK_KIND" values should be placed.
+  kind: string;
+
+  // The CPU number associated with this track.
+  cpu: number;
+}
+
+// An set of key/value pairs describing a given track. These are used for
+// selecting tracks to pin/unpin and (in future) the sorting and grouping of
+// tracks.
+// These are also (ab)used for communicating information about tracks for the
+// purposes of locating tracks by their properties e.g. aggregation & search.
+// We define a handful of well known fields, and the rest are arbitrary key-
+// value pairs.
+export type TrackTags = Partial<WellKnownTrackTags>&{
   // There may be arbitrary other key/value pairs.
-  [key: string]: string|undefined;
+  [key: string]: string|number|undefined;
 }
 
 // Plugins can be passed as class refs, factory functions, or concrete plugin

@@ -19,7 +19,7 @@ service traced /system/bin/traced
     socket traced_producer stream 0666 root root
     user nobody
     group nobody
-    task_profiles ServiceCapacityLow
+    task_profiles ProcessCapacityHigh
 
 service traced_probes /system/bin/traced_probes
     class late_start
@@ -28,7 +28,7 @@ service traced_probes /system/bin/traced_probes
     # Despite the "log" group below, traced_probes is allowed to read log
     # only on userdebug/eng via selinux (see traced_probes.te).
     group nobody readproc log readtracefs
-    task_profiles ServiceCapacityLow
+    task_profiles ProcessCapacityHigh
     # Clean up procfs configuration even if traced_probes crashes
     # unexpectedly.
     onrestart exec_background - nobody shell -- /system/bin/traced_probes --cleanup-after-crash

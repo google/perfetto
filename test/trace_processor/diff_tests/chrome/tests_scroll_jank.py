@@ -44,27 +44,6 @@ class ChromeScrollJank(TestSuite):
         """,
         out=Path('scroll_jank.out'))
 
-  def test_event_latency_to_breakdowns(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_to_breakdowns');
-
-        SELECT
-          event_latency_ts,
-          event_latency_dur,
-          event_type,
-          GenerationToRendererCompositorNs,
-          GenerationToBrowserMainNs,
-          BrowserMainToRendererCompositorNs,
-          RendererCompositorQueueingDelayNs,
-          unknown_stages_seen
-        FROM chrome_event_latency_to_breakdowns
-        ORDER BY event_latency_id
-        LIMIT 30;
-        """,
-        out=Path('event_latency_to_breakdowns.out'))
-
   def test_chrome_frames_with_missed_vsyncs(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
@@ -91,53 +70,6 @@ class ChromeScrollJank(TestSuite):
         FROM chrome_janky_frames_percentage;
         """,
         out=Path('scroll_jank_v3_percentage.out'))
-
-  def test_event_latency_scroll_jank(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank');
-
-        SELECT
-          jank,
-          next_jank,
-          prev_jank,
-          gesture_begin_ts,
-          gesture_end_ts,
-          ts,
-          dur,
-          event_type,
-          next_ts,
-          next_dur,
-          prev_ts,
-          prev_dur
-        FROM chrome_scroll_event_latency_jank
-        ORDER BY jank DESC
-        LIMIT 10;
-        """,
-        out=Path('event_latency_scroll_jank.out'))
-
-  def test_event_latency_scroll_jank_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query="""
-        SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
-
-        SELECT
-          dur,
-          ts,
-          event_type,
-          next_jank,
-          prev_jank,
-          next_delta_dur_ns,
-          prev_delta_dur_ns,
-          cause_of_jank,
-          max_delta_dur_ns,
-          sub_cause_of_jank
-        FROM chrome_event_latency_scroll_jank_cause
-        ORDER by ts;
-        """,
-        out=Path('event_latency_scroll_jank_cause.out'))
 
   def test_scroll_flow_event(self):
     return DiffTestBlueprint(
@@ -192,34 +124,6 @@ class ChromeScrollJank(TestSuite):
           ) AS number_of_unique_steps;
         """,
         out=Path('scroll_flow_event_general_validation.out'))
-
-  def test_scroll_jank_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('chrome_scroll_without_vsync.pftrace'),
-        query="""
-        SELECT RUN_METRIC('chrome/scroll_jank_cause.sql');
-
-        SELECT
-          COUNT(*) AS total,
-          SUM(jank) AS total_jank,
-          SUM(explained_jank + unexplained_jank) AS sum_explained_and_unexplained,
-          SUM(
-            CASE WHEN explained_jank THEN
-              unexplained_jank
-              ELSE
-                CASE WHEN jank AND NOT unexplained_jank THEN
-                  1
-                  ELSE
-                    0
-                END
-            END
-          ) AS error_rows
-        FROM scroll_jank_cause;
-        """,
-        out=Csv("""
-        "total","total_jank","sum_explained_and_unexplained","error_rows"
-        139,7,7,0
-        """))
 
   def test_scroll_flow_event_queuing_delay(self):
     return DiffTestBlueprint(
@@ -550,19 +454,19 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=Path('chrome_scroll_check.py'),
         query="""
-        SELECT IMPORT('chrome.chrome_scrolls');
+        INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
 
         SELECT
           id,
           ts,
           dur,
-          scroll_start_ts,
-          scroll_end_ts
+          gesture_scroll_begin_ts,
+          gesture_scroll_end_ts
         FROM chrome_scrolls
         ORDER by id;
         """,
         out=Csv("""
-        "id","ts","dur","scroll_start_ts","scroll_end_ts"
+        "id","ts","dur","gesture_scroll_begin_ts","gesture_scroll_end_ts"
         5678,0,55000000,0,45000000
         5679,60000000,40000000,60000000,90000000
         5680,80000000,30000000,80000000,100000000
@@ -573,7 +477,7 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=Path('chrome_scroll_check.py'),
         query="""
-        SELECT IMPORT('chrome.chrome_scrolls');
+        INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
 
         SELECT
           id,
@@ -589,101 +493,39 @@ class ChromeScrollJank(TestSuite):
         3,120000000,70000000
         """))
 
-  def test_chrome_scroll_jank_v2_with_sub_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('event_latency_with_args.perfetto-trace'),
-        query=Metric('chrome_scroll_jank_v2'),
-        out=TextProto(r"""
-        [perfetto.protos.chrome_scroll_jank_v2] {
-          scroll_processing_ms: 12374.56
-          scroll_jank_processing_ms: 154.217
-          scroll_jank_percentage: 1.2462422906349802
-          num_scroll_janks: 4
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 39.44
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 35.485
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "BufferReadyToLatch"
-            duration_ms: 43.838
-          }
-          scroll_jank_causes_and_durations {
-            cause: "SubmitCompositorFrameToPresentationCompositorFrame"
-            sub_cause: "StartDrawToSwapStart"
-            duration_ms: 35.454
-          }
-        }
-        """))
-
-  def test_chrome_scroll_jank_v2_without_sub_cause(self):
-    return DiffTestBlueprint(
-        trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query=Metric('chrome_scroll_jank_v2'),
-        out=TextProto(r"""
-        [perfetto.protos.chrome_scroll_jank_v2] {
-          scroll_processing_ms: 14434.053
-          scroll_jank_processing_ms: 550.359
-          scroll_jank_percentage: 3.8129207368159173
-          num_scroll_janks: 6
-          scroll_jank_causes_and_durations {
-            cause: "BrowserMainToRendererCompositor"
-            duration_ms: 60.05
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 131.289
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 115.174
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 99.18
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 83.038
-          }
-          scroll_jank_causes_and_durations {
-            cause: "RendererCompositorFinishedToBeginImplFrame"
-            duration_ms: 61.628
-          }
-        }
-        """))
-
   def test_chrome_scroll_jank_v3(self):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
-        query="""
-          SELECT IMPORT('chrome.scroll_jank.scroll_jank_v3');
-          
-          SELECT
-            (SELECT COUNT(*) FROM chrome_janky_frame_info_with_delay)
-              AS trace_num_frames,
-            (SELECT COUNT(*) FROM chrome_janky_frames)
-              AS trace_num_janky_frames,
-            causes.vsync_interval,
-            frames.num_frames,
-            frames.num_janky_frames,
-            frames.scroll_jank_percentage,
-            causes.max_delay_since_last_frame,
-            c.cause_of_jank,
-            c.delay_since_last_frame
-          FROM chrome_frames_per_scroll AS frames
-          INNER JOIN chrome_causes_per_scroll AS causes USING(scroll_id)
-          INNER JOIN chrome_janky_frames c USING (scroll_id)
-        """,
-        out=Csv("""
-        "trace_num_frames","trace_num_janky_frames","vsync_interval","num_frames","num_janky_frames","scroll_jank_percentage","max_delay_since_last_frame","cause_of_jank","delay_since_last_frame"
-        291,3,16.368000,105,2,1.904762,6.126222,"[NULL]",33.462000
-        291,3,16.368000,105,2,1.904762,6.126222,"RendererCompositorFinishedToBeginImplFrame",100.274000
-        291,3,16.368000,84,1,1.190476,2.040811,"RendererCompositorQueueingDelay",33.404000
+        query=Metric('chrome_scroll_jank_v3'),
+        out=TextProto(r"""
+        [perfetto.protos.chrome_scroll_jank_v3] {
+          trace_num_frames: 291
+          trace_num_janky_frames: 3
+          trace_scroll_jank_percentage: 1.0309278350515463
+          vsync_interval_ms: 16.368
+          scrolls {
+            num_frames: 105
+            num_janky_frames: 2
+            scroll_jank_percentage: 1.9047619047619047
+            max_delay_since_last_frame: 6.126221896383187
+            scroll_jank_causes {
+              cause: "RendererCompositorQueueingDelay"
+              delay_since_last_frame: 2.044354838709678
+            }
+            scroll_jank_causes {
+              cause: "RendererCompositorFinishedToBeginImplFrame"
+              delay_since_last_frame: 6.126221896383187
+            }
+          }
+          scrolls {
+            num_frames: 84
+            num_janky_frames: 1
+            scroll_jank_percentage: 1.1904761904761905
+            max_delay_since_last_frame: 2.040811339198436
+            scroll_jank_causes {
+              cause: "RendererCompositorQueueingDelay"
+              delay_since_last_frame: 2.040811339198436
+            }
+          }
+        }
         """))

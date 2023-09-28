@@ -14,10 +14,10 @@
 
 import m from 'mithril';
 
+import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {EngineProxy} from '../../common/engine';
 import {LONG, NUM, STR} from '../../common/query_result';
-import {duration, Time, time} from '../../common/time';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -30,13 +30,13 @@ import {
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
 import {sqlValueToString} from '../../frontend/sql_utils';
-import {DetailsShell} from '../../frontend/widgets/details_shell';
-import {DurationWidget} from '../../frontend/widgets/duration';
-import {GridLayout, GridLayoutColumn} from '../../frontend/widgets/grid_layout';
-import {Section} from '../../frontend/widgets/section';
-import {SqlRef} from '../../frontend/widgets/sql_ref';
 import {Timestamp} from '../../frontend/widgets/timestamp';
-import {dictToTreeNodes, Tree, TreeNode} from '../../frontend/widgets/tree';
+import {DetailsShell} from '../../widgets/details_shell';
+import {DurationWidget} from '../../widgets/duration';
+import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
+import {Section} from '../../widgets/section';
+import {SqlRef} from '../../widgets/sql_ref';
+import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 
 import {EventLatencyTrack} from './event_latency_track';
 import {
@@ -190,7 +190,7 @@ export class ScrollJankV3DetailsPanel extends
       const queryResult = await this.engine.query(`
         SELECT
           COUNT(*) AS jankyFrames
-        FROM chrome_janky_frame_info_with_delay
+        FROM chrome_frame_info_with_delay
         WHERE delay_since_last_frame >
           (
             SELECT
@@ -276,7 +276,7 @@ export class ScrollJankV3DetailsPanel extends
           left: getSliceForTrack(
               this.eventLatencySliceDetails,
               EventLatencyTrack.kind,
-              'Event Latency'),
+              'Input EventLatency in context of ScrollUpdates'),
           right: '',
         }));
       } else {
@@ -330,10 +330,6 @@ export class ScrollJankV3DetailsPanel extends
 
   isLoading() {
     return !this.loaded;
-  }
-
-  renderTabCanvas() {
-    return;
   }
 }
 

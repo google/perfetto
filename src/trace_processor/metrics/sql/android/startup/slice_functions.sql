@@ -14,7 +14,7 @@
 -- limitations under the License.
 --
 
-SELECT IMPORT('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Helper function to build a Slice proto from a duration.
 CREATE PERFETTO FUNCTION startup_slice_proto(dur INT)
@@ -100,22 +100,16 @@ WHERE
   AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile";
 
 -- Given a launch id, returns if there is a main thread run-from-apk slice.
--- Add an exception if "split_config" is in parent slice's name(b/277809828).
--- TODO: remove the exception after Sep 2023 (b/78772867)
 CREATE PERFETTO FUNCTION run_from_apk_for_launch(launch_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice_name, startup_id, is_main_thread
-  FROM android_thread_slices_for_all_startups s
-  JOIN slice ON slice.id = s.slice_id
-  LEFT JOIN slice parent ON slice.parent_id = parent.id
+  FROM android_thread_slices_for_all_startups
   WHERE
     startup_id = $launch_id AND is_main_thread AND
     slice_name GLOB "location=* status=* filter=* reason=*" AND
     STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0)
-      GLOB ("*" || "run-from-apk" || "*") AND
-    (parent.name IS NULL OR
-      parent.name NOT GLOB ("OpenDexFilesFromOat(*split_config*apk)"))
+      GLOB ("*" || "run-from-apk" || "*")
 );
 
 CREATE PERFETTO FUNCTION summary_for_optimization_status(
@@ -138,17 +132,14 @@ CASE
   ELSE $loc
 END || ": " || $status || "/" || $filter_str || "/" || $reason;
 
-SELECT CREATE_VIEW_FUNCTION(
-  'BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(startup_id INT, threshold DOUBLE)',
-  'name STRING',
-  '
-    SELECT reply.name AS name
-    FROM ANDROID_BINDER_TRANSACTION_SLICES_FOR_STARTUP($startup_id, $threshold) request
-    JOIN following_flow(request.id) arrow
-    JOIN slice reply ON reply.id = arrow.slice_in
-    WHERE reply.dur > $threshold AND request.is_main_thread
-  '
-);
+CREATE OR REPLACE PERFETTO FUNCTION binder_transaction_reply_slices_for_launch(
+  startup_id INT, threshold DOUBLE)
+RETURNS TABLE(name STRING) AS
+SELECT reply.name AS name
+FROM android_binder_transaction_slices_for_startup($startup_id, $threshold) request
+JOIN following_flow(request.id) arrow
+JOIN slice reply ON reply.id = arrow.slice_in
+WHERE reply.dur > $threshold AND request.is_main_thread;
 
 -- Given a launch id, return if unlock is running by systemui during the launch.
 CREATE PERFETTO FUNCTION is_unlock_running_during_launch(startup_id LONG)

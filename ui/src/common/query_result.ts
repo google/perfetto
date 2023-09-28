@@ -55,6 +55,7 @@ import protobuf from 'protobufjs/minimal';
 import {defer, Deferred} from '../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../base/logging';
 import {utf8Decode} from '../base/string_utils';
+import {Duration, duration, Time, time} from '../base/time';
 
 export const NUM = 0;
 export const STR = 'str';
@@ -957,4 +958,32 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
 export function createQueryResult(errorInfo: QueryErrorInfo): QueryResult&
     Promise<QueryResult>&WritableQueryResult {
   return new WaitableQueryResultImpl(errorInfo);
+}
+
+// Throws if the value cannot be reasonably converted to a bigint.
+// Assumes value is in native time units.
+export function timeFromSql(value: ColumnType): time {
+  if (typeof value === 'bigint') {
+    return Time.fromRaw(value);
+  } else if (typeof value === 'number') {
+    return Time.fromRaw(BigInt(Math.floor(value)));
+  } else if (value === null) {
+    return Time.ZERO;
+  } else {
+    throw Error(`Refusing to create time from unrelated type ${value}`);
+  }
+}
+
+// Throws if the value cannot be reasonably converted to a bigint.
+// Assumes value is in nanoseconds.
+export function durationFromSql(value: ColumnType): duration {
+  if (typeof value === 'bigint') {
+    return value;
+  } else if (typeof value === 'number') {
+    return BigInt(Math.floor(value));
+  } else if (value === null) {
+    return Duration.ZERO;
+  } else {
+    throw Error(`Refusing to create duration from unrelated type ${value}`);
+  }
 }

@@ -14,19 +14,14 @@
 
 import m from 'mithril';
 
+import {copyToClipboard} from '../../base/clipboard';
+import {Icons} from '../../base/semantic_icons';
+import {time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {
-  time,
-  Time,
-  TimestampFormat,
-  timestampFormat,
-} from '../../common/time';
-import {Anchor} from '../anchor';
-import {copyToClipboard} from '../clipboard';
+import {TimestampFormat, timestampFormat} from '../../common/timestamp_format';
+import {Anchor} from '../../widgets/anchor';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {globals} from '../globals';
-import {Icons} from '../semantic_icons';
-
-import {MenuItem, PopupMenu2} from './menu';
 
 // import {MenuItem, PopupMenu2} from './menu';
 
@@ -75,6 +70,7 @@ function renderTimestamp(time: time): m.Children {
   const fmt = timestampFormat();
   const domainTime = globals.toDomainTime(time);
   switch (fmt) {
+    case TimestampFormat.UTC:
     case TimestampFormat.Timecode:
       return renderTimecode(domainTime);
     case TimestampFormat.Raw:

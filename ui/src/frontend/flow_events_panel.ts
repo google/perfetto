@@ -14,13 +14,12 @@
 
 import m from 'mithril';
 
+import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
+import {DurationWidget} from '../widgets/duration';
 
 import {Flow, globals} from './globals';
-import {BLANK_CHECKBOX, CHECKBOX} from './icons';
-import {Panel, PanelSize} from './panel';
-import {DurationWidget} from './widgets/duration';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -37,7 +36,7 @@ export function getFlowCategories(flow: Flow): string[] {
   return categories;
 }
 
-export class FlowEventsPanel extends Panel {
+export class FlowEventsPanel implements m.ClassComponent {
   view() {
     const selection = globals.state.currentSelection;
     if (!selection || selection.kind !== 'CHROME_SLICE') {
@@ -50,7 +49,7 @@ export class FlowEventsPanel extends Panel {
         globals.makeSelection(
             Actions.selectChromeSlice(
                 {id: sliceId, trackId: uiTrackId, table: 'slice'}),
-            'bound_flows');
+            {tab: 'bound_flows'});
       }
     };
 
@@ -118,11 +117,9 @@ export class FlowEventsPanel extends Panel {
       m('.flow-events-table', m('table', rows)),
     ]);
   }
-
-  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }
 
-export class FlowEventsAreaSelectedPanel extends Panel {
+export class FlowEventsAreaSelectedPanel implements m.ClassComponent {
   view() {
     const selection = globals.state.currentSelection;
     if (!selection || selection.kind !== 'AREA') {
@@ -173,7 +170,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
               raf.scheduleFullRedraw();
             },
           },
-          allWasChecked ? CHECKBOX : BLANK_CHECKBOX)),
+          allWasChecked ? Icons.Checkbox : Icons.BlankCheckbox)),
     ]));
 
     categoryToFlowsNum.forEach((num, cat) => {
@@ -193,7 +190,7 @@ export class FlowEventsAreaSelectedPanel extends Panel {
                 raf.scheduleFullRedraw();
               },
             },
-            wasChecked ? CHECKBOX : BLANK_CHECKBOX)),
+            wasChecked ? Icons.Checkbox : Icons.BlankCheckbox)),
       ];
       rows.push(m('tr', data));
     });
@@ -203,6 +200,4 @@ export class FlowEventsAreaSelectedPanel extends Panel {
       m('.flow-events-table', m('table', rows)),
     ]);
   }
-
-  renderCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize) {}
 }

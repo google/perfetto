@@ -26,7 +26,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        SELECT import('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT name, ts, dur, depth, thread_name, tid, process_name, pid
         FROM thread_slice;
@@ -40,7 +40,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        SELECT import('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT name, ts, dur, depth, process_name, pid
         FROM process_slice;
@@ -54,7 +54,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=Path('trace.py'),
         query="""
-        SELECT import('experimental.slices');
+        INCLUDE PERFETTO MODULE experimental.slices;
 
         SELECT name, ts, dur, depth, thread_name, tid, process_name, pid
         FROM experimental_slice_with_thread_and_process_info;
@@ -73,7 +73,7 @@ class Slices(TestSuite):
         # reliable range is affected by their filtering.
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT
           HAS_DESCENDANT_SLICE_WITH_NAME(
@@ -91,7 +91,7 @@ class Slices(TestSuite):
         # reliable range is affected by their filtering.
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT
           HAS_DESCENDANT_SLICE_WITH_NAME(
@@ -109,7 +109,7 @@ class Slices(TestSuite):
         # reliable range is affected by their filtering.
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT
           DESCENDANT_SLICE_END(
@@ -127,7 +127,7 @@ class Slices(TestSuite):
         # reliable range is affected by their filtering.
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('common.slices');
+        INCLUDE PERFETTO MODULE common.slices;
 
         SELECT
           DESCENDANT_SLICE_END(
@@ -143,7 +143,7 @@ class Slices(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT import('experimental.flat_slices');
+        INCLUDE PERFETTO MODULE experimental.flat_slices;
 
         SELECT e.name, e.ts, e.dur, e.depth
         FROM experimental_slice_flattened e

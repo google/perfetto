@@ -1,0 +1,64 @@
+# Copyright (C) 2023 The Android Open Source Project
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import("../../gn/perfetto.gni")
+import("../../gn/test.gni")
+
+assert(
+    enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite)
+
+# The "core" business logic of BigTrace which is agnostic to the
+# RPC transport. Allows wrapping with any RPC framework capable of handling
+# protobufs.
+static_library("bigtrace") {
+  complete_static_lib = true
+  deps = [ ":sources" ]
+  public_deps = [ "../../include/perfetto/ext/bigtrace" ]
+}
+
+source_set("sources") {
+  sources = [
+    "orchestrator_impl.cc",
+    "orchestrator_impl.h",
+    "trace_processor_wrapper.cc",
+    "trace_processor_wrapper.h",
+    "worker_impl.cc",
+    "worker_impl.h",
+  ]
+  deps = [
+    "../../gn:default_deps",
+    "../../include/perfetto/ext/bigtrace",
+    "../../protos/perfetto/bigtrace:lite",
+    "../base",
+    "../base/threading",
+    "../protozero",
+    "../protozero:proto_ring_buffer",
+    "../trace_processor:lib",
+    "../trace_processor/rpc",
+    "../trace_processor/util",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [ "trace_processor_wrapper_unittest.cc" ]
+  deps = [
+    ":sources",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../protos/perfetto/bigtrace:lite",
+    "../base",
+    "../base/threading",
+  ]
+}

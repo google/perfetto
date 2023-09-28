@@ -81,7 +81,8 @@ void TriggerProducer::StopDataSource(DataSourceInstanceID) {
 }
 void TriggerProducer::Flush(FlushRequestID,
                             const DataSourceInstanceID*,
-                            size_t) {
+                            size_t,
+                            FlushFlags) {
   PERFETTO_DFATAL("Attempted to Flush() on commandline producer");
 }
 

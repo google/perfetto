@@ -43,7 +43,10 @@ class BuiltinProducer : public Producer {
   void OnConnect() override;
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
   void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
-  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
+  void Flush(FlushRequestID,
+             const DataSourceInstanceID*,
+             size_t,
+             FlushFlags) override;
   void StopDataSource(DataSourceInstanceID) override;
 
   // nops:

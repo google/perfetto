@@ -66,6 +66,7 @@
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
+#include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
@@ -687,6 +688,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseBinderTransactionReceived(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kBinderCommandFieldNumber: {
+        ParseBinderCommand(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kBinderReturnFieldNumber: {
+        ParseBinderReturn(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
         ParseBinderTransactionAllocBuf(ts, pid, fld_bytes);
         break;
@@ -797,6 +806,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kG2dTracingMarkWriteFieldNumber: {
         ParseG2dTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kSamsungTracingMarkWriteFieldNumber: {
+        ParseSamsungTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kDpuTracingMarkWriteFieldNumber: {
@@ -1375,6 +1388,22 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
       evt.trace_name(), tgid, evt.value());
 }
 
+void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
+                                                uint32_t pid,
+                                                ConstBytes blob) {
+  protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                                  blob.size);
+  if (!evt.has_trace_type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, static_cast<char>(evt.trace_type()),
+      false /*trace_begin*/, evt.trace_name(), tgid, evt.value());
+}
+
 void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
                                             uint32_t pid,
                                             ConstBytes blob) {
@@ -1796,6 +1825,22 @@ void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   BinderTracker::GetOrCreate(context_)->TransactionReceived(timestamp, pid,
                                                             transaction_id);
+}
+
+void FtraceParser::ParseBinderCommand(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::BinderCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->CommandToKernel(timestamp, pid,
+                                                        evt.cmd());
+}
+
+void FtraceParser::ParseBinderReturn(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderReturnFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->ReturnFromKernel(timestamp, pid,
+                                                         evt.cmd());
 }
 
 void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,

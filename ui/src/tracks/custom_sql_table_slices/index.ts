@@ -89,8 +89,8 @@ export abstract class CustomSqlTableSliceTrack<
     globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
-      start: args.slice.start,
-      duration: args.slice.duration,
+      start: args.slice.ts,
+      duration: args.slice.dur,
       trackId: this.trackId,
       detailsPanelConfig: {
         kind: detailsPanelConfig.kind,

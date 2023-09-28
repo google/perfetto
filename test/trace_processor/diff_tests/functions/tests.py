@@ -374,7 +374,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(0, 2, 1, 2) AS dur
         """,
         out=Csv("""
@@ -388,7 +388,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(1, 2, 0, 2) AS dur
         """,
         out=Csv("""
@@ -402,7 +402,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(0, 3, 1, 1) AS dur
         """,
         out=Csv("""
@@ -416,7 +416,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(1, 1, 0, 3) AS dur
         """,
         out=Csv("""
@@ -430,7 +430,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(0, 1, 2, 1) AS dur
         """,
         out=Csv("""
@@ -444,7 +444,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(2, 1, 0, 1) AS dur
         """,
         out=Csv("""
@@ -458,7 +458,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(0, -1, 0, 1) AS dur
         """,
         out=Csv("""
@@ -472,7 +472,7 @@ class Functions(TestSuite):
 
         """),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT SPANS_OVERLAPPING_DUR(0, 1, 0, -1) AS dur
         """,
         out=Csv("""
@@ -803,22 +803,60 @@ class Functions(TestSuite):
         5,3
         """))
 
+  def test_math_ln_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          CAST(LN(1) * 1000 AS INTEGER) AS valid,
+          LN("as") AS invalid_str,
+          LN(NULL) AS invalid_null
+        """,
+        out=Csv("""
+        "valid","invalid_str","invalid_null"
+        0,"[NULL]","[NULL]"
+        """))
+
+  def test_math_exp_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          CAST(EXP(1) * 1000 AS INTEGER) AS valid,
+          EXP("asd") AS invalid_str,
+          EXP(NULL) AS invalid_null
+        """,
+        out=Csv("""
+        "valid","invalid_str","invalid_null"
+        2718,"[NULL]","[NULL]"
+        """))
+
+  def test_math_sqrt_function(self):
+    return DiffTestBlueprint(
+        trace=TextProto(""),
+        query="""
+        SELECT
+          CAST(SQRT(4) AS INTEGER) AS valid,
+          SQRT("asd") AS invalid_str,
+          SQRT(NULL) AS invalid_null
+        """,
+        out=Csv("""
+        "valid","invalid_str","invalid_null"
+        2,"[NULL]","[NULL]"
+        """))
+
   def test_math_functions(self):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
         SELECT
-          CAST(EXP(1) * 1000 AS INTEGER) AS a,
-          CAST(LN(1) * 1000 AS INTEGER) AS b,
-          CAST(LN(EXP(1)) * 1000 AS INTEGER) AS c,
-          EXP("asd") AS d,
-          EXP(NULL) AS e,
-          LN("as") AS f,
-          LN(NULL) AS g
+          CAST(SQRT(EXP(LN(1))) AS INTEGER) AS valid,
+          SQRT(EXP(LN("asd"))) AS invalid_str,
+          SQRT(EXP(LN(NULL))) AS invalid_null
         """,
         out=Csv("""
-        "a","b","c","d","e","f","g"
-        2718,0,1000,"[NULL]","[NULL]","[NULL]","[NULL]"
+        "valid","invalid_str","invalid_null"
+        1,"[NULL]","[NULL]"
         """))
 
   def test_table_function_drop_partial(self):

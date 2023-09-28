@@ -15,6 +15,7 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {Time} from '../base/time';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
@@ -33,7 +34,6 @@ import {
   TraceUrlSource,
   TrackSortKey,
 } from './state';
-import {Time} from './time';
 
 function fakeTrack(state: State, args: {
   id: string,

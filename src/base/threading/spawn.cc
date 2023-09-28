@@ -74,7 +74,7 @@ class PolledFuture {
     }
   }
 
-  void ClearFutureAndWatches(FlatSet<PlatformHandle> interested) {
+  void ClearFutureAndWatches(const FlatSet<PlatformHandle>& interested) {
     future_ = std::nullopt;
     for (PlatformHandle fd : interested) {
       task_runner_->RemoveFileDescriptorWatch(fd);

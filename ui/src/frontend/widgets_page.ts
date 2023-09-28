@@ -14,37 +14,36 @@
 
 import m from 'mithril';
 
+import {classNames} from '../base/classnames';
 import {Hotkey, Platform} from '../base/hotkeys';
+import {Icons} from '../base/semantic_icons';
 import {raf} from '../core/raf_scheduler';
-
-import {Anchor} from './anchor';
-import {classNames} from './classnames';
-import {LIBRARY_ADD_CHECK} from './icons';
-import {createPage} from './pages';
-import {PopupMenuButton} from './popup_menu';
-import {Icons} from './semantic_icons';
-import {TableShowcase} from './tables/table_showcase';
-import {Button} from './widgets/button';
-import {Callout} from './widgets/callout';
-import {Checkbox} from './widgets/checkbox';
-import {Editor} from './widgets/editor';
-import {EmptyState} from './widgets/empty_state';
-import {Form, FormLabel} from './widgets/form';
-import {HotkeyGlyphs} from './widgets/hotkey_glyphs';
-import {Icon} from './widgets/icon';
-import {Menu, MenuDivider, MenuItem, PopupMenu2} from './widgets/menu';
+import {Anchor} from '../widgets/anchor';
+import {Button} from '../widgets/button';
+import {Callout} from '../widgets/callout';
+import {Checkbox} from '../widgets/checkbox';
+import {Editor} from '../widgets/editor';
+import {EmptyState} from '../widgets/empty_state';
+import {Form, FormLabel} from '../widgets/form';
+import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
+import {Icon} from '../widgets/icon';
+import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
 import {
   MultiSelect,
   MultiSelectDiff,
   PopupMultiSelect,
-} from './widgets/multiselect';
-import {Popup, PopupPosition} from './widgets/popup';
-import {Portal} from './widgets/portal';
-import {FilterableSelect, Select} from './widgets/select';
-import {Spinner} from './widgets/spinner';
-import {Switch} from './widgets/switch';
-import {TextInput} from './widgets/text_input';
-import {LazyTreeNode, Tree, TreeNode} from './widgets/tree';
+} from '../widgets/multiselect';
+import {Popup, PopupPosition} from '../widgets/popup';
+import {Portal} from '../widgets/portal';
+import {FilterableSelect, Select} from '../widgets/select';
+import {Spinner} from '../widgets/spinner';
+import {Switch} from '../widgets/switch';
+import {TextInput} from '../widgets/text_input';
+import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
+
+import {createPage} from './pages';
+import {PopupMenuButton} from './popup_menu';
+import {TableShowcase} from './tables/table_showcase';
 import {VegaView} from './widgets/vega_view';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
@@ -666,7 +665,7 @@ export const WidgetsPage = createPage({
             }),
             popupPosition: PopupPosition.Top,
             label: 'Multi Select',
-            icon: icon ? LIBRARY_ADD_CHECK : undefined,
+            icon: icon ? Icons.LibraryAddCheck : undefined,
             onChange: (diffs: MultiSelectDiff[]) => {
               diffs.forEach(({id, checked}) => {
                 options[id] = checked;

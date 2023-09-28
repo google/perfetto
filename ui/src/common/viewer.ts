@@ -19,64 +19,76 @@ import {TrackPredicate, Viewer} from '../public';
 
 import {Actions} from './actions';
 
-export class ViewerImpl implements Viewer {
-  sidebar = {
-    hide: () => {
-      globals.dispatch(Actions.setSidebar({
-        visible: false,
-      }));
-    },
-    show:
-        () => {
-          globals.dispatch(Actions.setSidebar({
-            visible: true,
-          }));
-        },
-    isVisible: () => globals.state.sidebarVisible,
-  };
+class SidebarImpl {
+  hide() {
+    globals.dispatch(Actions.setSidebar({
+      visible: false,
+    }));
+  }
 
-  tracks = {
-    pin: (predicate: TrackPredicate) => {
-      const tracks = Object.values(globals.state.tracks);
-      for (const track of tracks) {
-        const tags = {
-          name: track.name,
-        };
-        if (predicate(tags) && !this.isPinned(track.id)) {
-          globals.dispatch(Actions.toggleTrackPinned({
-            trackId: track.id,
-          }));
-        }
+  show() {
+    globals.dispatch(Actions.setSidebar({
+      visible: true,
+    }));
+  }
+
+  isVisible() {
+    return globals.state.sidebarVisible;
+  }
+};
+
+class TracksImpl {
+  pin(predicate: TrackPredicate) {
+    const tracks = Object.values(globals.state.tracks);
+    for (const track of tracks) {
+      const tags = {
+        name: track.name,
+      };
+      if (predicate(tags) && !this.isPinned(track.id)) {
+        globals.dispatch(Actions.toggleTrackPinned({
+          trackId: track.id,
+        }));
       }
-    },
-    unpin:
-        (predicate: TrackPredicate) => {
-          const tracks = Object.values(globals.state.tracks);
-          for (const track of tracks) {
-            const tags = {
-              name: track.name,
-            };
-            if (predicate(tags) && this.isPinned(track.id)) {
-              globals.dispatch(Actions.toggleTrackPinned({
-                trackId: track.id,
-              }));
-            }
-          }
-        },
-  };
+    }
+  }
+
+  unpin(predicate: TrackPredicate) {
+    const tracks = Object.values(globals.state.tracks);
+    for (const track of tracks) {
+      const tags = {
+        name: track.name,
+      };
+      if (predicate(tags) && this.isPinned(track.id)) {
+        globals.dispatch(Actions.toggleTrackPinned({
+          trackId: track.id,
+        }));
+      }
+    }
+  }
+
+  private isPinned(trackId: string): boolean {
+    return globals.state.pinnedTracks.includes(trackId);
+  }
+};
+
+export class ViewerImpl implements Viewer {
+  sidebar = new SidebarImpl();
+  tracks = new TracksImpl();
 
   tabs = {
     openQuery: runQueryInNewTab,
+  };
+
+  commands = {
+    run: (id: string, ...args: any[]) => {
+      globals.commandManager.runCommand(id, ...args);
+    },
   };
 
   constructor() {}
 
   getProxy(pluginId: string): ViewerProxy {
     return new ViewerProxy(this, pluginId);
-  }
-
-  private isPinned(trackId: string) {
-    return globals.state.pinnedTracks.includes(trackId);
   }
 }
 
@@ -111,6 +123,7 @@ export class ViewerProxy implements Viewer, Disposable {
   sidebar: Viewer['sidebar'];
   tracks: Viewer['tracks'];
   tabs: Viewer['tabs'];
+  commands: Viewer['commands'];
 
   // ViewerProxy:
   constructor(parent: ViewerImpl, pluginId: string) {
@@ -119,20 +132,24 @@ export class ViewerProxy implements Viewer, Disposable {
     this.alive = true;
     const allow = () => this.alive;
 
+    const p = parent;
     this.sidebar = {
-      hide: wrapVoid(allow, parent.sidebar.hide.bind(parent.sidebar)),
-      show: wrapVoid(allow, parent.sidebar.show.bind(parent.sidebar)),
-      isVisible:
-          wrap(allow, parent.sidebar.isVisible.bind(parent.sidebar), false),
+      hide: wrapVoid(allow, p.sidebar.hide.bind(p.sidebar)),
+      show: wrapVoid(allow, p.sidebar.show.bind(p.sidebar)),
+      isVisible: wrap(allow, p.sidebar.isVisible.bind(p.sidebar), false),
     };
 
     this.tracks = {
-      pin: wrapVoid(allow, parent.tracks.pin.bind(parent.tracks)),
-      unpin: wrapVoid(allow, parent.tracks.unpin.bind(parent.tracks)),
+      pin: wrapVoid(allow, p.tracks.pin.bind(p.tracks)),
+      unpin: wrapVoid(allow, p.tracks.unpin.bind(p.tracks)),
     };
 
     this.tabs = {
-      openQuery: wrapVoid(allow, parent.tabs.openQuery.bind(parent.tabs)),
+      openQuery: wrapVoid(allow, p.tabs.openQuery.bind(p.tabs)),
+    };
+
+    this.commands = {
+      run: wrapVoid(allow, p.commands.run.bind(p.commands)),
     };
   }
 

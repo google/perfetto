@@ -16,6 +16,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
+import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {
   getContainingTrackId,
@@ -25,13 +26,6 @@ import {
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {
-  BLANK_CHECKBOX,
-  CHECKBOX,
-  EXPAND_DOWN,
-  EXPAND_UP,
-  INDETERMINATE_CHECKBOX,
-} from './icons';
 import {Panel, PanelSize} from './panel';
 import {Track} from './track';
 import {TrackChips, TrackContent} from './track_panel';
@@ -96,16 +90,16 @@ export class TrackGroupPanel extends Panel<Attrs> {
     const selection = globals.state.currentSelection;
 
     const trackGroup = globals.state.trackGroups[attrs.trackGroupId];
-    let checkBox = BLANK_CHECKBOX;
+    let checkBox = Icons.BlankCheckbox;
     if (selection !== null && selection.kind === 'AREA') {
       const selectedArea = globals.state.areas[selection.areaId];
       if (selectedArea.tracks.includes(attrs.trackGroupId) &&
           trackGroup.tracks.every((id) => selectedArea.tracks.includes(id))) {
-        checkBox = CHECKBOX;
+        checkBox = Icons.Checkbox;
       } else if (
           selectedArea.tracks.includes(attrs.trackGroupId) ||
           trackGroup.tracks.some((id) => selectedArea.tracks.includes(id))) {
-        checkBox = INDETERMINATE_CHECKBOX;
+        checkBox = Icons.IndeterminateCheckbox;
       }
     }
 
@@ -131,7 +125,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
           m('.fold-button',
             m('i.material-icons',
-              this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
+              this.trackGroupState.collapsed ? Icons.ExpandDown :
+                                               Icons.ExpandUp)),
           m('.title-wrapper',
             m(
                 'h1.track-title',

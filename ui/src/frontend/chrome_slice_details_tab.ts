@@ -14,12 +14,20 @@
 
 import m from 'mithril';
 
+import {Icons} from '../base/semantic_icons';
+import {duration, Time} from '../base/time';
 import {exists} from '../base/utils';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
-import {duration, Time} from '../common/time';
 import {addDebugTrack} from '../tracks/debug/slice_track';
+import {Button} from '../widgets/button';
+import {DetailsShell} from '../widgets/details_shell';
+import {DurationWidget} from '../widgets/duration';
+import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
+import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {Section} from '../widgets/section';
+import {Tree, TreeNode} from '../widgets/tree';
 
 import {
   BottomTab,
@@ -27,20 +35,11 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {FlowPoint, globals} from './globals';
-import {PanelSize} from './panel';
 import {runQueryInNewTab} from './query_result_tab';
-import {Icons} from './semantic_icons';
 import {renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
 import {asSliceSqlId} from './sql_types';
-import {Button} from './widgets/button';
-import {DetailsShell} from './widgets/details_shell';
-import {DurationWidget} from './widgets/duration';
-import {GridLayout, GridLayoutColumn} from './widgets/grid_layout';
-import {MenuItem, PopupMenu2} from './widgets/menu';
-import {Section} from './widgets/section';
-import {Tree, TreeNode} from './widgets/tree';
 
 interface ContextMenuItem {
   name: string;
@@ -208,10 +207,6 @@ export class ChromeSliceDetailsTab extends
     const {id, table} = this.config;
     getSliceDetails(this.engine, id, table)
         .then((sliceDetails) => this.sliceDetails = sliceDetails);
-  }
-
-  renderTabCanvas(_ctx: CanvasRenderingContext2D, _size: PanelSize): void {
-    // No-op
   }
 
   getTitle(): string {

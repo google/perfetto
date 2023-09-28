@@ -246,9 +246,13 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   }
   SliceId slice = opt_slice.value();
   auto inserter = context_->args_tracker->AddArgsTo(slice);
-  InserterDelegate delgate(inserter, *context_->storage.get());
-  args_parser_.ParseMessage(nested_bytes, kAtomProtoName,
-                            nullptr /* parse all fields */, delgate);
+  InserterDelegate delegate(inserter, *context_->storage.get());
+  base::Status result = args_parser_.ParseMessage(
+      nested_bytes, kAtomProtoName, nullptr /* parse all fields */, delegate);
+  if (!result.ok()) {
+    PERFETTO_ELOG("%s", result.c_message());
+    context_->storage->IncrementStats(stats::atom_unknown);
+  }
 }
 
 StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {

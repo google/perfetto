@@ -57,16 +57,16 @@ constexpr char kJavaHprofOomActivePropertyName[] = "traced.oome_heap_session.cou
 constexpr char kAndroidSdkSyspropGuardDataSourceName[] =
     "android.sdk_sysprop_guard";
 constexpr char kPerfettoSdkSyspropGuardGenerationPropertyName[] =
-    "debug.perfetto.sdk_sysprop_guard_generation";
+    "debug.tracing.ctl.perfetto.sdk_sysprop_guard_generation";
 constexpr char kHwuiSkiaBroadTracingPropertyName[] =
-    "debug.hwui.skia_tracing_enabled";
+    "debug.tracing.ctl.hwui.skia_tracing_enabled";
 constexpr char kHwuiSkiaUsePerfettoPropertyName[] =
-    "debug.hwui.skia_use_perfetto_track_events";
+    "debug.tracing.ctl.hwui.skia_use_perfetto_track_events";
 constexpr char kHwuiSkiaPropertyPackageSeparator[] = ".";
 constexpr char kSurfaceFlingerSkiaBroadTracingPropertyName[] =
-    "debug.renderengine.skia_tracing_enabled";
+    "debug.tracing.ctl.renderengine.skia_tracing_enabled";
 constexpr char kSurfaceFlingerSkiaUsePerfettoPropertyName[] =
-    "debug.renderengine.skia_use_perfetto_track_events";
+    "debug.tracing.ctl.renderengine.skia_use_perfetto_track_events";
 
 }  // namespace
 
@@ -284,7 +284,8 @@ void BuiltinProducer::MaybeInitiateLazyStop(DataSourceInstanceID ds_id,
 
 void BuiltinProducer::Flush(FlushRequestID flush_id,
                             const DataSourceInstanceID* ds_ids,
-                            size_t num_ds_ids) {
+                            size_t num_ds_ids,
+                            FlushFlags) {
   for (size_t i = 0; i < num_ds_ids; i++) {
     auto meta_it = metatrace_.writers.find(ds_ids[i]);
     if (meta_it != metatrace_.writers.end()) {

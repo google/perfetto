@@ -23,6 +23,9 @@ import {
   AddDebugTrackMenu,
   uuidToViewName,
 } from '../tracks/debug/add_debug_track_menu';
+import {Button} from '../widgets/button';
+import {PopupMenu2} from '../widgets/menu';
+import {PopupPosition} from '../widgets/popup';
 
 import {
   addTab,
@@ -32,9 +35,6 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {QueryTable} from './query_table';
-import {Button} from './widgets/button';
-import {PopupMenu2} from './widgets/menu';
-import {PopupPosition} from './widgets/popup';
 
 export function runQueryInNewTab(query: string, title: string, tag?: string) {
   return addTab({
@@ -129,8 +129,6 @@ export class QueryResultTab extends BottomTab<QueryResultTabConfig> {
   isLoading() {
     return this.queryResponse === undefined;
   }
-
-  renderTabCanvas() {}
 
   async createViewForDebugTrack(uuid: string): Promise<string> {
     const viewId = uuidToViewName(uuid);

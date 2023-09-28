@@ -1,0 +1,101 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/trace_processor/trace_processor.proto";
+
+// RPC interface for a BigTrace Orchestrator.
+//
+// Each BigTrace instance has a single Orchestrator which is
+// responsible for receiving requests for loading and querying traces from
+// clients and shards these requests among a set of "Workers".
+service BigTraceOrchestrator {
+  // Creates a TracePool with the specified arguments.
+  //
+  // A TracePool is a logical group of traces which can be addressed with a
+  // single id.
+  //
+  // Pools are shared: the trace processor instances backing the pool are shared
+  // among a group of users. This implicitly means that the pools are
+  // "stateless" (i.e. do not preserve trace processor state between RPCs) as
+  // the state of one user should not interfere with the state of another.
+  rpc TracePoolCreate(TracePoolCreateArgs) returns (TracePoolCreateResponse);
+
+  // Changes the set of traces associated with the specified TracePool.
+  //
+  // If this operation completes successfully, any future requests to this pool
+  // will refer to this set of traces.
+  rpc TracePoolSetTraces(TracePoolSetTracesArgs)
+      returns (TracePoolSetTracesResponse);
+
+  // Executes a SQL query on the specified TracePool and returns a stream
+  // with each element being the response for executing the query on the
+  // associated trace.
+  //
+  // Note that each trace can return >1 result due to chunking of protos at the
+  // TraceProcessor::QueryResult level.
+  rpc TracePoolQuery(TracePoolQueryArgs)
+      returns (stream TracePoolQueryResponse);
+
+  // Destroys the TracePool with the specified id.
+  //
+  // Any future requests to this pool will return an error. However, the
+  // same pool id can be used to create a new pool.
+  rpc TracePoolDestroy(TracePoolDestroyArgs) returns (TracePoolDestroyResponse);
+}
+
+// Request/Response for Orchestrator::TracePoolCreate.
+message TracePoolCreateArgs {
+  // The name which should be refer to the pool. This name will form part of
+  // |pool_id|.
+  optional string pool_name = 2;
+}
+message TracePoolCreateResponse {
+  // The id of the pool which should be used to reference the pool in all future
+  // RPCs. This id is expected to be a stable transformation of |pool_name|.
+  optional string pool_id = 1;
+}
+
+// Request/Response for Orchestrator::TracePoolSetTraces.
+message TracePoolSetTracesArgs {
+  optional string pool_id = 1;
+
+  // The list of traces which should be associated with this pool. The existing
+  // loaded trace list will be diffed against this list. Traces not present in
+  // this list and loaded will be unloaded while traces present in this list
+  // and unloaded will be loaded.
+  repeated string traces = 2;
+}
+message TracePoolSetTracesResponse {}
+
+// Request/Response for Orchestrator::TracePoolQuery.
+message TracePoolQueryArgs {
+  optional string pool_id = 1;
+  optional string sql_query = 2;
+}
+message TracePoolQueryResponse {
+  optional string trace = 1;
+  optional QueryResult result = 2;
+}
+
+// Request/Response for Orchestrator::TracePoolDestroy.
+message TracePoolDestroyArgs {
+  optional string pool_id = 1;
+}
+message TracePoolDestroyResponse {}

@@ -127,6 +127,7 @@ void TraceProcessorStorageImpl::Flush() {
 
   if (context_.sorter)
     context_.sorter->ExtractEventsForced();
+  context_.args_tracker->Flush();
 }
 
 void TraceProcessorStorageImpl::NotifyEndOfFile() {

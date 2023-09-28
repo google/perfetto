@@ -374,10 +374,12 @@ void ProducerIPCClientImpl::OnServiceRequest(
     const auto* data_source_ids = cmd.flush().data_source_ids().data();
     static_assert(sizeof(data_source_ids[0]) == sizeof(DataSourceInstanceID),
                   "data_source_ids should be 64-bit");
+
+    FlushFlags flags(cmd.flush().flags());
     producer_->Flush(
         cmd.flush().request_id(),
         reinterpret_cast<const DataSourceInstanceID*>(data_source_ids),
-        static_cast<size_t>(cmd.flush().data_source_ids().size()));
+        static_cast<size_t>(cmd.flush().data_source_ids().size()), flags);
     return;
   }
 

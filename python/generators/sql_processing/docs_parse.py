@@ -230,14 +230,14 @@ class FunctionDocParser(AbstractDocParser):
     self._validate_only_contains_annotations(doc.annotations, {'@arg', '@ret'})
 
     ret_type, ret_desc = self._parse_ret(doc.annotations, ret)
-    name = self._parse_name(upper=True)
+    name = self._parse_name()
 
     if not is_snake_case(name):
       self._error('Function name %s is not snake_case (should be %s) ' %
                   (name, name.casefold()))
 
     return Function(
-        name=self._parse_name(upper=True),
+        name=name,
         desc=self._parse_desc_not_empty(doc.description),
         args=self._parse_args(doc.annotations, args),
         return_type=ret_type,
@@ -258,8 +258,8 @@ class TableFunction:
     self.args = args
 
 
-class ViewFunctionDocParser(AbstractDocParser):
-  """Parses documentation for CREATE_VIEW_FUNCTION statements."""
+class TableFunctionDocParser(AbstractDocParser):
+  """Parses documentation for table function statements."""
 
   def __init__(self, path: str, module: str):
     super().__init__(path, module)
@@ -273,8 +273,14 @@ class ViewFunctionDocParser(AbstractDocParser):
 
     self._validate_only_contains_annotations(doc.annotations,
                                              {'@arg', '@column'})
+    name = self._parse_name()
+
+    if not is_snake_case(name):
+      self._error('Function name %s is not snake_case (should be %s) ' %
+                  (name, name.casefold()))
+
     return TableFunction(
-        name=self._parse_name(upper=True),
+        name=name,
         desc=self._parse_desc_not_empty(doc.description),
         cols=self._parse_columns(doc.annotations, columns),
         args=self._parse_args(doc.annotations, args),
@@ -287,11 +293,11 @@ class ParsedFile:
   functions: List[Function] = []
   table_functions: List[TableFunction] = []
 
-  def __init__(self, errors, table_views, functions, view_functions):
+  def __init__(self, errors, table_views, functions, table_functions):
     self.errors = errors
     self.table_views = table_views
     self.functions = functions
-    self.table_functions = view_functions
+    self.table_functions = table_functions
 
 
 # Reads the provided SQL and, if possible, generates a dictionary with data
@@ -313,7 +319,7 @@ def parse_file(path: str, sql: str) -> ParsedFile:
   errors = []
   table_views = []
   functions = []
-  view_functions = []
+  table_functions = []
   for doc in docs:
     if doc.obj_kind == ObjKind.table_view:
       parser = TableViewDocParser(path, module_name)
@@ -327,11 +333,11 @@ def parse_file(path: str, sql: str) -> ParsedFile:
       if res:
         functions.append(res)
       errors += parser.errors
-    if doc.obj_kind == ObjKind.view_function:
-      parser = ViewFunctionDocParser(path, module_name)
+    if doc.obj_kind == ObjKind.table_function:
+      parser = TableFunctionDocParser(path, module_name)
       res = parser.parse(doc)
       if res:
-        view_functions.append(res)
+        table_functions.append(res)
       errors += parser.errors
 
-  return ParsedFile(errors, table_views, functions, view_functions)
+  return ParsedFile(errors, table_views, functions, table_functions)

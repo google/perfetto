@@ -21,6 +21,8 @@ import {undoCommonChatAppReplacements} from '../base/string_utils';
 import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
+import {Callout} from '../widgets/callout';
+import {Editor} from '../widgets/editor';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -28,8 +30,6 @@ import {createPage} from './pages';
 import {QueryHistoryComponent, queryHistoryStorage} from './query_history';
 import {QueryResultTab} from './query_result_tab';
 import {QueryTable} from './query_table';
-import {Callout} from './widgets/callout';
-import {Editor} from './widgets/editor';
 
 interface QueryPageState {
   enteredText: string;

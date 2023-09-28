@@ -29,16 +29,18 @@ namespace perfetto {
 namespace trace_processor {
 
 using Result = PerfettoSqlParser::Statement;
+using Statement = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
 using CreateTable = PerfettoSqlParser::CreateTable;
+using Include = PerfettoSqlParser::Include;
 
 inline bool operator==(const SqlSource& a, const SqlSource& b) {
   return a.sql() == b.sql();
 }
 
-inline bool operator==(const SqliteSql& a, const SqliteSql& b) {
-  return a.sql == b.sql;
+inline bool operator==(const SqliteSql&, const SqliteSql&) {
+  return true;
 }
 
 inline bool operator==(const CreateFn& a, const CreateFn& b) {
@@ -48,6 +50,10 @@ inline bool operator==(const CreateFn& a, const CreateFn& b) {
 
 inline bool operator==(const CreateTable& a, const CreateTable& b) {
   return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
+}
+
+inline bool operator==(const Include& a, const Include& b) {
+  return std::tie(a.key) == std::tie(b.key);
 }
 
 namespace {
@@ -80,25 +86,34 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 }
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
-  auto res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  ASSERT_THAT(
-      *Parse(res),
-      testing::ElementsAre(SqliteSql{FindSubstr(res, "SELECT * FROM slice")}));
+  SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
+  PerfettoSqlParser parser(res);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
 }
 
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  ASSERT_THAT(
-      *Parse(res),
-      testing::ElementsAre(SqliteSql{FindSubstr(res, "SELECT * FROM slice")},
-                           SqliteSql{FindSubstr(res, "SELECT * FROM s")}));
+  PerfettoSqlParser parser(res);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql().sql(),
+            FindSubstr(res, "SELECT * FROM slice").sql());
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql().sql(),
+            FindSubstr(res, "SELECT * FROM s").sql());
 }
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(
-                               SqliteSql{FindSubstr(res, "SELECT * FROM s")}));
+  PerfettoSqlParser parser(res);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql().sql(),
+            FindSubstr(res, "SELECT * FROM s").sql());
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
@@ -140,10 +155,36 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  ASSERT_THAT(*Parse(res),
-              testing::ElementsAre(CreateFn{false, "foo()", "INT",
-                                            FindSubstr(res, "select 1"), false},
-                                   SqliteSql{FindSubstr(res, "select foo()")}));
+  PerfettoSqlParser parser(res);
+  ASSERT_TRUE(parser.Next());
+  CreateFn fn{false, "foo()", "INT", FindSubstr(res, "select 1"), false};
+  ASSERT_EQ(parser.statement(), Statement{fn});
+  ASSERT_EQ(
+      parser.statement_sql().sql(),
+      FindSubstr(res, "create perfetto function foo() returns INT as select 1")
+          .sql());
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
+  ASSERT_EQ(parser.statement_sql().sql(),
+            FindSubstr(res, "select foo()").sql());
+}
+
+TEST_F(PerfettoSqlParserTest, IncludePerfettoTrivial) {
+  auto res =
+      SqlSource::FromExecuteQuery("include perfetto module cheese.bre_ad;");
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(Include{"cheese.bre_ad"}));
+}
+
+TEST_F(PerfettoSqlParserTest, IncludePerfettoErrorAdditionalChars) {
+  auto res = SqlSource::FromExecuteQuery(
+      "include perfetto module cheese.bre_ad blabla;");
+  ASSERT_FALSE(Parse(res).status().ok());
+}
+
+TEST_F(PerfettoSqlParserTest, IncludePerfettoErrorWrongModuleName) {
+  auto res =
+      SqlSource::FromExecuteQuery("include perfetto module chees*e.bre_ad;");
+  ASSERT_FALSE(Parse(res).status().ok());
 }
 
 }  // namespace

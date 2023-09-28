@@ -12,10 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Duration} from '../../base/time';
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
 import {Area, Sorting} from '../../common/state';
-import {Duration} from '../../common/time';
 import {globals} from '../../frontend/globals';
 import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter';
 

@@ -12,66 +12,103 @@
 -- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
---
 
-SELECT IMPORT('common.slices');
+INCLUDE PERFETTO MODULE common.slices;
 
 -- Hardware info is useful when using sql metrics for analysis
 -- in BTP.
-SELECT IMPORT('chrome.metadata');
-SELECT IMPORT('chrome.scroll_jank.event_latency_scroll_jank_cause');
+INCLUDE PERFETTO MODULE chrome.metadata;
+INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3_cause;
 
--- Grabs all gesture updates that were not coalesced with their
--- respective scroll ids and start/end timestamps.
+-- Grabs all gesture updates with respective scroll ids and start/end
+-- timestamps, regardless of being coalesced.
 --
--- @column id                       Slice id.
--- @column start_ts                 The start timestamp of the scroll.
--- @column end_ts                   The end timestamp of the scroll.
--- @column last_coalesced_input_ts  The timestamp of the last coalesced input.
+-- @column ts                       The start timestamp of the scroll.
+-- @column dur                      The duration of the scroll.
+-- @column id                       Slice id for the scroll.
 -- @column scroll_update_id         The id of the scroll update event.
 -- @column scroll_id                The id of the scroll.
-CREATE VIEW chrome_presented_gesture_scrolls AS
-WITH
-  chrome_gesture_scrolls AS (
-    SELECT
-      ts AS start_ts,
-      ts + dur AS end_ts,
-      id,
-      -- TODO(b/250089570) Add trace_id to EventLatency and update this script to use it.
-      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS scroll_update_id,
-      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id,
-      EXTRACT_ARG(arg_set_id, 'chrome_latency_info.is_coalesced') AS is_coalesced
-    FROM slice
-    WHERE name = "InputLatency::GestureScrollUpdate"
-          AND dur != -1),
-  updates_with_coalesce_info AS (
-    SELECT
-      chrome_updates.*,
-      (
-        SELECT
-          MAX(id)
-        FROM chrome_gesture_scrolls updates
-        WHERE updates.is_coalesced = false
-          AND updates.start_ts <= chrome_updates.start_ts) AS coalesced_inside_id
-        FROM
-          chrome_gesture_scrolls chrome_updates)
+-- @column is_coalesced             Whether this input event was coalesced.
+CREATE PERFETTO TABLE chrome_gesture_scroll_updates AS
 SELECT
-  MIN(id) AS id,
-  MIN(start_ts) AS start_ts,
-  MAX(end_ts) AS end_ts,
-  MAX(start_ts) AS last_coalesced_input_ts,
+  ts,
+  dur,
+  id,
+  -- TODO(b/250089570) Add trace_id to EventLatency and update this script to use it.
+  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.trace_id') AS scroll_update_id,
+  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id,
+  EXTRACT_ARG(arg_set_id, 'chrome_latency_info.is_coalesced') AS is_coalesced
+FROM slice
+WHERE name = "InputLatency::GestureScrollUpdate" AND dur != -1;
+
+CREATE PERFETTO TABLE internal_non_coalesced_gesture_scrolls AS
+SELECT
+  id,
+  ts,
+  dur,
   scroll_update_id,
-  MIN(scroll_id) AS scroll_id
-FROM updates_with_coalesce_info
-GROUP BY coalesced_inside_id;
+  scroll_id
+FROM  chrome_gesture_scroll_updates
+WHERE is_coalesced = false
+ORDER BY ts ASC;
+
+-- Scroll updates, corresponding to all input events that were converted to a
+-- presented scroll update.
+--
+-- @column id                       Minimum slice id for input presented in this
+--                                  frame, the non coalesced input.
+-- @column ts                       The start timestamp for producing the frame.
+-- @column dur                      The duration between producing and
+--                                  presenting the frame.
+-- @column last_coalesced_input_ts  The timestamp of the last input that arrived
+--                                  and got coalesced into the frame.
+-- @column scroll_update_id         The id of the scroll update event, a unique
+--                                  identifier to the gesture.
+-- @column scroll_id                The id of the ongoing scroll.
+CREATE PERFETTO TABLE chrome_presented_gesture_scrolls AS
+WITH
+scroll_updates_with_coalesce_info as MATERIALIZED (
+  SELECT
+    id,
+    ts,
+    -- For each scroll update, find the latest non-coalesced update which
+    -- happened before it. For coalesced scroll updates, this will be the
+    -- presented scroll update they have been coalesced into.
+    (
+      SELECT id
+      FROM internal_non_coalesced_gesture_scrolls non_coalesced
+      WHERE non_coalesced.ts <= scroll_update.ts
+      ORDER BY ts DESC
+      LIMIT 1
+     ) as coalesced_to_scroll_update_slice_id
+  FROM chrome_gesture_scroll_updates scroll_update
+  ORDER BY coalesced_to_scroll_update_slice_id, ts
+)
+SELECT
+  id,
+  ts,
+  dur,
+  -- Find the latest input that was coalesced into this scroll update.
+  (
+    SELECT coalesce_info.ts
+    FROM scroll_updates_with_coalesce_info coalesce_info
+    WHERE
+      coalesce_info.coalesced_to_scroll_update_slice_id =
+        internal_non_coalesced_gesture_scrolls.id
+    ORDER BY ts DESC
+    LIMIT 1
+  ) as last_coalesced_input_ts,
+  scroll_update_id,
+  scroll_id
+FROM internal_non_coalesced_gesture_scrolls;
 
 -- Associate every trace_id with it's perceived delta_y on the screen after
 -- prediction.
 --
 -- @column scroll_update_id         The id of the scroll update event.
--- @column delta_y                  The percieved delta_y on the screen post
+-- @column delta_y                  The perceived delta_y on the screen post
 --                                  prediction.
-CREATE VIEW chrome_scroll_updates_with_deltas AS
+CREATE PERFETTO TABLE chrome_scroll_updates_with_deltas AS
 SELECT
   EXTRACT_ARG(arg_set_id, 'scroll_deltas.trace_id') AS scroll_update_id,
   EXTRACT_ARG(arg_set_id, 'scroll_deltas.provided_to_compositor_delta_y') AS delta_y
@@ -82,7 +119,7 @@ WHERE name = "InputHandlerProxy::HandleGestureScrollUpdate_Result";
 -- with gesture scroll updates, as event latencies don't have trace
 -- ids associated with it.
 --
--- @column start_ts                     Start timestampt for the EventLatency.
+-- @column ts                           Start timestamp for the EventLatency.
 -- @column event_latency_id             Slice id of the EventLatency.
 -- @column dur                          Duration of the EventLatency.
 -- @column input_latency_end_ts         End timestamp for input aka the
@@ -93,9 +130,9 @@ WHERE name = "InputHandlerProxy::HandleGestureScrollUpdate_Result";
 --                                      SwapEndToPresentationCompositorFrame
 --                                      substage.
 -- @column event_type                   EventLatency event type.
-CREATE VIEW chrome_gesture_scroll_event_latencies AS
+CREATE PERFETTO TABLE chrome_gesture_scroll_event_latencies AS
 SELECT
-  slice.ts AS start_ts,
+  slice.ts,
   slice.id AS event_latency_id,
   slice.dur AS dur,
   descendant_slice_end(slice.id, "LatchToSwapEnd") AS input_latency_end_ts,
@@ -115,7 +152,7 @@ WHERE name = "EventLatency"
 -- the LatchToSwapEnd slice.
 --
 -- @column id                           ID of the frame.
--- @column start_ts                     Start timestamp of the frame.
+-- @column ts                           Start timestamp of the frame.
 -- @column last_coalesced_input_ts      The timestamp of the last coalesced
 --                                      input.
 -- @column scroll_id                    ID of the associated scroll.
@@ -123,10 +160,10 @@ WHERE name = "EventLatency"
 -- @column event_latency_id             ID of the associated EventLatency.
 -- @column dur                          Duration of the associated EventLatency.
 -- @column presentation_timestamp       Frame presentation timestamp.
-CREATE VIEW chrome_full_frame_view AS
+CREATE PERFETTO TABLE chrome_full_frame_view AS
 SELECT
   frames.id,
-  frames.start_ts,
+  frames.ts,
   frames.last_coalesced_input_ts,
   frames.scroll_id,
   frames.scroll_update_id,
@@ -135,26 +172,26 @@ SELECT
   events.presentation_timestamp
 FROM chrome_presented_gesture_scrolls frames
 JOIN chrome_gesture_scroll_event_latencies events
-  ON frames.start_ts = events.start_ts
-  AND events.input_latency_end_ts = frames.end_ts;
+  ON frames.ts = events.ts
+  AND events.input_latency_end_ts = (frames.ts + frames.dur);
 
 -- Join deltas with EventLatency data.
 --
 -- @column id                           ID of the frame.
--- @column start_ts                     Start timestamp of the frame.
+-- @column ts                           Start timestamp of the frame.
 -- @column scroll_id                    ID of the associated scroll.
 -- @column scroll_update_id             ID of the associated scroll update.
 -- @column last_coalesced_input_ts      The timestamp of the last coalesced
 --                                      input.
--- @column delta_y                      The percieved delta_y on the screen post
+-- @column delta_y                      The perceived delta_y on the screen post
 -- --                                   prediction.
 -- @column event_latency_id             ID of the associated EventLatency.
 -- @column dur                          Duration of the associated EventLatency.
 -- @column presentation_timestamp       Frame presentation timestamp.
-CREATE VIEW chrome_full_frame_delta_view AS
+CREATE PERFETTO TABLE chrome_full_frame_delta_view AS
 SELECT
   frames.id,
-  frames.start_ts,
+  frames.ts,
   frames.scroll_id,
   frames.scroll_update_id,
   frames.last_coalesced_input_ts,
@@ -165,33 +202,6 @@ SELECT
 FROM chrome_full_frame_view frames
 LEFT JOIN chrome_scroll_updates_with_deltas deltas
   ON deltas.scroll_update_id = frames.scroll_update_id;
-
--- Join the frame view with scroll jank cause and subcause based
--- on event latency id.
---
--- @column id                           ID of the frame.
--- @column start_ts                     Start timestamp of the frame.
--- @column scroll_id                    ID of the associated scroll.
--- @column scroll_update_id             ID of the associated scroll update.
--- @column last_coalesced_input_ts      The timestamp of the last coalesced
---                                      input.
--- @column delta_y                      The percieved delta_y on the screen post
--- --                                   prediction.
--- @column event_latency_id             ID of the associated EventLatency.
--- @column dur                          Duration of the associated EventLatency.
--- @column presentation_timestamp       Frame presentation timestamp.
--- @column cause_of_jank                The stage of the EventLatency that is
---                                      the cause of jank.
--- @column sub_cause_of_jank            The sub-stage of the cause_of_jank that
---                                      is the cause of jank, if it exists.
-CREATE PERFETTO TABLE chrome_frame_view_with_jank AS
-SELECT
-  frames.*,
-  jank_cause.cause_of_jank,
-  jank_cause.sub_cause_of_jank
-FROM chrome_event_latency_scroll_jank_cause jank_cause
-RIGHT JOIN chrome_full_frame_delta_view frames
-  ON jank_cause.slice_id = frames.event_latency_id;
 
 -- Group all gestures presented at the same timestamp together in
 -- a single row.
@@ -204,24 +214,20 @@ RIGHT JOIN chrome_full_frame_delta_view frames
 -- @column scroll_update_id             ID of the associated scroll update.
 -- @column encapsulated_scroll_ids      All scroll updates associated with the
 --                                      frame presentation timestamp.
--- @column total_delta                  Sum of all percieved delta_y values at
+-- @column total_delta                  Sum of all perceived delta_y values at
 --                                      the frame presentation timestamp.
--- @column segregated_delta_y           Lists all of the percieved delta_y
+-- @column segregated_delta_y           Lists all of the perceived delta_y
 --                                      values at the frame presentation
 --                                      timestamp.
 -- @column event_latency_id             ID of the associated EventLatency.
 -- @column dur                          Maximum duration of the associated
 --                                      EventLatency.
 -- @column presentation_timestamp       Frame presentation timestamp.
--- @column cause_of_jank                The stage of the EventLatency that is
---                                      the cause of jank.
--- @column sub_cause_of_jank            The sub-stage of the cause_of_jank that
---                                      is the cause of jank, if it exists.
-CREATE VIEW chrome_merged_frame_view_with_jank AS
+CREATE VIEW chrome_merged_frame_view AS
 SELECT
   id,
   MAX(last_coalesced_input_ts) AS max_start_ts,
-  MIN(start_ts) AS min_start_ts,
+  MIN(ts) AS min_start_ts,
   scroll_id,
   scroll_update_id,
   GROUP_CONCAT(scroll_update_id,',') AS encapsulated_scroll_ids,
@@ -229,10 +235,8 @@ SELECT
   GROUP_CONCAT(delta_y, ',') AS segregated_delta_y,
   event_latency_id,
   MAX(dur) AS dur,
-  presentation_timestamp,
-  cause_of_jank,
-  sub_cause_of_jank
-FROM chrome_frame_view_with_jank
+  presentation_timestamp
+FROM chrome_full_frame_delta_view
 GROUP BY presentation_timestamp
 ORDER BY presentation_timestamp;
 
@@ -256,18 +260,14 @@ ORDER BY presentation_timestamp;
 -- @column dur                     Duration of the EventLatency.
 -- @column presentation_timestamp  Timestamp at which the frame was shown on the
 --                                 screen.
--- @column cause_of_jank           Cause of jank will be present if a frame
---                                 takes more than 1/2 a vsync than it's
---                                 neighbours, will be filtered to real
---                                 positives later.
--- @column sub_cause_of_jank       If the cause is GPU related, a sub cause is
---                                 present for further breakdown.
 -- @column delay_since_last_frame  Time elapsed since the previous frame was
 --                                 presented, usually equals |VSYNC| if no frame
 --                                 drops happened.
 -- @column delay_since_last_input  Difference in OS timestamps of inputs in the
 --                                 current and the previous frame.
-CREATE VIEW chrome_janky_frame_info_with_delay AS
+-- @column prev_event_latency_id   The event latency id that will be used as a
+--                                 reference to determine the jank cause.
+CREATE VIEW chrome_frame_info_with_delay AS
 SELECT
   *,
   (presentation_timestamp -
@@ -275,8 +275,9 @@ SELECT
   OVER (PARTITION BY scroll_id ORDER BY presentation_timestamp)) / 1e6 AS delay_since_last_frame,
   (min_start_ts -
   LAG(max_start_ts, 1, min_start_ts)
-  OVER (PARTITION BY scroll_id ORDER BY min_start_ts)) / 1e6 AS delay_since_last_input
-FROM chrome_merged_frame_view_with_jank;
+  OVER (PARTITION BY scroll_id ORDER BY min_start_ts)) / 1e6 AS delay_since_last_input,
+  LAG(event_latency_id, 1, -1) OVER (PARTITION BY scroll_id ORDER BY min_start_ts) AS prev_event_latency_id
+FROM chrome_merged_frame_view;
 
 -- Calculate |VSYNC_INTERVAL| as the lowest delay between frames larger than
 -- zero.
@@ -287,10 +288,53 @@ FROM chrome_merged_frame_view_with_jank;
 CREATE VIEW chrome_vsyncs AS
 SELECT
   MIN(delay_since_last_frame) AS vsync_interval
-FROM chrome_janky_frame_info_with_delay
+FROM chrome_frame_info_with_delay
 WHERE delay_since_last_frame > 0;
 
 -- Filter the frame view only to frames that had missed vsyncs.
+--
+-- @column delay_since_last_frame Time elapsed since the previous frame was
+--                                presented, will be more than |VSYNC| in this
+--                                view.
+-- @column event_latency_id       Event latency id of the presented frame.
+-- @column vsync_interval         Vsync interval at the time of recording the
+--                                trace.
+-- @column hardware_class         Device brand and model.
+-- @column scroll_id              The scroll corresponding to this frame.
+-- @column prev_event_latency_id  The event latency id that will be used as a
+--                                reference to determine the jank cause.
+CREATE VIEW chrome_janky_frames_no_cause AS
+SELECT
+  delay_since_last_frame,
+  event_latency_id,
+  (SELECT vsync_interval FROM chrome_vsyncs) AS vsync_interval,
+  chrome_hardware_class() AS hardware_class,
+  scroll_id,
+  prev_event_latency_id
+FROM chrome_frame_info_with_delay
+WHERE delay_since_last_frame > (select vsync_interval + vsync_interval / 2 from chrome_vsyncs)
+      AND delay_since_last_input < (select vsync_interval + vsync_interval / 2 from chrome_vsyncs);
+
+-- Janky frame information including the jank cause.
+-- @column delay_since_last_frame Time elapsed since the previous frame was
+--                                presented, will be more than |VSYNC| in this
+--                                view.
+-- @column event_latency_id       Event latency id of the presented frame.
+-- @column vsync_interval         Vsync interval at the time of recording the
+--                                trace.
+-- @column hardware_class         Device brand and model.
+-- @column scroll_id              The scroll corresponding to this frame.
+-- @column prev_event_latency_id  The event latency id that will be used as a
+--                                reference to determine the jank cause.
+-- @column cause_id               Id of the slice corresponding to the offending stage.
+CREATE VIEW chrome_janky_frames_no_subcause AS
+SELECT
+  *,
+  get_v3_jank_cause_id(event_latency_id, prev_event_latency_id) AS cause_id
+FROM chrome_janky_frames_no_cause;
+
+-- Finds all causes of jank for all janky frames, and a cause of sub jank
+-- if the cause of jank was GPU related.
 --
 -- @column cause_of_jank          The reason the Vsync was missed.
 -- @column sub_cause_of_jank      Further breakdown if the root cause was GPU
@@ -305,16 +349,25 @@ WHERE delay_since_last_frame > 0;
 -- @column scroll_id              The scroll corresponding to this frame.
 CREATE VIEW chrome_janky_frames AS
 SELECT
-  cause_of_jank,
-  sub_cause_of_jank,
+  slice_name_from_id(cause_id) AS cause_of_jank,
+  slice_name_from_id(
+    -- Getting sub-cause
+    get_v3_jank_cause_id(
+      -- Here the cause itself is the parent.
+      cause_id,
+      -- Get the previous cause id as a child to the previous |EventLatency|.
+     (SELECT
+      id
+      FROM slice
+      WHERE name = slice_name_from_id(cause_id)
+        AND parent_id = prev_event_latency_id)
+    )) AS sub_cause_of_jank,
   delay_since_last_frame,
   event_latency_id,
-  (SELECT vsync_interval FROM chrome_vsyncs) AS vsync_interval,
-  chrome_hardware_class() AS hardware_class,
+  vsync_interval,
+  hardware_class,
   scroll_id
-FROM chrome_janky_frame_info_with_delay
-WHERE delay_since_last_frame > (select vsync_interval + vsync_interval / 2 from chrome_vsyncs)
-      AND delay_since_last_input < (select vsync_interval + vsync_interval / 2 from chrome_vsyncs);
+FROM chrome_janky_frames_no_subcause;
 
 -- Counting all unique frame presentation timestamps.
 --
@@ -352,7 +405,7 @@ WITH
   frames AS (
     SELECT scroll_id, COUNT(*) AS num_frames
     FROM
-      chrome_janky_frame_info_with_delay
+      chrome_frame_info_with_delay
     GROUP BY scroll_id
   ),
   janky_frames AS (
@@ -402,65 +455,3 @@ SELECT
 FROM
   chrome_janky_frames
 GROUP BY scroll_id;
-
--- An "intermediate" view for computing `chrome_scroll_jank_v3_output` below.
---
--- @column trace_num_frames          The number of frames in the trace.
--- @column trace_num_janky_frames    The number of delayed/janky frames in the
---                                   trace.
--- @column vsync_interval            The standard vsync interval.
--- @column scrolls                   A proto amalgamation of metrics per scroll
---                                   including the number of frames, number of
---                                   janky frames, percent of janky frames,
---                                   maximum presentation delay, and the causes
---                                   of jank (cause, sub-cause, delay).
-CREATE VIEW chrome_scroll_jank_v3_intermediate AS
-SELECT
-  -- MAX does not matter for these aggregations, since the values are the
-  -- same across rows.
-  (SELECT COUNT(*) FROM chrome_janky_frame_info_with_delay)
-    AS trace_num_frames,
-  (SELECT COUNT(*) FROM chrome_janky_frames)
-    AS trace_num_janky_frames,
-  causes.vsync_interval,
-  RepeatedField(
-    ChromeScrollJankV3_Scroll(
-      'num_frames',
-      frames.num_frames,
-      'num_janky_frames',
-      frames.num_janky_frames,
-      'scroll_jank_percentage',
-      frames.scroll_jank_percentage,
-      'max_delay_since_last_frame',
-      causes.max_delay_since_last_frame,
-      'scroll_jank_causes',
-      causes.scroll_jank_causes))
-    AS scrolls
-FROM
-  chrome_frames_per_scroll AS frames
-INNER JOIN chrome_causes_per_scroll AS causes
-  ON frames.scroll_id = causes.scroll_id;
-
--- For producing a "native" Perfetto UI metric.
---
--- @column scroll_jank_summary     A proto amalgamation summarizing all of the
---                                 scroll jank in a trace, including the number
---                                 of frames, janky frames, percentage of janky
---                                 frames, vsync interval, and a summary of this
---                                 data (including individual causes) for each
---                                 scroll.
-CREATE VIEW chrome_scroll_jank_v3_output AS
-SELECT
-  ChromeScrollJankV3(
-    'trace_num_frames',
-    trace_num_frames,
-    'trace_num_janky_frames',
-    trace_num_janky_frames,
-    'trace_scroll_jank_percentage',
-    100.0 * trace_num_janky_frames / trace_num_frames,
-    'vsync_interval_ms',
-    vsync_interval,
-    'scrolls',
-    scrolls) AS scroll_jank_summary
-FROM
-  chrome_scroll_jank_v3_intermediate;

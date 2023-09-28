@@ -1,6 +1,8 @@
-* [Overview](README.md)
+* [Introduction](README.md)
 
-* [Tracing 101](tracing-101.md)
+* [Overview](#)
+  * [Tracing 101](tracing-101.md)
+  * [FAQ](faq.md)
 
 * [Quickstart](#)
   * [Record traces on Android](quickstart/android-tracing.md)
@@ -11,10 +13,8 @@
   * [Heap profiling](quickstart/heap-profiling.md)
   * [Callstack sampling on Android](quickstart/callstack-sampling.md)
 
-* [FAQ](faq.md)
-
 * [Case studies](#)
-  * [Android boot tracing](case-studies/android-boot-tracing.md)
+  * [Tracing Android boot](case-studies/android-boot-tracing.md)
   * [Debugging memory usage](case-studies/memory.md)
 
 * [Data sources](#)
@@ -40,21 +40,25 @@
   * [Interceptors](instrumentation/interceptors.md)
 
 * [Trace analysis](#)
-  * [Trace Processor (SQL)](analysis/trace-processor.md)
-  * [Batch Trace Processor](analysis/batch-trace-processor.md)
-  * [Standard library](analysis/stdlib-docs.autogen)
-  * [Built-in Functions](analysis/builtin.md)
-  * [Trace-based metrics](analysis/metrics.md)
-  * [Common queries](analysis/common-queries.md)
-  * [SQL tables](analysis/sql-tables.autogen)
-  * [Stats table](analysis/sql-stats.autogen)
-  * [Pivot tables](analysis/pivot-tables.md)
+  * [Trace Processor](#)
+    * [C++ library](analysis/trace-processor.md)
+    * [Python library](analysis/trace-processor-python.md)
+    * [Trace-based metrics](analysis/metrics.md)
+    * [Batch Trace Processor](analysis/batch-trace-processor.md)
+  * [PerfettoSQL](#)
+    * [Standard Library](analysis/stdlib-docs.autogen)
+    * [Syntax](analysis/perfetto-sql-syntax.md)
+    * [Prelude tables](analysis/sql-tables.autogen)
+    * [Common Queries](analysis/common-queries.md)
+    * [Built-ins](analysis/builtin.md)
 
 * [Trace visualization](#)
   * [Perfetto UI](visualization/perfetto-ui.md)
   * [Visualising large traces](visualization/large-traces.md)
   * [Deep linking to Perfetto UI](visualization/deep-linking-to-perfetto-ui.md)
   * [Perfetto UI release process](visualization/perfetto-ui-release-process.md)
+  * [Pivot tables](analysis/pivot-tables.md)
+  * [Debug tracks](analysis/debug-tracks.md)
 
 * [Core concepts](#)
   * [Trace configuration](concepts/config.md)
@@ -70,6 +74,7 @@
   * [heap_profile cmdline](reference/heap_profile-cli.md)
   * [Synthetic TrackEvent](reference/synthetic-track-event.md)
   * [Android Version Notes](reference/android-version-notes.md)
+  * [Stats table](analysis/sql-stats.autogen)
 
 * [Contributing](#)
     * [Getting started](contributing/getting-started.md)

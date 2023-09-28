@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {GRAY_COLOR} from '../common/colorizer';
-import {Time} from '../common/time';
 
 import {
   filterVisibleSlicesForTesting as filterVisibleSlices,
@@ -21,10 +21,16 @@ import {
 import {Slice} from './slice';
 
 function slice(start: number, duration: number): Slice {
+  const startNsQ = Time.fromRaw(BigInt(start));
+  const durNsQ = Time.fromRaw(BigInt(duration));
+  const endNsQ = Time.fromRaw(startNsQ + durNsQ);
   return {
     id: 42,
-    start: Time.fromRaw(BigInt(start)),
-    duration: Time.fromRaw(BigInt(duration)),
+    startNsQ,
+    endNsQ,
+    durNsQ,
+    ts: startNsQ,
+    dur: durNsQ,
     depth: 0,
     flags: 0,
     title: '',

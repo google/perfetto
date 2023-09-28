@@ -21,9 +21,8 @@ import {
   time,
   Time,
   TimeSpan,
-  TimestampFormat,
-  timestampFormat,
-} from '../common/time';
+} from '../base/time';
+import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
 
 import {
   BACKGROUND_COLOR,
@@ -230,6 +229,7 @@ export class TimeSelectionPanel extends Panel {
 function stringifyTimestamp(time: time): string {
   const fmt = timestampFormat();
   switch (fmt) {
+    case TimestampFormat.UTC:
     case TimestampFormat.Timecode:
       const THIN_SPACE = '\u2009';
       return Time.toTimecode(time).toString(THIN_SPACE);

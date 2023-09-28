@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Duration} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   AggregateData,
@@ -22,17 +23,15 @@ import {
 } from '../common/aggregation_data';
 import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
-import {Duration} from '../common/time';
 
 import {globals} from './globals';
-import {Panel} from './panel';
-
 export interface AggregationPanelAttrs {
   data: AggregateData;
   kind: string;
 }
 
-export class AggregationPanel extends Panel<AggregationPanelAttrs> {
+export class AggregationPanel implements
+    m.ClassComponent<AggregationPanelAttrs> {
   view({attrs}: m.CVnode<AggregationPanelAttrs>) {
     return m(
         '.details-panel',
@@ -137,6 +136,4 @@ export class AggregationPanel extends Panel<AggregationPanelAttrs> {
     }
     return m('.states', states);
   }
-
-  renderCanvas() {}
 }

@@ -54,7 +54,7 @@ ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(Key& key)
       old_key_length_(key.key.length()) {}
 
 ProtoToArgsParser::ScopedNestedKeyContext::ScopedNestedKeyContext(
-    ProtoToArgsParser::ScopedNestedKeyContext&& other)
+    ProtoToArgsParser::ScopedNestedKeyContext&& other) noexcept
     : key_(other.key_),
       old_flat_key_length_(other.old_flat_key_length_),
       old_key_length_(other.old_key_length_) {
@@ -329,6 +329,9 @@ base::Status ProtoToArgsParser::ParseSimpleField(
     case FieldDescriptorProto::TYPE_FLOAT:
       delegate.AddDouble(key_prefix_, static_cast<double>(field.as_float()));
       return base::OkStatus();
+    case FieldDescriptorProto::TYPE_BYTES:
+      delegate.AddBytes(key_prefix_, field.as_bytes());
+      return base::OkStatus();
     case FieldDescriptorProto::TYPE_STRING:
       delegate.AddString(key_prefix_, field.as_string());
       return base::OkStatus();
@@ -363,14 +366,14 @@ base::Status ProtoToArgsParser::ParseSimpleField(
 
 ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterArray(
     size_t index) {
-  auto context = ScopedNestedKeyContext(key_prefix_);
+  ScopedNestedKeyContext context(key_prefix_);
   key_prefix_.key += "[" + std::to_string(index) + "]";
   return context;
 }
 
 ProtoToArgsParser::ScopedNestedKeyContext ProtoToArgsParser::EnterDictionary(
     const std::string& name) {
-  auto context = ScopedNestedKeyContext(key_prefix_);
+  ScopedNestedKeyContext context(key_prefix_);
   AppendProtoType(key_prefix_.key, name);
   AppendProtoType(key_prefix_.flat_key, name);
   return context;

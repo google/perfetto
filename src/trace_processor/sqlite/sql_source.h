@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_SQL_SOURCE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_SQL_SOURCE_H_
 
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -44,8 +45,9 @@ class SqlSource {
   static SqlSource FromMetricFile(std::string sql,
                                   const std::string& metric_file);
 
-  // Creates a SqlSource instance wrapping SQL executed when importing a module.
-  static SqlSource FromModuleImport(std::string sql, const std::string& module);
+  // Creates a SqlSource instance wrapping SQL executed when including a module.
+  static SqlSource FromModuleInclude(std::string sql,
+                                     const std::string& module);
 
   // Creates a SqlSource instance wrapping SQL which is an internal
   // implementation detail of trace processor.

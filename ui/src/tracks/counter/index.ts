@@ -16,15 +16,14 @@ import m from 'mithril';
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {duration, time, Time} from '../../common/time';
+import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {Button} from '../../frontend/widgets/button';
-import {MenuItem, PopupMenu2} from '../../frontend/widgets/menu';
 import {
   LONG,
   LONG_NULL,
@@ -36,6 +35,8 @@ import {
   TracePluginContext,
   TrackInfo,
 } from '../../public';
+import {Button} from '../../widgets/button';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
 
 export const COUNTER_TRACK_KIND = 'CounterTrack';
 
@@ -447,7 +448,7 @@ class CounterTrack extends Track<Config, Data> {
       ctx.stroke();
 
       // Draw the tooltip.
-      this.drawTrackHoverTooltip(ctx, this.mousePos, text);
+      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
     }
 
     // Write the Y scale on the top left corner.
@@ -490,9 +491,14 @@ class CounterTrack extends Track<Config, Data> {
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
-    const values = this.config.scale === 'DELTA_FROM_PREVIOUS' ?
-        data.totalDeltas :
-        data.lastValues;
+    let values = data.lastValues;
+    if (this.config.scale === 'DELTA_FROM_PREVIOUS') {
+      values = data.totalDeltas;
+    }
+    if (this.config.scale === 'RATE') {
+      values = data.rate;
+    }
+
     const [left, right] = searchSegment(data.timestamps, time.toTime());
     this.hoveredTs =
         left === -1 ? undefined : Time.fromRaw(data.timestamps[left]);

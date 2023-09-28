@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {time} from '../common/time';
+import {time} from '../base/time';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';

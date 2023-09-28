@@ -44,7 +44,9 @@ SELECT
   extract_arg(arg_set_id, 'socket_tag') AS socket_tag,
   extract_arg(arg_set_id, 'socket_uid') AS socket_uid,
   extract_arg(arg_set_id, 'local_port') AS local_port,
-  extract_arg(arg_set_id, 'remote_port') AS remote_port
+  extract_arg(arg_set_id, 'remote_port') AS remote_port,
+  extract_arg(arg_set_id, 'packet_icmp_type') AS packet_icmp_type,
+  extract_arg(arg_set_id, 'packet_icmp_code') AS packet_icmp_code
 FROM slice
 JOIN track
   ON slice.track_id = track.id

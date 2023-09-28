@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceConfig} from '../core/protos';
-import {perfetto} from '../gen/protos';
+import {EnableTracingRequest, TraceConfig} from '../core/protos';
 
 // In this file are contained a few functions to simplify the proto parsing.
 
@@ -21,10 +20,9 @@ export function extractTraceConfig(enableTracingRequest: Uint8Array):
     Uint8Array|undefined {
   try {
     const enableTracingObject =
-        perfetto.protos.EnableTracingRequest.decode(enableTracingRequest);
+        EnableTracingRequest.decode(enableTracingRequest);
     if (!enableTracingObject.traceConfig) return undefined;
-    return perfetto.protos.TraceConfig.encode(enableTracingObject.traceConfig)
-        .finish();
+    return TraceConfig.encode(enableTracingObject.traceConfig).finish();
   } catch (e) {  // This catch is for possible proto encoding/decoding issues.
     console.error('Error extracting the config: ', e.message);
     return undefined;
@@ -33,7 +31,7 @@ export function extractTraceConfig(enableTracingRequest: Uint8Array):
 
 export function extractDurationFromTraceConfig(traceConfigProto: Uint8Array) {
   try {
-    return perfetto.protos.TraceConfig.decode(traceConfigProto).durationMs;
+    return TraceConfig.decode(traceConfigProto).durationMs;
   } catch (e) {  // This catch is for possible proto encoding/decoding issues.
     return undefined;
   }

@@ -214,11 +214,7 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
-    sources = [
-      "trace_processor_shell.cc",
-      "util/proto_to_json.cc",
-      "util/proto_to_json.h",
-    ]
+    sources = [ "trace_processor_shell.cc" ]
     if ((perfetto_build_standalone || build_with_chromium) &&
         !is_perfetto_build_generator) {
       data_deps = [

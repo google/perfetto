@@ -15,6 +15,9 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {duration, time, Time} from '../../base/time';
+import {calcCachedBucketSize} from '../../common/cache_utils';
+import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {hueForCpu} from '../../common/colorizer';
 import {
   LONG,
@@ -23,7 +26,6 @@ import {
   NUM_NULL,
   QueryResult,
 } from '../../common/query_result';
-import {duration, time, Time} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
@@ -80,7 +82,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
     this.maxTsEnd = Time.add(Time.fromRaw(iter.maxTs), iter.dur);
 
     const rowCount = iter.rowCount;
-    const bucketSize = this.calcCachedBucketSize(rowCount);
+    const bucketSize = calcCachedBucketSize(rowCount);
     if (bucketSize === undefined) {
       return;
     }
@@ -435,7 +437,7 @@ class CpuFreqTrack extends Track<Config, Data> {
       }
 
       // Draw the tooltip.
-      this.drawTrackHoverTooltip(ctx, this.mousePos, text);
+      drawTrackHoverTooltip(ctx, this.mousePos, this.getHeight(), text);
     }
 
     // Write the Y scale on the top left corner.

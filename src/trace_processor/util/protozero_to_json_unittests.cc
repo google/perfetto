@@ -27,6 +27,11 @@
 #include "protos/perfetto/trace/track_event/chrome_compositor_scheduler_state.pbzero.h"
 #include "protos/perfetto/trace/track_event/track_event.pbzero.h"
 
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+#include "protos/perfetto/metrics/chrome/all_chrome_metrics.pb.h"  // nogncheck
+#include "src/trace_processor/metrics/all_chrome_metrics.descriptor.h"  // nogncheck
+#endif
+
 namespace perfetto {
 namespace trace_processor {
 namespace protozero_to_json {
@@ -116,6 +121,38 @@ TEST(ProtozeroToJsonTest, CustomDescriptorPoolNestedMsg) {
       ProtozeroToJson(pool, ".perfetto.protos.TrackEvent", binary_proto,
                       kNone));
 }
+
+// This test depends on the CustomOptions message in descriptor.proto which
+// is very tricky to point to on the non-standalone build.
+#if PERFETTO_BUILDFLAG(PERFETTO_STANDALONE_BUILD)
+TEST(ProtozeroToJsonTest, CustomDescriptorPoolAnnotations) {
+  using perfetto::protos::TestChromeMetric;
+  TestChromeMetric msg;
+  msg.set_test_value(1);
+  auto binary_proto = msg.SerializeAsString();
+  protozero::ConstBytes binary_proto_bytes{
+      reinterpret_cast<const uint8_t*>(binary_proto.data()),
+      binary_proto.size()};
+
+  DescriptorPool pool;
+  auto status = pool.AddFromFileDescriptorSet(
+      kAllChromeMetricsDescriptor.data(), kAllChromeMetricsDescriptor.size());
+  ASSERT_TRUE(status.ok());
+
+  EXPECT_EQ(R"({
+  "test_value": 1,
+  "__annotations": {
+    "test_value": {
+      "__field_options": {
+        "unit": "count_smallerIsBetter"
+      }
+    }
+  }
+})",
+            ProtozeroToJson(pool, ".perfetto.protos.TestChromeMetric",
+                            binary_proto_bytes, kPretty | kInlineAnnotations));
+}
+#endif
 
 // Sets up a descriptor pool with all the messages from
 // "src/protozero/test/example_proto/test_messages.proto"

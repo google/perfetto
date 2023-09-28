@@ -39,7 +39,6 @@ import {
   UtidToTrackSortKey,
 } from '../common/state';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
-import {ANDROID_LOGS_TRACK_KIND} from '../tracks/android_log';
 import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
@@ -53,11 +52,9 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND, CounterScaleOptions} from '../tracks/counter';
 import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
-import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
 } from '../tracks/expected_frames';
-import {FTRACE_RAW_TRACK_KIND} from '../tracks/ftrace';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {NULL_TRACK_KIND} from '../tracks/null_track';
 import {
@@ -84,6 +81,11 @@ const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
       'Show V1 tracks side by side with V2 tracks. Does nothing if TracksV2 is not enabled.',
   defaultValue: false,
 });
+
+// Special kind reserved for plugin tracks.
+// There is no significance to this value, it simply something that's unlikely
+// to be used as a key in the trackRegistry.
+const PLUGIN_TRACK_KIND = 'PLUGIN_TRACK';
 
 function showV2(): boolean {
   return TRACKS_V2_FLAG.get();
@@ -259,13 +261,12 @@ class TrackDecider {
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: CPU_SLICE_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         name,
         trackGroup: SCROLLING_TRACK_GROUP,
-        config: {
-          cpu,
-        },
+        config: {},
+        uri: `perfetto.CpuSlices#cpu${cpu}`,
       });
     }
   }
@@ -881,11 +882,12 @@ class TrackDecider {
     if (count > 0) {
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: ANDROID_LOGS_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         name: 'Android logs',
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         trackGroup: SCROLLING_TRACK_GROUP,
         config: {},
+        uri: 'perfetto.AndroidLog',
       });
     }
   }
@@ -916,11 +918,12 @@ class TrackDecider {
       }
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: FTRACE_RAW_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         name: `Ftrace Events Cpu ${it.cpu}`,
         trackGroup: groupUuid,
-        config: {cpu: it.cpu},
+        config: {},
+        uri: `perfetto.FtraceRaw#cpu${it.cpu}`,
       });
     }
 
