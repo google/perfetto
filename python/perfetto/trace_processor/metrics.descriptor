@@ -776,8 +776,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-î.
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ì-
+Î/
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ì.
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupó
 TaskStateBreakdown$
@@ -794,7 +794,7 @@ maxRuntime$
 unknown (Runknown5
 Slice
 dur_ns (RdurNs
-dur_ms (RdurMsš
+dur_ms (RdurMsú
 ToFirstFrame
 dur_ns (RdurNs
 dur_ms (RdurMsr
@@ -812,7 +812,8 @@ maxRuntime$
 time_get_resources (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeGetResourcesf
 time_before_start_process
  (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeBeforeStartProcessf
-time_during_start_process (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDuringStartProcessM
+time_during_start_process (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeDuringStartProcess^
+time_to_running_state# (2+.perfetto.protos.AndroidStartupMetric.SliceRtimeToRunningStateM
 to_post_fork (2+.perfetto.protos.AndroidStartupMetric.SliceR
 toPostForkb
 to_activity_thread_main (2+.perfetto.protos.AndroidStartupMetric.SliceRtoActivityThreadMain[

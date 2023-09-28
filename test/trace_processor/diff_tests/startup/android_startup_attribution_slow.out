@@ -49,6 +49,10 @@ android_startup {
         dur_ns: 20000000000
         dur_ms: 20000.0
       }
+      time_to_running_state {
+        dur_ns: 55000000000
+        dur_ms: 55000.0
+      }
     }
     activity_hosting_process_count: 1
     process {
