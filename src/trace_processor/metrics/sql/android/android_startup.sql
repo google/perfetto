@@ -233,6 +233,8 @@ SELECT
         SELECT startup_slice_proto(ts - launches.ts)
         FROM ZYGOTE_FORK_FOR_LAUNCH(launches.startup_id)
       ),
+      'time_to_running_state',
+      time_to_running_state_for_launch(launches.startup_id),
       'time_jit_thread_pool_on_cpu', NULL_IF_EMPTY(startup_slice_proto(
         thread_time_for_launch_state_and_thread(
          launches.startup_id,

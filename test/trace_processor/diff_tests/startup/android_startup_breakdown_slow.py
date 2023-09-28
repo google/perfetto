@@ -29,7 +29,7 @@ trace.add_process(2, 1, 'system_server')
 trace.add_process(3, 1, 'com.google.android.calendar', uid=10001)
 
 trace.add_package_list(
-    ts=100, name='com.google.android.calendar', uid=10001, version_code=123)
+    ts=to_s(100), name='com.google.android.calendar', uid=10001, version_code=123)
 
 trace.add_ftrace_packet(cpu=0)
 
@@ -67,7 +67,7 @@ trace.add_atrace_begin(ts=to_s(190), tid=3, pid=3, buf='inflate')
 trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
 trace.add_atrace_end(ts=to_s(192), tid=3, pid=3)
 trace.add_atrace_begin(
-    ts=193,
+    ts=to_s(193),
     tid=3,
     pid=3,
     buf='performResume:com.google.android.calendar.MainActivity')
