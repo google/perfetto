@@ -90,3 +90,15 @@ RETURNS INT AS
 SELECT SUM(dur)
 FROM launch_thread_state_dur_sum l
 WHERE l.startup_id = $startup_id AND state GLOB $state AND thread_name = $thread_name;
+
+
+-- Given a launch id, returns the duration between the launch and a running state thread of
+-- startup process.
+CREATE PERFETTO FUNCTION time_to_running_state_for_launch(startup_id LONG)
+RETURNS PROTO AS
+  SELECT NULL_IF_EMPTY(
+    STARTUP_SLICE_PROTO(
+      IIF(MIN(l.ts) > launches.ts, MIN(l.ts) - launches.ts, NULL)))
+  FROM launch_threads_by_thread_state l
+  JOIN android_startups launches USING(startup_id)
+  WHERE l.startup_id = $startup_id AND l.state = "Running";

@@ -47,7 +47,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 35.
+  // Next id: 36.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -85,6 +85,9 @@ message AndroidStartupMetric {
 
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
+
+    // The duration from launch to first running state thread of startup process.
+    optional Slice time_to_running_state = 35;
 
     optional Slice to_post_fork = 18;
     optional Slice to_activity_thread_main = 19;
