@@ -280,15 +280,27 @@ export interface TrackInfo {
 // A predicate for selecting a groups of tracks.
 export type TrackPredicate = (info: TrackTags) => boolean;
 
-// An set of key/value pairs describing a given track. These
-// are used for selecting tracks to pin/unpin and (in future) the
-// sorting and grouping of tracks. The values are always strings.
-export interface TrackTags {
+interface WellKnownTrackTags {
   // A human readable name for this specific track.
-  name?: string;
+  name: string;
 
+  // This is where "XXX_TRACK_KIND" values should be placed.
+  kind: string;
+
+  // The CPU number associated with this track.
+  cpu: number;
+}
+
+// An set of key/value pairs describing a given track. These are used for
+// selecting tracks to pin/unpin and (in future) the sorting and grouping of
+// tracks.
+// These are also (ab)used for communicating information about tracks for the
+// purposes of locating tracks by their properties e.g. aggregation & search.
+// We define a handful of well known fields, and the rest are arbitrary key-
+// value pairs.
+export type TrackTags = Partial<WellKnownTrackTags>&{
   // There may be arbitrary other key/value pairs.
-  [key: string]: string|undefined;
+  [key: string]: string|number|undefined;
 }
 
 // Plugins can be passed as class refs, factory functions, or concrete plugin
