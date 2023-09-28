@@ -222,7 +222,7 @@ export class ChromeSliceTrack extends Track<Config, Data> {
       const isInstant = data.isInstant[i];
       const isIncomplete = data.isIncomplete[i];
       const title = data.strings[titleId];
-      const colorOverride = data.colors && data.strings[data.colors[i]];
+      const colorOverride = this.getColorOverride(data, i);
       if (isIncomplete) {  // incomplete slice
         // TODO(stevegolton): This isn't exactly equivalent, ideally we should
         // choose tEnd once we've conerted to screen space coords.
@@ -359,6 +359,12 @@ export class ChromeSliceTrack extends Track<Config, Data> {
     ctx.lineTo(-HALF_CHEVRON_WIDTH_PX, SLICE_HEIGHT);
     ctx.lineTo(0, 0);
     ctx.fill();
+  }
+
+  // Get a color to override the default paint color for the indicated slice.
+  // By default, an override is sought in the array if |colors| in the |data|.
+  getColorOverride(data: Data, sliceIndex: number): string|undefined {
+    return data.colors ? data.strings[data.colors[sliceIndex]] : undefined;
   }
 
   getSliceIndex({x, y}: {x: number, y: number}): number|void {

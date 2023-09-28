@@ -115,3 +115,20 @@ export function binaryDecode(str: string): Uint8Array {
 export function sqliteString(str: string): string {
   return `'${str.replace(/'/g, '\'\'')}'`;
 }
+
+// Obtain a function that interns strings in the given |store|.
+// The return results are indices into the |store|'s |strings|.
+// The result of interning the same string is always the same index.
+export function stringInterner(store: { strings: string[] }):
+    (str: string) => number {
+  const stringIndexes = new Map<string, number>();
+
+  return (str: string) => {
+    let idx = stringIndexes.get(str);
+    if (idx !== undefined) return idx;
+    idx = store.strings.length;
+    store.strings.push(str);
+    stringIndexes.set(str, idx);
+    return idx;
+  };
+}

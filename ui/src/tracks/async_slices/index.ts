@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {PluginContext} from '../../common/plugin_api';
-import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
+import {LONG, LONG_NULL, NUM, NUM_NULL, STR} from '../../common/query_result';
 import {TPDuration, TPTime} from '../../common/time';
 import {TrackData} from '../../common/track_data';
 import {
@@ -22,6 +22,7 @@ import {
 } from '../../controller/track_controller';
 import {NewTrackArgs, Track} from '../../frontend/track';
 import {ChromeSliceTrack} from '../chrome_slices';
+import {stringInterner} from '../../base/string_utils';
 
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
@@ -38,7 +39,9 @@ export interface Data extends TrackData {
   ends: BigInt64Array;
   depths: Uint16Array;
   titles: Uint16Array;  // Index in |strings|.
+  colors?: Uint16Array;  // Index in |strings|.
   isInstant: Uint16Array;
+  frameNumbers: Uint32Array;
   isIncomplete: Uint16Array;
 }
 
@@ -59,21 +62,23 @@ export class AsyncSliceTrackController extends TrackController<Config, Data> {
 
     const queryRes = await this.query(`
       SELECT
-      (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
-        ts,
-        max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur)) as dur,
-        layout_depth as depth,
-        ifnull(name, '[null]') as name,
-        id,
-        dur = 0 as isInstant,
-        dur = -1 as isIncomplete
-      from experimental_slice_layout
+      (esl.ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
+        esl.ts as ts,
+        max(iif(esl.dur = -1, (SELECT end_ts FROM trace_bounds) - esl.ts, esl.dur)) as dur,
+        esl.layout_depth as depth,
+        ifnull(esl.name, '[null]') as name,
+        esl.id as id,
+        frame_number,
+        esl.dur = 0 as isInstant,
+        esl.dur = -1 as isIncomplete
+      from experimental_slice_layout esl
+        left join frame_slice using (id)
       where
-        filter_track_ids = '${this.config.trackIds.join(',')}' and
-        ts >= ${start - this.maxDurNs} and
-        ts <= ${end}
-      group by tsq, layout_depth
-      order by tsq, layout_depth
+        esl.filter_track_ids = '${this.config.trackIds.join(',')}' and
+        esl.ts >= ${start - this.maxDurNs} and
+        esl.ts <= ${end}
+      group by tsq, esl.layout_depth
+      order by tsq, esl.layout_depth
     `);
 
     const numRows = queryRes.numRows();
@@ -90,17 +95,10 @@ export class AsyncSliceTrackController extends TrackController<Config, Data> {
       titles: new Uint16Array(numRows),
       isInstant: new Uint16Array(numRows),
       isIncomplete: new Uint16Array(numRows),
+      frameNumbers: new Uint32Array(numRows),
     };
 
-    const stringIndexes = new Map<string, number>();
-    function internString(str: string) {
-      let idx = stringIndexes.get(str);
-      if (idx !== undefined) return idx;
-      idx = slices.strings.length;
-      slices.strings.push(str);
-      stringIndexes.set(str, idx);
-      return idx;
-    }
+    const internString = stringInterner(slices);
 
     const it = queryRes.iter({
       tsq: LONG,
@@ -111,6 +109,7 @@ export class AsyncSliceTrackController extends TrackController<Config, Data> {
       id: NUM,
       isInstant: NUM,
       isIncomplete: NUM,
+      frame_number: NUM_NULL,
     });
     for (let row = 0; it.valid(); it.next(), row++) {
       const startQ = it.tsq;
@@ -127,6 +126,7 @@ export class AsyncSliceTrackController extends TrackController<Config, Data> {
       slices.sliceIds[row] = it.id;
       slices.isInstant[row] = it.isInstant;
       slices.isIncomplete[row] = it.isIncomplete;
+      slices.frameNumbers[row] = it.frame_number ?? 0;
     }
     return slices;
   }

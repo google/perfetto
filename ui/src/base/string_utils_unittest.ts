@@ -18,6 +18,7 @@ import {
   binaryDecode,
   binaryEncode,
   sqliteString,
+  stringInterner,
   utf8Decode,
   utf8Encode,
 } from './string_utils';
@@ -79,4 +80,15 @@ test('string_utils.sqliteString', () => {
   expect(sqliteString('that\'s it')).toEqual('\'that\'\'s it\'');
   expect(sqliteString('no quotes')).toEqual('\'no quotes\'');
   expect(sqliteString(`foo ' bar '`)).toEqual(`'foo '' bar '''`);
+});
+
+test('string_utils.stringInterner', () => {
+  const strings: string[] = [];
+  const interner = stringInterner({strings});
+
+  expect(interner('foo')).toEqual(0);
+  expect(interner('bar')).toEqual(1);
+  expect(interner('')).toEqual(2);
+  expect(interner('bar')).toEqual(1);
+  expect(strings).toEqual(['foo', 'bar', '']);
 });
