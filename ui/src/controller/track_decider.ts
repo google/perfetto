@@ -64,6 +64,9 @@ import {
   PROCESS_SCHEDULING_TRACK_KIND,
 } from '../tracks/process_scheduling';
 import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
+import {
+  decideTracks as screenshotDecideTracks,
+} from '../tracks/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {THREAD_STATE_TRACK_V2_KIND} from '../tracks/thread_state_v2';
 
@@ -1952,6 +1955,14 @@ class TrackDecider {
 
   async decideTracks(): Promise<DeferredAction[]> {
     await this.defineMaxLayoutDepthSqlFunction();
+
+    {
+      const result = screenshotDecideTracks(this.engine);
+      if (result !== null) {
+        const {tracksToAdd} = await result;
+        this.tracksToAdd.push(...tracksToAdd);
+      }
+    }
 
     // Add first the global tracks that don't require per-process track groups.
     await this.addCpuSchedulingTracks();
