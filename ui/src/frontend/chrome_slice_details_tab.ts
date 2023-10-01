@@ -93,27 +93,52 @@ const ITEMS: ContextMenuItem[] = [
         ),
   },
   {
-    name: 'Binder call names on thread',
+    name: 'Binder txn names + monitor contention on thread',
     shouldDisplay: (slice) => hasProcessName(slice) && hasThreadName(slice) &&
         hasTid(slice) && hasPid(slice),
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
-      runQuery(`SELECT IMPORT('android.binder');`, engine)
+        runQuery(`SELECT IMPORT('android.binder'); SELECT IMPORT('android.monitor_contention');`, engine)
           .then(
               () => addDebugTrack(
                   engine,
                   {
                     sqlSource: `
-                            SELECT s.ts, s.dur, tx.aidl_name AS name
-                            FROM android_sync_binder_metrics_by_txn tx
-                              JOIN slice s ON tx.binder_txn_id = s.id
-                              JOIN thread_track ON s.track_id = thread_track.id
-                              JOIN thread USING (utid)
-                              JOIN process USING (upid)
-                            WHERE aidl_name IS NOT NULL
-                              AND pid = ${getPidFromSlice(slice)}
-                              AND tid = ${getTidFromSlice(slice)}`,
+                                WITH merged AS (
+                                  SELECT s.ts, s.dur, tx.aidl_name AS name, 0 AS depth
+                                  FROM android_binder_txns tx
+                                  JOIN slice s
+                                    ON tx.binder_txn_id = s.id
+                                  JOIN thread_track
+                                    ON s.track_id = thread_track.id
+                                  JOIN thread
+                                    USING (utid)
+                                  JOIN process
+                                    USING (upid)
+                                  WHERE pid = ${getPidFromSlice(slice)}
+                                        AND tid = ${getTidFromSlice(slice)}
+                                        AND aidl_name IS NOT NULL
+                                  UNION ALL
+                                  SELECT
+                                    s.ts,
+                                    s.dur,
+                                    short_blocked_method || ' -> ' || blocking_thread_name || ':' || short_blocking_method AS name,
+                                    1 AS depth
+                                  FROM android_binder_txns tx
+                                  JOIN android_monitor_contention m
+                                    ON m.binder_reply_tid = tx.server_tid AND m.binder_reply_ts = tx.server_ts
+                                  JOIN slice s
+                                    ON tx.binder_txn_id = s.id
+                                  JOIN thread_track
+                                    ON s.track_id = thread_track.id
+                                  JOIN thread ON thread.utid = thread_track.utid
+                                  JOIN process ON process.upid = thread.upid
+                                  WHERE process.pid = ${getPidFromSlice(slice)}
+                                        AND thread.tid = ${getTidFromSlice(slice)}
+                                        AND short_blocked_method IS NOT NULL
+                                  ORDER BY depth
+                                ) SELECT ts, dur, name FROM merged`,
                     columns: ['ts', 'dur', 'name'],
                   },
                   `Binder names (${getProcessNameFromSlice(slice)}:${
