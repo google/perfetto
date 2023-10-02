@@ -39,6 +39,7 @@ import {FilterableSelect, Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 import {Switch} from '../widgets/switch';
 import {TextInput} from '../widgets/text_input';
+import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
 
 import {createPage} from './pages';
@@ -967,6 +968,50 @@ export const WidgetsPage = createPage({
               initialOpts: {
                 hotkey: 'Mod+Shift+P',
                 platform: new EnumOption('auto', ['auto', 'Mac', 'PC']),
+              },
+            }),
+          m(
+            WidgetShowcase, {
+              label: 'Text Paragraph',
+              description: `A basic formatted text paragraph with wrapping. If
+              it is desirable to preserve the original text format/line breaks,
+              set the compressSpace attribute to false.`,
+              renderWidget: (opts) => {
+                return m(TextParagraph, {
+                  text: `Lorem ipsum dolor sit amet, consectetur adipiscing
+                         elit. Nulla rhoncus tempor neque, sed malesuada eros
+                         dapibus vel. Aliquam in ligula vitae tortor porttitor
+                         laoreet iaculis finibus est.`,
+                  compressSpace: opts.compressSpace,
+                });
+              },
+              initialOpts: {
+                compressSpace: true,
+              },
+            }),
+          m(
+            WidgetShowcase, {
+              label: 'Multi Paragraph Text',
+              description: `A wrapper for multiple paragraph widgets.`,
+              renderWidget: () => {
+                return m(MultiParagraphText,
+                 m(TextParagraph, {
+                  text: `Lorem ipsum dolor sit amet, consectetur adipiscing
+                         elit. Nulla rhoncus tempor neque, sed malesuada eros
+                         dapibus vel. Aliquam in ligula vitae tortor porttitor
+                         laoreet iaculis finibus est.`,
+                  compressSpace: true,
+                }), m(TextParagraph, {
+                  text: `Sed ut perspiciatis unde omnis iste natus error sit
+                         voluptatem accusantium doloremque laudantium, totam rem
+                         aperiam, eaque ipsa quae ab illo inventore veritatis et
+                         quasi architecto beatae vitae dicta sunt explicabo.
+                         Nemo enim ipsam voluptatem quia voluptas sit aspernatur
+                         aut odit aut fugit, sed quia consequuntur magni dolores
+                         eos qui ratione voluptatem sequi nesciunt.`,
+                  compressSpace: true,
+                }),
+                );
               },
             }),
     );
