@@ -344,8 +344,8 @@ function RecordingNotes() {
   const linuxUrl = 'https://perfetto.dev/docs/quickstart/linux-tracing';
   const cmdlineUrl =
       'https://perfetto.dev/docs/quickstart/android-tracing#perfetto-cmdline';
-  const extensionURL = `https://chrome.google.com/webstore/detail/
-      perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
+  const extensionURL =
+      `https://chrome.google.com/webstore/detail/perfetto-ui/lfmkphfpdbjijhpomgecfikhfohaoine`;
 
   const notes: m.Children = [];
 
