@@ -13,7 +13,9 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 --
+
 INCLUDE PERFETTO MODULE common.slices;
+INCLUDE PERFETTO MODULE experimental.flat_slices;
 
 -- A 'thread_executing_span' is thread_state span starting with a runnable slice
 -- until the next runnable slice that's woken up by a process (as opposed
@@ -219,7 +221,7 @@ JOIN internal_wakeup child
 
 --
 -- Finds the roots of the |internal_wakeup_chain|.
-CREATE VIEW internal_wakeup_root
+CREATE PERFETTO TABLE internal_wakeup_root
 AS
 WITH
   internal_wakeup_root_id AS (
@@ -232,6 +234,8 @@ FROM internal_wakeup
 JOIN internal_wakeup_root_id
   ON internal_wakeup_root_id.id = internal_wakeup.start_id;
 
+--
+-- Finds the leafs of the |internal_wakeup_chain|.
 CREATE PERFETTO TABLE internal_wakeup_leaf AS
 WITH
   internal_wakeup_leaf_id AS (
@@ -245,8 +249,8 @@ JOIN internal_wakeup_leaf_id
   ON internal_wakeup_leaf_id.id = internal_wakeup_chain.start_id;
 
 --
--- Merges the roots and the rest of the chain.
-CREATE PERFETTO TABLE internal_wakeup_graph
+-- Merges the roots, leafs and the rest of the chain.
+CREATE TABLE internal_wakeup_graph
 AS
 SELECT internal_wakeup_chain.*, 0 AS is_root, (internal_wakeup_leaf.start_id IS NOT NULL) AS is_leaf
 FROM internal_wakeup_chain
@@ -255,546 +259,627 @@ LEFT JOIN internal_wakeup_leaf
 UNION ALL
 SELECT *, 1 AS is_root, 0 AS is_leaf FROM internal_wakeup_root;
 
--- thread_executing_span graph of all wakeups across all processes.
+-- Thread_executing_span graph of all wakeups across all processes.
 --
--- @column parent_id          Id of thread_executing_span that directly woke |id|
+-- @column root_id            Id of thread_executing_span that initiated the wakeup of |id|.
+-- @column parent_id          Id of thread_executing_span that directly woke |id|.
 -- @column id                 Id of the first (runnable) thread state in thread_executing_span.
 -- @column ts                 Timestamp of first thread_state in thread_executing_span.
 -- @column dur                Duration of thread_executing_span.
--- @column tid                Tid of thread with thread_state.
--- @column pid                Pid of process with thread_state.
 -- @column utid               Utid of thread with thread_state.
--- @column upid               Upid of process with thread_state.
--- @column thread_name        Name of thread with thread_state.
--- @column process_name       Name of process with thread_state.
--- @column waker_tid          Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid          Pid of process that woke the first thread_state in thread_executing_span.
 -- @column waker_utid         Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid         Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name  Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name Name of process that woke the first thread_state in thread_executing_span.
 -- @column blocked_dur        Duration of blocking thread state before waking up.
 -- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function   Kernel blocking function of thread state before waking up.
+-- @column blocked_function   Kernel blocked_function of thread state before waking up.
+-- @column is_root            Whether the thread_executing_span is a root.
+-- @column depth              Tree depth of thread executing span from the root.
 CREATE TABLE experimental_thread_executing_span_graph AS
+WITH roots AS (
 SELECT
-  graph.parent_id,
-  graph.start_id AS id,
-  graph.start_ts AS ts,
-  graph.end_ts - graph.start_ts AS dur,
-  thread.tid,
-  process.pid,
-  graph.utid,
-  process.upid,
-  thread.name AS thread_name,
-  process.name AS process_name,
-  waker_thread.tid AS waker_tid,
-  waker_process.pid AS waker_pid,
-  graph.waker_utid,
-  waker_process.upid AS waker_upid,
-  waker_thread.name AS waker_thread_name,
-  waker_process.name AS waker_process_name,
-  graph.prev_end_dur AS blocked_dur,
-  graph.prev_end_state AS blocked_state,
-  graph.prev_blocked_function AS blocked_function,
-  graph.is_root,
-  graph.is_leaf
-FROM internal_wakeup_graph graph
-JOIN thread
-  ON thread.utid = graph.utid
-LEFT JOIN process
-  ON process.upid = thread.upid
-LEFT JOIN thread waker_thread
-  ON waker_thread.utid = graph.waker_utid
-LEFT JOIN process waker_process
-  ON waker_process.upid = waker_thread.upid;
-
-CREATE
-  INDEX experimental_thread_executing_span_graph_id_idx
-  ON experimental_thread_executing_span_graph(id);
-
-CREATE
-  INDEX experimental_thread_executing_span_graph_parent_id_idx
-ON experimental_thread_executing_span_graph(parent_id);
-
-
--- All thread_executing_spans that were recursively woken by |root_id|, all thread_executing_spans
--- in trace.
--- if root_id IS NULL, empty results if no matching thread_state id found.
---
--- @arg root_id INT           Thread state id to start recursion
---
--- @column parent_id          Id of thread_executing_span that directly woke |start_id|
--- @column id                 Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                 Timestamp of first thread_state in thread_executing_span.
--- @column dur                Duration of thread_executing_span.
--- @column tid                Tid of thread with thread_state.
--- @column pid                Pid of process with thread_state.
--- @column utid               Utid of thread with thread_state.
--- @column upid               Upid of process with thread_state.
--- @column thread_name        Name of thread with thread_state.
--- @column process_name       Name of process with thread_state.
--- @column waker_tid          Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid          Pid of process that woke the first thread_state in thread_executing_span.
--- @column waker_utid         Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid         Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name  Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name Name of process that woke the first thread_state in thread_executing_span.
--- @column blocked_dur        Duration of blocking thread state before waking up.
--- @column blocked_state      Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function   Kernel blocking function of thread state before waking up.
--- @column is_root            Whether this span is the root in the slice tree.
--- @column is_leaf            Whether this span is the leaf in the slice tree.
--- @column depth              Tree depth from |root_id|
--- @column root_id            Thread state id used to start the recursion. Helpful for SQL JOINs
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_descendants(root_id INT)
-RETURNS TABLE(
-  parent_id LONG,
-  id LONG,
-  ts LONG,
-  dur LONG,
-  tid INT,
-  pid INT,
-  utid INT,
-  upid INT,
-  thread_name STRING,
-  process_name STRING,
-  waker_tid INT,
-  waker_pid INT,
-  waker_utid INT,
-  waker_upid INT,
-  waker_thread_name STRING,
-  waker_process_name STRING,
-  blocked_dur LONG,
-  blocked_state STRING,
-  blocked_function STRING,
-  is_root INT,
-  is_leaf INT,
-  depth INT,
-  root_id INT
-) AS
-WITH chain AS (
-  SELECT
-    *,
-    0 AS depth,
-    id AS root_id
-  FROM experimental_thread_executing_span_graph
-  WHERE ($root_id IS NOT NULL AND id = $root_id) OR ($root_id IS NULL AND is_root)
+  start_id AS root_id,
+  parent_id,
+  start_id AS id,
+  start_ts AS ts,
+  end_ts - start_ts AS dur,
+  utid,
+  waker_utid,
+  prev_end_dur AS blocked_dur,
+  prev_end_state AS blocked_state,
+  prev_blocked_function AS blocked_function,
+  1 AS is_root,
+  0 AS depth
+FROM internal_wakeup_root
+), chain AS (
+  SELECT * FROM roots
   UNION ALL
   SELECT
-    graph.*,
-    chain.depth + 1 AS depth,
-    chain.root_id
-  FROM experimental_thread_executing_span_graph graph
+    chain.root_id,
+    graph.parent_id,
+    graph.start_id AS id,
+    graph.start_ts AS ts,
+    graph.end_ts - graph.start_ts AS dur,
+    graph.utid,
+    graph.waker_utid,
+    graph.prev_end_dur AS blocked_dur,
+    graph.prev_end_state AS blocked_state,
+    graph.prev_blocked_function AS blocked_function,
+    0 AS is_root,
+    chain.depth + 1 AS depth
+  FROM internal_wakeup_graph graph
   JOIN chain ON chain.id = graph.parent_id
-)
-SELECT * FROM chain;
-
--- All thread_executing_spans that are ancestors of |leaf_id|.
---
--- @arg leaf_id INT                Thread state id to start recursion.
--- @arg leaf_utid INT              Thread utid to start recursion from.
---
--- @column parent_id               Id of thread_executing_span that directly woke |id|.
--- @column id                      Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                      Timestamp of first thread_state in thread_executing_span.
--- @column dur                     Duration of thread_executing_span.
--- @column tid                     Tid of thread with thread_state.
--- @column pid                     Pid of process with thread_state.
--- @column utid                    Utid of thread with thread_state.
--- @column upid                    Upid of process with thread_state.
--- @column thread_name             Name of thread with thread_state.
--- @column process_name            Name of process with thread_state.
--- @column waker_tid               Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid               Pid of process that woke the first thread_state in thread_executing_span.
--- @column waker_utid              Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid              Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name       Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name      Name of process that woke the first thread_state in thread_executing_span.
--- @column blocked_dur             Duration of blocking thread state before waking up.
--- @column blocked_state           Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function        Kernel blocking function of thread state before waking up.
--- @column is_root                 Whether this span is the root in the slice tree.
--- @column is_leaf                 Whether this span is the leaf in the slice tree.
--- @column height                  Tree height from |leaf_id|.
--- @column leaf_id                 Thread state id used to start the recursion. Helpful for SQL JOINs.
--- @column leaf_ts                 Thread state timestamp of the |leaf_id|.
--- @column leaf_utid               Thread Utid of the |leaf_id|.
--- @column leaf_blocked_dur        Thread state duration blocked of the |leaf_id|.
--- @column leaf_blocked_state      Thread state of the |leaf_id|.
--- @column leaf_blocked_function   Thread state blocked_function of the |leaf_id|.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_ancestors(leaf_id INT, leaf_utid INT)
-RETURNS TABLE(
-  parent_id LONG,
-  id LONG,
-  ts LONG,
-  dur LONG,
-  tid INT,
-  pid INT,
-  utid INT,
-  upid INT,
-  thread_name STRING,
-  process_name STRING,
-  waker_tid INT,
-  waker_pid INT,
-  waker_utid INT,
-  waker_upid INT,
-  waker_thread_name STRING,
-  waker_process_name STRING,
-  blocked_dur LONG,
-  blocked_state STRING,
-  blocked_function STRING,
-  is_root INT,
-  is_leaf INT,
-  height INT,
-  leaf_id INT,
-  leaf_ts LONG,
-  leaf_utid INT,
-  leaf_blocked_dur LONG,
-  leaf_blocked_state STRING,
-  leaf_blocked_function STRING
-) AS
-WITH
-chain AS (
-  SELECT
-    *,
-    0 AS height,
-    id AS leaf_id,
-    ts AS leaf_ts,
-    utid AS leaf_utid,
-    blocked_dur AS leaf_blocked_dur,
-    blocked_state AS leaf_blocked_state,
-    blocked_function AS leaf_blocked_function
-  FROM experimental_thread_executing_span_graph
-  WHERE (($leaf_id IS NOT NULL AND id = $leaf_id) OR ($leaf_id IS NULL))
-    AND (($leaf_utid IS NOT NULL AND utid = $leaf_utid) OR ($leaf_utid IS NULL))
-  UNION ALL
-  SELECT
-    graph.*,
-    chain.height + 1 AS height,
-    chain.leaf_id,
-    chain.leaf_ts,
-    chain.leaf_utid,
-    chain.leaf_blocked_dur,
-    chain.leaf_blocked_state,
-    chain.leaf_blocked_function
-  FROM experimental_thread_executing_span_graph graph
-  JOIN chain ON chain.parent_id = graph.id AND chain.ts >= (leaf_ts - leaf_blocked_dur)
-)
-SELECT * FROM chain;
-
--- Gets the thread_executing_span id a thread_state belongs to. Returns NULL if thread state is
--- sleeping and not blocked on an interrupt.
---
--- @arg thread_state_id INT   Id of the thread_state to get the thread_executing_span id for
--- @ret INT                   thread_executing_span id
-CREATE PERFETTO FUNCTION
-experimental_thread_executing_span_id_from_thread_state_id(thread_state_id INT)
-RETURNS INT AS
-WITH executing AS (
-  SELECT
-    ts,
-    utid
-  FROM thread_state
-  WHERE
-    id = $thread_state_id
-)
-SELECT
-  MAX(start_id) AS thread_executing_span_id
-FROM internal_wakeup wakeup, executing
-WHERE executing.utid = wakeup.utid AND executing.ts >= wakeup.start_ts AND executing.ts < wakeup.end_ts;
-
--- Gets the next thread_executing_span id after a sleeping state. Returns NULL if there is no
--- thread_executing_span after the |thread_state_id|.
---
--- @arg thread_state_id INT   Id of the thread_state to get the next thread_executing_span id for
--- @ret INT                   thread_executing_span id
-CREATE PERFETTO FUNCTION
-experimental_thread_executing_span_following_thread_state_id(thread_state_id INT)
-RETURNS INT AS
-WITH
-  sleeping AS (
-  SELECT
-    ts,
-    utid
-  FROM thread_state
-  WHERE
-    id = $thread_state_id AND (state = 'S' OR state = 'D' OR state = 'I')
-  )
-SELECT MIN(start_id) AS thread_executing_span_id
-FROM internal_wakeup wakeup, sleeping
-WHERE sleeping.utid = wakeup.utid AND sleeping.ts < wakeup.start_ts;
-
--- Computes the start of each thread_executing_span in the critical path.
+) SELECT chain.*, thread.upid FROM chain LEFT JOIN thread USING(utid);
 
 -- It finds the MAX between the start of the critical span and the start
 -- of the blocked region. This ensures that the critical path doesn't overlap
 -- the preceding thread_executing_span before the blocked region.
-CREATE PERFETTO FUNCTION internal_critical_path_start_ts(ts LONG, leaf_ts LONG, leaf_blocked_dur LONG)
-RETURNS LONG AS SELECT MAX($ts, IFNULL($leaf_ts - $leaf_blocked_dur, $ts));
+CREATE PERFETTO FUNCTION internal_critical_path_start_ts(ts LONG, leaf_blocked_ts LONG)
+RETURNS LONG AS SELECT MAX($ts, IFNULL($leaf_blocked_ts, $ts));
 
--- Critical path of thread_executing_spans blocking the thread_executing_span with id,
--- |thread_executing_span_id|. For a given thread state span, its duration in the critical path
--- is the range between the start of the thread_executing_span and the start of the next span in the
--- critical path.
---
--- @arg thread_executing_span_id INT        Id of blocked thread_executing_span.
--- @arg utid INT                            Thread utid to pre-filter critical paths for.
---
--- @column parent_id                        Id of thread_executing_span that directly woke |id|.
--- @column id                               Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                               Timestamp of first thread_state in thread_executing_span.
--- @column dur                              Duration of thread_executing_span within the critical path.
--- @column tid                              Tid of thread with thread_state.
--- @column pid                              Pid of process with thread_state.
--- @column utid                             Utid of thread with thread_state.
--- @column upid                             Upid of process with thread_state.
--- @column thread_name                      Name of thread with thread_state.
--- @column process_name                     Name of process with thread_state.
--- @column waker_tid                        Tid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_pid                        Pid of process that woke the first thread_state in thread_executing_span.
--- @column waker_utid                       Utid of thread that woke the first thread_state in thread_executing_span.
--- @column waker_upid                       Upid of process that woke the first thread_state in thread_executing_span.
--- @column waker_thread_name                Name of thread that woke the first thread_state in thread_executing_span.
--- @column waker_process_name               Name of process that woke the first thread_state in thread_executing_span.
--- @column blocked_dur                      Duration of blocking thread state before waking up.
--- @column blocked_state                    Thread state ('D' or 'S') of blocked thread_state before waking up.
--- @column blocked_function                 Kernel blocking function of thread state before waking up.
--- @column is_root                          Whether this span is the root in the slice tree.
--- @column is_leaf                          Whether this span is the leaf in the slice tree.
--- @column height                           Tree height from |leaf_id|.
--- @column leaf_id                          Thread state id used to start the recursion. Helpful for SQL JOINs.
--- @column leaf_ts                          Thread state timestamp of the |leaf_id|.
--- @column leaf_utid                        Thread Utid of the |leaf_id|. Helpful for post-filtering the critical path to those originating from a thread.
--- @column leaf_blocked_dur                 Thread state duration blocked of the |leaf_id|.
--- @column leaf_blocked_state               Thread state of the |leaf_id|.
--- @column leaf_blocked_function            Thread state blocked_function of the |leaf_id|.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(thread_executing_span_id INT, leaf_utid INT)
-RETURNS TABLE(
-  parent_id LONG,
-  id LONG,
-  ts LONG,
-  dur LONG,
-  tid INT,
-  pid INT,
-  utid INT,
-  upid INT,
-  thread_name STRING,
-  process_name STRING,
-  waker_tid INT,
-  waker_pid INT,
-  waker_utid INT,
-  waker_upid INT,
-  waker_thread_name STRING,
-  waker_process_name STRING,
-  blocked_dur LONG,
-  blocked_state STRING,
-  blocked_function STRING,
-  is_root INT,
-  is_leaf INT,
-  height INT,
-  leaf_id INT,
-  leaf_ts LONG,
-  leaf_utid INT,
-  leaf_blocked_dur LONG,
-  leaf_blocked_state STRING,
-  leaf_blocked_function STRING
-) AS
- SELECT
+-- See |experimental_thread_executing_span_critical_path|
+CREATE PERFETTO TABLE internal_critical_path
+AS
+WITH chain AS (
+  SELECT
     parent_id,
     id,
-    -- Here we compute the real ts and dur of a span in the critical_path.
-    -- For the ts, we simply use the internal_critical_path_start_ts helper function.
-    internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS ts,
-    -- For the dur, it is the MIN between the end of the current span and the start of
-    -- the next span in the critical path. This ensures that the critical paths don't overlap.
-    -- We are simply doing a MIN(real_ts + dur, lead(ts) - ts). It's written inline here for
-    -- performance reasons. Note that we don't need the real_ts in the lead() because the real_ts
-    -- is really only needed for the first ts in the critical path.
-    MIN(internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) + dur,
-        IFNULL(LEAD(ts) OVER (PARTITION BY leaf_id ORDER BY height DESC), trace_bounds.end_ts))
-    - internal_critical_path_start_ts(ts, leaf_ts, leaf_blocked_dur) AS dur,
-    tid,
-    pid,
+    ts,
+    dur,
     utid,
-    upid,
-    thread_name,
-    process_name,
-    waker_tid,
-    waker_pid,
-    waker_utid,
-    waker_upid,
-    waker_thread_name,
-    waker_process_name,
-    blocked_dur,
-    blocked_state,
-    blocked_function,
-    is_root,
-    is_leaf,
-    height,
-    leaf_id,
-    leaf_ts,
-    leaf_utid,
-    leaf_blocked_dur,
-    leaf_blocked_state,
-    leaf_blocked_function
-  FROM experimental_thread_executing_span_ancestors($thread_executing_span_id, $leaf_utid),
-    trace_bounds;
+    id AS critical_path_id,
+    ts - blocked_dur AS critical_path_blocked_ts,
+    blocked_dur AS critical_path_blocked_dur,
+    blocked_state AS critical_path_blocked_state,
+    blocked_function AS critical_path_blocked_function,
+    utid AS critical_path_utid,
+    upid AS critical_path_upid
+  FROM experimental_thread_executing_span_graph graph
+  UNION ALL
+  SELECT
+    graph.parent_id,
+    graph.id,
+    internal_critical_path_start_ts(graph.ts, chain.critical_path_blocked_ts) AS ts,
+    MIN(internal_critical_path_start_ts(graph.ts, chain.critical_path_blocked_ts) + graph.dur, chain.ts)
+      - internal_critical_path_start_ts(graph.ts, chain.critical_path_blocked_ts) AS dur,
+    graph.utid,
+    chain.critical_path_id,
+    chain.critical_path_blocked_ts,
+    chain.critical_path_blocked_dur,
+    chain.critical_path_blocked_state,
+    chain.critical_path_blocked_function,
+    chain.critical_path_utid,
+    chain.critical_path_upid
+  FROM experimental_thread_executing_span_graph graph
+  JOIN chain ON (chain.parent_id = graph.id AND (chain.ts > chain.critical_path_blocked_ts))
+) SELECT * FROM chain;
 
--- Critical path of thread_executing_spans 'span joined' with their thread states.
--- See |experimental_thread_executing_span_critical_path|.
---
--- @arg leaf_utid INT                       Thread utid to filter critical paths for.
+-- Thread executing span critical paths for all threads. For each thread, the critical path of
+-- every sleeping thread state is computed and unioned with the thread executing spans on that thread.
+-- The duration of a thread executing span in the critical path is the range between the start of the
+-- thread_executing_span and the start of the next span in the critical path.
 --
 -- @column id                               Id of the first (runnable) thread state in thread_executing_span.
--- @column thread_state_id                  Id of thread_state in the critical path.
--- @column ts                               Timestamp of thread_state in the critical path.
--- @column dur                              Duration of thread_state in the critical path.
--- @column tid                              Tid of thread with thread_state.
--- @column pid                              Pid of process with thread_state.
+-- @column ts                               Timestamp of first thread_state in thread_executing_span.
+-- @column dur                              Duration of thread_executing_span.
 -- @column utid                             Utid of thread with thread_state.
--- @column upid                             Upid of process with thread_state.
--- @column thread_name                      Name of thread with thread_state.
--- @column process_name                     Name of process with thread_state.
--- @column state                            Thread state of thread in the critical path.
--- @column blocked_function                 Blocked function of thread in the critical path.
--- @column height                           Tree height of thread_executing_span thread_state belongs to.
--- @column leaf_utid                        Thread Utid the critical path was filtered to.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_thread_states(leaf_utid INT)
+-- @column critical_path_id                 Id of thread executing span following the sleeping thread state for which the critical path is computed.
+-- @column critical_path_blocked_dur        Critical path duration.
+-- @column critical_path_blocked_state      Sleeping thread state in critical path.
+-- @column critical_path_blocked_function   Kernel blocked_function of the critical path.
+-- @column critical_path_utid               Thread Utid the critical path was filtered to.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(critical_path_utid INT, ts LONG, dur LONG)
 RETURNS TABLE(
   id INT,
-  thread_state_id INT,
   ts LONG,
   dur LONG,
-  tid INT,
-  pid INT,
   utid INT,
-  upid INT,
-  thread_name STRING,
-  process_name STRING,
-  state STRING,
-  blocked_function STRING,
-  height INT,
-  leaf_utid INT
+  critical_path_id INT,
+  critical_path_blocked_dur LONG,
+  critical_path_blocked_state STRING,
+  critical_path_blocked_function STRING,
+  critical_path_utid INT
 ) AS
-WITH
-  span_starts AS (
+WITH span_starts AS (
     SELECT
-      span.id,
-      thread_state.id AS thread_state_id,
-      MAX(thread_state.ts, span.ts) AS ts,
-      span.ts + span.dur AS span_end_ts,
-      thread_state.ts + thread_state.dur AS thread_state_end_ts,
-      span.tid,
-      span.pid,
-      span.utid,
-      span.upid,
-      span.thread_name,
-      span.process_name,
-      thread_state.state,
-      thread_state.blocked_function,
-      span.height,
-      span.leaf_utid
-    FROM experimental_thread_executing_span_critical_path(NULL, $leaf_utid) span
-    JOIN thread_state
-      ON
-        thread_state.utid = span.utid
-        AND ((thread_state.ts BETWEEN span.ts AND span.ts + span.dur)
-             OR (span.ts BETWEEN thread_state.ts AND thread_state.ts + thread_state.dur))
-  )
-SELECT
-  id,
-  thread_state_id,
-  ts,
-  MIN(span_end_ts, thread_state_end_ts) - ts AS dur,
-  tid,
-  pid,
-  utid,
-  upid,
-  thread_name,
-  process_name,
-  state,
-  blocked_function,
-  height,
-  leaf_utid
-FROM span_starts
-WHERE MIN(span_end_ts, thread_state_end_ts) - ts > 0;
+      id,
+      MAX(ts, $ts) AS ts,
+      MIN(ts + dur, $ts + $dur) AS end_ts,
+      utid,
+      critical_path_id,
+      critical_path_blocked_dur,
+      critical_path_blocked_state,
+      critical_path_blocked_function,
+      critical_path_utid
+    FROM internal_critical_path span
+    WHERE (($critical_path_utid IS NOT NULL AND span.critical_path_utid = $critical_path_utid) OR ($critical_path_utid IS NULL))
+      AND ((ts BETWEEN $ts AND $ts + $dur) OR ($ts BETWEEN ts AND ts + dur))
+) SELECT
+      id,
+      ts,
+      end_ts - ts AS dur,
+      utid,
+      critical_path_id,
+      critical_path_blocked_dur,
+      critical_path_blocked_state,
+      critical_path_blocked_function,
+      critical_path_utid
+   FROM span_starts;
 
--- Critical path of thread_executing_spans 'span joined' with their slices.
--- See |experimental_thread_executing_span_critical_path|.
---
--- @arg leaf_utid INT                       Thread utid to filter critical paths for.
---
--- @column id                               Id of the first (runnable) thread state in thread_executing_span.
--- @column slice_id                         Id of slice in the critical path.
--- @column ts                               Timestamp of slice in the critical path.
--- @column dur                              Duration of slice in the critical path.
--- @column tid                              Tid of thread that emitted the slice.
--- @column pid                              Pid of process that emitted the slice.
--- @column utid                             Utid of thread that emitted the slice.
--- @column upid                             Upid of process that emitted the slice.
--- @column thread_name                      Name of thread that emitted the slice.
--- @column process_name                     Name of process that emitted the slice.
--- @column slice_name                       Name of slice in the critical path.
--- @column slice_depth                      Depth of slice in its slice stack in the critical path.
--- @column height                           Tree height of thread_executing_span the slice belongs to.
--- @column leaf_utid                        Thread Utid the critical path was filtered to.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_slices(leaf_utid INT)
-RETURNS TABLE(
-  id INT,
-  slice_id INT,
-  ts LONG,
-  dur LONG,
-  tid INT,
-  pid INT,
-  utid INT,
-  upid INT,
-  thread_name STRING,
-  process_name STRING,
-  slice_name STRING,
-  slice_depth INT,
-  height INT,
-  leaf_utid INT
-) AS
-WITH
-  span_start AS (
+-- Limited thread_state view that will later be span joined with the |experimental_thread_executing_span_graph|.
+CREATE VIEW internal_span_thread_state_view
+AS SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function as function, cpu FROM thread_state;
+
+-- |experimental_thread_executing_span_graph| span joined with thread_state information.
+CREATE VIRTUAL TABLE internal_span_graph_thread_state_sp
+USING
+  SPAN_JOIN(
+    experimental_thread_executing_span_graph PARTITIONED utid,
+    internal_span_thread_state_view PARTITIONED utid);
+
+-- Limited slice_view that will later be span joined with the |experimental_thread_executing_span_graph|.
+CREATE VIEW internal_span_slice_view
+AS
+SELECT slice_id, depth AS slice_depth, name AS slice_name, ts, dur, utid
+FROM experimental_slice_flattened;
+
+-- |experimental_thread_executing_span_graph| span joined with slice information.
+CREATE VIRTUAL TABLE internal_span_graph_slice_sp
+USING
+  SPAN_JOIN(
+    experimental_thread_executing_span_graph PARTITIONED utid,
+    internal_span_slice_view PARTITIONED utid);
+
+-- Limited |experimental_thread_executing_span_graph| + thread_state view.
+CREATE VIEW internal_span_graph_thread_state
+AS
+SELECT ts, dur, id, thread_state_id, state, function, cpu
+FROM internal_span_graph_thread_state_sp;
+
+-- Limited |experimental_thread_executing_span_graph| + slice view.
+CREATE VIEW internal_span_graph_slice
+AS
+SELECT ts, dur, id, slice_id, slice_depth, slice_name
+FROM internal_span_graph_slice_sp;
+
+-- |experimental_thread_executing_span_graph| + thread_state view span joined with critical_path information.
+CREATE VIRTUAL TABLE internal_critical_path_thread_state_sp
+USING
+  SPAN_JOIN(
+    internal_span_graph_thread_state PARTITIONED id,
+     internal_critical_path PARTITIONED id);
+
+-- |experimental_thread_executing_span_graph| + thread_state + critical_path span joined with
+-- |experimental_thread_executing_span_graph| + slice view.
+CREATE VIRTUAL TABLE internal_critical_path_sp
+USING
+  SPAN_LEFT_JOIN(
+    internal_critical_path_thread_state_sp PARTITIONED id,
+     internal_span_graph_slice PARTITIONED id);
+
+-- Flattened slices span joined with their thread_states. This contains the 'self' information
+-- without 'critical_path' (blocking) information.
+CREATE VIRTUAL TABLE internal_self_sp USING
+  SPAN_LEFT_JOIN(thread_state PARTITIONED utid, experimental_slice_flattened PARTITIONED utid);
+
+-- Limited view of |internal_self_sp|.
+CREATE VIEW internal_self_view
+  AS
+  SELECT
+    id AS self_thread_state_id,
+    slice_id AS self_slice_id,
+    ts,
+    dur,
+    utid AS critical_path_utid,
+    state AS self_state,
+    blocked_function AS self_function,
+    cpu AS self_cpu,
+    name AS self_slice_name,
+    depth AS self_slice_depth
+    FROM internal_self_sp;
+
+-- Self and critical path span join. This contains the union of the time intervals from the following:
+--  a. Self slice stack + thread_state.
+--  b. Critical path stack + thread_state.
+CREATE VIRTUAL TABLE internal_self_and_critical_path_sp
+USING
+  SPAN_JOIN(
+    internal_self_view PARTITIONED critical_path_utid,
+    internal_critical_path_sp PARTITIONED critical_path_utid);
+
+-- Returns a view of |internal_self_and_critical_path_sp| unpivoted over the following columns:
+-- self thread_state.
+-- self blocked_function (if one exists).
+-- self process_name (enabled with |enable_process_name|).
+-- self thread_name (enabled with |enable_thread_name|).
+-- self slice_stack (enabled with |enable_self_slice|).
+-- critical_path thread_state.
+-- critical_path process_name.
+-- critical_path thread_name.
+-- critical_path slice_stack (enabled with |enable_critical_path_slice|).
+-- running cpu (if one exists).
+-- A 'stack' is the group of resulting unpivoted rows sharing the same timestamp.
+CREATE PERFETTO FUNCTION internal_critical_path_stack(critical_path_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+RETURNS
+  TABLE(
+    id INT,
+    ts LONG,
+    dur LONG,
+    utid INT,
+    stack_depth INT,
+    name STRING,
+    table_name STRING,
+    critical_path_utid INT) AS
+  -- Spans filtered to the query time window and critical_path_utid.
+  -- This is a preliminary step that gets the start and end ts of all the rows
+  -- so that we can chop the ends of each interval correctly if it overlaps with the query time interval.
+  WITH relevant_spans_starts AS (
     SELECT
-      span.id,
-      slice.id AS slice_id,
-      MAX(slice.ts, span.ts) AS ts,
-      span.ts + span.dur AS span_end_ts,
-      slice.ts + slice.dur AS slice_end_ts,
-      span.tid,
-      span.pid,
-      span.utid,
-      span.upid,
-      span.thread_name,
-      span.process_name,
-      slice.name AS slice_name,
-      slice.depth AS slice_depth,
-      span.height,
-      span.leaf_utid
-    FROM experimental_thread_executing_span_critical_path(NULL, $leaf_utid) span
-    JOIN thread_slice slice
+      self_thread_state_id,
+      self_state,
+      self_slice_id,
+      self_slice_name,
+      self_slice_depth,
+      thread_state_id,
+      state,
+      slice_id,
+      slice_name,
+      slice_depth,
+      cpu,
+      utid,
+      MAX(ts, $ts) AS ts,
+      MIN(ts + dur, $ts + $dur) AS end_ts,
+      critical_path_utid,
+      critical_path_blocked_function
+    FROM internal_self_and_critical_path_sp
+    WHERE dur > 0 AND critical_path_utid = $critical_path_utid
+  ),
+  -- This is the final step that gets the |dur| of each span from the start and
+  -- and end ts of the previous step.
+  -- Now we manually unpivot the result with 3 key steps: 1) Self 2) Critical path 3) CPU
+  -- This CTE is heavily used throughout the entire function so materializing it is
+  -- very important.
+  relevant_spans AS MATERIALIZED (
+    SELECT
+      self_thread_state_id,
+      self_state,
+      self_slice_id,
+      self_slice_name,
+      self_slice_depth,
+      thread_state_id,
+      state,
+      slice_id,
+      slice_name,
+      slice_depth,
+      cpu,
+      utid,
+      ts,
+      end_ts - ts AS dur,
+      critical_path_utid,
+      utid,
+      critical_path_blocked_function
+    FROM relevant_spans_starts
+    WHERE dur > 0
+  ),
+  -- 1. Builds the 'self' stack of items as an ordered UNION ALL
+  self_stack AS MATERIALIZED (
+    -- Builds the self thread_state
+    SELECT
+      self_thread_state_id AS id,
+      ts,
+      dur,
+      utid,
+      0 AS stack_depth,
+      'thread_state: ' || self_state AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM relevant_spans
+    UNION ALL
+    -- Builds the self kernel blocked_function
+    SELECT
+      self_thread_state_id AS id,
+      ts,
+      dur,
+      utid,
+      1 AS stack_depth,
+      IIF(self_state GLOB 'R*', NULL, 'kernel function: ' || critical_path_blocked_function) AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM relevant_spans
+    UNION ALL
+    -- Builds the self process_name
+    SELECT
+      self_thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      2 AS stack_depth,
+      IIF($enable_process_name, 'process_name: ' || process.name, NULL) AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM relevant_spans
+    LEFT JOIN thread
+      ON thread.utid = critical_path_utid
+    LEFT JOIN process
+      USING (upid)
+    -- Builds the self thread_name
+    UNION ALL
+    SELECT
+      self_thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      3 AS stack_depth,
+      IIF($enable_thread_name, 'thread_name: ' || thread.name, NULL) AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM relevant_spans
+    LEFT JOIN thread
+      ON thread.utid = critical_path_utid
+    JOIN process
+      USING (upid)
+    UNION ALL
+    -- Builds the self 'ancestor' slice stack
+    SELECT
+      anc.id,
+      slice.ts,
+      slice.dur,
+      slice.utid,
+      anc.depth + 4 AS stack_depth,
+      IIF($enable_self_slice, anc.name, NULL) AS name,
+      'slice' AS table_name,
+      critical_path_utid
+    FROM relevant_spans slice
+    JOIN ancestor_slice(self_slice_id) anc WHERE anc.dur != -1
+    UNION ALL
+    -- Builds the self 'deepest' ancestor slice stack
+    SELECT
+      self_slice_id AS id,
+      ts,
+      dur,
+      utid,
+      self_slice_depth + 4 AS stack_depth,
+      IIF($enable_self_slice, self_slice_name, NULL) AS name,
+      'slice' AS table_name,
+      critical_path_utid
+    FROM relevant_spans slice
+    -- Ordering by stack depth is important to ensure the items can
+    -- be renedered in the UI as a debug track in the order in which
+    -- the sub-queries were 'unioned'.
+    ORDER BY stack_depth
+  ),
+  -- Prepares for stage 2 in building the entire stack.
+  -- Computes the starting depth for each stack. This is necessary because
+  -- each self slice stack has variable depth and the depth in each stack
+  -- most be contiguous in order to efficiently generate a pprof in the future.
+  critical_path_start_depth AS MATERIALIZED (
+    SELECT critical_path_utid, ts, MAX(stack_depth) + 1 AS start_depth
+    FROM self_stack
+    GROUP BY critical_path_utid, ts
+  ),
+  critical_path_span AS MATERIALIZED (
+    SELECT
+      thread_state_id,
+      state,
+      slice_id,
+      slice_name,
+      slice_depth,
+      spans.ts,
+      spans.dur,
+      spans.critical_path_utid,
+      utid,
+      start_depth
+    FROM relevant_spans spans
+    JOIN critical_path_start_depth
       ON
-        slice.utid = span.utid
-        AND ((slice.ts BETWEEN span.ts AND span.ts + span.dur)
-             OR (span.ts BETWEEN slice.ts AND slice.ts + slice.dur))
+        critical_path_start_depth.critical_path_utid = spans.critical_path_utid
+        AND critical_path_start_depth.ts = spans.ts
+    WHERE critical_path_start_depth.critical_path_utid = $critical_path_utid AND spans.critical_path_utid != spans.utid
+  ),
+  -- 2. Builds the 'critical_path' stack of items as an ordered UNION ALL
+  critical_path_stack AS MATERIALIZED (
+    -- Builds the critical_path thread_state
+    SELECT
+      thread_state_id AS id,
+      ts,
+      dur,
+      utid,
+      start_depth AS stack_depth,
+      'blocking thread_state: ' || state AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM critical_path_span
+    UNION ALL
+    -- Builds the critical_path process_name
+    SELECT
+      thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      start_depth + 1 AS stack_depth,
+      'blocking process_name: ' || process.name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM critical_path_span
+    LEFT JOIN thread
+      USING (utid)
+    LEFT JOIN process
+      USING (upid)
+    UNION ALL
+    -- Builds the critical_path thread_name
+    SELECT
+      thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      start_depth + 2 AS stack_depth,
+      'blocking thread_name: ' || thread.name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM critical_path_span
+    JOIN thread
+      USING (utid)
+    JOIN process
+      USING (upid)
+    UNION ALL
+    -- Builds the critical_path 'ancestor' slice stack
+    SELECT
+      anc.id,
+      slice.ts,
+      slice.dur,
+      slice.utid,
+      anc.depth + start_depth + 3 AS stack_depth,
+      IIF($enable_critical_path_slice, anc.name, NULL) AS name,
+      'slice' AS table_name,
+      critical_path_utid
+    FROM critical_path_span slice
+    JOIN ancestor_slice(slice_id) anc WHERE anc.dur != -1
+    UNION ALL
+    -- Builds the critical_path 'deepest' slice
+    SELECT
+      slice_id AS id,
+      ts,
+      dur,
+      utid,
+      slice_depth + start_depth + 3 AS stack_depth,
+      IIF($enable_critical_path_slice, slice_name, NULL) AS name,
+      'slice' AS table_name,
+      critical_path_utid
+    FROM critical_path_span slice
+    -- Ordering is also important as in the 'self' step above.
+    ORDER BY stack_depth
+  ),
+  -- Prepares for stage 3 in building the entire stack.
+  -- Computes the starting depth for each stack using the deepest stack_depth between
+  -- the critical_path stack and self stack. The self stack depth is
+  -- already computed and materialized in |critical_path_start_depth|.
+  cpu_start_depth_raw AS (
+    SELECT critical_path_utid, ts, MAX(stack_depth) + 1 AS start_depth
+    FROM critical_path_stack
+    GROUP BY critical_path_utid, ts
+    UNION ALL
+    SELECT * FROM critical_path_start_depth
+  ),
+  cpu_start_depth AS (
+    SELECT critical_path_utid, ts, MAX(start_depth) AS start_depth
+    FROM cpu_start_depth_raw
+    GROUP BY critical_path_utid, ts
+  ),
+  -- 3. Builds the 'CPU' stack for 'Running' states in either the self or critical path stack.
+  cpu_stack AS (
+    SELECT
+      thread_state_id AS id,
+      spans.ts,
+      spans.dur,
+      utid,
+      start_depth AS stack_depth,
+      'cpu: ' || cpu AS name,
+      'thread_state' AS table_name,
+      spans.critical_path_utid
+    FROM relevant_spans spans
+    JOIN cpu_start_depth
+      ON
+        cpu_start_depth.critical_path_utid = spans.critical_path_utid
+        AND cpu_start_depth.ts = spans.ts
+    WHERE cpu_start_depth.critical_path_utid = $critical_path_utid AND state = 'Running' OR self_state = 'Running'
+  ),
+  merged AS (
+    SELECT * FROM self_stack
+    UNION ALL
+    SELECT * FROM critical_path_stack
+    UNION ALL
+    SELECT * FROM cpu_stack
   )
-SELECT
-  id,
-  slice_id,
-  ts,
-  MIN(span_end_ts, slice_end_ts) - ts AS dur,
-  tid,
-  pid,
-  utid,
-  upid,
-  thread_name,
-  process_name,
-  slice_name,
-  slice_depth,
-  height,
-  leaf_utid
-FROM span_start
-WHERE MIN(span_end_ts, slice_end_ts) - ts > 0;
+SELECT * FROM merged WHERE id IS NOT NULL;
+
+-- Critical path stack of thread_executing_spans with the following entities in the critical path
+-- stacked from top to bottom: self thread_state, self blocked_function, self process_name,
+-- self thread_name, slice stack, critical_path thread_state, critical_path process_name,
+-- critical_path thread_name, critical_path slice_stack, running_cpu.
+--
+-- @arg critical_path_utid INT    Thread utid to filter critical paths to.
+-- @arg ts LONG                   Timestamp of start of time range to filter critical paths to.
+-- @arg dur LONG                  Duration of time range to filter critical paths to.
+--
+-- @column id                     Id of the thread_state or slice in the thread_executing_span.
+-- @column ts                     Timestamp of slice in the critical path.
+-- @column dur                    Duration of slice in the critical path.
+-- @column utid                   Utid of thread that emitted the slice.
+-- @column stack_depth            Stack depth of the entitity in the debug track.
+-- @column name                   Name of entity in the critical path (could be a thread_state, kernel blocked_function, process_name, thread_name, slice name or cpu).
+-- @column table_name             Table name of entity in the critical path (could be either slice or thread_state).
+-- @column critical_path_utid     Thread Utid the critical path was filtered to.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_stack(critical_path_utid INT, ts LONG, dur LONG)
+RETURNS
+  TABLE(
+    id INT,
+    ts LONG,
+    dur LONG,
+    utid INT,
+    stack_depth INT,
+    name STRING,
+    table_name STRING,
+    critical_path_utid INT) AS
+SELECT * FROM internal_critical_path_stack($critical_path_utid, $ts, $dur, 1, 1, 1, 1);
+
+-- Returns a pprof aggregation of the stacks in |internal_critical_path_stack|.
+CREATE PERFETTO FUNCTION internal_critical_path_graph(graph_title STRING, critical_path_utid INT, ts LONG, dur LONG, enable_process_name INT, enable_thread_name INT, enable_self_slice INT, enable_critical_path_slice INT)
+RETURNS TABLE(pprof BYTES)
+AS
+WITH
+  stack AS MATERIALIZED (
+    SELECT
+      ts,
+      dur - IFNULL(LEAD(dur) OVER (PARTITION BY critical_path_utid, ts ORDER BY stack_depth), 0) AS dur,
+      name,
+      utid,
+      critical_path_utid,
+      stack_depth
+    FROM
+      internal_critical_path_stack($critical_path_utid, $ts, $dur, $enable_process_name, $enable_thread_name, $enable_self_slice, $enable_critical_path_slice)
+  ),
+  graph AS (
+    SELECT CAT_STACKS($graph_title) AS stack
+  ),
+  parent AS (
+    SELECT
+      cr.ts,
+      cr.dur,
+      cr.name,
+      cr.utid,
+      cr.stack_depth,
+      CAT_STACKS(graph.stack, cr.name) AS stack,
+      cr.critical_path_utid
+    FROM stack cr, graph
+    WHERE stack_depth = 0
+    UNION ALL
+    SELECT
+      child.ts,
+      child.dur,
+      child.name,
+      child.utid,
+      child.stack_depth,
+      CAT_STACKS(stack, child.name) AS stack,
+      child.critical_path_utid
+    FROM stack child
+    JOIN parent
+      ON
+        parent.critical_path_utid = child.critical_path_utid
+        AND parent.ts = child.ts
+        AND child.stack_depth = parent.stack_depth + 1
+  ),
+  stacks AS (
+    SELECT dur, stack FROM parent
+  )
+SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof FROM stacks;
+
+-- Returns a pprof aggreagation of the stacks in |experimental_thread_executing_span_critical_path_stack|
+--
+-- @arg graph_title INT           Descriptive name for the graph.
+-- @arg critical_path_utid INT    Thread utid to filter critical paths to.
+-- @arg ts LONG                   Timestamp of start of time range to filter critical paths to.
+-- @arg dur LONG                  Duration of time range to filter critical paths to.
+--
+-- @column pprof BYTES            Pprof of critical path stacks.
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_graph(graph_title STRING, critical_path_utid INT, ts INT, dur INT)
+RETURNS TABLE(pprof BYTES)
+AS
+SELECT * FROM internal_critical_path_graph($graph_title, $critical_path_utid, $ts, $dur, 1, 1, 1, 1);
