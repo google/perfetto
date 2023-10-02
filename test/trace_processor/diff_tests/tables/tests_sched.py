@@ -14,9 +14,10 @@
 # limitations under the License.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
-from python.generators.diff_tests.testing import Csv, Json, TextProto
+from python.generators.diff_tests.testing import Csv, Json, TextProto, BinaryProto
 from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
+from python.generators.diff_tests.testing import PrintProfileProto
 
 
 class TablesSched(TestSuite):
@@ -127,34 +128,35 @@ class TablesSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
+          root_id,
+          parent_id,
+          id,
           ts,
           dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
+          utid,
+          waker_utid,
           blocked_dur,
           blocked_state,
-          blocked_function
+          blocked_function,
+          is_root,
+          depth
         FROM experimental_thread_executing_span_graph
           WHERE blocked_function IS NOT NULL
-        ORDER BY ts, tid
+        ORDER BY ts
         LIMIT 10
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function"
-        1735842234188,283571,122,122,"kworker/1:2","kworker/1:2-events","adbd","/apex/com.android.adbd/bin/adbd",351402620,"I","worker_thread"
-        1735843726296,8545303,122,122,"kworker/1:2","kworker/1:2-events","adbd","/apex/com.android.adbd/bin/adbd",1208537,"I","worker_thread"
-        1735850643698,16245,240,240,"kworker/0:3","kworker/0:3-events","shell svc 3474","/apex/com.android.adbd/bin/adbd",154087,"I","worker_thread"
-        1735851953029,554638012,240,240,"kworker/0:3","kworker/0:3-events","adbd","/apex/com.android.adbd/bin/adbd",1103252,"I","worker_thread"
-        1735886367018,191863,122,122,"kworker/1:2","kworker/1:2-events","adbd","/apex/com.android.adbd/bin/adbd",34095419,"I","worker_thread"
-        1736125372478,52493,122,122,"kworker/1:2","kworker/1:2-events","kworker/0:3","kworker/0:3-events",238813597,"I","worker_thread"
-        1736405409972,278036,122,122,"kworker/1:2","kworker/1:2-events","adbd","/apex/com.android.adbd/bin/adbd",279985001,"I","worker_thread"
-        1736406817672,7959441,122,122,"kworker/1:2","kworker/1:2-events","adbd","/apex/com.android.adbd/bin/adbd",1129664,"I","worker_thread"
-        1736413734042,25870,240,240,"kworker/0:3","kworker/0:3-events","shell svc 3476","/apex/com.android.adbd/bin/adbd",7143001,"I","worker_thread"
-        1736413763072,31692550,14,14,"rcu_preempt","rcu_preempt","shell svc 3476","/apex/com.android.adbd/bin/adbd",4413060,"I","rcu_gp_fqs_loop"
+        "root_id","parent_id","id","ts","dur","utid","waker_utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
+        25,377,380,1735842234188,283571,46,427,351402620,"I","worker_thread",0,8
+        25,402,405,1735843726296,8545303,46,427,1208537,"I","worker_thread",0,6
+        25,419,432,1735850643698,16245,95,1465,154087,"I","worker_thread",0,7
+        25,443,446,1735851953029,554638012,95,427,1103252,"I","worker_thread",0,9
+        25,500,503,1735886367018,191863,46,427,34095419,"I","worker_thread",0,13
+        25,446,667,1736125372478,52493,46,95,238813597,"I","worker_thread",0,10
+        25,835,838,1736405409972,278036,46,427,279985001,"I","worker_thread",0,15
+        25,862,865,1736406817672,7959441,46,427,1129664,"I","worker_thread",0,13
+        25,882,889,1736413734042,25870,95,1467,7143001,"I","worker_thread",0,14
+        25,882,894,1736413763072,31692550,11,1467,4413060,"I","rcu_gp_fqs_loop",0,14
         """))
 
   def test_thread_executing_span_graph_contains_forked_states(self):
@@ -163,23 +165,24 @@ class TablesSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
+          root_id,
+          parent_id,
+          id,
           ts,
           dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
+          utid,
+          waker_utid,
           blocked_dur,
           blocked_state,
-          blocked_function
+          blocked_function,
+          is_root,
+          depth
         FROM experimental_thread_executing_span_graph
-          WHERE id = 376
+          WHERE ts = 1735842081507 AND dur = 293868
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function"
-        1735842081507,293868,3475,527,"shell svc 3474","/apex/com.android.adbd/bin/adbd","adbd","/apex/com.android.adbd/bin/adbd","[NULL]","[NULL]","[NULL]"
+        "root_id","parent_id","id","ts","dur","utid","waker_utid","blocked_dur","blocked_state","blocked_function","is_root","depth"
+        25,369,376,1735842081507,293868,1465,230,"[NULL]","[NULL]","[NULL]",0,7
         """))
 
   def test_thread_executing_span_internal_runnable_state_has_no_running(self):
@@ -218,212 +221,37 @@ class TablesSched(TestSuite):
         25
         """))
 
-  def test_thread_executing_span_descendants_null(self):
+  def test_thread_executing_span_critical_path_all(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
+          id,
           ts,
           dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
-          blocked_dur,
-          blocked_state,
-          blocked_function,
-          depth,
-          is_root
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(NULL)
-        ORDER BY depth DESC, ts, tid
-        LIMIT 10
-        """,
-        out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","depth","is_root"
-        1740321632480,20897,404,398,"binder:398_2","/apex/com.android.os.statsd/bin/statsd","statsd.writer","/apex/com.android.os.statsd/bin/statsd",64173354,"S","[NULL]",445,0
-        1740470009095,113509,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",1204928,"S","[NULL]",445,0
-        1740470126280,60885652,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",3676,"S","[NULL]",445,0
-        1740321596028,46679,633,398,"statsd.writer","/apex/com.android.os.statsd/bin/statsd","mediametrics","media.metrics",64143546,"S","[NULL]",444,0
-        1740468702535,1449612,3548,3487,"AsyncTask #1","com.android.providers.media.module","HeapTaskDaemon","com.android.providers.media.module",1003391,"S","[NULL]",444,0
-        1740321315576,62532,2161,553,"binder:553_7","/system/bin/mediaserver","binder:551_4","media.extractor",63953635,"S","[NULL]",443,0
-        1740321322095,60476,553,553,"mediaserver","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",443,0
-        1740321326214,144263,2135,553,"binder:553_4","/system/bin/mediaserver","binder:551_4","media.extractor","[NULL]","[NULL]","[NULL]",443,0
-        1740321344727,346525,552,552,"mediametrics","media.metrics","binder:551_4","media.extractor",63860347,"S","[NULL]",443,0
-        1740419776108,13020460,3494,3487,"HeapTaskDaemon","com.android.providers.media.module","AsyncTask #1","com.android.providers.media.module",597159,"S","[NULL]",443,0
-        """))
-
-  def test_thread_executing_span_ancestors_null(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT
-          ts,
-          dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
-          blocked_dur,
-          blocked_state,
-          blocked_function,
-          height,
-          is_leaf,
-          leaf_ts,
-          leaf_blocked_dur,
-          leaf_blocked_state,
-          leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(NULL, NULL)
-        WHERE leaf_blocked_function IS NOT NULL
-        ORDER BY height DESC, ts, tid
-        LIMIT 10
-        """,
-        out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
-        1737212166776,2751675192,506,506,"kworker/u5:3","kworker/u5:3-erofs_unzipd","binder:243_4","/system/bin/vold","[NULL]","[NULL]","[NULL]",265,0,1740313970400,386080273,"I","worker_thread"
-        1739963731743,267784,642,642,"system_server","system_server","kworker/u5:3","kworker/u5:3-erofs_unzipd",4725094,"D","filemap_fault",264,0,1740313970400,386080273,"I","worker_thread"
-        1739963925635,1771245,1934,642,"binder:642_E","system_server","system_server","system_server",4766105,"S","[NULL]",263,0,1740313970400,386080273,"I","worker_thread"
-        1739965371379,245311,642,642,"system_server","system_server","binder:642_E","system_server",1371852,"S","[NULL]",262,0,1740313970400,386080273,"I","worker_thread"
-        1739965558519,326825,3500,3487,"binder:3487_3","com.android.providers.media.module","system_server","system_server",9183650,"S","[NULL]",261,0,1740313970400,386080273,"I","worker_thread"
-        1739965848075,548636,3487,3487,"rs.media.module","com.android.providers.media.module","binder:3487_3","com.android.providers.media.module",6774461,"S","[NULL]",260,0,1740313970400,386080273,"I","worker_thread"
-        1739966186324,1192880,3548,3487,"AsyncTask #1","com.android.providers.media.module","rs.media.module","com.android.providers.media.module","[NULL]","[NULL]","[NULL]",259,0,1740313970400,386080273,"I","worker_thread"
-        1739967354198,311116,2721,642,"binder:642_13","system_server","AsyncTask #1","com.android.providers.media.module",2845516,"S","[NULL]",258,0,1740313970400,386080273,"I","worker_thread"
-        1739967648689,61753222,3548,3487,"AsyncTask #1","com.android.providers.media.module","binder:642_13","system_server",269485,"S","[NULL]",257,0,1740313970400,386080273,"I","worker_thread"
-        1740029390694,1179377,2721,642,"binder:642_13","system_server","AsyncTask #1","com.android.providers.media.module",4500139,"S","[NULL]",256,0,1740313970400,386080273,"I","worker_thread"
-        """))
-
-  def test_thread_executing_span_descendants_id(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT
-          thread_name,
-          waker_thread_name,
-          depth,
-          is_root,
-          COUNT(thread_name) AS count
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_DESCENDANTS(15923)
-        GROUP BY 1,2,3,4
-        ORDER BY depth
-        """,
-        out=Csv("""
-        "thread_name","waker_thread_name","depth","is_root","count"
-        "rs.media.module","binder:642_1",0,0,1
-        "binder:642_A","rs.media.module",1,0,1
-        """))
-
-  def test_thread_executing_span_ancestors_id(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT
-          thread_name,
-          waker_thread_name,
-          height,
-          is_leaf
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_ANCESTORS(15923, NULL) ORDER BY height
-        """,
-        out=Csv("""
-        "thread_name","waker_thread_name","height","is_leaf"
-        "rs.media.module","binder:642_1",0,0
-        "binder:642_1","rs.media.module",1,0
-        """))
-
-  def test_thread_executing_span_from_non_sleep_thread_state(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(12394) AS thread_executing_span_id
-        """,
-        out=Csv("""
-        "thread_executing_span_id"
-        12254
-        """))
-
-  def test_thread_executing_span_from_sleep_thread_state(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_ID_FROM_THREAD_STATE_ID(15173) AS thread_executing_span_id
-        """,
-        out=Csv("""
-        "thread_executing_span_id"
-        "[NULL]"
-        """))
-
-  def test_thread_executing_span_following_from_sleep_thread_state(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173) AS thread_executing_span_id
-        """,
-        out=Csv("""
-        "thread_executing_span_id"
-        15750
-        """))
-
-  def test_thread_executing_span_following_from_non_sleep_thread_state(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(12394) AS thread_executing_span_id
-        """,
-        out=Csv("""
-        "thread_executing_span_id"
-        "[NULL]"
-        """))
-
-  def test_thread_executing_span_critical_path(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
-        SELECT
-          ts,
-          dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
-          blocked_dur,
-          blocked_state,
-          blocked_function,
-          height,
-          is_leaf,
-          leaf_ts,
-          leaf_blocked_dur,
-          leaf_blocked_state,
-          leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(EXPERIMENTAL_THREAD_EXECUTING_SPAN_FOLLOWING_THREAD_STATE_ID(15173), NULL)
+          utid,
+          critical_path_id,
+          critical_path_blocked_dur,
+          critical_path_blocked_state,
+          critical_path_blocked_function,
+          critical_path_utid INT
+        FROM experimental_thread_executing_span_critical_path(NULL, start_ts, end_ts), trace_bounds
         ORDER BY ts
+        LIMIT 10
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
-        1737555644935,155300703,281,243,"binder:243_4","/system/bin/vold","StorageManagerS","system_server",207137317,"S","[NULL]",11,0,1737716642304,160997369,"S","[NULL]"
-        1737710945638,719567,158,1,"init","/system/bin/init","binder:243_4","/system/bin/vold",320099853,"S","[NULL]",10,0,1737716642304,160997369,"S","[NULL]"
-        1737711665205,2066552,281,243,"binder:243_4","/system/bin/vold","init","/system/bin/init",473986,"S","[NULL]",9,0,1737716642304,160997369,"S","[NULL]"
-        1737713731757,46394,3335,3335,"kworker/u4:2","kworker/u4:2-events_unbound","binder:243_4","/system/bin/vold",172402014,"I","worker_thread",8,0,1737716642304,160997369,"S","[NULL]"
-        1737713778151,818659,281,243,"binder:243_4","/system/bin/vold","kworker/u4:2","kworker/u4:2-events_unbound",38815,"D","__flush_work",7,0,1737716642304,160997369,"S","[NULL]"
-        1737714596810,414789,743,642,"StorageManagerS","system_server","binder:243_4","/system/bin/vold",161843036,"S","[NULL]",6,0,1737716642304,160997369,"S","[NULL]"
-        1737715011599,256989,3501,3487,"binder:3487_4","com.android.providers.media.module","StorageManagerS","system_server",167350508,"S","[NULL]",5,0,1737716642304,160997369,"S","[NULL]"
-        1737715268588,219727,3519,3487,"android.bg","com.android.providers.media.module","binder:3487_4","com.android.providers.media.module",163900842,"S","[NULL]",4,0,1737716642304,160997369,"S","[NULL]"
-        1737715488315,357472,657,642,"binder:642_1","system_server","android.bg","com.android.providers.media.module",344488980,"S","[NULL]",3,0,1737716642304,160997369,"S","[NULL]"
-        1737715845787,497587,743,642,"StorageManagerS","system_server","binder:642_1","system_server",793525,"S","[NULL]",2,0,1737716642304,160997369,"S","[NULL]"
-        1737716343374,298930,3501,3487,"binder:3487_4","com.android.providers.media.module","StorageManagerS","system_server",1016895,"S","[NULL]",1,0,1737716642304,160997369,"S","[NULL]"
-        1737716642304,4521857,3487,3487,"rs.media.module","com.android.providers.media.module","binder:3487_4","com.android.providers.media.module",160997369,"S","[NULL]",0,0,1737716642304,160997369,"S","[NULL]"
+        "id","ts","dur","utid","critical_path_id","critical_path_blocked_dur","critical_path_blocked_state","critical_path_blocked_function","INT"
+        5,1735489812571,83938,304,5,"[NULL]","[NULL]","[NULL]",304
+        6,1735489833977,52463,297,6,"[NULL]","[NULL]","[NULL]",297
+        11,1735489876788,76985,428,11,"[NULL]","[NULL]","[NULL]",428
+        12,1735489879097,338180,243,12,"[NULL]","[NULL]","[NULL]",243
+        17,1735489933912,653746,230,17,"[NULL]","[NULL]","[NULL]",230
+        25,1735489999987,55979,298,25,4178,"S","[NULL]",298
+        25,1735489999987,45838,298,1567,1561612705,"S","[NULL]",300
+        25,1735489999987,45838,298,2014,1572044057,"S","[NULL]",305
+        25,1735489999987,45838,298,2021,1572057416,"S","[NULL]",297
+        28,1735490039439,570799,421,28,"[NULL]","[NULL]","[NULL]",421
         """))
 
   def test_thread_executing_span_critical_path_utid(self):
@@ -432,144 +260,232 @@ class TablesSched(TestSuite):
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
+          id,
           ts,
           dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
-          blocked_dur,
-          blocked_state,
-          blocked_function,
-          height,
-          is_leaf,
-          leaf_ts,
-          leaf_blocked_dur,
-          leaf_blocked_state,
-          leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(NULL, 257)
+          utid,
+          critical_path_id,
+          critical_path_blocked_dur,
+          critical_path_blocked_state,
+          critical_path_blocked_function,
+          critical_path_utid INT
+        FROM experimental_thread_executing_span_critical_path((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
         ORDER BY ts
         LIMIT 10
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
-        1736109621029,714160,1469,1469,"m.android.phone","com.android.phone","swapper","[NULL]","[NULL]","[NULL]","[NULL]",0,0,1736109621029,"[NULL]","[NULL]","[NULL]"
-        1736110335189,575700,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone","[NULL]","[NULL]","[NULL]",1,0,1736110910889,575700,"S","[NULL]"
-        1736110910889,405524,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",575700,"S","[NULL]",0,0,1736110910889,575700,"S","[NULL]"
-        1736111316413,390566,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",332001,"S","[NULL]",1,0,1736111706979,390566,"S","[NULL]"
-        1736111706979,188251,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",390566,"S","[NULL]",0,0,1736111706979,390566,"S","[NULL]"
-        1736111895230,192497,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",144095,"S","[NULL]",1,0,1736112087727,192497,"S","[NULL]"
-        1736112087727,189615,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",192497,"S","[NULL]",0,0,1736112087727,192497,"S","[NULL]"
-        1736112277342,250380,657,642,"binder:642_1","system_server","m.android.phone","com.android.phone",151648,"S","[NULL]",1,0,1736112527722,250380,"S","[NULL]"
-        1736112527722,123152,1469,1469,"m.android.phone","com.android.phone","binder:642_1","system_server",250380,"S","[NULL]",0,1,1736112527722,250380,"S","[NULL]"
-        1736112650874,286064951,240,240,"kworker/0:3","kworker/0:3-events","adbd","/apex/com.android.adbd/bin/adbd",1103252,"I","worker_thread",20,0,1737109104220,996453346,"S","[NULL]"
+        "id","ts","dur","utid","critical_path_id","critical_path_blocked_dur","critical_path_blocked_state","critical_path_blocked_function","INT"
+        11889,1737349401439,7705561,1477,11889,"[NULL]","[NULL]","[NULL]",1477
+        11952,1737357107000,547583,1480,11980,547583,"S","[NULL]",1477
+        11980,1737357654583,8430762,1477,11980,547583,"S","[NULL]",1477
+        12052,1737366085345,50400,91,12057,50400,"S","[NULL]",1477
+        12057,1737366135745,6635927,1477,12057,50400,"S","[NULL]",1477
+        12081,1737372771672,12798314,1488,12254,12798314,"S","[NULL]",1477
+        12254,1737385569986,21830622,1477,12254,12798314,"S","[NULL]",1477
+        12517,1737407400608,241267,91,12521,241267,"S","[NULL]",1477
+        12521,1737407641875,1830015,1477,12521,241267,"S","[NULL]",1477
+        12669,1737409471890,68590,91,12672,68590,"S","[NULL]",1477
         """))
 
-  def test_thread_executing_span_critical_path_all(self):
+  def test_thread_executing_span_critical_path_stack(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
         INCLUDE PERFETTO MODULE experimental.thread_executing_span;
         SELECT
+          id,
           ts,
           dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          waker_thread_name,
-          waker_process_name,
-          blocked_dur,
-          blocked_state,
-          blocked_function,
-          height,
-          is_leaf,
-          leaf_ts,
-          leaf_blocked_dur,
-          leaf_blocked_state,
-          leaf_blocked_function
-        FROM EXPERIMENTAL_THREAD_EXECUTING_SPAN_CRITICAL_PATH(NULL, NULL)
+          utid,
+          stack_depth,
+          name,
+          table_name,
+          critical_path_utid
+        FROM experimental_thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
         ORDER BY ts
         LIMIT 10
         """,
         out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","waker_thread_name","waker_process_name","blocked_dur","blocked_state","blocked_function","height","is_leaf","leaf_ts","leaf_blocked_dur","leaf_blocked_state","leaf_blocked_function"
-        1735489812571,83938,575,224,"logd.reader.per","/system/bin/logd","logd.writer","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,0,1735489812571,"[NULL]","[NULL]","[NULL]"
-        1735489833977,52463,3468,3468,"logcat","logcat","logd.reader.per","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,0,1735489833977,"[NULL]","[NULL]","[NULL]"
-        1735489876788,76985,3469,527,"shell svc 3468","/apex/com.android.adbd/bin/adbd","logcat","logcat","[NULL]","[NULL]","[NULL]",0,0,1735489876788,"[NULL]","[NULL]","[NULL]"
-        1735489879097,338180,562,562,"logcat","/system/bin/logcat","logd.reader.per","/system/bin/logd","[NULL]","[NULL]","[NULL]",0,1,1735489879097,"[NULL]","[NULL]","[NULL]"
-        1735489933912,653746,527,527,"adbd","/apex/com.android.adbd/bin/adbd","shell svc 3468","/apex/com.android.adbd/bin/adbd","[NULL]","[NULL]","[NULL]",0,0,1735489933912,"[NULL]","[NULL]","[NULL]"
-        1735489999987,55979,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",0,0,1735489999987,4178,"S","[NULL]"
-        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",27,0,1737051466727,1561612705,"S","[NULL]"
-        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",29,0,1737061888312,1572044057,"S","[NULL]"
-        1735489999987,45838,158,1,"init","/system/bin/init","traced_probes","/system/bin/traced_probes",4178,"S","[NULL]",30,0,1737061943856,1572057416,"S","[NULL]"
-        1735490039439,570799,544,527,"adbd","/apex/com.android.adbd/bin/adbd","init","/system/bin/init","[NULL]","[NULL]","[NULL]",0,1,1735490039439,"[NULL]","[NULL]","[NULL]"
+        "id","ts","dur","utid","stack_depth","name","table_name","critical_path_utid"
+        11889,1737349401439,57188,1477,0,"thread_state: R","thread_state",1477
+        11889,1737349401439,57188,1477,1,"[NULL]","thread_state",1477
+        11889,1737349401439,57188,1477,2,"process_name: com.android.providers.media.module","thread_state",1477
+        11889,1737349401439,57188,1477,3,"thread_name: rs.media.module","thread_state",1477
+        11891,1737349458627,1884896,1477,0,"thread_state: Running","thread_state",1477
+        11891,1737349458627,1884896,1477,1,"[NULL]","thread_state",1477
+        11891,1737349458627,1884896,1477,2,"process_name: com.android.providers.media.module","thread_state",1477
+        11891,1737349458627,1884896,1477,3,"thread_name: rs.media.module","thread_state",1477
+        11891,1737349458627,1884896,1477,4,"cpu: 0","thread_state",1477
+        11891,1737351343523,2494,1477,0,"thread_state: Running","thread_state",1477
         """))
 
-  def test_thread_executing_span_critical_path_thread_states(self):
+  def test_thread_executing_span_critical_path_graph(self):
     return DiffTestBlueprint(
         trace=DataPath('sched_wakeup_trace.atr'),
         query="""
-        SELECT IMPORT('experimental.thread_executing_span');
-        SELECT
-          ts,
-          dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          state,
-          blocked_function,
-          height
-        FROM experimental_thread_executing_span_critical_path_thread_states(257)
-        ORDER BY ts
-        LIMIT 10
-        """,
-        out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","state","blocked_function","height"
-        1736109621029,34116,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
-        1736109655145,680044,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
-        1736110335189,83413,657,642,"binder:642_1","system_server","R","[NULL]",1
-        1736110418602,492287,657,642,"binder:642_1","system_server","Running","[NULL]",1
-        1736110910889,122878,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
-        1736111033767,282646,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
-        1736111316413,19907,657,642,"binder:642_1","system_server","R","[NULL]",1
-        1736111336320,370659,657,642,"binder:642_1","system_server","Running","[NULL]",1
-        1736111706979,44391,1469,1469,"m.android.phone","com.android.phone","R","[NULL]",0
-        1736111751370,143860,1469,1469,"m.android.phone","com.android.phone","Running","[NULL]",0
-        """))
+        INCLUDE PERFETTO MODULE experimental.thread_executing_span;
+        SELECT HEX(pprof) FROM experimental_thread_executing_span_critical_path_graph("critical path", (select utid from thread where tid = 3487), 1737488133487, 16000), trace_bounds
+      """,
+        out=BinaryProto(
+            message_type="perfetto.third_party.perftools.profiles.Profile",
+            post_processing=PrintProfileProto,
+            contents="""
+        Sample:
+        Values: 0
+        Stack:
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: R (0x0)
+        critical path (0x0)
 
-  def test_thread_executing_span_critical_path_slices(self):
-    return DiffTestBlueprint(
-        trace=DataPath('sched_wakeup_trace.atr'),
-        query="""
-        SELECT IMPORT('experimental.thread_executing_span');
-        SELECT
-          ts,
-          dur,
-          tid,
-          pid,
-          thread_name,
-          process_name,
-          slice_name,
-          slice_depth,
-          height
-        FROM experimental_thread_executing_span_critical_path_slices(257)
-        ORDER BY ts
-        LIMIT 10
-        """,
-        out=Csv("""
-        "ts","dur","tid","pid","thread_name","process_name","slice_name","slice_depth","height"
-        1736110278076,57113,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
-        1736110435876,462664,657,642,"binder:642_1","system_server","binder reply",0,1
-        1736110692464,135281,657,642,"binder:642_1","system_server","AIDL::java::INetworkStatsService::getMobileIfaces::server",1,1
-        1736110910889,132674,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
-        1736111274404,42009,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
-        1736111340019,361607,657,642,"binder:642_1","system_server","binder reply",0,1
-        1736111417370,249758,657,642,"binder:642_1","system_server","AIDL::java::INetworkStatsService::getIfaceStats::server",1,1
-        1736111706979,48463,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
-        1736111874030,21200,1469,1469,"m.android.phone","com.android.phone","binder transaction",0,0
-        1736111923740,159330,657,642,"binder:642_1","system_server","binder reply",0,1
+        Sample:
+        Values: 0
+        Stack:
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        binder reply (0x0)
+        blocking thread_name: binder:553_3 (0x0)
+        blocking process_name: /system/bin/mediaserver (0x0)
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        blocking process_name: /system/bin/mediaserver (0x0)
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        blocking thread_name: binder:553_3 (0x0)
+        blocking process_name: /system/bin/mediaserver (0x0)
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: R (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: R (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        thread_state: R (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 0
+        Stack:
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 1101
+        Stack:
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: R (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 13010
+        Stack:
+        cpu: 0 (0x0)
+        binder reply (0x0)
+        blocking thread_name: binder:553_3 (0x0)
+        blocking process_name: /system/bin/mediaserver (0x0)
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
+
+        Sample:
+        Values: 1889
+        Stack:
+        cpu: 0 (0x0)
+        blocking thread_name: binder:553_3 (0x0)
+        blocking process_name: /system/bin/mediaserver (0x0)
+        blocking thread_state: Running (0x0)
+        binder transaction (0x0)
+        bindApplication (0x0)
+        thread_name: rs.media.module (0x0)
+        process_name: com.android.providers.media.module (0x0)
+        thread_state: S (0x0)
+        critical path (0x0)
         """))
