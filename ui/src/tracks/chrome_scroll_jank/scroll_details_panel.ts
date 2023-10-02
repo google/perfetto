@@ -85,7 +85,7 @@ export class ScrollDetailsPanel extends
   loaded = false;
   data: Data|undefined;
   metrics: Metrics = {};
-  maxJankSlices: JankSliceDetails[] = [];
+  orderedJankSlices: JankSliceDetails[] = [];
 
   static create(args: NewBottomTabArgs): ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
@@ -134,7 +134,7 @@ export class ScrollDetailsPanel extends
   private async loadMetrics() {
     await this.loadInputEventCount();
     await this.loadFrameStats();
-    await this.loadMaxDelay();
+    await this.loadDelayData();
   }
 
   private async loadInputEventCount() {
@@ -188,47 +188,39 @@ export class ScrollDetailsPanel extends
     }
   }
 
-  private async loadMaxDelay() {
+  private async loadDelayData() {
     if (exists(this.data)) {
       const queryResult = await this.engine.query(`
-        WITH max_delay_tbl AS (
-          SELECT
-            MAX(dur) AS max_dur
-          FROM chrome_janky_frame_presentation_intervals s
-          WHERE s.ts >= ${this.data.ts}
-            AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
-        )
         SELECT
           IFNULL(sub_cause_of_jank, IFNULL(cause_of_jank, 'Unknown')) AS cause,
           IFNULL(event_latency_id, 0) AS eventLatencyId,
-          IFNULL(MAX(dur), 0) AS maxDelayDur,
-          IFNULL(delayed_frame_count, 0) AS maxDelayVsync
+          IFNULL(dur, 0) AS delayDur,
+          IFNULL(delayed_frame_count, 0) AS delayVsync
         FROM chrome_janky_frame_presentation_intervals s
         WHERE s.ts >= ${this.data.ts}
           AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
-          AND dur IN (SELECT max_dur FROM max_delay_tbl)
-        GROUP BY eventLatencyId, cause;
+        ORDER by delayDur DESC;
       `);
 
       const iter = queryResult.iter({
         cause: STR,
         eventLatencyId: NUM,
-        maxDelayDur: LONG,
-        maxDelayVsync: NUM,
+        delayDur: LONG,
+        delayVsync: NUM,
       });
 
       for (; iter.valid(); iter.next()) {
-        if (iter.maxDelayDur <= 0) {
+        if (iter.delayDur <= 0) {
           break;
         }
         const jankSlices =
             await getScrollJankSlices(this.engine, iter.eventLatencyId);
 
-        this.maxJankSlices.push({
+        this.orderedJankSlices.push({
           cause: iter.cause,
           jankSlice: jankSlices[0],
-          delayDur: iter.maxDelayDur,
-          delayVsync: iter.maxDelayVsync,
+          delayDur: iter.delayDur,
+          delayVsync: iter.delayVsync,
         });
       }
     }
@@ -251,14 +243,13 @@ export class ScrollDetailsPanel extends
     return dictToTreeNodes(metrics);
   }
 
-  private getMaxDelayTable(): m.Child {
-    if (this.maxJankSlices.length > 0) {
+  private getDelayTable(): m.Child {
+    if (this.orderedJankSlices.length > 0) {
       interface DelayData {
         jankLink: m.Child;
         dur: m.Child;
         delayedVSyncs: number;
       }
-      ;
 
       const columns: ColumnDescriptor<DelayData>[] = [
         widgetColumn<DelayData>('Cause', (x) => x.jankLink),
@@ -266,7 +257,7 @@ export class ScrollDetailsPanel extends
         numberColumn<DelayData>('Delayed Vsyncs', (x) => x.delayedVSyncs),
       ];
       const data: DelayData[] = [];
-      for (const jankSlice of this.maxJankSlices) {
+      for (const jankSlice of this.orderedJankSlices) {
         data.push({
           jankLink: getSliceForTrack(
               jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
@@ -336,8 +327,8 @@ export class ScrollDetailsPanel extends
               m(Tree, this.renderMetricsDictionary())),
             m(
                 Section,
-                {title: 'Max Frame Presentation Delay'},
-                this.getMaxDelayTable(),
+                {title: 'Frame Presentation Delays'},
+                this.getDelayTable(),
                 )),
           m(
               GridLayoutColumn,
