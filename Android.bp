@@ -2221,6 +2221,7 @@ cc_test {
         ":perfetto_src_shared_lib_intern_map",
         ":perfetto_src_shared_lib_shared_lib",
         ":perfetto_src_shared_lib_test_integrationtests",
+        ":perfetto_src_shared_lib_test_protos_protos",
         ":perfetto_src_shared_lib_test_utils",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_db_db",
@@ -9724,6 +9725,11 @@ filegroup {
     srcs: [
         "src/shared_lib/test/api_integrationtest.cc",
     ],
+}
+
+// GN: //src/shared_lib/test/protos:protos
+filegroup {
+    name: "perfetto_src_shared_lib_test_protos_protos",
 }
 
 // GN: //src/shared_lib/test:utils
