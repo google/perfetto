@@ -39,6 +39,7 @@ import {DurationWidget} from '../../widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
 
 import {
@@ -279,22 +280,24 @@ export class ScrollDetailsPanel extends
 
   private getDescriptionText(): m.Child {
     return m(
-        `div[style='white-space:pre-wrap']`,
-        `The interval during which the user has started a scroll ending after
-        their finger leaves the screen and any resulting fling animations have
-        finished.{new_lines}
-
-        Note: This can contain periods of time where the finger is down and not
-        moving and no active scrolling is occurring.{new_lines}
-
-        Note: Sometimes if a user touches the screen quickly after letting go
-        or Chrome was hung and got into a bad state. A new scroll will start
-        which will result in a slightly overlapping scroll. This can occur due
-        to the last scroll still outputting frames (to get caught up) and the
-        "new" scroll having started producing frames after the user has started
-        scrolling again.`.replace(/\s\s+/g, ' ')
-            .replace(/{new_lines}/g, '\n\n')
-            .replace(/ Note:/g, 'Note:'),
+        MultiParagraphText,
+        m(TextParagraph, {
+          text: `The interval during which the user has started a scroll ending
+                 after their finger leaves the screen and any resulting fling
+                 animations have finished.`,
+        }),
+        m(TextParagraph, {
+          text: `Note: This can contain periods of time where the finger is down
+                 and not moving and no active scrolling is occurring.`,
+        }),
+        m(TextParagraph, {
+          text: `Note: Sometimes if a user touches the screen quickly after 
+                 letting go or Chrome was hung and got into a bad state. A new
+                 scroll will start which will result in a slightly overlapping
+                 scroll. This can occur due to the last scroll still outputting
+                 frames (to get caught up) and the "new" scroll having started
+                 producing frames after the user has started scrolling again.`,
+        }),
     );
   }
 
@@ -335,7 +338,7 @@ export class ScrollDetailsPanel extends
               m(
                   Section,
                   {title: 'Description'},
-                  m('.div', this.getDescriptionText()),
+                  this.getDescriptionText(),
                   ),
               // TODO: Add custom widgets (e.g. event latency table).
               )),
