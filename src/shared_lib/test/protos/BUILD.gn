@@ -1,4 +1,4 @@
-# Copyright (C) 2022 The Android Open Source Project
+# Copyright (C) 2023 The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,34 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source_set("base") {
-  sources = [ "compiler.h" ]
-  public_deps = [ "./abi:base" ]
-}
-
-source_set("protozero") {
-  sources = [ "pb_utils.h" ]
-}
-
-source_set("public") {
+source_set("protos") {
+  testonly = true
   sources = [
-    "data_source.h",
-    "fnv1a.h",
-    "pb_decoder.h",
-    "pb_macros.h",
-    "pb_msg.h",
-    "pb_packed.h",
-    "producer.h",
-    "stream_writer.h",
-    "te_category_macros.h",
-    "te_macros.h",
-    "thread_utils.h",
-    "track_event.h",
-  ]
-  public_deps = [
-    ":base",
-    ":protozero",
-    "./abi:public",
-    "./protos",
+    "library.pzc.h",
+    "library_internals/galaxies.pzc.h",
+    "test_messages.pzc.h",
+    "upper_import.pzc.h",
   ]
 }
