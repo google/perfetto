@@ -48,6 +48,7 @@ if (enable_perfetto_integration_tests) {
   source_set("integrationtests") {
     testonly = true
     deps = [
+      "protos",
       ":utils",
       "..:shared_lib",
       "../../../gn:default_deps",
