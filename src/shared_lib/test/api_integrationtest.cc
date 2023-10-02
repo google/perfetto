@@ -40,6 +40,7 @@
 #include "test/gtest_and_gmock.h"
 
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
 
 // Tests for the perfetto shared library.
@@ -47,7 +48,11 @@
 namespace {
 
 using ::perfetto::shlib::test_utils::AllFieldsWithId;
+using ::perfetto::shlib::test_utils::DoubleField;
 using ::perfetto::shlib::test_utils::FieldView;
+using ::perfetto::shlib::test_utils::Fixed32Field;
+using ::perfetto::shlib::test_utils::Fixed64Field;
+using ::perfetto::shlib::test_utils::FloatField;
 using ::perfetto::shlib::test_utils::IdFieldView;
 using ::perfetto::shlib::test_utils::MsgField;
 using ::perfetto::shlib::test_utils::PbField;
@@ -61,6 +66,7 @@ using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::NiceMock;
+using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SaveArg;
 using ::testing::UnorderedElementsAre;
@@ -202,6 +208,348 @@ TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
   EXPECT_EQ(n_payload, 1u);
   EXPECT_EQ(n_payload_str, 1u);
   EXPECT_EQ(n_payload_single_int, 1u);
+}
+
+class SharedLibProtozeroSerializationTest : public testing::Test {
+ protected:
+  SharedLibProtozeroSerializationTest() {
+    hb = PerfettoHeapBufferCreate(&writer.writer);
+  }
+
+  std::vector<uint8_t> GetData() {
+    std::vector<uint8_t> data;
+    size_t size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+    data.resize(size);
+    PerfettoHeapBufferCopyInto(hb, &writer.writer, data.data(), data.size());
+    return data;
+  }
+
+  ~SharedLibProtozeroSerializationTest() {
+    PerfettoHeapBufferDestroy(hb, &writer.writer);
+  }
+
+  template <typename T>
+  static std::vector<T> ParsePackedVarInt(const std::string& data) {
+    std::vector<T> ret;
+    const uint8_t* read_ptr = reinterpret_cast<const uint8_t*>(data.data());
+    const uint8_t* const end = read_ptr + data.size();
+    while (read_ptr != end) {
+      uint64_t val;
+      const uint8_t* new_read_ptr = PerfettoPbParseVarInt(read_ptr, end, &val);
+      if (new_read_ptr == read_ptr) {
+        ADD_FAILURE();
+        return ret;
+      }
+      read_ptr = new_read_ptr;
+      ret.push_back(static_cast<T>(val));
+    }
+    return ret;
+  }
+
+  template <typename T>
+  static std::vector<T> ParsePackedFixed(const std::string& data) {
+    std::vector<T> ret;
+    if (data.size() % sizeof(T)) {
+      ADD_FAILURE();
+      return ret;
+    }
+    const uint8_t* read_ptr = reinterpret_cast<const uint8_t*>(data.data());
+    const uint8_t* end = read_ptr + data.size();
+    while (read_ptr < end) {
+      ret.push_back(*reinterpret_cast<const T*>(read_ptr));
+      read_ptr += sizeof(T);
+    }
+    return ret;
+  }
+
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb;
+};
+
+TEST_F(SharedLibProtozeroSerializationTest, SimpleFieldsNoNesting) {
+  struct protozero_test_protos_EveryField msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  protozero_test_protos_EveryField_set_field_int32(&msg, -1);
+  protozero_test_protos_EveryField_set_field_int64(&msg, -333123456789ll);
+  protozero_test_protos_EveryField_set_field_uint32(&msg, 600);
+  protozero_test_protos_EveryField_set_field_uint64(&msg, 333123456789ll);
+  protozero_test_protos_EveryField_set_field_sint32(&msg, -5);
+  protozero_test_protos_EveryField_set_field_sint64(&msg, -9000);
+  protozero_test_protos_EveryField_set_field_fixed32(&msg, 12345);
+  protozero_test_protos_EveryField_set_field_fixed64(&msg, 444123450000ll);
+  protozero_test_protos_EveryField_set_field_sfixed32(&msg, -69999);
+  protozero_test_protos_EveryField_set_field_sfixed64(&msg, -200);
+  protozero_test_protos_EveryField_set_field_float(&msg, 3.14f);
+  protozero_test_protos_EveryField_set_field_double(&msg, 0.5555);
+  protozero_test_protos_EveryField_set_field_bool(&msg, true);
+  protozero_test_protos_EveryField_set_small_enum(&msg,
+                                                  protozero_test_protos_TO_BE);
+  protozero_test_protos_EveryField_set_signed_enum(
+      &msg, protozero_test_protos_NEGATIVE);
+  protozero_test_protos_EveryField_set_big_enum(&msg,
+                                                protozero_test_protos_BEGIN);
+  protozero_test_protos_EveryField_set_cstr_field_string(&msg, "FizzBuzz");
+  protozero_test_protos_EveryField_set_field_bytes(&msg, "\x11\x00\xBE\xEF", 4);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 1);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, -1);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 100);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 2000000);
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(protozero_test_protos_EveryField_field_int32_field_number,
+                  VarIntField(static_cast<uint64_t>(-1))),
+          PbField(protozero_test_protos_EveryField_field_int64_field_number,
+                  VarIntField(static_cast<uint64_t>(INT64_C(-333123456789)))),
+          PbField(protozero_test_protos_EveryField_field_uint32_field_number,
+                  VarIntField(600)),
+          PbField(protozero_test_protos_EveryField_field_uint64_field_number,
+                  VarIntField(UINT64_C(333123456789))),
+          PbField(protozero_test_protos_EveryField_field_sint32_field_number,
+                  VarIntField(ResultOf(
+                      [](uint64_t val) {
+                        return PerfettoPbZigZagDecode32(
+                            static_cast<uint32_t>(val));
+                      },
+                      -5))),
+          PbField(protozero_test_protos_EveryField_field_sint64_field_number,
+                  VarIntField(ResultOf(PerfettoPbZigZagDecode64, -9000))),
+          PbField(protozero_test_protos_EveryField_field_fixed32_field_number,
+                  Fixed32Field(12345)),
+          PbField(protozero_test_protos_EveryField_field_fixed64_field_number,
+                  Fixed64Field(UINT64_C(444123450000))),
+          PbField(protozero_test_protos_EveryField_field_sfixed32_field_number,
+                  Fixed32Field(static_cast<uint32_t>(-69999))),
+          PbField(protozero_test_protos_EveryField_field_sfixed64_field_number,
+                  Fixed64Field(static_cast<uint64_t>(-200))),
+          PbField(protozero_test_protos_EveryField_field_float_field_number,
+                  FloatField(3.14f)),
+          PbField(protozero_test_protos_EveryField_field_double_field_number,
+                  DoubleField(0.5555)),
+          PbField(protozero_test_protos_EveryField_field_bool_field_number,
+                  VarIntField(true)),
+          PbField(protozero_test_protos_EveryField_small_enum_field_number,
+                  VarIntField(protozero_test_protos_TO_BE)),
+          PbField(protozero_test_protos_EveryField_signed_enum_field_number,
+                  VarIntField(protozero_test_protos_NEGATIVE)),
+          PbField(protozero_test_protos_EveryField_big_enum_field_number,
+                  VarIntField(protozero_test_protos_BEGIN)),
+          PbField(protozero_test_protos_EveryField_field_string_field_number,
+                  StringField("FizzBuzz")),
+          PbField(protozero_test_protos_EveryField_field_bytes_field_number,
+                  StringField(std::string_view("\x11\x00\xBE\xEF", 4))),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(1)),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(static_cast<uint64_t>(-1))),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(100)),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(2000000))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, NestedMessages) {
+  struct protozero_test_protos_NestedA msg_a;
+  PerfettoPbMsgInit(&msg_a.msg, &writer);
+
+  {
+    struct protozero_test_protos_NestedA_NestedB msg_b;
+    protozero_test_protos_NestedA_begin_repeated_a(&msg_a, &msg_b);
+    {
+      struct protozero_test_protos_NestedA_NestedB_NestedC msg_c;
+      protozero_test_protos_NestedA_NestedB_begin_value_b(&msg_b, &msg_c);
+      protozero_test_protos_NestedA_NestedB_NestedC_set_value_c(&msg_c, 321);
+      protozero_test_protos_NestedA_NestedB_end_value_b(&msg_b, &msg_c);
+    }
+    protozero_test_protos_NestedA_end_repeated_a(&msg_a, &msg_b);
+  }
+  {
+    struct protozero_test_protos_NestedA_NestedB msg_b;
+    protozero_test_protos_NestedA_begin_repeated_a(&msg_a, &msg_b);
+    protozero_test_protos_NestedA_end_repeated_a(&msg_a, &msg_b);
+  }
+  {
+    struct protozero_test_protos_NestedA_NestedB_NestedC msg_c;
+    protozero_test_protos_NestedA_begin_super_nested(&msg_a, &msg_c);
+    protozero_test_protos_NestedA_NestedB_NestedC_set_value_c(&msg_c, 1000);
+    protozero_test_protos_NestedA_end_super_nested(&msg_a, &msg_c);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_NestedA_repeated_a_field_number,
+              MsgField(ElementsAre(PbField(
+                  protozero_test_protos_NestedA_NestedB_value_b_field_number,
+                  MsgField(ElementsAre(PbField(
+                      protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
+                      VarIntField(321)))))))),
+          PbField(protozero_test_protos_NestedA_repeated_a_field_number,
+                  MsgField(ElementsAre())),
+          PbField(
+              protozero_test_protos_NestedA_super_nested_field_number,
+              MsgField(ElementsAre(PbField(
+                  protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
+                  VarIntField(1000)))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgVarInt) {
+  struct protozero_test_protos_PackedRepeatedFields msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  {
+    PerfettoPbPackedMsgInt32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&msg, &f);
+    PerfettoPbPackedMsgInt32Append(&f, 42);
+    PerfettoPbPackedMsgInt32Append(&f, 255);
+    PerfettoPbPackedMsgInt32Append(&f, -1);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgInt64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int64(&msg, &f);
+    PerfettoPbPackedMsgInt64Append(&f, INT64_C(3000000000));
+    PerfettoPbPackedMsgInt64Append(&f, INT64_C(-3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_int64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgUint32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_uint32(&msg, &f);
+    PerfettoPbPackedMsgUint32Append(&f, 42);
+    PerfettoPbPackedMsgUint32Append(&f, UINT32_C(3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_uint32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgUint64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_uint64(&msg, &f);
+    PerfettoPbPackedMsgUint64Append(&f, 42);
+    PerfettoPbPackedMsgUint64Append(&f, UINT64_C(5000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_uint64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgInt32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_signed_enum(&msg, &f);
+    PerfettoPbPackedMsgInt32Append(&f, protozero_test_protos_POSITIVE);
+    PerfettoPbPackedMsgInt32Append(&f, protozero_test_protos_NEGATIVE);
+    protozero_test_protos_PackedRepeatedFields_end_signed_enum(&msg, &f);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_int32_field_number,
+              StringField(ResultOf(ParsePackedVarInt<int32_t>,
+                                   ElementsAre(42, 255, -1)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_int64_field_number,
+              StringField(ResultOf(
+                  ParsePackedVarInt<int64_t>,
+                  ElementsAre(INT64_C(3000000000), INT64_C(-3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_uint32_field_number,
+              StringField(ResultOf(ParsePackedVarInt<uint32_t>,
+                                   ElementsAre(42, UINT32_C(3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_uint64_field_number,
+              StringField(ResultOf(ParsePackedVarInt<uint64_t>,
+                                   ElementsAre(42, UINT64_C(5000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_signed_enum_field_number,
+              StringField(
+                  ResultOf(ParsePackedVarInt<int32_t>,
+                           ElementsAre(protozero_test_protos_POSITIVE,
+                                       protozero_test_protos_NEGATIVE))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgFixed) {
+  struct protozero_test_protos_PackedRepeatedFields msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  {
+    PerfettoPbPackedMsgFixed32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed32(&msg, &f);
+    PerfettoPbPackedMsgFixed32Append(&f, 42);
+    PerfettoPbPackedMsgFixed32Append(&f, UINT32_C(3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgFixed64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed64(&msg, &f);
+    PerfettoPbPackedMsgFixed64Append(&f, 42);
+    PerfettoPbPackedMsgFixed64Append(&f, UINT64_C(5000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgSfixed32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_sfixed32(&msg, &f);
+    PerfettoPbPackedMsgSfixed32Append(&f, 42);
+    PerfettoPbPackedMsgSfixed32Append(&f, 255);
+    PerfettoPbPackedMsgSfixed32Append(&f, -1);
+    protozero_test_protos_PackedRepeatedFields_end_field_sfixed32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgSfixed64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_sfixed64(&msg, &f);
+    PerfettoPbPackedMsgSfixed64Append(&f, INT64_C(3000000000));
+    PerfettoPbPackedMsgSfixed64Append(&f, INT64_C(-3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_sfixed64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgFloat f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_float(&msg, &f);
+    PerfettoPbPackedMsgFloatAppend(&f, 3.14f);
+    PerfettoPbPackedMsgFloatAppend(&f, 42.1f);
+    protozero_test_protos_PackedRepeatedFields_end_field_float(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgDouble f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_double(&msg, &f);
+    PerfettoPbPackedMsgDoubleAppend(&f, 3.14);
+    PerfettoPbPackedMsgDoubleAppend(&f, 42.1);
+    protozero_test_protos_PackedRepeatedFields_end_field_double(&msg, &f);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_fixed32_field_number,
+              StringField(ResultOf(ParsePackedFixed<uint32_t>,
+                                   ElementsAre(42, UINT32_C(3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_fixed64_field_number,
+              StringField(ResultOf(ParsePackedFixed<uint64_t>,
+                                   ElementsAre(42, UINT64_C(5000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_sfixed32_field_number,
+              StringField(ResultOf(ParsePackedFixed<int32_t>,
+                                   ElementsAre(42, 255, -1)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_sfixed64_field_number,
+              StringField(ResultOf(
+                  ParsePackedFixed<int64_t>,
+                  ElementsAre(INT64_C(3000000000), INT64_C(-3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_float_field_number,
+              StringField(ResultOf(ParsePackedFixed<float>,
+                                   ElementsAre(3.14f, 42.1f)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_double_field_number,
+              StringField(ResultOf(ParsePackedFixed<double>,
+                                   ElementsAre(3.14, 42.1))))));
 }
 
 class SharedLibDataSourceTest : public testing::Test {
