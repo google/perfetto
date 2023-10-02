@@ -36,43 +36,6 @@ using ClassTable = tables::HeapGraphClassTable;
 using ObjectTable = tables::HeapGraphObjectTable;
 using ReferenceTable = tables::HeapGraphReferenceTable;
 
-const char* HeapGraphRootTypeToString(int32_t type) {
-  switch (type) {
-    case protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN:
-      return "ROOT_UNKNOWN";
-    case protos::pbzero::HeapGraphRoot::ROOT_JNI_GLOBAL:
-      return "ROOT_JNI_GLOBAL";
-    case protos::pbzero::HeapGraphRoot::ROOT_JNI_LOCAL:
-      return "ROOT_JNI_LOCAL";
-    case protos::pbzero::HeapGraphRoot::ROOT_JAVA_FRAME:
-      return "ROOT_JAVA_FRAME";
-    case protos::pbzero::HeapGraphRoot::ROOT_NATIVE_STACK:
-      return "ROOT_NATIVE_STACK";
-    case protos::pbzero::HeapGraphRoot::ROOT_STICKY_CLASS:
-      return "ROOT_STICKY_CLASS";
-    case protos::pbzero::HeapGraphRoot::ROOT_THREAD_BLOCK:
-      return "ROOT_THREAD_BLOCK";
-    case protos::pbzero::HeapGraphRoot::ROOT_MONITOR_USED:
-      return "ROOT_MONITOR_USED";
-    case protos::pbzero::HeapGraphRoot::ROOT_THREAD_OBJECT:
-      return "ROOT_THREAD_OBJECT";
-    case protos::pbzero::HeapGraphRoot::ROOT_INTERNED_STRING:
-      return "ROOT_INTERNED_STRING";
-    case protos::pbzero::HeapGraphRoot::ROOT_FINALIZING:
-      return "ROOT_FINALIZING";
-    case protos::pbzero::HeapGraphRoot::ROOT_DEBUGGER:
-      return "ROOT_DEBUGGER";
-    case protos::pbzero::HeapGraphRoot::ROOT_REFERENCE_CLEANUP:
-      return "ROOT_REFERENCE_CLEANUP";
-    case protos::pbzero::HeapGraphRoot::ROOT_VM_INTERNAL:
-      return "ROOT_VM_INTERNAL";
-    case protos::pbzero::HeapGraphRoot::ROOT_JNI_MONITOR:
-      return "ROOT_JNI_MONITOR";
-    default:
-      return "ROOT_UNKNOWN";
-  }
-}
-
 const char* HeapGraphTypeKindToString(int32_t type) {
   switch (type) {
     case protos::pbzero::HeapGraphType::KIND_NORMAL:
@@ -265,11 +228,15 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
   }
   for (auto it = heap_graph.roots(); it; ++it) {
     protos::pbzero::HeapGraphRoot::Decoder entry(*it);
-    const char* str = HeapGraphRootTypeToString(entry.root_type());
-    auto str_view = base::StringView(str);
 
     HeapGraphTracker::SourceRoot src_root;
-    src_root.root_type = context_->storage->InternString(str_view);
+    if (protos::pbzero::HeapGraphRoot_Type_MIN <= entry.root_type() &&
+        entry.root_type() <= protos::pbzero::HeapGraphRoot_Type_MAX) {
+      src_root.root_type =
+          protos::pbzero::HeapGraphRoot::Type(entry.root_type());
+    } else {
+      src_root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+    }
     // grep-friendly: object_ids
     bool parse_error =
         ForEachVarInt<protos::pbzero::HeapGraphRoot::kObjectIdsFieldNumber>(

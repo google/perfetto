@@ -312,7 +312,7 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   }
 
   HeapGraphTracker::SourceRoot root;
-  root.root_type = context.storage->InternString("ROOT");
+  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
   root.object_ids.emplace_back(1);
   root.object_ids.emplace_back(999);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);

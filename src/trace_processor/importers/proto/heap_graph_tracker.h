@@ -89,7 +89,7 @@ class HeapGraphTracker : public Destructible {
   };
 
   struct SourceRoot {
-    StringId root_type;
+    protos::pbzero::HeapGraphRoot::Type root_type;
     std::vector<uint64_t> object_ids;
   };
 
@@ -218,6 +218,7 @@ class HeapGraphTracker : public Destructible {
   InternedType* GetSuperClass(SequenceState* sequence_state,
                               const InternedType* current_type);
   bool IsTruncated(UniquePid upid, int64_t ts);
+  StringId InternRootTypeString(protos::pbzero::HeapGraphRoot::Type);
 
   // Returns the object pointed to by `field` in `obj`.
   std::optional<tables::HeapGraphObjectTable::Id> GetReferenceByFieldName(
@@ -253,6 +254,11 @@ class HeapGraphTracker : public Destructible {
   StringId cleaner_thunk_this0_str_id_;
   StringId native_size_str_id_;
   StringId cleaner_next_str_id_;
+
+  std::array<StringId, 15> root_type_string_ids_ = {};
+  static_assert(protos::pbzero::HeapGraphRoot_Type_MIN == 0);
+  static_assert(protos::pbzero::HeapGraphRoot_Type_MAX + 1 ==
+                std::tuple_size<decltype(root_type_string_ids_)>{});
 };
 
 }  // namespace trace_processor

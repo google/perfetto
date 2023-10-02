@@ -283,7 +283,14 @@ HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
           "libcore.util.NativeAllocationRegistry$CleanerThunk.this$0")),
       native_size_str_id_(
           storage_->InternString("libcore.util.NativeAllocationRegistry.size")),
-      cleaner_next_str_id_(storage_->InternString("sun.misc.Cleaner.next")) {}
+      cleaner_next_str_id_(storage_->InternString("sun.misc.Cleaner.next")) {
+  for (size_t i = 0; i < root_type_string_ids_.size(); i++) {
+    auto val = static_cast<protos::pbzero::HeapGraphRoot::Type>(i);
+    auto str_view =
+        base::StringView(protos::pbzero::HeapGraphRoot_Type_Name(val));
+    root_type_string_ids_[i] = storage_->InternString(str_view);
+  }
+}
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
     uint32_t seq_id) {
@@ -668,8 +675,9 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
       auto it_and_success = roots_[std::make_pair(sequence_state.current_upid,
                                                   sequence_state.current_ts)]
                                 .emplace(*ptr);
-      if (it_and_success.second)
-        MarkRoot(storage_, row_ref, root.root_type);
+      if (it_and_success.second) {
+        MarkRoot(storage_, row_ref, InternRootTypeString(root.root_type));
+      }
     }
   }
 
@@ -1045,6 +1053,16 @@ bool HeapGraphTracker::IsTruncated(UniquePid upid, int64_t ts) {
     }
   }
   return false;
+}
+
+StringId HeapGraphTracker::InternRootTypeString(
+    protos::pbzero::HeapGraphRoot::Type root_type) {
+  size_t idx = static_cast<size_t>(root_type);
+  if (idx >= root_type_string_ids_.size()) {
+    idx = static_cast<size_t>(protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN);
+  }
+
+  return root_type_string_ids_[idx];
 }
 
 HeapGraphTracker::~HeapGraphTracker() = default;
