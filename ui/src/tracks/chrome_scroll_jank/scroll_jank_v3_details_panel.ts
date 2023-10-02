@@ -36,6 +36,7 @@ import {DurationWidget} from '../../widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree, TreeNode} from '../../widgets/tree';
 
 import {EventLatencyTrack} from './event_latency_track';
@@ -239,15 +240,15 @@ export class ScrollJankV3DetailsPanel extends
 
   private getDescriptionText(): m.Child {
     return m(
-        `div[style='white-space:pre-wrap']`,
-        `Delay between when the frame was expected to be presented and when it
-        was actually presented.{new_lines}
-
-        This is the period of time during which the user is viewing a frame
-        that isn't correct.`.replace(/\s\s+/g, ' ')
-            .replace(/{new_lines}/g, '\n\n')
-            .replace(' This', 'This'),
-    );
+        MultiParagraphText,
+        m(TextParagraph, {
+          text: `Delay between when the frame was expected to be presented and
+                 when it was actually presented.`,
+        }),
+        m(TextParagraph, {
+          text: `This is the period of time during which the user is viewing a
+                 frame that isn't correct.`,
+        }));
   }
 
   private getLinksSection(): m.Child[] {
