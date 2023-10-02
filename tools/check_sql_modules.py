@@ -44,7 +44,8 @@ CREATE_TABLE_ALLOWLIST = {
     ],
     ('/src/trace_processor/perfetto_sql/stdlib/experimental/'
      'thread_executing_span.sql'): [
-        'internal_wakeup', 'experimental_thread_executing_span_graph'
+        'internal_wakeup', 'experimental_thread_executing_span_graph',
+        'internal_critical_path', 'internal_wakeup_graph', 'experimental_thread_executing_span_graph'
     ],
     '/src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql': [
         'experimental_slice_flattened'
