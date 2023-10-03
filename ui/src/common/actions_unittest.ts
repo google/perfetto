@@ -21,7 +21,7 @@ import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
   PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling';
+} from '../tracks/process_summary/process_scheduling_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 import {StateActions} from './actions';

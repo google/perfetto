@@ -61,10 +61,6 @@ import {
   PERF_SAMPLES_PROFILE_TRACK_KIND,
 } from '../tracks/perf_samples_profile';
 import {
-  PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling';
-import {PROCESS_SUMMARY_TRACK} from '../tracks/process_summary';
-import {
   decideTracks as screenshotDecideTracks,
 } from '../tracks/screenshots';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
@@ -1529,10 +1525,11 @@ class TrackDecider {
     this.tracksToAdd.push({
       id: summaryTrackId,
       engineId: this.engineId,
-      kind: PROCESS_SUMMARY_TRACK,
+      kind: PLUGIN_TRACK_KIND,
       trackSortKey: PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
       name: `Kernel thread summary`,
-      config: {pidForColor: 2, upid: it.upid, utid: it.utid},
+      config: {},
+      uri: 'perfetto.ProcessSummary#kernel',
     });
     const addTrackGroup = Actions.addTrackGroup({
       engineId: this.engineId,
@@ -1680,7 +1677,6 @@ class TrackDecider {
       processName: STR_NULL,
       hasSched: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
-      isDebuggable: NUM_NULL,
       chromeProcessLabels: STR,
     });
     for (; it.valid(); it.next()) {
@@ -1692,7 +1688,6 @@ class TrackDecider {
       const processName = it.processName;
       const hasSched = !!it.hasSched;
       const hasHeapProfiles = !!it.hasHeapProfiles;
-      const isDebuggable = !!it.isDebuggable;
 
       // Group by upid if present else by utid.
       let pUuid =
@@ -1701,27 +1696,20 @@ class TrackDecider {
       if (pUuid === undefined) {
         pUuid = this.getOrCreateUuid(utid, upid);
         const summaryTrackId = uuidv4();
-
-        const pidForColor = pid || tid || upid || utid || 0;
-        const kind =
-            hasSched ? PROCESS_SCHEDULING_TRACK_KIND : PROCESS_SUMMARY_TRACK;
+        const type = hasSched ? 'schedule' : 'summary';
+        const uri = `perfetto.ProcessScheduling#${utid}.${type}`;
 
         this.tracksToAdd.push({
           id: summaryTrackId,
           engineId: this.engineId,
-          kind,
+          kind: PLUGIN_TRACK_KIND,
           trackSortKey: hasSched ?
               PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
               PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
           name: `${upid === null ? tid : pid} summary`,
-          config: {
-            pidForColor,
-            upid,
-            utid,
-            tid,
-            isDebuggable: isDebuggable ?? undefined,
-          },
+          config: {},
           labels: it.chromeProcessLabels.split(','),
+          uri,
         });
 
         const name =

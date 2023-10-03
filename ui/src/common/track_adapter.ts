@@ -195,7 +195,7 @@ export abstract class TrackControllerAdapter<Config, Data> {
   // don't have access to it.
   private uuid = uuidv4();
 
-  constructor(protected config: Config, private engine: EngineProxy) {}
+  constructor(protected config: Config, protected engine: EngineProxy) {}
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
