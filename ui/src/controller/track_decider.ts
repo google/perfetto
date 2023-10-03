@@ -234,7 +234,7 @@ class TrackDecider {
   async guessCpuSizes(): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await this.engine.query(`
-      SELECT IMPORT('common.cpus');
+      INCLUDE PERFETTO MODULE common.cpus;
     `);
     const result = await this.engine.query(`
       SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;

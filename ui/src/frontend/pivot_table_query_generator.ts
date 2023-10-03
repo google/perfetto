@@ -166,7 +166,7 @@ export function generateQueryFromState(state: PivotTableState):
               .join(' and\n')}` :
       '';
   const text = `
-    select import('experimental.slices');
+    INCLUDE PERFETTO MODULE experimental.slices;
 
     select
       ${renderedPivots.concat(aggregations).join(',\n')}

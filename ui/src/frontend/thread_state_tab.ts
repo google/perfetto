@@ -291,7 +291,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       ), m(Button,
            {
           label: 'Critical path lite',
-          onclick: () => runQuery(`SELECT IMPORT('experimental.thread_executing_span');`, this.engine)
+          onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
               .then(() => addDebugTrack(
               this.engine,
                   {
@@ -323,7 +323,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
       ), m(Button,
            {
           label: 'Critical path',
-          onclick: () => runQuery(`SELECT IMPORT('experimental.thread_executing_span');`, this.engine)
+          onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
               .then(() => addDebugTrack(
               this.engine,
                   {
