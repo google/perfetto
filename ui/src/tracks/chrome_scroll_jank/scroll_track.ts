@@ -82,7 +82,10 @@ export async function addTopLevelScrollTrack(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
+  await engine.query(`
+    INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
+  `);
 
   result.tracksToAdd.push({
     id: uuidv4(),
