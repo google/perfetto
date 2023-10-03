@@ -41,6 +41,12 @@ import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
 import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
+import {
+  buildScrollOffsetsGraph,
+  getAppliedScrollDeltas,
+  getJankIntervals,
+  getUserScrollDeltas,
+} from './scroll_delta_graph';
 
 import {
   getScrollJankSlices,
@@ -70,7 +76,9 @@ interface Metrics {
   jankyFrameCount?: number;
   jankyFramePercent?: number;
   missedVsyncs?: number;
-  // TODO(b/279581028): add pixels scrolled.
+  startOffset?: number;
+  endOffset?: number;
+  totalPixelsScrolled?: number;
 }
 
 interface JankSliceDetails {
@@ -87,6 +95,7 @@ export class ScrollDetailsPanel extends
   data: Data|undefined;
   metrics: Metrics = {};
   orderedJankSlices: JankSliceDetails[] = [];
+  scrollDeltas: m.Child;
 
   static create(args: NewBottomTabArgs): ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
@@ -136,6 +145,7 @@ export class ScrollDetailsPanel extends
     await this.loadInputEventCount();
     await this.loadFrameStats();
     await this.loadDelayData();
+    await this.loadScrollOffsets();
   }
 
   private async loadInputEventCount() {
@@ -227,6 +237,34 @@ export class ScrollDetailsPanel extends
     }
   }
 
+  private async loadScrollOffsets() {
+    if (exists(this.data)) {
+      const userDeltas =
+          await getUserScrollDeltas(this.engine, this.data.ts, this.data.dur);
+      const appliedDeltas = await getAppliedScrollDeltas(
+          this.engine, this.data.ts, this.data.dur);
+      const jankIntervals =
+          await getJankIntervals(this.engine, this.data.ts, this.data.dur);
+      this.scrollDeltas =
+          buildScrollOffsetsGraph(userDeltas, appliedDeltas, jankIntervals);
+
+      if (appliedDeltas.length > 0) {
+        this.metrics.startOffset = appliedDeltas[0].scrollOffset;
+        this.metrics.endOffset =
+            appliedDeltas[appliedDeltas.length - 1].scrollOffset;
+
+        let pixelsScrolled = 0;
+        for (let i = 0; i < appliedDeltas.length; i++) {
+          pixelsScrolled += Math.abs(appliedDeltas[i].scrollDelta);
+        }
+
+        if (pixelsScrolled != 0) {
+          this.metrics.totalPixelsScrolled = pixelsScrolled;
+        }
+      }
+    }
+  }
+
   private renderMetricsDictionary(): m.Child[] {
     const metrics: {[key: string]: m.Child} = {};
     metrics['Total Finger Input Event Count'] = this.metrics.inputEventCount;
@@ -238,7 +276,26 @@ export class ScrollDetailsPanel extends
 
     if (this.metrics.jankyFramePercent !== undefined) {
       metrics['Janky Frame Percentage (Total Janky Frames / Total Chrome Presented Frames)'] =
-          sqlValueToString(`${this.metrics.jankyFramePercent}%`);
+          `${this.metrics.jankyFramePercent}%`;
+    }
+
+    if (this.metrics.startOffset != undefined) {
+      metrics['Starting Offset'] = this.metrics.startOffset;
+    }
+
+    if (this.metrics.endOffset != undefined) {
+      metrics['Ending Offset'] = this.metrics.endOffset;
+    }
+
+    if (this.metrics.startOffset != undefined &&
+        this.metrics.endOffset != undefined) {
+      metrics['Net Pixels Scrolled'] =
+          Math.abs(this.metrics.endOffset - this.metrics.startOffset);
+    }
+
+    if (this.metrics.totalPixelsScrolled != undefined) {
+      metrics['Total Pixels Scrolled (all directions)'] =
+          this.metrics.totalPixelsScrolled;
     }
 
     return dictToTreeNodes(metrics);
@@ -301,6 +358,24 @@ export class ScrollDetailsPanel extends
     );
   }
 
+  private getGraphText(): m.Child {
+    return m(
+        MultiParagraphText,
+        m(TextParagraph, {
+          text: `The scroll offset is the discrepancy in physical screen pixels
+                 between two consecutive frames.`,
+        }),
+        m(TextParagraph, {
+          text: `The overall curve of the graph indicates the direction (up or
+                 down) by which the user scrolled over time.`,
+        }),
+        m(TextParagraph, {
+          text: `Grey blocks in the graph represent intervals of jank
+                 corresponding with the Chrome Scroll Janks track.`,
+        }),
+    );
+  }
+
   viewTab() {
     if (this.isLoading() || this.data == undefined) {
       return m('h2', 'Loading');
@@ -340,7 +415,12 @@ export class ScrollDetailsPanel extends
                   {title: 'Description'},
                   this.getDescriptionText(),
                   ),
-              // TODO: Add custom widgets (e.g. event latency table).
+              m(
+                  Section,
+                  {title: 'Scroll Offsets Plot'},
+                  m('.div[style=\'padding-bottom:5px\']', this.getGraphText()),
+                  this.scrollDeltas,
+                  ),
               )),
     );
   }

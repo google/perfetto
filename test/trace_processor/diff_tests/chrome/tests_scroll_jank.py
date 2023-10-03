@@ -529,3 +529,51 @@ class ChromeScrollJank(TestSuite):
           }
         }
         """))
+
+  def test_chrome_scroll_input_offsets(self):
+    return DiffTestBlueprint(
+        trace=DataPath('scroll_offsets.pftrace'),
+        query="""
+        SELECT IMPORT('chrome.scroll_jank.scroll_offsets');
+
+        SELECT
+          scroll_update_id,
+          ts,
+          delta_y,
+          offset_y
+        FROM chrome_scroll_input_offsets
+        ORDER by ts
+        LIMIT 5;
+        """,
+        out=Csv("""
+        "scroll_update_id","ts","delta_y","offset_y"
+        1983,4687296612739,-36.999939,-36.999939
+        1983,4687307175845,-39.000092,-76.000031
+        1987,4687313206739,-35.999969,-112.000000
+        1987,4687323152462,-35.000000,-147.000000
+        1991,4687329240739,-28.999969,-175.999969
+        """))
+
+  def test_chrome_presented_scroll_offsets(self):
+    return DiffTestBlueprint(
+        trace=DataPath('scroll_offsets.pftrace'),
+        query="""
+        SELECT IMPORT('chrome.scroll_jank.scroll_offsets');
+
+        SELECT
+          scroll_update_id,
+          ts,
+          delta_y,
+          offset_y
+        FROM chrome_presented_scroll_offsets
+        ORDER by ts
+        LIMIT 5;
+        """,
+        out=Csv("""
+        "scroll_update_id","ts","delta_y","offset_y"
+        1983,4687296612739,"[NULL]",0
+        1987,4687313206739,-50,-50
+        1991,4687329240739,-50,-100
+        1993,4687336155739,-81,-181
+        1996,4687346164739,-66,-247
+        """))

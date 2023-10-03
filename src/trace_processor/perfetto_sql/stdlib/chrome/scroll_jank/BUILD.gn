@@ -19,6 +19,7 @@ perfetto_sql_source_set("scroll_jank") {
     "scroll_jank_intervals.sql",
     "scroll_jank_v3.sql",
     "scroll_jank_v3_cause.sql",
+    "scroll_offsets.sql",
     "utils.sql",
   ]
 }
