@@ -1956,6 +1956,11 @@ filegroup {
     name: "perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
 }
 
+// GN: //include/perfetto/ext/trace_processor/rpc:query_result_serializer
+filegroup {
+    name: "perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
+}
+
 // GN: //include/perfetto/ext/traced:sys_stats_counters
 filegroup {
     name: "perfetto_include_perfetto_ext_traced_sys_stats_counters",
@@ -12351,6 +12356,7 @@ cc_test {
         ":perfetto_include_perfetto_ext_trace_processor_demangle",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
+        ":perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_ext_traced_traced",
         ":perfetto_include_perfetto_ext_tracing_core_core",
@@ -13201,6 +13207,7 @@ cc_binary {
         ":perfetto_include_perfetto_ext_trace_processor_demangle",
         ":perfetto_include_perfetto_ext_trace_processor_export_json",
         ":perfetto_include_perfetto_ext_trace_processor_importers_memory_tracker_memory_tracker",
+        ":perfetto_include_perfetto_ext_trace_processor_rpc_query_result_serializer",
         ":perfetto_include_perfetto_ext_traced_sys_stats_counters",
         ":perfetto_include_perfetto_protozero_protozero",
         ":perfetto_include_perfetto_public_abi_base",
