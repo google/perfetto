@@ -290,6 +290,13 @@ HeapGraphTracker::HeapGraphTracker(TraceStorage* storage)
         base::StringView(protos::pbzero::HeapGraphRoot_Type_Name(val));
     root_type_string_ids_[i] = storage_->InternString(str_view);
   }
+
+  for (size_t i = 0; i < type_kind_string_ids_.size(); i++) {
+    auto val = static_cast<protos::pbzero::HeapGraphType::Kind>(i);
+    auto str_view =
+        base::StringView(protos::pbzero::HeapGraphType_Kind_Name(val));
+    type_kind_string_ids_[i] = storage_->InternString(str_view);
+  }
 }
 
 HeapGraphTracker::SequenceState& HeapGraphTracker::GetOrCreateSequence(
@@ -436,26 +443,27 @@ void HeapGraphTracker::AddInternedLocationName(uint32_t seq_id,
   sequence_state.interned_location_names.emplace(intern_id, strid);
 }
 
-void HeapGraphTracker::AddInternedType(uint32_t seq_id,
-                                       uint64_t intern_id,
-                                       StringId strid,
-                                       std::optional<uint64_t> location_id,
-                                       uint64_t object_size,
-                                       std::vector<uint64_t> field_name_ids,
-                                       uint64_t superclass_id,
-                                       uint64_t classloader_id,
-                                       bool no_fields,
-                                       StringId kind) {
+void HeapGraphTracker::AddInternedType(
+    uint32_t seq_id,
+    uint64_t intern_id,
+    StringId strid,
+    std::optional<uint64_t> location_id,
+    uint64_t object_size,
+    std::vector<uint64_t> field_name_ids,
+    uint64_t superclass_id,
+    uint64_t classloader_id,
+    bool no_fields,
+    protos::pbzero::HeapGraphType::Kind kind) {
   SequenceState& sequence_state = GetOrCreateSequence(seq_id);
-  sequence_state.interned_types[intern_id].name = strid;
-  sequence_state.interned_types[intern_id].location_id = location_id;
-  sequence_state.interned_types[intern_id].object_size = object_size;
-  sequence_state.interned_types[intern_id].field_name_ids =
-      std::move(field_name_ids);
-  sequence_state.interned_types[intern_id].superclass_id = superclass_id;
-  sequence_state.interned_types[intern_id].classloader_id = classloader_id;
-  sequence_state.interned_types[intern_id].no_fields = no_fields;
-  sequence_state.interned_types[intern_id].kind = kind;
+  InternedType& type = sequence_state.interned_types[intern_id];
+  type.name = strid;
+  type.location_id = location_id;
+  type.object_size = object_size;
+  type.field_name_ids = std::move(field_name_ids);
+  type.superclass_id = superclass_id;
+  type.classloader_id = classloader_id;
+  type.no_fields = no_fields;
+  type.kind = kind;
 }
 
 void HeapGraphTracker::AddInternedFieldName(uint32_t seq_id,
@@ -625,7 +633,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
     }
     if (location_name)
       type_row_ref.set_location(*location_name);
-    type_row_ref.set_kind(interned_type.kind);
+    type_row_ref.set_kind(InternTypeKindString(interned_type.kind));
 
     base::StringView normalized_type =
         NormalizeTypeName(storage_->GetString(interned_type.name));
@@ -1063,6 +1071,16 @@ StringId HeapGraphTracker::InternRootTypeString(
   }
 
   return root_type_string_ids_[idx];
+}
+
+StringId HeapGraphTracker::InternTypeKindString(
+    protos::pbzero::HeapGraphType::Kind kind) {
+  size_t idx = static_cast<size_t>(kind);
+  if (idx >= type_kind_string_ids_.size()) {
+    idx = static_cast<size_t>(protos::pbzero::HeapGraphType::KIND_UNKNOWN);
+  }
+
+  return type_kind_string_ids_[idx];
 }
 
 HeapGraphTracker::~HeapGraphTracker() = default;

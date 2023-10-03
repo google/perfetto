@@ -67,8 +67,6 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
 
   HeapGraphTracker tracker(context.storage.get());
 
-  StringPool::Id normal_kind = context.storage->InternString("KIND_NORMAL");
-
   constexpr uint64_t kLocation = 0;
   tracker.AddInternedLocationName(kSeqId, kLocation,
                                   context.storage->InternString("location"));
@@ -94,34 +92,34 @@ TEST(HeapGraphTrackerTest, PopulateNativeSize) {
       kSeqId, kTypeBitmap,
       context.storage->InternString("android.graphics.Bitmap"), kLocation,
       /*object_size=*/0,
-      /*reference_field_name_ids=*/{}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_reference_fields=*/false,
-      /*kind=*/normal_kind);
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      protos::pbzero::HeapGraphType::KIND_NORMAL);
 
-  tracker.AddInternedType(
-      kSeqId, kTypeCleaner, context.storage->InternString("sun.misc.Cleaner"),
-      kLocation, /*object_size=*/0,
-      /*reference_field_name_ids=*/{kReferent, kThunk, kNext},
-      /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_reference_fields=*/false,
-      /*kind=*/normal_kind);
+  tracker.AddInternedType(kSeqId, kTypeCleaner,
+                          context.storage->InternString("sun.misc.Cleaner"),
+                          kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{kReferent, kThunk, kNext},
+                          /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
 
   tracker.AddInternedType(
       kSeqId, kTypeCleanerThunk,
       context.storage->InternString(
           "libcore.util.NativeAllocationRegistry$CleanerThunk"),
       kLocation, /*object_size=*/0,
-      /*reference_field_name_ids=*/{kThis0}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_reference_fields=*/false,
-      /*kind=*/normal_kind);
+      /*field_name_ids=*/{kThis0}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      protos::pbzero::HeapGraphType::KIND_NORMAL);
 
   tracker.AddInternedType(
       kSeqId, kTypeNativeAllocationRegistry,
       context.storage->InternString("libcore.util.NativeAllocationRegistry"),
       kLocation, /*object_size=*/0,
-      /*reference_field_name_ids=*/{}, /*superclass_id=*/0,
-      /*classloader_id=*/0, /*no_reference_fields=*/false,
-      /*kind=*/normal_kind);
+      /*field_name_ids=*/{}, /*superclass_id=*/0,
+      /*classloader_id=*/0, /*no_fields=*/false,
+      protos::pbzero::HeapGraphType::KIND_NORMAL);
 
   enum Objects : uint64_t {
     kObjBitmap = 1,
@@ -226,9 +224,6 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   StringPool::Id b = context.storage->InternString("B");
   StringPool::Id weak_ref = context.storage->InternString("WeakReference");
 
-  StringPool::Id normal_kind = context.storage->InternString("KIND_NORMAL");
-  StringPool::Id weak_ref_kind =
-      context.storage->InternString("KIND_WEAK_REFERENCE");
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
   tracker.AddInternedLocationName(kSeqId, kLocation,
@@ -236,24 +231,24 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   tracker.AddInternedType(kSeqId, kX, x, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
-                          /*kind=*/normal_kind);
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
   tracker.AddInternedType(kSeqId, kY, y, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
-                          /*kind=*/normal_kind);
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
   tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
-                          /*kind=*/normal_kind);
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
   tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
-                          /*kind=*/normal_kind);
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
   tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
                           /*object_size=*/0,
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
-                          /*kind=*/weak_ref_kind);
+                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = 999;

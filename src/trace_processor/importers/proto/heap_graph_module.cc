@@ -36,35 +36,6 @@ using ClassTable = tables::HeapGraphClassTable;
 using ObjectTable = tables::HeapGraphObjectTable;
 using ReferenceTable = tables::HeapGraphReferenceTable;
 
-const char* HeapGraphTypeKindToString(int32_t type) {
-  switch (type) {
-    case protos::pbzero::HeapGraphType::KIND_NORMAL:
-      return "KIND_NORMAL";
-    case protos::pbzero::HeapGraphType::KIND_NOREFERENCES:
-      return "KIND_NOREFERENCES";
-    case protos::pbzero::HeapGraphType::KIND_STRING:
-      return "KIND_STRING";
-    case protos::pbzero::HeapGraphType::KIND_ARRAY:
-      return "KIND_ARRAY";
-    case protos::pbzero::HeapGraphType::KIND_CLASS:
-      return "KIND_CLASS";
-    case protos::pbzero::HeapGraphType::KIND_CLASSLOADER:
-      return "KIND_CLASSLOADER";
-    case protos::pbzero::HeapGraphType::KIND_DEXCACHE:
-      return "KIND_DEXCACHE";
-    case protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE:
-      return "KIND_SOFT_REFERENCE";
-    case protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE:
-      return "KIND_WEAK_REFERENCE";
-    case protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE:
-      return "KIND_FINALIZER_REFERENCE";
-    case protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE:
-      return "KIND_PHANTOM_REFERENCE";
-    default:
-      return "KIND_UNKNOWN";
-  }
-}
-
 // Iterate over a repeated field of varints, independent of whether it is
 // packed or not.
 template <int32_t field_no, typename T, typename F>
@@ -200,8 +171,13 @@ void HeapGraphModule::ParseHeapGraph(uint32_t seq_id,
         entry.kind() == protos::pbzero::HeapGraphType::KIND_ARRAY ||
         entry.kind() == protos::pbzero::HeapGraphType::KIND_STRING;
 
-    StringId kind = context_->storage->InternString(
-        HeapGraphTypeKindToString(entry.kind()));
+    protos::pbzero::HeapGraphType::Kind kind =
+        protos::pbzero::HeapGraphType::KIND_UNKNOWN;
+    if (protos::pbzero::HeapGraphType_Kind_MIN <= entry.kind() &&
+        entry.kind() <= protos::pbzero::HeapGraphType_Kind_MAX) {
+      kind = protos::pbzero::HeapGraphType::Kind(entry.kind());
+    }
+
     std::optional<uint64_t> location_id;
     if (entry.has_location_id())
       location_id = entry.location_id();
