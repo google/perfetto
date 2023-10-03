@@ -21,12 +21,13 @@ import {Engine} from '../../common/engine';
 import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
-import {PrimaryTrackSortKey, SCROLLING_TRACK_GROUP} from '../../common/state';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

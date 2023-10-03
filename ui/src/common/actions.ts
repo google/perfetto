@@ -16,6 +16,7 @@ import {Draft} from 'immer';
 
 import {assertExists, assertTrue, assertUnreachable} from '../base/logging';
 import {duration, time} from '../base/time';
+import {exists} from '../base/utils';
 import {RecordConfig} from '../controller/record_config_types';
 import {
   GenericSliceDetailsTabConfig,
@@ -29,7 +30,7 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
-import {TrackTags} from '../public/index';
+import {PrimaryTrackSortKey, TrackTags} from '../public/index';
 import {DebugTrackV2Config} from '../tracks/debug/slice_track';
 
 import {randomColor} from './colorizer';
@@ -47,6 +48,7 @@ import {
   traceEventEnd,
   TraceEventScope,
 } from './metatracing';
+import {pluginManager} from './plugins';
 import {
   AdbRecordingTarget,
   Area,
@@ -61,7 +63,6 @@ import {
   Pagination,
   PendingDeeplinkState,
   PivotTableResult,
-  PrimaryTrackSortKey,
   ProfileType,
   RecordingTarget,
   SCROLLING_TRACK_GROUP,
@@ -225,16 +226,25 @@ export const StateActions = {
       state.uiTrackIdByTraceTrackId[trackId] = uiTrackId;
     };
 
-    const config = trackState.config as {trackId: number};
-    if (config.trackId !== undefined) {
-      setUiTrackId(config.trackId, uiTrackId);
-      return;
-    }
-
-    const multiple = trackState.config as {trackIds: number[]};
-    if (multiple.trackIds !== undefined) {
-      for (const trackId of multiple.trackIds) {
+    const {uri, config} = trackState;
+    if (exists(uri)) {
+      // If track is a new "plugin" type track (i.e. it has a uri), resolve the
+      // track ids from through the pluginManager.
+      const trackInfo = pluginManager.resolveTrackInfo(uri);
+      if (trackInfo?.trackIds) {
+        for (const trackId of trackInfo.trackIds) {
+          setUiTrackId(trackId, uiTrackId);
+        }
+      }
+    } else {
+      // Traditional track - resolve track ids through the config.
+      const {trackId, trackIds} = config;
+      if (exists(trackId)) {
         setUiTrackId(trackId, uiTrackId);
+      } else if (exists(trackIds)) {
+        for (const trackId of trackIds) {
+          setUiTrackId(trackId, uiTrackId);
+        }
       }
     }
   },
@@ -411,11 +421,6 @@ export const StateActions = {
 
   setVisibleTracks(state: StateDraft, args: {tracks: string[]}) {
     state.visibleTracks = args.tracks;
-  },
-
-  updateTrackConfig(state: StateDraft, args: {id: string, config: {}}) {
-    if (state.tracks[args.id] === undefined) return;
-    state.tracks[args.id].config = args.config;
   },
 
   moveTrack(

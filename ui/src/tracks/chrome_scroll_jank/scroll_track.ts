@@ -15,20 +15,20 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Engine} from '../../common/engine';
-import {
-  PrimaryTrackSortKey,
-  SCROLLING_TRACK_GROUP,
-} from '../../common/state';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
+import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
-import {ScrollJankPluginState} from './index';
 
-import {ScrollJankTracks as DecideTracksResult} from './index';
+import {
+  ScrollJankPluginState,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export {Data} from '../chrome_slices';

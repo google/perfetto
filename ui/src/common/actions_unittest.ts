@@ -16,6 +16,7 @@ import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {Time} from '../base/time';
+import {PrimaryTrackSortKey} from '../public';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
@@ -27,7 +28,6 @@ import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {
   InThreadTrackSortKey,
-  PrimaryTrackSortKey,
   ProfileType,
   SCROLLING_TRACK_GROUP,
   State,

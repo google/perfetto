@@ -18,12 +18,13 @@ import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {duration, Span, time} from '../base/time';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
 import {RegistryError} from '../common/registry';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {TrackLike} from '../public';
+import {Migrate, TrackContext, TrackLike} from '../public';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -68,22 +69,35 @@ function isSelected(id: string) {
   return selectedArea.tracks.includes(id);
 }
 
-interface TrackChipsAttrs {
-  config: {[k: string]: any};
+interface TrackChipAttrs {
+  text: string;
 }
 
-export class TrackChips implements m.ClassComponent<TrackChipsAttrs> {
-  view({attrs}: m.CVnode<TrackChipsAttrs>) {
-    const {config} = attrs;
-
-    const isMetric = 'namespace' in config;
-    const isDebuggable = ('isDebuggable' in config) && config.isDebuggable;
-
-    return [
-      isMetric && m('span.chip', 'metric'),
-      isDebuggable && m('span.chip', 'debuggable'),
-    ];
+class TrackChip implements m.ClassComponent<TrackChipAttrs> {
+  view({attrs}: m.CVnode<TrackChipAttrs>) {
+    return m('span.chip', attrs.text);
   }
+}
+
+export function renderChips({uri, config}: TrackState) {
+  const tagElements: m.Children = [];
+  if (exists(uri)) {
+    const trackInfo = pluginManager.resolveTrackInfo(uri);
+    const tags = trackInfo?.tags;
+    tags?.metric && tagElements.push(m(TrackChip, {text: 'metric'}));
+    tags?.debuggable && tagElements.push(m(TrackChip, {text: 'debuggable'}));
+  } else {
+    if (config && typeof config === 'object') {
+      if ('namespace' in config) {
+        tagElements.push(m(TrackChip, {text: 'metric'}));
+      }
+      if ('isDebuggable' in config && config.isDebuggable) {
+        tagElements.push(m(TrackChip, {text: 'debuggable'}));
+      }
+    }
+  }
+
+  return tagElements;
 }
 
 interface TrackShellAttrs {
@@ -134,7 +148,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               },
             },
             attrs.trackState.name,
-            m(TrackChips, {config: attrs.trackState.config}),
+            renderChips(attrs.trackState),
             ),
         m('.track-buttons',
           attrs.track.getTrackShellButtons(),
@@ -352,8 +366,21 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     if (!trackState) return;
 
     const {id, uri} = trackState;
-    this.track =
-        uri ? pluginManager.createTrack(uri, id) : loadTrack(trackState, id);
+
+    const trackCtx: TrackContext = {
+      trackInstanceId: id,
+      mountStore: <T>(migrate: Migrate<T>) => {
+        const {store, state} = globals;
+        const migratedState = migrate(state.tracks[trackId].state);
+        globals.store.edit((draft) => {
+          draft.tracks[trackId].state = migratedState;
+        });
+        return store.createProxy<T>(['tracks', trackId, 'state']);
+      },
+    };
+
+    this.track = uri ? pluginManager.createTrack(uri, trackCtx) :
+                       loadTrack(trackState, id);
     this.track?.onCreate();
     this.trackState = trackState;
   }

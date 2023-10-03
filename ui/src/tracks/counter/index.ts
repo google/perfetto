@@ -13,28 +13,36 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
+import {
+  BasicAsyncTrack,
+  NUM_NULL,
+  STR_NULL,
+} from '../../common/basic_async_track';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
 import {
+  EngineProxy,
   LONG,
   LONG_NULL,
   NUM,
   Plugin,
   PluginContext,
   PluginInfo,
+  PrimaryTrackSortKey,
+  Store,
   STR,
   TracePluginContext,
-  TrackInfo,
+  TrackContext,
 } from '../../public';
+import {getTrackName} from '../../public/utils';
 import {Button} from '../../widgets/button';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';
 
@@ -66,25 +74,103 @@ export interface Config {
   minimumValue?: number;
   startTs?: time;
   endTs?: time;
-  namespace: string;
+  namespace?: string;
   trackId: number;
-  scale?: CounterScaleOptions;
+  defaultScale?: CounterScaleOptions;
 }
 
-class CounterTrackController extends TrackController<Config, Data> {
-  static readonly kind = COUNTER_TRACK_KIND;
+const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
+const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
+
+// Sets the default 'scale' for counter tracks. If the regex matches
+// then the paired mode is used. Entries are in priority order so the
+// first match wins.
+const COUNTER_REGEX: [RegExp, CounterScaleOptions][] = [
+  // Power counters make more sense in rate mode since you're typically
+  // interested in the slope of the graph rather than the absolute
+  // value.
+  [new RegExp('^power\..*$'), 'RATE'],
+  // Same for network counters.
+  [NETWORK_TRACK_REGEX, 'RATE'],
+  // Entity residency
+  [ENTITY_RESIDENCY_REGEX, 'RATE'],
+];
+
+function getCounterScale(name: string): CounterScaleOptions|undefined {
+  for (const [re, scale] of COUNTER_REGEX) {
+    if (name.match(re)) {
+      return scale;
+    }
+  }
+  return undefined;
+}
+
+// 0.5 Makes the horizontal lines sharp.
+const MARGIN_TOP = 3.5;
+const RECT_HEIGHT = 24.5;
+
+interface CounterTrackState {
+  scale: CounterScaleOptions;
+}
+
+function isCounterState(x: unknown): x is CounterTrackState {
+  if (x && typeof x === 'object' && 'scale' in x) {
+    if (typeof x.scale === 'string') {
+      return true;
+    } else {
+      return false;
+    }
+  } else {
+    return false;
+  }
+}
+
+export class CounterTrack extends BasicAsyncTrack<Data> {
   private setup = false;
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
   private minimumDeltaSeen = 0;
   private maxDurNs: duration = 0n;
+  private store: Store<CounterTrackState>;
+  private id: string;
+  private uuid = uuidv4();
+
+  constructor(
+      ctx: TrackContext, private config: Config, private engine: EngineProxy) {
+    super();
+    this.id = ctx.trackInstanceId;
+    this.store = ctx.mountStore<CounterTrackState>((init: unknown) => {
+      if (isCounterState(init)) {
+        return init;
+      } else {
+        return {scale: this.config.defaultScale ?? 'ZERO_BASED'};
+      }
+    });
+  }
+
+  // Returns a valid SQL table name with the given prefix that should be unique
+  // for each track.
+  tableName(prefix: string) {
+    // Derive table name from, since that is unique for each track.
+    // Track ID can be UUID but '-' is not valid for sql table name.
+    const idSuffix = this.uuid.split('-').join('_');
+    return `${prefix}_${idSuffix}`;
+  }
+
+  private namespaceTable(tableName: string): string {
+    if (this.config.namespace) {
+      return this.config.namespace + '_' + tableName;
+    } else {
+      return tableName;
+    }
+  }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (!this.setup) {
       if (this.config.namespace === undefined) {
-        await this.query(`
+        await this.engine.query(`
           create view ${this.tableName('counter_view')} as
           select
             id,
@@ -96,7 +182,7 @@ class CounterTrackController extends TrackController<Config, Data> {
           where track_id = ${this.config.trackId};
         `);
       } else {
-        await this.query(`
+        await this.engine.query(`
           create view ${this.tableName('counter_view')} as
           select
             id,
@@ -109,7 +195,7 @@ class CounterTrackController extends TrackController<Config, Data> {
         `);
       }
 
-      const maxDurResult = await this.query(`
+      const maxDurResult = await this.engine.query(`
           select
             max(
               iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
@@ -118,7 +204,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       `);
       this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
 
-      const queryRes = await this.query(`
+      const queryRes = await this.engine.query(`
         select
           ifnull(max(value), 0) as maxValue,
           ifnull(min(value), 0) as minValue,
@@ -135,7 +221,7 @@ class CounterTrackController extends TrackController<Config, Data> {
       this.setup = true;
     }
 
-    const queryRes = await this.query(`
+    const queryRes = await this.engine.query(`
       select
         (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         min(value) as minValue,
@@ -219,34 +305,18 @@ class CounterTrackController extends TrackController<Config, Data> {
       return this.config.minimumValue;
     }
   }
-}
-
-
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 3.5;
-const RECT_HEIGHT = 24.5;
-
-class CounterTrack extends Track<Config, Data> {
-  static readonly kind = COUNTER_TRACK_KIND;
-  static create(args: NewTrackArgs): CounterTrack {
-    return new CounterTrack(args);
-  }
 
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
   private hoveredTs: time|undefined = undefined;
   private hoveredTsEnd: time|undefined = undefined;
 
-  constructor(args: NewTrackArgs) {
-    super(args);
-  }
-
   getHeight() {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
   getContextMenu(): m.Vnode<any> {
-    const currentScale = this.config.scale;
+    const currentScale = this.store.state.scale;
     const scales: {name: CounterScaleOptions, humanName: string}[] = [
       {name: 'ZERO_BASED', humanName: 'Zero based'},
       {name: 'MIN_MAX', humanName: 'Min/Max'},
@@ -258,10 +328,8 @@ class CounterTrack extends Track<Config, Data> {
         label: scale.humanName,
         active: currentScale === scale.name,
         onclick: () => {
-          this.config.scale = scale.name;
-          Actions.updateTrackConfig({
-            id: this.trackState.id,
-            config: this.config,
+          this.store.edit((draft) => {
+            draft.scale = scale.name;
           });
         },
       });
@@ -282,7 +350,7 @@ class CounterTrack extends Track<Config, Data> {
       visibleTimeScale: timeScale,
       windowSpan,
     } = globals.frontendLocalState;
-    const data = this.data();
+    const data = this.data;
 
     // Can't possibly draw anything.
     if (data === undefined || data.timestamps.length === 0) {
@@ -295,7 +363,7 @@ class CounterTrack extends Track<Config, Data> {
     assertTrue(data.timestamps.length === data.totalDeltas.length);
     assertTrue(data.timestamps.length === data.rate.length);
 
-    const scale: CounterScaleOptions = this.config.scale || 'ZERO_BASED';
+    const scale: CounterScaleOptions = this.store.state.scale;
 
     let minValues = data.minValues;
     let maxValues = data.maxValues;
@@ -485,17 +553,17 @@ class CounterTrack extends Track<Config, Data> {
   }
 
   onMouseMove(pos: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.data;
     if (data === undefined) return;
     this.mousePos = pos;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     let values = data.lastValues;
-    if (this.config.scale === 'DELTA_FROM_PREVIOUS') {
+    if (this.store.state.scale === 'DELTA_FROM_PREVIOUS') {
       values = data.totalDeltas;
     }
-    if (this.config.scale === 'RATE') {
+    if (this.store.state.scale === 'RATE') {
       values = data.rate;
     }
 
@@ -513,7 +581,7 @@ class CounterTrack extends Track<Config, Data> {
   }
 
   onMouseClick({x}: {x: number}): boolean {
-    const data = this.data();
+    const data = this.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
@@ -527,21 +595,58 @@ class CounterTrack extends Track<Config, Data> {
         leftTs: Time.fromRaw(data.timestamps[left]),
         rightTs: Time.fromRaw(right !== -1 ? data.timestamps[right] : -1n),
         id: counterId,
-        trackId: this.trackState.id,
+        trackId: this.id,
       }));
       return true;
     }
   }
+
+  onDestroy(): void {
+    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+  }
+}
+
+interface CounterInfo {
+  name: string;
+  trackId: number;
 }
 
 class CounterPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(CounterTrackController);
-    ctx.registerTrack(CounterTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    await this.addCounterTracks(ctx);
+    await this.addGpuFrequencyTracks(ctx);
+    await this.addCpuFreqLimitCounterTracks(ctx);
+    await this.addCpuPerfCounterTracks(ctx);
+    await this.addThreadCounterTracks(ctx);
+    await this.addProcessCounterTracks(ctx);
   }
 
-  async findPotentialTracks({engine}: TracePluginContext):
-      Promise<TrackInfo[]> {
+  private async addCounterTracks(ctx: TracePluginContext) {
+    const counters = await this.getCounterNames(ctx.engine);
+    for (const {trackId, name} of counters) {
+      const config:
+          Config = {name, trackId, defaultScale: getCounterScale(name)};
+      const uri = `perfetto.Counter#${trackId}`;
+      ctx.addTrack({
+        uri,
+        displayName: name,
+        kind: COUNTER_TRACK_KIND,
+        trackIds: [trackId],
+        trackFactory: (trackCtx) => {
+          return new CounterTrack(trackCtx, config, ctx.engine);
+        },
+      });
+      ctx.suggestTrack({
+        uri,
+        name,
+        sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+      });
+    }
+  }
+
+  private async getCounterNames(engine: EngineProxy): Promise<CounterInfo[]> {
     const result = await engine.query(`
     select name, id
     from (
@@ -562,20 +667,233 @@ class CounterPlugin implements Plugin {
       id: NUM,
     });
 
-    const tracks: TrackInfo[] = [];
+    const tracks: CounterInfo[] = [];
     for (; it.valid(); it.next()) {
-      const name = it.name;
-      const trackId = it.id;
       tracks.push({
-        trackKind: COUNTER_TRACK_KIND,
-        name,
-        config: {
-          name,
-          trackId,
-        },
+        trackId: it.id,
+        name: it.name,
       });
     }
     return tracks;
+  }
+
+  private async addGpuFrequencyTracks(ctx: TracePluginContext) {
+    const engine = ctx.engine;
+    const numGpus = await engine.getNumberOfGpus();
+    const maxGpuFreqResult = await engine.query(`
+      select ifnull(max(value), 0) as maximumValue
+      from counter c
+      inner join gpu_counter_track t on c.track_id = t.id
+      where name = 'gpufreq';
+    `);
+    const maximumValue =
+        maxGpuFreqResult.firstRow({maximumValue: NUM}).maximumValue;
+
+    for (let gpu = 0; gpu < numGpus; gpu++) {
+      // Only add a gpu freq track if we have
+      // gpu freq data.
+      const freqExistsResult = await engine.query(`
+      select id
+      from gpu_counter_track
+      where name = 'gpufreq' and gpu_id = ${gpu}
+      limit 1;
+    `);
+      if (freqExistsResult.numRows() > 0) {
+        const trackId = freqExistsResult.firstRow({id: NUM}).id;
+        const uri = `perfetto.Counter#gpu_freq${gpu}`;
+        const name = `Gpu ${gpu} Frequency`;
+        const config: Config = {
+          name,
+          trackId,
+          maximumValue,
+          defaultScale: getCounterScale(name),
+        };
+        ctx.addTrack({
+          uri,
+          displayName: name,
+          kind: COUNTER_TRACK_KIND,
+          trackIds: [trackId],
+          trackFactory: (trackCtx) => {
+            return new CounterTrack(trackCtx, config, ctx.engine);
+          },
+        });
+      }
+    }
+  }
+
+  async addCpuFreqLimitCounterTracks(ctx: TracePluginContext): Promise<void> {
+    const cpuFreqLimitCounterTracksSql = `
+      select name, id
+      from cpu_counter_track
+      where name glob "Cpu * Freq Limit"
+      order by name asc
+    `;
+
+    this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql);
+  }
+
+  async addCpuPerfCounterTracks(ctx: TracePluginContext): Promise<void> {
+    // Perf counter tracks are bound to CPUs, follow the scheduling and
+    // frequency track naming convention ("Cpu N ...").
+    // Note: we might not have a track for a given cpu if no data was seen from
+    // it. This might look surprising in the UI, but placeholder tracks are
+    // wasteful as there's no way of collapsing global counter tracks at the
+    // moment.
+    const addCpuPerfCounterTracksSql = `
+      select printf("Cpu %u %s", cpu, name) as name, id
+      from perf_counter_track as pct
+      order by perf_session_id asc, pct.name asc, cpu asc
+    `;
+    this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
+  }
+
+  async addCpuCounterTracks(ctx: TracePluginContext, sql: string):
+      Promise<void> {
+    const result = await ctx.engine.query(sql);
+
+    const it = result.iter({
+      name: STR,
+      id: NUM,
+    });
+
+    for (; it.valid(); it.next()) {
+      const name = it.name;
+      const trackId = it.id;
+      const config: Config = {
+        name,
+        trackId,
+        defaultScale: getCounterScale(name),
+      };
+      ctx.addTrack({
+        uri: `perfetto.Counter#cpu${trackId}`,
+        displayName: name,
+        kind: COUNTER_TRACK_KIND,
+        trackIds: [trackId],
+        trackFactory: (trackCtx) => {
+          return new CounterTrack(trackCtx, config, ctx.engine);
+        },
+      });
+    }
+  }
+
+  async addThreadCounterTracks(ctx: TracePluginContext): Promise<void> {
+    const result = await ctx.engine.query(`
+      select
+        thread_counter_track.name as trackName,
+        utid,
+        upid,
+        tid,
+        thread.name as threadName,
+        thread_counter_track.id as trackId,
+        thread.start_ts as startTs,
+        thread.end_ts as endTs
+      from thread_counter_track
+      join thread using(utid)
+      left join process using(upid)
+      where thread_counter_track.name != 'thread_time'
+    `);
+
+    const it = result.iter({
+      startTs: LONG_NULL,
+      trackId: NUM,
+      endTs: LONG_NULL,
+      trackName: STR_NULL,
+      utid: NUM,
+      upid: NUM_NULL,
+      tid: NUM_NULL,
+      threadName: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const utid = it.utid;
+      const tid = it.tid;
+      const startTs = it.startTs === null ? undefined : it.startTs;
+      const endTs = it.endTs === null ? undefined : it.endTs;
+      const trackId = it.trackId;
+      const trackName = it.trackName;
+      const threadName = it.threadName;
+      const kind = COUNTER_TRACK_KIND;
+      const name = getTrackName({
+        name: trackName,
+        utid,
+        tid,
+        kind,
+        threadName,
+        threadTrack: true,
+      });
+      const config: Config = {
+        name,
+        trackId,
+        startTs: Time.fromRaw(startTs),
+        endTs: Time.fromRaw(endTs),
+        defaultScale: getCounterScale(name),
+      };
+      ctx.addTrack({
+        uri: `perfetto.Counter#thread${trackId}`,
+        displayName: name,
+        kind,
+        trackIds: [trackId],
+        trackFactory: (trackCtx) => {
+          return new CounterTrack(trackCtx, config, ctx.engine);
+        },
+      });
+    }
+  }
+
+  async addProcessCounterTracks(ctx: TracePluginContext): Promise<void> {
+    const result = await ctx.engine.query(`
+    select
+      process_counter_track.id as trackId,
+      process_counter_track.name as trackName,
+      upid,
+      process.pid,
+      process.name as processName,
+      process.start_ts as startTs,
+      process.end_ts as endTs
+    from process_counter_track
+    join process using(upid);
+  `);
+    const it = result.iter({
+      trackId: NUM,
+      trackName: STR_NULL,
+      upid: NUM,
+      startTs: LONG_NULL,
+      endTs: LONG_NULL,
+      pid: NUM_NULL,
+      processName: STR_NULL,
+    });
+    for (let i = 0; it.valid(); ++i, it.next()) {
+      const trackId = it.trackId;
+      const startTs = it.startTs === null ? undefined : it.startTs;
+      const endTs = it.endTs === null ? undefined : it.endTs;
+      const pid = it.pid;
+      const trackName = it.trackName;
+      const upid = it.upid;
+      const processName = it.processName;
+      const kind = COUNTER_TRACK_KIND;
+      const name = getTrackName({
+        name: trackName,
+        upid,
+        pid,
+        kind,
+        processName,
+      });
+      const config: Config = {
+        name,
+        trackId,
+        startTs: Time.fromRaw(startTs),
+        endTs: Time.fromRaw(endTs),
+        defaultScale: getCounterScale(name),
+      };
+      ctx.addTrack({
+        uri: `perfetto.Counter#process${trackId}`,
+        displayName: name,
+        kind: COUNTER_TRACK_KIND,
+        trackIds: [trackId],
+        trackFactory: (trackCtx) => {
+          return new CounterTrack(trackCtx, config, ctx.engine);
+        },
+      });
+    }
   }
 }
 

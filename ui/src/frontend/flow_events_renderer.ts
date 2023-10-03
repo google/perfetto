@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {TrackState} from 'src/common/state';
+
 import {time} from '../base/time';
+import {pluginManager} from '../common/plugins';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
@@ -67,6 +70,22 @@ function hasTrackGroupId(obj: {}): obj is {trackGroupId: string} {
   return (obj as {trackGroupId?: string}).trackGroupId !== undefined;
 }
 
+function getTrackIds(track: TrackState): number[] {
+  if (track.uri) {
+    const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+    if (trackInfo?.trackIds) return trackInfo?.trackIds;
+  } else {
+    const config = track.config;
+    if (hasTrackId(config)) {
+      return [config.trackId];
+    }
+    if (hasManyTrackIds(config)) {
+      return config.trackIds;
+    }
+  }
+  return [];
+}
+
 export class FlowEventsRendererArgs {
   trackIdToTrackPanel: Map<number, TrackPanelInfo>;
   groupIdToTrackGroupPanel: Map<string, TrackGroupPanelInfo>;
@@ -78,15 +97,9 @@ export class FlowEventsRendererArgs {
 
   registerPanel(panel: PanelVNode, yStart: number, height: number) {
     if (panel.state instanceof TrackPanel && hasId(panel.attrs)) {
-      const config = globals.state.tracks[panel.attrs.id].config;
-      if (hasTrackId(config)) {
-        this.trackIdToTrackPanel.set(
-            config.trackId, {panel: panel.state, yStart});
-      }
-      if (hasManyTrackIds(config)) {
-        for (const trackId of config.trackIds) {
-          this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
-        }
+      const track = globals.state.tracks[panel.attrs.id];
+      for (const trackId of getTrackIds(track)) {
+        this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
       }
     } else if (
         panel.state instanceof TrackGroupPanel &&

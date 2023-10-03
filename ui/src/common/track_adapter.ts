@@ -181,6 +181,12 @@ type TrackAdapterClass<Config, Data> = {
   new (args: NewTrackArgs): TrackAdapter<Config, Data>
 }
 
+function hasNamespace(config: unknown): config is {
+  namespace: string
+} {
+  return !!config && typeof config === 'object' && 'namespace' in config;
+}
+
 // Extend from this class instead of `TrackController` to use existing track
 // controller implementations with `TrackWithControllerAdapter`.
 export abstract class TrackControllerAdapter<Config, Data> {
@@ -209,6 +215,14 @@ export abstract class TrackControllerAdapter<Config, Data> {
     // Track ID can be UUID but '-' is not valid for sql table name.
     const idSuffix = this.uuid.split('-').join('_');
     return `${prefix}_${idSuffix}`;
+  }
+
+  namespaceTable(tableName: string): string {
+    if (hasNamespace(this.config)) {
+      return this.config.namespace + '_' + tableName;
+    } else {
+      return tableName;
+    }
   }
 }
 
