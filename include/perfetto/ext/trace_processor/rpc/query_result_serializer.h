@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
-#define SRC_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
+#ifndef INCLUDE_PERFETTO_EXT_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
+#define INCLUDE_PERFETTO_EXT_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
 
 #include <memory>
 #include <vector>
@@ -99,4 +99,4 @@ class QueryResultSerializer {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
+#endif  // INCLUDE_PERFETTO_EXT_TRACE_PROCESSOR_RPC_QUERY_RESULT_SERIALIZER_H_
