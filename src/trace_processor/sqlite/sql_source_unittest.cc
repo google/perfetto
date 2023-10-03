@@ -199,6 +199,17 @@ TEST(SqlSourceTest, NestedRewriter) {
             "  Trace Processor Internal line 1 col 1\n"
             "    depth\n"
             "    ^\n");
+  ASSERT_EQ(rewritten.AsTraceback(22),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    SELECT cols!() FROM slice\n"
+            "           ^\n"
+            "  Trace Processor Internal line 1 col 21\n"
+            "    id, common_cols!(), other_cols!(), name\n"
+            "                        ^\n"
+            "  Trace Processor Internal line 1 col 3\n"
+            "    depth\n"
+            "      ^\n");
 }
 
 }  // namespace
