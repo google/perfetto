@@ -2270,6 +2270,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_intervals.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_v3.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_jank_v3_cause.sql",
+        "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/scroll_offsets.sql",
         "src/trace_processor/perfetto_sql/stdlib/chrome/scroll_jank/utils.sql",
     ],
 )
