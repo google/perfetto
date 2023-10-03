@@ -20,6 +20,7 @@ perfetto_proto_library("@TYPE@") {
     "source_set",
   ]
   sources = [
+    "ad_services_metric.proto",
     "android_blocking_call.proto",
     "android_blocking_calls_cuj_metric.proto",
     "android_boot.proto",
