@@ -48,7 +48,7 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('chrome.scroll_jank.scroll_jank_v3');
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
         SELECT
           cause_of_jank,
@@ -63,7 +63,7 @@ class ChromeScrollJank(TestSuite):
     return DiffTestBlueprint(
         trace=DataPath('chrome_input_with_frame_view.pftrace'),
         query="""
-        SELECT IMPORT('chrome.scroll_jank.scroll_jank_v3');
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
         SELECT
           delayed_frame_percentage

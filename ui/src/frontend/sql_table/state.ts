@@ -154,7 +154,7 @@ export class SqlTableState {
   private getSQLImports() {
     const tableImports = this.table.imports || [];
     return [...tableImports, ...this.additionalImports]
-        .map((i) => `SELECT IMPORT("${i}");`)
+        .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
         .join('\n');
   }
 
