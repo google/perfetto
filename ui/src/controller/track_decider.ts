@@ -50,7 +50,6 @@ import {
 } from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND} from '../tracks/counter';
-import {CPU_FREQ_TRACK_KIND} from '../tracks/cpu_freq';
 import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
 import {
   EXPECTED_FRAMES_SLICE_TRACK_KIND,
@@ -202,54 +201,35 @@ class TrackDecider {
   async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
     const cpus = await this.engine.getCpus();
 
-    const maxCpuFreqResult = await engine.query(`
-    select ifnull(max(value), 0) as freq
-    from counter c
-    inner join cpu_counter_track t on c.track_id = t.id
-    where name = 'cpufreq';
-  `);
-    const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
-
     for (const cpu of cpus) {
       // Only add a cpu freq track if we have
       // cpu freq data.
       // TODO(hjd): Find a way to display cpu idle
       // events even if there are no cpu freq events.
       const cpuFreqIdleResult = await engine.query(`
-      select
-        id as cpuFreqId,
-        (
-          select id
-          from cpu_counter_track
-          where name = 'cpuidle'
-          and cpu = ${cpu}
-          limit 1
-        ) as cpuIdleId
-      from cpu_counter_track
-      where name = 'cpufreq' and cpu = ${cpu}
-      limit 1;
-    `);
+        select
+          id as cpuFreqId,
+          (
+            select id
+            from cpu_counter_track
+            where name = 'cpuidle'
+            and cpu = ${cpu}
+            limit 1
+          ) as cpuIdleId
+        from cpu_counter_track
+        where name = 'cpufreq' and cpu = ${cpu}
+        limit 1;
+      `);
 
       if (cpuFreqIdleResult.numRows() > 0) {
-        const row = cpuFreqIdleResult.firstRow({
-          cpuFreqId: NUM,
-          cpuIdleId: NUM_NULL,
-        });
-        const freqTrackId = row.cpuFreqId;
-        const idleTrackId = row.cpuIdleId === null ? undefined : row.cpuIdleId;
-
         this.tracksToAdd.push({
           engineId: this.engineId,
-          kind: CPU_FREQ_TRACK_KIND,
+          kind: PLUGIN_TRACK_KIND,
           trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
           name: `Cpu ${cpu} Frequency`,
           trackGroup: SCROLLING_TRACK_GROUP,
-          config: {
-            cpu,
-            maximumValue: maxCpuFreq,
-            freqTrackId,
-            idleTrackId,
-          },
+          config: {},
+          uri: `perfetto.CpuFreq#${cpu}`,
         });
       }
     }

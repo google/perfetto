@@ -69,8 +69,8 @@ export class TopLevelScrollTrack extends
     });
   }
 
-  onDestroy() {
-    super.onDestroy();
+  async onDestroy() {
+    await super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(
         TopLevelScrollTrack.kind);
   }

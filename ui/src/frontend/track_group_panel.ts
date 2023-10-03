@@ -30,7 +30,11 @@ import {Migrate, TrackContext, TrackLike} from '../public';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {renderChips, TrackContent} from './track_panel';
+import {
+  renderChips,
+  TrackContent,
+  TrackLifecycleContainer,
+} from './track_panel';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
@@ -45,7 +49,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
-  private summaryTrack: TrackLike|undefined;
+  private summaryTrack?: TrackLifecycleContainer;
 
   constructor(vnode: m.CVnode<Attrs>) {
     super();
@@ -70,10 +74,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       },
     };
 
-    this.summaryTrack =
+    const track =
         uri ? pluginManager.createTrack(uri, ctx) : loadTrack(trackState, id);
 
-    this.summaryTrack?.onCreate();
+    if (track) {
+      this.summaryTrack = new TrackLifecycleContainer(track);
+    }
   }
 
   get trackGroupState(): TrackGroupState {
@@ -200,7 +206,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   onremove() {
     if (this.summaryTrack !== undefined) {
-      this.summaryTrack.onDestroy();
+      this.summaryTrack.dispose();
       this.summaryTrack = undefined;
     }
   }

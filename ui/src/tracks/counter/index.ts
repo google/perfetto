@@ -126,7 +126,6 @@ function isCounterState(x: unknown): x is CounterTrackState {
 }
 
 export class CounterTrack extends BasicAsyncTrack<Data> {
-  private setup = false;
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;
@@ -166,61 +165,59 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
     }
   }
 
-  async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
-    if (!this.setup) {
-      if (this.config.namespace === undefined) {
-        await this.engine.query(`
-          create view ${this.tableName('counter_view')} as
-          select
-            id,
-            ts,
-            dur,
-            value,
-            delta
-          from experimental_counter_dur
-          where track_id = ${this.config.trackId};
-        `);
-      } else {
-        await this.engine.query(`
-          create view ${this.tableName('counter_view')} as
-          select
-            id,
-            ts,
-            lead(ts, 1, ts) over (order by ts) - ts as dur,
-            lead(value, 1, value) over (order by ts) - value as delta,
-            value
-          from ${this.namespaceTable('counter')}
-          where track_id = ${this.config.trackId};
-        `);
-      }
-
-      const maxDurResult = await this.engine.query(`
-          select
-            max(
-              iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
-            ) as maxDur
-          from ${this.tableName('counter_view')}
-      `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
-
-      const queryRes = await this.engine.query(`
+  async onCreate() {
+    if (this.config.namespace === undefined) {
+      await this.engine.query(`
+        create view ${this.tableName('counter_view')} as
         select
-          ifnull(max(value), 0) as maxValue,
-          ifnull(min(value), 0) as minValue,
-          ifnull(max(delta), 0) as maxDelta,
-          ifnull(min(delta), 0) as minDelta
-        from ${this.tableName('counter_view')}`);
-      const row = queryRes.firstRow(
-          {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
-      this.maximumValueSeen = row.maxValue;
-      this.minimumValueSeen = row.minValue;
-      this.maximumDeltaSeen = row.maxDelta;
-      this.minimumDeltaSeen = row.minDelta;
-
-      this.setup = true;
+          id,
+          ts,
+          dur,
+          value,
+          delta
+        from experimental_counter_dur
+        where track_id = ${this.config.trackId};
+      `);
+    } else {
+      await this.engine.query(`
+        create view ${this.tableName('counter_view')} as
+        select
+          id,
+          ts,
+          lead(ts, 1, ts) over (order by ts) - ts as dur,
+          lead(value, 1, value) over (order by ts) - value as delta,
+          value
+        from ${this.namespaceTable('counter')}
+        where track_id = ${this.config.trackId};
+      `);
     }
 
+    const maxDurResult = await this.engine.query(`
+        select
+          max(
+            iif(dur != -1, dur, (select end_ts from trace_bounds) - ts)
+          ) as maxDur
+        from ${this.tableName('counter_view')}
+    `);
+    this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+
+    const queryRes = await this.engine.query(`
+      select
+        ifnull(max(value), 0) as maxValue,
+        ifnull(min(value), 0) as minValue,
+        ifnull(max(delta), 0) as maxDelta,
+        ifnull(min(delta), 0) as minDelta
+      from ${this.tableName('counter_view')}`);
+    const row = queryRes.firstRow(
+        {maxValue: NUM, minValue: NUM, maxDelta: NUM, minDelta: NUM});
+    this.maximumValueSeen = row.maxValue;
+    this.minimumValueSeen = row.minValue;
+    this.maximumDeltaSeen = row.maxDelta;
+    this.minimumDeltaSeen = row.minDelta;
+  }
+
+  async onBoundsChange(start: time, end: time, resolution: duration):
+      Promise<Data> {
     const queryRes = await this.engine.query(`
       select
         (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
@@ -601,8 +598,9 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
     }
   }
 
-  onDestroy(): void {
-    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+  async onDestroy(): Promise<void> {
+    await this.engine.query(
+        `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
   }
 }
 

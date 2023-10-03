@@ -57,15 +57,15 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.controller = new Controller(config, engine);
   }
 
-  onCreate(): void {
-    this.controller.onSetup();
-    super.onCreate();
+  async onCreate(): Promise<void> {
+    await this.controller.onSetup();
+    await super.onCreate();
   }
 
-  onDestroy(): void {
-    this.track.onDestroy();
-    this.controller.onDestroy();
-    super.onDestroy();
+  async onDestroy(): Promise<void> {
+    await this.track.onDestroy();
+    await this.controller.onDestroy();
+    await super.onDestroy();
   }
 
   getSliceRect(
@@ -205,8 +205,8 @@ export abstract class TrackControllerAdapter<Config, Data> {
   abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
 
-  onSetup(): void {}
-  onDestroy(): void {}
+  async onSetup(): Promise<void> {}
+  async onDestroy(): Promise<void> {}
 
   // Returns a valid SQL table name with the given prefix that should be unique
   // for each track.

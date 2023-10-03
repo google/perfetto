@@ -41,46 +41,43 @@ export interface Config {
 // and no cpu scheduling.
 export class ProcessSummaryTrackController extends
     TrackControllerAdapter<Config, Data> {
-  private setup = false;
+  async onSetup(): Promise<void> {
+    await this.query(
+        `create virtual table ${this.tableName('window')} using window;`);
+
+    let utids = [this.config.utid];
+    if (this.config.upid) {
+      const threadQuery = await this.query(
+          `select utid from thread where upid=${this.config.upid}`);
+      utids = [];
+      for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
+        utids.push(it.utid);
+      }
+    }
+
+    const trackQuery = await this.query(
+        `select id from thread_track where utid in (${utids.join(',')})`);
+    const tracks = [];
+    for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
+      tracks.push(it.id);
+    }
+
+    const processSliceView = this.tableName('process_slice_view');
+    await this.query(
+        `create view ${processSliceView} as ` +
+        // 0 as cpu is a dummy column to perform span join on.
+        `select ts, dur/${utids.length} as dur ` +
+        `from slice s ` +
+        `where depth = 0 and track_id in ` +
+        `(${tracks.join(',')})`);
+    await this.query(`create virtual table ${this.tableName('span')}
+        using span_join(${processSliceView},
+                        ${this.tableName('window')});`);
+  }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     assertFalse(resolution === 0n, 'Resolution cannot be 0');
-
-    if (this.setup === false) {
-      await this.query(
-          `create virtual table ${this.tableName('window')} using window;`);
-
-      let utids = [this.config.utid];
-      if (this.config.upid) {
-        const threadQuery = await this.query(
-            `select utid from thread where upid=${this.config.upid}`);
-        utids = [];
-        for (const it = threadQuery.iter({utid: NUM}); it.valid(); it.next()) {
-          utids.push(it.utid);
-        }
-      }
-
-      const trackQuery = await this.query(
-          `select id from thread_track where utid in (${utids.join(',')})`);
-      const tracks = [];
-      for (const it = trackQuery.iter({id: NUM}); it.valid(); it.next()) {
-        tracks.push(it.id);
-      }
-
-      const processSliceView = this.tableName('process_slice_view');
-      await this.query(
-          `create view ${processSliceView} as ` +
-          // 0 as cpu is a dummy column to perform span join on.
-          `select ts, dur/${utids.length} as dur ` +
-          `from slice s ` +
-          `where depth = 0 and track_id in ` +
-          `(${tracks.join(',')})`);
-      await this.query(`create virtual table ${this.tableName('span')}
-          using span_join(${processSliceView},
-                          ${this.tableName('window')});`);
-      this.setup = true;
-    }
 
     // |resolution| is in ns/px we want # ns for 10px window:
     // Max value with 1 so we don't end up with resolution 0.
@@ -132,12 +129,9 @@ export class ProcessSummaryTrackController extends
     return summary;
   }
 
-  onDestroy(): void {
-    if (this.setup) {
-      this.query(`drop table ${this.tableName('window')}`);
-      this.query(`drop table ${this.tableName('span')}`);
-      this.setup = false;
-    }
+  async onDestroy(): Promise<void> {
+    await this.query(`drop table ${this.tableName('window')}; drop table ${
+        this.tableName('span')}`);
   }
 }
 

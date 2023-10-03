@@ -89,8 +89,8 @@ export class ScrollJankV3Track extends
     };
   }
 
-  onDestroy() {
-    super.onDestroy();
+  async onDestroy() {
+    await super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 
