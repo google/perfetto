@@ -68,7 +68,7 @@ export async function decideTracks(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('android.screenshots')`);
+  await engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
 
   result.tracksToAdd.push({
     id: uuidv4(),

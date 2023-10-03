@@ -134,7 +134,7 @@ export async function addScrollJankV3ScrollTrack(engine: Engine):
   };
 
   await engine.query(
-      `SELECT IMPORT('chrome.scroll_jank.scroll_jank_intervals')`);
+      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
 
   result.tracksToAdd.push({
     id: uuidv4(),

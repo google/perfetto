@@ -26,7 +26,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT ns(4) as result;
       """,
         out=Csv("""
@@ -38,7 +38,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT us(4) as result;
       """,
         out=Csv("""
@@ -50,7 +50,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT ms(4) as result;
       """,
         out=Csv("""
@@ -62,7 +62,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT seconds(4) as result;
       """,
         out=Csv("""
@@ -74,7 +74,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT minutes(1) as result;
       """,
         out=Csv("""
@@ -86,7 +86,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT hours(1) as result;
       """,
         out=Csv("""
@@ -98,7 +98,7 @@ class Time(TestSuite):
     return DiffTestBlueprint(
         trace=TextProto(""),
         query="""
-        SELECT IMPORT('common.timestamps');
+        INCLUDE PERFETTO MODULE common.timestamps;
         SELECT days(1) as result;
       """,
         out=Csv("""

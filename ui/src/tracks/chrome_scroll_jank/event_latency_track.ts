@@ -183,7 +183,7 @@ export async function addLatencyTracks(engine: Engine):
     FROM latency_stages ls;`;
 
   await engine.query(
-      `SELECT IMPORT('chrome.scroll_jank.scroll_jank_intervals')`);
+      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
   await engine.query(tableDefSql);
 
   result.tracksToAdd.push({
