@@ -24,11 +24,15 @@
 #include <tuple>
 #include <vector>
 
+#include "perfetto/base/logging.h"
+
 namespace perfetto {
 namespace trace_processor {
 
 // An SQL string which retains knowledge of the source of the SQL (i.e. stdlib
-// module, ExecuteQuery etc).
+// module, ExecuteQuery etc). It also supports "rewriting" parts or all of the
+// SQL string with a different string which is useful in cases where SQL is
+// substituted such as macros or function inlining.
 class SqlSource {
  public:
   class Rewriter;
@@ -72,9 +76,6 @@ class SqlSource {
 
   // Creates a SqlSource instance with the SQL taken as a substring starting
   // at |offset| with |len| characters.
-  //
-  // Note: this function should only be called if |this| has not already been
-  // rewritten (i.e. it is undefined behaviour if |IsRewritten()| returns true).
   SqlSource Substr(uint32_t offset, uint32_t len) const;
 
   // Creates a SqlSource instance with the execution SQL rewritten to
@@ -88,38 +89,141 @@ class SqlSource {
   SqlSource FullRewrite(SqlSource) const;
 
   // Returns the SQL string backing this SqlSource instance;
-  const std::string& sql() const { return sql_; }
+  const std::string& sql() const { return root_.rewritten_sql; }
 
   // Returns whether this SqlSource has been rewritten.
-  bool IsRewritten() const { return !root_.rewrites.empty(); }
+  bool IsRewritten() const { return root_.IsRewritten(); }
 
  private:
   struct Rewrite;
+
   // Represents a tree of SQL rewrites, preserving the source for each rewrite.
+  //
+  // Suppose that we have the the following situation:
+  // User: `SELECT foo!(a) FROM bar!(slice) a`
+  // foo : `$1.x, $1.y`
+  // bar : `(SELECT baz!($1) FROM $1 LIMIT 1)`
+  // baz : `$1.x, $1.y, $1.z`
+  //
+  // We want to expand this to
+  // ```SELECT a.x, a.y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a```
+  // while retaining information about the source of the rewrite.
+  //
+  // For example, the string `a.x, a.y` came from foo, `slice.x, slice.y,
+  // slice.z` came from bar, which itself recursively came from baz etc.
+  //
+  // The purpose of this class is to keep track of the information required for
+  // this "tree" of rewrites (i.e. expansions). In the example above, the tree
+  // would look as follows:
+  //                      User
+  //                     /    |
+  //                   foo    bar
+  //                   /
+  //                 baz
+  //
+  // The properties in each of these nodes is as follows:
+  // User {
+  //   original_sql: "SELECT foo!(a) FROM bar!(slice) a"
+  //   rewritten_sql: "SELECT a.x, a.y FROM (SELECT slice.x, slice.y, slice.z
+  //                   FROM slice) a"
+  //   rewrites: [
+  //     {start: 7, end: 12, node: foo},
+  //     {start: 17, end: 26, node: bar}]
+  //   ]
+  // }
+  // foo {
+  //   original_sql: "$1.x, $1.y"
+  //   rewritten_sql: "a.x, a.y"
+  //   rewrites: []
+  // }
+  // bar {
+  //   original_sql: "(SELECT baz!($1) FROM $1 LIMIT 1)"
+  //   rewritten_sql: "(SELECT slice.x, slice.y, slice.z FROM slice)"
+  //   rewrites: [{start: 8, end: 16, node: baz}]
+  // }
+  // baz {
+  //   original_sql = "$1.x, $1.y, $1.z"
+  //   rewritten_sql = "slice.x, slice.y, slice.z"
+  //   rewrites: []
+  // }
   struct Node {
     std::string name;
-    std::string sql;
     bool include_traceback_header = false;
     uint32_t line = 1;
     uint32_t col = 1;
+
+    // The original SQL string used to create this node.
+    std::string original_sql;
+
+    // The list of rewrites which are applied to |original_sql| ordered by the
+    // offsets.
     std::vector<Rewrite> rewrites;
 
-    std::string AsTraceback(uint32_t offset) const;
-    std::string SelfTraceback(uint32_t offset) const;
-    Node Substr(uint32_t offset, uint32_t len) const;
+    // The SQL string which is the result of applying |rewrites| to
+    // |original_sql|. See |SqlSource::ApplyRewrites| for details on how this is
+    // computed.
+    std::string rewritten_sql;
+
+    // Returns the "traceback" for this node and all recursive nodes. See
+    // |SqlSource::AsTraceback| for details.
+    std::string AsTraceback(uint32_t rewritten_offset) const;
+
+    // Returns the "traceback" for this node only. See |SqlSource::AsTraceback|
+    // for details.
+    std::string SelfTraceback(uint32_t original_offset) const;
+
+    Node Substr(uint32_t rewritten_offset, uint32_t rewritten_len) const;
+
+    bool IsRewritten() const {
+      PERFETTO_CHECK(rewrites.empty() == (original_sql == rewritten_sql));
+      return !rewrites.empty();
+    }
+
+    // Given a |rewritten_offset| for this node, returns the offset into the
+    // |original_sql| which matches that |rewritten_offset|.
+    //
+    // IMPORTANT: if |rewritten_offset| is *inside* a rewrite, the original
+    // offset will point to the *start of the rewrite*. For example, if
+    // we have:
+    //   original_sql: "SELECT foo!(a) FROM slice"
+    //   rewritten_sql: "SELECT a.x, a.y FROM slice"
+    //   rewrites: [{start: 7, end: 12, node: foo}]
+    // then:
+    //   RewrittenOffsetToOriginalOffset(7) == 7     // 7 = start of foo
+    //   RewrittenOffsetToOriginalOffset(14) == 7    // 7 = start of foo
+    //   RewrittenOffsetToOriginalOffset(15) == 12   // 12 = end of foo
+    //   RewrittenOffsetToOriginalOffset(16) == 13   // 12 = end of foo
+    uint32_t RewrittenOffsetToOriginalOffset(uint32_t rewritten_offset) const;
+
+    // Given an |original_offset| for this node, returns the index of a
+    // rewrite whose original range contains |original_offset|.
+    // Returns std::nullopt if there is no such rewrite.
+    std::optional<uint32_t> RewriteForOriginalOffset(
+        uint32_t original_offset) const;
   };
+
+  // Defines a rewrite. See the documentation for |SqlSource::Node| for details
+  // on this.
   struct Rewrite {
-    uint32_t rewritten_start;
-    uint32_t rewritten_end;
-    uint32_t original_start;
-    uint32_t original_end;
-    Node node;
+    // The start and end offsets in |original_sql|.
+    uint32_t original_sql_start;
+    uint32_t original_sql_end;
+
+    // The start and end offsets in |rewritten_sql|.
+    uint32_t rewritten_sql_start;
+    uint32_t rewritten_sql_end;
+
+    // Node containing the SQL which replaces the segment of SQL in
+    // |original_sql|.
+    Node rewrite_node;
   };
 
   SqlSource() = default;
   SqlSource(std::string sql, std::string name, bool include_traceback_header);
 
-  std::string sql_;
+  static std::string ApplyRewrites(const std::string&,
+                                   const std::vector<Rewrite>&);
+
   Node root_;
 };
 
@@ -141,11 +245,9 @@ class SqlSource::Rewriter {
   SqlSource Build() &&;
 
  private:
-  using BoundedRewrite =
-      std::tuple<uint32_t /* start */, uint32_t /* end */, SqlSource>;
-
   SqlSource orig_;
-  std::vector<BoundedRewrite> pending_;
+  uint32_t original_bytes_in_rewrites = 0;
+  uint32_t rewritten_bytes_in_rewrites = 0;
 };
 
 }  // namespace trace_processor
