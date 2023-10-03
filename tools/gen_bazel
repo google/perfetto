@@ -84,6 +84,7 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
+    '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets
 

@@ -20,8 +20,8 @@
 #include "perfetto/ext/base/threading/future.h"
 #include "perfetto/ext/base/threading/stream.h"
 #include "perfetto/ext/base/threading/thread_pool.h"
+#include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/trace_processor/trace_processor.h"
-#include "src/trace_processor/rpc/query_result_serializer.h"
 
 namespace perfetto {
 namespace protos {

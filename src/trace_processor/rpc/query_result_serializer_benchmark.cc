@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/rpc/query_result_serializer.h"
+#include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 
 #include <benchmark/benchmark.h>
 
