@@ -99,7 +99,10 @@ const ITEMS: ContextMenuItem[] = [
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
-        runQuery(`SELECT IMPORT('android.binder'); SELECT IMPORT('android.monitor_contention');`, engine)
+      runQuery(`
+        INCLUDE PERFETTO MODULE android.binder;
+        INCLUDE PERFETTO MODULE android.monitor_contention;
+      `, engine)
           .then(
               () => addDebugTrack(
                   engine,
