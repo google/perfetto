@@ -21,6 +21,7 @@
 #include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
 #include "src/trace_processor/importers/proto/profiler_util.h"
 #include "src/trace_processor/tables/profiler_tables_py.h"
 
@@ -55,42 +56,6 @@ void ForReferenceSet(TraceStorage* storage,
     if (!fn(it.row_reference()))
       break;
   }
-}
-
-base::FlatSet<ObjectTable::Id> GetChildren(TraceStorage* storage,
-                                           ObjectTable::RowReference object) {
-  auto cls_row_ref =
-      *storage->heap_graph_class_table().FindById(object.type_id());
-
-  StringId kind = cls_row_ref.kind();
-  std::optional<StringId> weakref_kind =
-      storage->string_pool().GetId("KIND_WEAK_REFERENCE");
-  std::optional<StringId> softref_kind =
-      storage->string_pool().GetId("KIND_SOFT_REFERENCE");
-  std::optional<StringId> finalizerref_kind =
-      storage->string_pool().GetId("KIND_FINALIZER_REFERENCE");
-  std::optional<StringId> phantomref_kind =
-      storage->string_pool().GetId("KIND_PHANTOM_REFERENCE");
-
-  if ((weakref_kind && kind == *weakref_kind) ||
-      (softref_kind && kind == *softref_kind) ||
-      (finalizerref_kind && kind == *finalizerref_kind) ||
-      (phantomref_kind && kind == *phantomref_kind)) {
-    // Do not follow weak / soft / finalizer / phantom references.
-    return {};
-  }
-
-  base::FlatSet<ObjectTable::Id> children;
-  ForReferenceSet(storage, object,
-                  [object, &children](ReferenceTable::RowReference ref) {
-                    PERFETTO_CHECK(ref.owner_id() == object.id());
-                    auto opt_owned = ref.owned_id();
-                    if (opt_owned) {
-                      children.insert(*opt_owned);
-                    }
-                    return true;
-                  });
-  return children;
 }
 
 struct ClassDescriptor {
@@ -175,56 +140,6 @@ int64_t GetSizeFromNativeAllocationRegistry(int64_t nar_size) {
 }
 
 }  // namespace
-
-void MarkRoot(TraceStorage* storage,
-              ObjectTable::RowReference row_ref,
-              StringId type) {
-  row_ref.set_root_type(type);
-
-  // DFS to mark reachability for all children
-  std::vector<ObjectTable::RowReference> stack({row_ref});
-  while (!stack.empty()) {
-    ObjectTable::RowReference cur_node = stack.back();
-    stack.pop_back();
-
-    if (cur_node.reachable())
-      continue;
-    cur_node.set_reachable(true);
-
-    for (ObjectTable::Id child_node : GetChildren(storage, cur_node)) {
-      auto child_ref =
-          *storage->mutable_heap_graph_object_table()->FindById(child_node);
-      stack.push_back(child_ref);
-    }
-  }
-}
-
-void UpdateShortestPaths(TraceStorage* storage,
-                         ObjectTable::RowReference row_ref) {
-  // Calculate shortest distance to a GC root.
-  std::deque<std::pair<int32_t, ObjectTable::RowReference>> reachable_nodes{
-      {0, row_ref}};
-  while (!reachable_nodes.empty()) {
-    auto pair = reachable_nodes.front();
-
-    int32_t distance = pair.first;
-    ObjectTable::RowReference cur_row_ref = pair.second;
-
-    reachable_nodes.pop_front();
-    int32_t cur_distance = cur_row_ref.root_distance();
-    if (cur_distance == -1 || cur_distance > distance) {
-      cur_row_ref.set_root_distance(distance);
-
-      for (ObjectTable::Id child_node : GetChildren(storage, cur_row_ref)) {
-        auto child_row_ref =
-            *storage->mutable_heap_graph_object_table()->FindById(child_node);
-        int32_t child_distance = child_row_ref.root_distance();
-        if (child_distance == -1 || child_distance > distance + 1)
-          reachable_nodes.emplace_back(distance + 1, child_row_ref);
-      }
-    }
-  }
-}
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type) {
   static const base::StringView kJavaClassTemplate("java.lang.Class<");
@@ -684,7 +599,7 @@ void HeapGraphTracker::FinalizeProfile(uint32_t seq_id) {
                                                   sequence_state.current_ts)]
                                 .emplace(*ptr);
       if (it_and_success.second) {
-        MarkRoot(storage_, row_ref, InternRootTypeString(root.root_type));
+        MarkRoot(row_ref, InternRootTypeString(root.root_type));
       }
     }
   }
@@ -833,9 +748,88 @@ void HeapGraphTracker::PopulateSuperClasses(const SequenceState& seq) {
   }
 }
 
-void FindPathFromRoot(TraceStorage* storage,
-                      ObjectTable::RowReference row_ref,
-                      PathFromRoot* path) {
+base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
+    ObjectTable::RowReference object) {
+  auto cls_row_ref =
+      *storage_->heap_graph_class_table().FindById(object.type_id());
+
+  StringId kind = cls_row_ref.kind();
+
+  if (kind == InternTypeKindString(
+                  protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE) ||
+      kind == InternTypeKindString(
+                  protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE) ||
+      kind == InternTypeKindString(
+                  protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE) ||
+      kind == InternTypeKindString(
+                  protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE)) {
+    // Do not follow weak / soft / finalizer / phantom references.
+    return {};
+  }
+
+  base::FlatSet<ObjectTable::Id> children;
+  ForReferenceSet(storage_, object,
+                  [object, &children](ReferenceTable::RowReference ref) {
+                    PERFETTO_CHECK(ref.owner_id() == object.id());
+                    auto opt_owned = ref.owned_id();
+                    if (opt_owned) {
+                      children.insert(*opt_owned);
+                    }
+                    return true;
+                  });
+  return children;
+}
+
+void HeapGraphTracker::MarkRoot(ObjectTable::RowReference row_ref,
+                                StringId type) {
+  row_ref.set_root_type(type);
+
+  // DFS to mark reachability for all children
+  std::vector<ObjectTable::RowReference> stack({row_ref});
+  while (!stack.empty()) {
+    ObjectTable::RowReference cur_node = stack.back();
+    stack.pop_back();
+
+    if (cur_node.reachable())
+      continue;
+    cur_node.set_reachable(true);
+
+    for (ObjectTable::Id child_node : GetChildren(cur_node)) {
+      auto child_ref =
+          *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+      stack.push_back(child_ref);
+    }
+  }
+}
+
+void HeapGraphTracker::UpdateShortestPaths(ObjectTable::RowReference row_ref) {
+  // Calculate shortest distance to a GC root.
+  std::deque<std::pair<int32_t, ObjectTable::RowReference>> reachable_nodes{
+      {0, row_ref}};
+  while (!reachable_nodes.empty()) {
+    auto pair = reachable_nodes.front();
+
+    int32_t distance = pair.first;
+    ObjectTable::RowReference cur_row_ref = pair.second;
+
+    reachable_nodes.pop_front();
+    int32_t cur_distance = cur_row_ref.root_distance();
+    if (cur_distance == -1 || cur_distance > distance) {
+      cur_row_ref.set_root_distance(distance);
+
+      for (ObjectTable::Id child_node : GetChildren(cur_row_ref)) {
+        auto child_row_ref =
+            *storage_->mutable_heap_graph_object_table()->FindById(child_node);
+        int32_t child_distance = child_row_ref.root_distance();
+        if (child_distance == -1 || child_distance > distance + 1)
+          reachable_nodes.emplace_back(distance + 1, child_row_ref);
+      }
+    }
+  }
+}
+
+void HeapGraphTracker::FindPathFromRoot(ObjectTable::RowReference row_ref,
+                                        PathFromRoot* path) {
   // We have long retention chains (e.g. from LinkedList). If we use the stack
   // here, we risk running out of stack space. This is why we use a vector to
   // simulate the stack.
@@ -860,7 +854,7 @@ void FindPathFromRoot(TraceStorage* storage,
 
     ClassTable::Id type_id = object_row_ref.type_id();
 
-    auto type_row_ref = *storage->heap_graph_class_table().FindById(type_id);
+    auto type_row_ref = *storage_->heap_graph_class_table().FindById(type_id);
     std::optional<StringId> opt_class_name_id =
         type_row_ref.deobfuscated_name();
     if (!opt_class_name_id) {
@@ -870,9 +864,9 @@ void FindPathFromRoot(TraceStorage* storage,
     StringId class_name_id = *opt_class_name_id;
     std::optional<StringId> root_type = object_row_ref.root_type();
     if (root_type) {
-      class_name_id = storage->InternString(base::StringView(
-          storage->GetString(class_name_id).ToStdString() + " [" +
-          storage->GetString(*root_type).ToStdString() + "]"));
+      class_name_id = storage_->InternString(base::StringView(
+          storage_->GetString(class_name_id).ToStdString() + " [" +
+          storage_->GetString(*root_type).ToStdString() + "]"));
     }
     auto it = path->nodes[parent_id].children.find(class_name_id);
     if (it == path->nodes[parent_id].children.end()) {
@@ -892,15 +886,14 @@ void FindPathFromRoot(TraceStorage* storage,
       // size to the relevant node in the resulting tree.
       output_tree_node->size += object_row_ref.self_size();
       output_tree_node->count++;
-      base::FlatSet<ObjectTable::Id> children_set =
-          GetChildren(storage, object_row_ref);
+      base::FlatSet<ObjectTable::Id> children_set = GetChildren(object_row_ref);
       children.assign(children_set.begin(), children_set.end());
       PERFETTO_CHECK(children.size() == children_set.size());
 
       if (object_row_ref.native_size()) {
-        StringId native_class_name_id = storage->InternString(
+        StringId native_class_name_id = storage_->InternString(
             base::StringView(std::string("[native] ") +
-                             storage->GetString(class_name_id).ToStdString()));
+                             storage_->GetString(class_name_id).ToStdString()));
         std::map<StringId, size_t>::iterator native_it;
         bool inserted_new_node;
         std::tie(native_it, inserted_new_node) =
@@ -926,7 +919,7 @@ void FindPathFromRoot(TraceStorage* storage,
       PERFETTO_CHECK(i < children.size());
       ObjectTable::Id child = children[i];
       auto child_row_ref =
-          *storage->mutable_heap_graph_object_table()->FindById(child);
+          *storage_->mutable_heap_graph_object_table()->FindById(child);
       if (++i == children.size())
         stack.pop_back();
 
@@ -987,11 +980,11 @@ HeapGraphTracker::BuildFlamegraph(const int64_t current_ts,
 
   // First pass to calculate shortest paths
   for (ObjectTable::RowNumber root : roots) {
-    UpdateShortestPaths(storage_, root.ToRowReference(object_table));
+    UpdateShortestPaths(root.ToRowReference(object_table));
   }
   PathFromRoot init_path;
   for (ObjectTable::RowNumber root : roots) {
-    FindPathFromRoot(storage_, root.ToRowReference(object_table), &init_path);
+    FindPathFromRoot(root.ToRowReference(object_table), &init_path);
   }
 
   std::vector<int64_t> node_to_cumulative_size(init_path.nodes.size());

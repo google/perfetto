@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "perfetto/base/flat_set.h"
 #include "perfetto/ext/base/string_view.h"
 
 #include "protos/perfetto/trace/profiling/heap_graph.pbzero.h"
@@ -54,15 +55,6 @@ struct PathFromRoot {
   std::vector<Node> nodes{Node{}};
   std::set<tables::HeapGraphObjectTable::Id> visited;
 };
-
-void MarkRoot(TraceStorage*,
-              tables::HeapGraphObjectTable::RowReference,
-              StringId type);
-void UpdateShortestPaths(TraceStorage* s,
-                         tables::HeapGraphObjectTable::RowReference row_ref);
-void FindPathFromRoot(TraceStorage* storage,
-                      tables::HeapGraphObjectTable::RowReference,
-                      PathFromRoot* path);
 
 std::optional<base::StringView> GetStaticClassTypeName(base::StringView type);
 size_t NumberOfArrays(base::StringView type);
@@ -232,6 +224,13 @@ class HeapGraphTracker : public Destructible {
   // This should be called only once (it is not idempotent) per seq, after the
   // all the other tables have been fully populated.
   void PopulateNativeSize(const SequenceState& seq);
+
+  base::FlatSet<tables::HeapGraphObjectTable::Id> GetChildren(
+      tables::HeapGraphObjectTable::RowReference);
+  void MarkRoot(tables::HeapGraphObjectTable::RowReference, StringId type);
+  void UpdateShortestPaths(tables::HeapGraphObjectTable::RowReference row_ref);
+  void FindPathFromRoot(tables::HeapGraphObjectTable::RowReference,
+                        PathFromRoot* path);
 
   TraceStorage* const storage_;
   std::map<uint32_t, SequenceState> sequence_state_;
