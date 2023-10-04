@@ -18,6 +18,7 @@
 
 #include <unordered_set>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_utils.h"
 
@@ -342,6 +343,10 @@ base::Status ExperimentalFlamegraph::ComputeTable(
         context_->storage.get(), values.upid, values.upid_group,
         values.time_constraints);
   }
+  if (!table) {
+    return base::ErrStatus("Failed to build flamegraph");
+  }
+
   if (!values.focus_str.empty()) {
     table =
         FocusTable(context_->storage.get(), std::move(table), values.focus_str);
