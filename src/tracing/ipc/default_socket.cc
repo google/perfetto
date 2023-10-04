@@ -88,6 +88,11 @@ const char* GetProducerSocket() {
   return name;
 }
 
+const char* GetRelaySocket() {
+  // The relay socket is optional and is connected only when the env var is set.
+  return getenv("PERFETTO_RELAY_SOCK_NAME");
+}
+
 std::vector<std::string> TokenizeProducerSockets(
     const char* producer_socket_names) {
   return base::SplitString(producer_socket_names, ",");
