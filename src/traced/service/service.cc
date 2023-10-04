@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <algorithm>
 
+#include "perfetto/base/status.h"
 #include "perfetto/ext/base/file_utils.h"
 #include "perfetto/ext/base/getopt.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -29,16 +30,6 @@
 #include "perfetto/ext/tracing/ipc/service_ipc_host.h"
 #include "src/traced/service/builtin_producer.h"
 
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-#define PERFETTO_SET_SOCKET_PERMISSIONS
-#include <fcntl.h>
-#include <grp.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-#endif
-
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 #include <sys/system_properties.h>
 #endif
@@ -49,40 +40,6 @@
 
 namespace perfetto {
 namespace {
-#if defined(PERFETTO_SET_SOCKET_PERMISSIONS)
-void SetSocketPermissions(const std::string& socket_name,
-                          const std::string& group_name,
-                          const std::string& mode_bits) {
-  PERFETTO_CHECK(!socket_name.empty());
-  PERFETTO_CHECK(!group_name.empty());
-  struct group* socket_group = nullptr;
-  // Query the group ID of |group|.
-  do {
-    socket_group = getgrnam(group_name.c_str());
-  } while (socket_group == nullptr && errno == EINTR);
-  if (socket_group == nullptr) {
-    PERFETTO_FATAL("Failed to get group information of %s ",
-                   group_name.c_str());
-  }
-
-  if (PERFETTO_EINTR(
-          chown(socket_name.c_str(), geteuid(), socket_group->gr_gid))) {
-    PERFETTO_FATAL("Failed to chown %s ", socket_name.c_str());
-  }
-
-  // |mode| accepts values like "0660" as "rw-rw----" mode bits.
-  auto mode_value = base::StringToInt32(mode_bits, 8);
-  if (!(mode_bits.size() == 4 && mode_value.has_value())) {
-    PERFETTO_FATAL(
-        "The chmod option must be a 4-digit octal number, e.g. 0660");
-  }
-  if (PERFETTO_EINTR(chmod(socket_name.c_str(),
-                           static_cast<mode_t>(mode_value.value())))) {
-    PERFETTO_FATAL("Failed to chmod %s", socket_name.c_str());
-  }
-}
-#endif  // defined(PERFETTO_SET_SOCKET_PERMISSIONS)
-
 void PrintUsage(const char* prog_name) {
   fprintf(stderr, R"(
 Usage: %s [option] ...
@@ -192,18 +149,21 @@ int PERFETTO_EXPORT_ENTRYPOINT ServiceMain(int argc, char** argv) {
     started = svc->Start(producer_sockets, GetConsumerSocket());
 
     if (!producer_socket_group.empty()) {
-#if defined(PERFETTO_SET_SOCKET_PERMISSIONS)
+      auto status = base::OkStatus();
       for (const auto& producer_socket : producer_sockets) {
-        SetSocketPermissions(producer_socket, producer_socket_group,
-                             producer_socket_mode);
+        status = base::SetFilePermissions(
+            producer_socket, producer_socket_group, producer_socket_mode);
+        if (!status.ok()) {
+          PERFETTO_ELOG("%s", status.c_message());
+          return 1;
+        }
       }
-      SetSocketPermissions(GetConsumerSocket(), consumer_socket_group,
-                           consumer_socket_mode);
-#else
-      PERFETTO_ELOG(
-          "Setting socket permissions is not supported on this platform");
-      return 1;
-#endif
+      status = base::SetFilePermissions(
+          GetConsumerSocket(), consumer_socket_group, consumer_socket_mode);
+      if (!status.ok()) {
+        PERFETTO_ELOG("%s", status.c_message());
+        return 1;
+      }
     }
   }
 
