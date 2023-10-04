@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,15 +20,25 @@ import {Actions} from '../../common/actions';
 import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
-import {LONG, NUM, QueryResult} from '../../common/query_result';
+import {
+  LONG,
+  NUM,
+  QueryResult,
+} from '../../common/query_result';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
+
+const MARGIN_TOP = 5;
+const RECT_HEIGHT = 30;
+const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 export interface Data extends TrackData {
   kind: 'slice';
@@ -49,9 +59,8 @@ export interface Config {
 
 // This summary is displayed for any processes that have CPU scheduling activity
 // associated with them.
-class ProcessSchedulingTrackController extends TrackController<Config, Data> {
-  static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
-
+export class ProcessSchedulingTrackController extends
+    TrackControllerAdapter<Config, Data> {
   private maxCpu = 0;
   private maxDur = 0n;
   private cachedBucketSize = BIMath.INT64_MAX;
@@ -178,12 +187,7 @@ class ProcessSchedulingTrackController extends TrackController<Config, Data> {
   }
 }
 
-const MARGIN_TOP = 5;
-const RECT_HEIGHT = 30;
-const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
-
-class ProcessSchedulingTrack extends Track<Config, Data> {
-  static readonly kind = PROCESS_SCHEDULING_TRACK_KIND;
+export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): ProcessSchedulingTrack {
     return new ProcessSchedulingTrack(args);
   }
@@ -312,15 +316,3 @@ class ProcessSchedulingTrack extends Track<Config, Data> {
     this.mousePos = undefined;
   }
 }
-
-class ProcessSchedulingPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(ProcessSchedulingTrackController);
-    ctx.registerTrack(ProcessSchedulingTrack);
-  }
-}
-
-export const plugin: PluginInfo = {
-  pluginId: 'perfetto.ProcessScheduling',
-  plugin: ProcessSchedulingPlugin,
-};
