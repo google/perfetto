@@ -53,10 +53,10 @@ TEST(SqlSourceTest, Substr) {
             "          ^\n");
 }
 
-TEST(SqlSourceTest, FullRewrite) {
+TEST(SqlSourceTest, RewriteAllIgnoreExisting) {
   SqlSource source =
       SqlSource::FromExecuteQuery("macro!()")
-          .FullRewrite(SqlSource::FromTraceProcessorImplementation(
+          .RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
               "SELECT * FROM slice"));
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
@@ -81,12 +81,12 @@ TEST(SqlSourceTest, FullRewrite) {
 TEST(SqlSourceTest, NestedFullRewrite) {
   SqlSource nested =
       SqlSource::FromTraceProcessorImplementation("nested!()")
-          .FullRewrite(SqlSource::FromTraceProcessorImplementation(
+          .RewriteAllIgnoreExisting(SqlSource::FromTraceProcessorImplementation(
               "SELECT * FROM slice"));
   ASSERT_EQ(nested.sql(), "SELECT * FROM slice");
 
-  SqlSource source =
-      SqlSource::FromExecuteQuery("macro!()").FullRewrite(std::move(nested));
+  SqlSource source = SqlSource::FromExecuteQuery("macro!()")
+                         .RewriteAllIgnoreExisting(std::move(nested));
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
   ASSERT_EQ(source.AsTraceback(0),
@@ -111,6 +111,32 @@ TEST(SqlSourceTest, NestedFullRewrite) {
             "  Trace Processor Internal line 1 col 8\n"
             "    SELECT * FROM slice\n"
             "           ^\n");
+}
+
+TEST(SqlSourceTest, RewriteAllIgnoresExistingCorrectly) {
+  SqlSource foo =
+      SqlSource::FromExecuteQuery("foo!()").RewriteAllIgnoreExisting(
+          SqlSource::FromTraceProcessorImplementation("SELECT * FROM slice"));
+  SqlSource source = foo.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+  ASSERT_EQ(source.sql(), "SELECT 0 WHERE 0");
+
+  ASSERT_EQ(source.AsTraceback(0),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 1\n"
+            "    foo!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 1\n"
+            "    SELECT 0 WHERE 0\n"
+            "    ^\n");
+  ASSERT_EQ(source.AsTraceback(4),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 1\n"
+            "    foo!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 5\n"
+            "    SELECT 0 WHERE 0\n"
+            "        ^\n");
 }
 
 TEST(SqlSourceTest, Rewriter) {

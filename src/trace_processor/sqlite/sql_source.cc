@@ -141,9 +141,15 @@ SqlSource SqlSource::Substr(uint32_t offset, uint32_t len) const {
   return source;
 }
 
-SqlSource SqlSource::FullRewrite(SqlSource source) const {
-  SqlSource::Rewriter rewriter(*this);
-  rewriter.Rewrite(0, static_cast<uint32_t>(sql().size()), source);
+SqlSource SqlSource::RewriteAllIgnoreExisting(SqlSource source) const {
+  // Reset any rewrites.
+  SqlSource copy = *this;
+  copy.root_.rewritten_sql = copy.root_.original_sql;
+  copy.root_.rewrites.clear();
+
+  SqlSource::Rewriter rewriter(std::move(copy));
+  rewriter.Rewrite(0, static_cast<uint32_t>(root_.original_sql.size()),
+                   std::move(source));
   return std::move(rewriter).Build();
 }
 
