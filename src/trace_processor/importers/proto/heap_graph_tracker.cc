@@ -755,28 +755,34 @@ base::FlatSet<ObjectTable::Id> HeapGraphTracker::GetChildren(
 
   StringId kind = cls_row_ref.kind();
 
-  if (kind == InternTypeKindString(
+  bool is_ignored_reference =
+      kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE) ||
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_SOFT_REFERENCE) ||
       kind == InternTypeKindString(
                   protos::pbzero::HeapGraphType::KIND_FINALIZER_REFERENCE) ||
       kind == InternTypeKindString(
-                  protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE)) {
-    // Do not follow weak / soft / finalizer / phantom references.
-    return {};
-  }
+                  protos::pbzero::HeapGraphType::KIND_PHANTOM_REFERENCE);
 
   base::FlatSet<ObjectTable::Id> children;
-  ForReferenceSet(storage_, object,
-                  [object, &children](ReferenceTable::RowReference ref) {
-                    PERFETTO_CHECK(ref.owner_id() == object.id());
-                    auto opt_owned = ref.owned_id();
-                    if (opt_owned) {
-                      children.insert(*opt_owned);
-                    }
-                    return true;
-                  });
+  ForReferenceSet(
+      storage_, object,
+      [object, &children, is_ignored_reference,
+       this](ReferenceTable::RowReference ref) {
+        PERFETTO_CHECK(ref.owner_id() == object.id());
+        auto opt_owned = ref.owned_id();
+        if (!opt_owned) {
+          return true;
+        }
+        if (is_ignored_reference && ref.field_name() == referent_str_id_) {
+          // If `object` is a special reference kind, its
+          // "java.lang.ref.Reference.referent" field should be ignored.
+          return true;
+        }
+        children.insert(*opt_owned);
+        return true;
+      });
   return children;
 }
 
