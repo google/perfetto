@@ -16,12 +16,16 @@ import {v4 as uuidv4} from 'uuid';
 
 import {AddTrackArgs} from '../../common/actions';
 import {Engine} from '../../common/engine';
-import {PrimaryTrackSortKey} from '../../common/state';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  PrimaryTrackSortKey,
+} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

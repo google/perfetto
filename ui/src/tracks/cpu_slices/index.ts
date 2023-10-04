@@ -484,10 +484,8 @@ class CpuSlices implements Plugin {
       ctx.addTrack({
         uri,
         displayName: name,
-        tags: {
-          cpu,
-          kind: CPU_SLICE_TRACK_KIND,
-        },
+        kind: CPU_SLICE_TRACK_KIND,
+        cpu,
         trackFactory: ({trackInstanceId}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,

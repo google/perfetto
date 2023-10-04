@@ -102,7 +102,8 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
   constructor(
       private ctx: PluginContext, readonly store: Store<T>,
       readonly engine: EngineProxy,
-      private trackRegistry: Map<string, PluginTrackInfo>,
+      readonly trackRegistry: Map<string, PluginTrackInfo>,
+      private suggestedTracks: Set<TrackInfo>,
       private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
     this.trash.add(store);
@@ -147,11 +148,17 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
     if (!this.alive) return;
     const {uri} = trackDetails;
     this.trackRegistry.set(uri, trackDetails);
-    this.trash.add({
-      dispose: () => {
-        this.trackRegistry.delete(uri);
-      },
-    });
+    this.trash.addCallback(() => this.trackRegistry.delete(uri));
+  }
+
+  // Ask Perfetto to add a track to the track list when a fresh trace is loaded.
+  // Ignored when a trace is loaded from a permalink.
+  // This is a direct replacement for findPotentialTracks().
+  // Note: This interface is likely to be deprecated soon, but is required while
+  // both plugin and original type tracks coexist.
+  suggestTrack(trackInfo: TrackInfo): void {
+    this.suggestedTracks.add(trackInfo);
+    this.trash.addCallback(() => this.suggestedTracks.delete(trackInfo));
   }
 
   dispose(): void {
@@ -170,7 +177,7 @@ export class PluginRegistry extends Registry<PluginInfo<unknown>> {
 interface PluginDetails<T> {
   plugin: Plugin<T>;
   context: PluginContext&Disposable;
-  traceContext?: TracePluginContext<T>&Disposable;
+  traceContext?: TracePluginContextImpl<unknown>;
 }
 
 function isPluginClass<T>(v: unknown): v is PluginClass<T> {
@@ -200,6 +207,7 @@ export class PluginManager {
   private engine?: Engine;
   readonly trackRegistry = new Map<string, PluginTrackInfo>();
   readonly commandRegistry = new Map<string, Command>();
+  readonly suggestedTracks = new Set<TrackInfo>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -257,15 +265,8 @@ export class PluginManager {
     return this.plugins.get(pluginId);
   }
 
-  findPotentialTracks(): Promise<TrackInfo[]>[] {
-    const promises: Promise<TrackInfo[]>[] = [];
-    for (const {plugin, traceContext} of this.plugins.values()) {
-      if (plugin.findPotentialTracks && traceContext) {
-        const promise = plugin.findPotentialTracks(traceContext);
-        promises.push(promise);
-      }
-    }
-    return promises;
+  findPotentialTracks(): TrackInfo[] {
+    return Array.from(this.suggestedTracks);
   }
 
   onTraceLoad(engine: Engine): void {
@@ -305,10 +306,9 @@ export class PluginManager {
 
   // Create a new plugin track object from its URI.
   // Returns undefined if no such track is registered.
-  createTrack(uri: string, trackInstanceId: string): TrackLike|undefined {
+  createTrack(uri: string, trackCtx: TrackContext): TrackLike|undefined {
     const trackInfo = pluginManager.trackRegistry.get(uri);
-    const trackContext: TrackContext = {trackInstanceId};
-    return trackInfo && trackInfo.trackFactory(trackContext);
+    return trackInfo && trackInfo.trackFactory(trackCtx);
   }
 
   private doPluginTraceLoad<T>(
@@ -331,6 +331,7 @@ export class PluginManager {
           proxyStore,
           engineProxy,
           this.trackRegistry,
+          this.suggestedTracks,
           this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 
@@ -347,6 +348,7 @@ export class PluginManager {
           proxyStore,
           engineProxy,
           this.trackRegistry,
+          this.suggestedTracks,
           this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 

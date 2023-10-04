@@ -23,7 +23,7 @@ import {
   PivotTree,
   TableColumn,
 } from '../frontend/pivot_table_types';
-import {TrackTags} from '../public/index';
+import {PrimaryTrackSortKey, TrackTags} from '../public/index';
 
 import {Direction} from './event_set';
 
@@ -130,36 +130,6 @@ export type EngineMode = 'WASM'|'HTTP_RPC';
 
 export type NewEngineMode = 'USE_HTTP_RPC_IF_AVAILABLE'|'FORCE_BUILTIN_WASM';
 
-// Tracks within track groups (usually corresponding to processes) are sorted.
-// As we want to group all tracks related to a given thread together, we use
-// two keys:
-// - Primary key corresponds to a priority of a track block (all tracks related
-//   to a given thread or a single track if it's not thread-associated).
-// - Secondary key corresponds to a priority of a given thread-associated track
-//   within its thread track block.
-// Each track will have a sort key, which either a primary sort key
-// (for non-thread tracks) or a tid and secondary sort key (mapping of tid to
-// primary sort key is done independently).
-export enum PrimaryTrackSortKey {
-  DEBUG_SLICE_TRACK,
-  NULL_TRACK,
-  PROCESS_SCHEDULING_TRACK,
-  PROCESS_SUMMARY_TRACK,
-  EXPECTED_FRAMES_SLICE_TRACK,
-  ACTUAL_FRAMES_SLICE_TRACK,
-  PERF_SAMPLES_PROFILE_TRACK,
-  HEAP_PROFILE_TRACK,
-  MAIN_THREAD,
-  RENDER_THREAD,
-  GPU_COMPLETION_THREAD,
-  CHROME_IO_THREAD,
-  CHROME_COMPOSITOR_THREAD,
-  ORDINARY_THREAD,
-  COUNTER_TRACK,
-  ASYNC_SLICE_TRACK,
-  ORDINARY_TRACK,
-}
-
 // Key that is used to sort tracks within a block of tracks associated with a
 // given thread.
 export enum InThreadTrackSortKey {
@@ -260,6 +230,7 @@ export interface TrackState {
     trackIds?: number[];
   };
   uri?: string;
+  state?: unknown;
 }
 
 export interface TrackGroupState {
@@ -268,6 +239,7 @@ export interface TrackGroupState {
   name: string;
   collapsed: boolean;
   tracks: string[];  // Child track ids.
+  state?: unknown;
 }
 
 export interface EngineConfig {
