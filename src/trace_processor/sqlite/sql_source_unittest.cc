@@ -212,6 +212,91 @@ TEST(SqlSourceTest, NestedRewriter) {
             "      ^\n");
 }
 
+TEST(SqlSourceTest, NestedRewriteSubstr) {
+  SqlSource::Rewriter nested_rewrite(
+      SqlSource::FromTraceProcessorImplementation(
+          "id, common_cols!(), other_cols!(), name"));
+  nested_rewrite.Rewrite(
+      4, 18, SqlSource::FromTraceProcessorImplementation("ts, dur"));
+  nested_rewrite.Rewrite(20, 33,
+                         SqlSource::FromTraceProcessorImplementation("depth"));
+
+  SqlSource::Rewriter rewriter(
+      SqlSource::FromExecuteQuery("SELECT cols!() FROM slice"));
+  rewriter.Rewrite(7, 14, std::move(nested_rewrite).Build());
+
+  SqlSource rewritten = std::move(rewriter).Build();
+  ASSERT_EQ(rewritten.sql(), "SELECT id, ts, dur, depth, name FROM slice");
+
+  // Full macro cover.
+  SqlSource cols = rewritten.Substr(7, 24);
+  ASSERT_EQ(cols.sql(), "id, ts, dur, depth, name");
+  ASSERT_EQ(cols.AsTraceback(0),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 1\n"
+            "    id, common_cols!(), other_cols!(), name\n"
+            "    ^\n");
+  ASSERT_EQ(cols.AsTraceback(5),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 5\n"
+            "    id, common_cols!(), other_cols!(), name\n"
+            "        ^\n"
+            "  Trace Processor Internal line 1 col 2\n"
+            "    ts, dur\n"
+            "     ^\n");
+  ASSERT_EQ(cols.AsTraceback(14),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 21\n"
+            "    id, common_cols!(), other_cols!(), name\n"
+            "                        ^\n"
+            "  Trace Processor Internal line 1 col 2\n"
+            "    depth\n"
+            "     ^\n");
+
+  // Intersect with nested.
+  SqlSource intersect = rewritten.Substr(8, 13);
+  ASSERT_EQ(intersect.sql(), "d, ts, dur, d");
+  ASSERT_EQ(intersect.AsTraceback(0),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 2\n"
+            "    d, common_cols!(), other_cols!()\n"
+            "    ^\n");
+  ASSERT_EQ(intersect.AsTraceback(4),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 5\n"
+            "    d, common_cols!(), other_cols!()\n"
+            "       ^\n"
+            "  Trace Processor Internal line 1 col 2\n"
+            "    ts, dur\n"
+            "     ^\n");
+  ASSERT_EQ(intersect.AsTraceback(12),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    cols!()\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 21\n"
+            "    d, common_cols!(), other_cols!()\n"
+            "                       ^\n"
+            "  Trace Processor Internal line 1 col 1\n"
+            "    d\n"
+            "    ^\n");
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
