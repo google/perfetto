@@ -30,6 +30,7 @@
   --main-foreground-color: #222;
   --alt-background-color: #d3d3d3;
   --overview-background-color: #ffffff;
+  --track-highlight-background: #ffe263;
 }
 
 @mixin transition($time: 0.1s) {
@@ -420,7 +421,6 @@ $bottom-tab-padding: 10px;
 
     h1 {
       grid-area: title;
-      color: var(--main-foreground-color);
       @include track_shell_title();
     }
 
@@ -462,7 +462,7 @@ $bottom-tab-padding: 10px;
       opacity: 1;
     }
     &.flash {
-      background-color: #ffe263;
+      background-color: var(--track-highlight-background);
     }
   }
 }
@@ -739,9 +739,6 @@ button.query-ctrl {
     background-color: var(--collapsed-background);
     color: var(--main-foreground-color);
     font-weight: bold;
-    .shell.flash {
-      color: #121212;
-    }
     span.chip {
       color: #121212;
     }
@@ -800,7 +797,7 @@ button.query-ctrl {
       }
     }
     &.flash {
-      background-color: #ffe263;
+      background-color: var(--track-highlight-background);
     }
     &.selected {
       background-color: #ebeef9;
