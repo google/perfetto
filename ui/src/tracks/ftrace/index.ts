@@ -27,6 +27,7 @@ import {
   TracePluginContext,
 } from '../../public';
 
+export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
 
 export interface Data extends TrackData {
   timestamps: BigInt64Array;
@@ -146,6 +147,8 @@ class FtraceRawPlugin implements Plugin {
       ctx.addTrack({
         uri,
         displayName: `Ftrace Track for CPU ${cpuNum}`,
+        kind: FTRACE_RAW_TRACK_KIND,
+        cpu: cpuNum,
         trackFactory: () => {
           return new FtraceRawTrack(ctx.engine, cpuNum);
         },
