@@ -78,15 +78,12 @@ class SqlSource {
   // at |offset| with |len| characters.
   SqlSource Substr(uint32_t offset, uint32_t len) const;
 
-  // Creates a SqlSource instance with the execution SQL rewritten to
-  // |rewrite_sql| but preserving the context from |this|.
+  // Rewrites the SQL backing |this| to SQL from |source| ignoring any existing
+  // rewrites in |this|.
   //
   // This is useful when PerfettoSQL statements are transpiled into SQLite
   // statements but we want to preserve the context of the original statement.
-  //
-  // Note: this function should only be called if |this| has not already been
-  // rewritten (i.e. it is undefined behaviour if |IsRewritten()| returns true).
-  SqlSource FullRewrite(SqlSource) const;
+  SqlSource RewriteAllIgnoreExisting(SqlSource source) const;
 
   // Returns the SQL string backing this SqlSource instance;
   const std::string& sql() const { return root_.rewritten_sql; }
