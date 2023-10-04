@@ -91,6 +91,11 @@ base::Status AddTracebackIfNeeded(base::Status status,
   return status;
 }
 
+SqlSource RewriteToDummySql(const SqlSource& source) {
+  return source.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+}
+
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
@@ -202,15 +207,13 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
           RegisterRuntimeTable(cst->name, cst->sql), parser.statement_sql()));
       // Since the rest of the code requires a statement, just use a no-value
       // dummy statement.
-      source = parser.statement_sql().FullRewrite(
-          SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+      source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* include = std::get_if<PerfettoSqlParser::Include>(
                    &parser.statement())) {
       RETURN_IF_ERROR(ExecuteInclude(*include, parser));
       // Since the rest of the code requires a statement, just use a no-value
       // dummy statement.
-      source = parser.statement_sql().FullRewrite(
-          SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+      source = RewriteToDummySql(parser.statement_sql());
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -450,8 +453,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
     // Since the rest of the code requires a statement, just use a no-value
     // dummy statement.
-    return parser.statement_sql().FullRewrite(
-        SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+    return RewriteToDummySql(parser.statement_sql());
   }
 
   RuntimeTableFunction::State state{cf.prototype, cf.sql, {}, {}, std::nullopt};
@@ -565,7 +567,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
   base::StackString<1024> create(
       "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
-  return cf.sql.FullRewrite(
+  return cf.sql.RewriteAllIgnoreExisting(
       SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
 }
 
