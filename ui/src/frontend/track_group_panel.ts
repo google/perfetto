@@ -18,17 +18,23 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
+import {RegistryError} from '../common/registry';
 import {
   getContainingTrackId,
   TrackGroupState,
   TrackState,
 } from '../common/state';
+import {Migrate, TrackContext, TrackLike} from '../public';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
-import {Track} from './track';
-import {TrackChips, TrackContent} from './track_panel';
+import {
+  renderChips,
+  TrackContent,
+  TrackLifecycleContainer,
+} from './track_panel';
 import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
@@ -43,20 +49,36 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
-  private summaryTrack: Track|undefined;
+  private summaryTrack?: TrackLifecycleContainer;
 
-  constructor({attrs}: m.CVnode<Attrs>) {
+  constructor(vnode: m.CVnode<Attrs>) {
     super();
-    this.trackGroupId = attrs.trackGroupId;
-    const trackCreator = trackRegistry.get(this.summaryTrackState.kind);
-    const engineId = this.summaryTrackState.engineId;
-    const engine = globals.engines.get(engineId);
-    if (engine !== undefined) {
-      this.summaryTrack = trackCreator.create({
-        trackId: this.summaryTrackState.id,
-        engine: engine.getProxy(`Track; kind: ${
-            this.summaryTrackState.kind}; id: ${this.summaryTrackState.id}`),
-      });
+    this.trackGroupId = vnode.attrs.trackGroupId;
+  }
+
+  private tryLoadTrack() {
+    const trackId = this.trackGroupId;
+    const trackState = this.summaryTrackState;
+
+    const {id, uri} = trackState;
+
+    const ctx: TrackContext = {
+      trackInstanceId: id,
+      mountStore: <T>(migrate: Migrate<T>) => {
+        const {store, state} = globals;
+        const migratedState = migrate(state.trackGroups[trackId].state);
+        store.edit((draft) => {
+          draft.trackGroups[trackId].state = migratedState;
+        });
+        return store.createProxy<T>(['trackGroups', trackId, 'state']);
+      },
+    };
+
+    const track =
+        uri ? pluginManager.createTrack(uri, ctx) : loadTrack(trackState, id);
+
+    if (track) {
+      this.summaryTrack = new TrackLifecycleContainer(track);
     }
   }
 
@@ -69,6 +91,10 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   view({attrs}: m.CVnode<Attrs>) {
+    if (!this.summaryTrack) {
+      this.tryLoadTrack();
+    }
+
     const collapsed = this.trackGroupState.collapsed;
     let name = this.trackGroupState.name;
     if (name[0] === '/') {
@@ -132,7 +158,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
                 'h1.track-title',
                 {title: name},
                 name,
-                m(TrackChips, {config: this.summaryTrackState.config}),
+                renderChips(this.summaryTrackState),
                 ),
             (this.trackGroupState.collapsed && child !== null) ?
                 m('h2.track-subtitle', child) :
@@ -180,7 +206,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   onremove() {
     if (this.summaryTrack !== undefined) {
-      this.summaryTrack.onDestroy();
+      this.summaryTrack.dispose();
       this.summaryTrack = undefined;
     }
   }
@@ -285,4 +311,27 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
 function StripPathFromExecutable(path: string) {
   return path.split('/').slice(-1)[0];
+}
+
+function loadTrack(trackState: TrackState, trackId: string): TrackLike|
+    undefined {
+  const engine = globals.engines.get(trackState.engineId);
+  if (engine === undefined) {
+    return undefined;
+  }
+
+  try {
+    const trackCreator = trackRegistry.get(trackState.kind);
+    return trackCreator.create({
+      trackId,
+      engine:
+          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
+    });
+  } catch (e) {
+    if (e instanceof RegistryError) {
+      return undefined;
+    } else {
+      throw e;
+    }
+  }
 }

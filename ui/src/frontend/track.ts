@@ -75,11 +75,11 @@ export abstract class Track<Config = {}, Data extends TrackData = TrackData>
     this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
 
-  onCreate() {}
+  async onCreate(): Promise<void> {}
 
   // Last call the track will receive. Called just before the last reference to
   // this object is removed.
-  onDestroy() {}
+  async onDestroy(): Promise<void> {}
 
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
 

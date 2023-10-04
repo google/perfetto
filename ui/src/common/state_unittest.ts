@@ -12,8 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {PrimaryTrackSortKey} from '../public';
+
 import {createEmptyState} from './empty_state';
-import {getContainingTrackId, PrimaryTrackSortKey, State} from './state';
+import {getContainingTrackId, State} from './state';
 import {deserializeStateObject, serializeStateObject} from './upload_utils';
 
 test('createEmptyState', () => {

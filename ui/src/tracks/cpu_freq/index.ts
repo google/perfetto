@@ -26,12 +26,21 @@ import {
   NUM_NULL,
   QueryResult,
 } from '../../common/query_result';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  TracePluginContext,
+} from '../../public';
 
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';
@@ -55,9 +64,7 @@ export interface Config {
   minimumValue?: number;
 }
 
-class CpuFreqTrackController extends TrackController<Config, Data> {
-  static readonly kind = CPU_FREQ_TRACK_KIND;
-
+class CpuFreqTrackController extends TrackControllerAdapter<Config, Data> {
   private maxDur: duration = 0n;
   private maxTsEnd: time = Time.ZERO;
   private maximumValueSeen = 0;
@@ -266,8 +273,7 @@ class CpuFreqTrackController extends TrackController<Config, Data> {
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
-class CpuFreqTrack extends Track<Config, Data> {
-  static readonly kind = CPU_FREQ_TRACK_KIND;
+class CpuFreqTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): CpuFreqTrack {
     return new CpuFreqTrack(args);
   }
@@ -484,9 +490,70 @@ class CpuFreqTrack extends Track<Config, Data> {
 }
 
 class CpuFreq implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(CpuFreqTrackController);
-    ctx.registerTrack(CpuFreqTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    const {engine} = ctx;
+
+    const cpus = await engine.getCpus();
+
+    const maxCpuFreqResult = await engine.query(`
+      select ifnull(max(value), 0) as freq
+      from counter c
+      inner join cpu_counter_track t on c.track_id = t.id
+      where name = 'cpufreq';
+    `);
+    const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
+
+    for (const cpu of cpus) {
+      // Only add a cpu freq track if we have
+      // cpu freq data.
+      // TODO(hjd): Find a way to display cpu idle
+      // events even if there are no cpu freq events.
+      const cpuFreqIdleResult = await engine.query(`
+        select
+          id as cpuFreqId,
+          (
+            select id
+            from cpu_counter_track
+            where name = 'cpuidle'
+            and cpu = ${cpu}
+            limit 1
+          ) as cpuIdleId
+        from cpu_counter_track
+        where name = 'cpufreq' and cpu = ${cpu}
+        limit 1;
+      `);
+
+      if (cpuFreqIdleResult.numRows() > 0) {
+        const row = cpuFreqIdleResult.firstRow({
+          cpuFreqId: NUM,
+          cpuIdleId: NUM_NULL,
+        });
+        const freqTrackId = row.cpuFreqId;
+        const idleTrackId = row.cpuIdleId === null ? undefined : row.cpuIdleId;
+
+        ctx.addTrack({
+          uri: `perfetto.CpuFreq#${cpu}`,
+          displayName: `Cpu ${cpu} Frequency`,
+          kind: CPU_FREQ_TRACK_KIND,
+          cpu,
+          trackFactory: ({trackInstanceId}) => {
+            return new TrackWithControllerAdapter<Config, Data>(
+                engine,
+                trackInstanceId,
+                {
+                  cpu,
+                  maximumValue: maxCpuFreq,
+                  freqTrackId,
+                  idleTrackId,
+                },
+                CpuFreqTrack,
+                CpuFreqTrackController);
+          },
+        });
+      }
+    }
   }
 }
 
