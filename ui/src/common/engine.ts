@@ -499,6 +499,13 @@ export class EngineProxy implements Disposable {
     return this.engine.getCpus();
   }
 
+  async getNumberOfGpus(): Promise<number> {
+    if (!this.isAlive) {
+      return Promise.reject(new Error(`EngineProxy ${this.tag} was disposed.`));
+    }
+    return this.engine.getNumberOfGpus();
+  }
+
   get engineId(): string {
     return this.engine.id;
   }

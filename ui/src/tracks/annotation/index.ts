@@ -1,0 +1,90 @@
+// Copyright (C) 2021 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import {
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../common/query_result';
+import {
+  Plugin,
+  PluginContext,
+  PluginInfo,
+  TracePluginContext,
+} from '../../public';
+import {
+  Config as CounterTrackConfig,
+  COUNTER_TRACK_KIND,
+  CounterTrack,
+} from '../counter';
+
+class AnnotationPlugin implements Plugin {
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    await this.addAnnotationCounterTracks(ctx);
+  }
+
+  private async addAnnotationCounterTracks(ctx: TracePluginContext) {
+    const {engine} = ctx;
+    const counterResult = await engine.query(`
+      SELECT
+        id,
+        name,
+        min_value as minValue,
+        max_value as maxValue
+      FROM annotation_counter_track`);
+
+    const counterIt = counterResult.iter({
+      id: NUM,
+      name: STR,
+      minValue: NUM_NULL,
+      maxValue: NUM_NULL,
+    });
+
+    for (; counterIt.valid(); counterIt.next()) {
+      const id = counterIt.id;
+      const name = counterIt.name;
+      const minimumValue =
+          counterIt.minValue === null ? undefined : counterIt.minValue;
+      const maximumValue =
+          counterIt.maxValue === null ? undefined : counterIt.maxValue;
+
+      const config: CounterTrackConfig = {
+        name,
+        trackId: id,
+        namespace: 'annotation',
+        minimumValue,
+        maximumValue,
+      };
+
+      ctx.addTrack({
+        uri: `perfetto.Annotation#counter${id}`,
+        displayName: name,
+        kind: COUNTER_TRACK_KIND,
+        tags: {
+          metric: true,
+        },
+        trackFactory: (trackCtx) => {
+          return new CounterTrack(trackCtx, config, ctx.engine);
+        },
+      });
+    }
+  }
+}
+
+export const plugin: PluginInfo = {
+  pluginId: 'perfetto.Annotation',
+  plugin: AnnotationPlugin,
+};

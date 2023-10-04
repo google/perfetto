@@ -16,18 +16,18 @@ import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
 import {Time} from '../base/time';
+import {PrimaryTrackSortKey} from '../public';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
   PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling';
+} from '../tracks/process_summary/process_scheduling_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {
   InThreadTrackSortKey,
-  PrimaryTrackSortKey,
   ProfileType,
   SCROLLING_TRACK_GROUP,
   State,

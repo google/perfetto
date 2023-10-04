@@ -15,9 +15,10 @@
 import {Duration} from '../../base/time';
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
+import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {Config, COUNTER_TRACK_KIND} from '../../tracks/counter';
+import {COUNTER_TRACK_KIND} from '../../tracks/counter';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -25,19 +26,17 @@ export class CounterAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
-    const ids = [];
+    const trackIds: (string|number)[] = [];
     for (const trackId of area.tracks) {
       const track = globals.state.tracks[trackId];
-      // Track will be undefined for track groups.
-      if (track !== undefined && track.kind === COUNTER_TRACK_KIND) {
-        const config = track.config as Config;
-        // TODO(hjd): Also aggregate annotation (with namespace) counters.
-        if (config.namespace === undefined) {
-          ids.push(config.trackId);
+      if (track?.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        if (trackInfo?.kind === COUNTER_TRACK_KIND) {
+          trackInfo.trackIds && trackIds.push(...trackInfo.trackIds);
         }
       }
     }
-    if (ids.length === 0) return false;
+    if (trackIds.length === 0) return false;
     const duration = area.end - area.start;
     const durationSec = Duration.toSeconds(duration);
 
@@ -61,7 +60,7 @@ export class CounterAggregationController extends AggregationController {
         (partition by track_id order by ts
             range between unbounded preceding and unbounded following) as last
         from experimental_counter_dur
-        where track_id in (${ids})
+        where track_id in (${trackIds})
         and ts + dur >= ${area.start} and
         ts <= ${area.end})
     join counter_track

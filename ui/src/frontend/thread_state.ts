@@ -146,8 +146,8 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   for (const track of Object.values(globals.state.tracks)) {
     if (exists(track?.uri)) {
       const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-      if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-        if (trackInfo?.tags?.cpu === cpu) {
+      if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
+        if (trackInfo?.cpu === cpu) {
           trackId = track.id;
           break;
         }

@@ -57,15 +57,15 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.controller = new Controller(config, engine);
   }
 
-  onCreate(): void {
-    this.controller.onSetup();
-    super.onCreate();
+  async onCreate(): Promise<void> {
+    await this.controller.onSetup();
+    await super.onCreate();
   }
 
-  onDestroy(): void {
-    this.track.onDestroy();
-    this.controller.onDestroy();
-    super.onDestroy();
+  async onDestroy(): Promise<void> {
+    await this.track.onDestroy();
+    await this.controller.onDestroy();
+    await super.onDestroy();
   }
 
   getSliceRect(
@@ -181,6 +181,12 @@ type TrackAdapterClass<Config, Data> = {
   new (args: NewTrackArgs): TrackAdapter<Config, Data>
 }
 
+function hasNamespace(config: unknown): config is {
+  namespace: string
+} {
+  return !!config && typeof config === 'object' && 'namespace' in config;
+}
+
 // Extend from this class instead of `TrackController` to use existing track
 // controller implementations with `TrackWithControllerAdapter`.
 export abstract class TrackControllerAdapter<Config, Data> {
@@ -189,7 +195,7 @@ export abstract class TrackControllerAdapter<Config, Data> {
   // don't have access to it.
   private uuid = uuidv4();
 
-  constructor(protected config: Config, private engine: EngineProxy) {}
+  constructor(protected config: Config, protected engine: EngineProxy) {}
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
@@ -199,8 +205,8 @@ export abstract class TrackControllerAdapter<Config, Data> {
   abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
 
-  onSetup(): void {}
-  onDestroy(): void {}
+  async onSetup(): Promise<void> {}
+  async onDestroy(): Promise<void> {}
 
   // Returns a valid SQL table name with the given prefix that should be unique
   // for each track.
@@ -209,6 +215,14 @@ export abstract class TrackControllerAdapter<Config, Data> {
     // Track ID can be UUID but '-' is not valid for sql table name.
     const idSuffix = this.uuid.split('-').join('_');
     return `${prefix}_${idSuffix}`;
+  }
+
+  namespaceTable(tableName: string): string {
+    if (hasNamespace(this.config)) {
+      return this.config.namespace + '_' + tableName;
+    } else {
+      return tableName;
+    }
   }
 }
 
