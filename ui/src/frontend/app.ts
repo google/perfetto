@@ -43,6 +43,7 @@ import {toggleHelp} from './help_modal';
 import {fullscreenModalContainer} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {runQueryInNewTab} from './query_result_tab';
+import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
 import {SqlTableTab} from './sql_table/tab';
@@ -307,8 +308,9 @@ export class App implements m.ClassComponent {
           },
     },
     {
-      id: 'perfetto.PrintTrackInfoToConsole',
-      name: 'Print track info to console',
+      // Selects & reveals the first track on the timeline with a given URI.
+      id: 'perfetto.FindTrack',
+      name: 'Find track by URI',
       callback:
           async () => {
             const tracks = Array.from(pluginManager.trackRegistry.values());
@@ -326,9 +328,28 @@ export class App implements m.ClassComponent {
             });
 
             try {
-              const uri = await this.prompt('Choose a track...', sortedOptions);
-              const trackDetails = pluginManager.resolveTrackInfo(uri);
-              console.log(trackDetails);
+              const selectedUri =
+                  await this.prompt('Choose a track...', sortedOptions);
+
+              // Find the first track with this URI
+              const firstTrack = Object.values(globals.state.tracks)
+                                     .find(({uri}) => uri === selectedUri);
+              if (firstTrack) {
+                console.log(firstTrack);
+                verticalScrollToTrack(firstTrack.id, true);
+                const traceTime = globals.stateTraceTimeTP();
+                globals.makeSelection(
+                    Actions.selectArea({
+                      area: {
+                        start: traceTime.start,
+                        end: traceTime.end,
+                        tracks: [firstTrack.id],
+                      },
+                    }),
+                );
+              } else {
+                alert(`No tracks with uri ${selectedUri} on the timeline`);
+              }
             } catch {
               // Prompt was probably cancelled - do nothing.
             }

@@ -470,8 +470,6 @@ export class TraceController extends Controller<States> {
       }
     }
 
-    pluginManager.onTraceLoad(engine);
-
     const emptyOmniboxState = {
       omnibox: '',
       mode: globals.state.omniboxState.mode || 'SEARCH',
@@ -500,6 +498,8 @@ export class TraceController extends Controller<States> {
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
+
+    pluginManager.onTraceLoad(engine);
 
     {
       // When we reload from a permalink don't create extra tracks:
