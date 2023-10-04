@@ -39,6 +39,9 @@ if (enable_perfetto_platform_services) {
   if (enable_perfetto_traced_probes) {
     all_targets += [ "src/traced/probes:traced_probes" ]
   }
+  if (enable_perfetto_traced_relay) {
+    all_targets += [ "src/traced_relay:traced_relay" ]
+  }
 }
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
