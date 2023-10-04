@@ -93,6 +93,11 @@ std::string GetFileExtension(const std::string& filename);
 base::Status ListFilesRecursive(const std::string& dir_path,
                                 std::vector<std::string>& output);
 
+// Sets |path|'s owner group to |group_name| and permission mode bits to
+// |mode_bits|.
+base::Status SetFilePermissions(const std::string& path,
+                                const std::string& group_name,
+                                const std::string& mode_bits);
 }  // namespace base
 }  // namespace perfetto
 
