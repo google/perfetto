@@ -24,6 +24,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/string_utils.h"
@@ -162,6 +163,7 @@ std::string SqlSource::ApplyRewrites(const std::string& original_sql,
 }
 
 std::string SqlSource::Node::AsTraceback(uint32_t rewritten_offset) const {
+  PERFETTO_CHECK(rewritten_offset <= rewritten_sql.size());
   uint32_t original_offset = RewrittenOffsetToOriginalOffset(rewritten_offset);
   std::string res = SelfTraceback(original_offset);
   if (auto opt_idx = RewriteForOriginalOffset(original_offset); opt_idx) {
@@ -175,6 +177,7 @@ std::string SqlSource::Node::AsTraceback(uint32_t rewritten_offset) const {
 }
 
 std::string SqlSource::Node::SelfTraceback(uint32_t original_offset) const {
+  PERFETTO_DCHECK(original_offset <= original_sql.size());
   auto [o_context, o_caret_pos] =
       SqlContextAndCaretPos(original_sql, original_offset);
   std::string header;
@@ -193,17 +196,54 @@ std::string SqlSource::Node::SelfTraceback(uint32_t original_offset) const {
 }
 
 SqlSource::Node SqlSource::Node::Substr(uint32_t offset, uint32_t len) const {
-  PERFETTO_CHECK(rewrites.empty());
-  auto line_and_col =
-      GetLineAndColumnForOffset(rewritten_sql, line, col, offset);
+  uint32_t offset_end = offset + len;
+  PERFETTO_CHECK(offset_end <= rewritten_sql.size());
+
+  uint32_t original_offset_start = RewrittenOffsetToOriginalOffset(offset);
+  uint32_t original_offset_end = RewrittenOffsetToOriginalOffset(offset_end);
+  std::vector<Rewrite> new_rewrites;
+  for (const Rewrite& rewrite : rewrites) {
+    if (offset >= rewrite.rewritten_sql_end) {
+      continue;
+    }
+    if (offset_end < rewrite.rewritten_sql_start) {
+      break;
+    }
+    // Special case: when the end of the substr is in the middle of a rewrite,
+    // we actually want to capture the original SQL up to the end of the
+    // rewrite, not just to the start as |ChildRewrittenOffset| returns.
+    if (offset_end < rewrite.rewritten_sql_end) {
+      original_offset_end = rewrite.original_sql_end;
+    }
+    uint32_t bounded_start = std::max(offset, rewrite.rewritten_sql_start);
+    uint32_t bounded_end = std::min(offset_end, rewrite.rewritten_sql_end);
+
+    uint32_t nested_start = bounded_start - rewrite.rewritten_sql_start;
+    uint32_t nested_len = bounded_end - bounded_start;
+
+    new_rewrites.push_back(Rewrite{
+        rewrite.original_sql_start - original_offset_start,
+        rewrite.original_sql_end - original_offset_start,
+        bounded_start - offset,
+        bounded_end - offset,
+        rewrite.rewrite_node.Substr(nested_start, nested_len),
+    });
+  }
+  std::string new_original = original_sql.substr(
+      original_offset_start, original_offset_end - original_offset_start);
+  std::string new_rewritten = rewritten_sql.substr(offset, len);
+  PERFETTO_DCHECK(ApplyRewrites(new_original, new_rewrites) == new_rewritten);
+
+  auto line_and_col = GetLineAndColumnForOffset(rewritten_sql, line, col,
+                                                original_offset_start);
   return Node{
       name,
       include_traceback_header,
       line_and_col.first,
       line_and_col.second,
-      original_sql.substr(offset, len),
-      {},
-      rewritten_sql.substr(offset, len),
+      new_original,
+      std::move(new_rewrites),
+      new_rewritten,
   };
 }
 
