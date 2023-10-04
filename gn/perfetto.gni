@@ -266,6 +266,10 @@ declare_args() {
   # extremely low.
   enable_perfetto_traced_probes = enable_perfetto_platform_services && !is_win
 
+  # The relay service is enabled when platform services are enabled.
+  # TODO(chinglinyu) check if we can enable on Windows.
+  enable_perfetto_traced_relay = enable_perfetto_platform_services && !is_win
+
   # Whether info-level logging is enabled.
   perfetto_verbose_logs_enabled =
       !build_with_chromium || perfetto_force_dlog == "on"

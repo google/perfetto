@@ -31,6 +31,11 @@ PERFETTO_EXPORT_COMPONENT std::vector<std::string> TokenizeProducerSockets(
     const char* producer_socket_names);
 PERFETTO_EXPORT_COMPONENT const char* GetProducerSocket();
 
+// Optionally returns the relay socket name (nullable). The relay socket is used
+// for forwarding the IPC messages between the local producers and the remote
+// tracing service.
+PERFETTO_EXPORT_COMPONENT const char* GetRelaySocket();
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
