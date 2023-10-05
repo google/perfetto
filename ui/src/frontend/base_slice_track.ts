@@ -505,10 +505,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     }  // if (hoveredSlice)
   }
 
-  async onDestroy() {
-    await super.onDestroy();
+  onDestroy() {
+    super.onDestroy();
     this.isDestroyed = true;
-    await this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
+    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
   }
 
   // This method figures out if the visible window is outside the bounds of
