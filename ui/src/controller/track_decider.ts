@@ -1677,7 +1677,7 @@ class TrackDecider {
         pUuid = this.getOrCreateUuid(utid, upid);
         const summaryTrackId = uuidv4();
         const type = hasSched ? 'schedule' : 'summary';
-        const uri = `perfetto.ProcessScheduling#${utid}.${type}`;
+        const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 
         this.tracksToAdd.push({
           id: summaryTrackId,
