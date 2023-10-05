@@ -24,7 +24,8 @@ THIRD_PROCESS_PID = 3000
 # List of blocking calls
 blocking_call_names = [
     'NotificationStackScrollLayout#onMeasure', 'ExpNotRow#onMeasure(MessagingStyle)',
-    'ExpNotRow#onMeasure(BigTextStyle)',
+    'ExpNotRow#onMeasure(BigTextStyle)', 'NotificationShadeWindowView#onMeasure',
+    'ImageFloatingTextView#onMeasure',
     'Should not be in the metric'
 ]
 
