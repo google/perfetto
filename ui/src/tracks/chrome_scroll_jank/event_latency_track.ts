@@ -65,8 +65,8 @@ export class EventLatencyTrack extends
     });
   }
 
-  async onDestroy() {
-    await super.onDestroy();
+  onDestroy() {
+    super.onDestroy();
     ScrollJankPluginState.getInstance().unregisterTrack(EventLatencyTrack.kind);
   }
 
