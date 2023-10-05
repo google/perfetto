@@ -190,7 +190,7 @@ export interface TrackContext {
 // TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
 // interface to `Track`.
 export interface TrackLike {
-  onCreate(): Promise<void>;
+  onCreate(): void;
   render(ctx: CanvasRenderingContext2D): void;
   onFullRedraw(): void;
   getSliceRect(
@@ -203,7 +203,7 @@ export interface TrackLike {
   onMouseMove(position: {x: number, y: number}): void;
   onMouseClick(position: {x: number, y: number}): boolean;
   onMouseOut(): void;
-  onDestroy(): Promise<void>;
+  onDestroy(): void;
 }
 
 export interface PluginTrackInfo {
