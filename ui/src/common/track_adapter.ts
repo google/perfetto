@@ -41,6 +41,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
     BasicAsyncTrack<Data> {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
+  private isSetup = false;
 
   constructor(
       engine: EngineProxy, trackInstanceId: string, config: Config,
@@ -57,15 +58,10 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.controller = new Controller(config, engine);
   }
 
-  async onCreate(): Promise<void> {
-    await this.controller.onSetup();
-    await super.onCreate();
-  }
-
-  async onDestroy(): Promise<void> {
-    await this.track.onDestroy();
-    await this.controller.onDestroy();
-    await super.onDestroy();
+  onDestroy(): void {
+    this.track.onDestroy();
+    this.controller.onDestroy();
+    super.onDestroy();
   }
 
   getSliceRect(
@@ -104,8 +100,13 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.track.onFullRedraw();
   }
 
-  onBoundsChange(start: time, end: time, resolution: duration): Promise<Data> {
-    return this.controller.onBoundsChange(start, end, resolution);
+  async onBoundsChange(start: time, end: time, resolution: duration):
+      Promise<Data> {
+    if (!this.isSetup) {
+      await this.controller.onSetup();
+      this.isSetup = true;
+    }
+    return await this.controller.onBoundsChange(start, end, resolution);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
