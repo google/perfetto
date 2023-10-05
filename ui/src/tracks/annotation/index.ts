@@ -20,8 +20,8 @@ import {
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 import {
   Config as CounterTrackConfig,
@@ -32,11 +32,11 @@ import {
 class AnnotationPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addAnnotationCounterTracks(ctx);
   }
 
-  private async addAnnotationCounterTracks(ctx: TracePluginContext) {
+  private async addAnnotationCounterTracks(ctx: PluginContextTrace) {
     const {engine} = ctx;
     const counterResult = await engine.query(`
       SELECT
@@ -76,7 +76,7 @@ class AnnotationPlugin implements Plugin {
         tags: {
           metric: true,
         },
-        trackFactory: (trackCtx) => {
+        track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -84,7 +84,7 @@ class AnnotationPlugin implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.Annotation',
   plugin: AnnotationPlugin,
 };

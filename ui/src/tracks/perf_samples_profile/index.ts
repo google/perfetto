@@ -22,8 +22,8 @@ import {TrackController} from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -77,7 +77,7 @@ const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
-class PerfSamplesProfileTrack extends Track<Config, Data> {
+class PerfSamplesProfileTrack extends TrackBase<Config, Data> {
   static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
   static create(args: NewTrackArgs): PerfSamplesProfileTrack {
     return new PerfSamplesProfileTrack(args);
@@ -210,12 +210,12 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
 
 class PerfSamplesProfilePlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(PerfSamplesProfileTrackController);
-    ctx.registerTrack(PerfSamplesProfileTrack);
+    ctx.LEGACY_registerTrackController(PerfSamplesProfileTrackController);
+    ctx.LEGACY_registerTrack(PerfSamplesProfileTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.PerfSamplesProfile',
   plugin: PerfSamplesProfilePlugin,
 };

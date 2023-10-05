@@ -19,11 +19,11 @@ import {Engine} from '../../common/engine';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
   PrimaryTrackSortKey,
 } from '../../public';
 import {
@@ -40,7 +40,7 @@ export {Data} from '../chrome_slices';
 
 class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ScreenshotsTrack(args);
   }
 
@@ -88,11 +88,11 @@ export async function decideTracks(engine: Engine):
 
 class ScreenshotsPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(ScreenshotsTrack);
+    ctx.LEGACY_registerTrack(ScreenshotsTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.Screenshots',
   plugin: ScreenshotsPlugin,
 };

@@ -16,9 +16,9 @@ import m from 'mithril';
 
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 import {
   ChromeSliceTrack,
   ChromeSliceTrackController,
@@ -41,7 +41,7 @@ class VisualisedArgsTrackController extends ChromeSliceTrackController {
 
 export class VisualisedArgsTrack extends ChromeSliceTrack {
   static readonly kind = VISUALISED_ARGS_SLICE_TRACK_KIND;
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new VisualisedArgsTrack(args);
   }
 
@@ -67,12 +67,12 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
 
 class VisualisedArgsPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(VisualisedArgsTrackController);
-    ctx.registerTrack(VisualisedArgsTrack);
+    ctx.LEGACY_registerTrackController(VisualisedArgsTrackController);
+    ctx.LEGACY_registerTrack(VisualisedArgsTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.VisualisedArgs',
   plugin: VisualisedArgsPlugin,
 };

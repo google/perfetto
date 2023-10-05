@@ -25,7 +25,7 @@ import {
   TrackGroupState,
   TrackState,
 } from '../common/state';
-import {Migrate, TrackContext, TrackLike} from '../public';
+import {Migrate, Track, TrackContext} from '../public';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -45,7 +45,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private readonly trackGroupId: string;
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
-  private summaryTrack?: TrackLike;
+  private summaryTrack?: Track;
 
   constructor({attrs}: m.CVnode<Attrs>) {
     super();
@@ -305,8 +305,7 @@ function StripPathFromExecutable(path: string) {
   return path.split('/').slice(-1)[0];
 }
 
-function loadTrack(trackState: TrackState, trackId: string): TrackLike|
-    undefined {
+function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
   const engine = globals.engines.get(trackState.engineId);
   if (engine === undefined) {
     return undefined;
