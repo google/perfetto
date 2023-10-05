@@ -365,14 +365,18 @@ export class TrackLifecycleContainer implements Disposable {
   private state = TrackLifecycleState.Initializing;
 
   constructor(private track: TrackLike) {
-    track.onCreate().then(() => {
+    track.onCreate().finally(() => {
       if (this.state === TrackLifecycleState.DestroyPending) {
-        track.onDestroy();
+        track.onDestroy().finally(() => {
+          this.state = TrackLifecycleState.Destroyed;
+        });
         this.state = TrackLifecycleState.Destroying;
       } else {
         this.state = TrackLifecycleState.Initialized;
+        raf.scheduleFullRedraw();
       }
     });
+    // TODO(stevegolton): Handle failure case.
   }
 
   onFullRedraw(): void {
@@ -450,7 +454,7 @@ export class TrackLifecycleContainer implements Disposable {
         break;
       case TrackLifecycleState.Initialized:
         this.state = TrackLifecycleState.Destroying;
-        this.track.onDestroy().then(() => {
+        this.track.onDestroy().finally(() => {
           this.state = TrackLifecycleState.Destroyed;
         });
         break;
