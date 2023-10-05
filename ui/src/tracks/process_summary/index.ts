@@ -208,7 +208,7 @@ class ProcessSummaryPlugin implements Plugin {
         pUuid = this.getOrCreateUuid(utid, upid);
         const pidForColor = pid || tid || upid || utid || 0;
         const type = hasSched ? 'schedule' : 'summary';
-        const uri = `perfetto.ProcessScheduling#${utid}.${type}`;
+        const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 
         if (hasSched) {
           const config: ProcessSchedulingTrackConfig = {

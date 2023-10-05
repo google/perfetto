@@ -122,7 +122,8 @@ export const MAX_TIME = 180;
 // 39. Ported cpu_slice, ftrace, and android_log tracks to plugin tracks. Track
 //     state entries now require a URI and old track implementations are no
 //     longer registered.
-export const STATE_VERSION = 39;
+// 40. Ported counter, process summary/sched, & cpu_freq to plugin tracks.
+export const STATE_VERSION = 40;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
