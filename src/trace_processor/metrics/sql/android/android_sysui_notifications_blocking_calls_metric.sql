@@ -32,6 +32,8 @@ WHERE
        s.name GLOB 'NotificationStackScrollLayout#onMeasure'
     OR s.name GLOB 'NotificationToplineView#onMeasure'
     OR s.name GLOB 'ExpNotRow#*'
+    OR s.name GLOB 'NotificationShadeWindowView#onMeasure'
+    OR s.name GLOB 'ImageFloatingTextView#onMeasure'
 )
 GROUP BY s.name;
 
