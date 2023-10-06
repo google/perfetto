@@ -94,6 +94,7 @@ from diff_tests.track_event.tests import TrackEvent
 from diff_tests.translation.tests import Translation
 from diff_tests.ufs.tests import Ufs
 from diff_tests.webview.tests import WebView
+from diff_tests.android_fs.tests import AndroidFs
 
 sys.path.pop()
 
@@ -102,6 +103,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   return [
       *Android(index_path, 'android', 'Android').fetch(),
       *AndroidBugreport(index_path, 'android', 'AndroidBugreport').fetch(),
+      *AndroidFs(index_path, 'android_fs', 'AndroidFs').fetch(),
       *AndroidGames(index_path, 'android', 'AndroidGames').fetch(),
       *Atrace(index_path, 'atrace', 'Atrace').fetch(),
       *AtraceErrorHandling(index_path, 'atrace', 'AtraceErrorHandling').fetch(),
