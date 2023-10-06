@@ -22,6 +22,8 @@ import {toggleHelp} from './help_modal';
 import {showModal} from './modal';
 import {focusHorizontalRange} from './scroll_helper';
 
+const TRUSTED_ORIGINS_KEY = 'trustedOrigins';
+
 interface PostedTraceWrapped {
   perfetto: PostedTrace;
 }
@@ -40,11 +42,39 @@ function isTrustedOrigin(origin: string): boolean {
   ];
   if (origin === window.origin) return true;
   if (TRUSTED_ORIGINS.includes(origin)) return true;
+  if (isUserTrustedOrigin(origin)) return true;
 
   const hostname = new URL(origin).hostname;
   if (hostname.endsWith('corp.google.com')) return true;
   if (hostname === 'localhost' || hostname === '127.0.0.1') return true;
   return false;
+}
+
+// Returns whether the user saved this as an always-trusted origin.
+function isUserTrustedOrigin(hostname: string): boolean {
+  const trustedOrigins = window.localStorage.getItem(TRUSTED_ORIGINS_KEY);
+  if (trustedOrigins === null) return false;
+  try {
+    return JSON.parse(trustedOrigins).includes(hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Saves the given hostname as a trusted origin.
+// This is used for user convenience: if it fails for any reason, it's not a
+// big deal.
+function saveUserTrustedOrigin(hostname: string) {
+  const s = window.localStorage.getItem(TRUSTED_ORIGINS_KEY);
+  let origins: string[];
+  try {
+    origins = JSON.parse(s || '[]');
+    if (origins.includes(hostname)) return;
+    origins.push(hostname);
+    window.localStorage.setItem(TRUSTED_ORIGINS_KEY, JSON.stringify(origins));
+  } catch (e) {
+    console.warn('unable to save trusted origins to localStorage', e);
+  }
 }
 
 // Returns whether we should ignore a given message based on the value of
@@ -162,6 +192,11 @@ export function postMessageHandler(messageEvent: MessageEvent) {
     globals.dispatch(Actions.openTraceFromBuffer(postedTrace));
   };
 
+  const trustAndOpenTrace = () => {
+    saveUserTrustedOrigin(messageEvent.origin);
+    openTrace();
+  };
+
   // If the origin is trusted open the trace directly.
   if (isTrustedOrigin(messageEvent.origin)) {
     openTrace();
@@ -176,8 +211,9 @@ export function postMessageHandler(messageEvent: MessageEvent) {
           m('div', `${messageEvent.origin} is trying to open a trace file.`),
           m('div', 'Do you trust the origin and want to proceed?')),
     buttons: [
-      {text: 'NO', primary: true},
-      {text: 'YES', primary: false, action: openTrace},
+      {text: 'No', primary: true},
+      {text: 'Yes', primary: false, action: openTrace},
+      {text: 'Always trust', primary: false, action: trustAndOpenTrace},
     ],
   });
 }
