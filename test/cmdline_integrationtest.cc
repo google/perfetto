@@ -852,7 +852,10 @@ TEST_F(PerfettoCmdlineTest, AndroidOnly(CmdTriggerWithUploadFlag)) {
                                          Eq("trigger_name")))));
 }
 
-TEST_F(PerfettoCmdlineTest, TriggerCloneSnapshot) {
+// This test has been disabled in Android U for CTS tests, because of the
+// (deliberate) breaking change made in aosp/2723034. The proto field ID is also
+// used by the CTS test, which, by design, needs to work on all U releases.
+TEST_F(PerfettoCmdlineTest, DISABLED_TriggerCloneSnapshot) {
   constexpr size_t kMessageCount = 2;
   constexpr size_t kMessageSize = 2;
   protos::gen::TraceConfig trace_config;
