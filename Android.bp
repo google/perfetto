@@ -10617,6 +10617,7 @@ filegroup {
         "src/trace_processor/perfetto_sql/engine/function_util.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.cc",
         "src/trace_processor/perfetto_sql/engine/runtime_table_function.cc",
     ],
 }
@@ -10627,6 +10628,7 @@ filegroup {
     srcs: [
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine_unittest.cc",
         "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser_unittest.cc",
+        "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor_unittest.cc",
     ],
 }
 
