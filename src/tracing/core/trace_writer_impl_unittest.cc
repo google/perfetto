@@ -299,7 +299,14 @@ TEST_P(TraceWriterImplDeathTest, NewTracePacketTakeWriterNoFinish) {
   const BufferID kBufId = 42;
   std::unique_ptr<TraceWriter> writer = arbiter_->CreateTraceWriter(kBufId);
 
-  ScatteredStreamWriter* sw = writer->NewTracePacket().TakeStreamWriter();
+  TraceWriterImpl::TracePacketHandle handle = writer->NewTracePacket();
+
+  // Avoid a secondary DCHECK failure from ~TraceWriterImpl() =>
+  // Message::Finalize() due to the stream writer being modified behind the
+  // Message's back. This turns the Finalize() call into a no-op.
+  handle->set_size_field(nullptr);
+
+  ScatteredStreamWriter* sw = handle.TakeStreamWriter();
   std::string raw_proto_bytes = std::string("RAW_PROTO_BYTES");
   sw->WriteBytes(reinterpret_cast<const uint8_t*>(raw_proto_bytes.data()),
                  raw_proto_bytes.size());
