@@ -404,7 +404,7 @@ SpanJoinOperatorTable::Cursor::~Cursor() = default;
 base::Status SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                                    sqlite3_value** argv,
                                                    FilterHistory) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SPAN_JOIN_XFILTER");
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "SPAN_JOIN_XFILTER");
 
   bool t1_partitioned_mixed =
       t1_.definition()->IsPartitioned() &&
