@@ -99,7 +99,7 @@ class SqlSource {
   // Suppose that we have the the following situation:
   // User: `SELECT foo!(a) FROM bar!(slice) a`
   // foo : `$1.x, $1.y`
-  // bar : `(SELECT baz!($1) FROM $1 LIMIT 1)`
+  // bar : `(SELECT baz!($1) FROM $1)`
   // baz : `$1.x, $1.y, $1.z`
   //
   // We want to expand this to
@@ -124,8 +124,8 @@ class SqlSource {
   //   rewritten_sql: "SELECT a.x, a.y FROM (SELECT slice.x, slice.y, slice.z
   //                   FROM slice) a"
   //   rewrites: [
-  //     {start: 7, end: 12, node: foo},
-  //     {start: 17, end: 26, node: bar}]
+  //     {original_sql_start: 7, original_sql_end: 14, node: foo},
+  //     {original_sql_start: 20, original_sql_end: 31, node: bar}]
   //   ]
   // }
   // foo {
@@ -136,7 +136,7 @@ class SqlSource {
   // bar {
   //   original_sql: "(SELECT baz!($1) FROM $1 LIMIT 1)"
   //   rewritten_sql: "(SELECT slice.x, slice.y, slice.z FROM slice)"
-  //   rewrites: [{start: 8, end: 16, node: baz}]
+  //   rewrites: [{original_sql_start: 8, original_sql_end: 16, node: baz}]
   // }
   // baz {
   //   original_sql = "$1.x, $1.y, $1.z"
@@ -182,14 +182,22 @@ class SqlSource {
     // IMPORTANT: if |rewritten_offset| is *inside* a rewrite, the original
     // offset will point to the *start of the rewrite*. For example, if
     // we have:
-    //   original_sql: "SELECT foo!(a) FROM slice"
-    //   rewritten_sql: "SELECT a.x, a.y FROM slice"
-    //   rewrites: [{start: 7, end: 12, node: foo}]
+    //   original_sql: "SELECT foo!(a) FROM slice a"
+    //   rewritten_sql: "SELECT a.x, a.y FROM slice a"
+    //   rewrites: [
+    //     {
+    //       original_sql_start: 7,
+    //       original_sql_end: 14,
+    //       rewritten_sql_start: 7,
+    //       rewritten_sql_end: 15,
+    //       node: foo
+    //     }
+    //   ]
     // then:
     //   RewrittenOffsetToOriginalOffset(7) == 7     // 7 = start of foo
     //   RewrittenOffsetToOriginalOffset(14) == 7    // 7 = start of foo
-    //   RewrittenOffsetToOriginalOffset(15) == 12   // 12 = end of foo
-    //   RewrittenOffsetToOriginalOffset(16) == 13   // 12 = end of foo
+    //   RewrittenOffsetToOriginalOffset(15) == 14   // 14 = end of foo
+    //   RewrittenOffsetToOriginalOffset(16) == 15
     uint32_t RewrittenOffsetToOriginalOffset(uint32_t rewritten_offset) const;
 
     // Given an |original_offset| for this node, returns the index of a
@@ -215,7 +223,8 @@ class SqlSource {
     Node rewrite_node;
   };
 
-  SqlSource() = default;
+  SqlSource();
+  explicit SqlSource(Node);
   SqlSource(std::string sql, std::string name, bool include_traceback_header);
 
   static std::string ApplyRewrites(const std::string&,
@@ -230,21 +239,56 @@ class SqlSource::Rewriter {
   // Creates a Rewriter object which can be used to rewrite the SQL backing
   // |source|.
   //
-  // Note: this function should only be called if |source| has not already been
-  // rewritten (i.e. it is undefined behaviour if |source.IsRewritten()| returns
-  // true).
+  // Note that rewrites of portions of the SQL which have already been rewritten
+  // is supported but *only in limited cases*. Specifically, the new rewrite
+  // must not cross the boundary of any existing rewrite.
+  //
+  // For example, if we have:
+  //   SqlSource {
+  //     original_sql: "SELECT foo!(a) FROM bar!(slice) a"
+  //     rewritten_sql: "SELECT a.x, a.y FROM (SELECT slice.x FROM slice) a"
+  //   }
+  // then the following are valid:
+  //   # Replaces "SELECT " with "INSERT ". Valid because it does not touch
+  //   # any rewrite.
+  //   Rewrite(0, 7, "INSERT ")
+  //
+  //   # Replaces "a.x, a." with "a.z, ". Valid because it only touches the
+  //   # contents of the existing "foo" rewrite.
+  //   Rewrite(7, 14, "a.z, ")
+  // while the following are invalid:
+  //   # Fails to replace "SELECT a" with "I". Invalid because it affects both
+  //   # non-rewritten source and the "foo" rewrite.
+  //   Rewrite(0, 8, "I")
+  //
+  //   # Fails to replace "a.x, a.y FROM (" with "(". Invalid because it affects
+  //   # the "foo" rewrite, non-rewritten source and the "bar" rewrite.
+  //   Rewrite(7, 23, "(")
   explicit Rewriter(SqlSource source);
 
-  // Replaces the SQL between |start| and |end| with the contents of |rewrite|.
-  void Rewrite(uint32_t start, uint32_t end, SqlSource rewrite);
+  // Replaces the SQL in |source.rewritten_sql| between |rewritten_start| and
+  // |rewritten_end| with the contents of |rewrite|.
+  //
+  // Note that calls to Rewrite must be monontonic and non-overlapping. i.e.
+  // if Rewrite(0, 10) is called, the next |rewritten_end| must be greater than
+  // or equal to 10.
+  //
+  // Note also that all offsets passed to this function correspond to offsets
+  // into |source.rewritten_sql|: past calls to rewrite do not affect future
+  // offsets.
+  void Rewrite(uint32_t rewritten_start,
+               uint32_t rewritten_end,
+               SqlSource rewrite);
 
   // Returns the rewritten SqlSource instance.
   SqlSource Build() &&;
 
  private:
-  SqlSource orig_;
-  uint32_t original_bytes_in_rewrites = 0;
-  uint32_t rewritten_bytes_in_rewrites = 0;
+  explicit Rewriter(Node);
+
+  Node orig_;
+  std::vector<SqlSource::Rewriter> nested_;
+  std::vector<SqlSource::Rewrite> non_nested_;
 };
 
 }  // namespace trace_processor
