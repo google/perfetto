@@ -76,7 +76,6 @@ public_targets = [
 # exported publicly.
 default_targets = [
     '//src/base:perfetto_base_default_platform',
-    '//src/bigtrace:bigtrace',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -87,12 +86,6 @@ default_targets = [
     '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets
-
-# Proto targets are required by internal build rules but don't need to be
-# exported publicly.
-proto_default_targets = [
-  '//protos/perfetto/bigtrace:lite'
-]
 
 # Proto target groups which will be made public.
 proto_groups = {
@@ -118,6 +111,10 @@ proto_groups = {
     'chrome_metrics': {
         'sources': ['//protos/perfetto/metrics/chrome:source_set',],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    'trace_processor': {
+        'sources': ['//protos/perfetto/trace_processor:source_set',],
+        'visibility': [],
     },
 }
 
@@ -517,29 +514,32 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
       ':' + get_bazel_proto_sources_label(name)
       for name in sorted(list(deps_set))
   ]
-  sources_label.visibility = desc['visibility']
   sources_label.comment = f'''[{', '.join(desc['sources'])}]'''
 
   cc_label = BazelLabel(name + '_cc_proto', 'perfetto_cc_proto_library')
   cc_label.deps = [':' + sources_label.name]
-  cc_label.visibility = desc['visibility']
   cc_label.comment = sources_label.comment
 
   java_label = BazelLabel(name + '_java_proto', 'perfetto_java_proto_library')
   java_label.deps = [':' + sources_label.name]
-  java_label.visibility = desc['visibility']
   java_label.comment = sources_label.comment
 
   lite_name = name + '_java_proto_lite'
   java_lite_label = BazelLabel(lite_name, 'perfetto_java_lite_proto_library')
   java_lite_label.deps = [':' + sources_label.name]
-  java_lite_label.visibility = desc['visibility']
   java_lite_label.comment = sources_label.comment
 
   py_label = BazelLabel(name + '_py_pb2', 'perfetto_py_proto_library')
   py_label.deps = [':' + sources_label.name]
-  py_label.visibility = desc['visibility']
   py_label.comment = sources_label.comment
+
+  visibility = desc['visibility']
+  if visibility:
+    sources_label.visibility = visibility
+    cc_label.visibility = visibility
+    java_label.visibility = visibility
+    java_lite_label.visibility = visibility
+    py_label.visibility = visibility
 
   return [sources_label, cc_label, java_label, java_lite_label, py_label]
 
@@ -795,10 +795,6 @@ exports_files(["NOTICE"])
     if plugin is None or plugin == 'source_set' or plugin == 'descriptor':
       continue
     gn.get_target(re.sub('(lite|zero|cpp|ipc)$', 'source_set', target.name))
-
-  # Discover all the default proto targets so it will be generated next.
-  for target in sorted(proto_default_targets):
-    gn.get_target(target)
 
   # Generate targets for the transitive set of proto targets.
   labels = [
