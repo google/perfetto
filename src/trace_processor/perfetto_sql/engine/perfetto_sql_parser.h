@@ -22,6 +22,7 @@
 #include <variant>
 
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
@@ -94,11 +95,12 @@ class PerfettoSqlParser {
   }
 
   // Returns the error status for the parser. This will be |base::OkStatus()|
-  // until
+  // until an unrecoverable error is encountered.
   const base::Status& status() const { return status_; }
 
  private:
-  // This cannot be moved because we keep pointers into |sql_| in |tokenizer_|.
+  // This cannot be moved because we keep pointers into |sql_| in
+  // |preprocessor_|.
   PerfettoSqlParser(PerfettoSqlParser&&) = delete;
   PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
 
@@ -114,7 +116,9 @@ class PerfettoSqlParser {
 
   bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
 
+  PerfettoSqlPreprocessor preprocessor_;
   SqliteTokenizer tokenizer_;
+
   base::Status status_;
   std::optional<SqlSource> statement_sql_;
   std::optional<Statement> statement_;

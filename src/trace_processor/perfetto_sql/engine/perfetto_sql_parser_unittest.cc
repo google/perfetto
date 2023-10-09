@@ -22,6 +22,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_test_utils.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "test/gtest_and_gmock.h"
 
@@ -35,35 +36,7 @@ using CreateFn = PerfettoSqlParser::CreateFunction;
 using CreateTable = PerfettoSqlParser::CreateTable;
 using Include = PerfettoSqlParser::Include;
 
-inline bool operator==(const SqlSource& a, const SqlSource& b) {
-  return a.sql() == b.sql();
-}
-
-inline bool operator==(const SqliteSql&, const SqliteSql&) {
-  return true;
-}
-
-inline bool operator==(const CreateFn& a, const CreateFn& b) {
-  return std::tie(a.returns, a.is_table, a.prototype, a.replace, a.sql) ==
-         std::tie(b.returns, b.is_table, b.prototype, b.replace, b.sql);
-}
-
-inline bool operator==(const CreateTable& a, const CreateTable& b) {
-  return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
-}
-
-inline bool operator==(const Include& a, const Include& b) {
-  return std::tie(a.key) == std::tie(b.key);
-}
-
 namespace {
-
-SqlSource FindSubstr(const SqlSource& source, const std::string& needle) {
-  size_t off = source.sql().find(needle);
-  PERFETTO_CHECK(off != std::string::npos);
-  return source.Substr(static_cast<uint32_t>(off),
-                       static_cast<uint32_t>(needle.size()));
-}
 
 class PerfettoSqlParserTest : public ::testing::Test {
  protected:
