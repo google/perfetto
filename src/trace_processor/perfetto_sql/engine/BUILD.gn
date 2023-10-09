@@ -26,6 +26,8 @@ source_set("engine") {
     "perfetto_sql_engine.h",
     "perfetto_sql_parser.cc",
     "perfetto_sql_parser.h",
+    "perfetto_sql_preprocessor.cc",
+    "perfetto_sql_preprocessor.h",
     "runtime_table_function.cc",
     "runtime_table_function.h",
   ]
@@ -50,6 +52,8 @@ perfetto_unittest_source_set("unittests") {
   sources = [
     "perfetto_sql_engine_unittest.cc",
     "perfetto_sql_parser_unittest.cc",
+    "perfetto_sql_preprocessor_unittest.cc",
+    "perfetto_sql_test_utils.h",
   ]
   deps = [
     ":engine",

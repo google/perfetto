@@ -28,6 +28,7 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -36,6 +37,31 @@
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
+// Implementation details
+// ----------------------
+//
+// The execution of PerfettoSQL statements is the joint responsibility of
+// several classes which all are linked together in the following way:
+//
+//  PerfettoSqlEngine -> PerfettoSqlParser -> PerfettoSqlPreprocessor
+//
+// The responsibility of each of these classes is as follows:
+//
+// * PerfettoSqlEngine: this class is responsible for the end-to-end processing
+//   of statements. It calls into PerfettoSqlParser to incrementally receive
+//   parsed SQL statements and then executes them. If the statement is a
+//   PerfettoSQL-only statement, the execution happens entirely in this class.
+//   Otherwise, if the statement is a valid SQLite statement, SQLite is called
+//   into to perform the execution.
+// * PerfettoSqlParser: this class is responsible for taking a chunk of SQL and
+//   incrementally converting them into parsed SQL statement. The parser calls
+//   into the PerfettoSqlPreprocessor to split the SQL chunk into a statement
+//   and perform any macro expansion. It then tries to parse any
+//   PerfettoSQL-only statements into their component parts and leaves SQLite
+//   statements as-is for execution by SQLite.
+// * PerfettoSqlPreprocessor: this class is responsible for taking a chunk of
+//   SQL and breaking them into statements, while also expanding any macros
+//   which might be present inside.
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -91,6 +117,8 @@ base::Status AddTracebackIfNeeded(base::Status status,
   return status;
 }
 
+// This function is used when the the PerfettoSQL has been fully executed by the
+// PerfettoSqlEngine and a SqlSoruce is needed for SQLite to execute.
 SqlSource RewriteToDummySql(const SqlSource& source) {
   return source.RewriteAllIgnoreExisting(
       SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
@@ -205,14 +233,10 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
                    &parser.statement())) {
       RETURN_IF_ERROR(AddTracebackIfNeeded(
           RegisterRuntimeTable(cst->name, cst->sql), parser.statement_sql()));
-      // Since the rest of the code requires a statement, just use a no-value
-      // dummy statement.
       source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* include = std::get_if<PerfettoSqlParser::Include>(
                    &parser.statement())) {
       RETURN_IF_ERROR(ExecuteInclude(*include, parser));
-      // Since the rest of the code requires a statement, just use a no-value
-      // dummy statement.
       source = RewriteToDummySql(parser.statement_sql());
     } else {
       // If none of the above matched, this must just be an SQL statement
@@ -450,9 +474,6 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
   if (!cf.is_table) {
     RETURN_IF_ERROR(
         RegisterSqlFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
-
-    // Since the rest of the code requires a statement, just use a no-value
-    // dummy statement.
     return RewriteToDummySql(parser.statement_sql());
   }
 
