@@ -20,6 +20,7 @@
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -220,7 +221,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   //    statement for the last valid statement.
   std::optional<SqliteEngine::PreparedStatement> res;
   ExecutionStats stats;
-  PerfettoSqlParser parser(std::move(sql_source));
+  PerfettoSqlParser parser(std::move(sql_source), macros_);
   while (parser.Next()) {
     std::optional<SqlSource> source;
     if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
@@ -238,6 +239,11 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
                    &parser.statement())) {
       RETURN_IF_ERROR(ExecuteInclude(*include, parser));
       source = RewriteToDummySql(parser.statement_sql());
+    } else if (auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(
+                   &parser.statement())) {
+      auto sql = macro->sql;
+      RETURN_IF_ERROR(ExecuteCreateMacro(*macro));
+      source = RewriteToDummySql(sql);
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -595,6 +601,55 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
       "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
   return cf.sql.RewriteAllIgnoreExisting(
       SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
+}
+
+base::Status PerfettoSqlEngine::ExecuteCreateMacro(
+    const PerfettoSqlParser::CreateMacro& create_macro) {
+  // Check that the argument types is one of the allowed types.
+  for (const auto& [name, type] : create_macro.args) {
+    std::string lower_type = base::ToLower(type.sql());
+    if (lower_type != "tableorsubquery" && lower_type != "expr") {
+      // TODO(lalitm): add a link to create macro documentation.
+      return base::ErrStatus(
+          "%sMacro %s argument %s is unkown type %s. Allowed types: "
+          "TableOrSubquery, Expr",
+          type.AsTraceback(0).c_str(), create_macro.name.sql().c_str(),
+          name.sql().c_str(), type.sql().c_str());
+    }
+  }
+  std::string lower_return = base::ToLower(create_macro.returns.sql());
+  if (lower_return != "tableorsubquery" && lower_return != "expr") {
+    // TODO(lalitm): add a link to create macro documentation.
+    return base::ErrStatus(
+        "%sMacro %s return type %s is unknown. Allowed types: "
+        "TableOrSubquery, Expr",
+        create_macro.returns.AsTraceback(0).c_str(),
+        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str());
+  }
+
+  std::vector<std::string> args;
+  for (const auto& arg : create_macro.args) {
+    args.push_back(arg.first.sql());
+  }
+  PerfettoSqlPreprocessor::Macro macro{
+      create_macro.replace,
+      create_macro.name.sql(),
+      std::move(args),
+      create_macro.sql,
+  };
+  if (auto it = macros_.Find(create_macro.name.sql()); it) {
+    if (!create_macro.replace) {
+      // TODO(lalitm): add a link to create macro documentation.
+      return base::ErrStatus("%sMacro already exists",
+                             create_macro.name.AsTraceback(0).c_str());
+    }
+    *it = std::move(macro);
+    return base::OkStatus();
+  }
+  std::string name = macro.name;
+  auto it_and_inserted = macros_.Insert(std::move(name), std::move(macro));
+  PERFETTO_CHECK(it_and_inserted.second);
+  return base::OkStatus();
 }
 
 RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
