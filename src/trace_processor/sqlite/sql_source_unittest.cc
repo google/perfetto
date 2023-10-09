@@ -323,6 +323,51 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
             "    ^\n");
 }
 
+TEST(SqlSourceTest, Rerewrites) {
+  SqlSource::Rewriter rewriter(
+      SqlSource::FromExecuteQuery("SELECT foo!(a) FROM bar!(slice) a"));
+  rewriter.Rewrite(7, 14,
+                   SqlSource::FromTraceProcessorImplementation("a.x, a.y"));
+  rewriter.Rewrite(20, 31,
+                   SqlSource::FromTraceProcessorImplementation(
+                       "(SELECT slice.x, slice.y, slice.z FROM slice)"));
+
+  SqlSource rewritten = std::move(rewriter).Build();
+  ASSERT_EQ(
+      rewritten.sql(),
+      "SELECT a.x, a.y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a");
+
+  SqlSource::Rewriter rerewriter(std::move(rewritten));
+  rerewriter.Rewrite(0, 7,
+                     SqlSource::FromTraceProcessorImplementation("INSERT "));
+  rerewriter.Rewrite(7, 14,
+                     SqlSource::FromTraceProcessorImplementation("a.z, "));
+
+  SqlSource rerewritten = std::move(rerewriter).Build();
+  ASSERT_EQ(
+      rerewritten.sql(),
+      "INSERT a.z, y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a");
+  ASSERT_EQ(rerewritten.AsTraceback(0),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 1\n"
+            "    SELECT foo!(a) FROM bar!(slice) a\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 1\n"
+            "    INSERT \n"
+            "    ^\n");
+  ASSERT_EQ(rerewritten.AsTraceback(8),
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 8\n"
+            "    SELECT foo!(a) FROM bar!(slice) a\n"
+            "           ^\n"
+            "  Trace Processor Internal line 1 col 1\n"
+            "    a.x, a.y\n"
+            "    ^\n"
+            "  Trace Processor Internal line 1 col 2\n"
+            "    a.z, \n"
+            "     ^\n");
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

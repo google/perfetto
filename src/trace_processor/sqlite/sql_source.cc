@@ -20,6 +20,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <limits>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -27,6 +28,7 @@
 #include <vector>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/sys_types.h"
 
@@ -84,6 +86,9 @@ std::pair<std::string, size_t> SqlContextAndCaretPos(const std::string& sql,
 }
 
 }  // namespace
+
+SqlSource::SqlSource() = default;
+SqlSource::SqlSource(Node node) : root_(std::move(node)) {}
 
 SqlSource::SqlSource(std::string sql,
                      std::string name,
@@ -285,32 +290,92 @@ std::optional<uint32_t> SqlSource::Node::RewriteForOriginalOffset(
   return std::nullopt;
 }
 
-SqlSource::Rewriter::Rewriter(SqlSource source) : orig_(std::move(source)) {
-  PERFETTO_CHECK(!orig_.IsRewritten());
+SqlSource::Rewriter::Rewriter(SqlSource source)
+    : Rewriter(std::move(source.root_)) {}
+SqlSource::Rewriter::Rewriter(Node source) : orig_(std::move(source)) {
+  // Note: it's important that we *don't* move out of |orig_| here as we want to
+  // be able to access the untouched offsets through
+  // calls to |RewrittenOffsetToOriginalOffset| etc.
+  for (const SqlSource::Rewrite& rewrite : orig_.rewrites) {
+    nested_.push_back(SqlSource::Rewriter(rewrite.rewrite_node));
+  }
 }
 
-void SqlSource::Rewriter::Rewrite(uint32_t start,
-                                  uint32_t end,
+void SqlSource::Rewriter::Rewrite(uint32_t rewritten_start,
+                                  uint32_t rewritten_end,
                                   SqlSource source) {
-  PERFETTO_CHECK(start < end);
-  PERFETTO_CHECK(end <= orig_.sql().size());
+  PERFETTO_CHECK(rewritten_start < rewritten_end);
+  PERFETTO_CHECK(rewritten_end <= orig_.rewritten_sql.size());
 
-  uint32_t source_size = static_cast<uint32_t>(source.sql().size());
-
-  uint32_t rewritten_start =
-      start + rewritten_bytes_in_rewrites - original_bytes_in_rewrites;
-  orig_.root_.rewrites.push_back(SqlSource::Rewrite{
-      start, end, rewritten_start, rewritten_start + source_size,
-      std::move(source.root_)});
-
-  original_bytes_in_rewrites += end - start;
-  rewritten_bytes_in_rewrites += source_size;
+  uint32_t original_start =
+      orig_.RewrittenOffsetToOriginalOffset(rewritten_start);
+  std::optional<uint32_t> maybe_rewrite =
+      orig_.RewriteForOriginalOffset(original_start);
+  if (maybe_rewrite) {
+    const SqlSource::Rewrite& rewrite = orig_.rewrites[*maybe_rewrite];
+    nested_[*maybe_rewrite].Rewrite(
+        rewritten_start - rewrite.rewritten_sql_start,
+        rewritten_end - rewrite.rewritten_sql_start, std::move(source));
+  } else {
+    uint32_t original_end =
+        orig_.RewrittenOffsetToOriginalOffset(rewritten_end);
+    non_nested_.push_back(SqlSource::Rewrite{
+        original_start,
+        original_end,
+        std::numeric_limits<uint32_t>::max(),  // Dummy, corrected in |Build|.
+        std::numeric_limits<uint32_t>::max(),  // Dummy, corrected in |Build|.
+        std::move(source.root_),
+    });
+  }
 }
 
 SqlSource SqlSource::Rewriter::Build() && {
-  orig_.root_.rewritten_sql =
-      ApplyRewrites(orig_.root_.original_sql, orig_.root_.rewrites);
-  return orig_;
+  // Phase 1: finalize all the nested rewrites and merge both nested and
+  // non-nested into a single vector.
+  std::vector<SqlSource::Rewrite> all_rewrites = std::move(non_nested_);
+  for (uint32_t i = 0; i < nested_.size(); ++i) {
+    const SqlSource::Rewrite orig_rewrite = orig_.rewrites[i];
+    all_rewrites.push_back(SqlSource::Rewrite{
+        orig_rewrite.original_sql_start,
+        orig_rewrite.original_sql_end,
+        std::numeric_limits<uint32_t>::max(),  // Dummy, corrected in phase 3.
+        std::numeric_limits<uint32_t>::max(),  // Dummy, corrected in phase 3.
+        std::move(nested_[i]).Build().root_,
+    });
+  }
+
+  // Phase 2: sort the new rewrite vector by original offset and verify that
+  // the original offsets are monotonic and non-overlapping.
+  std::sort(all_rewrites.begin(), all_rewrites.end(),
+            [](const SqlSource::Rewrite& a, const SqlSource::Rewrite& b) {
+              return a.original_sql_start < b.original_sql_start;
+            });
+  for (uint32_t i = 1; i < all_rewrites.size(); ++i) {
+    PERFETTO_CHECK(all_rewrites[i - 1].original_sql_end <=
+                   all_rewrites[i].original_sql_start);
+  }
+
+  // Phase 3: compute the new rewritten offsets and assign them to the rewrites.
+  uint32_t original_bytes_in_rewrites = 0;
+  uint32_t rewritten_bytes_in_rewrites = 0;
+  for (SqlSource::Rewrite& rewrite : all_rewrites) {
+    uint32_t source_size =
+        static_cast<uint32_t>(rewrite.rewrite_node.rewritten_sql.size());
+
+    rewrite.rewritten_sql_start = rewrite.original_sql_start +
+                                  rewritten_bytes_in_rewrites -
+                                  original_bytes_in_rewrites;
+    rewrite.rewritten_sql_end = rewrite.rewritten_sql_start + source_size;
+
+    original_bytes_in_rewrites +=
+        rewrite.original_sql_end - rewrite.original_sql_start;
+    rewritten_bytes_in_rewrites += source_size;
+  }
+
+  // Phase 4: update the node to reflect the new rewrites.
+  orig_.rewrites = std::move(all_rewrites);
+  orig_.rewritten_sql = ApplyRewrites(orig_.original_sql, orig_.rewrites);
+  return SqlSource(std::move(orig_));
 }
 
 }  // namespace trace_processor
