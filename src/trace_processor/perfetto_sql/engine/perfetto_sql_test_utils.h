@@ -49,6 +49,12 @@ inline bool operator==(const PerfettoSqlParser::Include& a,
   return std::tie(a.key) == std::tie(b.key);
 }
 
+constexpr bool operator==(const PerfettoSqlParser::CreateMacro& a,
+                          const PerfettoSqlParser::CreateMacro& b) {
+  return std::tie(a.replace, a.name, a.sql, a.args) ==
+         std::tie(b.replace, b.name, b.sql, b.args);
+}
+
 inline std::ostream& operator<<(std::ostream& stream, const SqlSource& sql) {
   return stream << "SqlSource(sql=" << testing::PrintToString(sql.sql()) << ")";
 }
@@ -68,6 +74,12 @@ inline std::ostream& operator<<(std::ostream& stream,
   if (auto* tab = std::get_if<PerfettoSqlParser::CreateTable>(&line)) {
     return stream << "CreateTable(name=" << testing::PrintToString(tab->name)
                   << ", sql=" << testing::PrintToString(tab->sql) << ")";
+  }
+  if (auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(&line)) {
+    return stream << "CreateTable(name=" << testing::PrintToString(macro->name)
+                  << ", args=" << testing::PrintToString(macro->args)
+                  << ", replace=" << testing::PrintToString(macro->replace)
+                  << ", sql=" << testing::PrintToString(macro->sql) << ")";
   }
   PERFETTO_FATAL("Unknown type");
 }

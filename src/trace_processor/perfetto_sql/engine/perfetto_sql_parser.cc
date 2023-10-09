@@ -19,9 +19,14 @@
 #include <algorithm>
 #include <functional>
 #include <optional>
+#include <sstream>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
@@ -79,10 +84,28 @@ bool ValidateModuleName(const std::string& name) {
                       std::not_fn(IsValidModuleWord)) == packages.end();
 }
 
+std::string SerializeArgs(std::vector<std::pair<SqlSource, SqlSource>> args) {
+  bool comma = false;
+  std::string serialized;
+  for (const auto& [name, type] : args) {
+    if (comma) {
+      serialized.append(", ");
+    }
+    comma = true;
+    serialized.append(name.sql().c_str());
+    serialized.push_back(' ');
+    serialized.append(type.sql().c_str());
+  }
+  return serialized;
+}
+
 }  // namespace
 
-PerfettoSqlParser::PerfettoSqlParser(SqlSource source)
-    : preprocessor_(std::move(source)),
+PerfettoSqlParser::PerfettoSqlParser(
+    SqlSource source,
+    const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&
+        macros)
+    : preprocessor_(std::move(source), macros),
       tokenizer_(SqlSource::FromTraceProcessorImplementation("")) {}
 
 bool PerfettoSqlParser::Next() {
@@ -188,9 +211,13 @@ bool PerfettoSqlParser::Next() {
         if (TokenIsSqliteKeyword("table", token)) {
           return ParseCreatePerfettoTable(*first_non_space_token);
         }
+        if (TokenIsCustomKeyword("macro", token)) {
+          return ParseCreatePerfettoMacro(state ==
+                                          State::kCreateOrReplacePerfetto);
+        }
         base::StackString<1024> err(
-            "Expected 'FUNCTION' or 'TABLE' after 'CREATE PERFETTO', received "
-            "'%*s'.",
+            "Expected 'FUNCTION', 'TABLE' or 'MACRO' after 'CREATE PERFETTO', "
+            "received '%*s'.",
             static_cast<int>(token.str.size()), token.str.data());
         return ErrorAtToken(token, err.c_str());
     }
@@ -263,10 +290,13 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(
     return ErrorAtToken(lp, "Malformed function prototype: '(' expected");
   }
 
-  prototype.push_back('(');
-  if (!ParseArgumentDefinitions(&prototype)) {
+  std::vector<Argument> args;
+  if (!ParseArgumentDefinitions(args)) {
     return false;
   }
+
+  prototype.push_back('(');
+  prototype.append(SerializeArgs(args));
   prototype.push_back(')');
 
   if (Token returns = tokenizer_.NextNonWhitespace();
@@ -285,9 +315,11 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(
       return ErrorAtToken(lp, "Malformed table return: '(' expected");
     }
     // Table function return.
-    if (!ParseArgumentDefinitions(&ret)) {
+    std::vector<Argument> ret_args;
+    if (!ParseArgumentDefinitions(ret_args)) {
       return false;
     }
+    ret = SerializeArgs(ret_args);
   } else if (ret_token.token_type != SqliteTokenType::TK_ID) {
     // TODO(lalitm): add a link to create function documentation.
     return ErrorAtToken(ret_token, "Invalid return type");
@@ -310,28 +342,117 @@ bool PerfettoSqlParser::ParseCreatePerfettoFunction(
   return true;
 }
 
-bool PerfettoSqlParser::ParseArgumentDefinitions(std::string* str) {
-  for (Token tok = tokenizer_.Next();; tok = tokenizer_.Next()) {
-    if (tok.token_type == SqliteTokenType::TK_RP) {
-      return true;
+bool PerfettoSqlParser::ParseCreatePerfettoMacro(bool replace) {
+  Token name = tokenizer_.NextNonWhitespace();
+  if (name.token_type != SqliteTokenType::TK_ID) {
+    // TODO(lalitm): add a link to create macro documentation.
+    base::StackString<1024> err("Invalid macro name %.*s",
+                                static_cast<int>(name.str.size()),
+                                name.str.data());
+    return ErrorAtToken(name, err.c_str());
+  }
+
+  // TK_LP == '(' (i.e. left parenthesis).
+  if (Token lp = tokenizer_.NextNonWhitespace();
+      lp.token_type != SqliteTokenType::TK_LP) {
+    // TODO(lalitm): add a link to create macro documentation.
+    return ErrorAtToken(lp, "Malformed macro prototype: '(' expected");
+  }
+
+  std::vector<Argument> args;
+  if (!ParseArgumentDefinitions(args)) {
+    return false;
+  }
+
+  if (Token returns = tokenizer_.NextNonWhitespace();
+      !TokenIsCustomKeyword("returns", returns)) {
+    // TODO(lalitm): add a link to create macro documentation.
+    return ErrorAtToken(returns, "Expected keyword 'returns'");
+  }
+
+  Token returns_value = tokenizer_.NextNonWhitespace();
+  if (returns_value.token_type != SqliteTokenType::TK_ID) {
+    // TODO(lalitm): add a link to create function documentation.
+    return ErrorAtToken(returns_value, "Expected return type");
+  }
+
+  if (Token as_token = tokenizer_.NextNonWhitespace();
+      !TokenIsSqliteKeyword("as", as_token)) {
+    // TODO(lalitm): add a link to create macro documentation.
+    return ErrorAtToken(as_token, "Expected keyword 'as'");
+  }
+
+  Token first = tokenizer_.NextNonWhitespace();
+  Token tok = tokenizer_.NextTerminal();
+  statement_ = CreateMacro{
+      replace, tokenizer_.SubstrToken(name), std::move(args),
+      tokenizer_.SubstrToken(returns_value), tokenizer_.Substr(first, tok)};
+  return true;
+}
+
+bool PerfettoSqlParser::ParseArgumentDefinitions(std::vector<Argument>& res) {
+  enum TokenType {
+    kIdOrRp,
+    kId,
+    kType,
+    kCommaOrRp,
+  };
+
+  std::optional<Token> id = std::nullopt;
+  TokenType expected = kIdOrRp;
+  for (Token tok = tokenizer_.NextNonWhitespace();;
+       tok = tokenizer_.NextNonWhitespace()) {
+    // Keywords can be used as names accidentally so have an explicit error
+    // message for those.
+    if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
+      base::StackString<1024> err(
+          "Malformed function/macro prototype: %.*s is a SQL keyword so "
+          "cannot appear in a prototype",
+          static_cast<int>(tok.str.size()), tok.str.data());
+      return ErrorAtToken(tok, err.c_str());
     }
-    if (tok.token_type == SqliteTokenType::TK_SPACE) {
-      str->append(" ");
-      continue;
+    if (expected == kCommaOrRp) {
+      PERFETTO_CHECK(expected == kCommaOrRp);
+      if (tok.token_type == SqliteTokenType::TK_RP) {
+        return true;
+      }
+      if (tok.token_type == SqliteTokenType::TK_COMMA) {
+        expected = kId;
+        continue;
+      }
+      return ErrorAtToken(tok, "')' or ',' expected");
     }
-    if (tok.token_type != SqliteTokenType::TK_ID &&
-        tok.token_type != SqliteTokenType::TK_COMMA) {
-      if (tok.token_type == SqliteTokenType::TK_GENERIC_KEYWORD) {
-        base::StackString<1024> err(
-            "Malformed function prototype: %.*s is a SQL keyword so cannot "
-            "appear in a function prototype",
-            static_cast<int>(tok.str.size()), tok.str.data());
+    if (expected == kType) {
+      if (tok.token_type != SqliteTokenType::TK_ID) {
+        // TODO(lalitm): add a link to documentation.
+        base::StackString<1024> err("%.*s is not a valid argument type",
+                                    static_cast<int>(tok.str.size()),
+                                    tok.str.data());
         return ErrorAtToken(tok, err.c_str());
       }
-      // TODO(lalitm): add a link to create function documentation.
-      return ErrorAtToken(tok, "')', ',', name or type expected");
+      PERFETTO_CHECK(id);
+      res.push_back(std::make_pair(tokenizer_.SubstrToken(*id),
+                                   tokenizer_.SubstrToken(tok)));
+      id = std::nullopt;
+      expected = kCommaOrRp;
+      continue;
     }
-    str->append(tok.str);
+
+    // kIdOrRp only happens on the very first token.
+    if (tok.token_type == SqliteTokenType::TK_RP && expected == kIdOrRp) {
+      return true;
+    }
+
+    if (tok.token_type != SqliteTokenType::TK_ID) {
+      // TODO(lalitm): add a link to documentation.
+      base::StackString<1024> err("%.*s is not a valid argument name",
+                                  static_cast<int>(tok.str.size()),
+                                  tok.str.data());
+      return ErrorAtToken(tok, err.c_str());
+    }
+    id = tok;
+    expected = kType;
+    continue;
   }
 }
 
