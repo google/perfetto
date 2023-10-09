@@ -17,6 +17,7 @@
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
 
 #include <algorithm>
+#include <cctype>
 #include <functional>
 #include <optional>
 #include <sstream>
