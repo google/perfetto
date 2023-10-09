@@ -157,3 +157,31 @@ class PerfettoSql(TestSuite):
         "TRACE_START()"
         1000
         """))
+
+  def test_macro(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query='''
+        CREATE PERFETTO MACRO foo(a Expr,b Expr) RETURNS TableOrSubquery AS
+        SELECT $a - $b;
+        SELECT (foo!(123, 100)) as res;
+        ''',
+        out=Csv("""
+        "res"
+        23
+        """))
+
+  def test_nested_macro(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query='''
+        CREATE PERFETTO MACRO foo(a Expr) returns Expr AS $a;
+        CREATE PERFETTO MACRO bar(a Expr) returns Expr AS (SELECT $a);
+        CREATE PERFETTO MACRO baz(a Expr,b Expr) returns TableOrSubquery AS
+        SELECT bar!(foo!(123)) - $b as res;
+        baz!(123, 100);
+        ''',
+        out=Csv("""
+        "res"
+        23
+        """))

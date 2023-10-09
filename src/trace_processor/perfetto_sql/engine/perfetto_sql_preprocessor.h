@@ -33,7 +33,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-// Preprocessor for PerfettoSQL statements. This main responsiblity of this
+// Preprocessor for PerfettoSQL statements. The main responsiblity of this
 // class is to perform similar functions to the C/C++ preprocessor (e.g.
 // expanding macros). It is also responsible for splitting the given SQL into
 // statements.
@@ -41,13 +41,15 @@ class PerfettoSqlPreprocessor {
  public:
   struct Macro {
     bool replace;
-    SqlSource name;
+    std::string name;
     std::vector<std::string> args;
     SqlSource sql;
   };
 
   // Creates a preprocessor acting on the given SqlSource.
-  explicit PerfettoSqlPreprocessor(SqlSource);
+  explicit PerfettoSqlPreprocessor(
+      SqlSource,
+      const base::FlatHashMap<std::string, Macro>&);
 
   // Preprocesses the next SQL statement. Returns true if a statement was
   // successfully preprocessed and false if EOF was reached or the statement was
@@ -68,11 +70,35 @@ class PerfettoSqlPreprocessor {
   SqlSource& statement() { return *statement_; }
 
  private:
+  struct MacroInvocation {
+    const Macro* macro;
+    std::unordered_map<std::string, SqlSource> arg_bindings;
+  };
+  struct InvocationArg {
+    std::optional<SqlSource> arg;
+    bool has_more;
+  };
+
   base::Status ErrorAtToken(const SqliteTokenizer& tokenizer,
                             const SqliteTokenizer::Token& token,
                             const char* error);
+  base::StatusOr<SqlSource> RewriteInternal(
+      const SqlSource&,
+      const std::unordered_map<std::string, SqlSource>& arg_bindings);
+
+  base::StatusOr<MacroInvocation> ParseMacroInvocation(
+      SqliteTokenizer& tokenizer,
+      SqliteTokenizer::Token& token,
+      const SqliteTokenizer::Token& name_token,
+      const std::unordered_map<std::string, SqlSource>& arg_bindings);
+  base::StatusOr<InvocationArg> ParseMacroInvocationArg(
+      SqliteTokenizer& tokenizer,
+      SqliteTokenizer::Token& token,
+      bool has_prev_args);
 
   SqliteTokenizer global_tokenizer_;
+  const base::FlatHashMap<std::string, Macro>* macros_ = nullptr;
+  std::unordered_set<std::string> seen_macros_;
   std::optional<SqlSource> statement_;
   base::Status status_;
 };

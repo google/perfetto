@@ -35,6 +35,7 @@ using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
 using CreateTable = PerfettoSqlParser::CreateTable;
 using Include = PerfettoSqlParser::Include;
+using CreateMacro = PerfettoSqlParser::CreateMacro;
 
 namespace {
 
@@ -42,7 +43,7 @@ class PerfettoSqlParserTest : public ::testing::Test {
  protected:
   base::StatusOr<std::vector<PerfettoSqlParser::Statement>> Parse(
       SqlSource sql) {
-    PerfettoSqlParser parser(sql);
+    PerfettoSqlParser parser(sql, macros_);
     std::vector<PerfettoSqlParser::Statement> results;
     while (parser.Next()) {
       results.push_back(std::move(parser.statement()));
@@ -52,6 +53,8 @@ class PerfettoSqlParserTest : public ::testing::Test {
     }
     return results;
   }
+
+  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
 };
 
 TEST_F(PerfettoSqlParserTest, Empty) {
@@ -60,7 +63,7 @@ TEST_F(PerfettoSqlParserTest, Empty) {
 
 TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
   SqlSource res = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlParser parser(res);
+  PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "SELECT * FROM slice"));
@@ -69,7 +72,7 @@ TEST_F(PerfettoSqlParserTest, SemiColonTerminatedStatement) {
 TEST_F(PerfettoSqlParserTest, MultipleStmts) {
   auto res =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlParser parser(res);
+  PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -82,7 +85,7 @@ TEST_F(PerfettoSqlParserTest, MultipleStmts) {
 
 TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
   auto res = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlParser parser(res);
+  PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement{SqliteSql{}});
   ASSERT_EQ(parser.statement_sql().sql(),
@@ -128,7 +131,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1; select foo()");
-  PerfettoSqlParser parser(res);
+  PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
   CreateFn fn{false, "foo()", "INT", FindSubstr(res, "select 1"), false};
   ASSERT_EQ(parser.statement(), Statement{fn});
@@ -158,6 +161,46 @@ TEST_F(PerfettoSqlParserTest, IncludePerfettoErrorWrongModuleName) {
   auto res =
       SqlSource::FromExecuteQuery("include perfetto module chees*e.bre_ad;");
   ASSERT_FALSE(Parse(res).status().ok());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto macro foo(a1 Expr, b1 TableOrSubquery,c3_d "
+      "TableOrSubquery2 ) returns TableOrSubquery3 as random sql snippet");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateMacro{
+          false,
+          FindSubstr(res, "foo"),
+          {
+              {FindSubstr(res, "a1"), FindSubstr(res, "Expr")},
+              {FindSubstr(res, "b1"), FindSubstr(res, "TableOrSubquery")},
+              {FindSubstr(res, "c3_d"), FindSubstr(res, "TableOrSubquery2")},
+          },
+          FindSubstr(res, "TableOrSubquery3"),
+          FindSubstr(res, "random sql snippet")}));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create perfetto macro foo() returns sql1 as random sql snippet; "
+      "select 1");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(CreateMacro{
+                                    false,
+                                    FindSubstr(res, "foo"),
+                                    {},
+                                    FindSubstr(res, "sql1"),
+                                    FindSubstr(res, "random sql snippet"),
+                                }));
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
+  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
+  ASSERT_FALSE(parser.Next());
 }
 
 }  // namespace
