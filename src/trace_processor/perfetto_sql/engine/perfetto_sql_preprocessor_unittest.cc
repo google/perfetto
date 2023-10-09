@@ -29,17 +29,21 @@ namespace {
 
 using Macro = PerfettoSqlPreprocessor::Macro;
 
-class PerfettoSqlPreprocessorUnittest : public ::testing::Test {};
+class PerfettoSqlPreprocessorUnittest : public ::testing::Test {
+ protected:
+  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
+};
 
 TEST_F(PerfettoSqlPreprocessorUnittest, Empty) {
-  PerfettoSqlPreprocessor preprocessor(SqlSource::FromExecuteQuery(""));
+  PerfettoSqlPreprocessor preprocessor(SqlSource::FromExecuteQuery(""),
+                                       macros_);
   ASSERT_FALSE(preprocessor.NextStatement());
   ASSERT_TRUE(preprocessor.status().ok());
 }
 
 TEST_F(PerfettoSqlPreprocessorUnittest, SemiColonTerminatedStatement) {
   auto source = SqlSource::FromExecuteQuery("SELECT * FROM slice;");
-  PerfettoSqlPreprocessor preprocessor(source);
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(),
             FindSubstr(source, "SELECT * FROM slice"));
@@ -49,7 +53,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, SemiColonTerminatedStatement) {
 
 TEST_F(PerfettoSqlPreprocessorUnittest, IgnoreOnlySpace) {
   auto source = SqlSource::FromExecuteQuery(" ; SELECT * FROM s; ; ;");
-  PerfettoSqlPreprocessor preprocessor(source);
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT * FROM s"));
   ASSERT_FALSE(preprocessor.NextStatement());
@@ -59,7 +63,7 @@ TEST_F(PerfettoSqlPreprocessorUnittest, IgnoreOnlySpace) {
 TEST_F(PerfettoSqlPreprocessorUnittest, MultipleStmts) {
   auto source =
       SqlSource::FromExecuteQuery("SELECT * FROM slice; SELECT * FROM s");
-  PerfettoSqlPreprocessor preprocessor(source);
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(preprocessor.statement(),
             FindSubstr(source, "SELECT * FROM slice"));
@@ -72,13 +76,89 @@ TEST_F(PerfettoSqlPreprocessorUnittest, MultipleStmts) {
 TEST_F(PerfettoSqlPreprocessorUnittest, CreateMacro) {
   auto source = SqlSource::FromExecuteQuery(
       "CREATE PERFETTO MACRO foo(a, b) AS SELECT $a + $b");
-  PerfettoSqlPreprocessor preprocessor(source);
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
   ASSERT_TRUE(preprocessor.NextStatement());
   ASSERT_EQ(
       preprocessor.statement(),
       FindSubstr(source, "CREATE PERFETTO MACRO foo(a, b) AS SELECT $a + $b"));
   ASSERT_FALSE(preprocessor.NextStatement());
   ASSERT_TRUE(preprocessor.status().ok());
+}
+
+TEST_F(PerfettoSqlPreprocessorUnittest, SingleMacro) {
+  auto foo = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO foo(a Expr, b Expr) Returns Expr AS "
+      "SELECT $a + $b");
+  macros_.Insert(
+      "foo",
+      Macro{false, "foo", {"a", "b"}, FindSubstr(foo, "SELECT $a + $b")});
+
+  auto source = SqlSource::FromExecuteQuery(
+      "foo!((select s.ts + r.dur from s, r), 1234); SELECT 1");
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
+  ASSERT_TRUE(preprocessor.NextStatement());
+  ASSERT_EQ(preprocessor.statement().AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT (select s.ts + r.dur from s, r) + 1234\n"
+            "  ^\n"
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 1\n"
+            "    foo!((select s.ts + r.dur from s, r), 1234)\n"
+            "    ^\n"
+            "  File \"stdin\" line 1 col 59\n"
+            "    SELECT $a + $b\n"
+            "    ^\n");
+  ASSERT_EQ(preprocessor.statement().AsTraceback(7),
+            "Fully expanded statement\n"
+            "  SELECT (select s.ts + r.dur from s, r) + 1234\n"
+            "         ^\n"
+            "Traceback (most recent call last):\n"
+            "  File \"stdin\" line 1 col 1\n"
+            "    foo!((select s.ts + r.dur from s, r), 1234)\n"
+            "    ^\n"
+            "  File \"stdin\" line 1 col 66\n"
+            "    SELECT $a + $b\n"
+            "           ^\n"
+            "  File \"stdin\" line 1 col 6\n"
+            "    (select s.ts + r.dur from s, r)\n"
+            "    ^\n");
+  ASSERT_EQ(preprocessor.statement().sql(),
+            "SELECT (select s.ts + r.dur from s, r) + 1234");
+  ASSERT_TRUE(preprocessor.NextStatement());
+  ASSERT_EQ(preprocessor.statement(), FindSubstr(source, "SELECT 1"));
+  ASSERT_FALSE(preprocessor.NextStatement());
+  ASSERT_TRUE(preprocessor.status().ok());
+}
+
+TEST_F(PerfettoSqlPreprocessorUnittest, NestedMacro) {
+  auto foo = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO foo(a Expr, b Expr) Returns Expr AS $a + $b");
+  macros_.Insert("foo", Macro{
+                            false,
+                            "foo",
+                            {"a", "b"},
+                            FindSubstr(foo, "$a + $b"),
+                        });
+
+  auto bar = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO bar(a, b) Returns Expr AS "
+      "tfoo!($a, $b) + foo!($b, $a)");
+  macros_.Insert("bar", Macro{
+                            false,
+                            "bar",
+                            {"a", "b"},
+                            FindSubstr(bar, "foo!($a, $b) + foo!($b, $a)"),
+                        });
+
+  auto source = SqlSource::FromExecuteQuery(
+      "SELECT bar!((select s.ts + r.dur from s, r), 1234); SELECT 1");
+  PerfettoSqlPreprocessor preprocessor(source, macros_);
+  ASSERT_TRUE(preprocessor.NextStatement());
+  ASSERT_EQ(preprocessor.statement().sql(),
+            "SELECT (select s.ts + r.dur from s, r) + 1234 + 1234 + "
+            "(select s.ts + r.dur from s, r)");
+  ASSERT_TRUE(preprocessor.NextStatement());
+  ASSERT_EQ(preprocessor.statement().sql(), "SELECT 1");
 }
 
 }  // namespace

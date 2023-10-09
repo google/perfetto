@@ -80,7 +80,7 @@ class SqliteTokenizer {
     std::string_view str;
 
     // The type of the token.
-    SqliteTokenType token_type;
+    SqliteTokenType token_type = SqliteTokenType::TK_ILLEGAL;
 
     bool operator==(const Token& o) const {
       return str == o.str && token_type == o.token_type;
@@ -92,6 +92,12 @@ class SqliteTokenizer {
     }
   };
 
+  enum class EndToken {
+    kExclusive,
+    kInclusive,
+  };
+
+  // Creates a tokenizer which tokenizes |sql|.
   explicit SqliteTokenizer(SqlSource sql);
 
   // Returns the next SQL token.
@@ -107,14 +113,34 @@ class SqliteTokenizer {
   //
   // Note: |start| and |end| must both have been previously returned by this
   // tokenizer.
-  SqlSource Substr(Token start, Token end) const;
+  SqlSource Substr(const Token& start, const Token& end) const;
+
+  // Returns an SqlSource containing only the SQL backing |token|.
+  //
+  // Note: |token| must have been previously returned by this tokenizer.
+  SqlSource SubstrToken(const Token& token) const;
 
   // Returns a traceback error message for the SqlSource backing this tokenizer
   // pointing to |token|. See SqlSource::AsTraceback for more information about
   // this method.
   //
   // Note: |token| must have been previously returned by this tokenizer.
-  std::string AsTraceback(Token) const;
+  std::string AsTraceback(const Token&) const;
+
+  // Replaces the SQL in |rewriter| between |start| and |end| with the contents
+  // of |rewrite|. If |end_token| == kInclusive, the end token is also included
+  // in the rewrite.
+  void Rewrite(SqlSource::Rewriter& rewriter,
+               const Token& start,
+               const Token& end,
+               SqlSource rewrite,
+               EndToken end_token = EndToken::kExclusive) const;
+
+  // Replaces the SQL in |rewriter| backing |token| with the contents of
+  // |rewrite|.
+  void RewriteToken(SqlSource::Rewriter&,
+                    const Token&,
+                    SqlSource rewrite) const;
 
   // Resets this tokenizer to tokenize |source|. Any previous returned tokens
   // are invalidated.
