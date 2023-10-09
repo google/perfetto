@@ -35,11 +35,11 @@ import {
   NUM,
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginContextTrace,
+  PluginDescriptor,
   PrimaryTrackSortKey,
   Store,
   STR,
-  TracePluginContext,
   TrackContext,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
@@ -618,7 +618,7 @@ interface CounterInfo {
 class CounterPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addCounterTracks(ctx);
     await this.addGpuFrequencyTracks(ctx);
     await this.addCpuFreqLimitCounterTracks(ctx);
@@ -627,7 +627,7 @@ class CounterPlugin implements Plugin {
     await this.addProcessCounterTracks(ctx);
   }
 
-  private async addCounterTracks(ctx: TracePluginContext) {
+  private async addCounterTracks(ctx: PluginContextTrace) {
     const counters = await this.getCounterNames(ctx.engine);
     for (const {trackId, name} of counters) {
       const config:
@@ -638,7 +638,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        trackFactory: (trackCtx) => {
+        track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -681,7 +681,7 @@ class CounterPlugin implements Plugin {
     return tracks;
   }
 
-  private async addGpuFrequencyTracks(ctx: TracePluginContext) {
+  private async addGpuFrequencyTracks(ctx: PluginContextTrace) {
     const engine = ctx.engine;
     const numGpus = await engine.getNumberOfGpus();
     const maxGpuFreqResult = await engine.query(`
@@ -717,7 +717,7 @@ class CounterPlugin implements Plugin {
           displayName: name,
           kind: COUNTER_TRACK_KIND,
           trackIds: [trackId],
-          trackFactory: (trackCtx) => {
+          track: (trackCtx) => {
             return new CounterTrack(trackCtx, config, ctx.engine);
           },
         });
@@ -725,7 +725,7 @@ class CounterPlugin implements Plugin {
     }
   }
 
-  async addCpuFreqLimitCounterTracks(ctx: TracePluginContext): Promise<void> {
+  async addCpuFreqLimitCounterTracks(ctx: PluginContextTrace): Promise<void> {
     const cpuFreqLimitCounterTracksSql = `
       select name, id
       from cpu_counter_track
@@ -736,7 +736,7 @@ class CounterPlugin implements Plugin {
     this.addCpuCounterTracks(ctx, cpuFreqLimitCounterTracksSql);
   }
 
-  async addCpuPerfCounterTracks(ctx: TracePluginContext): Promise<void> {
+  async addCpuPerfCounterTracks(ctx: PluginContextTrace): Promise<void> {
     // Perf counter tracks are bound to CPUs, follow the scheduling and
     // frequency track naming convention ("Cpu N ...").
     // Note: we might not have a track for a given cpu if no data was seen from
@@ -751,7 +751,7 @@ class CounterPlugin implements Plugin {
     this.addCpuCounterTracks(ctx, addCpuPerfCounterTracksSql);
   }
 
-  async addCpuCounterTracks(ctx: TracePluginContext, sql: string):
+  async addCpuCounterTracks(ctx: PluginContextTrace, sql: string):
       Promise<void> {
     const result = await ctx.engine.query(sql);
 
@@ -773,14 +773,14 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        trackFactory: (trackCtx) => {
+        track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
     }
   }
 
-  async addThreadCounterTracks(ctx: TracePluginContext): Promise<void> {
+  async addThreadCounterTracks(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
       select
         thread_counter_track.name as trackName,
@@ -836,14 +836,14 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind,
         trackIds: [trackId],
-        trackFactory: (trackCtx) => {
+        track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
     }
   }
 
-  async addProcessCounterTracks(ctx: TracePluginContext): Promise<void> {
+  async addProcessCounterTracks(ctx: PluginContextTrace): Promise<void> {
     const result = await ctx.engine.query(`
     select
       process_counter_track.id as trackId,
@@ -893,7 +893,7 @@ class CounterPlugin implements Plugin {
         displayName: name,
         kind: COUNTER_TRACK_KIND,
         trackIds: [trackId],
-        trackFactory: (trackCtx) => {
+        track: (trackCtx) => {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
@@ -901,7 +901,7 @@ class CounterPlugin implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.Counter',
   plugin: CounterPlugin,
 };

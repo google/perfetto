@@ -12,12 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const NULL_TRACK_KIND = 'NullTrack';
 
-export class NullTrack extends Track {
+export class NullTrack extends TrackBase {
   static readonly kind = NULL_TRACK_KIND;
   constructor(args: NewTrackArgs) {
     super(args);
@@ -37,11 +37,11 @@ export class NullTrack extends Track {
 
 class NullTrackPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(NullTrack);
+    ctx.LEGACY_registerTrack(NullTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.NullTrack',
   plugin: NullTrackPlugin,
 };

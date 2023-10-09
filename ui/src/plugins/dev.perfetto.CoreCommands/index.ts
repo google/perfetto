@@ -15,7 +15,7 @@
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
 } from '../../public';
 
 const SQL_STATS = `
@@ -174,7 +174,7 @@ const coreCommands: Plugin = {
   },
 };
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.CoreCommands',
   plugin: coreCommands,
 };

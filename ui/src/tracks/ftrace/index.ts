@@ -23,8 +23,8 @@ import {
   EngineProxy,
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 
 export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
@@ -139,7 +139,7 @@ class FtraceRawTrack extends BasicAsyncTrack<Data> {
 class FtraceRawPlugin implements Plugin {
   onActivate(_: PluginContext) {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const cpus = await this.lookupCpuCores(ctx.engine);
     for (const cpuNum of cpus) {
       const uri = `perfetto.FtraceRaw#cpu${cpuNum}`;
@@ -149,7 +149,7 @@ class FtraceRawPlugin implements Plugin {
         displayName: `Ftrace Track for CPU ${cpuNum}`,
         kind: FTRACE_RAW_TRACK_KIND,
         cpu: cpuNum,
-        trackFactory: () => {
+        track: () => {
           return new FtraceRawTrack(ctx.engine, cpuNum);
         },
       });
@@ -172,7 +172,7 @@ class FtraceRawPlugin implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.FtraceRaw',
   plugin: FtraceRawPlugin,
 };
