@@ -729,7 +729,7 @@ base::Status ComputeMetrics(PerfettoSqlEngine* engine,
     auto output_query =
         "SELECT * FROM " + sql_metric.output_table_name.value() + ";";
     PERFETTO_TP_TRACE(
-        metatrace::Category::QUERY, "COMPUTE_METRIC_QUERY",
+        metatrace::Category::QUERY_TIMELINE, "COMPUTE_METRIC_QUERY",
         [&](metatrace::Record* r) { r->AddArg("SQL", output_query); });
 
     auto it = engine->ExecuteUntilLastStatement(

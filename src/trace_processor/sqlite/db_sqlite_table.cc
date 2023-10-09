@@ -506,9 +506,9 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
       TryCacheCreateSortedTable(qc, history);
       break;
     case TableComputation::kTableFunction: {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "DYNAMIC_TABLE_GENERATE",
-                        [this](metatrace::Record* r) {
-                          r->AddArg("Table", db_sqlite_table_->name());
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED,
+                        "TABLE_FUNCTION_CALL", [this](metatrace::Record* r) {
+                          r->AddArg("Name", db_sqlite_table_->name());
                         });
       // If we have a dynamically created table, regenerate the table based on
       // the new constraints.
@@ -530,7 +530,7 @@ base::Status DbSqliteTable::Cursor::Filter(const QueryConstraints& qc,
   }
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::QUERY, "DB_TABLE_FILTER_AND_SORT",
+      metatrace::Category::QUERY_DETAILED, "DB_TABLE_FILTER_AND_SORT",
       [this](metatrace::Record* r) {
         const Table* source = SourceTable();
         r->AddArg("Table", db_sqlite_table_->name());

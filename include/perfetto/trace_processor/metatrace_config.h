@@ -16,25 +16,46 @@
 #define INCLUDE_PERFETTO_TRACE_PROCESSOR_METATRACE_CONFIG_H_
 
 #include <cstddef>
+#include <cstdint>
 
 namespace perfetto {
 namespace trace_processor {
 namespace metatrace {
 
-enum MetatraceCategories {
-  TOPLEVEL = 1 << 0,
-  QUERY = 1 << 1,
-  FUNCTION = 1 << 2,
+enum MetatraceCategories : uint32_t {
+  // Category for low-frequency events which provide a high-level timeline of
+  // SQL query execution.
+  QUERY_TIMELINE = 1 << 0,
+
+  // Category for high-frequency events which provide details about SQL query
+  // execution.
+  QUERY_DETAILED = 1 << 1,
+
+  // Category for high-frequency events which provide details about SQL function
+  // calls.
+  FUNCTION_CALL = 1 << 2,
+
+  // Category for high-frequency events which provide details about the columnar
+  // database operations.
   DB = 1 << 3,
 
+  // Category for low-frequency events which provide a high-level timeline of
+  // SQL query execution.
+  API_TIMELINE = 1 << 4,
+
+  // Alias for turning off all other categories.
   NONE = 0,
-  ALL = TOPLEVEL | QUERY | FUNCTION | DB,
+
+  // Alias for turning on all other categories.
+  ALL = QUERY_TIMELINE | QUERY_DETAILED | FUNCTION_CALL | DB | API_TIMELINE,
 };
 
 struct MetatraceConfig {
   MetatraceConfig();
 
-  MetatraceCategories categories = MetatraceCategories::TOPLEVEL;
+  MetatraceCategories categories = static_cast<MetatraceCategories>(
+      MetatraceCategories::QUERY_TIMELINE | MetatraceCategories::API_TIMELINE);
+
   // Requested buffer size. The implemenation may choose to allocate a larger
   // buffer size for efficiency.
   size_t override_buffer_size = 0;
