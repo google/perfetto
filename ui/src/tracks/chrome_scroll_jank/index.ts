@@ -12,12 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {AddTrackArgs} from '../../common/actions';
+import {v4 as uuidv4} from 'uuid';
+
+import {Actions, AddTrackArgs, DeferredAction} from '../../common/actions';
 import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {ObjectById} from '../../common/state';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {
+  Plugin,
+  PluginContext,
+  PluginDescriptor,
+  PrimaryTrackSortKey,
+} from '../../public';
 import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
+import {NULL_TRACK_KIND} from '../null_track';
 
 import {ChromeTasksScrollJankTrack} from './chrome_tasks_scroll_jank_track';
 import {addLatencyTracks, EventLatencyTrack} from './event_latency_track';
@@ -36,8 +44,6 @@ export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   defaultValue: false,
 });
 
-export const INPUT_LATENCY_TRACK = 'InputLatency::';
-
 export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   id: 'enableScrollJankPluginV2',
   name: 'Enable Scroll Jank plugin V2',
@@ -45,9 +51,15 @@ export const ENABLE_SCROLL_JANK_PLUGIN_V2 = featureFlags.register({
   defaultValue: false,
 });
 
+export const SCROLL_JANK_GROUP_ID = 'chrome-scroll-jank-track-group';
+
 export type ScrollJankTracks = {
   tracksToAdd: AddTrackArgs[],
 };
+
+export type ScrollJankTrackGroup = {
+  tracks: ScrollJankTracks; addTrackGroup: DeferredAction
+}
 
 export interface ScrollJankTrackSpec {
   id: string;
@@ -95,36 +107,48 @@ export class ScrollJankPluginState {
 }
 
 export async function getScrollJankTracks(engine: Engine):
-    Promise<ScrollJankTracks> {
+    Promise<ScrollJankTrackGroup> {
   const result: ScrollJankTracks = {
     tracksToAdd: [],
   };
 
+  const summaryTrackId = uuidv4();
+
+  result.tracksToAdd.push({
+    engineId: engine.id,
+    kind: NULL_TRACK_KIND,
+    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+    name: ``,
+    trackGroup: undefined,
+    config: {},
+    id: summaryTrackId,
+  });
+
   const scrolls = addTopLevelScrollTrack(engine);
-  const scrollsResult = await scrolls;
-  let originalLength = result.tracksToAdd.length;
-  result.tracksToAdd.length += scrollsResult.tracksToAdd.length;
-  for (let i = 0; i < scrollsResult.tracksToAdd.length; ++i) {
-    result.tracksToAdd[i + originalLength] = scrollsResult.tracksToAdd[i];
+  for (const scroll of (await scrolls).tracksToAdd) {
+    result.tracksToAdd.push(scroll);
   }
 
   const janks = addScrollJankV3ScrollTrack(engine);
-  const janksResult = await janks;
-  originalLength = result.tracksToAdd.length;
-  result.tracksToAdd.length += janksResult.tracksToAdd.length;
-  for (let i = 0; i < janksResult.tracksToAdd.length; ++i) {
-    result.tracksToAdd[i + originalLength] = janksResult.tracksToAdd[i];
+  for (const jank of (await janks).tracksToAdd) {
+    result.tracksToAdd.push(jank);
   }
 
-  originalLength = result.tracksToAdd.length;
   const eventLatencies = addLatencyTracks(engine);
-  const eventLatencyResult = await eventLatencies;
-  result.tracksToAdd.length += eventLatencyResult.tracksToAdd.length;
-  for (let i = 0; i < eventLatencyResult.tracksToAdd.length; ++i) {
-    result.tracksToAdd[i + originalLength] = eventLatencyResult.tracksToAdd[i];
+  for (const eventLatency of (await eventLatencies).tracksToAdd) {
+    result.tracksToAdd.push(eventLatency);
   }
 
-  return result;
+  const addTrackGroup = Actions.addTrackGroup({
+    engineId: engine.id,
+    name: 'Chrome Scroll Jank',
+    id: SCROLL_JANK_GROUP_ID,
+    collapsed: false,
+    summaryTrackId,
+    fixedOrdering: true,
+  });
+
+  return {tracks: result, addTrackGroup};
 }
 
 class ChromeScrollJankPlugin implements Plugin {
