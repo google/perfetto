@@ -65,6 +65,9 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // all nested messages) and seals the message. Returns the size of the message
   // (and all nested sub-messages), without taking into account any chunking.
   // Finalize is idempotent and can be called several times w/o side effects.
+  // Short messages may be compacted in memory into the size field, since their
+  // size can be represented with fewer than
+  // proto_utils::kMessageLengthFieldSize bytes.
   uint32_t Finalize();
 
   // Optional. If is_valid() == true, the corresponding memory region (its
@@ -78,11 +81,16 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // This is to deal with case of backfilling the size of a root (non-nested)
   // message which is split into multiple chunks. Upon finalization only the
   // partial size that lies in the last chunk has to be backfilled.
-  void inc_size_already_written(uint32_t sz) { size_already_written_ += sz; }
+  void inc_size_already_written(uint32_t sz) {
+    PERFETTO_DCHECK(!is_finalized());
+    size_already_written_ += sz;
+  }
 
   Message* nested_message() { return nested_message_; }
 
-  bool is_finalized() const { return finalized_; }
+  bool is_finalized() const {
+    return message_state_ != MessageState::kNotFinalized;
+  }
 
 #if PERFETTO_DCHECK_IS_ON()
   void set_handle(MessageHandleBase* handle) { handle_ = handle; }
@@ -197,7 +205,7 @@ class PERFETTO_EXPORT_COMPONENT Message {
   void EndNestedMessage();
 
   void WriteToStream(const uint8_t* src_begin, const uint8_t* src_end) {
-    PERFETTO_DCHECK(!finalized_);
+    PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(src_begin <= src_end);
     const uint32_t size = static_cast<uint32_t>(src_end - src_begin);
     stream_writer_->WriteBytes(src_begin, size);
@@ -234,9 +242,19 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // See comment for inc_size_already_written().
   uint32_t size_already_written_;
 
-  // When true, no more changes to the message are allowed. This is to DCHECK
-  // attempts of writing to a message which has been Finalize()-d.
-  bool finalized_;
+  enum class MessageState : uint8_t {
+    // Message is still being written to.
+    kNotFinalized,
+    // Finalized, no more changes to the message are allowed. This is to DCHECK
+    // attempts of writing to a message which has been Finalize()-d.
+    kFinalized,
+    // Finalized, and additionally the message data has been partially or fully
+    // compacted into the last 3 bytes of `size_field_`. See the comment in
+    // Finalize().
+    kFinalizedWithCompaction,
+  };
+
+  MessageState message_state_;
 
 #if PERFETTO_DCHECK_IS_ON()
   // Current generation of message. Incremented on Reset.
