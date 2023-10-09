@@ -88,6 +88,9 @@ class SqlSource {
   // Returns the SQL string backing this SqlSource instance;
   const std::string& sql() const { return root_.rewritten_sql; }
 
+  // Returns the original SQL string backing this SqlSource instance;
+  const std::string& original_sql() const { return root_.original_sql; }
+
   // Returns whether this SqlSource has been rewritten.
   bool IsRewritten() const { return root_.IsRewritten(); }
 
