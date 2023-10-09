@@ -18,6 +18,7 @@
 
 #include <ctype.h>
 #include <sqlite3.h>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -454,20 +455,52 @@ SqliteTokenizer::Token SqliteTokenizer::NextTerminal() {
   return tok;
 }
 
-SqlSource SqliteTokenizer::Substr(Token start, Token end) const {
+SqlSource SqliteTokenizer::Substr(const Token& start, const Token& end) const {
   uint32_t offset =
       static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
   uint32_t len = static_cast<uint32_t>(end.str.data() - start.str.data());
   return source_.Substr(offset, len);
 }
 
-std::string SqliteTokenizer::AsTraceback(Token token) const {
+SqlSource SqliteTokenizer::SubstrToken(const Token& token) const {
+  uint32_t offset =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  uint32_t len = static_cast<uint32_t>(token.str.size());
+  return source_.Substr(offset, len);
+}
+
+std::string SqliteTokenizer::AsTraceback(const Token& token) const {
   PERFETTO_CHECK(source_.sql().c_str() <= token.str.data());
   PERFETTO_CHECK(token.str.data() <=
                  source_.sql().c_str() + source_.sql().size());
   uint32_t offset =
       static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
   return source_.AsTraceback(offset);
+}
+
+void SqliteTokenizer::Rewrite(SqlSource::Rewriter& rewriter,
+                              const Token& start,
+                              const Token& end,
+                              SqlSource rewrite,
+                              EndToken end_token) const {
+  uint32_t s_off =
+      static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
+  uint32_t e_off =
+      static_cast<uint32_t>(end.str.data() - source_.sql().c_str());
+  uint32_t e_diff = end_token == EndToken::kInclusive
+                        ? static_cast<uint32_t>(end.str.size())
+                        : 0;
+  rewriter.Rewrite(s_off, e_off + e_diff, std::move(rewrite));
+}
+
+void SqliteTokenizer::RewriteToken(SqlSource::Rewriter& rewriter,
+                                   const Token& token,
+                                   SqlSource rewrite) const {
+  uint32_t s_off =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  uint32_t e_off = static_cast<uint32_t>(token.str.data() + token.str.size() -
+                                         source_.sql().c_str());
+  rewriter.Rewrite(s_off, e_off, std::move(rewrite));
 }
 
 }  // namespace trace_processor

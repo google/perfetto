@@ -109,6 +109,24 @@ TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
   ASSERT_TRUE(res.ok());
 }
 
+TEST_F(PerfettoSqlEngineTest, CreateMacro) {
+  auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO foo() RETURNS TableOrSubquery AS select 42 AS x"));
+  ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
+
+  res_create = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO MACRO bar(x TableOrSubquery) RETURNS TableOrSubquery AS "
+      "select * from $x"));
+  ASSERT_TRUE(res_create.ok()) << res_create.status().c_message();
+
+  auto res = engine_.ExecuteUntilLastStatement(
+      SqlSource::FromExecuteQuery("bar!((foo!()))"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+  ASSERT_FALSE(res->stmt.IsDone());
+  ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 42);
+  ASSERT_FALSE(res->stmt.Step());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto

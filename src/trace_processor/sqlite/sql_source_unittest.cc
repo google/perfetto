@@ -61,6 +61,9 @@ TEST(SqlSourceTest, RewriteAllIgnoreExisting) {
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
   ASSERT_EQ(source.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT * FROM slice\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -69,6 +72,9 @@ TEST(SqlSourceTest, RewriteAllIgnoreExisting) {
             "    SELECT * FROM slice\n"
             "    ^\n");
   ASSERT_EQ(source.AsTraceback(7),
+            "Fully expanded statement\n"
+            "  SELECT * FROM slice\n"
+            "         ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -90,6 +96,9 @@ TEST(SqlSourceTest, NestedFullRewrite) {
   ASSERT_EQ(source.sql(), "SELECT * FROM slice");
 
   ASSERT_EQ(source.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT * FROM slice\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -101,6 +110,9 @@ TEST(SqlSourceTest, NestedFullRewrite) {
             "    SELECT * FROM slice\n"
             "    ^\n");
   ASSERT_EQ(source.AsTraceback(7),
+            "Fully expanded statement\n"
+            "  SELECT * FROM slice\n"
+            "         ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    macro!()\n"
@@ -122,6 +134,9 @@ TEST(SqlSourceTest, RewriteAllIgnoresExistingCorrectly) {
   ASSERT_EQ(source.sql(), "SELECT 0 WHERE 0");
 
   ASSERT_EQ(source.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT 0 WHERE 0\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    foo!()\n"
@@ -130,6 +145,9 @@ TEST(SqlSourceTest, RewriteAllIgnoresExistingCorrectly) {
             "    SELECT 0 WHERE 0\n"
             "    ^\n");
   ASSERT_EQ(source.AsTraceback(4),
+            "Fully expanded statement\n"
+            "  SELECT 0 WHERE 0\n"
+            "      ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    foo!()\n"
@@ -151,11 +169,17 @@ TEST(SqlSourceTest, Rewriter) {
 
   // Offset points at the top level source.
   ASSERT_EQ(rewritten.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT ts, dur, ts + dur AS ts_end FROM slice\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    SELECT cols!() FROM slice\n"
             "    ^\n");
   ASSERT_EQ(rewritten.AsTraceback(40),
+            "Fully expanded statement\n"
+            "  SELECT ts, dur, ts + dur AS ts_end FROM slice\n"
+            "                                          ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 21\n"
             "    SELECT cols!() FROM slice\n"
@@ -163,6 +187,9 @@ TEST(SqlSourceTest, Rewriter) {
 
   // Offset points at the nested source.
   ASSERT_EQ(rewritten.AsTraceback(16),
+            "Fully expanded statement\n"
+            "  SELECT ts, dur, ts + dur AS ts_end FROM slice\n"
+            "                  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    SELECT cols!() FROM slice\n"
@@ -190,11 +217,17 @@ TEST(SqlSourceTest, NestedRewriter) {
 
   // Offset points at the top level source.
   ASSERT_EQ(rewritten.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  SELECT id, ts, dur, depth, name FROM slice\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 1\n"
             "    SELECT cols!() FROM slice\n"
             "    ^\n");
   ASSERT_EQ(rewritten.AsTraceback(37),
+            "Fully expanded statement\n"
+            "  SELECT id, ts, dur, depth, name FROM slice\n"
+            "                                       ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 21\n"
             "    SELECT cols!() FROM slice\n"
@@ -202,6 +235,9 @@ TEST(SqlSourceTest, NestedRewriter) {
 
   // Offset points at the first nested source.
   ASSERT_EQ(rewritten.AsTraceback(15),
+            "Fully expanded statement\n"
+            "  SELECT id, ts, dur, depth, name FROM slice\n"
+            "                 ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    SELECT cols!() FROM slice\n"
@@ -215,6 +251,9 @@ TEST(SqlSourceTest, NestedRewriter) {
 
   // Offset points at the second nested source.
   ASSERT_EQ(rewritten.AsTraceback(20),
+            "Fully expanded statement\n"
+            "  SELECT id, ts, dur, depth, name FROM slice\n"
+            "                      ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    SELECT cols!() FROM slice\n"
@@ -226,6 +265,9 @@ TEST(SqlSourceTest, NestedRewriter) {
             "    depth\n"
             "    ^\n");
   ASSERT_EQ(rewritten.AsTraceback(22),
+            "Fully expanded statement\n"
+            "  SELECT id, ts, dur, depth, name FROM slice\n"
+            "                        ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    SELECT cols!() FROM slice\n"
@@ -258,6 +300,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
   SqlSource cols = rewritten.Substr(7, 24);
   ASSERT_EQ(cols.sql(), "id, ts, dur, depth, name");
   ASSERT_EQ(cols.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  id, ts, dur, depth, name\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -266,6 +311,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
             "    id, common_cols!(), other_cols!(), name\n"
             "    ^\n");
   ASSERT_EQ(cols.AsTraceback(5),
+            "Fully expanded statement\n"
+            "  id, ts, dur, depth, name\n"
+            "       ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -277,6 +325,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
             "    ts, dur\n"
             "     ^\n");
   ASSERT_EQ(cols.AsTraceback(14),
+            "Fully expanded statement\n"
+            "  id, ts, dur, depth, name\n"
+            "                ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -292,6 +343,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
   SqlSource intersect = rewritten.Substr(8, 13);
   ASSERT_EQ(intersect.sql(), "d, ts, dur, d");
   ASSERT_EQ(intersect.AsTraceback(0),
+            "Fully expanded statement\n"
+            "  d, ts, dur, d\n"
+            "  ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -300,6 +354,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
             "    d, common_cols!(), other_cols!()\n"
             "    ^\n");
   ASSERT_EQ(intersect.AsTraceback(4),
+            "Fully expanded statement\n"
+            "  d, ts, dur, d\n"
+            "      ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -311,6 +368,9 @@ TEST(SqlSourceTest, NestedRewriteSubstr) {
             "    ts, dur\n"
             "     ^\n");
   ASSERT_EQ(intersect.AsTraceback(12),
+            "Fully expanded statement\n"
+            "  d, ts, dur, d\n"
+            "              ^\n"
             "Traceback (most recent call last):\n"
             "  File \"stdin\" line 1 col 8\n"
             "    cols!()\n"
@@ -347,25 +407,33 @@ TEST(SqlSourceTest, Rerewrites) {
   ASSERT_EQ(
       rerewritten.sql(),
       "INSERT a.z, y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a");
-  ASSERT_EQ(rerewritten.AsTraceback(0),
-            "Traceback (most recent call last):\n"
-            "  File \"stdin\" line 1 col 1\n"
-            "    SELECT foo!(a) FROM bar!(slice) a\n"
-            "    ^\n"
-            "  Trace Processor Internal line 1 col 1\n"
-            "    INSERT \n"
-            "    ^\n");
-  ASSERT_EQ(rerewritten.AsTraceback(8),
-            "Traceback (most recent call last):\n"
-            "  File \"stdin\" line 1 col 8\n"
-            "    SELECT foo!(a) FROM bar!(slice) a\n"
-            "           ^\n"
-            "  Trace Processor Internal line 1 col 1\n"
-            "    a.x, a.y\n"
-            "    ^\n"
-            "  Trace Processor Internal line 1 col 2\n"
-            "    a.z, \n"
-            "     ^\n");
+  ASSERT_EQ(
+      rerewritten.AsTraceback(0),
+      "Fully expanded statement\n"
+      "  INSERT a.z, y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a\n"
+      "  ^\n"
+      "Traceback (most recent call last):\n"
+      "  File \"stdin\" line 1 col 1\n"
+      "    SELECT foo!(a) FROM bar!(slice) a\n"
+      "    ^\n"
+      "  Trace Processor Internal line 1 col 1\n"
+      "    INSERT \n"
+      "    ^\n");
+  ASSERT_EQ(
+      rerewritten.AsTraceback(8),
+      "Fully expanded statement\n"
+      "  INSERT a.z, y FROM (SELECT slice.x, slice.y, slice.z FROM slice) a\n"
+      "          ^\n"
+      "Traceback (most recent call last):\n"
+      "  File \"stdin\" line 1 col 8\n"
+      "    SELECT foo!(a) FROM bar!(slice) a\n"
+      "           ^\n"
+      "  Trace Processor Internal line 1 col 1\n"
+      "    a.x, a.y\n"
+      "    ^\n"
+      "  Trace Processor Internal line 1 col 2\n"
+      "    a.z, \n"
+      "     ^\n");
 }
 
 }  // namespace

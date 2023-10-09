@@ -176,7 +176,7 @@ std::string SqlSource::ApplyRewrites(const std::string& original_sql,
 std::string SqlSource::Node::AsTraceback(uint32_t rewritten_offset) const {
   PERFETTO_CHECK(rewritten_offset <= rewritten_sql.size());
   uint32_t original_offset = RewrittenOffsetToOriginalOffset(rewritten_offset);
-  std::string res = SelfTraceback(original_offset);
+  std::string res = SelfTraceback(rewritten_offset, original_offset);
   if (auto opt_idx = RewriteForOriginalOffset(original_offset); opt_idx) {
     const Rewrite& rewrite = rewrites[*opt_idx];
     PERFETTO_CHECK(rewritten_offset >= rewrite.rewritten_sql_start);
@@ -187,13 +187,22 @@ std::string SqlSource::Node::AsTraceback(uint32_t rewritten_offset) const {
   return res;
 }
 
-std::string SqlSource::Node::SelfTraceback(uint32_t original_offset) const {
+std::string SqlSource::Node::SelfTraceback(uint32_t rewritten_offset,
+                                           uint32_t original_offset) const {
   PERFETTO_DCHECK(original_offset <= original_sql.size());
   auto [o_context, o_caret_pos] =
       SqlContextAndCaretPos(original_sql, original_offset);
   std::string header;
   if (include_traceback_header) {
-    header = "Traceback (most recent call last):\n";
+    if (!rewrites.empty()) {
+      auto [r_context, r_caret_pos] =
+          SqlContextAndCaretPos(rewritten_sql, rewritten_offset);
+      std::string caret = std::string(r_caret_pos, ' ') + "^";
+      base::StackString<1024> str("Fully expanded statement\n  %s\n  %s\n",
+                                  r_context.c_str(), caret.c_str());
+      header.append(str.c_str());
+    }
+    header += "Traceback (most recent call last):\n";
   }
 
   auto line_and_col =
@@ -344,8 +353,8 @@ SqlSource SqlSource::Rewriter::Build() && {
     });
   }
 
-  // Phase 2: sort the new rewrite vector by original offset and verify that
-  // the original offsets are monotonic and non-overlapping.
+  // Phase 2: sort the new rewrite vector by original offset and verify that the
+  // original offsets are monotonic and non-overlapping.
   std::sort(all_rewrites.begin(), all_rewrites.end(),
             [](const SqlSource::Rewrite& a, const SqlSource::Rewrite& b) {
               return a.original_sql_start < b.original_sql_start;
@@ -356,6 +365,7 @@ SqlSource SqlSource::Rewriter::Build() && {
   }
 
   // Phase 3: compute the new rewritten offsets and assign them to the rewrites.
+  // Also unset the traceback flag for all rewrites.
   uint32_t original_bytes_in_rewrites = 0;
   uint32_t rewritten_bytes_in_rewrites = 0;
   for (SqlSource::Rewrite& rewrite : all_rewrites) {
@@ -366,6 +376,7 @@ SqlSource SqlSource::Rewriter::Build() && {
                                   rewritten_bytes_in_rewrites -
                                   original_bytes_in_rewrites;
     rewrite.rewritten_sql_end = rewrite.rewritten_sql_start + source_size;
+    rewrite.rewrite_node.include_traceback_header = false;
 
     original_bytes_in_rewrites +=
         rewrite.original_sql_end - rewrite.original_sql_start;
