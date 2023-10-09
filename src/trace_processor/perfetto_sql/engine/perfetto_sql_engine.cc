@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
+#include <cctype>
 #include <memory>
 #include <optional>
 #include <string>
