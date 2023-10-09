@@ -440,19 +440,53 @@ AS
 SELECT ts, dur, id, slice_id, slice_depth, slice_name
 FROM internal_span_graph_slice_sp;
 
--- |experimental_thread_executing_span_graph| + thread_state view span joined with critical_path information.
-CREATE VIRTUAL TABLE internal_critical_path_thread_state_sp
-USING
-  SPAN_JOIN(
-    internal_span_graph_thread_state PARTITIONED id,
-     internal_critical_path PARTITIONED id);
+-- |experimental_thread_executing_span_graph| + thread_state view joined with critical_path information.
+CREATE PERFETTO TABLE internal_critical_path_thread_state AS
+WITH span AS MATERIALIZED (
+    SELECT * FROM internal_critical_path
+  ),
+  span_starts AS (
+    SELECT
+      span.id,
+      span.utid,
+      span.critical_path_id,
+      span.critical_path_blocked_dur,
+      span.critical_path_blocked_state,
+      span.critical_path_blocked_function,
+      span.critical_path_utid,
+      thread_state_id,
+      MAX(thread_state.ts, span.ts) AS ts,
+      span.ts + span.dur AS span_end_ts,
+      thread_state.ts + thread_state.dur AS thread_state_end_ts,
+      thread_state.state,
+      thread_state.function,
+      thread_state.cpu
+    FROM span
+    JOIN internal_span_graph_thread_state_sp thread_state USING(id)
+  )
+SELECT
+  id,
+  thread_state_id,
+  ts,
+  MIN(span_end_ts, thread_state_end_ts) - ts AS dur,
+  utid,
+  state,
+  function,
+  cpu,
+  critical_path_id,
+  critical_path_blocked_dur,
+  critical_path_blocked_state,
+  critical_path_blocked_function,
+  critical_path_utid
+FROM span_starts
+WHERE MIN(span_end_ts, thread_state_end_ts) - ts > 0;
 
 -- |experimental_thread_executing_span_graph| + thread_state + critical_path span joined with
 -- |experimental_thread_executing_span_graph| + slice view.
 CREATE VIRTUAL TABLE internal_critical_path_sp
 USING
   SPAN_LEFT_JOIN(
-    internal_critical_path_thread_state_sp PARTITIONED id,
+    internal_critical_path_thread_state PARTITIONED id,
      internal_span_graph_slice PARTITIONED id);
 
 -- Flattened slices span joined with their thread_states. This contains the 'self' information
