@@ -23,7 +23,7 @@ import {
 } from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -48,7 +48,7 @@ export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ScrollJankV3Track(args);
   }
 
