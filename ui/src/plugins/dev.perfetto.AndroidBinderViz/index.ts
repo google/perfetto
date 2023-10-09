@@ -16,7 +16,7 @@ import {
   MetricVisualisation,
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
 } from '../../public';
 
 const SPEC = `
@@ -50,7 +50,7 @@ class AndroidBinderVizPlugin implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.AndroidBinderVizPlugin',
   plugin: AndroidBinderVizPlugin,
 };

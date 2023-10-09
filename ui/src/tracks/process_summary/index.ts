@@ -24,8 +24,8 @@ import {TrackWithControllerAdapter} from '../../common/track_adapter';
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 
 import {
@@ -50,12 +50,12 @@ class ProcessSummaryPlugin implements Plugin {
 
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     await this.addProcessTrackGroups(ctx);
     await this.addKernelThreadSummary(ctx);
   }
 
-  private async addProcessTrackGroups(ctx: TracePluginContext): Promise<void> {
+  private async addProcessTrackGroups(ctx: PluginContextTrace): Promise<void> {
     this.upidToUuid.clear();
     this.utidToUuid.clear();
 
@@ -224,7 +224,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            trackFactory: ({trackInstanceId}) => {
+            track: ({trackInstanceId}) => {
               return new TrackWithControllerAdapter<
                   ProcessSchedulingTrackConfig,
                   ProcessSchedulingTrackData>(
@@ -249,7 +249,7 @@ class ProcessSummaryPlugin implements Plugin {
             tags: {
               isDebuggable,
             },
-            trackFactory: ({trackInstanceId}) => {
+            track: ({trackInstanceId}) => {
               return new TrackWithControllerAdapter<
                   ProcessSummaryTrackConfig,
                   ProcessSummaryTrackData>(
@@ -265,7 +265,7 @@ class ProcessSummaryPlugin implements Plugin {
     }
   }
 
-  private async addKernelThreadSummary(ctx: TracePluginContext): Promise<void> {
+  private async addKernelThreadSummary(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 
     // Identify kernel threads if this is a linux system trace, and sufficient
@@ -314,7 +314,7 @@ class ProcessSummaryPlugin implements Plugin {
       uri: 'perfetto.ProcessSummary#kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
-      trackFactory: ({trackInstanceId}) => {
+      track: ({trackInstanceId}) => {
         return new TrackWithControllerAdapter<
             ProcessSummaryTrackConfig,
             ProcessSummaryTrackData>(
@@ -346,7 +346,7 @@ class ProcessSummaryPlugin implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.ProcessSummary',
   plugin: ProcessSummaryPlugin,
 };

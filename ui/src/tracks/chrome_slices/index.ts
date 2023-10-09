@@ -28,8 +28,8 @@ import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {PxSpan, TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, SliceRect, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, SliceRect, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
@@ -159,9 +159,9 @@ export class ChromeSliceTrackController extends TrackController<Config, Data> {
   }
 }
 
-export class ChromeSliceTrack extends Track<Config, Data> {
+export class ChromeSliceTrack extends TrackBase<Config, Data> {
   static readonly kind: string = SLICE_TRACK_KIND;
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ChromeSliceTrack(args);
   }
 
@@ -439,12 +439,12 @@ export class ChromeSliceTrack extends Track<Config, Data> {
 
 class ChromeSlicesPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(ChromeSliceTrackController);
-    ctx.registerTrack(ChromeSliceTrack);
+    ctx.LEGACY_registerTrackController(ChromeSliceTrackController);
+    ctx.LEGACY_registerTrack(ChromeSliceTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.ChromeSlices',
   plugin: ChromeSlicesPlugin,
 };

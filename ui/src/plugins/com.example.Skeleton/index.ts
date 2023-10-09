@@ -16,9 +16,9 @@ import {
   MetricVisualisation,
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
-  TrackInfo,
+  PluginContextTrace,
+  PluginDescriptor,
+  TrackInstanceDescriptor,
 } from '../../public';
 
 interface State {
@@ -35,11 +35,11 @@ class Skeleton implements Plugin<State> {
     return {foo: 'bar'};
   }
 
-  async onTraceLoad(_: TracePluginContext<State>): Promise<void> {
+  async onTraceLoad(_: PluginContextTrace<State>): Promise<void> {
     //
   }
 
-  async onTraceUnload(_: TracePluginContext<State>): Promise<void> {
+  async onTraceUnload(_: PluginContextTrace<State>): Promise<void> {
     //
   }
 
@@ -47,17 +47,17 @@ class Skeleton implements Plugin<State> {
     //
   }
 
-  async findPotentialTracks(_: TracePluginContext<State>):
-      Promise<TrackInfo[]> {
+  async findPotentialTracks(_: PluginContextTrace<State>):
+      Promise<TrackInstanceDescriptor[]> {
     return [];
   }
 
-  metricVisualisations(_: TracePluginContext<State>): MetricVisualisation[] {
+  metricVisualisations(_: PluginContextTrace<State>): MetricVisualisation[] {
     return [];
   }
 }
 
-export const plugin: PluginInfo<State> = {
+export const plugin: PluginDescriptor<State> = {
   // SKELETON: Update pluginId to match the directory of the plugin.
   pluginId: 'com.example.Skeleton',
   plugin: Skeleton,
