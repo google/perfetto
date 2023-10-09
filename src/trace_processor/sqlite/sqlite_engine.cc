@@ -131,7 +131,7 @@ SqliteEngine::~SqliteEngine() {
 }
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "QUERY_PREPARE");
   sqlite3_stmt* raw_stmt = nullptr;
   int err =
       sqlite3_prepare_v2(db_.get(), sql.sql().c_str(), -1, &raw_stmt, nullptr);
@@ -222,12 +222,15 @@ void SqliteEngine::OnSqliteTableDestroyed(const std::string& name) {
 
 SqliteEngine::PreparedStatement::PreparedStatement(ScopedStmt stmt,
                                                    SqlSource source)
-    : stmt_(std::move(stmt)), sql_source_(std::move(source)) {}
+    : stmt_(std::move(stmt)),
+      expanded_sql_(sqlite3_expanded_sql(stmt_.get())),
+      sql_source_(std::move(source)) {}
 
 bool SqliteEngine::PreparedStatement::Step() {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP",
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "STMT_STEP",
                     [this](metatrace::Record* record) {
-                      record->AddArg("SQL", expanded_sql());
+                      record->AddArg("Original SQL", original_sql());
+                      record->AddArg("Executed SQL", sql());
                     });
 
   // Now step once into |cur_stmt| so that when we prepare the next statment
@@ -251,14 +254,11 @@ bool SqliteEngine::PreparedStatement::IsDone() const {
   return !sqlite3_stmt_busy(stmt_.get());
 }
 
-const char* SqliteEngine::PreparedStatement::sql() const {
-  return sqlite3_sql(stmt_.get());
+const char* SqliteEngine::PreparedStatement::original_sql() const {
+  return sql_source_.original_sql().c_str();
 }
 
-const char* SqliteEngine::PreparedStatement::expanded_sql() {
-  if (!expanded_sql_) {
-    expanded_sql_.reset(sqlite3_expanded_sql(stmt_.get()));
-  }
+const char* SqliteEngine::PreparedStatement::sql() const {
   return expanded_sql_.get();
 }
 

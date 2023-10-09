@@ -320,7 +320,7 @@ class RecursiveCallUnroller {
   }
 
   base::Status Run(Memoizer::MemoizedArgs initial_args) {
-    PERFETTO_TP_TRACE(metatrace::Category::FUNCTION,
+    PERFETTO_TP_TRACE(metatrace::Category::FUNCTION_CALL,
                       "UNROLL_RECURSIVE_FUNCTION_CALL",
                       [&](metatrace::Record* r) {
                         r->AddArg("Function", prototype_.function_name);
@@ -336,8 +336,8 @@ class RecursiveCallUnroller {
         state_ = State::kComputingFirstPass;
         Memoizer::MemoizedArgs args = first_pass_.front();
 
-        PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
-                          [&](metatrace::Record* r) {
+        PERFETTO_TP_TRACE(metatrace::Category::FUNCTION_CALL,
+                          "SQL_FUNCTION_CALL", [&](metatrace::Record* r) {
                             r->AddArg("Function", prototype_.function_name);
                             r->AddArg("Type", "UnrollRecursiveCall_FirstPass");
                             r->AddArg("Arg 0", std::to_string(args));
@@ -352,7 +352,7 @@ class RecursiveCallUnroller {
       state_ = State::kComputingSecondPass;
       Memoizer::MemoizedArgs args = second_pass_.top();
 
-      PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
+      PERFETTO_TP_TRACE(metatrace::Category::FUNCTION_CALL, "SQL_FUNCTION_CALL",
                         [&](metatrace::Record* r) {
                           r->AddArg("Function", prototype_.function_name);
                           r->AddArg("Type", "UnrollRecursiveCall_SecondPass");
@@ -640,7 +640,7 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
   }
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::FUNCTION, "SQL_FUNCTION_CALL",
+      metatrace::Category::FUNCTION_CALL, "SQL_FUNCTION_CALL",
       [state, argv](metatrace::Record* r) {
         r->AddArg("Function", state->prototype().function_name.c_str());
         for (uint32_t i = 0; i < state->prototype().arguments.size(); ++i) {

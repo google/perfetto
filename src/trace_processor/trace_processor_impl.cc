@@ -726,7 +726,7 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
 }
 
 Iterator TraceProcessorImpl::ExecuteQuery(const std::string& sql) {
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "QUERY_EXECUTE");
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "EXECUTE_QUERY");
 
   uint32_t sql_stats_row =
       context_.storage->mutable_sql_stats()->RecordQueryBegin(

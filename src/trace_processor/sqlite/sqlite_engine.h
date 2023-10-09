@@ -58,8 +58,8 @@ class SqliteEngine {
     bool Step();
     bool IsDone() const;
 
+    const char* original_sql() const;
     const char* sql() const;
-    const char* expanded_sql();
 
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
@@ -70,8 +70,8 @@ class SqliteEngine {
     explicit PreparedStatement(ScopedStmt, SqlSource);
 
     ScopedStmt stmt_;
-    SqlSource sql_source_;
     ScopedSqliteString expanded_sql_;
+    SqlSource sql_source_;
     base::Status status_ = base::OkStatus();
   };
 
