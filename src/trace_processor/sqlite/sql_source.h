@@ -170,7 +170,8 @@ class SqlSource {
 
     // Returns the "traceback" for this node only. See |SqlSource::AsTraceback|
     // for details.
-    std::string SelfTraceback(uint32_t original_offset) const;
+    std::string SelfTraceback(uint32_t rewritten_offset,
+                              uint32_t original_offset) const;
 
     Node Substr(uint32_t rewritten_offset, uint32_t rewritten_len) const;
 
