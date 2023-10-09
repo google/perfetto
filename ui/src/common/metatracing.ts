@@ -49,7 +49,7 @@ const AOMT_DETAILED_FLAG = featureFlags.register({
 function getInitialCategories(): MetatraceCategories|undefined {
   if (!AOMT_FLAG.get()) return undefined;
   if (AOMT_DETAILED_FLAG.get()) return MetatraceCategories.ALL;
-  return MetatraceCategories.TOPLEVEL;
+  return MetatraceCategories.QUERY_TIMELINE | MetatraceCategories.API_TIMELINE;
 }
 
 let enabledCategories: MetatraceCategories|undefined = getInitialCategories();

@@ -250,7 +250,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // Try to get SQLite to prepare the statement.
     std::optional<SqliteEngine::PreparedStatement> cur_stmt;
     {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "QUERY_PREPARE");
       auto stmt = engine_->PrepareStatement(std::move(*source));
       RETURN_IF_ERROR(stmt.status());
       cur_stmt = std::move(stmt);
@@ -265,9 +265,11 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
     if (res && !res->IsDone()) {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP_UNTIL_DONE",
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                        "STMT_STEP_UNTIL_DONE",
                         [&res](metatrace::Record* record) {
-                          record->AddArg("SQL", res->expanded_sql());
+                          record->AddArg("Original SQL", res->original_sql());
+                          record->AddArg("Executed SQL", res->sql());
                         });
       while (res->Step()) {
       }
@@ -280,11 +282,14 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // Step the newly prepared statement once. This is considered to be
     // "executing" the statement.
     {
-      PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_FIRST_STEP",
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "STMT_FIRST_STEP",
                         [&res](metatrace::Record* record) {
-                          record->AddArg("SQL", res->expanded_sql());
+                          record->AddArg("Original SQL", res->original_sql());
+                          record->AddArg("Executed SQL", res->sql());
                         });
-      PERFETTO_DLOG("Executing statement: %s", res->sql());
+      PERFETTO_DLOG("Executing statement");
+      PERFETTO_DLOG("Original SQL: %s", res->original_sql());
+      PERFETTO_DLOG("Executed SQL: %s", res->sql());
       res->Step();
       RETURN_IF_ERROR(res->status());
     }
@@ -438,8 +443,8 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
     const PerfettoSqlParser::Include& include,
     const PerfettoSqlParser& parser) {
   std::string key = include.key;
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "Import",
-                    [key](metatrace::Record* r) { r->AddArg("Import", key); });
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "Include",
+                    [key](metatrace::Record* r) { r->AddArg("Module", key); });
   std::string module_name = sql_modules::GetModuleName(key);
   auto module = FindModule(module_name);
   if (!module)
