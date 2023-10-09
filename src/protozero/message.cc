@@ -34,6 +34,8 @@ namespace protozero {
 
 namespace {
 
+constexpr int kBytesToCompact = proto_utils::kMessageLengthFieldSize - 1u;
+
 #if PERFETTO_DCHECK_IS_ON()
 std::atomic<uint32_t> g_generation;
 #endif
@@ -59,7 +61,7 @@ void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
   size_field_ = nullptr;
   size_already_written_ = 0;
   nested_message_ = nullptr;
-  finalized_ = false;
+  message_state_ = MessageState::kNotFinalized;
 #if PERFETTO_DCHECK_IS_ON()
   handle_ = nullptr;
   generation_ = g_generation.fetch_add(1, std::memory_order_relaxed);
@@ -118,7 +120,7 @@ size_t Message::AppendScatteredBytes(uint32_t field_id,
 }
 
 uint32_t Message::Finalize() {
-  if (finalized_)
+  if (is_finalized())
     return size_;
 
   if (nested_message_)
@@ -127,15 +129,54 @@ uint32_t Message::Finalize() {
   // Write the length of the nested message a posteriori, using a leading-zero
   // redundant varint encoding.
   if (size_field_) {
-    PERFETTO_DCHECK(!finalized_);
+    PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
     PERFETTO_DCHECK(size_ >= size_already_written_);
-    proto_utils::WriteRedundantVarInt(size_ - size_already_written_,
-                                      size_field_);
+    //
+    // Normally the size of a protozero message is written with 4 bytes just
+    // before the contents of the message itself:
+    //
+    //    size          message data
+    //   [aa bb cc dd] [01 23 45 67 ...]
+    //
+    // We always reserve 4 bytes for the size, because the real size of the
+    // message isn't known until the call to Finalize(). This is possible
+    // because we can use leading zero redundant varint coding to expand any
+    // size smaller than 256 MiB to 4 bytes.
+    //
+    // However this is wasteful for short, frequently written messages, so the
+    // code below uses a 1 byte size field when possible. This is done by
+    // shifting the already-written data (which should still be in the cache)
+    // back by 3 bytes, resulting in this layout:
+    //
+    //   size  message data
+    //   [aa] [01 23 45 67 ...]
+    //
+    // We can only do this optimization if the message is contained in a single
+    // chunk (since we can't modify previously committed chunks). We can check
+    // this by verifying that the size field is immediately before the message
+    // in memory and is fully contained by the current chunk.
+    //
+    if (PERFETTO_LIKELY(size_already_written_ == 0 &&
+                        size_ <= proto_utils::kMaxOneByteMessageLength &&
+                        size_field_ ==
+                            stream_writer_->write_ptr() - size_ -
+                                proto_utils::kMessageLengthFieldSize &&
+                        size_field_ >= stream_writer_->cur_range().begin)) {
+      stream_writer_->Rewind(size_, kBytesToCompact);
+      PERFETTO_DCHECK(size_field_ == stream_writer_->write_ptr() - size_ - 1u);
+      *size_field_ = static_cast<uint8_t>(size_);
+      message_state_ = MessageState::kFinalizedWithCompaction;
+    } else {
+      proto_utils::WriteRedundantVarInt(size_ - size_already_written_,
+                                        size_field_);
+      message_state_ = MessageState::kFinalized;
+    }
     size_field_ = nullptr;
+  } else {
+    message_state_ = MessageState::kFinalized;
   }
 
-  finalized_ = true;
 #if PERFETTO_DCHECK_IS_ON()
   if (handle_)
     handle_->reset_message();
@@ -170,6 +211,10 @@ Message* Message::BeginNestedMessageInternal(uint32_t field_id) {
 
 void Message::EndNestedMessage() {
   size_ += nested_message_->Finalize();
+  if (nested_message_->message_state_ ==
+      MessageState::kFinalizedWithCompaction) {
+    size_ -= kBytesToCompact;
+  }
   arena_->DeleteLastMessage(nested_message_);
   nested_message_ = nullptr;
 }
