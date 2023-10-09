@@ -17,7 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 import {Engine} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -37,7 +37,7 @@ export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
 
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new TopLevelScrollTrack(args);
   }
 

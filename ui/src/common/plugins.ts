@@ -30,14 +30,14 @@ import {
   Plugin,
   PluginClass,
   PluginContext,
-  PluginInfo,
-  PluginTrackInfo,
+  PluginContextTrace,
+  PluginDescriptor,
   StatefulPlugin,
   Store,
-  TracePluginContext,
+  Track,
   TrackContext,
-  TrackInfo,
-  TrackLike,
+  TrackDescriptor,
+  TrackInstanceDescriptor,
   Viewer,
 } from '../public';
 
@@ -73,13 +73,13 @@ export class PluginContextImpl implements PluginContext, Disposable {
     });
   }
 
-  registerTrackController(track: TrackControllerFactory): void {
+  LEGACY_registerTrackController(track: TrackControllerFactory): void {
     if (!this.alive) return;
     const unregister = trackControllerRegistry.register(track);
     this.trash.add(unregister);
   }
 
-  registerTrack(track: TrackCreator): void {
+  LEGACY_registerTrack(track: TrackCreator): void {
     if (!this.alive) return;
     const unregister = trackRegistry.register(track);
     this.trash.add(unregister);
@@ -95,30 +95,30 @@ export class PluginContextImpl implements PluginContext, Disposable {
 // related resources, such as the engine and the store.
 // The TracePluginContext exists for the whole duration a plugin is active AND a
 // trace is loaded.
-class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
+class TracePluginContextImpl<T> implements PluginContextTrace<T>, Disposable {
   private trash = new Trash();
   private alive = true;
 
   constructor(
       private ctx: PluginContext, readonly store: Store<T>,
       readonly engine: EngineProxy,
-      readonly trackRegistry: Map<string, PluginTrackInfo>,
-      private suggestedTracks: Set<TrackInfo>,
+      readonly trackRegistry: Map<string, TrackDescriptor>,
+      private suggestedTracks: Set<TrackInstanceDescriptor>,
       private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
     this.trash.add(store);
   }
 
-  registerTrackController(track: TrackControllerFactory): void {
+  LEGACY_registerTrackController(track: TrackControllerFactory): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    this.ctx.registerTrackController(track);
+    this.ctx.LEGACY_registerTrackController(track);
   }
 
-  registerTrack(track: TrackCreator): void {
+  LEGACY_registerTrack(track: TrackCreator): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    this.ctx.registerTrack(track);
+    this.ctx.LEGACY_registerTrack(track);
   }
 
   addCommand(cmd: Command): void {
@@ -143,7 +143,7 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
   // Register a new track in this context.
   // All tracks registered through this method are removed when this context is
   // destroyed, i.e. when the trace is unloaded.
-  addTrack(trackDetails: PluginTrackInfo): void {
+  addTrack(trackDetails: TrackDescriptor): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
     const {uri} = trackDetails;
@@ -156,7 +156,7 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
   // This is a direct replacement for findPotentialTracks().
   // Note: This interface is likely to be deprecated soon, but is required while
   // both plugin and original type tracks coexist.
-  suggestTrack(trackInfo: TrackInfo): void {
+  suggestTrack(trackInfo: TrackInstanceDescriptor): void {
     this.suggestedTracks.add(trackInfo);
     this.trash.addCallback(() => this.suggestedTracks.delete(trackInfo));
   }
@@ -168,7 +168,7 @@ class TracePluginContextImpl<T> implements TracePluginContext<T>, Disposable {
 }
 
 // 'Static' registry of all known plugins.
-export class PluginRegistry extends Registry<PluginInfo<unknown>> {
+export class PluginRegistry extends Registry<PluginDescriptor<unknown>> {
   constructor() {
     super((info) => info.pluginId);
   }
@@ -184,19 +184,17 @@ function isPluginClass<T>(v: unknown): v is PluginClass<T> {
   return typeof v === 'function' && !!(v.prototype.onActivate);
 }
 
-function makePlugin<T>(info: PluginInfo<T>): Plugin<T> {
-  const {plugin: pluginFactory} = info;
+function makePlugin<T>(info: PluginDescriptor<T>): Plugin<T> {
+  const {plugin} = info;
 
-  if (typeof pluginFactory === 'function') {
-    if (isPluginClass(pluginFactory)) {
-      const PluginClass = pluginFactory;
+  if (typeof plugin === 'function') {
+    if (isPluginClass(plugin)) {
+      const PluginClass = plugin;
       return new PluginClass();
     } else {
-      return pluginFactory();
+      return plugin();
     }
   } else {
-    // pluginFactory is the plugin!
-    const plugin = pluginFactory;
     return plugin;
   }
 }
@@ -205,9 +203,9 @@ export class PluginManager {
   private registry: PluginRegistry;
   private plugins: Map<string, PluginDetails<unknown>>;
   private engine?: Engine;
-  readonly trackRegistry = new Map<string, PluginTrackInfo>();
+  readonly trackRegistry = new Map<string, TrackDescriptor>();
   readonly commandRegistry = new Map<string, Command>();
-  readonly suggestedTracks = new Set<TrackInfo>();
+  readonly suggestedTracks = new Set<TrackInstanceDescriptor>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -265,7 +263,7 @@ export class PluginManager {
     return this.plugins.get(pluginId);
   }
 
-  findPotentialTracks(): TrackInfo[] {
+  findPotentialTracks(): TrackInstanceDescriptor[] {
     return Array.from(this.suggestedTracks);
   }
 
@@ -300,15 +298,15 @@ export class PluginManager {
 
   // Look up track into for a given track's URI.
   // Returns |undefined| if no track can be found.
-  resolveTrackInfo(uri: string): PluginTrackInfo|undefined {
+  resolveTrackInfo(uri: string): TrackDescriptor|undefined {
     return this.trackRegistry.get(uri);
   }
 
   // Create a new plugin track object from its URI.
   // Returns undefined if no such track is registered.
-  createTrack(uri: string, trackCtx: TrackContext): TrackLike|undefined {
+  createTrack(uri: string, trackCtx: TrackContext): Track|undefined {
     const trackInfo = pluginManager.trackRegistry.get(uri);
-    return trackInfo && trackInfo.trackFactory(trackCtx);
+    return trackInfo && trackInfo.track(trackCtx);
   }
 
   private doPluginTraceLoad<T>(

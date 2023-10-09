@@ -25,8 +25,8 @@ import {TrackData} from '../../common/track_data';
 import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
@@ -162,7 +162,7 @@ const MARGIN_TOP = 3;
 const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
-class ThreadStateTrack extends Track<Config, Data> {
+class ThreadStateTrack extends TrackBase<Config, Data> {
   static readonly kind = THREAD_STATE_TRACK_KIND;
   static create(args: NewTrackArgs): ThreadStateTrack {
     return new ThreadStateTrack(args);
@@ -285,12 +285,12 @@ class ThreadStateTrack extends Track<Config, Data> {
 
 class ThreadState implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(ThreadStateTrack);
-    ctx.registerTrackController(ThreadStateTrackController);
+    ctx.LEGACY_registerTrack(ThreadStateTrack);
+    ctx.LEGACY_registerTrackController(ThreadStateTrackController);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.ThreadState',
   plugin: ThreadState,
 };

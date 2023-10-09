@@ -29,7 +29,7 @@ import {
   SliceLayout,
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const THREAD_STATE_ROW = {
   ...BASE_SLICE_ROW,
@@ -126,11 +126,11 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
 
 class ThreadStateTrackV2 implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(ThreadStateTrack);
+    ctx.LEGACY_registerTrack(ThreadStateTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.ThreadStateTrackV2',
   plugin: ThreadStateTrackV2,
 };
