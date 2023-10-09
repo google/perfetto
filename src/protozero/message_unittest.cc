@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/protozero/message_handle.h"
+#include "perfetto/protozero/proto_utils.h"
 #include "perfetto/protozero/root_message.h"
 #include "src/base/test/utils.h"
 #include "src/protozero/test/fake_scattered_buffer.h"
@@ -51,11 +52,7 @@ uint32_t SimpleHash(const std::string& str) {
 
 class MessageTest : public ::testing::Test {
  public:
-  void SetUp() override {
-    buffer_.reset(new FakeScatteredBuffer(kChunkSize));
-    stream_writer_.reset(new ScatteredStreamWriter(buffer_.get()));
-    readback_pos_ = 0;
-  }
+  void SetUp() override { SetChunkSize(kChunkSize); }
 
   void TearDown() override {
     // Check that none of the messages created by the text fixtures below did
@@ -77,6 +74,13 @@ class MessageTest : public ::testing::Test {
 
   void ResetMessage(FakeRootMessage* msg) { msg->Reset(stream_writer_.get()); }
 
+  void SetChunkSize(size_t size) {
+    buffer_.reset(new FakeScatteredBuffer(size));
+    stream_writer_.reset(new ScatteredStreamWriter(buffer_.get()));
+    chunk_size_ = size;
+    readback_pos_ = 0;
+  }
+
   FakeRootMessage* NewMessage() {
     std::unique_ptr<uint8_t[]> mem(
         new uint8_t[sizeof(kStartWatermark) + sizeof(FakeRootMessage) +
@@ -92,10 +96,19 @@ class MessageTest : public ::testing::Test {
     return msg;
   }
 
+  FakeRootMessage* NewMessageWithSizeField() {
+    FakeRootMessage* msg = NewMessage();
+    uint8_t* size_field =
+        stream_writer_->ReserveBytes(proto_utils::kMessageLengthFieldSize);
+    memset(size_field, 0u, proto_utils::kMessageLengthFieldSize);
+    msg->set_size_field(size_field);
+    return msg;
+  }
+
   size_t GetNumSerializedBytes() {
     if (buffer_->chunks().empty())
       return 0;
-    return buffer_->chunks().size() * kChunkSize -
+    return buffer_->chunks().size() * chunk_size_ -
            stream_writer_->bytes_available();
   }
 
@@ -107,18 +120,23 @@ class MessageTest : public ::testing::Test {
 
   static void BuildNestedMessages(Message* msg,
                                   uint32_t max_depth,
+                                  bool empty = false,
                                   uint32_t depth = 0) {
-    for (uint32_t i = 1; i <= 128; ++i)
-      msg->AppendBytes(i, kTestBytes, sizeof(kTestBytes));
+    if (!empty) {
+      for (uint32_t i = 1; i <= 128; ++i)
+        msg->AppendBytes(i, kTestBytes, sizeof(kTestBytes));
+    }
 
     if (depth < max_depth) {
       auto* nested_msg =
           msg->BeginNestedMessage<FakeChildMessage>(1 + depth * 10);
-      BuildNestedMessages(nested_msg, max_depth, depth + 1);
+      BuildNestedMessages(nested_msg, max_depth, empty, depth + 1);
     }
 
-    for (uint32_t i = 129; i <= 256; ++i)
-      msg->AppendVarInt(i, 42);
+    if (!empty) {
+      for (uint32_t i = 129; i <= 256; ++i)
+        msg->AppendVarInt(i, 42);
+    }
 
     if ((depth & 2) == 0)
       msg->Finalize();
@@ -128,7 +146,8 @@ class MessageTest : public ::testing::Test {
   std::unique_ptr<FakeScatteredBuffer> buffer_;
   std::unique_ptr<ScatteredStreamWriter> stream_writer_;
   std::vector<std::unique_ptr<uint8_t[]>> messages_;
-  size_t readback_pos_;
+  size_t chunk_size_{};
+  size_t readback_pos_{};
 };
 
 TEST_F(MessageTest, ZeroLengthArraysAndStrings) {
@@ -189,26 +208,26 @@ TEST_F(MessageTest, NestedMessagesSimple) {
 
   root_msg->AppendVarInt(5 /* field_id */, 3);
 
-  // The expected size of the root message is supposed to be 20 bytes:
+  // The expected size of the root message is supposed to be 14 bytes:
   //   2 bytes for the varint field (id: 1) (1 for preamble and one for payload)
-  //   6 bytes for the preamble of the 1st nested message (2 for id, 4 for size)
+  //   3 bytes for the preamble of the 1st nested message (2 for id, 1 for size)
   //   2 bytes for the varint field (id: 2) of the 1st nested message
-  //   6 bytes for the premable of the 2nd nested message
+  //   3 bytes for the premable of the 2nd nested message
   //   2 bytes for the varint field (id: 4) of the 2nd nested message.
   //   2 bytes for the last varint (id : 5) field of the root message.
   // Test also that finalization is idempontent and Finalize() can be safely
   // called more than once without side effects.
   for (int i = 0; i < 3; ++i) {
-    EXPECT_EQ(20u, root_msg->Finalize());
-    EXPECT_EQ(20u, GetNumSerializedBytes());
+    EXPECT_EQ(14u, root_msg->Finalize());
+    EXPECT_EQ(14u, GetNumSerializedBytes());
   }
 
   ASSERT_EQ("0801", GetNextSerializedBytes(2));
 
-  ASSERT_EQ("820882808000", GetNextSerializedBytes(6));
+  ASSERT_EQ("820802", GetNextSerializedBytes(3));
   ASSERT_EQ("1002", GetNextSerializedBytes(2));
 
-  ASSERT_EQ("8A0882808000", GetNextSerializedBytes(6));
+  ASSERT_EQ("8A0802", GetNextSerializedBytes(3));
   ASSERT_EQ("2002", GetNextSerializedBytes(2));
 
   ASSERT_EQ("2803", GetNextSerializedBytes(2));
@@ -254,7 +273,7 @@ TEST_F(MessageTest, AppendRawProtoBytesFinalizesNestedMessage) {
 
   // Nested message should have been finalized as a side effect of appending
   // raw bytes.
-  EXPECT_EQ(0x82u, *nested_msg_size_field);
+  EXPECT_EQ(0x2u, *nested_msg_size_field);
 }
 
 TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
@@ -276,7 +295,7 @@ TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
 
   // Nested message should have been finalized as a side effect of appending
   // scattered bytes.
-  EXPECT_EQ(0x82u, *nested_msg_size_field);
+  EXPECT_EQ(0x2u, *nested_msg_size_field);
 }
 
 // Checks that the size field of root and nested messages is properly written
@@ -305,7 +324,7 @@ TEST_F(MessageTest, BackfillSizeOnFinalization) {
 
   // However the size written in the size field should take into account the
   // inc_size_already_written() call and be equal to 118 - 6 = 112, encoded
-  // in a rendundant varint encoding of kMessageLengthFieldSize bytes.
+  // in a redundant varint encoding of kMessageLengthFieldSize bytes.
   EXPECT_STREQ("\xD3\x81\x80\x00", reinterpret_cast<char*>(root_msg_size));
 
   // Skip 2 bytes for the 0x42 varint + 1 byte for the |nested_msg_1| preamble.
@@ -341,8 +360,6 @@ TEST_F(MessageTest, StressTest) {
 }
 
 TEST_F(MessageTest, DeeplyNested) {
-  std::vector<Message*> nested_msgs;
-
   Message* root_msg = NewMessage();
   BuildNestedMessages(root_msg, /*max_depth=*/1000);
   root_msg->Finalize();
@@ -350,6 +367,23 @@ TEST_F(MessageTest, DeeplyNested) {
   std::string full_buf = GetNextSerializedBytes(GetNumSerializedBytes());
   size_t buf_hash = SimpleHash(full_buf);
   EXPECT_EQ(0xc0fde419, buf_hash);
+}
+
+TEST_F(MessageTest, DeeplyNestedEmptyMessages) {
+  // Stress test writing deeply nested empty messages, many of which will be
+  // packed into the protobuf length field.
+
+  // Use a larger chunk size for this test so there is more opportunity to pack
+  // messages.
+  SetChunkSize(4096u);
+
+  Message* root_msg = NewMessage();
+  BuildNestedMessages(root_msg, /*max_depth=*/1000, /*empty=*/true);
+  root_msg->Finalize();
+
+  std::string full_buf = GetNextSerializedBytes(GetNumSerializedBytes());
+  size_t buf_hash = SimpleHash(full_buf);
+  EXPECT_EQ(0x9371fe8eu, buf_hash);
 }
 
 TEST_F(MessageTest, DestructInvalidMessageHandle) {
@@ -361,16 +395,13 @@ TEST_F(MessageTest, DestructInvalidMessageHandle) {
 }
 
 TEST_F(MessageTest, MessageHandle) {
-  FakeRootMessage* msg1 = NewMessage();
-  FakeRootMessage* msg2 = NewMessage();
-  FakeRootMessage* msg3 = NewMessage();
+  FakeRootMessage* msg3 = NewMessageWithSizeField();
+  FakeRootMessage* msg2 = NewMessageWithSizeField();
+  FakeRootMessage* msg1 = NewMessageWithSizeField();
   FakeRootMessage* ignored_msg = NewMessage();
-  uint8_t msg1_size[proto_utils::kMessageLengthFieldSize] = {};
-  uint8_t msg2_size[proto_utils::kMessageLengthFieldSize] = {};
-  uint8_t msg3_size[proto_utils::kMessageLengthFieldSize] = {};
-  msg1->set_size_field(&msg1_size[0]);
-  msg2->set_size_field(&msg2_size[0]);
-  msg3->set_size_field(&msg3_size[0]);
+  uint8_t* msg1_size = msg1->size_field();
+  uint8_t* msg2_size = msg2->size_field();
+  uint8_t* msg3_size = msg3->size_field();
 
   // Test that the handle going out of scope causes the finalization of the
   // target message and triggers the optional callback.
@@ -379,7 +410,7 @@ TEST_F(MessageTest, MessageHandle) {
     handle1->AppendBytes(1 /* field_id */, kTestBytes, 1 /* size */);
     ASSERT_EQ(0u, msg1_size[0]);
   }
-  ASSERT_EQ(0x83u, msg1_size[0]);
+  ASSERT_EQ(0x3u, msg1_size[0]);
 
   // Test that the handle can be late initialized.
   MessageHandle<FakeRootMessage> handle2(ignored_msg);
@@ -445,13 +476,12 @@ TEST_F(MessageTest, MessageHandle) {
     ASSERT_EQ(0x82u, size_msg_1[0]);
     ASSERT_EQ(0u, size_msg_2[0]);
   }
-  ASSERT_EQ(0x83u, size_msg_2[0]);
+  ASSERT_EQ(0x3u, size_msg_2[0]);
 }
 
 TEST_F(MessageTest, MoveMessageHandle) {
-  FakeRootMessage* msg = NewMessage();
-  uint8_t msg_size[proto_utils::kMessageLengthFieldSize] = {};
-  msg->set_size_field(&msg_size[0]);
+  FakeRootMessage* msg = NewMessageWithSizeField();
+  uint8_t* msg_size = msg->size_field();
 
   // Test that the handle going out of scope causes the finalization of the
   // target message.
@@ -462,7 +492,27 @@ TEST_F(MessageTest, MoveMessageHandle) {
     handle2 = std::move(handle1);
     ASSERT_EQ(0u, msg_size[0]);
   }
-  ASSERT_EQ(0x83u, msg_size[0]);
+  ASSERT_EQ(0x3u, msg_size[0]);
+}
+
+TEST_F(MessageTest, FinalizeWithCompaction) {
+  FakeRootMessage* msg = NewMessageWithSizeField();
+
+  msg->AppendBytes(1 /* field_id */, kTestBytes, 5 /* size */);
+  uint32_t size = msg->Finalize();
+  EXPECT_EQ(7u, size);
+  EXPECT_EQ(8u, GetNumSerializedBytes());
+}
+
+TEST_F(MessageTest, FinalizeWithoutCompaction) {
+  FakeRootMessage* msg = NewMessageWithSizeField();
+
+  // This message doesn't fit into a single chunk, so it won't be compacted.
+  msg->AppendBytes(1 /* field_id */, kTestBytes, sizeof(kTestBytes) /* size */);
+  msg->AppendBytes(1 /* field_id */, kTestBytes, sizeof(kTestBytes) /* size */);
+  uint32_t size = msg->Finalize();
+  EXPECT_EQ(24u, size);
+  EXPECT_EQ(28u, GetNumSerializedBytes());
 }
 
 }  // namespace

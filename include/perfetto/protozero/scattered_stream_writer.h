@@ -24,6 +24,7 @@
 
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/export.h"
+#include "perfetto/base/logging.h"
 #include "perfetto/protozero/contiguous_memory_range.h"
 
 namespace protozero {
@@ -112,6 +113,20 @@ class PERFETTO_EXPORT_COMPONENT ScatteredStreamWriter {
     write_ptr_ += size;
     assert(write_ptr_ <= cur_range_.end);
     return begin;
+  }
+
+  // Shifts the previously written `size` bytes backwards in memory by `offset`
+  // bytes, moving the write pointer back accordingly. The shifted result must
+  // still be fully contained by the current range.
+  void Rewind(size_t size, size_t offset) {
+    uint8_t* src = write_ptr_ - size;
+    uint8_t* dst = src - offset;
+    PERFETTO_DCHECK(src >= cur_range_.begin);
+    PERFETTO_DCHECK(src + size <= cur_range_.end);
+    PERFETTO_DCHECK(dst >= cur_range_.begin);
+    PERFETTO_DCHECK(dst + size <= cur_range_.end);
+    memmove(dst, src, size);
+    write_ptr_ -= offset;
   }
 
   // Resets the buffer boundaries and the write pointer to the given |range|.

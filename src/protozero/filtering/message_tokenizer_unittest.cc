@@ -131,7 +131,7 @@ TEST(MessageTokenizerTest, NestedMessage) {
   EXPECT_THAT(
       tokens,
       ElementsAre(Token{1, ProtoWireType::kVarInt, 101u},
-                  Token{2, ProtoWireType::kLengthDelimited, 24u},
+                  Token{2, ProtoWireType::kLengthDelimited, 21u},
                   Token{3, ProtoWireType::kVarInt, 103u},
                   Token{4, ProtoWireType::kFixed32, 104u},
                   Token{5, ProtoWireType::kLengthDelimited, 7},
