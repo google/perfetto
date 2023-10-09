@@ -24,6 +24,7 @@
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 #include "src/trace_processor/util/status_macros.h"
@@ -80,11 +81,18 @@ bool ValidateModuleName(const std::string& name) {
 
 }  // namespace
 
-PerfettoSqlParser::PerfettoSqlParser(SqlSource sql)
-    : tokenizer_(std::move(sql)) {}
+PerfettoSqlParser::PerfettoSqlParser(SqlSource source)
+    : preprocessor_(std::move(source)),
+      tokenizer_(SqlSource::FromTraceProcessorImplementation("")) {}
 
 bool PerfettoSqlParser::Next() {
-  PERFETTO_DCHECK(status_.ok());
+  PERFETTO_CHECK(status_.ok());
+
+  if (!preprocessor_.NextStatement()) {
+    status_ = preprocessor_.status();
+    return false;
+  }
+  tokenizer_.Reset(preprocessor_.statement());
 
   State state = State::kStmtStart;
   std::optional<Token> first_non_space_token;
@@ -120,7 +128,9 @@ bool PerfettoSqlParser::Next() {
 
     switch (state) {
       case State::kPassthrough:
-        break;
+        statement_ = SqliteSql{};
+        statement_sql_ = preprocessor_.statement();
+        return true;
       case State::kStmtStart:
         if (TokenIsSqliteKeyword("create", token)) {
           state = State::kCreate;
@@ -149,9 +159,8 @@ bool PerfettoSqlParser::Next() {
         if (TokenIsSqliteKeyword("trigger", token)) {
           // TODO(lalitm): add this to the "errors" documentation page
           // explaining why this is the case.
-          base::StackString<1024> err(
-              "Creating triggers are not supported by trace processor.");
-          return ErrorAtToken(token, err.c_str());
+          return ErrorAtToken(
+              token, "Creating triggers is not supported in PerfettoSQL.");
         }
         if (TokenIsCustomKeyword("perfetto", token)) {
           state = State::kCreatePerfetto;
