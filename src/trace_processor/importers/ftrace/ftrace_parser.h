@@ -17,6 +17,8 @@
 #ifndef SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 #define SRC_TRACE_PROCESSOR_IMPORTERS_FTRACE_FTRACE_PARSER_H_
 
+#include "perfetto/ext/base/flat_hash_map.h"
+#include "perfetto/ext/base/hash.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
 #include "src/trace_processor/importers/common/parser_types.h"
@@ -285,6 +287,10 @@ class FtraceParser {
   void ParseMaliKcpuFenceSignal(uint32_t pid, int64_t ts);
   void ParseMaliKcpuFenceWaitStart(uint32_t pid, int64_t ts);
   void ParseMaliKcpuFenceWaitEnd(uint32_t pid, int64_t ts);
+  void ParseAndroidFsDatareadEnd(int64_t timestamp, protozero::ConstBytes);
+  void ParseAndroidFsDatareadStart(int64_t ts,
+                                   uint32_t pid,
+                                   protozero::ConstBytes);
 
   TraceProcessorContext* context_;
   RssStatTracker rss_stat_tracker_;
@@ -366,6 +372,13 @@ class FtraceParser {
   const StringId syscall_ret_id_;
   const StringId syscall_args_id_;
   const StringId replica_slice_id_;
+  const StringId file_path_id_;
+  const StringId offset_id_start_;
+  const StringId offset_id_end_;
+  const StringId bytes_read_id_start_;
+  const StringId bytes_read_id_end_;
+  const StringId android_fs_category_id_;
+  const StringId android_fs_data_read_id_;
   std::vector<StringId> syscall_arg_name_ids_;
 
   struct FtraceMessageStrings {
@@ -428,6 +441,18 @@ class FtraceParser {
   // putting them in the metadata multiple times (the ftrace data sources
   // re-emits begin stats on every flush).
   std::unordered_set<uint32_t> seen_errors_for_sequence_id_;
+
+  struct PairHash {
+    std::size_t operator()(const std::pair<uint64_t, int64_t>& p) const {
+      base::Hasher hasher;
+      hasher.Update(p.first);
+      hasher.Update(p.second);
+      return static_cast<std::size_t>(hasher.digest());
+    }
+  };
+
+  base::FlatHashMap<std::pair<uint64_t, int64_t>, uint32_t, PairHash>
+      inode_offset_thread_map_;
 };
 
 }  // namespace trace_processor
