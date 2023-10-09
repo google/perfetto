@@ -24,7 +24,7 @@ import {pluginManager} from '../common/plugins';
 import {RegistryError} from '../common/registry';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Migrate, TrackContext, TrackLike} from '../public';
+import {Migrate, Track, TrackContext} from '../public';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -101,7 +101,7 @@ export function renderChips({uri, config}: TrackState) {
 }
 
 interface TrackShellAttrs {
-  track: TrackLike;
+  track: Track;
   trackState: TrackState;
 }
 
@@ -233,7 +233,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
 }
 
 export interface TrackContentAttrs {
-  track: TrackLike;
+  track: Track;
 }
 export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
   private mouseDownX?: number;
@@ -292,7 +292,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
 
 interface TrackComponentAttrs {
   trackState: TrackState;
-  track: TrackLike;
+  track: Track;
 }
 class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   view({attrs}: m.CVnode<TrackComponentAttrs>) {
@@ -356,7 +356,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   // TODO(hjd): It would be nicer if these could not be undefined here.
   // We should implement a NullTrack which can be used if the trackState
   // has disappeared.
-  private track: TrackLike|undefined;
+  private track: Track|undefined;
   private trackState: TrackState|undefined;
 
   private tryLoadTrack(vnode: m.CVnode<TrackPanelAttrs>) {
@@ -520,8 +520,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 }
 
-function loadTrack(trackState: TrackState, trackId: string): TrackLike|
-    undefined {
+function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
   const engine = globals.engines.get(trackState.engineId);
   if (engine === undefined) {
     return undefined;

@@ -15,7 +15,7 @@
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
 } from '../../public';
 
 class AndroidPerf implements Plugin {
@@ -60,7 +60,7 @@ class AndroidPerf implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.AndroidPerf',
   plugin: AndroidPerf,
 };

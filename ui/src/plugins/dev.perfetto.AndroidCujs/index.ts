@@ -15,7 +15,7 @@
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
 } from '../../public';
 
 class AndroidCujs implements Plugin {
@@ -130,7 +130,7 @@ class AndroidCujs implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.AndroidCujs',
   plugin: AndroidCujs,
 };

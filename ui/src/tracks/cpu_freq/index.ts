@@ -38,8 +38,8 @@ import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 
 
@@ -492,7 +492,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
 class CpuFreq implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
 
     const cpus = await engine.getCpus();
@@ -538,7 +538,7 @@ class CpuFreq implements Plugin {
           displayName: `Cpu ${cpu} Frequency`,
           kind: CPU_FREQ_TRACK_KIND,
           cpu,
-          trackFactory: ({trackInstanceId}) => {
+          track: ({trackInstanceId}) => {
             return new TrackWithControllerAdapter<Config, Data>(
                 engine,
                 trackInstanceId,
@@ -557,7 +557,7 @@ class CpuFreq implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CpuFreq',
   plugin: CpuFreq,
 };

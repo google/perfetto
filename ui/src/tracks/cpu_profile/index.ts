@@ -25,8 +25,8 @@ import {
 import {globals} from '../../frontend/globals';
 import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
@@ -85,7 +85,7 @@ function colorForSample(callsiteId: number, isHovered: boolean): string {
   return cachedHsluvToHex(hue, saturation, lightness);
 }
 
-class CpuProfileTrack extends Track<Config, Data> {
+class CpuProfileTrack extends TrackBase<Config, Data> {
   static readonly kind = CPU_PROFILE_TRACK_KIND;
   static create(args: NewTrackArgs): CpuProfileTrack {
     return new CpuProfileTrack(args);
@@ -246,12 +246,12 @@ class CpuProfileTrack extends Track<Config, Data> {
 
 class CpuProfile implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(CpuProfileTrackController);
-    ctx.registerTrack(CpuProfileTrack);
+    ctx.LEGACY_registerTrackController(CpuProfileTrackController);
+    ctx.LEGACY_registerTrack(CpuProfileTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CpuProfile',
   plugin: CpuProfile,
 };

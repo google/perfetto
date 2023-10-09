@@ -154,7 +154,7 @@ export interface PluginContext {
   // 'TrackController' and a 'Track'. In more recent versions of the UI
   // the functionality of |TrackController| has been merged into Track so
   // |TrackController|s are not necessary in new code.
-  registerTrackController(track: TrackControllerFactory): void;
+  LEGACY_registerTrackController(track: TrackControllerFactory): void;
 
   // Register a track factory. The core UI invokes |TrackCreator| to
   // construct tracks discovered by invoking |TrackProvider|s.
@@ -164,7 +164,7 @@ export interface PluginContext {
   // which returns GPU counter tracks. The counter track factory itself
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
-  registerTrack(track: TrackCreator): void;
+  LEGACY_registerTrack(track: TrackCreator): void;
 
   // Add a command.
   addCommand(command: Command): void;
@@ -187,9 +187,7 @@ export interface TrackContext {
   mountStore<State>(migrate: Migrate<State>): Store<State>;
 }
 
-// TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
-// interface to `Track`.
-export interface TrackLike {
+export interface Track {
   onCreate(): void;
   render(ctx: CanvasRenderingContext2D): void;
   onFullRedraw(): void;
@@ -206,7 +204,7 @@ export interface TrackLike {
   onDestroy(): void;
 }
 
-export interface PluginTrackInfo {
+export interface TrackDescriptor {
   // A unique identifier for the track. This must be unique within all tracks.
   uri: string;
 
@@ -215,7 +213,7 @@ export interface PluginTrackInfo {
   displayName: string;
 
   // A factory function returning the track object.
-  trackFactory: (ctx: TrackContext) => TrackLike;
+  track: (ctx: TrackContext) => Track;
 
   // The track "kind" Uued by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.
@@ -269,25 +267,25 @@ export enum PrimaryTrackSortKey {
 // Similar to PluginContext but with additional properties to operate on the
 // currently loaded trace. Passed to trace-relevant hooks instead of
 // PluginContext.
-export interface TracePluginContext<T = undefined> extends PluginContext {
+export interface PluginContextTrace<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
 
   // Add a new track from this plugin. The track is just made available here,
   // it's not automatically shown until it's added to a workspace.
-  addTrack(trackDetails: PluginTrackInfo): void;
+  addTrack(trackDetails: TrackDescriptor): void;
 
   // Suggest a track be added to the workspace on a fresh trace load.
   // Supersedes `findPotentialTracks()` which has been removed.
   // Note: this API will be deprecated soon.
-  suggestTrack(trackInfo: TrackInfo): void;
+  suggestTrack(trackInfo: TrackInstanceDescriptor): void;
 }
 
 export interface BasePlugin<State> {
   // Lifecycle methods.
   onActivate(ctx: PluginContext): void;
-  onTraceLoad?(ctx: TracePluginContext<State>): Promise<void>;
-  onTraceUnload?(ctx: TracePluginContext<State>): Promise<void>;
+  onTraceLoad?(ctx: PluginContextTrace<State>): Promise<void>;
+  onTraceUnload?(ctx: PluginContextTrace<State>): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
@@ -320,7 +318,7 @@ export interface PluginClass<T> {
   new(): Plugin<T>;
 }
 
-export interface TrackInfo {
+export interface TrackInstanceDescriptor {
   // A human readable name for this specific track. It will normally be
   // displayed on the left-hand-side of the track.
   name: string;
@@ -361,7 +359,7 @@ export type TrackTags = Partial<WellKnownTrackTags>&{
 // implementations.
 export type PluginFactory<T> = PluginClass<T>|Plugin<T>|(() => Plugin<T>);
 
-export interface PluginInfo<T = undefined> {
+export interface PluginDescriptor<T = undefined> {
   // A unique string for your plugin. To ensure the name is unique you
   // may wish to use a URL with reversed components in the manner of
   // Java package names.

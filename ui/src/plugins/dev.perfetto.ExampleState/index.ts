@@ -15,8 +15,8 @@
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 
 interface State {
@@ -39,7 +39,7 @@ class ExampleState implements Plugin<State> {
     //
   }
 
-  async onTraceLoad(ctx: TracePluginContext<State>): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace<State>): Promise<void> {
     const {viewer, store} = ctx;
     ctx.addCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
@@ -54,7 +54,7 @@ class ExampleState implements Plugin<State> {
   }
 }
 
-export const plugin: PluginInfo<State> = {
+export const plugin: PluginDescriptor<State> = {
   pluginId: 'dev.perfetto.ExampleState',
   plugin: ExampleState,
 };

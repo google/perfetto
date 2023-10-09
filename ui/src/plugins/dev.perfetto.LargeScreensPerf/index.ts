@@ -15,7 +15,7 @@
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
+  PluginDescriptor,
 } from '../../public';
 
 class LargeScreensPerf implements Plugin {
@@ -36,7 +36,7 @@ class LargeScreensPerf implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.LargeScreensPerf',
   plugin: LargeScreensPerf,
 };
