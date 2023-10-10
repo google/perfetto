@@ -210,30 +210,8 @@ class PERFETTO_EXPORT_COMPONENT Tracing {
 
   // Start a new tracing session using the given tracing backend. Use
   // |kUnspecifiedBackend| to select an available backend automatically.
-  static inline std::unique_ptr<TracingSession> NewTrace(
-      BackendType backend = kUnspecifiedBackend) PERFETTO_ALWAYS_INLINE {
-    // This code is inlined to allow dead-code elimination for unused consumer
-    // implementation. The logic behind it is the following:
-    // Nothing other than the code below references the GetInstance() method
-    // below. From a linker-graph viewpoint, those GetInstance() pull in many
-    // other pieces of the codebase (ConsumerOnlySystemTracingBackend pulls
-    // ConsumerIPCClient). Due to the inline, the compiler can see through the
-    // code and realize that some branches are always not taken. When that
-    // happens, no reference to the backends' GetInstance() is emitted and that
-    // allows the linker GC to get rid of the entire set of dependencies.
-    TracingConsumerBackend* (*system_backend_factory)();
-    system_backend_factory = nullptr;
-    // In case PERFETTO_IPC is disabled, a fake system backend is used, which
-    // always panics. NewTrace(kSystemBackend) should fail if PERFETTO_IPC is
-    // diabled, not panic.
-#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
-    if (backend & kSystemBackend) {
-      system_backend_factory =
-          &internal::SystemConsumerTracingBackend::GetInstance;
-    }
-#endif
-    return NewTraceInternal(backend, system_backend_factory);
-  }
+  static PERFETTO_ALWAYS_INLINE inline std::unique_ptr<TracingSession> NewTrace(
+      BackendType backend = kUnspecifiedBackend);
 
   // Shut down Perfetto, releasing any allocated OS resources (threads, files,
   // sockets, etc.). Note that Perfetto cannot be reinitialized again in the
@@ -513,6 +491,31 @@ class PERFETTO_EXPORT_COMPONENT StartupTracingSession {
   // be done even after this method returns.
   virtual void AbortBlocking() = 0;
 };
+
+PERFETTO_ALWAYS_INLINE inline std::unique_ptr<TracingSession>
+Tracing::NewTrace(BackendType backend) {
+  // This code is inlined to allow dead-code elimination for unused consumer
+  // implementation. The logic behind it is the following:
+  // Nothing other than the code below references the GetInstance() method
+  // below. From a linker-graph viewpoint, those GetInstance() pull in many
+  // other pieces of the codebase (ConsumerOnlySystemTracingBackend pulls
+  // ConsumerIPCClient). Due to the inline, the compiler can see through the
+  // code and realize that some branches are always not taken. When that
+  // happens, no reference to the backends' GetInstance() is emitted and that
+  // allows the linker GC to get rid of the entire set of dependencies.
+  TracingConsumerBackend* (*system_backend_factory)();
+  system_backend_factory = nullptr;
+  // In case PERFETTO_IPC is disabled, a fake system backend is used, which
+  // always panics. NewTrace(kSystemBackend) should fail if PERFETTO_IPC is
+  // diabled, not panic.
+#if PERFETTO_BUILDFLAG(PERFETTO_IPC)
+  if (backend & kSystemBackend) {
+    system_backend_factory =
+        &internal::SystemConsumerTracingBackend::GetInstance;
+  }
+#endif
+  return NewTraceInternal(backend, system_backend_factory);
+}
 
 }  // namespace perfetto
 
