@@ -215,14 +215,12 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   constexpr uint64_t kY = 2;
   constexpr uint64_t kA = 3;
   constexpr uint64_t kB = 4;
-  constexpr uint64_t kWeakRef = 5;
 
   base::StringView field = base::StringView("foo");
   StringPool::Id x = context.storage->InternString("X");
   StringPool::Id y = context.storage->InternString("Y");
   StringPool::Id a = context.storage->InternString("A");
   StringPool::Id b = context.storage->InternString("B");
-  StringPool::Id weak_ref = context.storage->InternString("WeakReference");
 
   tracker.AddInternedFieldName(kSeqId, kField, field);
 
@@ -244,22 +242,6 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
                           /*field_name_ids=*/{}, /*superclass_id=*/0,
                           /*classloader_id=*/0, /*no_fields=*/false,
                           protos::pbzero::HeapGraphType::KIND_NORMAL);
-  tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
-                          /*object_size=*/0,
-                          /*field_name_ids=*/{}, /*superclass_id=*/0,
-                          /*classloader_id=*/0, /*no_fields=*/false,
-                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
-  {
-    HeapGraphTracker::SourceObject obj;
-    obj.object_id = 999;
-    obj.self_size = 999;
-    obj.type_id = kWeakRef;
-    obj.field_name_ids = {kField};
-    obj.referred_objects = {5};
-
-    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
-  }
-
   {
     HeapGraphTracker::SourceObject obj;
     obj.object_id = 1;
@@ -309,7 +291,6 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   HeapGraphTracker::SourceRoot root;
   root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
   root.object_ids.emplace_back(1);
-  root.object_ids.emplace_back(999);
   tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
 
   tracker.FinalizeProfile(kSeqId);
@@ -318,16 +299,129 @@ TEST(HeapGraphTrackerTest, BuildFlamegraph) {
   ASSERT_NE(flame, nullptr);
 
   auto cumulative_sizes = flame->cumulative_size().ToVectorForTesting();
-  EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(15, 4, 14, 5, 999));
+  EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(15, 4, 14, 5));
 
   auto cumulative_counts = flame->cumulative_count().ToVectorForTesting();
-  EXPECT_THAT(cumulative_counts, UnorderedElementsAre(5, 4, 1, 1, 1));
+  EXPECT_THAT(cumulative_counts, UnorderedElementsAre(5, 4, 1, 1));
 
   auto sizes = flame->size().ToVectorForTesting();
-  EXPECT_THAT(sizes, UnorderedElementsAre(1, 5, 4, 5, 999));
+  EXPECT_THAT(sizes, UnorderedElementsAre(1, 5, 4, 5));
 
   auto counts = flame->count().ToVectorForTesting();
-  EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1, 1));
+  EXPECT_THAT(counts, UnorderedElementsAre(1, 2, 1, 1));
+}
+
+TEST(HeapGraphTrackerTest, BuildFlamegraphWeakReferences) {
+  // Regression test for http://b.corp.google.com/issues/302662734:
+  // For weak (and other) references, we should not follow the
+  // `java.lang.ref.Reference.referent` field, but we should follow other
+  // fields.
+  //
+  //                                   2@A 4@B
+  //  (java.lang.ref.Reference.referent) \ / (X.other)
+  //                                     1@X (extends WeakReference)
+
+  constexpr uint64_t kSeqId = 1;
+  constexpr UniquePid kPid = 1;
+  constexpr int64_t kTimestamp = 1;
+
+  TraceProcessorContext context;
+  context.storage.reset(new TraceStorage());
+  context.process_tracker.reset(new ProcessTracker(&context));
+  context.process_tracker->GetOrCreateProcess(kPid);
+
+  HeapGraphTracker tracker(context.storage.get());
+
+  constexpr uint64_t kLocation = 0;
+
+  base::StringView referent_field =
+      base::StringView("java.lang.ref.Reference.referent");
+  constexpr uint64_t kReferentField = 1;
+  base::StringView other_field = base::StringView("X.other");
+  constexpr uint64_t kOtherField = 2;
+
+  constexpr uint64_t kX = 1;
+  StringPool::Id x = context.storage->InternString("X");
+  constexpr uint64_t kA = 2;
+  StringPool::Id a = context.storage->InternString("A");
+  constexpr uint64_t kB = 4;
+  StringPool::Id b = context.storage->InternString("B");
+  constexpr uint64_t kWeakRef = 5;
+  StringPool::Id weak_ref = context.storage->InternString("WeakReference");
+
+  tracker.AddInternedFieldName(kSeqId, kReferentField, referent_field);
+  tracker.AddInternedFieldName(kSeqId, kOtherField, other_field);
+
+  tracker.AddInternedLocationName(kSeqId, kLocation,
+                                  context.storage->InternString("location"));
+
+  tracker.AddInternedType(kSeqId, kWeakRef, weak_ref, kLocation,
+                          /*object_size=*/0,
+                          /*field_name_ids=*/{kReferentField},
+                          /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
+  tracker.AddInternedType(kSeqId, kX, x, kLocation,
+                          /*object_size=*/0,
+                          /*field_name_ids=*/{kOtherField},
+                          /*superclass_id=*/kWeakRef,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_WEAK_REFERENCE);
+  tracker.AddInternedType(kSeqId, kA, a, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  tracker.AddInternedType(kSeqId, kB, b, kLocation, /*object_size=*/0,
+                          /*field_name_ids=*/{}, /*superclass_id=*/0,
+                          /*classloader_id=*/0, /*no_fields=*/false,
+                          protos::pbzero::HeapGraphType::KIND_NORMAL);
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 1;
+    obj.self_size = 1;
+    obj.type_id = kX;
+    obj.referred_objects = {/*X.other*/ 4,
+                            /*java.lang.ref.Reference.referent*/ 2};
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 2;
+    obj.self_size = 2;
+    obj.type_id = kA;
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  {
+    HeapGraphTracker::SourceObject obj;
+    obj.object_id = 4;
+    obj.self_size = 4;
+    obj.type_id = kB;
+    tracker.AddObject(kSeqId, kPid, kTimestamp, std::move(obj));
+  }
+
+  HeapGraphTracker::SourceRoot root;
+  root.root_type = protos::pbzero::HeapGraphRoot::ROOT_UNKNOWN;
+  root.object_ids.emplace_back(1);
+  tracker.AddRoot(kSeqId, kPid, kTimestamp, root);
+
+  tracker.FinalizeProfile(kSeqId);
+  std::unique_ptr<tables::ExperimentalFlamegraphNodesTable> flame =
+      tracker.BuildFlamegraph(kPid, kTimestamp);
+  ASSERT_NE(flame, nullptr);
+
+  auto cumulative_sizes = flame->cumulative_size().ToVectorForTesting();
+  EXPECT_THAT(cumulative_sizes, UnorderedElementsAre(4, 4 + 1));
+
+  auto cumulative_counts = flame->cumulative_count().ToVectorForTesting();
+  EXPECT_THAT(cumulative_counts, UnorderedElementsAre(1, 1 + 1));
+
+  auto sizes = flame->size().ToVectorForTesting();
+  EXPECT_THAT(sizes, UnorderedElementsAre(1, 4));
+
+  auto counts = flame->count().ToVectorForTesting();
+  EXPECT_THAT(counts, UnorderedElementsAre(1, 1));
 }
 
 static const char kArray[] = "X[]";
