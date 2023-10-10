@@ -9455,41 +9455,6 @@ android_monitor_contention {
     }
   }
   node {
-    node_id: 1303
-    ts: 1737162534263
-    dur: 420259
-    blocking_method: "void com.android.server.am.AppProfiler.collectPssInBackground()"
-    blocked_method: "void com.android.server.am.ProcessProfileRecord.onProcessInactive(com.android.server.am.ProcessStatsService)"
-    short_blocking_method: "com.android.server.am.AppProfiler.collectPssInBackground"
-    short_blocked_method: "com.android.server.am.ProcessProfileRecord.onProcessInactive"
-    blocking_src: "AppProfiler.java:514"
-    blocked_src: "ProcessProfileRecord.java:349"
-    waiter_count: 0
-    blocking_thread_name: "android.bg"
-    blocked_thread_name: "binder:642_14"
-    blocked_thread_tid: 3485
-    blocking_thread_tid: 670
-    process_name: "system_server"
-    pid: 642
-    is_blocked_thread_main: false
-    is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R"
-      thread_state_dur: 389378
-      thread_state_count: 2
-    }
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 8868
-      thread_state_count: 1
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 22013
-      thread_state_count: 2
-    }
-  }
-  node {
     node_child_id: 1307
     node_id: 1303
     ts: 1737162534263
@@ -9522,36 +9487,6 @@ android_monitor_contention {
     thread_states {
       thread_state: "Running"
       thread_state_dur: 22013
-      thread_state_count: 2
-    }
-  }
-  node {
-    node_id: 949
-    ts: 1737122781871
-    dur: 7301144
-    blocking_method: "void com.android.server.am.AppProfiler.collectPssInBackground()"
-    blocked_method: "void com.android.server.am.ProcessRecord.setPid(int)"
-    short_blocking_method: "com.android.server.am.AppProfiler.collectPssInBackground"
-    short_blocked_method: "com.android.server.am.ProcessRecord.setPid"
-    blocking_src: "AppProfiler.java:514"
-    blocked_src: "ProcessRecord.java:596"
-    waiter_count: 0
-    blocking_thread_name: "android.bg"
-    blocked_thread_name: "binder:642_12"
-    blocked_thread_tid: 2720
-    blocking_thread_tid: 670
-    process_name: "system_server"
-    pid: 642
-    is_blocked_thread_main: false
-    is_blocking_thread_main: false
-    thread_states {
-      thread_state: "R+"
-      thread_state_dur: 7127675
-      thread_state_count: 3
-    }
-    thread_states {
-      thread_state: "Running"
-      thread_state_dur: 173469
       thread_state_count: 2
     }
   }

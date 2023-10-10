@@ -342,6 +342,74 @@ auto VarIntField(M m) {
       testing::ResultOf(f, m));
 }
 
+// Matches a PerfettoPbDecoderField fixed64 field. Accepts an integer matcher
+//
+// Example:
+// PerfettoPbDecoderField field = ...
+// EXPECT_THAT(field, Fixed64Field(1)));
+template <typename M>
+auto Fixed64Field(M m) {
+  auto f = [](const PerfettoPbDecoderField& field) {
+    return field.value.integer64;
+  };
+  return testing::AllOf(
+      testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
+      testing::Field(&PerfettoPbDecoderField::wire_type,
+                     PERFETTO_PB_WIRE_TYPE_FIXED64),
+      testing::ResultOf(f, m));
+}
+
+// Matches a PerfettoPbDecoderField fixed32 field. Accepts an integer matcher
+//
+// Example:
+// PerfettoPbDecoderField field = ...
+// EXPECT_THAT(field, Fixed32Field(1)));
+template <typename M>
+auto Fixed32Field(M m) {
+  auto f = [](const PerfettoPbDecoderField& field) {
+    return field.value.integer32;
+  };
+  return testing::AllOf(
+      testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
+      testing::Field(&PerfettoPbDecoderField::wire_type,
+                     PERFETTO_PB_WIRE_TYPE_FIXED32),
+      testing::ResultOf(f, m));
+}
+
+// Matches a PerfettoPbDecoderField double field. Accepts an double matcher
+//
+// Example:
+// PerfettoPbDecoderField field = ...
+// EXPECT_THAT(field, DoubleField(1.0)));
+template <typename M>
+auto DoubleField(M m) {
+  auto f = [](const PerfettoPbDecoderField& field) {
+    return field.value.double_val;
+  };
+  return testing::AllOf(
+      testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
+      testing::Field(&PerfettoPbDecoderField::wire_type,
+                     PERFETTO_PB_WIRE_TYPE_FIXED64),
+      testing::ResultOf(f, m));
+}
+
+// Matches a PerfettoPbDecoderField float field. Accepts a float matcher
+//
+// Example:
+// PerfettoPbDecoderField field = ...
+// EXPECT_THAT(field, FloatField(1.0)));
+template <typename M>
+auto FloatField(M m) {
+  auto f = [](const PerfettoPbDecoderField& field) {
+    return field.value.float_val;
+  };
+  return testing::AllOf(
+      testing::Field(&PerfettoPbDecoderField::status, PERFETTO_PB_DECODER_OK),
+      testing::Field(&PerfettoPbDecoderField::wire_type,
+                     PERFETTO_PB_WIRE_TYPE_FIXED32),
+      testing::ResultOf(f, m));
+}
+
 // Matches a PerfettoPbDecoderField submessage field. Accepts a container
 // matcher for the subfields.
 //

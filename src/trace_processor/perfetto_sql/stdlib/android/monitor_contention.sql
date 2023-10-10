@@ -215,15 +215,16 @@ AND child.ts BETWEEN parent.ts AND parent.ts + parent.dur;
 -- Monitor contention slices that are neither blocking nor blocked by another monitor contention
 -- slice. They neither have |parent_id| nor |child_id| fields.
 CREATE TABLE internal_isolated AS
-WITH
-  x AS (
+WITH parents_and_children AS (
+ SELECT id FROM internal_children
+ UNION ALL
+ SELECT id FROM internal_parents
+), isolated AS (
     SELECT id FROM android_monitor_contention
     EXCEPT
-    SELECT id FROM internal_children
-    UNION ALL
-    SELECT id FROM internal_parents
+    SELECT id FROM parents_and_children
   )
-SELECT * FROM android_monitor_contention JOIN x USING (id);
+SELECT * FROM android_monitor_contention JOIN isolated USING (id);
 
 -- Contains parsed monitor contention slices with the parent-child relationships.
 --

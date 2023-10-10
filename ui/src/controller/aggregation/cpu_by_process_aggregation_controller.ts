@@ -30,9 +30,8 @@ export class CpuByProcessAggregationController extends AggregationController {
       const track = globals.state.tracks[trackId];
       if (track?.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-          const cpu = trackInfo?.tags?.cpu;
-          cpu && selectedCpus.push(cpu);
+        if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
+          trackInfo.cpu && selectedCpus.push(trackInfo.cpu);
         }
       }
     }

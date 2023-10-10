@@ -24,15 +24,19 @@ namespace {
 
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 ProtoEnum MetatraceCategoriesToProtoEnum(MetatraceCategories categories) {
+  // Note: these are intentionally chained ifs and not else-ifs as it's possible
+  // for multiple of these if statements to be true.
   ProtoEnum result = ProtoEnum::NONE;
-  if (categories & MetatraceCategories::TOPLEVEL)
-    result = static_cast<ProtoEnum>(result | ProtoEnum::TOPLEVEL);
-  if (categories & MetatraceCategories::FUNCTION)
-    result = static_cast<ProtoEnum>(result | ProtoEnum::FUNCTION);
-  if (categories & MetatraceCategories::QUERY)
-    result = static_cast<ProtoEnum>(result | ProtoEnum::QUERY);
+  if (categories & MetatraceCategories::QUERY_TIMELINE)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::QUERY_TIMELINE);
+  if (categories & MetatraceCategories::FUNCTION_CALL)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::FUNCTION_CALL);
+  if (categories & MetatraceCategories::QUERY_DETAILED)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::QUERY_DETAILED);
   if (categories & MetatraceCategories::DB)
     result = static_cast<ProtoEnum>(result | ProtoEnum::DB);
+  if (categories & MetatraceCategories::API_TIMELINE)
+    result = static_cast<ProtoEnum>(result | ProtoEnum::API_TIMELINE);
   return result;
 }
 

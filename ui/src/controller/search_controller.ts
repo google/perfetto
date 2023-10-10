@@ -204,8 +204,8 @@ export class SearchController extends Controller<'main'> {
     for (const track of Object.values(globals.state.tracks)) {
       if (exists(track?.uri)) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-        if (trackInfo?.tags?.kind === CPU_SLICE_TRACK_KIND) {
-          const cpu = trackInfo?.tags?.cpu;
+        if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
+          const cpu = trackInfo?.cpu;
           cpu && cpuToTrackId.set(cpu, track.id);
         }
       }

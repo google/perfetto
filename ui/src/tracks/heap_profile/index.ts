@@ -23,8 +23,8 @@ import {TrackController} from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
@@ -88,7 +88,7 @@ const HEAP_PROFILE_COLOR = 'hsl(224, 45%, 70%)';
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
-class HeapProfileTrack extends Track<Config, Data> {
+class HeapProfileTrack extends TrackBase<Config, Data> {
   static readonly kind = HEAP_PROFILE_TRACK_KIND;
   static create(args: NewTrackArgs): HeapProfileTrack {
     return new HeapProfileTrack(args);
@@ -217,12 +217,12 @@ class HeapProfileTrack extends Track<Config, Data> {
 
 class HeapProfilePlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrackController(HeapProfileTrackController);
-    ctx.registerTrack(HeapProfileTrack);
+    ctx.LEGACY_registerTrackController(HeapProfileTrackController);
+    ctx.LEGACY_registerTrack(HeapProfileTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.HeapProfile',
   plugin: HeapProfilePlugin,
 };

@@ -17,7 +17,7 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
-import {Plugin, PluginContext, PluginInfo} from '../../public';
+import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export interface GenericSliceTrackConfig {
   sqlTrackId: number;
@@ -47,11 +47,11 @@ export class GenericSliceTrack extends NamedSliceTrack<GenericSliceTrackTypes> {
 
 class GenericSliceTrackPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.registerTrack(GenericSliceTrack);
+    ctx.LEGACY_registerTrack(GenericSliceTrack);
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.GenericSliceTrack',
   plugin: GenericSliceTrackPlugin,
 };

@@ -9,6 +9,29 @@ Unreleased:
     *
 
 
+v38.0 - 2023-10-10:
+  Tracing service and probes:
+    * Added capability to transfer and clear buffers on CLONE_SNAPSHOT.
+    * Added new service for relaying IPC messages from local producers to a
+      remote tracing instance.
+  Trace Processor:
+    * Added new PerfettoSQL syntax (INCLUDE PERFETTO MODULE) for including
+      tables/views/functions defined in SQL modules.
+    * Added new PerfettoSQL syntax (CREATE PERFETTO TABLE) for defining analytic
+      tables in SQL.
+    * Added new PerfettoSQL syntax (CREATE PERFETTO MACRO) for defining macros
+      in SQL.
+    * Added TO_REALTIME function to convert timestamps to the realtime clock.
+    * Added support for parsing binder_command and binder_return events.
+  UI:
+    * Added support for zooming when using deep-links.
+    * Added track for displaying screenshots in traces.
+    * Added support for displaying UTC timestamps.
+    * Added capability to list, search and debug plugin tracks.
+    * Added plugins with commands for pinning tracks for latency and large
+      screen debugging in Android.
+
+
 v37.0 - 2023-08-10:
   Tracing service and probes:
     * Fixed a bug which would cause sessions cloned with CLONE_SNAPSHOT to not

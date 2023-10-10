@@ -16,10 +16,12 @@
 
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_engine.h"
 
+#include <cctype>
 #include <memory>
 #include <optional>
 #include <string>
 #include <variant>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/status_or.h"
@@ -28,6 +30,7 @@
 #include "src/trace_processor/perfetto_sql/engine/created_function.h"
 #include "src/trace_processor/perfetto_sql/engine/function_util.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -36,6 +39,31 @@
 #include "src/trace_processor/tp_metatrace.h"
 #include "src/trace_processor/util/status_macros.h"
 
+// Implementation details
+// ----------------------
+//
+// The execution of PerfettoSQL statements is the joint responsibility of
+// several classes which all are linked together in the following way:
+//
+//  PerfettoSqlEngine -> PerfettoSqlParser -> PerfettoSqlPreprocessor
+//
+// The responsibility of each of these classes is as follows:
+//
+// * PerfettoSqlEngine: this class is responsible for the end-to-end processing
+//   of statements. It calls into PerfettoSqlParser to incrementally receive
+//   parsed SQL statements and then executes them. If the statement is a
+//   PerfettoSQL-only statement, the execution happens entirely in this class.
+//   Otherwise, if the statement is a valid SQLite statement, SQLite is called
+//   into to perform the execution.
+// * PerfettoSqlParser: this class is responsible for taking a chunk of SQL and
+//   incrementally converting them into parsed SQL statement. The parser calls
+//   into the PerfettoSqlPreprocessor to split the SQL chunk into a statement
+//   and perform any macro expansion. It then tries to parse any
+//   PerfettoSQL-only statements into their component parts and leaves SQLite
+//   statements as-is for execution by SQLite.
+// * PerfettoSqlPreprocessor: this class is responsible for taking a chunk of
+//   SQL and breaking them into statements, while also expanding any macros
+//   which might be present inside.
 namespace perfetto {
 namespace trace_processor {
 namespace {
@@ -89,6 +117,13 @@ base::Status AddTracebackIfNeeded(base::Status status,
   status = base::ErrStatus("%s%s", traceback.c_str(), status.c_message());
   status.SetPayload("perfetto.dev/has_traceback", "true");
   return status;
+}
+
+// This function is used when the the PerfettoSQL has been fully executed by the
+// PerfettoSqlEngine and a SqlSoruce is needed for SQLite to execute.
+SqlSource RewriteToDummySql(const SqlSource& source) {
+  return source.RewriteAllIgnoreExisting(
+      SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
 }
 
 }  // namespace
@@ -187,7 +222,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   //    statement for the last valid statement.
   std::optional<SqliteEngine::PreparedStatement> res;
   ExecutionStats stats;
-  PerfettoSqlParser parser(std::move(sql_source));
+  PerfettoSqlParser parser(std::move(sql_source), macros_);
   while (parser.Next()) {
     std::optional<SqlSource> source;
     if (auto* cf = std::get_if<PerfettoSqlParser::CreateFunction>(
@@ -200,17 +235,16 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
                    &parser.statement())) {
       RETURN_IF_ERROR(AddTracebackIfNeeded(
           RegisterRuntimeTable(cst->name, cst->sql), parser.statement_sql()));
-      // Since the rest of the code requires a statement, just use a no-value
-      // dummy statement.
-      source = parser.statement_sql().FullRewrite(
-          SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+      source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* include = std::get_if<PerfettoSqlParser::Include>(
                    &parser.statement())) {
       RETURN_IF_ERROR(ExecuteInclude(*include, parser));
-      // Since the rest of the code requires a statement, just use a no-value
-      // dummy statement.
-      source = parser.statement_sql().FullRewrite(
-          SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+      source = RewriteToDummySql(parser.statement_sql());
+    } else if (auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(
+                   &parser.statement())) {
+      auto sql = macro->sql;
+      RETURN_IF_ERROR(ExecuteCreateMacro(*macro));
+      source = RewriteToDummySql(sql);
     } else {
       // If none of the above matched, this must just be an SQL statement
       // directly executable by SQLite.
@@ -223,7 +257,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // Try to get SQLite to prepare the statement.
     std::optional<SqliteEngine::PreparedStatement> cur_stmt;
     {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "QUERY_PREPARE");
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "QUERY_PREPARE");
       auto stmt = engine_->PrepareStatement(std::move(*source));
       RETURN_IF_ERROR(stmt.status());
       cur_stmt = std::move(stmt);
@@ -238,9 +272,11 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // the previous statement so we don't have two clashing statements (e.g.
     // SELECT * FROM v and DROP VIEW v) partially stepped into.
     if (res && !res->IsDone()) {
-      PERFETTO_TP_TRACE(metatrace::Category::QUERY, "STMT_STEP_UNTIL_DONE",
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE,
+                        "STMT_STEP_UNTIL_DONE",
                         [&res](metatrace::Record* record) {
-                          record->AddArg("SQL", res->expanded_sql());
+                          record->AddArg("Original SQL", res->original_sql());
+                          record->AddArg("Executed SQL", res->sql());
                         });
       while (res->Step()) {
       }
@@ -253,11 +289,14 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
     // Step the newly prepared statement once. This is considered to be
     // "executing" the statement.
     {
-      PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "STMT_FIRST_STEP",
+      PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "STMT_FIRST_STEP",
                         [&res](metatrace::Record* record) {
-                          record->AddArg("SQL", res->expanded_sql());
+                          record->AddArg("Original SQL", res->original_sql());
+                          record->AddArg("Executed SQL", res->sql());
                         });
-      PERFETTO_DLOG("Executing statement: %s", res->sql());
+      PERFETTO_DLOG("Executing statement");
+      PERFETTO_DLOG("Original SQL: %s", res->original_sql());
+      PERFETTO_DLOG("Executed SQL: %s", res->sql());
       res->Step();
       RETURN_IF_ERROR(res->status());
     }
@@ -411,8 +450,8 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
     const PerfettoSqlParser::Include& include,
     const PerfettoSqlParser& parser) {
   std::string key = include.key;
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "Import",
-                    [key](metatrace::Record* r) { r->AddArg("Import", key); });
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "Include",
+                    [key](metatrace::Record* r) { r->AddArg("Module", key); });
   std::string module_name = sql_modules::GetModuleName(key);
   auto module = FindModule(module_name);
   if (!module)
@@ -447,11 +486,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
   if (!cf.is_table) {
     RETURN_IF_ERROR(
         RegisterSqlFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
-
-    // Since the rest of the code requires a statement, just use a no-value
-    // dummy statement.
-    return parser.statement_sql().FullRewrite(
-        SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
+    return RewriteToDummySql(parser.statement_sql());
   }
 
   RuntimeTableFunction::State state{cf.prototype, cf.sql, {}, {}, std::nullopt};
@@ -565,8 +600,57 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
 
   base::StackString<1024> create(
       "CREATE VIRTUAL TABLE %s USING runtime_table_function", fn_name.c_str());
-  return cf.sql.FullRewrite(
+  return cf.sql.RewriteAllIgnoreExisting(
       SqlSource::FromTraceProcessorImplementation(create.ToStdString()));
+}
+
+base::Status PerfettoSqlEngine::ExecuteCreateMacro(
+    const PerfettoSqlParser::CreateMacro& create_macro) {
+  // Check that the argument types is one of the allowed types.
+  for (const auto& [name, type] : create_macro.args) {
+    std::string lower_type = base::ToLower(type.sql());
+    if (lower_type != "tableorsubquery" && lower_type != "expr") {
+      // TODO(lalitm): add a link to create macro documentation.
+      return base::ErrStatus(
+          "%sMacro %s argument %s is unkown type %s. Allowed types: "
+          "TableOrSubquery, Expr",
+          type.AsTraceback(0).c_str(), create_macro.name.sql().c_str(),
+          name.sql().c_str(), type.sql().c_str());
+    }
+  }
+  std::string lower_return = base::ToLower(create_macro.returns.sql());
+  if (lower_return != "tableorsubquery" && lower_return != "expr") {
+    // TODO(lalitm): add a link to create macro documentation.
+    return base::ErrStatus(
+        "%sMacro %s return type %s is unknown. Allowed types: "
+        "TableOrSubquery, Expr",
+        create_macro.returns.AsTraceback(0).c_str(),
+        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str());
+  }
+
+  std::vector<std::string> args;
+  for (const auto& arg : create_macro.args) {
+    args.push_back(arg.first.sql());
+  }
+  PerfettoSqlPreprocessor::Macro macro{
+      create_macro.replace,
+      create_macro.name.sql(),
+      std::move(args),
+      create_macro.sql,
+  };
+  if (auto it = macros_.Find(create_macro.name.sql()); it) {
+    if (!create_macro.replace) {
+      // TODO(lalitm): add a link to create macro documentation.
+      return base::ErrStatus("%sMacro already exists",
+                             create_macro.name.AsTraceback(0).c_str());
+    }
+    *it = std::move(macro);
+    return base::OkStatus();
+  }
+  std::string name = macro.name;
+  auto it_and_inserted = macros_.Insert(std::move(name), std::move(macro));
+  PERFETTO_CHECK(it_and_inserted.second);
+  return base::OkStatus();
 }
 
 RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(

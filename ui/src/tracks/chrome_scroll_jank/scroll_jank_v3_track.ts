@@ -19,12 +19,12 @@ import {
 } from '../../common/colorizer';
 import {Engine} from '../../common/engine';
 import {
-  PrimaryTrackSortKey,
   SCROLLING_TRACK_GROUP,
 } from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -48,7 +48,7 @@ export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
 
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ScrollJankV3Track(args);
   }
 
@@ -134,7 +134,7 @@ export async function addScrollJankV3ScrollTrack(engine: Engine):
   };
 
   await engine.query(
-      `SELECT IMPORT('chrome.scroll_jank.scroll_jank_intervals')`);
+      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
 
   result.tracksToAdd.push({
     id: uuidv4(),

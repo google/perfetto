@@ -154,7 +154,7 @@ export interface PluginContext {
   // 'TrackController' and a 'Track'. In more recent versions of the UI
   // the functionality of |TrackController| has been merged into Track so
   // |TrackController|s are not necessary in new code.
-  registerTrackController(track: TrackControllerFactory): void;
+  LEGACY_registerTrackController(track: TrackControllerFactory): void;
 
   // Register a track factory. The core UI invokes |TrackCreator| to
   // construct tracks discovered by invoking |TrackProvider|s.
@@ -164,25 +164,30 @@ export interface PluginContext {
   // which returns GPU counter tracks. The counter track factory itself
   // could be registered in dev.perfetto.CounterTrack - a whole
   // different plugin.
-  registerTrack(track: TrackCreator): void;
+  LEGACY_registerTrack(track: TrackCreator): void;
 
   // Add a command.
   addCommand(command: Command): void;
 }
 
-export interface TrackContext {
-  // A unique ID for the instance of this track.
-  trackInstanceId: string;
-}
+export type Migrate<State> = (init: unknown) => State;
 
 export interface TrackContext {
-  // A unique ID for the instance of this track.
+  // The ID of this track instance.
   trackInstanceId: string;
+
+  // Creates a new store overlaying the track instance's state object.
+  // A migrate function must be passed to convert any existing state to a
+  // compatible format.
+  // When opening a fresh trace, the value of |init| will be undefined, and
+  // state should be updated to an appropriate default value.
+  // When loading a permalink, the value of |init| will be whatever was saved
+  // when the permalink was shared, which might be from an old version of this
+  // track.
+  mountStore<State>(migrate: Migrate<State>): Store<State>;
 }
 
-// TODO(stevegolton): Rename `Track` to `BaseTrack` (or similar) and rename this
-// interface to `Track`.
-export interface TrackLike {
+export interface Track {
   onCreate(): void;
   render(ctx: CanvasRenderingContext2D): void;
   onFullRedraw(): void;
@@ -199,7 +204,7 @@ export interface TrackLike {
   onDestroy(): void;
 }
 
-export interface PluginTrackInfo {
+export interface TrackDescriptor {
   // A unique identifier for the track. This must be unique within all tracks.
   uri: string;
 
@@ -208,34 +213,83 @@ export interface PluginTrackInfo {
   displayName: string;
 
   // A factory function returning the track object.
-  trackFactory: (ctx: TrackContext) => TrackLike;
+  track: (ctx: TrackContext) => Track;
 
-  // A list of tags used for sorting and grouping.
+  // The track "kind" Uued by various subsystems e.g. aggregation controllers.
+  // This is where "XXX_TRACK_KIND" values should be placed.
+  // TODO(stevegolton): This will be deprecated once we handle group selections
+  // in a more generic way - i.e. EventSet.
+  kind: string;
+
+  // An optional list of track IDs represented by this trace.
+  // This list is used for participation in track indexing by track ID.
+  // This index is used by various subsystems to find links between tracks based
+  // on the track IDs used by trace processor.
+  trackIds?: number[];
+
+  // Optional: The CPU number associated with this track.
+  cpu?: number;
+
+  // Optional: A list of tags used for sorting, grouping and "chips".
   tags?: TrackTags;
+}
+
+// Tracks within track groups (usually corresponding to processes) are sorted.
+// As we want to group all tracks related to a given thread together, we use
+// two keys:
+// - Primary key corresponds to a priority of a track block (all tracks related
+//   to a given thread or a single track if it's not thread-associated).
+// - Secondary key corresponds to a priority of a given thread-associated track
+//   within its thread track block.
+// Each track will have a sort key, which either a primary sort key
+// (for non-thread tracks) or a tid and secondary sort key (mapping of tid to
+// primary sort key is done independently).
+export enum PrimaryTrackSortKey {
+  DEBUG_SLICE_TRACK,
+  NULL_TRACK,
+  PROCESS_SCHEDULING_TRACK,
+  PROCESS_SUMMARY_TRACK,
+  EXPECTED_FRAMES_SLICE_TRACK,
+  ACTUAL_FRAMES_SLICE_TRACK,
+  PERF_SAMPLES_PROFILE_TRACK,
+  HEAP_PROFILE_TRACK,
+  MAIN_THREAD,
+  RENDER_THREAD,
+  GPU_COMPLETION_THREAD,
+  CHROME_IO_THREAD,
+  CHROME_COMPOSITOR_THREAD,
+  ORDINARY_THREAD,
+  COUNTER_TRACK,
+  ASYNC_SLICE_TRACK,
+  ORDINARY_TRACK,
 }
 
 // Similar to PluginContext but with additional properties to operate on the
 // currently loaded trace. Passed to trace-relevant hooks instead of
 // PluginContext.
-export interface TracePluginContext<T = undefined> extends PluginContext {
+export interface PluginContextTrace<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
 
   // Add a new track from this plugin. The track is just made available here,
   // it's not automatically shown until it's added to a workspace.
-  addTrack(trackDetails: PluginTrackInfo): void;
+  addTrack(trackDetails: TrackDescriptor): void;
+
+  // Suggest a track be added to the workspace on a fresh trace load.
+  // Supersedes `findPotentialTracks()` which has been removed.
+  // Note: this API will be deprecated soon.
+  suggestTrack(trackInfo: TrackInstanceDescriptor): void;
 }
 
 export interface BasePlugin<State> {
   // Lifecycle methods.
   onActivate(ctx: PluginContext): void;
-  onTraceLoad?(ctx: TracePluginContext<State>): Promise<void>;
-  onTraceUnload?(ctx: TracePluginContext<State>): Promise<void>;
+  onTraceLoad?(ctx: PluginContextTrace<State>): Promise<void>;
+  onTraceUnload?(ctx: PluginContextTrace<State>): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
-  findPotentialTracks?(ctx: TracePluginContext<State>): Promise<TrackInfo[]>;
 }
 
 export interface StatefulPlugin<State> extends BasePlugin<State> {
@@ -264,17 +318,17 @@ export interface PluginClass<T> {
   new(): Plugin<T>;
 }
 
-export interface TrackInfo {
-  // The id of this 'type' of track. This id is used to select the
-  // correct |TrackCreator| to construct the track.
-  trackKind: string;
-
+export interface TrackInstanceDescriptor {
   // A human readable name for this specific track. It will normally be
   // displayed on the left-hand-side of the track.
   name: string;
 
-  // An opaque config for the track.
-  config: {};
+  // Used to define default sort order for new traces.
+  // Note: sortKey will be deprecated soon in favour of tags.
+  sortKey: PrimaryTrackSortKey;
+
+  // URI of the suggested track.
+  uri: string;
 }
 
 // A predicate for selecting a groups of tracks.
@@ -284,30 +338,28 @@ interface WellKnownTrackTags {
   // A human readable name for this specific track.
   name: string;
 
-  // This is where "XXX_TRACK_KIND" values should be placed.
-  kind: string;
+  // Controls whether to show the "metric" chip.
+  metric: boolean;
 
-  // The CPU number associated with this track.
-  cpu: number;
+  // Controls whether to show the "debuggable" chip.
+  debuggable: boolean;
 }
 
 // An set of key/value pairs describing a given track. These are used for
-// selecting tracks to pin/unpin and (in future) the sorting and grouping of
-// tracks.
-// These are also (ab)used for communicating information about tracks for the
-// purposes of locating tracks by their properties e.g. aggregation & search.
+// selecting tracks to pin/unpin, diplsaying "chips" in the track shell, and
+// (in future) the sorting and grouping of tracks.
 // We define a handful of well known fields, and the rest are arbitrary key-
 // value pairs.
 export type TrackTags = Partial<WellKnownTrackTags>&{
   // There may be arbitrary other key/value pairs.
-  [key: string]: string|number|undefined;
+  [key: string]: string|number|boolean|undefined;
 }
 
 // Plugins can be passed as class refs, factory functions, or concrete plugin
 // implementations.
 export type PluginFactory<T> = PluginClass<T>|Plugin<T>|(() => Plugin<T>);
 
-export interface PluginInfo<T = undefined> {
+export interface PluginDescriptor<T = undefined> {
   // A unique string for your plugin. To ensure the name is unique you
   // may wish to use a URL with reversed components in the manner of
   // Java package names.

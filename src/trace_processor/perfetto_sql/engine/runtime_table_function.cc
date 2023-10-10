@@ -126,7 +126,7 @@ RuntimeTableFunction::Cursor::~Cursor() {
 base::Status RuntimeTableFunction::Cursor::Filter(const QueryConstraints& qc,
                                                   sqlite3_value** argv,
                                                   FilterHistory) {
-  PERFETTO_TP_TRACE(metatrace::Category::FUNCTION, "TABLE_FUNCTION_CALL",
+  PERFETTO_TP_TRACE(metatrace::Category::FUNCTION_CALL, "TABLE_FUNCTION_CALL",
                     [this](metatrace::Record* r) {
                       r->AddArg("Function",
                                 state_->prototype.function_name.c_str());

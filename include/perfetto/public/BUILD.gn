@@ -28,6 +28,7 @@ source_set("public") {
     "pb_decoder.h",
     "pb_macros.h",
     "pb_msg.h",
+    "pb_packed.h",
     "producer.h",
     "stream_writer.h",
     "te_category_macros.h",

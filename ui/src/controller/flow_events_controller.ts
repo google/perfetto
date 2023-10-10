@@ -15,6 +15,7 @@
 import {Time} from '../base/time';
 import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
+import {pluginManager} from '../common/plugins';
 import {LONG, NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {Flow, globals} from '../frontend/globals';
@@ -241,6 +242,17 @@ export class FlowEventsController extends Controller<'main'> {
         uiTrackIdToInfo.set(uiTrackId, null);
         trackIdToInfo.set(trackId, null);
         return null;
+      }
+
+      // Perform the same check for "plugin" style tracks.
+      if (track.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const trackIds = trackInfo?.trackIds;
+        if (trackIds === undefined || trackIds.length <= 1) {
+          uiTrackIdToInfo.set(uiTrackId, null);
+          trackIdToInfo.set(trackId, null);
+          return null;
+        }
       }
 
       const newInfo = {

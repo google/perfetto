@@ -15,20 +15,20 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Engine} from '../../common/engine';
-import {
-  PrimaryTrackSortKey,
-  SCROLLING_TRACK_GROUP,
-} from '../../common/state';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
-import {ScrollJankPluginState} from './index';
 
-import {ScrollJankTracks as DecideTracksResult} from './index';
+import {
+  ScrollJankPluginState,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
 export {Data} from '../chrome_slices';
@@ -37,7 +37,7 @@ export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
 
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new TopLevelScrollTrack(args);
   }
 
@@ -82,7 +82,10 @@ export async function addTopLevelScrollTrack(engine: Engine):
     tracksToAdd: [],
   };
 
-  await engine.query(`SELECT IMPORT('chrome.chrome_scrolls')`);
+  await engine.query(`
+    INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
+    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
+  `);
 
   result.tracksToAdd.push({
     id: uuidv4(),

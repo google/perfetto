@@ -18,10 +18,15 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_PARSER_H_
 
 #include <optional>
+#include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
+#include <vector>
 
+#include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/sqlite/sql_source.h"
 #include "src/trace_processor/sqlite/sqlite_tokenizer.h"
 
@@ -63,12 +68,23 @@ class PerfettoSqlParser {
   struct Include {
     std::string key;
   };
-  using Statement =
-      std::variant<SqliteSql, CreateFunction, CreateTable, Include>;
+  // Indicates that the specified SQL was a CREATE PERFETTO MACRO statement
+  // with the following parameter.
+  struct CreateMacro {
+    bool replace;
+    SqlSource name;
+    std::vector<std::pair<SqlSource, SqlSource>> args;
+    SqlSource returns;
+    SqlSource sql;
+  };
+  using Statement = std::
+      variant<SqliteSql, CreateFunction, CreateTable, Include, CreateMacro>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
-  explicit PerfettoSqlParser(SqlSource);
+  explicit PerfettoSqlParser(
+      SqlSource,
+      const base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro>&);
 
   // Attempts to parse to the next statement in the SQL. Returns true if
   // a statement was successfully parsed and false if EOF was reached or the
@@ -94,11 +110,15 @@ class PerfettoSqlParser {
   }
 
   // Returns the error status for the parser. This will be |base::OkStatus()|
-  // until
+  // until an unrecoverable error is encountered.
   const base::Status& status() const { return status_; }
 
  private:
-  // This cannot be moved because we keep pointers into |sql_| in |tokenizer_|.
+  using Argument =
+      std::pair<SqlSource /* name token */, SqlSource /* type token */>;
+
+  // This cannot be moved because we keep pointers into |sql_| in
+  // |preprocessor_|.
   PerfettoSqlParser(PerfettoSqlParser&&) = delete;
   PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
 
@@ -110,11 +130,15 @@ class PerfettoSqlParser {
 
   bool ParseIncludePerfettoModule(SqliteTokenizer::Token first_non_space_token);
 
-  bool ParseArgumentDefinitions(std::string*);
+  bool ParseCreatePerfettoMacro(bool replace);
+
+  bool ParseArgumentDefinitions(std::vector<Argument>&);
 
   bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
 
+  PerfettoSqlPreprocessor preprocessor_;
   SqliteTokenizer tokenizer_;
+
   base::Status status_;
   std::optional<SqlSource> statement_sql_;
   std::optional<Statement> statement_;

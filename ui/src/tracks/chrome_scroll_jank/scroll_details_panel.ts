@@ -39,7 +39,14 @@ import {DurationWidget} from '../../widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';
+import {MultiParagraphText, TextParagraph} from '../../widgets/text_paragraph';
 import {dictToTreeNodes, Tree} from '../../widgets/tree';
+import {
+  buildScrollOffsetsGraph,
+  getAppliedScrollDeltas,
+  getJankIntervals,
+  getUserScrollDeltas,
+} from './scroll_delta_graph';
 
 import {
   getScrollJankSlices,
@@ -69,7 +76,9 @@ interface Metrics {
   jankyFrameCount?: number;
   jankyFramePercent?: number;
   missedVsyncs?: number;
-  // TODO(b/279581028): add pixels scrolled.
+  startOffset?: number;
+  endOffset?: number;
+  totalPixelsScrolled?: number;
 }
 
 interface JankSliceDetails {
@@ -85,7 +94,8 @@ export class ScrollDetailsPanel extends
   loaded = false;
   data: Data|undefined;
   metrics: Metrics = {};
-  maxJankSlices: JankSliceDetails[] = [];
+  orderedJankSlices: JankSliceDetails[] = [];
+  scrollDeltas: m.Child;
 
   static create(args: NewBottomTabArgs): ScrollDetailsPanel {
     return new ScrollDetailsPanel(args);
@@ -134,7 +144,8 @@ export class ScrollDetailsPanel extends
   private async loadMetrics() {
     await this.loadInputEventCount();
     await this.loadFrameStats();
-    await this.loadMaxDelay();
+    await this.loadDelayData();
+    await this.loadScrollOffsets();
   }
 
   private async loadInputEventCount() {
@@ -188,48 +199,68 @@ export class ScrollDetailsPanel extends
     }
   }
 
-  private async loadMaxDelay() {
+  private async loadDelayData() {
     if (exists(this.data)) {
       const queryResult = await this.engine.query(`
-        WITH max_delay_tbl AS (
-          SELECT
-            MAX(dur) AS max_dur
-          FROM chrome_janky_frame_presentation_intervals s
-          WHERE s.ts >= ${this.data.ts}
-            AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
-        )
         SELECT
           IFNULL(sub_cause_of_jank, IFNULL(cause_of_jank, 'Unknown')) AS cause,
           IFNULL(event_latency_id, 0) AS eventLatencyId,
-          IFNULL(MAX(dur), 0) AS maxDelayDur,
-          IFNULL(delayed_frame_count, 0) AS maxDelayVsync
+          IFNULL(dur, 0) AS delayDur,
+          IFNULL(delayed_frame_count, 0) AS delayVsync
         FROM chrome_janky_frame_presentation_intervals s
         WHERE s.ts >= ${this.data.ts}
           AND s.ts + s.dur <= ${this.data.ts + this.data.dur}
-          AND dur IN (SELECT max_dur FROM max_delay_tbl)
-        GROUP BY eventLatencyId, cause;
+        ORDER by delayDur DESC;
       `);
 
       const iter = queryResult.iter({
         cause: STR,
         eventLatencyId: NUM,
-        maxDelayDur: LONG,
-        maxDelayVsync: NUM,
+        delayDur: LONG,
+        delayVsync: NUM,
       });
 
       for (; iter.valid(); iter.next()) {
-        if (iter.maxDelayDur <= 0) {
+        if (iter.delayDur <= 0) {
           break;
         }
         const jankSlices =
             await getScrollJankSlices(this.engine, iter.eventLatencyId);
 
-        this.maxJankSlices.push({
+        this.orderedJankSlices.push({
           cause: iter.cause,
           jankSlice: jankSlices[0],
-          delayDur: iter.maxDelayDur,
-          delayVsync: iter.maxDelayVsync,
+          delayDur: iter.delayDur,
+          delayVsync: iter.delayVsync,
         });
+      }
+    }
+  }
+
+  private async loadScrollOffsets() {
+    if (exists(this.data)) {
+      const userDeltas =
+          await getUserScrollDeltas(this.engine, this.data.ts, this.data.dur);
+      const appliedDeltas = await getAppliedScrollDeltas(
+          this.engine, this.data.ts, this.data.dur);
+      const jankIntervals =
+          await getJankIntervals(this.engine, this.data.ts, this.data.dur);
+      this.scrollDeltas =
+          buildScrollOffsetsGraph(userDeltas, appliedDeltas, jankIntervals);
+
+      if (appliedDeltas.length > 0) {
+        this.metrics.startOffset = appliedDeltas[0].scrollOffset;
+        this.metrics.endOffset =
+            appliedDeltas[appliedDeltas.length - 1].scrollOffset;
+
+        let pixelsScrolled = 0;
+        for (let i = 0; i < appliedDeltas.length; i++) {
+          pixelsScrolled += Math.abs(appliedDeltas[i].scrollDelta);
+        }
+
+        if (pixelsScrolled != 0) {
+          this.metrics.totalPixelsScrolled = pixelsScrolled;
+        }
       }
     }
   }
@@ -245,20 +276,38 @@ export class ScrollDetailsPanel extends
 
     if (this.metrics.jankyFramePercent !== undefined) {
       metrics['Janky Frame Percentage (Total Janky Frames / Total Chrome Presented Frames)'] =
-          sqlValueToString(`${this.metrics.jankyFramePercent}%`);
+          `${this.metrics.jankyFramePercent}%`;
+    }
+
+    if (this.metrics.startOffset != undefined) {
+      metrics['Starting Offset'] = this.metrics.startOffset;
+    }
+
+    if (this.metrics.endOffset != undefined) {
+      metrics['Ending Offset'] = this.metrics.endOffset;
+    }
+
+    if (this.metrics.startOffset != undefined &&
+        this.metrics.endOffset != undefined) {
+      metrics['Net Pixels Scrolled'] =
+          Math.abs(this.metrics.endOffset - this.metrics.startOffset);
+    }
+
+    if (this.metrics.totalPixelsScrolled != undefined) {
+      metrics['Total Pixels Scrolled (all directions)'] =
+          this.metrics.totalPixelsScrolled;
     }
 
     return dictToTreeNodes(metrics);
   }
 
-  private getMaxDelayTable(): m.Child {
-    if (this.maxJankSlices.length > 0) {
+  private getDelayTable(): m.Child {
+    if (this.orderedJankSlices.length > 0) {
       interface DelayData {
         jankLink: m.Child;
         dur: m.Child;
         delayedVSyncs: number;
       }
-      ;
 
       const columns: ColumnDescriptor<DelayData>[] = [
         widgetColumn<DelayData>('Cause', (x) => x.jankLink),
@@ -266,7 +315,7 @@ export class ScrollDetailsPanel extends
         numberColumn<DelayData>('Delayed Vsyncs', (x) => x.delayedVSyncs),
       ];
       const data: DelayData[] = [];
-      for (const jankSlice of this.maxJankSlices) {
+      for (const jankSlice of this.orderedJankSlices) {
         data.push({
           jankLink: getSliceForTrack(
               jankSlice.jankSlice, ScrollJankV3Track.kind, jankSlice.cause),
@@ -288,22 +337,42 @@ export class ScrollDetailsPanel extends
 
   private getDescriptionText(): m.Child {
     return m(
-        `div[style='white-space:pre-wrap']`,
-        `The interval during which the user has started a scroll ending after
-        their finger leaves the screen and any resulting fling animations have
-        finished.{new_lines}
+        MultiParagraphText,
+        m(TextParagraph, {
+          text: `The interval during which the user has started a scroll ending
+                 after their finger leaves the screen and any resulting fling
+                 animations have finished.`,
+        }),
+        m(TextParagraph, {
+          text: `Note: This can contain periods of time where the finger is down
+                 and not moving and no active scrolling is occurring.`,
+        }),
+        m(TextParagraph, {
+          text: `Note: Sometimes if a user touches the screen quickly after 
+                 letting go or Chrome was hung and got into a bad state. A new
+                 scroll will start which will result in a slightly overlapping
+                 scroll. This can occur due to the last scroll still outputting
+                 frames (to get caught up) and the "new" scroll having started
+                 producing frames after the user has started scrolling again.`,
+        }),
+    );
+  }
 
-        Note: This can contain periods of time where the finger is down and not
-        moving and no active scrolling is occurring.{new_lines}
-
-        Note: Sometimes if a user touches the screen quickly after letting go
-        or Chrome was hung and got into a bad state. A new scroll will start
-        which will result in a slightly overlapping scroll. This can occur due
-        to the last scroll still outputting frames (to get caught up) and the
-        "new" scroll having started producing frames after the user has started
-        scrolling again.`.replace(/\s\s+/g, ' ')
-            .replace(/{new_lines}/g, '\n\n')
-            .replace(/ Note:/g, 'Note:'),
+  private getGraphText(): m.Child {
+    return m(
+        MultiParagraphText,
+        m(TextParagraph, {
+          text: `The scroll offset is the discrepancy in physical screen pixels
+                 between two consecutive frames.`,
+        }),
+        m(TextParagraph, {
+          text: `The overall curve of the graph indicates the direction (up or
+                 down) by which the user scrolled over time.`,
+        }),
+        m(TextParagraph, {
+          text: `Grey blocks in the graph represent intervals of jank
+                 corresponding with the Chrome Scroll Janks track.`,
+        }),
     );
   }
 
@@ -336,17 +405,22 @@ export class ScrollDetailsPanel extends
               m(Tree, this.renderMetricsDictionary())),
             m(
                 Section,
-                {title: 'Max Frame Presentation Delay'},
-                this.getMaxDelayTable(),
+                {title: 'Frame Presentation Delays'},
+                this.getDelayTable(),
                 )),
           m(
               GridLayoutColumn,
               m(
                   Section,
                   {title: 'Description'},
-                  m('.div', this.getDescriptionText()),
+                  this.getDescriptionText(),
                   ),
-              // TODO: Add custom widgets (e.g. event latency table).
+              m(
+                  Section,
+                  {title: 'Scroll Offsets Plot'},
+                  m('.div[style=\'padding-bottom:5px\']', this.getGraphText()),
+                  this.scrollDeltas,
+                  ),
               )),
     );
   }

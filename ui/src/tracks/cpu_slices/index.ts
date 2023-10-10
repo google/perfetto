@@ -39,8 +39,8 @@ import {
   EngineProxy,
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
@@ -472,7 +472,7 @@ class CpuSlices implements Plugin {
     // No-op
   }
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const cpus = await ctx.engine.getCpus();
     const cpuToSize = await this.guessCpuSizes(ctx.engine);
 
@@ -484,11 +484,9 @@ class CpuSlices implements Plugin {
       ctx.addTrack({
         uri,
         displayName: name,
-        tags: {
-          cpu,
-          kind: CPU_SLICE_TRACK_KIND,
-        },
-        trackFactory: ({trackInstanceId}) => {
+        kind: CPU_SLICE_TRACK_KIND,
+        cpu,
+        track: ({trackInstanceId}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
               trackInstanceId,
@@ -503,7 +501,7 @@ class CpuSlices implements Plugin {
   async guessCpuSizes(engine: EngineProxy): Promise<Map<number, string>> {
     const cpuToSize = new Map<number, string>();
     await engine.query(`
-      SELECT IMPORT('common.cpus');
+      INCLUDE PERFETTO MODULE common.cpus;
     `);
     const result = await engine.query(`
       SELECT cpu, GUESS_CPU_SIZE(cpu) as size FROM cpu_counter_track;
@@ -525,7 +523,7 @@ class CpuSlices implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.CpuSlices',
   plugin: CpuSlices,
 };

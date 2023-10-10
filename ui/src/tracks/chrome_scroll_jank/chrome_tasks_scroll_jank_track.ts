@@ -22,10 +22,12 @@ import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {runQueryInNewTab} from '../../frontend/query_result_tab';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
 
-import {ScrollJankTracks as DecideTracksResult} from './index';
-import {ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './index';
+import {
+  ENABLE_CHROME_SCROLL_JANK_PLUGIN,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
 
 interface ChromeTasksScrollJankTrackConfig {}
 
@@ -36,7 +38,7 @@ interface ChromeTasksScrollJankTrackTypes extends NamedSliceTrackTypes {
 export class ChromeTasksScrollJankTrack extends
     NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ChromeTasksScrollJankTrack(args);
   }
 

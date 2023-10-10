@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_parser.h"
+#include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
 #include "src/trace_processor/perfetto_sql/engine/runtime_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
@@ -151,12 +152,15 @@ class PerfettoSqlEngine {
   // Registers a SQL-defined trace processor C++ table with SQLite.
   base::Status RegisterRuntimeTable(std::string name, SqlSource sql);
 
+  base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
+
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
   base::FlatHashMap<std::string, sql_modules::RegisteredModule> modules_;
+  base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;
   std::unique_ptr<SqliteEngine> engine_;
 };
 

@@ -20,7 +20,7 @@ import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect} from '../frontend/track';
 import {TrackButtonAttrs} from '../frontend/track_panel';
-import {TrackLike} from '../public';
+import {Track} from '../public';
 
 import {TrackData} from './track_data';
 
@@ -40,7 +40,7 @@ export {
 // This provides the logic to perform data reloads at appropriate times as the
 // window is panned and zoomed about.
 // The extending class need only define renderCanvas() and onBoundsChange().
-export abstract class BasicAsyncTrack<Data> implements TrackLike {
+export abstract class BasicAsyncTrack<Data> implements Track {
   private requestingData = false;
   private queuedRequest = false;
   private currentState?: TrackData;

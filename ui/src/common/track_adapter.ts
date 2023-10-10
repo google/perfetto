@@ -41,6 +41,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
     BasicAsyncTrack<Data> {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
+  private isSetup = false;
 
   constructor(
       engine: EngineProxy, trackInstanceId: string, config: Config,
@@ -55,11 +56,6 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.track.setConfig(config);
     this.track.setDataSource(() => this.data);
     this.controller = new Controller(config, engine);
-  }
-
-  onCreate(): void {
-    this.controller.onSetup();
-    super.onCreate();
   }
 
   onDestroy(): void {
@@ -104,8 +100,13 @@ export class TrackWithControllerAdapter<Config, Data> extends
     this.track.onFullRedraw();
   }
 
-  onBoundsChange(start: time, end: time, resolution: duration): Promise<Data> {
-    return this.controller.onBoundsChange(start, end, resolution);
+  async onBoundsChange(start: time, end: time, resolution: duration):
+      Promise<Data> {
+    if (!this.isSetup) {
+      await this.controller.onSetup();
+      this.isSetup = true;
+    }
+    return await this.controller.onBoundsChange(start, end, resolution);
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {
@@ -181,6 +182,12 @@ type TrackAdapterClass<Config, Data> = {
   new (args: NewTrackArgs): TrackAdapter<Config, Data>
 }
 
+function hasNamespace(config: unknown): config is {
+  namespace: string
+} {
+  return !!config && typeof config === 'object' && 'namespace' in config;
+}
+
 // Extend from this class instead of `TrackController` to use existing track
 // controller implementations with `TrackWithControllerAdapter`.
 export abstract class TrackControllerAdapter<Config, Data> {
@@ -189,7 +196,7 @@ export abstract class TrackControllerAdapter<Config, Data> {
   // don't have access to it.
   private uuid = uuidv4();
 
-  constructor(protected config: Config, private engine: EngineProxy) {}
+  constructor(protected config: Config, protected engine: EngineProxy) {}
 
   protected async query(query: string) {
     const result = await this.engine.query(query);
@@ -199,8 +206,8 @@ export abstract class TrackControllerAdapter<Config, Data> {
   abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
 
-  onSetup(): void {}
-  onDestroy(): void {}
+  async onSetup(): Promise<void> {}
+  async onDestroy(): Promise<void> {}
 
   // Returns a valid SQL table name with the given prefix that should be unique
   // for each track.
@@ -209,6 +216,14 @@ export abstract class TrackControllerAdapter<Config, Data> {
     // Track ID can be UUID but '-' is not valid for sql table name.
     const idSuffix = this.uuid.split('-').join('_');
     return `${prefix}_${idSuffix}`;
+  }
+
+  namespaceTable(tableName: string): string {
+    if (hasNamespace(this.config)) {
+      return this.config.namespace + '_' + tableName;
+    } else {
+      return tableName;
+    }
   }
 }
 

@@ -39,7 +39,6 @@
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/bigtrace/worker.pb.h"
 #include "src/protozero/proto_ring_buffer.h"
-#include "src/trace_processor/rpc/query_result_serializer.h"
 #include "src/trace_processor/util/status_macros.h"
 
 namespace perfetto {

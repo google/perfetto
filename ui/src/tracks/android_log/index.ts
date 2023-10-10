@@ -26,9 +26,11 @@ import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
-  PluginInfo,
-  TracePluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
 } from '../../public';
+
+export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 
 export interface Data extends TrackData {
   // Total number of log events within [start, end], before any quantization.
@@ -147,7 +149,7 @@ class AndroidLogTrack extends TrackAdapter<Config, Data> {
 class AndroidLog implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const result =
         await ctx.engine.query(`select count(1) as cnt from android_logs`);
     const count = result.firstRow({cnt: NUM}).cnt;
@@ -155,7 +157,8 @@ class AndroidLog implements Plugin {
       ctx.addTrack({
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
-        trackFactory: ({trackInstanceId}) => {
+        kind: ANDROID_LOGS_TRACK_KIND,
+        track: ({trackInstanceId}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
               trackInstanceId,
@@ -168,7 +171,7 @@ class AndroidLog implements Plugin {
   }
 }
 
-export const plugin: PluginInfo = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.AndroidLog',
   plugin: AndroidLog,
 };
