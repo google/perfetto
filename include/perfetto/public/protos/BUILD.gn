@@ -15,6 +15,7 @@
 source_set("protos") {
   sources = [
     "common/builtin_clock.pzc.h",
+    "common/data_source_descriptor.pzc.h",
     "config/data_source_config.pzc.h",
     "config/trace_config.pzc.h",
     "config/track_event/track_event_config.pzc.h",
