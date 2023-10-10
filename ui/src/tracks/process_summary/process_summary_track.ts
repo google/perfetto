@@ -130,8 +130,9 @@ export class ProcessSummaryTrackController extends
   }
 
   async onDestroy(): Promise<void> {
-    await this.query(`drop table ${this.tableName('window')}; drop table ${
-        this.tableName('span')}`);
+    await this.query(`drop table if exists ${
+        this.tableName(
+            'window')}; drop table if exists ${this.tableName('span')}`);
   }
 }
 
