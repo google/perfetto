@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from './object_utils';
+
 // Execution context of object validator
 interface ValidatorContext {
   // Path to the current value starting from the root. Object field names are
@@ -110,7 +112,7 @@ class OptionalValidator<T> implements Validator<T|undefined> {
 
 class StringValidator extends PrimitiveValidator<string> {
   predicate(input: unknown): input is string {
-    return typeof input === 'string';
+    return isString(input);
   }
 }
 

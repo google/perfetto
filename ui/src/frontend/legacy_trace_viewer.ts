@@ -14,7 +14,10 @@
 
 import m from 'mithril';
 import {inflate} from 'pako';
+
 import {assertTrue} from '../base/logging';
+import {isString} from '../base/object_utils';
+
 import {globals} from './globals';
 import {showModal} from './modal';
 
@@ -43,7 +46,7 @@ function readText(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
+      if (isString(reader.result)) {
         return resolve(reader.result);
       }
     };
