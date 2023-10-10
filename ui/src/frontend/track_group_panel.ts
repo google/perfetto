@@ -194,6 +194,16 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
   oncreate(vnode: m.CVnodeDOM<Attrs>) {
     this.onupdate(vnode);
+    const trackGroupId = vnode.attrs.trackGroupId;
+    if (globals.frontendLocalState.expandTrackGroupIds.has(trackGroupId)) {
+      // An attempt to scroll to reveal a track that is contained within
+      // this group was waiting for it to be created by expansion of an
+      // ancestor, so make sure that it is expanded now that it exists
+      if (this.trackGroupState.collapsed) {
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
+      globals.frontendLocalState.expandTrackGroupIds.delete(trackGroupId);
+    }
   }
 
   onupdate({dom}: m.CVnodeDOM<Attrs>) {

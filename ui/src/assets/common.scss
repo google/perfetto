@@ -368,6 +368,7 @@ $bottom-tab-padding: 10px;
   display: grid;
   grid-template-columns: auto 1fr;
   grid-template-rows: 1fr 0;
+  scroll-margin-top: 40px;
 
   &::after {
     display: block;

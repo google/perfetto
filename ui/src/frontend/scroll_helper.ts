@@ -21,6 +21,7 @@ import {getContainingTrackIds} from '../common/state';
 import {TPTime} from '../common/time';
 
 import {globals} from './globals';
+import {assertFalse, assertTrue} from '../base/logging';
 
 
 // Given a timestamp, if |ts| is not currently in view move the view to
@@ -121,38 +122,116 @@ export function verticalScrollToTrack(
     return;
   }
 
-  let trackGroupId: string | undefined;
-  let trackSubgroupId: string | undefined;
-  let trackGroup = null;
-  let trackSubgroup = null;
+  // At this point, the requested track to reveal is not rendered because it
+  // is contained by some group that is collapsed, at some level of nesting.
+  // So we will either be expanding groups to reveal the track and scroll to
+  // it, or we will simply reveal the closest containing group that we can.
+  // That starts with finding what is the chain of containing groups' UUIDs.
   const containingIds = getContainingTrackIds(globals.state, trackIdString);
-  if (containingIds) {
-    trackGroupId = containingIds[0];
-    trackSubgroupId = containingIds[1];
-    trackGroup = document.querySelector('#track_' + trackGroupId);
-    if (trackSubgroupId) {
-      trackSubgroup = document.querySelector('#track_' + trackSubgroupId);
-    }
-  }
-
-  if (!trackGroupId || !trackGroup) {
+  if (!containingIds || !containingIds.length) {
     console.error(`Can't scroll, track (${trackIdString}) not found.`);
     return;
   }
 
-  // The requested track is inside a closed track group, either open the track
-  // group and scroll to the track or just scroll to the track group.
+  // Track groups containing the track to be revealed, in order from top
+  // down, represented either as the rendered HTML element or, if not
+  // rendered because an ancestor group is collapsed, its UUID
+  const trackGroupsTopDown = getTrackGroupsTopDown(containingIds);
+
+  // The requested track is inside a closed track group. Either open the track
+  // group and scroll to the track or just scroll to deepest nested track group
+  // that has been rendered.
   if (openGroup) {
-    // After the track exists in the dom, it will be scrolled to.
-    globals.frontendLocalState.scrollToTrackId = trackId;
-    globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
-    // TODO(cwd): Handle the track subgroup
-    return;
+    expandGroupsToRevealTrack(trackIdString, containingIds, trackGroupsTopDown);
   } else {
-    (trackSubgroup ?? trackGroup).scrollIntoView({behavior: 'smooth', block: 'nearest'});
+    scrollToDeepestTrackGroup(trackGroupsTopDown);
   }
 }
 
+// Get the rendered track groups in the given hierarchical chain,
+// in order from topmost to deepest, as many as are rendered by
+// their own container having been expanded in the UI.
+// These are represented in the resulting array by |Element|.
+// All further nested track groups that are not rendered are
+// represented in the resulting array by their UUIDs.
+// down, represented either as the rendered HTML element or, if not
+// rendered because an ancestor group is collapsed, its UUID.
+function getTrackGroupsTopDown(groupIds: string[]): (Element|string)[] {
+  const result: (Element|string)[] = [];
+
+  for (const trackGroupId of groupIds) {
+    const group = document.querySelector('#track_' + trackGroupId);
+
+    if (group) {
+      result.push(group);
+    } else {
+      // Some containing group is collapsed, so this one is not rendered
+      result.push(trackGroupId);
+    }
+  }
+
+  return result;
+}
+
+// Expand whatever groups in the |trackGroupsTopDown| that are
+// collapsed as necessary to reveal and scroll to the track
+// identified by the given |trackId|. Each element of the
+// |trackGroupTopDown| is identified by the corresponding UUID
+// in the |containingGroupIds| array. As there is potentially
+// some tail of the former that are UUIDs representing unrendered
+// groups (because their container is collapsed), there may be
+// overlap in these arrays.
+//
+// Preconditions:
+//   - |trackGroupsTopDown| is non-empty
+//   - |trackGroupsTopDown| and |containingGroupIds| have the same length
+//   - |trackGroupsTopDown[0]| is a rendered |Element|
+function expandGroupsToRevealTrack(trackId: string,
+    containingGroupIds: string[],
+    trackGroupsTopDown: (Element|string)[]): void {
+  // After the track exists in the DOM, it will be scrolled to.
+  globals.frontendLocalState.scrollToTrackId = trackId;
+
+  assertTrue(trackGroupsTopDown.length > 0, 'No track groups to expand.');
+  assertTrue(
+    trackGroupsTopDown.length === containingGroupIds.length,
+    'Mismatched track groups and track group IDs.',
+  );
+  // It should not happen that the topmost group is not rendered
+  // because it has no real parent group that could be collapsed.
+  assertFalse(typeof trackGroupsTopDown[0] === 'string', 'Topmost track group is unrendered.');
+
+  trackGroupsTopDown.forEach(
+      (trackGroup: Element|string, i: number) => {
+    if (typeof trackGroup === 'string') {
+      // Expand its parent
+      if (typeof trackGroupsTopDown[i - 1] !== 'string') {
+        const trackGroupId = containingGroupIds[i - 1];
+        globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+      }
+
+      // And mark all the rest for expansion when they are created
+      globals.frontendLocalState.expandTrackGroupIds.add(trackGroup);
+    } else if (i === (trackGroupsTopDown.length - 1)) {
+      // Need to expand the bottommost group to create the track to reveal
+      const trackGroupId = containingGroupIds[i];
+      globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
+    }
+  });
+}
+
+// Find the deepest track group in the |trackGroupsTopDown| array
+// that is a rendered |Element| and scroll to it. If none of the
+// groups is rendered, then no scroll will occur.
+function scrollToDeepestTrackGroup(
+    trackGroupsTopDown: (Element|string)[]): void {
+  for (const trackGroup of trackGroupsTopDown.slice().reverse()) {
+    if (typeof trackGroup !== 'string') {
+      trackGroup.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+      break;
+    }
+  }
+}
 
 // Scroll vertically and horizontally to reach track (|trackId|) at |ts|.
 export function scrollToTrackAndTs(

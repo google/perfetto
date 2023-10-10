@@ -160,6 +160,7 @@ export class FrontendLocalState {
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
   scrollToTrackId?: string|number;
+  expandTrackGroupIds = new Set<string>();
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
   detailsFullScreenSelectors = ['.pan-and-zoom-content'];
