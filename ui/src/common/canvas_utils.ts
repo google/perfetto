@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from '../base/object_utils';
 import {globals} from '../frontend/globals';
 
 export function cropText(str: string, charWidth: number, rectWidth: number) {
@@ -89,12 +90,20 @@ export function drawIncompleteSlice(
   ctx.lineTo(x + width, y + 4 * triangleSize);
   ctx.lineTo(x, y + height);
 
-  const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
-  gradient.addColorStop(0.66, ctx.fillStyle as string);
-  gradient.addColorStop(1, '#FFFFFF');
-  ctx.fillStyle = gradient;
+  const fillStyle = ctx.fillStyle;
+  if (isString(fillStyle)) {
+    const gradient = ctx.createLinearGradient(x, y, x + width, y + height);
+    gradient.addColorStop(0.66, fillStyle);
+    gradient.addColorStop(1, '#FFFFFF');
+    ctx.fillStyle = gradient;
+  } else {
+    throw new Error(
+        `drawIncompleteSlice() expects fillStyle to be a simple color not ${
+            fillStyle}`);
+  }
 
   ctx.fill();
+  ctx.fillStyle = fillStyle;
 }
 
 export function drawTrackHoverTooltip(

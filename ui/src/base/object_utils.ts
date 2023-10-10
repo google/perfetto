@@ -49,3 +49,7 @@ export function shallowEquals(a: any, b: any) {
   }
   return true;
 }
+
+export function isString(s: unknown): s is string {
+  return typeof s === 'string' || s instanceof String;
+}
