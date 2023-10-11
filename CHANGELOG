@@ -4,7 +4,7 @@ Unreleased:
   Trace Processor:
     *
   UI:
-    *
+    * Add a new type of debug tracks: counter.
   SDK:
     *
 
