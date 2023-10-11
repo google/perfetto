@@ -72,6 +72,8 @@ packet {
     }
     [perfetto.protos.TestExtension.string_extension_for_testing]:
         "an extension string!"
+    [perfetto.protos.TestExtension.string_extension_for_testing2]:
+        "a second extension string!"
     [perfetto.protos.TestExtension.int_extension_for_testing]: 42
     [perfetto.protos.TestExtension.int_extension_for_testing]: 1337
     [perfetto.protos.TestExtension.omitted_extension_for_testing]:
@@ -99,6 +101,7 @@ packet {
     extension_set {
       file {
         package: "perfetto.protos"
+        name: "test_track_event_extensions.proto"
         message_type {
           extension {
             name: "string_extension_for_testing"
@@ -137,6 +140,30 @@ packet {
             type: TYPE_MESSAGE
             label: LABEL_REPEATED
             type_name: ".perfetto.protos.DebugAnnotation"
+          }
+        }
+      }
+    }
+  }
+}
+# Test that a field specified in a second descriptor for the same proto file is
+# also detected. This emulates the case of multiple instances of the same app
+# (e.g. Chrome Beta + Chrome Canary) both emitting a descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5001
+  extension_descriptor {
+    extension_set {
+      file {
+        package: "perfetto.protos"
+        name: "test_track_event_extensions.proto"
+        message_type {
+          extension {
+            name: "string_extension_for_testing2"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9905
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
           }
         }
       }

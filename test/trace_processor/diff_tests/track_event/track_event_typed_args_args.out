@@ -37,3 +37,4 @@
 "source_id","source_id",1,"[NULL]"
 "source_location_iid","source_location_iid",1,"[NULL]"
 "string_extension_for_testing","string_extension_for_testing","[NULL]","an extension string!"
+"string_extension_for_testing2","string_extension_for_testing2","[NULL]","a second extension string!"

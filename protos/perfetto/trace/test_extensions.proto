@@ -28,6 +28,7 @@ package perfetto.protos;
 message TestExtension {
   extend TrackEvent {
     optional string string_extension_for_testing = 9900;
+    optional string string_extension_for_testing2 = 9905;
     repeated int32 int_extension_for_testing = 9901;
     optional string omitted_extension_for_testing = 9902;
     optional TestExtensionChild nested_message_extension_for_testing = 9903;
