@@ -182,6 +182,15 @@ define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)$'
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/android_tree'
 
+# Map of protos to transitive proto deps
+# When generating Android.bp files, these transitive deps will be added to
+# `tool_files` so that aprotoc can run inside a sandbox.
+# TODO(b/304495403): This should not be manually generated
+proto_to_transitive_proto_deps = {
+    'protos/perfetto/config/android/android_log_config.proto': [
+        'protos/perfetto/common/android_log_constants.proto',
+    ],
+}
 
 def enumerate_data_deps():
   with open(os.path.join(ROOT_DIR, 'tools', 'test_data.txt')) as f:
@@ -745,11 +754,20 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   blueprint.add_module(source_module)
   source_module.srcs.update(
       gn_utils.label_to_path(src) for src in target.sources)
+  # Add the imported proto file as a tool_file dep so that this action can be
+  # sandboxed.
+  tool_files = []
+  for proto, transitive_proto_deps in proto_to_transitive_proto_deps.items():
+    if proto in source_module.srcs:
+      tool_files.extend(transitive_proto_deps)
+
+  source_module.tool_files = tool_files
 
   header_module = Module('genrule', source_module_name + '_headers',
                          target.name)
   blueprint.add_module(header_module)
   header_module.srcs = set(source_module.srcs)
+  header_module.tool_files = tool_files
 
   # TODO(primiano): at some point we should remove this. This was introduced
   # by aosp/1108421 when adding "protos/" to .proto include paths, in order to

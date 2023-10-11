@@ -2842,6 +2842,9 @@ genrule {
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_layers_config.gen.cc",
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_transactions_config.gen.cc",
     ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
+    ],
 }
 
 // GN: //protos/perfetto/config/android:cpp
@@ -2878,6 +2881,9 @@ genrule {
         ".",
         "protos",
     ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
+    ],
 }
 
 // GN: //protos/perfetto/config/android:lite
@@ -2908,6 +2914,9 @@ genrule {
         "external/perfetto/protos/perfetto/config/android/packages_list_config.pb.cc",
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_layers_config.pb.cc",
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_transactions_config.pb.cc",
+    ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
     ],
 }
 
@@ -2944,6 +2953,9 @@ genrule {
         ".",
         "protos",
     ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
+    ],
 }
 
 // GN: //protos/perfetto/config/android:zero
@@ -2975,6 +2987,9 @@ genrule {
         "external/perfetto/protos/perfetto/config/android/packages_list_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_layers_config.pbzero.cc",
         "external/perfetto/protos/perfetto/config/android/surfaceflinger_transactions_config.pbzero.cc",
+    ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
     ],
 }
 
@@ -3011,6 +3026,9 @@ genrule {
     export_include_dirs: [
         ".",
         "protos",
+    ],
+    tool_files: [
+        "protos/perfetto/common/android_log_constants.proto",
     ],
 }
 
