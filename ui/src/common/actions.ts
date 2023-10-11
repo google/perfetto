@@ -492,7 +492,7 @@ export const StateActions = {
     if (!trackGroup) {
       return;
     }
-
+    StateActions.removeTrack(state, {trackId: args.summaryTrackId});
     removeTrackGroup(state, args.id);
       state.filteredTracks.push({
         id: trackGroup.id,
