@@ -27,6 +27,7 @@ SELECT ChromeSliceNames(
   'slice_name', (
     SELECT RepeatedField(DISTINCT(name))
     FROM slice
+    WHERE name IS NOT NULL
     ORDER BY name
   )
 );
