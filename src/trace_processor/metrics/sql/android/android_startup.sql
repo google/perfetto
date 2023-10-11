@@ -14,6 +14,8 @@
 -- limitations under the License.
 --
 
+SELECT RUN_METRIC('android/cpu_info.sql');
+
 -- Create the base tables and views containing the launch spans.
 INCLUDE PERFETTO MODULE android.startup.startups;
 SELECT RUN_METRIC('android/process_metadata.sql');
@@ -83,6 +85,12 @@ FROM android_thread_slices_for_all_startups s
 WHERE s.startup_id = $startup_id AND s.slice_name GLOB $slice_name
 ORDER BY slice_dur DESC
 LIMIT $top_n;
+
+-- Returns the number of CPUs.
+CREATE OR REPLACE PERFETTO FUNCTION get_number_of_cpus()
+RETURNS INT AS
+SELECT COUNT(DISTINCT cpu)
+FROM core_type_per_cpu;
 
 -- Define the view
 DROP VIEW IF EXISTS startup_view;
@@ -365,6 +373,7 @@ SELECT
         SELECT 'Main Thread - Time spent in Runnable state'
           AS slow_cause
         WHERE
+          get_number_of_cpus() > 2 AND
           main_thread_time_for_launch_in_runnable_state(launches.startup_id) > launches.dur * 0.15
 
         UNION ALL
@@ -407,8 +416,10 @@ SELECT
 
         UNION ALL
         SELECT 'Potential CPU contention with another process' AS slow_cause
-        WHERE main_thread_time_for_launch_in_runnable_state(launches.startup_id) > 100e6
-          AND most_active_process_for_launch(launches.startup_id) IS NOT NULL
+        WHERE
+          get_number_of_cpus() > 2 AND
+          main_thread_time_for_launch_in_runnable_state(launches.startup_id) > 100e6 AND
+          most_active_process_for_launch(launches.startup_id) IS NOT NULL
 
         UNION ALL
         SELECT 'JIT Activity'
