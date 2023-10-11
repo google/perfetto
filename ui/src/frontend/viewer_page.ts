@@ -255,10 +255,19 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
 
       const childTracks: AnyAttrsVnode[] = [];
       if (!group.collapsed) {
-        // Recursively render subgroups, first
-        group.subgroups.map((id) => globals.state.trackGroups[id])
-          .filter(Boolean)
-          .forEach((subgroup) => renderGroup(subgroup, childTracks));
+        // Recursively render subgroups, first, except idle processes/threads
+        let idleSubgroup: TrackGroupState|undefined;
+        for (const id of group.subgroups) {
+          const subgroup = globals.state.trackGroups[id];
+          if (subgroup) {
+            if (!idleSubgroup && subgroup.name.search(/\bIdle\b/) >= 0) {
+              // Defer
+              idleSubgroup = subgroup;
+            } else {
+              renderGroup(subgroup, childTracks);
+            }
+          }
+        }
 
         // The first track is the summary track, and is displayed as part of the
         // group panel, we don't want to display it twice so we start from 1.
@@ -270,7 +279,13 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
             selectable: true,
           }));
         }
+
+        // And the idle processes/tracks subgroup
+        if (idleSubgroup) {
+          renderGroup(idleSubgroup, childTracks);
+        }
       }
+
       panels.push(m(TrackGroup, {
         header: headerPanel,
         collapsed: group.collapsed,
