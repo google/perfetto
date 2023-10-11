@@ -23,9 +23,9 @@ assert(enable_perfetto_trace_processor)
 # interface) and by the :httpd module for the HTTP interface.
 source_set("rpc") {
   sources = [
+    "query_result_serializer.cc",
     "rpc.cc",
     "rpc.h",
-    "query_result_serializer.cc",
   ]
   deps = [
     "..:lib",
@@ -44,8 +44,10 @@ source_set("rpc") {
 }
 
 # Static library target for RPC code. Needed for BigTrace in Google3.
-static_library("trace_processor_rpc") {
-  public_deps = [ ":rpc" ]
+if (is_perfetto_build_generator) {
+  static_library("trace_processor_rpc") {
+    public_deps = [ ":rpc" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {
