@@ -29,8 +29,15 @@ message TriggerRule {
   // triggered.
   optional float trigger_chance = 2;
 
-  // Additional delay on the trigger below.
+  // Additional delay *after* the trigger below. This is mostly useful
+  // to trace beyond a triggered event in upload rules. Other triggers
+  // can still be serviced during this period.
   optional uint64 delay_ms = 3;
+
+  // Delay *before* which the rule is activated. Trigger events during this
+  // period are ignored by this rule. This is mostly useful to trace for a
+  // minimum duration before watching trigger events.
+  optional uint64 activation_delay_ms = 8;
 
   // Triggers when a value within the specified bounds [min_value,
   // max_value] is emitted into a Chrome histogram.
