@@ -53,6 +53,7 @@ namespace {
 static constexpr const char kLegacySlowPrefix[] = "disabled-by-default-";
 static constexpr const char kSlowTag[] = "slow";
 static constexpr const char kDebugTag[] = "debug";
+static constexpr const char kFilteredEventName[] = "FILTERED";
 
 constexpr auto kClockIdIncremental =
     TrackEventIncrementalState::kClockIdIncremental;
@@ -515,7 +516,10 @@ void TrackEventInternal::WriteEventName(StaticString event_name,
 void TrackEventInternal::WriteEventName(perfetto::DynamicString event_name,
                                         perfetto::EventContext& event_ctx,
                                         const TrackEventTlsState& tls_state) {
-  if (PERFETTO_LIKELY(!tls_state.filter_dynamic_event_names)) {
+  if (PERFETTO_UNLIKELY(tls_state.filter_dynamic_event_names)) {
+    event_ctx.event()->set_name(kFilteredEventName,
+                                sizeof(kFilteredEventName) - 1);
+  } else {
     event_ctx.event()->set_name(event_name.value, event_name.length);
   }
 }
