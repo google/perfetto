@@ -21,7 +21,6 @@ import {Engine} from '../../common/engine';
 import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrackTypes,
@@ -36,6 +35,7 @@ import {
 
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {
+  SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
   ScrollJankTracks as DecideTracksResult,
 } from './index';
@@ -194,7 +194,7 @@ export async function addLatencyTracks(engine: Engine):
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scroll Input Latencies',
     config: {baseTable: baseTable},
-    trackGroup: SCROLLING_TRACK_GROUP,
+    trackGroup: SCROLL_JANK_GROUP_ID,
   });
 
   return result;
