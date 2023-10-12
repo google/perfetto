@@ -16,6 +16,7 @@
 
 #include "perfetto/base/time.h"
 
+#include "perfetto/ext/base/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -70,6 +71,27 @@ TEST(TimeTest, GetTime) {
   // that we spun in the loop. We may burn much less, depending on what else is
   // happening on the test machine.
   EXPECT_LE(elapsed_cputime.count(), 50 * ns_in_ms);
+}
+
+TEST(TimeTest, GetTimezoneOffsetMins) {
+  const char* tz = getenv("TZ");
+  std::string tz_save(tz ? tz : "");
+  auto reset_tz_on_exit = OnScopeExit([&] {
+    if (!tz_save.empty())
+      setenv("TZ", tz_save.c_str(), 1);
+  });
+
+  // Note: the sign is reversed in the semantic of the TZ env var.
+  // UTC+2 means "2 hours to reach UTC", not "2 hours ahead of UTC".
+
+  setenv("TZ", "UTC+2", true);
+  EXPECT_EQ(GetTimezoneOffsetMins(), -2 * 60);
+
+  setenv("TZ", "UTC-2", true);
+  EXPECT_EQ(GetTimezoneOffsetMins(), 2 * 60);
+
+  setenv("TZ", "UTC-07:45", true);
+  EXPECT_EQ(GetTimezoneOffsetMins(), 7 * 60 + 45);
 }
 
 }  // namespace
