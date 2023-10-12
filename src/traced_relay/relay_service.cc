@@ -70,7 +70,10 @@ void RelayService::OnNewIncomingConnection(
   IPCFrame ipc_frame;
   ipc_frame.set_request_id(0);
   auto* set_peer_identity = ipc_frame.mutable_set_peer_identity();
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   set_peer_identity->set_pid(server_conn->peer_pid_linux());
+#endif
   set_peer_identity->set_uid(
       static_cast<int32_t>(server_conn->peer_uid_posix()));
 
