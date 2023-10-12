@@ -96,6 +96,8 @@ TEST(StringUtilsTest, StringToUInt32) {
 TEST(StringUtilsTest, StringToInt32) {
   EXPECT_EQ(StringToInt32("0"), std::make_optional<int32_t>(0));
   EXPECT_EQ(StringToInt32("1"), std::make_optional<int32_t>(1));
+  EXPECT_EQ(StringToInt32("+42"), std::make_optional<int32_t>(42));
+  EXPECT_EQ(StringToInt32("+0042"), std::make_optional<int32_t>(42));
   EXPECT_EQ(StringToInt32("-42"), std::make_optional<int32_t>(-42));
   EXPECT_EQ(StringToInt32("42", 16), std::make_optional<int32_t>(0x42));
   EXPECT_EQ(StringToInt32("7ffffffe", 16),
