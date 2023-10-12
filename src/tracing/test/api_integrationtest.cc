@@ -3560,7 +3560,8 @@ TEST_P(PerfettoApiTest, FilterDynamicEventName) {
     auto slices = StopSessionAndReadSlicesFromTrace(tracing_session);
     ASSERT_EQ(3u, slices.size());
     EXPECT_EQ("B:test.Event1", slices[0]);
-    EXPECT_EQ(filter_dynamic_names ? "B:test" : "B:test.Event2", slices[1]);
+    EXPECT_EQ(filter_dynamic_names ? "B:test.FILTERED" : "B:test.Event2",
+              slices[1]);
     EXPECT_EQ("B:test.Event3", slices[2]);
   }
 }
