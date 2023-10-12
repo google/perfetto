@@ -20,7 +20,7 @@ import {exists} from '../base/utils';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
-import {addDebugTrack} from '../tracks/debug/slice_track';
+import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
 import {DurationWidget} from '../widgets/duration';
@@ -99,12 +99,14 @@ const ITEMS: ContextMenuItem[] = [
     run: (slice: SliceDetails) => {
       const engine = getEngine();
       if (engine === undefined) return;
-      runQuery(`
+      runQuery(
+          `
         INCLUDE PERFETTO MODULE android.binder;
         INCLUDE PERFETTO MODULE android.monitor_contention;
-      `, engine)
+      `,
+          engine)
           .then(
-              () => addDebugTrack(
+              () => addDebugSliceTrack(
                   engine,
                   {
                     sqlSource: `
@@ -138,7 +140,8 @@ const ITEMS: ContextMenuItem[] = [
                                   JOIN thread ON thread.utid = thread_track.utid
                                   JOIN process ON process.upid = thread.upid
                                   WHERE process.pid = ${getPidFromSlice(slice)}
-                                        AND thread.tid = ${getTidFromSlice(slice)}
+                                        AND thread.tid = ${
+                        getTidFromSlice(slice)}
                                         AND short_blocked_method IS NOT NULL
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,

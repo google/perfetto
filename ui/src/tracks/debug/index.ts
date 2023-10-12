@@ -14,11 +14,13 @@
 
 import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
+import {DebugCounterTrack} from './counter_track';
 import {DebugTrackV2} from './slice_track';
 
 class DebugTrackPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
     ctx.LEGACY_registerTrack(DebugTrackV2);
+    ctx.LEGACY_registerTrack(DebugCounterTrack);
   }
 }
 
