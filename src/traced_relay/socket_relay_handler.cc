@@ -29,7 +29,6 @@
 #include "perfetto/ext/base/thread_checker.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/watchdog.h"
-#include "perfetto/ext/base/watchdog_posix.h"
 
 namespace perfetto {
 namespace {
@@ -52,8 +51,8 @@ FdPoller::FdPoller(Watcher* watcher) : watcher_(watcher) {
 void FdPoller::Poll() {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
-  int num_fds =
-      PERFETTO_EINTR(poll(&poll_fds_[0], poll_fds_.size(), kPollTimeoutMs));
+  int num_fds = PERFETTO_EINTR(poll(
+      &poll_fds_[0], static_cast<nfds_t>(poll_fds_.size()), kPollTimeoutMs));
   if (num_fds == -1 && base::IsAgain(errno))
     return;  // Poll again.
   PERFETTO_DCHECK(num_fds <= static_cast<int>(poll_fds_.size()));
