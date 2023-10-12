@@ -241,6 +241,7 @@ export interface TrackGroupState {
   collapsed: boolean;
   tracks: string[];  // Child track ids.
   state?: unknown;
+  fixedOrdering?: boolean;  // Render tracks without sorting.
 }
 
 export interface EngineConfig {
