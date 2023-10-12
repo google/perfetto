@@ -100,7 +100,7 @@ export interface SqlDataSource {
   columns: string[];
 }
 
-export async function addDebugTrack(
+export async function addDebugSliceTrack(
     engine: EngineProxy,
     data: SqlDataSource,
     trackName: string,
@@ -140,7 +140,7 @@ export async function addDebugTrack(
       from prepared_data
       order by ts;`);
 
-  globals.dispatch(Actions.addDebugTrack({
+  globals.dispatch(Actions.addDebugSliceTrack({
     engineId: engine.engineId,
     name: trackName.trim() || `Debug Track ${debugTrackId}`,
     config: {

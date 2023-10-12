@@ -17,7 +17,7 @@ import m from 'mithril';
 import {Duration, time} from '../base/time';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {addDebugTrack} from '../tracks/debug/slice_track';
+import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
@@ -292,7 +292,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
            {
           label: 'Critical path lite',
           onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
-              .then(() => addDebugTrack(
+              .then(() => addDebugSliceTrack(
               this.engine,
                   {
                     sqlSource:
@@ -324,7 +324,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
            {
           label: 'Critical path',
           onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
-              .then(() => addDebugTrack(
+              .then(() => addDebugSliceTrack(
               this.engine,
                   {
                     sqlSource:
