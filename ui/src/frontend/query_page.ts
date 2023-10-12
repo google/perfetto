@@ -36,11 +36,13 @@ interface QueryPageState {
   executedQuery?: string;
   queryResult?: QueryResponse;
   heightPx: string;
+  generation: number;
 }
 
 const state: QueryPageState = {
   enteredText: '',
   heightPx: '100px',
+  generation: 0,
 };
 
 function runManualQuery(query: string) {
@@ -99,6 +101,7 @@ class QueryInput implements m.ClassComponent {
 
   view() {
     return m(Editor, {
+      generation: state.generation,
       initialText: state.enteredText,
 
       onExecute: (text: string) => {
@@ -112,6 +115,7 @@ class QueryInput implements m.ClassComponent {
       onUpdate: (text: string) => {
         state.enteredText = text;
       },
+
     });
   }
 }
@@ -134,6 +138,11 @@ export const QueryPage = createPage({
         }),
         m(QueryHistoryComponent, {
           runQuery: runManualQuery,
+          setQuery: (q: string) => {
+            state.enteredText = q;
+            state.generation++;
+            raf.scheduleFullRedraw();
+          },
         }));
   },
 });
