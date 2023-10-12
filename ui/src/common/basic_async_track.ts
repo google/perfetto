@@ -19,7 +19,6 @@ import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect} from '../frontend/track';
-import {TrackButtonAttrs} from '../frontend/track_panel';
 import {Track} from '../public';
 
 import {TrackData} from './track_data';
@@ -67,12 +66,8 @@ export abstract class BasicAsyncTrack<Data> implements Track {
 
   abstract getHeight(): number;
 
-  getTrackShellButtons(): m.Vnode<TrackButtonAttrs, {}>[] {
+  getTrackShellButtons(): m.Children {
     return [];
-  }
-
-  getContextMenu(): m.Vnode<any, {}>|null {
-    return null;
   }
 
   onMouseMove(_position: {x: number; y: number;}): void {}
