@@ -1,6 +1,6 @@
 Unreleased:
   Tracing service and probes:
-    *
+    * Added reporting of TZ offset under system_info.timezone_off_mins .
   Trace Processor:
     *
   UI:
