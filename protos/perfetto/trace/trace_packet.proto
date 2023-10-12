@@ -35,6 +35,7 @@ import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_metadata.proto";
 import "protos/perfetto/trace/chrome/chrome_trace_event.proto";
 import "protos/perfetto/trace/clock_snapshot.proto";
+import "protos/perfetto/trace/etw/etw_event_bundle.proto";
 import "protos/perfetto/trace/filesystem/inode_file_map.proto";
 import "protos/perfetto/trace/ftrace/ftrace_event_bundle.proto";
 import "protos/perfetto/trace/ftrace/ftrace_stats.proto";
@@ -96,7 +97,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 95.
+// Next id: 96.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -215,6 +216,9 @@ message TracePacket {
     // Winscope traces
     LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
     TransactionTraceEntry surfaceflinger_transactions = 94;
+
+    // Events from the Windows etw infrastructure.
+    EtwTraceEventBundle etw_events = 95;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
