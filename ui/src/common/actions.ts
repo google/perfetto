@@ -294,6 +294,7 @@ export const StateActions = {
       args: {
         engineId: string; name: string; id: string; summaryTrackId: string;
         collapsed: boolean;
+        fixedOrdering?: boolean;
       }): void {
     state.trackGroups[args.id] = {
       engineId: args.engineId,
@@ -301,6 +302,7 @@ export const StateActions = {
       id: args.id,
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],
+      fixedOrdering: args.fixedOrdering,
     };
   },
 
@@ -379,6 +381,8 @@ export const StateActions = {
     // rather than T1, T10, T11, ..., T2, T20, T21 .
     const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
+      if (group.fixedOrdering) continue;
+
       group.tracks.sort((a: string, b: string) => {
         const aRank = getFullKey(a);
         const bRank = getFullKey(b);

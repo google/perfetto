@@ -18,9 +18,6 @@ import {
   getColorForSlice,
 } from '../../common/colorizer';
 import {Engine} from '../../common/engine';
-import {
-  SCROLLING_TRACK_GROUP,
-} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
@@ -33,6 +30,7 @@ import {
 
 import {EventLatencyTrackTypes} from './event_latency_track';
 import {
+  SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
   ScrollJankTracks as DecideTracksResult,
 } from './index';
@@ -143,7 +141,7 @@ export async function addScrollJankV3ScrollTrack(engine: Engine):
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scroll Janks',
     config: {},
-    trackGroup: SCROLLING_TRACK_GROUP,
+    trackGroup: SCROLL_JANK_GROUP_ID,
   });
 
   return result;
