@@ -649,12 +649,22 @@ def Main():
   parser.add_argument('--verify', help='Check all URLs', action='store_true')
   parser.add_argument(
       '--no-toolchain', help='Do not download toolchain', action='store_true')
+  parser.add_argument(
+      '--build-os',
+      default=system().lower(),
+      choices=['windows', 'darwin', 'linux'],
+      help='Override the autodetected build operating system')
+  parser.add_argument(
+      '--build-arch',
+      default=GetArch(),
+      choices=['arm64', 'x64'],
+      help='Override the autodetected build CPU architecture')
   args = parser.parse_args()
   if args.verify:
     CheckHashes()
     return 0
 
-  target_os = system().lower()
+  target_os = args.build_os
   if args.ui and target_os == 'windows':
     print('Building the UI on Windows is unsupported')
     return 1
@@ -680,7 +690,7 @@ def Main():
     RmtreeIfExists(os.path.join(ROOT_DIR, old_dir))
 
   for dep in deps:
-    target_arch = GetArch()
+    target_arch = args.build_arch
     matches_os = dep.target_os == 'all' or target_os == dep.target_os
     matches_arch = dep.target_arch == 'all' or target_arch == dep.target_arch
     if not matches_os or not matches_arch:
