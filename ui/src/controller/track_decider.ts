@@ -43,7 +43,6 @@ import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
   getScrollJankTracks,
-  INPUT_LATENCY_TRACK,
 } from '../tracks/chrome_scroll_jank';
 import {
   decideTracks as scrollJankDecideTracks,
@@ -186,18 +185,6 @@ class TrackDecider {
     }
   }
 
-  async addScrollJankTracks(engine: Engine): Promise<void> {
-    const scrollJankTracks = getScrollJankTracks(engine);
-    const scrollJankTracksResult = await scrollJankTracks;
-    const originalLength = this.tracksToAdd.length;
-    this.tracksToAdd.length += scrollJankTracksResult.tracksToAdd.length;
-
-    for (let i = 0; i < scrollJankTracksResult.tracksToAdd.length; ++i) {
-      this.tracksToAdd[i + originalLength] =
-          scrollJankTracksResult.tracksToAdd[i];
-    }
-  }
-
   async addCpuFreqTracks(engine: EngineProxy): Promise<void> {
     const cpus = await this.engine.getCpus();
 
@@ -281,7 +268,6 @@ class TrackDecider {
     });
 
     const parentIdToGroupId = new Map<number, string>();
-    let scrollJankRendered = false;
 
     for (; it.valid(); it.next()) {
       const kind = ASYNC_SLICE_TRACK_KIND;
@@ -330,13 +316,6 @@ class TrackDecider {
         }
       }
 
-      if (ENABLE_SCROLL_JANK_PLUGIN_V2.get() && !scrollJankRendered &&
-          name.includes(INPUT_LATENCY_TRACK)) {
-        // This ensures that the scroll jank tracks render above the tracks
-        // for GestureScrollUpdate.
-        await this.addScrollJankTracks(this.engine);
-        scrollJankRendered = true;
-      }
       const track = {
         engineId: this.engineId,
         kind,
@@ -1777,6 +1756,21 @@ class TrackDecider {
     }
   }
 
+  async addScrollJankPluginTracks(): Promise<void> {
+    if (ENABLE_SCROLL_JANK_PLUGIN_V2.get()) {
+      const scrollJankTracksResult = await getScrollJankTracks(this.engine);
+      const tracks = scrollJankTracksResult.tracks;
+      const originalLength = this.tracksToAdd.length;
+      this.tracksToAdd.length += tracks.tracksToAdd.length;
+
+      for (let i = 0; i < tracks.tracksToAdd.length; ++i) {
+        this.tracksToAdd[i + originalLength] = tracks.tracksToAdd[i];
+      }
+
+      this.addTrackGroupActions.push(scrollJankTracksResult.addTrackGroup);
+    }
+  }
+
   async decideTracks(): Promise<DeferredAction[]> {
     await this.defineMaxLayoutDepthSqlFunction();
 
@@ -1789,6 +1783,7 @@ class TrackDecider {
     }
 
     // Add first the global tracks that don't require per-process track groups.
+    await this.addScrollJankPluginTracks();
     await this.addCpuSchedulingTracks();
     await this.addFtraceTrack(
         this.engine.getProxy('TrackDecider::addFtraceTrack'));
