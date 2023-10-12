@@ -23,7 +23,6 @@ import {
 
 import {
   OVERVIEW_TIMELINE_NON_VISIBLE_COLOR,
-  SIDEBAR_WIDTH,
   TRACK_SHELL_WIDTH,
   getCssStr,
 } from './css_constants';
@@ -173,20 +172,17 @@ export class OverviewTimelinePanel extends Panel {
     if (this.gesture === undefined || this.gesture.isDragging) {
       return;
     }
-    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.x);
+    (e.target as HTMLElement).style.cursor = this.chooseCursor(e.offsetX);
   }
 
   private chooseCursor(x: number) {
     if (this.timeScale === undefined) return 'default';
-    const [vizStartPx, vizEndPx] =
+    const [startBound, endBound] =
         OverviewTimelinePanel.extractBounds(this.timeScale);
-    const offset = globals.hideSidebar ? 0 : SIDEBAR_WIDTH;
-    const startBound = vizStartPx - 1 + offset;
-    const endBound = vizEndPx + offset;
     if (OverviewTimelinePanel.inBorderRange(x, startBound) ||
         OverviewTimelinePanel.inBorderRange(x, endBound)) {
       return 'ew-resize';
-    } else if (x < offset + TRACK_SHELL_WIDTH) {
+    } else if (x < TRACK_SHELL_WIDTH) {
       return 'default';
     } else if (x < startBound || endBound < x) {
       return 'crosshair';
