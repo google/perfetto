@@ -245,7 +245,7 @@ export interface TrackDescriptor {
 // (for non-thread tracks) or a tid and secondary sort key (mapping of tid to
 // primary sort key is done independently).
 export enum PrimaryTrackSortKey {
-  DEBUG_SLICE_TRACK,
+  DEBUG_TRACK,
   NULL_TRACK,
   PROCESS_SCHEDULING_TRACK,
   PROCESS_SUMMARY_TRACK,
