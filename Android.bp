@@ -2340,6 +2340,8 @@ cc_test {
         ":perfetto_src_traced_probes_statsd_client_statsd_client",
         ":perfetto_src_traced_probes_sys_stats_sys_stats",
         ":perfetto_src_traced_probes_system_info_system_info",
+        ":perfetto_src_traced_relay_integrationtests",
+        ":perfetto_src_traced_relay_lib",
         ":perfetto_src_tracing_client_api_without_backends",
         ":perfetto_src_tracing_common",
         ":perfetto_src_tracing_core_core",
@@ -11937,6 +11939,32 @@ filegroup {
     name: "perfetto_src_traced_probes_unittests",
 }
 
+// GN: //src/traced_relay:integrationtests
+filegroup {
+    name: "perfetto_src_traced_relay_integrationtests",
+    srcs: [
+        "src/traced_relay/relay_service_integrationtest.cc",
+    ],
+}
+
+// GN: //src/traced_relay:lib
+filegroup {
+    name: "perfetto_src_traced_relay_lib",
+    srcs: [
+        "src/traced_relay/relay_service.cc",
+        "src/traced_relay/socket_relay_handler.cc",
+    ],
+}
+
+// GN: //src/traced_relay:unittests
+filegroup {
+    name: "perfetto_src_traced_relay_unittests",
+    srcs: [
+        "src/traced_relay/relay_service_unittest.cc",
+        "src/traced_relay/socket_relay_handler_unittest.cc",
+    ],
+}
+
 // GN: //src/traced/service:service
 filegroup {
     name: "perfetto_src_traced_service_service",
@@ -12693,6 +12721,7 @@ cc_test {
         ":perfetto_src_ipc_client",
         ":perfetto_src_ipc_common",
         ":perfetto_src_ipc_host",
+        ":perfetto_src_ipc_perfetto_ipc",
         ":perfetto_src_ipc_test_messages_cpp_gen",
         ":perfetto_src_ipc_test_messages_ipc_gen",
         ":perfetto_src_ipc_unittests",
@@ -12880,6 +12909,8 @@ cc_test {
         ":perfetto_src_traced_probes_system_info_system_info",
         ":perfetto_src_traced_probes_system_info_unittests",
         ":perfetto_src_traced_probes_unittests",
+        ":perfetto_src_traced_relay_lib",
+        ":perfetto_src_traced_relay_unittests",
         ":perfetto_src_traced_service_service",
         ":perfetto_src_traced_service_unittests",
         ":perfetto_src_tracing_client_api_without_backends",
