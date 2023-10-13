@@ -80,3 +80,7 @@ if (enable_perfetto_trace_processor) {
     perfetto_unittests_targets += [ "src/bigtrace:unittests" ]
   }
 }
+
+if (enable_perfetto_traced_relay) {
+  perfetto_unittests_targets += [ "src/traced_relay:unittests" ]
+}
