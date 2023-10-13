@@ -27,5 +27,5 @@ message InterceptorConfig {
   // Matches the name given to RegisterInterceptor().
   optional string name = 1;
 
-  optional ConsoleConfig console_config = 100 [lazy = true];
+  optional ConsoleConfig console_config = 100;
 }
