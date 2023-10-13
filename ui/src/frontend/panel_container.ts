@@ -140,11 +140,21 @@ export class PanelContainer implements m.ClassComponent<Attrs> {
 
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
+    const startY = globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT;
+    const endY = globals.frontendLocalState.areaY.end + TOPBAR_HEIGHT;
+
+    // Moreover, if the selection is scrolled up under an overlying panel
+    // (such as the pinned tracks panel) then don't handle it at all.
+    const visibleTop = this.panelContainerTop + this.scrollTop;
+    if (startY < visibleTop || endY < visibleTop) {
+      return;
+    }
+
     const panels = this.getPanelsInRegion(
         visibleTimeScale.tpTimeToPx(area.start),
         visibleTimeScale.tpTimeToPx(area.end),
-        globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT,
-        globals.frontendLocalState.areaY.end + TOPBAR_HEIGHT);
+        startY,
+        endY);
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
