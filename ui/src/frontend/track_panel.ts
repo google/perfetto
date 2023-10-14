@@ -147,8 +147,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
                 },
                 i: isSelected(attrs.trackState.id) ? CHECKBOX : BLANK_CHECKBOX,
                 tooltip: isSelected(attrs.trackState.id) ?
-                    'Remove track' :
-                    'Add track to selection',
+                    'Exclude track from area selection' :
+                    'Include track in area selection',
                 showButton: true,
               }) :
               ''));
