@@ -121,7 +121,7 @@ export abstract class BaseCounterTrack<Config> extends TrackBase<Config> {
     });
   }
 
-  getContextMenu(): m.Vnode<any> {
+  getCounterContextMenu(): m.Child {
     return m(
         PopupMenu2,
         {
@@ -129,6 +129,12 @@ export abstract class BaseCounterTrack<Config> extends TrackBase<Config> {
         },
         this.getCounterContextMenuItems(),
     );
+  }
+
+  getTrackShellButtons(): m.Children {
+    return [
+      this.getCounterContextMenu(),
+    ];
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D) {
