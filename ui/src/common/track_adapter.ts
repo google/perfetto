@@ -76,7 +76,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
     return this.track.getHeight();
   }
 
-  getTrackShellButtons(): m.Vnode<TrackButtonAttrs, {}>[] {
+  getTrackShellButtons(): m.Children {
     return this.track.getTrackShellButtons();
   }
 
