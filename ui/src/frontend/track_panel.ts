@@ -152,7 +152,6 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             ),
         m('.track-buttons',
           attrs.track.getTrackShellButtons(),
-          attrs.track.getContextMenu(),
           m(TrackButton, {
             action: () => {
               globals.dispatch(

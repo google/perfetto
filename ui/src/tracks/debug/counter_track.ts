@@ -19,7 +19,7 @@ import {EngineProxy} from '../../common/engine';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
-import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {TrackButton} from '../../frontend/track_panel';
 
 // Names of the columns of the underlying view to be used as ts / dur / name.
 export interface CounterColumns {
@@ -44,15 +44,18 @@ export class DebugCounterTrack extends
     super(args);
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
-    return [m(TrackButton, {
-      action: () => {
-        globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
-      },
-      i: 'close',
-      tooltip: 'Close',
-      showButton: true,
-    })];
+  getTrackShellButtons(): m.Children {
+    return [
+      this.getCounterContextMenu(),
+      m(TrackButton, {
+        action: () => {
+          globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
+        },
+        i: 'close',
+        tooltip: 'Close',
+        showButton: true,
+      }),
+    ];
   }
 
   async initSqlTable(tableName: string): Promise<void> {
