@@ -24,7 +24,6 @@ import {Track} from '../public';
 import {checkerboard} from './checkerboard';
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
-import {TrackButtonAttrs} from './track_panel';
 
 // Args passed to the track constructors when creating a new track.
 export interface NewTrackArgs {
@@ -113,12 +112,8 @@ export abstract class TrackBase<Config = {}, Data extends TrackData = TrackData>
     return 40;
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+  getTrackShellButtons(): m.Children {
     return [];
-  }
-
-  getContextMenu(): m.Vnode<any>|null {
-    return null;
   }
 
   onMouseMove(_position: {x: number, y: number}) {}
