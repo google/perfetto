@@ -1108,7 +1108,13 @@ class TrackDecider {
       const upid = it.upid;
       const processName = it.processName;
       const threadName = it.threadName;
-      const uuid = this.getThreadProcessGroup(utid, upid);
+      const uuid = this.getThreadProcessGroupUnchecked(utid, upid);
+      if (uuid === undefined) {
+        // If a thread has no scheduling activity (i.e. the sched table has zero
+        // rows for that uid) no track group will be created and we want to skip
+        // the track creation as well.
+        continue;
+      }
       const kind = THREAD_STATE_TRACK_KIND;
       this.tracksToAdd.push({
         engineId: this.engineId,
@@ -1633,7 +1639,8 @@ class TrackDecider {
     return assertExists(this.getUuidUnchecked(utid, upid));
   }
 
-  getThreadProcessGroup(utid: number, upid: number|null): string {
+  getThreadProcessGroupUnchecked(utid: number,
+      upid: number|null): string|undefined {
     // Don't need the Idle Threads group in a process that is idle
     // because all of its threads would redundantly be in that group.
     // And don't create a group for just one idle thread.
@@ -1642,7 +1649,11 @@ class TrackDecider {
     return idle !== undefined && !isIdleProcess &&
         (idle.has(utid) && idle.size > 1) ?
       this.getIdleThreadsGroup(utid, upid) :
-      this.getUuid(utid, upid);
+      this.getUuidUnchecked(utid, upid);
+  }
+
+  getThreadProcessGroup(utid: number, upid: number|null): string {
+    return assertExists(this.getThreadProcessGroupUnchecked(utid, upid));
   }
 
   getIdleThreadsGroup(utid: number, upid: number|null): string {
@@ -1780,7 +1791,7 @@ class TrackDecider {
       the_tracks.upid,
       the_tracks.utid,
       total_dur,
-      thread_total_dur,
+      thread_dur,
       hasHeapProfiles,
       process.pid as pid,
       thread.tid as tid,
@@ -1825,8 +1836,8 @@ class TrackDecider {
       select distinct(upid) as upid, 0 as utid from heap_graph_object
     ) the_tracks
     left join (
-      select utid, sum(dur) as thread_total_dur
-      from sched where dur != -1
+      select utid, sum(dur) as thread_dur
+      from sched where dur != -1 and utid != 0
       group by utid
     ) using(utid)
     left join (
@@ -1896,7 +1907,7 @@ class TrackDecider {
       threadName: STR_NULL,
       processName: STR_NULL,
       total_dur: NUM_NULL,
-      thread_total_dur: NUM_NULL,
+      thread_dur: NUM_NULL,
       hasHeapProfiles: NUM_NULL,
       chromeProcessLabels: STR,
     });
@@ -1942,8 +1953,8 @@ class TrackDecider {
       // thread, so it is manifestly idle. We do not distinguish here between
       // "null threads" (no track created) and "idle threads" (having a track)
       // because that is done in the grouping of idle threads elsewhere.
-      const idleThread = it.thread_total_dur === null ||
-        it.thread_total_dur < idleThreadThreshold;
+      const idleThread = it.thread_dur === null ||
+        it.thread_dur < idleThreadThreshold;
       if (idleThread) {
         const key = upid ?? 0;
         let mostlyIdleUtids = this.idleUtids.get(key);
