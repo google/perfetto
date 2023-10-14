@@ -49,7 +49,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
     return 'italic 11px Roboto';
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+  getTrackShellButtons(): m.Children {
     const config = this.config as Config;
     const buttons: Array<m.Vnode<TrackButtonAttrs>> = [];
     buttons.push(m(TrackButton, {

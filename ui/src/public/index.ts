@@ -21,7 +21,6 @@ import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect, TrackCreator} from '../frontend/track';
-import {TrackButtonAttrs} from '../frontend/track_panel';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -196,8 +195,7 @@ export interface Track {
       windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
       |undefined;
   getHeight(): number;
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>>;
-  getContextMenu(): m.Vnode<any>|null;
+  getTrackShellButtons(): m.Children;
   onMouseMove(position: {x: number, y: number}): void;
   onMouseClick(position: {x: number, y: number}): boolean;
   onMouseOut(): void;
