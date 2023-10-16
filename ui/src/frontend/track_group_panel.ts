@@ -39,6 +39,7 @@ import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
+import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
 
 interface Attrs {
   trackGroupId: string;
@@ -300,6 +301,15 @@ export class TrackGroupPanel extends Panel<Attrs> {
     ctx.fillRect(0, 0, size.width, size.height);
 
     if (!collapsed) return;
+
+    // If we have vsync data, render columns under the track group
+    const vsync = getActiveVsyncData();
+    if (vsync) {
+      ctx.save();
+      ctx.translate(this.shellWidth, 0);
+      renderVsyncColumns(ctx, size.height, vsync);
+      ctx.restore();
+    }
 
     this.highlightIfTrackSelected(ctx, size);
 

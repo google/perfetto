@@ -119,6 +119,10 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
     moveByFocusedFlow('Backward');
     return true;
   }
+  if (down && 'v' === key && noModifiers) {
+    globals.frontendLocalState.toggleVsyncHighlight();
+    return true;
+  }
   return false;
 }
 

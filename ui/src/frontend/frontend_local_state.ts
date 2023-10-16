@@ -178,6 +178,7 @@ export class FrontendLocalState {
   };
 
   private _selectedArea?: Area;
+  private _vsyncHighlight = false;
 
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
@@ -263,6 +264,17 @@ export class FrontendLocalState {
 
   get selectedArea(): Area|undefined {
     return this._selectedArea;
+  }
+
+  // Toggle whether to show the vsync highlight across the tracks (if available)
+  toggleVsyncHighlight() {
+    this._vsyncHighlight = !this._vsyncHighlight;
+    globals.rafScheduler.scheduleRedraw();
+  }
+
+  // Whether to show the vsync highlight across the tracks (if available)
+  get vsyncHighlight(): boolean {
+    return this._vsyncHighlight;
   }
 
   private ratelimitedUpdateVisible = ratelimit(() => {

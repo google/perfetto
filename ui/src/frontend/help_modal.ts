@@ -168,6 +168,9 @@ class KeyMappingsHelp implements m.ClassComponent {
             m('tr',
               m('td', keycap(ctrlOrCmd), ' + ', keycap('a')),
               m('td', 'Select all')),
+            m('tr',
+              m('td', keycap('v')),
+              m('td', 'Highlight VSyncs')),
             ...sidebarInstructions,
             m('tr', m('td', keycap('?')), m('td', 'Show help')),
             ));

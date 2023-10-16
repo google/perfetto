@@ -36,6 +36,7 @@ import {
   SliceDetails,
   ThreadDesc,
   ThreadStateDetails,
+  VsyncData,
 } from './globals';
 import {findCurrentSelection} from './keyboard_event_handler';
 
@@ -206,5 +207,13 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
 
 export function publishFtracePanelData(data: FtracePanelData) {
   globals.ftracePanelData = data;
+  globals.publishRedraw();
+}
+
+export function publishVsyncData(data: Partial<VsyncData>) {
+  globals.vsyncData = {
+    initiallyOn: !!data.initiallyOn,
+    toggleTs: data.toggleTs ?? [],
+  };
   globals.publishRedraw();
 }

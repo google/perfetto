@@ -194,6 +194,16 @@ export interface FtraceStat {
   count: number;
 }
 
+// Vsync counter alternation extracted from the VSYNC-app counter
+// of the SurfaceFlinger process, if such process and counter exist.
+// The span of the data is what is currently visible in the UI.
+export interface VsyncData {
+  // Was the counter on at the beginning of the visible timespan?
+  initiallyOn: boolean;
+  // The timestamps at which the counter toggles on or off.
+  toggleTs: bigint[];
+}
+
 function getRoot() {
   // Works out the root directory where the content should be served from
   // e.g. `http://origin/v1.2.3/`.
@@ -255,6 +265,9 @@ class Globals {
   private _hideSidebar?: boolean = undefined;
   private _ftraceCounters?: FtraceStat[] = undefined;
   private _ftracePanelData?: FtracePanelData = undefined;
+
+  // SurfaceFlinger app Vsync counter data.
+  private _vsyncData?: VsyncData = undefined;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -319,6 +332,7 @@ class Globals {
     this._threadStateDetails = {};
     this._flamegraphDetails = {};
     this._cpuProfileDetails = {};
+    this._vsyncData = {initiallyOn: false, toggleTs: []};
     this.engines.clear();
   }
 
@@ -698,6 +712,14 @@ class Globals {
     this._trackFilteringEnabled = trackFilteringEnabled;
   }
 
+  get vsyncData(): VsyncData {
+    return assertExists(this._vsyncData);
+  }
+
+  set vsyncData(data: VsyncData) {
+    this._vsyncData = assertExists(data);
+  }
+
   private fireEngineReady(engine: EngineConfig) {
     for (const observer of this._engineReadyObservers) {
       observer(engine);
@@ -744,6 +766,7 @@ class Globals {
     this._ignoreUnknownPostMessage = undefined;
     this._disableMainRendering = undefined;
     this._disableHashBasedRouting = undefined;
+    this._vsyncData = undefined;
   }
 
   // This variable is set by the is_internal_user.js script if the user is a

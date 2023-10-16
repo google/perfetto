@@ -31,6 +31,7 @@ import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
+import {getActiveVsyncData, renderVsyncColumns} from './vsync_helper';
 import {SCROLLING_TRACK_GROUP, getContainingTrackIds} from '../common/state';
 
 function getTitleSize(title: string): string|undefined {
@@ -415,6 +416,16 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
     ctx.save();
+
+    // If we have vsync data, render columns under the track and
+    // under the grid lines painted next
+    const vsync = getActiveVsyncData();
+    if (vsync) {
+      ctx.save();
+      ctx.translate(TRACK_SHELL_WIDTH, 0);
+      renderVsyncColumns(ctx, size.height, vsync);
+      ctx.restore();
+    }
 
     drawGridLines(
         ctx,
