@@ -3470,11 +3470,6 @@ void TracingServiceImpl::MaybeEmitSystemInfo(
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
   info->set_tracing_service_version(base::GetVersionString());
-
-  std::optional<int32_t> tzoff = base::GetTimezoneOffsetMins();
-  if (tzoff.has_value())
-    info->set_timezone_off_mins(*tzoff);
-
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
   struct utsname uname_info;
