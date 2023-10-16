@@ -103,8 +103,6 @@ const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
 const ENTITY_RESIDENCY_GROUP = 'Entity residency';
 const BATTERY_TRACK_REGEX = new RegExp('^batt\\..*$');
 const BATTERY_TRACK_GROUP = 'Battery';
-const GPU_QUEUES_REGEX = new RegExp('^(Universal|Timer|DMA|Compute)( IB)?$');
-const GPU_QUEUES_GROUP = 'GPU Queues';
 
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
@@ -358,6 +356,14 @@ class TrackDecider {
     }
 
     return undefined;
+  }
+
+  // Get the trace-processor database track ID for a |track| to be created,
+  // if it has one.
+  static getTrackId(track: AddTrackArgs): number|undefined {
+    return ('trackIds' in track.config && Array.isArray(track.config.trackIds)) ?
+      track.config.trackIds[0] :
+      undefined;
   }
 
   async guessCpuSizes(): Promise<Map<number, string>> {
@@ -2093,32 +2099,26 @@ class TrackDecider {
 
   async addSurfaceFlingerTrackGroups(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
-    select distinct gpu_track.id as trackId, gpu_track.name as trackName, frame_slice.layer_name as layerName
-    from frame_slice, gpu_track
-    where frame_slice.track_id = gpu_track.id
+    select distinct gpu_track.id as trackId, frame_slice.layer_name as layerName
+    from frame_slice join gpu_track on (frame_slice.track_id = gpu_track.id)
+    where
+      gpu_track.scope = 'graphics_frame_event'
       and gpu_track.name is not null
       and frame_slice.layer_name is not null
     `);
 
     const it = result.iter({
       trackId: NUM,
-      // trackName: STR,
       layerName: STR,
     });
 
     const layersByTrack = new Map<number, string>();
     for (; it.valid(); it.next()) {
       const trackId = it.trackId;
-      // const trackName = it.trackName;
       const layerName = it.layerName;
       layersByTrack.set(trackId, layerName);
     }
 
-    const getTrackId = (track: AddTrackArgs): number|undefined => {
-      return ('trackIds' in track.config && Array.isArray(track.config.trackIds)) ?
-        track.config.trackIds[0] :
-        undefined;
-    };
     const layerGroup = (layerName: string) => this.lazyTrackGroup(
       `Layer - ${layerName}`, {lazyParentGroup: this.lazyTrackGroup('SurfaceFlinger Events')});
     const layerSubgroups = new Map<string, Map<string, string>>();
@@ -2139,7 +2139,7 @@ class TrackDecider {
 
     for (const track of this.tracksToAdd) {
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
-        const trackId = getTrackId(track);
+        const trackId = TrackDecider.getTrackId(track);
         const layerName = trackId !== undefined ?
           layersByTrack.get(trackId) :
           undefined;
@@ -2201,6 +2201,36 @@ class TrackDecider {
     for (const track of this.tracksToAdd) {
       if (track.name.startsWith('Vulkan ')) {
         track.trackGroup = gpuGroup();
+      }
+    }
+  }
+
+  async groupGpuQueueTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
+    select id
+    from gpu_track
+    where scope = 'gpu_render_stage';
+    `);
+    if (result.numRows() === 0) {
+      // No GPU Queue tracks to group
+      return;
+    }
+
+    const gpuQueueTrackIds = new Set<number>();
+    const it = result.iter({
+      id: NUM,
+    });
+    for (; it.valid(); it.next()) {
+      gpuQueueTrackIds.add(it.id);
+    }
+
+    const gpuQueuesGroup = this.lazyTrackGroup('GPU Queues');
+    for (const track of this.tracksToAdd) {
+      if (track.trackGroup === SCROLLING_TRACK_GROUP) {
+        const trackId = TrackDecider.getTrackId(track);
+        if (trackId !== undefined && gpuQueueTrackIds.has(trackId)) {
+          track.trackGroup = gpuQueuesGroup();
+        }
       }
     }
   }
@@ -2332,6 +2362,8 @@ class TrackDecider {
     await this.addPluginTracks();
     await this.addAnnotationTracks(
         this.engine.getProxy('TrackDecider::addAnnotationTracks'));
+    await this.groupGpuQueueTracks(
+      this.engine.getProxy('TrackDecider::groupGpuQueueTracks'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
@@ -2344,7 +2376,6 @@ class TrackDecider {
     await this.groupTracksByRegex(
         ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
     await this.groupTracksByRegex(BATTERY_TRACK_REGEX, BATTERY_TRACK_GROUP);
-    await this.groupTracksByRegex(GPU_QUEUES_REGEX, GPU_QUEUES_GROUP);
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
