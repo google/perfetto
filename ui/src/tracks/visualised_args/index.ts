@@ -17,7 +17,7 @@ import m from 'mithril';
 import {Actions} from '../../common/actions';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {TrackButton} from '../../frontend/track_panel';
 import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 import {
   ChromeSliceTrack,
@@ -51,8 +51,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
 
   getTrackShellButtons(): m.Children {
     const config = this.config as Config;
-    const buttons: Array<m.Vnode<TrackButtonAttrs>> = [];
-    buttons.push(m(TrackButton, {
+    return m(TrackButton, {
       action: () => {
         globals.dispatch(
             Actions.removeVisualisedArg({argName: config.argName}));
@@ -60,8 +59,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
       i: 'close',
       tooltip: 'Close',
       showButton: true,
-    }));
-    return buttons;
+    });
   }
 }
 

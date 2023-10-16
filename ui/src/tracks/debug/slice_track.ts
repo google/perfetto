@@ -79,14 +79,14 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
   }
 
   getTrackShellButtons(): m.Children {
-    return [m(TrackButton, {
+    return m(TrackButton, {
       action: () => {
         globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
       },
       i: 'close',
       tooltip: 'Close',
       showButton: true,
-    })];
+    });
   }
 }
 

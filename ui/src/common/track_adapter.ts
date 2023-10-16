@@ -20,7 +20,6 @@ import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {NewTrackArgs, SliceRect} from '../frontend/track';
-import {TrackButtonAttrs} from '../frontend/track_panel';
 
 import {BasicAsyncTrack} from './basic_async_track';
 
@@ -78,10 +77,6 @@ export class TrackWithControllerAdapter<Config, Data> extends
 
   getTrackShellButtons(): m.Children {
     return this.track.getTrackShellButtons();
-  }
-
-  getContextMenu(): m.Vnode<any, {}>|null {
-    return this.track.getContextMenu();
   }
 
   onMouseMove(position: {x: number; y: number;}): void {
@@ -155,12 +150,8 @@ export abstract class TrackAdapter<Config, Data> {
     return 40;
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+  getTrackShellButtons(): m.Children {
     return [];
-  }
-
-  getContextMenu(): m.Vnode<any>|null {
-    return null;
   }
 
   onMouseMove(_position: {x: number, y: number}) {}

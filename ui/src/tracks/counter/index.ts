@@ -338,13 +338,13 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
       });
     });
 
-    return [m(
+    return m(
         PopupMenu2,
         {
           trigger: m(Button, {icon: 'show_chart', minimal: true}),
         },
         menuItems,
-        )];
+    );
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D): void {

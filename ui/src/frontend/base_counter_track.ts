@@ -132,9 +132,7 @@ export abstract class BaseCounterTrack<Config> extends TrackBase<Config> {
   }
 
   getTrackShellButtons(): m.Children {
-    return [
-      this.getCounterContextMenu(),
-    ];
+    return this.getCounterContextMenu();
   }
 
   renderCanvas(ctx: CanvasRenderingContext2D) {
