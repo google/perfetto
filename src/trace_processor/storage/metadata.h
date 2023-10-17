@@ -48,7 +48,6 @@ namespace metadata {
   F(system_name,                       KeyType::kSingle,  Variadic::kString), \
   F(system_release,                    KeyType::kSingle,  Variadic::kString), \
   F(system_version,                    KeyType::kSingle,  Variadic::kString), \
-  F(timezone_off_mins,                 KeyType::kSingle,  Variadic::kInt),    \
   F(trace_config_pbtxt,                KeyType::kSingle,  Variadic::kString), \
   F(trace_size_bytes,                  KeyType::kSingle,  Variadic::kInt),    \
   F(trace_time_clock_id,               KeyType::kSingle,  Variadic::kInt),    \
