@@ -312,7 +312,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     track = context_->track_tracker->InternCpuCounterTrack(
         cpu_times_user_nice_ns_id_, ct.cpu_id());
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.user_ice_ns()), track);
+        ts, static_cast<double>(ct.user_nice_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
         cpu_times_system_mode_ns_id_, ct.cpu_id());
