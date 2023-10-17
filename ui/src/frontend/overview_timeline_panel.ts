@@ -50,9 +50,13 @@ export class OverviewTimelinePanel extends Panel {
   // https://github.com/Microsoft/TypeScript/issues/1373
   onupdate({dom}: m.CVnodeDOM) {
     const newWidth = dom.getBoundingClientRect().width;
-    if (newWidth > 0) { // It may be zero when temporarily not visible
-      this.width = newWidth;
+    if (newWidth <= 0) {
+      // Client rect width may be zero when temporarily not visible.
+      // So don't update now and we'll pick this up later.
+      return;
     }
+
+    this.width = newWidth;
     this.traceTime = globals.stateTraceTimeTP();
     const traceTime = globals.stateTraceTime();
     const pxSpan = new PxSpan(TRACK_SHELL_WIDTH, this.width);
