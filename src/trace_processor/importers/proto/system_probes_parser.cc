@@ -603,6 +603,12 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
                           Variadic::String(machine_id));
   }
 
+  if (packet.has_timezone_off_mins()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::timezone_off_mins,
+        Variadic::Integer(packet.timezone_off_mins()));
+  }
+
   if (packet.has_android_build_fingerprint()) {
     context_->metadata_tracker->SetMetadata(
         metadata::android_build_fingerprint,
