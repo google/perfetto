@@ -36,8 +36,6 @@ import {
   ScreenshotTab,
 } from './screenshot_panel';
 
-export {Data} from '../chrome_slices';
-
 class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
   static create(args: NewTrackArgs): TrackBase {

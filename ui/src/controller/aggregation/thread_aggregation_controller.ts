@@ -14,14 +14,12 @@
 
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
+import {pluginManager} from '../../common/plugins';
 import {NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {globals} from '../../frontend/globals';
-import {
-  Config,
-  THREAD_STATE_TRACK_KIND,
-} from '../../tracks/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../../tracks/thread_state';
 
 import {AggregationController} from './aggregation_controller';
 
@@ -33,8 +31,11 @@ export class ThreadAggregationController extends AggregationController {
     for (const trackId of tracks) {
       const track = globals.state.tracks[trackId];
       // Track will be undefined for track groups.
-      if (track !== undefined && track.kind === THREAD_STATE_TRACK_KIND) {
-        this.utids.push((track.config as Config).utid);
+      if (track?.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        if (trackInfo?.kind === THREAD_STATE_TRACK_KIND) {
+          trackInfo.utid && this.utids.push(trackInfo.utid);
+        }
       }
     }
   }

@@ -21,17 +21,26 @@ import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
-
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {getTrackName} from '../../public/utils';
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
 
-export interface Data extends TrackData {
+interface Data extends TrackData {
   strings: string[];
   ids: Float64Array;
   starts: BigInt64Array;
@@ -40,13 +49,11 @@ export interface Data extends TrackData {
   state: Uint16Array;  // Index into |strings|.
 }
 
-export interface Config {
+interface Config {
   utid: number;
 }
 
-class ThreadStateTrackController extends TrackController<Config, Data> {
-  static readonly kind = THREAD_STATE_TRACK_KIND;
-
+class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
   private maxDurNs: duration = 0n;
 
   async onSetup() {
@@ -162,8 +169,7 @@ const MARGIN_TOP = 3;
 const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
-class ThreadStateTrack extends TrackBase<Config, Data> {
-  static readonly kind = THREAD_STATE_TRACK_KIND;
+class ThreadStateTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): ThreadStateTrack {
     return new ThreadStateTrack(args);
   }
@@ -277,16 +283,61 @@ class ThreadStateTrack extends TrackBase<Config, Data> {
     const index = search(data.starts, time.toTime());
     if (index === -1) return false;
     const id = data.ids[index];
-    globals.makeSelection(
-        Actions.selectThreadState({id, trackId: this.trackState.id}));
+    globals.makeSelection(Actions.selectThreadState({id, trackId: this.id}));
     return true;
   }
 }
 
+
 class ThreadState implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrack(ThreadStateTrack);
-    ctx.LEGACY_registerTrackController(ThreadStateTrackController);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      select
+        utid,
+        upid,
+        tid,
+        pid,
+        thread.name as threadName
+      from
+        thread_state
+        left join thread using(utid)
+        left join process using(upid)
+      where utid != 0
+      group by utid`);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM_NULL,
+      tid: NUM_NULL,
+      pid: NUM_NULL,
+      threadName: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const utid = it.utid;
+      const upid = it.upid;
+      const tid = it.tid;
+      const threadName = it.threadName;
+      const displayName =
+          getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
+
+      ctx.addTrack({
+        uri: `perfetto.ThreadState#${upid}.${utid}`,
+        displayName,
+        kind: THREAD_STATE_TRACK_KIND,
+        utid: utid,
+        track: ({trackInstanceId}) => {
+          return new TrackWithControllerAdapter<Config, Data>(
+              ctx.engine,
+              trackInstanceId,
+              {utid},
+              ThreadStateTrack,
+              ThreadStateTrackController);
+        },
+      });
+    }
   }
 }
 

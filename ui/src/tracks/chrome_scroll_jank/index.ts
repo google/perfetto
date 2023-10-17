@@ -35,8 +35,6 @@ import {
 } from './scroll_jank_v3_track';
 import {addTopLevelScrollTrack, TopLevelScrollTrack} from './scroll_track';
 
-export {Data} from '../chrome_slices';
-
 export const ENABLE_CHROME_SCROLL_JANK_PLUGIN = featureFlags.register({
   id: 'enableChromeScrollJankPlugin',
   name: 'Enable Chrome Scroll Jank plugin',
