@@ -357,6 +357,8 @@ SELECT
     "TabGroupUiToolbarView"
   WHEN $name GLOB "*TabGridThumbnailView*" THEN
     "TabGridThumbnailView"
+  WHEN $name GLOB "*TabThumbnailView" THEN
+    "TabThumbnailView"
   WHEN $name GLOB "*TabGridDialogView*" THEN
     "TabGridDialogView"
   WHEN $name GLOB "*BottomContainer*" THEN
