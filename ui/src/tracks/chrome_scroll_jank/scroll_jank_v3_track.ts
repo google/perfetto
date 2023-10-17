@@ -37,8 +37,6 @@ import {
 import {DEEP_RED_COLOR, RED_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 
-export {Data} from '../chrome_slices';
-
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
 

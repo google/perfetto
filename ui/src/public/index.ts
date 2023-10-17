@@ -228,6 +228,9 @@ export interface TrackDescriptor {
   // Optional: The CPU number associated with this track.
   cpu?: number;
 
+  // Optional: The UTID associated with this track.
+  utid?: number;
+
   // Optional: A list of tags used for sorting, grouping and "chips".
   tags?: TrackTags;
 }

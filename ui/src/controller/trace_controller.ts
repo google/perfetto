@@ -130,7 +130,6 @@ import {
 } from './trace_stream';
 import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
-import {VisualisedArgController} from './visualised_args_controller';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
@@ -217,6 +216,31 @@ function showJsonWarning() {
   });
 }
 
+// TODO(stevegolton): Move this into some global "SQL extensions" file and
+// ensure it's only run once.
+async function defineMaxLayoutDepthSqlFunction(engine: Engine): Promise<void> {
+  await engine.query(`
+    select create_function(
+      'max_layout_depth(track_count INT, track_ids STRING)',
+      'INT',
+      '
+        select iif(
+          $track_count = 1,
+          (
+            select max(depth)
+            from slice
+            where track_id = cast($track_ids AS int)
+          ),
+          (
+            select max(layout_depth)
+            from experimental_slice_layout($track_ids)
+          )
+        );
+      '
+    );
+  `);
+}
+
 // TraceController handles handshakes with the frontend for everything that
 // concerns a single trace. It owns the WASM trace processor engine, handles
 // tracks data and SQL queries. There is one TraceController instance for each
@@ -270,11 +294,6 @@ export class TraceController extends Controller<States> {
           const trackCtlFactory = trackControllerRegistry.get(trackCfg.kind);
           const trackArgs: TrackControllerArgs = {trackId, engine};
           childControllers.push(Child(trackId, trackCtlFactory, trackArgs));
-        }
-
-        for (const argName of globals.state.visualisedArgs) {
-          childControllers.push(
-            Child(argName, VisualisedArgController, {argName, engine}));
         }
 
         const selectionArgs: SelectionControllerArgs = {engine};
@@ -498,6 +517,8 @@ export class TraceController extends Controller<States> {
 
     // Make sure the helper views are available before we start adding tracks.
     await this.initialiseHelperViews();
+
+    await defineMaxLayoutDepthSqlFunction(engine);
 
     pluginManager.onTraceLoad(engine);
 
