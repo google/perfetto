@@ -231,6 +231,9 @@ export interface TrackDescriptor {
   // Optional: The UTID associated with this track.
   utid?: number;
 
+  // Optional: The UPID associated with this track.
+  upid?: number;
+
   // Optional: A list of tags used for sorting, grouping and "chips".
   tags?: TrackTags;
 }
