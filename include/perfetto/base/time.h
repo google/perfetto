@@ -20,7 +20,6 @@
 #include <time.h>
 
 #include <chrono>
-#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -245,8 +244,6 @@ inline int64_t MkTime(int year, int month, int day, int h, int m, int s) {
   tms.tm_sec = s;
   return TimeGm(&tms);
 }
-
-std::optional<int32_t> GetTimezoneOffsetMins();
 
 }  // namespace base
 }  // namespace perfetto
