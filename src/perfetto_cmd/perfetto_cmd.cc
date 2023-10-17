@@ -236,8 +236,9 @@ Usage: %s
                              (e.g., file.0, file.1, file.2).
   --txt                    : Parse config as pbtxt. Not for production use.
                              Not a stable API.
-  --query                  : Queries the service state and prints it as
-                             human-readable text.
+  --query [--long]         : Queries the service state and prints it as
+                             human-readable text. --long allows the output to
+                             extend past 80 chars.
   --query-raw              : Like --query, but prints raw proto-encoded bytes
                              of tracing_service_state.proto.
   --help           -h
@@ -298,6 +299,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     OPT_IS_DETACHED,
     OPT_STOP,
     OPT_QUERY,
+    OPT_LONG,
     OPT_QUERY_RAW,
     OPT_VERSION,
   };
@@ -326,6 +328,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       {"is_detached", required_argument, nullptr, OPT_IS_DETACHED},
       {"stop", no_argument, nullptr, OPT_STOP},
       {"query", no_argument, nullptr, OPT_QUERY},
+      {"long", no_argument, nullptr, OPT_LONG},
       {"query-raw", no_argument, nullptr, OPT_QUERY_RAW},
       {"version", no_argument, nullptr, OPT_VERSION},
       {"save-for-bugreport", no_argument, nullptr, OPT_BUGREPORT},
@@ -520,6 +523,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
       continue;
     }
 
+    if (option == OPT_LONG) {
+      query_service_long_ = true;
+      continue;
+    }
+
     if (option == OPT_QUERY_RAW) {
       query_service_ = true;
       query_service_output_raw_ = true;
@@ -547,6 +555,11 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
 
   if (query_service_ && (is_detach() || is_attach() || background_)) {
     PERFETTO_ELOG("--query cannot be combined with any other argument");
+    return 1;
+  }
+
+  if (query_service_long_ && !query_service_) {
+    PERFETTO_ELOG("--long can only be used with --query");
     return 1;
   }
 
@@ -1396,15 +1409,17 @@ NAME                                     PRODUCER                     DETAILS
       }
     }
 
-    printf("%-40s %-40s ", ds.ds_descriptor().name().c_str(),
+    printf("%-40s %-28s ", ds.ds_descriptor().name().c_str(),
            producer_id_and_name);
     // Print the category names for clients using the track event SDK.
+    std::string cats;
     if (!ds.ds_descriptor().track_event_descriptor_raw().empty()) {
       const std::string& raw = ds.ds_descriptor().track_event_descriptor_raw();
       protos::gen::TrackEventDescriptor desc;
       if (desc.ParseFromArray(raw.data(), raw.size())) {
         for (const auto& cat : desc.available_categories()) {
-          printf("%s,", cat.name().c_str());
+          cats.append(cats.empty() ? "" : ",");
+          cats.append(cat.name());
         }
       }
     } else if (!ds.ds_descriptor().ftrace_descriptor_raw().empty()) {
@@ -1412,11 +1427,17 @@ NAME                                     PRODUCER                     DETAILS
       protos::gen::FtraceDescriptor desc;
       if (desc.ParseFromArray(raw.data(), raw.size())) {
         for (const auto& cat : desc.atrace_categories()) {
-          printf("%s,", cat.name().c_str());
+          cats.append(cats.empty() ? "" : ",");
+          cats.append(cat.name());
         }
       }
     }
-    printf("\n");
+    const size_t kCatsShortLen = 40;
+    if (!query_service_long_ && cats.length() > kCatsShortLen) {
+      cats = cats.substr(0, kCatsShortLen);
+      cats.append("... (use --long to expand)");
+    }
+    printf("%s\n", cats.c_str());
   }  // for data_sources()
 
   if (svc_state.supports_tracing_sessions()) {
