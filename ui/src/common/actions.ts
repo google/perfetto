@@ -30,9 +30,7 @@ import {
   tableColumnEquals,
   toggleEnabled,
 } from '../frontend/pivot_table_types';
-import {PrimaryTrackSortKey, TrackTags} from '../public/index';
-import {CounterDebugTrackConfig} from '../tracks/debug/counter_track';
-import {DebugTrackV2Config} from '../tracks/debug/slice_track';
+import {PrimaryTrackSortKey} from '../public/index';
 
 import {randomColor} from './colorizer';
 import {
@@ -85,15 +83,11 @@ type StateDraft = Draft<State>;
 
 export interface AddTrackArgs {
   id?: string;
-  engineId: string;
-  kind: string;
+  uri: string;
   name: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  config: {};
-  tags?: TrackTags;
-  uri?: string;  // Only used for new PLUGIN_TRACK tracks
   initialState?: unknown;
 }
 
@@ -216,9 +210,6 @@ export const StateActions = {
 
   fillUiTrackIdByTraceTrackId(
       state: StateDraft, trackState: TrackState, uiTrackId: string) {
-    const namespace = (trackState.config as {namespace?: string}).namespace;
-    if (namespace !== undefined) return;
-
     const setUiTrackId = (trackId: number, uiTrackId: string) => {
       if (state.uiTrackIdByTraceTrackId[trackId] !== undefined &&
           state.uiTrackIdByTraceTrackId[trackId] !== uiTrackId) {
@@ -229,23 +220,13 @@ export const StateActions = {
       state.uiTrackIdByTraceTrackId[trackId] = uiTrackId;
     };
 
-    const {uri, config} = trackState;
+    const {uri} = trackState;
     if (exists(uri)) {
       // If track is a new "plugin" type track (i.e. it has a uri), resolve the
       // track ids from through the pluginManager.
       const trackInfo = pluginManager.resolveTrackInfo(uri);
       if (trackInfo?.trackIds) {
         for (const trackId of trackInfo.trackIds) {
-          setUiTrackId(trackId, uiTrackId);
-        }
-      }
-    } else {
-      // Traditional track - resolve track ids through the config.
-      const {trackId, trackIds} = config;
-      if (exists(trackId)) {
-        setUiTrackId(trackId, uiTrackId);
-      } else if (exists(trackIds)) {
-        for (const trackId of trackIds) {
           setUiTrackId(trackId, uiTrackId);
         }
       }
@@ -256,16 +237,11 @@ export const StateActions = {
     args.tracks.forEach((track) => {
       const id = track.id === undefined ? generateNextId(state) : track.id;
       const name = track.name;
-      const tags = track.tags ?? {name};
       state.tracks[id] = {
         id,
-        engineId: track.engineId,
-        kind: track.kind,
         name,
         trackSortKey: track.trackSortKey,
         trackGroup: track.trackGroup,
-        tags,
-        config: track.config,
         labels: track.labels,
         uri: track.uri,
         state: track.initialState,
@@ -309,78 +285,16 @@ export const StateActions = {
       // Define ID in action so a track group can be referred to without running
       // the reducer.
       args: {
-        engineId: string; name: string; id: string; summaryTrackId: string;
-        collapsed: boolean;
+        name: string; id: string; summaryTrackId: string; collapsed: boolean;
         fixedOrdering?: boolean;
       }): void {
     state.trackGroups[args.id] = {
-      engineId: args.engineId,
       name: args.name,
       id: args.id,
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],
       fixedOrdering: args.fixedOrdering,
     };
-  },
-
-  addDebugSliceTrack(
-      state: StateDraft,
-      args: {engineId: string, name: string, config: DebugTrackV2Config}):
-      void {
-        const trackId = generateNextId(state);
-        this.addTrack(state, {
-          id: trackId,
-          engineId: args.engineId,
-          name: args.name,
-          trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-          trackGroup: SCROLLING_TRACK_GROUP,
-          kind: DEBUG_SLICE_TRACK_KIND,
-          config: args.config,
-        });
-        this.toggleTrackPinned(state, {trackId});
-      },
-
-  addDebugCounterTrack(state: StateDraft, args: {
-    engineId: string,
-    name: string,
-    config: CounterDebugTrackConfig,
-  }): void {
-    const trackId = generateNextId(state);
-    this.addTrack(state, {
-      id: trackId,
-      engineId: args.engineId,
-      name: args.name,
-      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-      trackGroup: SCROLLING_TRACK_GROUP,
-      kind: DEBUG_COUNTER_TRACK_KIND,
-      config: args.config,
-    });
-    this.toggleTrackPinned(state, {trackId});
-  },
-
-
-  removeDebugTrack(state: StateDraft, args: {trackId: string}): void {
-    const track = state.tracks[args.trackId];
-    if (track !== undefined) {
-      assertTrue(
-          track.kind === DEBUG_SLICE_TRACK_KIND ||
-          track.kind === DEBUG_COUNTER_TRACK_KIND);
-      removeTrack(state, args.trackId);
-    }
-  },
-
-  removeVisualisedArgTracks(state: StateDraft, args: {trackIds: string[]}) {
-    for (const trackId of args.trackIds) {
-      const track = state.tracks[trackId];
-
-      const namespace = (track.config as {namespace?: string}).namespace;
-      if (namespace === undefined) {
-        throw new Error(
-            'All visualised arg tracks should have non-empty namespace');
-      }
-
-      removeTrack(state, trackId);
-    }
   },
 
   maybeExpandOnlyTrackGroup(state: StateDraft, _: {}): void {

@@ -38,7 +38,12 @@ import {
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 
+import {
+  ThreadStateTrack as ThreadStateTrackV2,
+} from './thread_state_v2';
+
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
+export const THREAD_STATE_TRACK_V2_KIND = 'ThreadStateTrackV2';
 
 interface Data extends TrackData {
   strings: string[];
@@ -335,6 +340,21 @@ class ThreadState implements Plugin {
               {utid},
               ThreadStateTrack,
               ThreadStateTrackController);
+        },
+      });
+
+      ctx.addTrack({
+        uri: `perfetto.ThreadState#${utid}.v2`,
+        displayName,
+        kind: THREAD_STATE_TRACK_V2_KIND,
+        utid,
+        track: ({trackInstanceId}) => {
+          const track = ThreadStateTrackV2.create({
+            engine: ctx.engine,
+            trackId: trackInstanceId,
+          });
+          track.config = {utid};
+          return track;
         },
       });
     }

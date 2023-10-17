@@ -17,11 +17,8 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
-import {TrackState} from '../common/state';
-import {TrackData} from '../common/track_data';
 import {Track} from '../public';
 
-import {checkerboard} from './checkerboard';
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
 
@@ -53,25 +50,23 @@ export interface SliceRect {
 }
 
 // The abstract class that needs to be implemented by all tracks.
-export abstract class TrackBase<Config = {}, Data extends TrackData = TrackData>
-    implements Track {
+export abstract class TrackBase<Config = {}> implements Track {
   // The UI-generated track ID (not to be confused with the SQL track.id).
   protected readonly trackId: string;
   protected readonly engine: EngineProxy;
+  private _config?: Config;
 
-  // When true this is a new controller-less track type.
-  // TODO(hjd): eventually all tracks will be controller-less and this
-  // should be removed then.
-  protected frontendOnly = false;
+  get config(): Config {
+    return assertExists(this._config);
+  }
 
-  // Caches the last state.track[this.trackId]. This is to deal with track
-  // deletion, see comments in trackState() below.
-  private lastTrackState: TrackState;
+  set config(x: Config) {
+    this._config = x;
+  }
 
   constructor(args: NewTrackArgs) {
     this.trackId = args.trackId;
     this.engine = args.engine;
-    this.lastTrackState = assertExists(globals.state.tracks[this.trackId]);
   }
 
   onCreate() {}
@@ -81,32 +76,6 @@ export abstract class TrackBase<Config = {}, Data extends TrackData = TrackData>
   onDestroy() {}
 
   protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
-
-  protected get trackState(): TrackState {
-    // We can end up in a state where a Track is still in the mithril renderer
-    // tree but its corresponding state has been deleted. This can happen in the
-    // interval of time between a track being removed from the state and the
-    // next animation frame that would remove the Track object. If a mouse event
-    // is dispatched in the meanwhile (or a promise is resolved), we need to be
-    // able to access the state. Hence the caching logic here.
-    const trackState = globals.state.tracks[this.trackId];
-    if (trackState === undefined) {
-      return this.lastTrackState;
-    }
-    this.lastTrackState = trackState;
-    return trackState;
-  }
-
-  get config(): Config {
-    return this.trackState.config as Config;
-  }
-
-  data(): Data|undefined {
-    if (this.frontendOnly) {
-      return undefined;
-    }
-    return globals.trackDataStore.get(this.trackId) as Data;
-  }
 
   getHeight(): number {
     return 40;
@@ -129,17 +98,8 @@ export abstract class TrackBase<Config = {}, Data extends TrackData = TrackData>
   onFullRedraw(): void {}
 
   render(ctx: CanvasRenderingContext2D) {
-    globals.frontendLocalState.addVisibleTrack(this.trackState.id);
-    if (this.data() === undefined && !this.frontendOnly) {
-      const {visibleWindowTime, visibleTimeScale} = globals.frontendLocalState;
-      const startPx =
-          Math.floor(visibleTimeScale.hpTimeToPx(visibleWindowTime.start));
-      const endPx =
-          Math.ceil(visibleTimeScale.hpTimeToPx(visibleWindowTime.end));
-      checkerboard(ctx, this.getHeight(), startPx, endPx);
-    } else {
-      this.renderCanvas(ctx);
-    }
+    globals.frontendLocalState.addVisibleTrack(this.trackId);
+    this.renderCanvas(ctx);
   }
 
   // Returns a place where a given slice should be drawn. Should be implemented

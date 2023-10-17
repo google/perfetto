@@ -231,22 +231,12 @@ export class FlowEventsController extends Controller<'main'> {
       // anything if there is only one TP track in this async track. In
       // that case experimental_slice_layout is just an expensive way
       // to find out depth === layout_depth.
-      const trackIds = track.config.trackIds;
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackIds = trackInfo?.trackIds;
       if (trackIds === undefined || trackIds.length <= 1) {
         uiTrackIdToInfo.set(uiTrackId, null);
         trackIdToInfo.set(trackId, null);
         return null;
-      }
-
-      // Perform the same check for "plugin" style tracks.
-      if (track.uri) {
-        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-        const trackIds = trackInfo?.trackIds;
-        if (trackIds === undefined || trackIds.length <= 1) {
-          uiTrackIdToInfo.set(uiTrackId, null);
-          trackIdToInfo.set(trackId, null);
-          return null;
-        }
       }
 
       const newInfo = {

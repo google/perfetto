@@ -15,13 +15,7 @@
 import {Disposable, Trash} from '../base/disposable';
 import {assertFalse} from '../base/logging';
 import {ViewerImpl, ViewerProxy} from '../common/viewer';
-import {
-  TrackControllerFactory,
-  trackControllerRegistry,
-} from '../controller/track_controller';
 import {globals} from '../frontend/globals';
-import {TrackCreator} from '../frontend/track';
-import {trackRegistry} from '../frontend/track_registry';
 import {
   BasePlugin,
   Command,
@@ -73,18 +67,6 @@ export class PluginContextImpl implements PluginContext, Disposable {
     });
   }
 
-  LEGACY_registerTrackController(track: TrackControllerFactory): void {
-    if (!this.alive) return;
-    const unregister = trackControllerRegistry.register(track);
-    this.trash.add(unregister);
-  }
-
-  LEGACY_registerTrack(track: TrackCreator): void {
-    if (!this.alive) return;
-    const unregister = trackRegistry.register(track);
-    this.trash.add(unregister);
-  }
-
   dispose(): void {
     this.trash.dispose();
     this.alive = false;
@@ -107,18 +89,6 @@ class TracePluginContextImpl<T> implements PluginContextTrace<T>, Disposable {
       private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
     this.trash.add(store);
-  }
-
-  LEGACY_registerTrackController(track: TrackControllerFactory): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
-    this.ctx.LEGACY_registerTrackController(track);
-  }
-
-  LEGACY_registerTrack(track: TrackCreator): void {
-    // Silently ignore if context is dead.
-    if (!this.alive) return;
-    this.ctx.LEGACY_registerTrack(track);
   }
 
   addCommand(cmd: Command): void {

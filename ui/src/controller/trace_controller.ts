@@ -128,7 +128,6 @@ import {
   TraceHttpStream,
   TraceStream,
 } from './trace_stream';
-import {TrackControllerArgs, trackControllerRegistry} from './track_controller';
 import {decideTracks} from './track_decider';
 
 type States = 'init' | 'loading_trace' | 'ready';
@@ -285,16 +284,6 @@ export class TraceController extends Controller<States> {
         // At this point we are ready to serve queries and handle tracks.
         const engine = assertExists(this.engine);
         const childControllers: Children = [];
-
-        // Create a TrackController for each track.
-        for (const trackId of Object.keys(globals.state.tracks)) {
-          const trackCfg = globals.state.tracks[trackId];
-          if (trackCfg.engineId !== this.engineId) continue;
-          if (!trackControllerRegistry.has(trackCfg.kind)) continue;
-          const trackCtlFactory = trackControllerRegistry.get(trackCfg.kind);
-          const trackArgs: TrackControllerArgs = {trackId, engine};
-          childControllers.push(Child(trackId, trackCtlFactory, trackArgs));
-        }
 
         const selectionArgs: SelectionControllerArgs = {engine};
         childControllers.push(
@@ -743,7 +732,7 @@ export class TraceController extends Controller<States> {
   private async listTracks() {
     this.updateStatus('Loading tracks');
     const engine = assertExists<Engine>(this.engine);
-    const actions = await decideTracks(this.engineId, engine);
+    const actions = await decideTracks(engine);
     globals.dispatchMultiple(actions);
   }
 
