@@ -94,6 +94,7 @@ export interface AddTrackArgs {
   config: {};
   tags?: TrackTags;
   uri?: string;  // Only used for new PLUGIN_TRACK tracks
+  initialState?: unknown;
 }
 
 export interface PostedTrace {
@@ -267,6 +268,7 @@ export const StateActions = {
         config: track.config,
         labels: track.labels,
         uri: track.uri,
+        state: track.initialState,
       };
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -278,6 +280,19 @@ export const StateActions = {
         }
       }
     });
+  },
+
+  // Note: While this action has traditionally been omitted, with more and more
+  // dynamic tracks being added and existing ones being moved to plugins, it
+  // makes sense to have a generic "removeTracks" action which is un-opinionated
+  // about what type of tracks we are removing.
+  // E.g. Once debug tracks have been moved to a plugin, it makes no sense to
+  // keep the "removeDebugTrack()" action, as the core should have no concept of
+  // what debug tracks are.
+  removeTracks(state: StateDraft, args: {trackInstanceIds: string[]}) {
+    for (const trackInstanceId of args.trackInstanceIds) {
+      removeTrack(state, trackInstanceId);
+    }
   },
 
   setUtidToTrackSortKey(
@@ -827,7 +842,7 @@ export const StateActions = {
 
   selectChromeSlice(
       state: StateDraft,
-      args: {id: number, trackId: string, table: string, scroll?: boolean}):
+      args: {id: number, trackId: string, table?: string, scroll?: boolean}):
       void {
         state.currentSelection = {
           kind: 'CHROME_SLICE',
@@ -1162,17 +1177,6 @@ export const StateActions = {
               sortDirection: (index === args.aggregationIndex) ? args.order :
                                                                  undefined,
             }));
-  },
-
-  addVisualisedArg(state: StateDraft, args: {argName: string}) {
-    if (!state.visualisedArgs.includes(args.argName)) {
-      state.visualisedArgs.push(args.argName);
-    }
-  },
-
-  removeVisualisedArg(state: StateDraft, args: {argName: string}) {
-    state.visualisedArgs =
-        state.visualisedArgs.filter((val) => val !== args.argName);
   },
 
   setPivotTableArgumentNames(

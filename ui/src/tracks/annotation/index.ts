@@ -23,6 +23,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {
   Config as CounterTrackConfig,
   COUNTER_TRACK_KIND,
@@ -33,7 +34,46 @@ class AnnotationPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);
+  }
+
+  private async addAnnotationTracks(ctx: PluginContextTrace<undefined>) {
+    const {engine} = ctx;
+
+    const result = await engine.query(`
+      select id, name
+      from annotation_slice_track
+      order by name
+    `);
+
+    const it = result.iter({
+      id: NUM,
+      name: STR,
+    });
+
+    for (; it.valid(); it.next()) {
+      const id = it.id;
+      const name = it.name;
+
+      ctx.addTrack({
+        uri: `perfetto.Annotation#${id}`,
+        displayName: name,
+        kind: SLICE_TRACK_KIND,
+        tags: {
+          metric: true,
+        },
+        track: (({trackInstanceId}) => {
+          return new ChromeSliceTrack(
+              engine,
+              0,
+              trackInstanceId,
+              id,
+              'annotation',
+          );
+        }),
+      });
+    }
   }
 
   private async addAnnotationCounterTracks(ctx: PluginContextTrace) {

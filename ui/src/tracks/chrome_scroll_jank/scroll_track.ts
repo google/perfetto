@@ -31,8 +31,6 @@ import {
 } from './index';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
-export {Data} from '../chrome_slices';
-
 export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
