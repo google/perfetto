@@ -101,6 +101,17 @@ export class FlowEventsRendererArgs {
       for (const trackId of getTrackIds(track)) {
         this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
       }
+
+      // Register new "plugin track" ids
+      const trackState = globals.state.tracks[panel.attrs.id];
+      if (trackState.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(trackState.uri);
+        if (trackInfo?.trackIds) {
+          for (const trackId of trackInfo.trackIds) {
+            this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
+          }
+        }
+      }
     } else if (
         panel.state instanceof TrackGroupPanel &&
         hasTrackGroupId(panel.attrs)) {
