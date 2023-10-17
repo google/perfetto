@@ -350,7 +350,7 @@ export interface CpuProfileSampleSelection {
 export interface ChromeSliceSelection {
   kind: 'CHROME_SLICE';
   id: number;
-  table: string;
+  table?: string;
 }
 
 export interface ThreadStateSelection {
@@ -554,7 +554,6 @@ export interface State {
   ftracePagination: Pagination;
   ftraceFilter: FtraceFilterState;
   traceConversionInProgress: boolean;
-  visualisedArgs: string[];
 
   /**
    * This state is updated on the frontend at 60Hz and eventually syncronised to

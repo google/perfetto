@@ -14,32 +14,25 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {duration, time} from '../../base/time';
-import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
-import {ChromeSliceTrack} from '../chrome_slices';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../common/query_result';
+import {SliceData, SliceTrackBase} from '../../frontend/slice_track_base';
+import {
+  EngineProxy,
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {getTrackName} from '../../public/utils';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
-
-export interface Config {
-  maxDepth: number;
-  trackIds: number[];
-}
-
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  strings: string[];
-  sliceIds: Float64Array;
-  starts: BigInt64Array;
-  ends: BigInt64Array;
-  depths: Uint16Array;
-  titles: Uint16Array;   // Index in |strings|.
-  colors?: Uint16Array;  // Index in |strings|.
-  isInstant: Uint16Array;
-  isIncomplete: Uint16Array;
-}
 
 const BLUE_COLOR = '#03A9F4';         // Blue 500
 const GREEN_COLOR = '#4CAF50';        // Green 500
@@ -48,55 +41,60 @@ const RED_COLOR = '#FF5722';          // Red 500
 const LIGHT_GREEN_COLOR = '#C0D588';  // Light Green 500
 const PINK_COLOR = '#F515E0';         // Pink 500
 
-class ActualFramesSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
+class SliceTrack extends SliceTrackBase {
   private maxDur = 0n;
 
+  constructor(
+      private engine: EngineProxy, maxDepth: number, trackInstanceId: string,
+      private trackIds: number[], namespace?: string) {
+    super(maxDepth, trackInstanceId, 'actual_frame_timeline_slice', namespace);
+  }
+
   async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
+      Promise<SliceData> {
     if (this.maxDur === 0n) {
-      const maxDurResult = await this.query(`
-        select
-          max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
-            as maxDur
-        from experimental_slice_layout
-        where filter_track_ids = '${this.config.trackIds.join(',')}'
-      `);
+      const maxDurResult = await this.engine.query(`
+    select
+      max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
+        as maxDur
+    from experimental_slice_layout
+    where filter_track_ids = '${this.trackIds.join(',')}'
+  `);
       this.maxDur = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
     }
 
-    const rawResult = await this.query(`
-      SELECT
-        (s.ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
-        s.ts as ts,
-        max(iif(s.dur = -1, (SELECT end_ts FROM trace_bounds) - s.ts, s.dur))
-            as dur,
-        s.layout_depth as layoutDepth,
-        s.name as name,
-        s.id as id,
-        s.dur = 0 as isInstant,
-        s.dur = -1 as isIncomplete,
-        CASE afs.jank_tag
-          WHEN 'Self Jank' THEN '${RED_COLOR}'
-          WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
-          WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
-          WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
-          WHEN 'SurfaceFlinger Stuffing' THEN '${LIGHT_GREEN_COLOR}'
-          WHEN 'No Jank' THEN '${GREEN_COLOR}'
-          ELSE '${PINK_COLOR}'
-        END as color
-      from experimental_slice_layout s
-      join actual_frame_timeline_slice afs using(id)
-      where
-        filter_track_ids = '${this.config.trackIds.join(',')}' and
-        s.ts >= ${start - this.maxDur} and
-        s.ts <= ${end}
-      group by tsq, s.layout_depth
-      order by tsq, s.layout_depth
-    `);
+    const rawResult = await this.engine.query(`
+  SELECT
+    (s.ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
+    s.ts as ts,
+    max(iif(s.dur = -1, (SELECT end_ts FROM trace_bounds) - s.ts, s.dur))
+        as dur,
+    s.layout_depth as layoutDepth,
+    s.name as name,
+    s.id as id,
+    s.dur = 0 as isInstant,
+    s.dur = -1 as isIncomplete,
+    CASE afs.jank_tag
+      WHEN 'Self Jank' THEN '${RED_COLOR}'
+      WHEN 'Other Jank' THEN '${YELLOW_COLOR}'
+      WHEN 'Dropped Frame' THEN '${BLUE_COLOR}'
+      WHEN 'Buffer Stuffing' THEN '${LIGHT_GREEN_COLOR}'
+      WHEN 'SurfaceFlinger Stuffing' THEN '${LIGHT_GREEN_COLOR}'
+      WHEN 'No Jank' THEN '${GREEN_COLOR}'
+      ELSE '${PINK_COLOR}'
+    END as color
+  from experimental_slice_layout s
+  join actual_frame_timeline_slice afs using(id)
+  where
+    filter_track_ids = '${this.trackIds.join(',')}' and
+    s.ts >= ${start - this.maxDur} and
+    s.ts <= ${end}
+  group by tsq, s.layout_depth
+  order by tsq, s.layout_depth
+`);
 
     const numRows = rawResult.numRows();
-    const slices: Data = {
+    const slices: SliceData = {
       start,
       end,
       resolution,
@@ -154,17 +152,74 @@ class ActualFramesSliceTrackController extends TrackController<Config, Data> {
   }
 }
 
-export class ActualFramesSliceTrack extends ChromeSliceTrack {
-  static readonly kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
-  static create(args: NewTrackArgs): TrackBase {
-    return new ActualFramesSliceTrack(args);
-  }
-}
-
 class ActualFrames implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrackController(ActualFramesSliceTrackController);
-    ctx.LEGACY_registerTrack(ActualFramesSliceTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      with process_async_tracks as materialized (
+        select
+          process_track.upid as upid,
+          process_track.name as trackName,
+          process.name as processName,
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
+        from process_track
+        left join process using(upid)
+        where process_track.name = "Actual Timeline"
+        group by
+          process_track.upid,
+          process_track.name
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
+  `);
+
+    const it = result.iter({
+      upid: NUM,
+      trackName: STR_NULL,
+      trackIds: STR,
+      processName: STR_NULL,
+      pid: NUM_NULL,
+      maxDepth: NUM_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const upid = it.upid;
+      const trackName = it.trackName;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const processName = it.processName;
+      const pid = it.pid;
+      const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
+
+      const kind = 'ActualFrames';
+      const displayName =
+          getTrackName({name: trackName, upid, pid, processName, kind});
+
+      ctx.addTrack({
+        uri: `perfetto.ActualFrames#${upid}`,
+        displayName,
+        trackIds,
+        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
+        track: ({trackInstanceId}) => {
+          return new SliceTrack(
+              engine,
+              maxDepth,
+              trackInstanceId,
+              trackIds,
+          );
+        },
+      });
+    }
   }
 }
 

@@ -14,33 +14,26 @@
 
 import {ColumnDef} from '../../common/aggregation_data';
 import {Engine} from '../../common/engine';
+import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {
-  ASYNC_SLICE_TRACK_KIND,
-  Config as AsyncSliceConfig,
-} from '../../tracks/async_slices';
-import {
-  Config as SliceConfig,
-  SLICE_TRACK_KIND,
-} from '../../tracks/chrome_slices';
+import {ASYNC_SLICE_TRACK_KIND} from '../../tracks/async_slices';
+import {SLICE_TRACK_KIND} from '../../tracks/chrome_slices';
 
 import {AggregationController} from './aggregation_controller';
 
 export function getSelectedTrackIds(area: Area): number[] {
-  const selectedTrackIds = [];
+  const selectedTrackIds: number[] = [];
   for (const trackId of area.tracks) {
     const track = globals.state.tracks[trackId];
     // Track will be undefined for track groups.
-    if (track !== undefined) {
-      if (track.kind === SLICE_TRACK_KIND) {
-        selectedTrackIds.push((track.config as SliceConfig).trackId);
+    if (track?.uri !== undefined) {
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      if (trackInfo?.kind === SLICE_TRACK_KIND) {
+        trackInfo.trackIds && selectedTrackIds.push(...trackInfo.trackIds);
       }
-      if (track.kind === ASYNC_SLICE_TRACK_KIND) {
-        const config = track.config as AsyncSliceConfig;
-        for (const id of config.trackIds) {
-          selectedTrackIds.push(id);
-        }
+      if (trackInfo?.kind === ASYNC_SLICE_TRACK_KIND) {
+        trackInfo.trackIds && selectedTrackIds.push(...trackInfo.trackIds);
       }
     }
   }
