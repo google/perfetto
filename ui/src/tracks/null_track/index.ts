@@ -13,15 +13,19 @@
 // limitations under the License.
 
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 
+export const NULL_TRACK_URI = 'perfetto.NullTrack';
 export const NULL_TRACK_KIND = 'NullTrack';
 
 export class NullTrack extends TrackBase {
-  static readonly kind = NULL_TRACK_KIND;
   constructor(args: NewTrackArgs) {
     super(args);
-    this.frontendOnly = true;
   }
 
   static create(args: NewTrackArgs): NullTrack {
@@ -36,8 +40,21 @@ export class NullTrack extends TrackBase {
 }
 
 class NullTrackPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrack(NullTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+    // TODO(stevegolton): This is not the right way to handle blank tracks,
+    // instead we should probably just render some blank element at render time
+    // if no track uri is supplied.
+    ctx.addTrack({
+      uri: NULL_TRACK_URI,
+      displayName: 'Null Track',
+      kind: NULL_TRACK_KIND,
+      track: ({trackInstanceId}) => NullTrack.create({
+        engine: ctx.engine,
+        trackId: trackInstanceId,
+      }),
+    });
   }
 }
 

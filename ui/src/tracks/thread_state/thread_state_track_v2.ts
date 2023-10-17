@@ -1,4 +1,4 @@
-// Copyright (C) 2023 The Android Open Source Project
+// Copyright (C) 2021 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,15 +29,14 @@ import {
   SliceLayout,
 } from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
 export const THREAD_STATE_ROW = {
   ...BASE_SLICE_ROW,
   state: STR,
   ioWait: NUM_NULL,
 };
-export type ThreadStateRow = typeof THREAD_STATE_ROW;
 
+export type ThreadStateRow = typeof THREAD_STATE_ROW;
 
 export interface ThreadStateTrackConfig {
   utid: number;
@@ -48,10 +47,7 @@ export interface ThreadStateTrackTypes extends BaseSliceTrackTypes {
   config: ThreadStateTrackConfig;
 }
 
-export const THREAD_STATE_TRACK_V2_KIND = 'ThreadStateTrackV2';
-
 export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
-  static readonly kind = THREAD_STATE_TRACK_V2_KIND;
   static create(args: NewTrackArgs) {
     return new ThreadStateTrack(args);
   }
@@ -123,14 +119,3 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     return selection.kind === 'THREAD_STATE';
   }
 }
-
-class ThreadStateTrackV2 implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrack(ThreadStateTrack);
-  }
-}
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ThreadStateTrackV2',
-  plugin: ThreadStateTrackV2,
-};

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {Engine} from '../../common/engine';
 import {NUM} from '../../common/query_result';
 import {InThreadTrackSortKey} from '../../common/state';
@@ -79,20 +77,18 @@ export async function decideTracks(
   }
 
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: ChromeTasksScrollJankTrack.kind,
+    uri: 'perfetto.ChromeScrollJank',
     trackSortKey: {
       utid: it.utid,
       priority: InThreadTrackSortKey.ORDINARY,
     },
     name: 'Scroll Jank causes - long tasks',
-    config: {},
     trackGroup: getTrackGroupUuid(it.utid, it.upid),
   });
 
   // Initialise the chrome_tasks_delaying_input_processing table. It will be
   // used in the sql table above.
+  // TODO(stevegolton): Use viewer.tabs.openQuery().
   await engine.query(`
 select RUN_METRIC(
    'chrome/chrome_tasks_delaying_input_processing.sql',
