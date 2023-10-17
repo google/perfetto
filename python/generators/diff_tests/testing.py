@@ -177,7 +177,7 @@ class TestCase:
     self.name = name
     self.blueprint = blueprint
     self.index_dir = index_dir
-    self.test_dir = os.path.dirname(os.path.dirname(os.path.dirname(index_dir)))
+    self.test_dir = os.path.abspath(os.path.join(__file__, '../../../../test'))
 
     if blueprint.is_metric():
       self.type = TestType.METRIC

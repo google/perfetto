@@ -600,53 +600,46 @@ to do this is to run `tools/ninja -C <out directory>` both initially and on
 every change to trace processor code or builtin metrics.
 
 #### Choosing where to add diff tests
-Choosing a folder with a diff tests often can be confusing
-as a test can fall into more than one category. This section is a guide
-to decide which folder to choose.
+`diff_tests/` folder contains four directories corresponding to different
+areas of trace processor.
+1. __stdlib__: Tests focusing on testing Perfetto Standard Library, both
+   prelude and the regular modules. The subdirectories in this folder
+   should generally correspond to directories in `perfetto_sql/stdlib`.
+2. __parser__: Tests focusing on ensuring that different trace files are
+   parsed correctly and the corresponding built-in tables are populated.
+3. __metrics__: Tests focusing on testing metrics located in
+   `trace_processor/metrics/sql`. This organisation is mostly historical
+   and code (and corresponding tests) is expected to move to `stdlib` over time.
+4. __syntax__: Tests focusing on testing the core syntax of PerfettoSQL
+   (i.e. `CREATE PERFETTO TABLE` or `CREATE PERFETTO FUNCTION`).
 
-Broadly, there are two categories which all folders fall into:
-1. __"Area" folders__ which encompass a "vertical" area of interest
-   e.g. startup/ contains Android app startup related tests or chrome/
-   contains all Chrome related tests.
-2. __"Feature" folders__ which encompass a particular feature of
-   trace processor e.g. process_tracking/ tests the lifetime tracking of
-   processes, span_join/ tests the span join operator.
+__Scenario__: A new stdlib module `foo/bar.sql` is being added.
 
-"Area" folders should be preferred for adding tests unless the test is
-applicable to more than one "area"; in this case, one of "feature" folders
-can be used instead.
-
-Here are some common scenarios in which new tests may be added and
-answers on where to add the test:
+_Answer_: Add the test to the `stdlib/foo/bar_tests.py` file.
 
 __Scenario__: A new event is being parsed, the focus of the test is to ensure
-the event is being parsed correctly and the event is focused on a single
-vertical "Area".
+the event is being parsed correctly.
 
-_Answer_: Add the test in one of the "Area" folders.
-
-__Scenario__: A new event is being parsed and the focus of the test is to ensure
-the event is being parsed correctly and the event is applicable to more than one
-vertical "Area".
-
-_Answer_: Add the test to the parsing/ folder.
+_Answer_: Add the test in one of the `parser` subdirectories. Prefer adding a
+test to an existing related directory (i.e. `sched`, `power`) if one exists.
 
 __Scenario__: A new metric is being added and the focus of the test is to
 ensure the metric is being correctly computed.
 
-_Answer_: Add the test in one of the "Area" folders.
+_Answer_: Add the test in one of the `metrics` subdirectories. Prefer adding a
+test to an existing related directory if one exists. Also consider adding the
+code in question to stdlib.
 
 __Scenario__: A new dynamic table is being added and the focus of the test is to
 ensure the dynamic table is being correctly computed...
 
-_Answer_: Add the test to the dynamic/ folder
+_Answer_: Add the test to the `stdlib/dynamic_tables` folder
 
 __Scenario__: The interals of trace processor are being modified and the test
 is to ensure the trace processor is correctly filtering/sorting important
 built-in tables.
 
-_Answer_: Add the test to the tables/ folder.
-
+_Answer_: Add the test to the `parser/core_tables` folder.
 
 ## Appendix: table inheritance
 
