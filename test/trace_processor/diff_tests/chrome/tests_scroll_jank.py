@@ -355,7 +355,7 @@ class ChromeScrollJank(TestSuite):
 
   def test_chrome_thread_slice_repeated(self):
     return DiffTestBlueprint(
-        trace=Path('../track_event/track_event_counters.textproto'),
+        trace=Path('../parser/track_event/track_event_counters.textproto'),
         query="""
         SELECT RUN_METRIC('chrome/chrome_thread_slice.sql');
 
