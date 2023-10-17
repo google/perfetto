@@ -2484,16 +2484,28 @@ class TrackDecider {
       return included;
     });
 
-    const hasTrackGroup = (track: AddTrackArgs): track is AddTrackArgs & {trackGroup: string} =>
-        track.trackGroup !== undefined && track.trackGroup !== SCROLLING_TRACK_GROUP;
+    const hasTrackGroup =
+    (track: AddTrackArgs): track is AddTrackArgs & {trackGroup: string} =>
+        track.trackGroup !== undefined &&
+        track.trackGroup !== SCROLLING_TRACK_GROUP;
     const hasId = (track: AddTrackArgs): track is AddTrackArgs & {id: string} =>
         track.id !== undefined;
-    const includedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && includedTrackGroupIds.has(track.trackGroup)) ||
+    const includedByGroup = (track: AddTrackArgs) =>
+    (hasTrackGroup(track) && includedTrackGroupIds.has(track.trackGroup)) ||
         (hasId(track) && includedTrackGroupSummaryTrackIds.has(track.id));
-    const excludedByGroup = (track: AddTrackArgs) => (hasTrackGroup(track) && excludedTrackGroupIds.has(track.trackGroup)) ||
+    const excludedByGroup = (track: AddTrackArgs) =>
+    (hasTrackGroup(track) && excludedTrackGroupIds.has(track.trackGroup)) ||
         (hasId(track) && excludedTrackGroupSummaryTrackIds.has(track.id));
     const trackFilter = (track: AddTrackArgs) => {
-      const included = shouldCreateTrack(track, includedByGroup) && !excludedByGroup(track);
+      const included =
+      shouldCreateTrack(track,
+        (track)=>{
+          if (hasTrackGroup(track)) {
+            return includedByGroup(track);
+          } else {
+            return true;
+          }
+      }) && !excludedByGroup(track);
       if (!included) {
         rejected.push(track);
       }
