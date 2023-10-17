@@ -12,56 +12,53 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackData} from '../../common/track_data';
+import {BigintMath as BIMath} from '../../base/bigint_math';
+import {Duration, duration, time} from '../../base/time';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../common/query_result';
+import {
+  SliceData,
+  SliceTrackBase,
+} from '../../frontend/slice_track_base';
+import {
+  EngineProxy,
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {getTrackName} from '../../public/utils';
 
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
 
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {ChromeSliceTrack} from '../chrome_slices';
+class SliceTrack extends SliceTrackBase {
+  private maxDur = Duration.ZERO;
 
-import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
-import {duration, time} from '../../base/time';
-import {
-  TrackController,
-} from '../../controller/track_controller';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
-import {BigintMath as BIMath} from '../../base/bigint_math';
-
-export interface Config {
-  maxDepth: number;
-  trackIds: number[];
-}
-
-export interface Data extends TrackData {
-  // Slices are stored in a columnar fashion. All fields have the same length.
-  strings: string[];
-  sliceIds: Float64Array;
-  starts: BigInt64Array;
-  ends: BigInt64Array;
-  depths: Uint16Array;
-  titles: Uint16Array;   // Index in |strings|.
-  colors?: Uint16Array;  // Index in |strings|.
-  isInstant: Uint16Array;
-  isIncomplete: Uint16Array;
-}
-
-class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
-  static readonly kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
-  private maxDurNs: duration = 0n;
+  constructor(
+      private engine: EngineProxy, maxDepth: number, trackInstanceId: string,
+      private trackIds: number[], namespace?: string) {
+    super(maxDepth, trackInstanceId, '', namespace);
+  }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
-    if (this.maxDurNs === 0n) {
-      const maxDurResult = await this.query(`
+      Promise<SliceData> {
+    if (this.maxDur === Duration.ZERO) {
+      const maxDurResult = await this.engine.query(`
         select max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
           as maxDur
         from experimental_slice_layout
-        where filter_track_ids = '${this.config.trackIds.join(',')}'
+        where filter_track_ids = '${this.trackIds.join(',')}'
       `);
-      this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+      this.maxDur = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
     }
 
-    const queryRes = await this.query(`
+    const queryRes = await this.engine.query(`
       SELECT
         (ts + ${resolution / 2n}) / ${resolution} * ${resolution} as tsq,
         ts,
@@ -73,15 +70,15 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
         dur = -1 as isIncomplete
       from experimental_slice_layout
       where
-        filter_track_ids = '${this.config.trackIds.join(',')}' and
-        ts >= ${start - this.maxDurNs} and
+        filter_track_ids = '${this.trackIds.join(',')}' and
+        ts >= ${start - this.maxDur} and
         ts <= ${end}
       group by tsq, layout_depth
       order by tsq, layout_depth
     `);
 
     const numRows = queryRes.numRows();
-    const slices: Data = {
+    const slices: SliceData = {
       start,
       end,
       resolution,
@@ -139,18 +136,74 @@ class ExpectedFramesSliceTrackController extends TrackController<Config, Data> {
   }
 }
 
-
-export class ExpectedFramesSliceTrack extends ChromeSliceTrack {
-  static readonly kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
-  static create(args: NewTrackArgs): TrackBase {
-    return new ExpectedFramesSliceTrack(args);
-  }
-}
-
 class ExpectedFramesPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrackController(ExpectedFramesSliceTrackController);
-    ctx.LEGACY_registerTrack(ExpectedFramesSliceTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      with process_async_tracks as materialized (
+        select
+          process_track.upid as upid,
+          process_track.name as trackName,
+          process.name as processName,
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
+        from process_track
+        left join process using(upid)
+        where process_track.name = "Expected Timeline"
+        group by
+          process_track.upid,
+          process_track.name
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
+  `);
+
+    const it = result.iter({
+      upid: NUM,
+      trackName: STR_NULL,
+      trackIds: STR,
+      processName: STR_NULL,
+      pid: NUM_NULL,
+      maxDepth: NUM_NULL,
+    });
+
+    for (; it.valid(); it.next()) {
+      const upid = it.upid;
+      const trackName = it.trackName;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const processName = it.processName;
+      const pid = it.pid;
+      const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
+
+      const displayName = getTrackName(
+          {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
+
+      ctx.addTrack({
+        uri: `perfetto.ExpectedFrames#${upid}`,
+        displayName,
+        trackIds,
+        kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
+        track: ({trackInstanceId}) => {
+          return new SliceTrack(
+              engine,
+              maxDepth,
+              trackInstanceId,
+              trackIds,
+          );
+        },
+      });
+    }
   }
 }
 

@@ -16,6 +16,7 @@ import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
 import {Engine} from '../common/engine';
+import {pluginManager} from '../common/plugins';
 import {
   durationFromSql,
   LONG,
@@ -308,10 +309,15 @@ export class SelectionController extends Controller<'main'> {
     // UI track id for slice tracks this would be unnecessary.
     let trackId = '';
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.kind === SLICE_TRACK_KIND &&
-          (track.config as {trackId: number}).trackId === Number(trackIdTp)) {
-        trackId = track.id;
-        break;
+      if (track.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        if (trackInfo?.kind === SLICE_TRACK_KIND) {
+          const trackIds = trackInfo?.trackIds;
+          if (trackIds && trackIds.length > 0 && trackIds[0] === trackIdTp) {
+            trackId = track.id;
+            break;
+          }
+        }
       }
     }
     return trackId;
