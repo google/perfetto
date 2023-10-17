@@ -18,7 +18,6 @@
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
-#include "perfetto/ext/base/string_utils.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <Windows.h>
@@ -77,18 +76,6 @@ std::string GetTimeFmt(const std::string& fmt) {
   char buf[128];
   PERFETTO_CHECK(strftime(buf, 80, fmt.c_str(), local_tm) > 0);
   return buf;
-}
-
-std::optional<int32_t> GetTimezoneOffsetMins() {
-  std::string tz = GetTimeFmt("%z");
-  if (tz.size() != 5 || (tz[0] != '+' && tz[0] != '-'))
-    return std::nullopt;
-  char sign = '\0';
-  int32_t hh = 0;
-  int32_t mm = 0;
-  if (sscanf(tz.c_str(), "%c%2d%2d", &sign, &hh, &mm) != 3)
-    return std::nullopt;
-  return (hh * 60 + mm) * (sign == '-' ? -1 : 1);
 }
 
 }  // namespace base
