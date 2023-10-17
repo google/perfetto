@@ -49,13 +49,8 @@ import {
 } from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND} from '../tracks/counter';
-import {CPU_PROFILE_TRACK_KIND} from '../tracks/cpu_profile';
 import {EXPECTED_FRAMES_SLICE_TRACK_KIND} from '../tracks/expected_frames';
-import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {NULL_TRACK_KIND} from '../tracks/null_track';
-import {
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../tracks/perf_samples_profile';
 import {
   decideTracks as screenshotDecideTracks,
 } from '../tracks/screenshots';
@@ -979,14 +974,15 @@ class TrackDecider {
       const uuid = this.getUuid(utid, upid);
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: CPU_PROFILE_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: {
           utid,
           priority: InThreadTrackSortKey.CPU_STACK_SAMPLES_TRACK,
         },
         name: `${threadName} (CPU Stack Samples)`,
         trackGroup: uuid,
-        config: {utid},
+        config: {},
+        uri: `perfetto.CpuProfile#${utid}`,
       });
     }
   }
@@ -1357,11 +1353,12 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: HEAP_PROFILE_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
         name: `Heap Profile`,
         trackGroup: uuid,
-        config: {upid},
+        config: {},
+        uri: `perfetto.HeapProfile#${upid}`,
       });
     }
   }
@@ -1378,11 +1375,12 @@ class TrackDecider {
       const uuid = this.getUuid(0, upid);
       this.tracksToAdd.push({
         engineId: this.engineId,
-        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+        kind: PLUGIN_TRACK_KIND,
         trackSortKey: PrimaryTrackSortKey.PERF_SAMPLES_PROFILE_TRACK,
         name: `Callstacks ${pid}`,
         trackGroup: uuid,
-        config: {upid},
+        config: {},
+        uri: `perfetto.PerfSamplesProfile#${upid}`,
       });
     }
   }
