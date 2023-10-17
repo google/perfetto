@@ -282,8 +282,11 @@ export class SearchController extends Controller<'main'> {
       } else if (it.source === 'track') {
         trackId = globals.state.uiTrackIdByTraceTrackId[it.sourceId];
       } else if (it.source === 'log') {
-        const logTracks = Object.values(globals.state.tracks)
-                              .filter((t) => t.kind === 'AndroidLogTrack');
+        const logTracks =
+            Object.values(globals.state.tracks).filter((track) => {
+              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+              return (trackDesc && trackDesc.kind === 'AndroidLogTrack');
+            });
         if (logTracks.length > 0) {
           trackId = logTracks[0].id;
         }

@@ -17,10 +17,9 @@ import m from 'mithril';
 import {Hotkey} from '../base/hotkeys';
 import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
-import {TrackControllerFactory} from '../controller/track_controller';
 import {Store} from '../frontend/store';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {SliceRect, TrackCreator} from '../frontend/track';
+import {SliceRect} from '../frontend/track';
 
 export {EngineProxy} from '../common/engine';
 export {
@@ -148,22 +147,6 @@ export interface MetricVisualisation {
 // most hooks within the plugin. It should be used to interact with Perfetto.
 export interface PluginContext {
   readonly viewer: Viewer;
-
-  // DEPRECATED. In prior versions of the UI tracks were split into a
-  // 'TrackController' and a 'Track'. In more recent versions of the UI
-  // the functionality of |TrackController| has been merged into Track so
-  // |TrackController|s are not necessary in new code.
-  LEGACY_registerTrackController(track: TrackControllerFactory): void;
-
-  // Register a track factory. The core UI invokes |TrackCreator| to
-  // construct tracks discovered by invoking |TrackProvider|s.
-  // The split between 'construction' and 'discovery' allows
-  // plugins to reuse common tracks for new data. For example: the
-  // dev.perfetto.AndroidGpu plugin could register a TrackProvider
-  // which returns GPU counter tracks. The counter track factory itself
-  // could be registered in dev.perfetto.CounterTrack - a whole
-  // different plugin.
-  LEGACY_registerTrack(track: TrackCreator): void;
 
   // Add a command.
   addCommand(command: Command): void;
