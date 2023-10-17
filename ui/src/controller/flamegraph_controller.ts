@@ -26,14 +26,12 @@ import {
   PERF_SAMPLES_KEY,
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
+import {pluginManager} from '../common/plugins';
 import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
-import {
-  Config as PerfSampleConfig,
-  PERF_SAMPLES_PROFILE_TRACK_KIND,
-} from '../tracks/perf_samples_profile';
+import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../tracks/perf_samples_profile';
 
 import {AreaSelectionHandler} from './area_selection_handler';
 import {Controller} from './controller';
@@ -131,12 +129,13 @@ export class FlamegraphController extends Controller<'main'> {
         return;
       }
       for (const trackId of area.tracks) {
-        const trackState = globals.state.tracks[trackId];
-        if (!trackState ||
-            trackState.kind !== PERF_SAMPLES_PROFILE_TRACK_KIND) {
-          continue;
+        const track = globals.state.tracks[trackId];
+        if (track?.uri) {
+          const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+          if (trackInfo?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND) {
+            trackInfo.upid && upids.push(trackInfo.upid);
+          }
         }
-        upids.push((trackState.config as PerfSampleConfig).upid);
       }
       if (upids.length === 0) {
         this.checkCompletionAndPublishFlamegraph(
