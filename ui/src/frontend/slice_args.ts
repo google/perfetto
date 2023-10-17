@@ -24,7 +24,6 @@ import {NUM} from '../common/query_result';
 import {InThreadTrackSortKey} from '../common/state';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
 import {
-  VISUALISED_ARGS_SLICE_TRACK_KIND,
   VISUALISED_ARGS_SLICE_TRACK_URI,
   VisualisedArgsState,
 } from '../tracks/visualised_args';
@@ -177,15 +176,12 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
     };
 
     tracksToAdd.push({
-      engineId: '',
       id,
       trackGroup: track.trackGroup,
-      kind: VISUALISED_ARGS_SLICE_TRACK_KIND,
       name: argName,
       trackSortKey: utid === undefined ?
           track.trackSortKey :
           {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
-      config: {},
       initialState,
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
     });

@@ -18,10 +18,8 @@ import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {duration, Span, time} from '../base/time';
-import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {RegistryError} from '../common/registry';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Migrate, Track, TrackContext} from '../public';
@@ -33,7 +31,6 @@ import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {PxSpan, TimeScale} from './time_scale';
 import {SliceRect} from './track';
-import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -79,24 +76,12 @@ class TrackChip implements m.ClassComponent<TrackChipAttrs> {
   }
 }
 
-export function renderChips({uri, config}: TrackState) {
+export function renderChips({uri}: TrackState) {
   const tagElements: m.Children = [];
-  if (exists(uri)) {
-    const trackInfo = pluginManager.resolveTrackInfo(uri);
-    const tags = trackInfo?.tags;
-    tags?.metric && tagElements.push(m(TrackChip, {text: 'metric'}));
-    tags?.debuggable && tagElements.push(m(TrackChip, {text: 'debuggable'}));
-  } else {
-    if (config && typeof config === 'object') {
-      if ('namespace' in config) {
-        tagElements.push(m(TrackChip, {text: 'metric'}));
-      }
-      if ('isDebuggable' in config && config.isDebuggable) {
-        tagElements.push(m(TrackChip, {text: 'debuggable'}));
-      }
-    }
-  }
-
+  const trackInfo = pluginManager.resolveTrackInfo(uri);
+  const tags = trackInfo?.tags;
+  tags?.metric && tagElements.push(m(TrackChip, {text: 'metric'}));
+  tags?.debuggable && tagElements.push(m(TrackChip, {text: 'debuggable'}));
   return tagElements;
 }
 
@@ -378,8 +363,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
       },
     };
 
-    this.track = uri ? pluginManager.createTrack(uri, trackCtx) :
-                       loadTrack(trackState, id);
+    this.track = pluginManager.createTrack(uri, trackCtx);
 
     this.track?.onCreate();
     this.trackState = trackState;
@@ -516,27 +500,5 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
     return this.track.getSliceRect(
         visibleTimeScale, visibleWindow, windowSpan, tStart, tDur, depth);
-  }
-}
-
-function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
-  const engine = globals.engines.get(trackState.engineId);
-  if (engine === undefined) {
-    return undefined;
-  }
-
-  try {
-    const trackCreator = trackRegistry.get(trackState.kind);
-    return trackCreator.create({
-      trackId,
-      engine:
-          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
-    });
-  } catch (e) {
-    if (e instanceof RegistryError) {
-      return undefined;
-    } else {
-      throw e;
-    }
   }
 }

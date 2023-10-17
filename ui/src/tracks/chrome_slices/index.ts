@@ -35,6 +35,8 @@ import {
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 
+import {GenericSliceTrack} from './generic_slice_track';
+
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
 export class ChromeSliceTrack extends SliceTrackBase {
@@ -206,6 +208,22 @@ class ChromeSlicesPlugin implements Plugin {
               trackInstanceId,
               trackId,
           );
+        },
+      });
+
+      // trackIds can only be registered by one track at a time.
+      // TODO(hjd): Move trackIds to only be on V2.
+      ctx.addTrack({
+        uri: `perfetto.ChromeSlices#${trackId}.v2`,
+        displayName,
+        kind: SLICE_TRACK_KIND,
+        track: ({trackInstanceId}) => {
+          const track = GenericSliceTrack.create({
+            engine: ctx.engine,
+            trackId: trackInstanceId,
+          });
+          track.config = {sqlTrackId: trackId};
+          return track;
         },
       });
     }
