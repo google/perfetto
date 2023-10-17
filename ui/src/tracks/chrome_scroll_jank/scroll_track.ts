@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
-import {Engine} from '../../common/engine';
-
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
@@ -31,10 +27,12 @@ import {
 } from './index';
 import {ScrollDetailsPanel} from './scroll_details_panel';
 
+export const CHROME_TOPLEVEL_SCROLLS_KIND =
+    'org.chromium.TopLevelScrolls.scrolls';
+
 export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
-  static readonly kind = 'org.chromium.TopLevelScrolls.scrolls';
-
+  public static kind = CHROME_TOPLEVEL_SCROLLS_KIND;
   static create(args: NewTrackArgs): TrackBase {
     return new TopLevelScrollTrack(args);
   }
@@ -74,24 +72,15 @@ export class TopLevelScrollTrack extends
   }
 }
 
-export async function addTopLevelScrollTrack(engine: Engine):
-    Promise<DecideTracksResult> {
+export async function addTopLevelScrollTrack(): Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`
-    INCLUDE PERFETTO MODULE chrome.chrome_scrolls;
-    INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
-  `);
-
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: TopLevelScrollTrack.kind,
+    uri: 'perfetto.ChromeScrollJank#toplevelScrolls',
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scrolls',
-    config: {},
     trackGroup: SCROLL_JANK_GROUP_ID,
   });
 
