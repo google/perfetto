@@ -15,15 +15,24 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {LONG} from '../../common/query_result';
+import {LONG, NUM} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -35,8 +44,8 @@ export interface Config {
   upid: number;
 }
 
-class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
-  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
+class PerfSamplesProfileTrackController extends
+    TrackControllerAdapter<Config, Data> {
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (this.config.upid === undefined) {
@@ -77,8 +86,7 @@ const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
-class PerfSamplesProfileTrack extends TrackBase<Config, Data> {
-  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
+class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): PerfSamplesProfileTrack {
     return new PerfSamplesProfileTrack(args);
   }
@@ -209,9 +217,32 @@ class PerfSamplesProfileTrack extends TrackBase<Config, Data> {
 }
 
 class PerfSamplesProfilePlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrackController(PerfSamplesProfileTrackController);
-    ctx.LEGACY_registerTrack(PerfSamplesProfileTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const result = await ctx.engine.query(`
+      select distinct upid, pid
+      from perf_sample join thread using (utid) join process using (upid)
+      where callsite_id is not null
+  `);
+    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      const pid = it.pid;
+      ctx.addTrack({
+        uri: `perfetto.PerfSamplesProfile#${upid}`,
+        displayName: `Callstacks ${pid}`,
+        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+        upid,
+        track: ({trackInstanceId}) => {
+          return new TrackWithControllerAdapter(
+              ctx.engine,
+              trackInstanceId,
+              {upid},
+              PerfSamplesProfileTrack,
+              PerfSamplesProfileTrackController);
+        },
+      });
+    }
   }
 }
 
