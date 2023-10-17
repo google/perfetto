@@ -12,10 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TrackState} from 'src/common/state';
-
 import {time} from '../base/time';
 import {pluginManager} from '../common/plugins';
+import {TrackState} from '../common/state';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
@@ -54,14 +53,6 @@ interface TrackGroupPanelInfo {
   height: number;
 }
 
-function hasTrackId(obj: {}): obj is {trackId: number} {
-  return (obj as {trackId?: number}).trackId !== undefined;
-}
-
-function hasManyTrackIds(obj: {}): obj is {trackIds: number[]} {
-  return (obj as {trackIds?: number}).trackIds !== undefined;
-}
-
 function hasId(obj: {}): obj is {id: number} {
   return (obj as {id?: number}).id !== undefined;
 }
@@ -71,19 +62,8 @@ function hasTrackGroupId(obj: {}): obj is {trackGroupId: string} {
 }
 
 function getTrackIds(track: TrackState): number[] {
-  if (track.uri) {
-    const trackInfo = pluginManager.resolveTrackInfo(track.uri);
-    if (trackInfo?.trackIds) return trackInfo?.trackIds;
-  } else {
-    const config = track.config;
-    if (hasTrackId(config)) {
-      return [config.trackId];
-    }
-    if (hasManyTrackIds(config)) {
-      return config.trackIds;
-    }
-  }
-  return [];
+  const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+  return trackDesc?.trackIds ?? [];
 }
 
 export class FlowEventsRendererArgs {

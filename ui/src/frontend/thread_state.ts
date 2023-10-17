@@ -27,6 +27,7 @@ import {pluginManager} from '../common/plugins';
 import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {Anchor} from '../widgets/anchor';
 
 import {globals} from './globals';
@@ -179,8 +180,10 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
           onclick: () => {
             let trackId: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {
-              if (track.kind === 'ThreadStateTrack' &&
-                  (track.config as {utid: number}).utid === vnode.attrs.utid) {
+              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+              // TODO(stevegolton): Handle v2.
+              if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+                  trackDesc.utid === vnode.attrs.utid) {
                 trackId = track.id;
               }
             }

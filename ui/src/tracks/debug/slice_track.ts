@@ -16,18 +16,21 @@ import m from 'mithril';
 
 import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {TrackButton} from '../../frontend/track_panel';
+import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
+import {DEBUG_SLICE_TRACK_URI} from '.';
 import {ARG_PREFIX} from './add_debug_track_menu';
 import {DebugSliceDetailsTab} from './details_tab';
 
@@ -81,7 +84,8 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
   getTrackShellButtons(): m.Children {
     return m(TrackButton, {
       action: () => {
-        globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
+        globals.dispatch(
+            Actions.removeTracks({trackInstanceIds: [this.trackId]}));
       },
       i: 'close',
       tooltip: 'Close',
@@ -140,10 +144,12 @@ export async function addDebugSliceTrack(
       from prepared_data
       order by ts;`);
 
-  globals.dispatch(Actions.addDebugSliceTrack({
-    engineId: engine.engineId,
+  globals.dispatch(Actions.addTrack({
+    uri: DEBUG_SLICE_TRACK_URI,
     name: trackName.trim() || `Debug Track ${debugTrackId}`,
-    config: {
+    trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
+    trackGroup: SCROLLING_TRACK_GROUP,
+    initialState: {
       sqlTableName,
       columns: sliceColumns,
     },

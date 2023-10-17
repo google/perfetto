@@ -256,7 +256,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.frontendOnly = true;  // Disable auto checkerboarding.
     // TODO(hjd): Handle pinned tracks, which current cause a crash
     // since the tableName we generate is the same for both.
     this.tableName = `track_${this.trackId}`.replace(/[^a-zA-Z0-9_]+/g, '_');

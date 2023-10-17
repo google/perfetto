@@ -19,7 +19,6 @@ import {assertExists} from '../base/logging';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {RegistryError} from '../common/registry';
 import {
   getContainingTrackId,
   TrackGroupState,
@@ -31,7 +30,6 @@ import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {renderChips, TrackContent} from './track_panel';
-import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -70,8 +68,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
       },
     };
 
-    this.summaryTrack =
-        uri ? pluginManager.createTrack(uri, ctx) : loadTrack(trackState, id);
+    this.summaryTrack = pluginManager.createTrack(uri, ctx);
   }
 
   get trackGroupState(): TrackGroupState {
@@ -303,26 +300,4 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
 function StripPathFromExecutable(path: string) {
   return path.split('/').slice(-1)[0];
-}
-
-function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
-  const engine = globals.engines.get(trackState.engineId);
-  if (engine === undefined) {
-    return undefined;
-  }
-
-  try {
-    const trackCreator = trackRegistry.get(trackState.kind);
-    return trackCreator.create({
-      trackId,
-      engine:
-          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
-    });
-  } catch (e) {
-    if (e instanceof RegistryError) {
-      return undefined;
-    } else {
-      throw e;
-    }
-  }
 }
