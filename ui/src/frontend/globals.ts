@@ -45,7 +45,8 @@ import {RafScheduler} from './raf_scheduler';
 import {Router} from './router';
 import {ServiceWorkerController} from './service_worker_controller';
 import {PxSpan, TimeScale} from './time_scale';
-import {maybeShowErrorDialog} from './error_dialog';
+import {ERROR_MODAL_KIND, maybeShowErrorDialog} from './error_dialog';
+import {fullscreenModalContainer} from './modal';
 
 type Dispatch = (action: DeferredAction) => void;
 type TrackDataStore = Map<string, {}>;
@@ -669,6 +670,13 @@ class Globals {
   }
 
   set errorHandler(errorHandler: ErrorHandler) {
+    if (this._errorHandler === maybeShowErrorDialog) {
+      // If we were showing an error dialog, close it because there's
+      // a new error-handling sheriff in town.
+      if (fullscreenModalContainer.kind === ERROR_MODAL_KIND) {
+        fullscreenModalContainer.close();
+      }
+    }
     this._errorHandler = errorHandler;
   }
 

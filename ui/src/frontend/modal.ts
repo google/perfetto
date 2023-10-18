@@ -65,6 +65,8 @@ export interface ModalDefinition {
   buttons?: Button[];
   close?: boolean;
   onClose?: () => void;
+  // Optional indication of the model kind/purpose.
+  kind?: string;
 }
 
 export interface Button {
@@ -277,6 +279,16 @@ export class ModalContainer {
   close() {
     this.closeGeneration = this.generation;
     globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  // Query the kind of |Modal| that is open, if it is open and it
+  // has a |kind| in its |ModalDefinition|.
+  get kind(): string|undefined {
+    if (this.generation == this.closeGeneration || this.attrs?.close) {
+      // Closed
+      return undefined;
+    }
+    return this.attrs?.kind;
   }
 }
 

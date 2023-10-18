@@ -21,7 +21,7 @@ import {TraceUrlSource} from '../common/state';
 import {saveTrace} from '../common/upload_utils';
 
 import {globals} from './globals';
-import {showModal} from './modal';
+import {ModalDefinition, showModal as basicShowModal} from './modal';
 import {isShareable} from './trace_attrs';
 
 // Never show more than one dialog per minute.
@@ -31,6 +31,17 @@ let timeLastReport = 0;
 // Keeps the last ERR_QUEUE_MAX_LEN errors while the dialog is throttled.
 const queuedErrors = new Array<string>();
 const ERR_QUEUE_MAX_LEN = 10;
+
+export const ERROR_MODAL_KIND = 'error';
+
+// Override the standard |showModal| function to set the
+// error |kind| unless the |attrs| happen to have a |kind|.
+function showModal(attrs: ModalDefinition): Promise<void> {
+  if (attrs.kind === undefined) {
+    attrs.kind = ERROR_MODAL_KIND;
+  }
+  return basicShowModal(attrs);
+}
 
 export function showErrorDialog(errLog: string) {
   // Force showing the dialog by resetting the last report time
