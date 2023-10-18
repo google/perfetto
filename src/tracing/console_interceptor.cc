@@ -33,7 +33,7 @@
 #include "protos/perfetto/common/interceptor_descriptor.gen.h"
 #include "protos/perfetto/config/data_source_config.gen.h"
 #include "protos/perfetto/config/interceptor_config.gen.h"
-#include "protos/perfetto/config/interceptors/console_config.pbzero.h"
+#include "protos/perfetto/config/interceptors/console_config.gen.h"
 #include "protos/perfetto/trace/interned_data/interned_data.pbzero.h"
 #include "protos/perfetto/trace/trace_packet.pbzero.h"
 #include "protos/perfetto/trace/trace_packet_defaults.pbzero.h"
@@ -275,13 +275,13 @@ void ConsoleInterceptor::OnSetup(const SetupArgs& args) {
 #else
   bool use_colors = false;
 #endif
-  protos::pbzero::ConsoleConfig::Decoder config(
-      args.config.interceptor_config().console_config_raw());
+  const protos::gen::ConsoleConfig& config =
+      args.config.interceptor_config().console_config();
   if (config.has_enable_colors())
     use_colors = config.enable_colors();
-  if (config.output() == protos::pbzero::ConsoleConfig::OUTPUT_STDOUT) {
+  if (config.output() == protos::gen::ConsoleConfig::OUTPUT_STDOUT) {
     fd = STDOUT_FILENO;
-  } else if (config.output() == protos::pbzero::ConsoleConfig::OUTPUT_STDERR) {
+  } else if (config.output() == protos::gen::ConsoleConfig::OUTPUT_STDERR) {
     fd = STDERR_FILENO;
   }
   fd_ = fd;
