@@ -28,8 +28,8 @@ import {drawGridLines} from './gridline_helper';
 import {
   BLANK_CHECKBOX,
   CHECKBOX,
+  CHEVRON_RIGHT,
   EXPAND_DOWN,
-  EXPAND_UP,
   INDETERMINATE_CHECKBOX,
 } from './icons';
 import {Panel, PanelSize} from './panel';
@@ -159,7 +159,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
           m('.fold-button',
             {...titleStyling},
             m('i.material-icons',
-              this.trackGroupState.collapsed ? EXPAND_DOWN : EXPAND_UP)),
+              this.trackGroupState.collapsed ? CHEVRON_RIGHT : EXPAND_DOWN)),
           m('.title-wrapper',
             {...titleStyling},
             m('h1.track-title',

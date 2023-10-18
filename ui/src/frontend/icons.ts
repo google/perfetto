@@ -16,6 +16,7 @@ export const BLANK_CHECKBOX = 'check_box_outline_blank';
 export const CHECKBOX = 'check_box';
 export const INDETERMINATE_CHECKBOX = 'indeterminate_check_box';
 
+export const CHEVRON_RIGHT = 'chevron_right';
 export const EXPAND_DOWN = 'expand_more';
 export const EXPAND_UP = 'expand_less';
 
