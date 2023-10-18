@@ -195,6 +195,10 @@ class TrackDecider {
   // collects its idle threads (< 0.1% CPU)
   private idleThreadGroups = new Map<number, string>();
 
+  // Top-level "GPU" group for all things GPU-related.
+  private gpuGroup: LazyIdProvider = this.lazyTrackGroup('GPU',
+    {collapsed: false});
+
   constructor(engineId: string, engine: Engine) {
     this.engineId = engineId;
     this.engine = engine;
@@ -2120,7 +2124,8 @@ class TrackDecider {
     }
 
     const layerGroup = (layerName: string) => this.lazyTrackGroup(
-      `Layer - ${layerName}`, {lazyParentGroup: this.lazyTrackGroup('SurfaceFlinger Events')});
+      `Layer - ${layerName}`, {lazyParentGroup: this.lazyTrackGroup('Frame Lifecycle',
+        {lazyParentGroup: this.gpuGroup})});
     const layerSubgroups = new Map<string, Map<string, string>>();
     const layerSubgroup = (layerName: string, subgroup: string) => {
       let subgroups = layerSubgroups.get(layerName);
@@ -2186,50 +2191,56 @@ class TrackDecider {
     }
   }
 
-  addGPUMasterGroup(): void {
-    const gpuGroup = this.lazyTrackGroup('GPU', {collapsed: false});
-
+  async groupGpuTracks(engine: EngineProxy): Promise<void> {
     const groupsToCollect: AddTrackGroupArgs[] = [];
     for (const group of this.trackGroupsToAdd) {
       if (group.name.startsWith('GPU ') && !group.parentGroup) {
         groupsToCollect.push(group);
       }
     }
-    groupsToCollect.forEach((group) => group.parentGroup = gpuGroup());
+    groupsToCollect.forEach((group) => group.parentGroup = this.gpuGroup());
 
     // Collect some tracks, too
-    for (const track of this.tracksToAdd) {
-      if (track.name.startsWith('Vulkan ')) {
-        track.trackGroup = gpuGroup();
-      }
-    }
-  }
-
-  async groupGpuQueueTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
-    select id
+    select id, scope
     from gpu_track
-    where scope = 'gpu_render_stage';
+    where scope is not null;
     `);
     if (result.numRows() === 0) {
-      // No GPU Queue tracks to group
+      // No GPU tracks to group
       return;
     }
 
     const gpuQueueTrackIds = new Set<number>();
+    const vulkanEventsTrackIds = new Set<number>();
     const it = result.iter({
       id: NUM,
+      scope: STR,
     });
     for (; it.valid(); it.next()) {
-      gpuQueueTrackIds.add(it.id);
+      switch (it.scope) {
+        case 'gpu_render_stage':
+          gpuQueueTrackIds.add(it.id);
+          break;
+        case 'vulkan_events':
+          vulkanEventsTrackIds.add(it.id);
+          break;
+        default:
+          break; // Group TBD
+      }
     }
 
     const gpuQueuesGroup = this.lazyTrackGroup('GPU Queues');
     for (const track of this.tracksToAdd) {
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         const trackId = TrackDecider.getTrackId(track);
-        if (trackId !== undefined && gpuQueueTrackIds.has(trackId)) {
+        if (trackId === undefined) {
+          continue;
+        }
+        if (gpuQueueTrackIds.has(trackId)) {
           track.trackGroup = gpuQueuesGroup();
+        } else if (vulkanEventsTrackIds.has(trackId)) {
+          track.trackGroup = this.gpuGroup();
         }
       }
     }
@@ -2362,8 +2373,6 @@ class TrackDecider {
     await this.addPluginTracks();
     await this.addAnnotationTracks(
         this.engine.getProxy('TrackDecider::addAnnotationTracks'));
-    await this.groupGpuQueueTracks(
-      this.engine.getProxy('TrackDecider::groupGpuQueueTracks'));
     await this.groupGlobalIonTracks();
     await this.groupGlobalIostatTracks(F2FS_IOSTAT_TAG, F2FS_IOSTAT_GROUP_NAME);
     await this.groupGlobalIostatTracks(
@@ -2417,9 +2426,10 @@ class TrackDecider {
         this.engine.getProxy('TrackDecider::addThreadCpuSampleTracks'));
     await this.addLogsTrack(this.engine.getProxy('TrackDecider::addLogsTrack'));
 
+    await this.groupGpuTracks(
+      this.engine.getProxy('TrackDecider::groupGpuTracks'));
     await this.addSurfaceFlingerTrackGroups(
       this.engine.getProxy('TrackDecider::addSurfaceflingerTrackGroups'));
-    this.addGPUMasterGroup();
 
     // TODO(hjd): Move into plugin API.
     {
