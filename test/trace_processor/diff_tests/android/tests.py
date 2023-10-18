@@ -1186,3 +1186,22 @@ class Android(TestSuite):
           }
         }
         """))
+
+  def test_ad_services_metric(self):
+    return DiffTestBlueprint(
+        trace=Path('ad_services_metric.py'),
+        query=Metric('ad_services_metric'),
+        out=TextProto(r"""
+         ad_services_metric {
+           ui_metric {
+             latency: 0.0003
+           }
+           app_set_id_metric {
+             latency: 0.0001
+           }
+           ad_id_metric {
+             latency:0.0003
+           }
+         }
+        """)
+    )
