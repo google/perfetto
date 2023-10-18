@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/anr_metric.proto";
@@ -109,7 +110,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 58
+// Next id: 59
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -261,10 +262,14 @@ message TraceMetrics {
 
   // Metrics for App Not Responding (ANR) errors.
   optional AndroidAnrMetric android_anr = 55;
+
   // Aggregated Android Monitor Contention metrics
   optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
 
   optional AndroidBootMetric android_boot = 57;
+
+  // Metric for AdServices module.
+  optional AdServicesMetric ad_services_metric = 58;
 
   // Demo extensions.
   extensions 450 to 499;
