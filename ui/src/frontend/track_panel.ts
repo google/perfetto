@@ -19,7 +19,7 @@ import {Actions} from '../common/actions';
 import {TrackState} from '../common/state';
 import {TPTime} from '../common/time';
 
-import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
+import {TRACK_SHELL_WIDTH, getCssStr} from './css_constants';
 import {PerfettoMouseEvent} from './events';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -405,7 +405,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     const selectedArea = globals.state.areas[selection.areaId];
     const selectedAreaDuration = selectedArea.end - selectedArea.start;
     if (selectedArea.tracks.includes(trackState.id)) {
-      ctx.fillStyle = SELECTION_FILL_COLOR;
+      ctx.fillStyle = getCssStr('--selection-fill-color');
       ctx.fillRect(
           visibleTimeScale.tpTimeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
           0,
