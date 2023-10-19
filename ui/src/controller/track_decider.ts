@@ -579,8 +579,8 @@ class TrackDecider {
   async groupMiscNonAllowlistedTracks(groupName: string): Promise<void> {
     // List of allowlisted track names.
     const ALLOWLIST_REGEXES = [
-      new RegExp('^Cpu .*$'),
-      new RegExp('^Gpu .*$'),
+      new RegExp('^Cpu .*$', 'i'),
+      new RegExp('^Gpu .*$', 'i'),
       new RegExp('^Trace Triggers$'),
       new RegExp('^Android App Startups$'),
     ];
