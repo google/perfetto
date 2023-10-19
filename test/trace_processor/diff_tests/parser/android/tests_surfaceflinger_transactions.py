@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class SurfaceFlingerTransactions(TestSuite):
+
   def test_has_expected_transactions_rows(self):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_transactions.textproto'),
