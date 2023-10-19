@@ -20,6 +20,7 @@ from python.generators.diff_tests.testing import TestSuite
 
 
 class SurfaceFlingerLayers(TestSuite):
+
   def test_snapshot_table(self):
     return DiffTestBlueprint(
         trace=Path('surfaceflinger_layers.textproto'),
@@ -80,4 +81,3 @@ class SurfaceFlingerLayers(TestSuite):
         2,1,"surfaceflinger_layer"
         3,1,"surfaceflinger_layer"
         """))
-

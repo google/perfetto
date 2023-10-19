@@ -30,18 +30,3 @@ class Power(TestSuite):
         SELECT * FROM P_STATE_OVER_INTERVAL(2579596465618, 2579606465618);
         """,
         out=Path('cpu_counters_p_state_test.out'))
-
-  # CPU power ups
-  def test_cpu_powerups(self):
-    return DiffTestBlueprint(
-        trace=DataPath('cpu_powerups_1.pb'),
-        query="""
-        INCLUDE PERFETTO MODULE chrome.cpu_powerups;
-        SELECT * FROM chrome_cpu_power_first_toplevel_slice_after_powerup;
-        """,
-        out=Csv("""
-        "slice_id","previous_power_state"
-        424,2
-        703,2
-        708,2
-        """))

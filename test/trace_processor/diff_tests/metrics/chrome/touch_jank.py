@@ -22,6 +22,7 @@ from os import sys
 import synth_common
 
 from synth_common import ms_to_ns
+
 trace = synth_common.create_trace()
 
 process_track1 = 1234

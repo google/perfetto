@@ -21,12 +21,11 @@ SYSUI_PID = 1000
 trace = synth_common.create_trace()
 trace.add_packet()
 
-trace.add_package_list(ts=0, name="com.android.systemui", uid=SYSUI_PID,
-                       version_code=1)
-trace.add_process(pid=SYSUI_PID, ppid=0, cmdline="com.android.systemui",
-                  uid=SYSUI_PID)
+trace.add_package_list(
+    ts=0, name="com.android.systemui", uid=SYSUI_PID, version_code=1)
+trace.add_process(
+    pid=SYSUI_PID, ppid=0, cmdline="com.android.systemui", uid=SYSUI_PID)
 trace.add_ftrace_packet(cpu=0)
-
 
 slices_to_standardize = [
     "Lock contention on thread list lock (owner tid: 1665)",
@@ -43,9 +42,9 @@ slices_to_standardize = [
 ]
 
 for name in slices_to_standardize:
-  trace.add_atrace_async_begin(ts=1_000_000, tid=SYSUI_PID, pid=SYSUI_PID,
-                               buf=name)
-  trace.add_atrace_async_end(ts=2_000_000, tid=SYSUI_PID, pid=SYSUI_PID,
-                             buf=name)
+  trace.add_atrace_async_begin(
+      ts=1_000_000, tid=SYSUI_PID, pid=SYSUI_PID, buf=name)
+  trace.add_atrace_async_end(
+      ts=2_000_000, tid=SYSUI_PID, pid=SYSUI_PID, buf=name)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
