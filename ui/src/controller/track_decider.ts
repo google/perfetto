@@ -101,9 +101,8 @@ const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const NETWORK_TRACK_GROUP = 'Networking';
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
 const ENTITY_RESIDENCY_GROUP = 'Entity residency';
-const BATTERY_TRACK_REGEX = new RegExp('^batt\\..*$');
+const BATTERY_TRACK_REGEX = new RegExp('^(batt|power)\\..*$');
 const BATTERY_TRACK_GROUP = 'Battery';
-
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
 // first match wins.
@@ -416,6 +415,24 @@ class TrackDecider {
     }
   }
 
+  async groupCounterTracks(): Promise<void> {
+    const counterTracks : string[] = [];
+    const iter = (await this.engine.query(`select name from gpu_counter_track`)).iter({name: STR});
+    for (; iter.valid(); iter.next()) {
+      counterTracks.push(iter.name);
+    }
+    for (const track of this.tracksToAdd) {
+      if (track.kind !== COUNTER_TRACK_KIND ||
+        (track.trackGroup && track.trackGroup !== SCROLLING_TRACK_GROUP)) {
+        continue;
+      }
+      if (counterTracks.includes(track.name)) {
+        track.trackGroup = this.lazyTrackGroup('GPU Counters', {collapsed: false, parentGroup: this.gpuGroup()})();
+      } else {
+        track.trackGroup = this.lazyTrackGroup('Memory Usage')();
+      }
+    }
+  }
   async addScrollJankTracks(engine: Engine): Promise<void> {
     const topLevelScrolls = addTopLevelScrollTrack(engine);
     const topLevelScrollsResult = await topLevelScrolls;
@@ -2430,6 +2447,7 @@ class TrackDecider {
       this.engine.getProxy('TrackDecider::groupGpuTracks'));
     await this.addSurfaceFlingerTrackGroups(
       this.engine.getProxy('TrackDecider::addSurfaceflingerTrackGroups'));
+    await this.groupCounterTracks();
 
     // TODO(hjd): Move into plugin API.
     {
