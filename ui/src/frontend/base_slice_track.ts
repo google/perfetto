@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, NullDisposable} from '../base/disposable';
 import {assertExists} from '../base/logging';
 import {
   duration,
@@ -144,12 +145,14 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 // If you need temporally overlapping slices, look at AsyncSliceTrack, which
 // merges several tracks into one visual track.
 export const BASE_SLICE_ROW = {
-  id: NUM,       // The slice ID, for selection / lookups.
+  id: NUM,     // The slice ID, for selection / lookups.
+  ts: LONG,    // Start time in nanoseconds.
+  dur: LONG,   // Duration in nanoseconds. -1 = incomplete, 0 = instant.
+  depth: NUM,  // Vertical depth.
+
+  // These are computed by the base class:
   tsq: LONG,     // Quantized |ts|. This class owns the quantization logic.
   tsqEnd: LONG,  // Quantized |ts+dur|. The end bucket.
-  ts: LONG,      // Start time in nanoseconds.
-  dur: LONG,     // Duration in nanoseconds. -1 = incomplete, 0 = instant.
-  depth: NUM,    // Vertical depth.
 };
 
 export type BaseSliceRow = typeof BASE_SLICE_ROW;
@@ -203,7 +206,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // than just remembering it when we see it.
   private selectedSlice?: CastInternal<T['slice']>;
 
-  protected readonly tableName: string;
   private maxDurNs: duration = 0n;
 
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
@@ -227,11 +229,30 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // TODO(hjd): Replace once we have cancellable query sequences.
   private isDestroyed = false;
 
+  // Cleanup hook for onInit.
+  private initState?: Disposable;
+
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
   // OnSliceOverArgs {slice?: T['slice']}) so it makes future extensions
   // non-API-breaking (e.g. if we want to add the X position).
-  abstract initSqlTable(_tableName: string): Promise<void>;
+
+  // onInit hook lets you do asynchronous set up e.g. creating a table
+  // etc. We guarantee that this will be resolved before doing any
+  // queries using the result of getSqlSource(). All persistent
+  // state in trace_processor should be cleaned up when dispose is
+  // called on the returned hook. In the common case of where
+  // the data for this track is d
+  async onInit(): Promise<Disposable> {
+    return new NullDisposable();
+  }
+
+  // This should be an SQL expression returning all the columns listed
+  // metioned by getRowSpec() exluding tsq and tsqEnd.
+  // For example you might return an SQL expression of the form:
+  // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
+  abstract getSqlSource(): string;
+
   getRowSpec(): T['row'] {
     return BASE_SLICE_ROW;
   }
@@ -256,10 +277,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   constructor(args: NewTrackArgs) {
     super(args);
-    // TODO(hjd): Handle pinned tracks, which current cause a crash
-    // since the tableName we generate is the same for both.
-    this.tableName = `track_${this.trackId}`.replace(/[^a-zA-Z0-9_]+/g, '_');
-
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).
@@ -507,7 +524,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   onDestroy() {
     super.onDestroy();
     this.isDestroyed = true;
-    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
+    if (this.initState) {
+      this.initState.dispose();
+      this.initState = undefined;
+    }
   }
 
   // This method figures out if the visible window is outside the bounds of
@@ -522,14 +542,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       if (this.isDestroyed) {
         return;
       }
-      await this.initSqlTable(this.tableName);
+      this.initState = await this.onInit();
 
       if (this.isDestroyed) {
         return;
       }
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
-          from ${this.tableName}`);
+          from (${this.getSqlSource()})`);
       const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
 
@@ -562,7 +582,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
             id,
             ${this.depthColumn()}
             ${extraCols ? ',' + extraCols : ''}
-          from ${this.tableName}
+          from (${this.getSqlSource()})
           where dur = -1;
         `);
         const incomplete =
@@ -649,7 +669,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         id,
         ${this.depthColumn()}
         ${extraCols ? ',' + extraCols : ''}
-      FROM ${this.tableName} ${constraint}
+      FROM (${this.getSqlSource()}) ${constraint}
     `);
 
     // Here convert each row to a Slice. We do what we can do

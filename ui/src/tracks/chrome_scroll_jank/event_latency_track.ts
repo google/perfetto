@@ -67,11 +67,8 @@ export class EventLatencyTrack extends
     ScrollJankPluginState.getInstance().unregisterTrack(EventLatencyTrack.kind);
   }
 
-  async initSqlTable(tableName: string) {
-    const sql =
-        `CREATE VIEW ${tableName} AS SELECT * FROM ${this.config.baseTable}`;
-
-    await this.engine.query(sql);
+  getSqlSource(): string {
+    return `SELECT * FROM ${this.config.baseTable}`;
   }
 
   getDetailsPanel(): CustomSqlDetailsPanelConfig {

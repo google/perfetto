@@ -36,10 +36,8 @@ export class GenericSliceTrack extends NamedSliceTrack<GenericSliceTrackTypes> {
     super(args);
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    const sql = `create view ${tableName} as
-    select ts, dur, id, depth, ifnull(name, '') as name
+  getSqlSource(): string {
+    return `select ts, dur, id, depth, ifnull(name, '') as name
     from slice where track_id = ${this.config.sqlTrackId}`;
-    await this.engine.query(sql);
   }
 }
