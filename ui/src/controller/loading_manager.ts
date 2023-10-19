@@ -25,6 +25,15 @@ export class LoadingManager implements LoadingTracker {
     return this._instance || (this._instance = new this());
   }
 
+  // Reset the loading manager to its initial state. This is useful
+  // in applications that embed the Perfetto UI and reuse it, to clear
+  // out lingering counts of queries that did not complete before the
+  // trace processor was stopped previously.
+  reset() {
+    this.numQueuedQueries = 0;
+    this.numLastUpdate = 0;
+  }
+
   beginLoading() {
     this.update(1);
   }
