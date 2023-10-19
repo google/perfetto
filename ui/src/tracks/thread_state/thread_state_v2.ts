@@ -65,10 +65,9 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     return THREAD_STATE_ROW;
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
+  getSqlSource(): string {
     // Do not display states 'x' and 'S' (dead & sleeping).
-    const sql = `
-      create view ${tableName} as
+    return `
       select
         id,
         ts,
@@ -83,7 +82,6 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
         state != 'x' and
         state != 'S'
     `;
-    await this.engine.query(sql);
   }
 
   rowToSlice(row: ThreadStateTrackTypes['row']):

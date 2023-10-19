@@ -40,13 +40,14 @@ export class ChromeTasksScrollJankTrack extends
     return new ChromeTasksScrollJankTrack(args);
   }
 
-  async initSqlTable(tableName: string) {
-    await this.engine.query(`
-create view ${tableName} as
-select s2.ts, s2.dur, s2.id, 0 as depth, s1.full_name as name
+  constructor(args: NewTrackArgs) {
+    super(args);
+  }
+
+  getSqlSource(): string {
+    return `select s2.ts as ts, s2.dur as dur, s2.id as id, 0 as depth, s1.full_name as name
 from chrome_tasks_delaying_input_processing s1
-join slice s2 on s2.id=s1.slice_id
-    `);
+join slice s2 on s2.id=s1.slice_id`;
   }
 }
 export type GetTrackGroupUuidFn = (utid: number, upid: number|null) => string;
