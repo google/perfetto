@@ -51,6 +51,9 @@ export class DisposableCallback implements Disposable {
   }
 }
 
+export class NullDisposable implements Disposable {
+  dispose() {}
+}
 
 // A collection of Disposables.
 // Disposables can be added one by one, (e.g. during the lifecycle of a
