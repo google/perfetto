@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {
   generateSqlWithInternalLayout,
@@ -46,8 +47,11 @@ export interface CustomSqlDetailsPanelConfig {
 
 export abstract class CustomSqlTableSliceTrack<
     T extends NamedSliceTrackTypes> extends NamedSliceTrack<T> {
+  protected readonly tableName;
+
   constructor(args: NewTrackArgs) {
     super(args);
+    this.tableName = `customsqltableslicetrack_{uuidv4()}`;
   }
 
   abstract getSqlDataSource(): CustomSqlTableDefConfig;
@@ -55,22 +59,30 @@ export abstract class CustomSqlTableSliceTrack<
   // Override by subclasses.
   abstract getDetailsPanel(): CustomSqlDetailsPanelConfig;
 
-  async initSqlTable(tableName: string) {
+
+  async onInit(): Promise<Disposable> {
     const config = this.getSqlDataSource();
     let columns = ['*'];
     if (config.columns !== undefined) {
       columns = config.columns;
     }
 
-    const sql = `CREATE VIEW ${tableName} AS ` + generateSqlWithInternalLayout({
-                  columns: columns,
-                  sourceTable: config.sqlTableName,
-                  ts: 'ts',
-                  dur: 'dur',
-                  whereClause: config.whereClause,
-                });
-
+    const sql =
+        `CREATE VIEW ${this.tableName} AS ` + generateSqlWithInternalLayout({
+          columns: columns,
+          sourceTable: config.sqlTableName,
+          ts: 'ts',
+          dur: 'dur',
+          whereClause: config.whereClause,
+        });
     await this.engine.query(sql);
+    return DisposableCallback.from(() => {
+      this.engine.query(`DROP VIEW ${this.tableName}`);
+    });
+  }
+
+  getSqlSource(): string {
+    return `SELECT * FROM ${this.tableName}`;
   }
 
   isSelectionHandled(selection: Selection) {

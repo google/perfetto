@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {Disposable} from '../../base/disposable';
 import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
@@ -77,8 +78,8 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
     };
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    super.initSqlTable(tableName);
+  async onInit(): Promise<Disposable> {
+    return super.onInit();
   }
 
   getTrackShellButtons(): m.Children {
