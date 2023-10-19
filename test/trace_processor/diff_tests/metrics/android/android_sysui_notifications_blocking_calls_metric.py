@@ -23,9 +23,9 @@ THIRD_PROCESS_PID = 3000
 
 # List of blocking calls
 blocking_call_names = [
-    'NotificationStackScrollLayout#onMeasure', 'ExpNotRow#onMeasure(MessagingStyle)',
-    'ExpNotRow#onMeasure(BigTextStyle)', 'NotificationShadeWindowView#onMeasure',
-    'ImageFloatingTextView#onMeasure',
+    'NotificationStackScrollLayout#onMeasure',
+    'ExpNotRow#onMeasure(MessagingStyle)', 'ExpNotRow#onMeasure(BigTextStyle)',
+    'NotificationShadeWindowView#onMeasure', 'ImageFloatingTextView#onMeasure',
     'Should not be in the metric'
 ]
 
@@ -38,6 +38,7 @@ def add_main_thread_atrace(trace, ts, ts_end, buf, pid):
 def add_async_trace(trace, ts, ts_end, buf, pid):
   trace.add_atrace_async_begin(ts=ts, tid=pid, pid=pid, buf=buf)
   trace.add_atrace_async_end(ts=ts_end, tid=pid, pid=pid, buf=buf)
+
 
 # Creates a trace that contains one of each blocking call.
 def add_all_sysui_notifications_blocking_calls(trace, pid):
@@ -64,22 +65,20 @@ def add_all_sysui_notifications_blocking_calls(trace, pid):
 
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
-  trace.add_process(
-      pid=pid, ppid=0, cmdline=package_name, uid=uid)
+  trace.add_process(pid=pid, ppid=0, cmdline=package_name, uid=uid)
   trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
 
 def setup_trace():
   trace = synth_common.create_trace()
   trace.add_packet()
-  add_process(trace, package_name="com.android.systemui", uid=10001,
-              pid=SYSUI_PID)
+  add_process(
+      trace, package_name="com.android.systemui", uid=10001, pid=SYSUI_PID)
   trace.add_ftrace_packet(cpu=0)
   return trace
 
 
 trace = setup_trace()
-
 
 add_all_sysui_notifications_blocking_calls(trace, pid=SYSUI_PID)
 
