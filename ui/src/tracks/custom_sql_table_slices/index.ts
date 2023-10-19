@@ -51,7 +51,7 @@ export abstract class CustomSqlTableSliceTrack<
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.tableName = `customsqltableslicetrack_{uuidv4()}`;
+    this.tableName = `customsqltableslicetrack_${uuidv4()}`;
   }
 
   abstract getSqlDataSource(): CustomSqlTableDefConfig;
