@@ -60,6 +60,7 @@ def add_binder_transaction(trace, tx_pid, rx_pid, start_ts, end_ts):
       reply_tid=rx_pid,
       reply_pid=rx_pid)
 
+
 # Adds a set of predefined blocking calls in places near the cuj boundaries to
 # verify that only the portion inside the cuj is counted in the metric.
 def add_cuj_with_blocking_calls(trace, cuj_name, pid):
@@ -140,6 +141,7 @@ def add_all_blocking_calls_in_cuj(trace, pid):
         pid=pid)
     blocking_call_ts += blocking_call_dur
 
+
 # Creates 2 overlapping cuj, and a blocking call that lasts for both of them.
 def add_overlapping_cujs_with_blocking_calls(trace, start_ts, pid):
   add_async_trace(
@@ -190,20 +192,25 @@ def add_cuj_with_named_binder_transaction(pid, rx_pid):
 
 def add_process(trace, package_name, uid, pid):
   trace.add_package_list(ts=0, name=package_name, uid=uid, version_code=1)
-  trace.add_process(
-      pid=pid, ppid=0, cmdline=package_name, uid=uid)
+  trace.add_process(pid=pid, ppid=0, cmdline=package_name, uid=uid)
   trace.add_thread(tid=pid, tgid=pid, cmdline="MainThread", name="MainThread")
 
 
 def setup_trace():
   trace = synth_common.create_trace()
   trace.add_packet()
-  add_process(trace, package_name="com.android.systemui", uid=10001,
-              pid=SYSUI_PID)
-  add_process(trace, package_name="com.google.android.apps.nexuslauncher",
-              uid=10002, pid=LAUNCHER_PID)
-  add_process(trace, package_name="com.google.android.third.process",
-              uid=10003, pid=THIRD_PROCESS_PID)
+  add_process(
+      trace, package_name="com.android.systemui", uid=10001, pid=SYSUI_PID)
+  add_process(
+      trace,
+      package_name="com.google.android.apps.nexuslauncher",
+      uid=10002,
+      pid=LAUNCHER_PID)
+  add_process(
+      trace,
+      package_name="com.google.android.third.process",
+      uid=10003,
+      pid=THIRD_PROCESS_PID)
   trace.add_ftrace_packet(cpu=0)
   add_async_trace(trace, ts=0, ts_end=5, buf="J<IGNORED>", pid=SYSUI_PID)
   return trace
@@ -212,13 +219,13 @@ def setup_trace():
 trace = setup_trace()
 
 add_cuj_with_blocking_calls(trace, "L<TEST_SYSUI_LATENCY_EVENT>", pid=SYSUI_PID)
-add_cuj_with_blocking_calls(trace, "L<TEST_LAUNCHER_LATENCY_EVENT>",
-                            pid=LAUNCHER_PID)
+add_cuj_with_blocking_calls(
+    trace, "L<TEST_LAUNCHER_LATENCY_EVENT>", pid=LAUNCHER_PID)
 
 add_all_blocking_calls_in_cuj(trace, pid=THIRD_PROCESS_PID)
 
-add_overlapping_cujs_with_blocking_calls(trace, pid=SYSUI_PID,
-                                         start_ts=20_000_000)
+add_overlapping_cujs_with_blocking_calls(
+    trace, pid=SYSUI_PID, start_ts=20_000_000)
 
 add_cuj_with_named_binder_transaction(pid=SYSUI_PID, rx_pid=LAUNCHER_PID)
 

@@ -48,10 +48,12 @@ trace.add_atrace_end(ts=1_400, tid=10335, pid=10335)
 # separated validation where HwcValidateDisplay is executed from worker thread
 trace.add_atrace_begin(ts=2_100, tid=10335, pid=10335, buf="composite 3")
 trace.add_atrace_begin(ts=2_200, tid=15000, pid=10335, buf="otherFunction")
-trace.add_atrace_begin(ts=2_300, tid=15000, pid=10335, buf="HwcValidateDisplay 1")
+trace.add_atrace_begin(
+    ts=2_300, tid=15000, pid=10335, buf="HwcValidateDisplay 1")
 trace.add_atrace_end(ts=2_400, tid=15000, pid=10335)
 trace.add_atrace_end(ts=2_500, tid=15000, pid=10335)
-trace.add_atrace_begin(ts=2_600, tid=10335, pid=10335, buf="HwcPresentDisplay 1")
+trace.add_atrace_begin(
+    ts=2_600, tid=10335, pid=10335, buf="HwcPresentDisplay 1")
 trace.add_atrace_end(ts=2_700, tid=10335, pid=10335)
 trace.add_atrace_end(ts=2_800, tid=10335, pid=10335)
 

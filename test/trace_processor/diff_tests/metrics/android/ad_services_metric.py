@@ -28,7 +28,8 @@ trace.add_ftrace_packet(cpu=0)
 trace.add_sys_enter(ts=100, tid=42, id=64)
 trace.add_sys_exit(ts=200, tid=42, id=64, ret=0)
 
-trace.add_atrace_begin(ts=350, tid=42, pid=42, buf=UI_NOTIFICATION_TRIGGER_EVENT)
+trace.add_atrace_begin(
+    ts=350, tid=42, pid=42, buf=UI_NOTIFICATION_TRIGGER_EVENT)
 trace.add_atrace_end(ts=650, tid=42, pid=42)
 
 trace.add_atrace_begin(ts=750, tid=42, pid=42, buf=AD_ID_CACHE_EVENT)
