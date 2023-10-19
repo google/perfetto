@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {v4 as uuidv4} from 'uuid';
+
 import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {
@@ -51,7 +53,8 @@ export abstract class CustomSqlTableSliceTrack<
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.tableName = `customsqltableslicetrack_${uuidv4()}`;
+    this.tableName =
+        `customsqltableslicetrack_${uuidv4().split('-').join('_')}`;
   }
 
   abstract getSqlDataSource(): CustomSqlTableDefConfig;
