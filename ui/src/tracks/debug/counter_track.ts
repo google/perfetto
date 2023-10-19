@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
 
 import {Actions, DEBUG_COUNTER_TRACK_KIND} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
@@ -103,14 +104,19 @@ export async function addDebugCounterTrack(
       from data
       order by ts;`);
 
-  globals.dispatch(Actions.addTrack({
-    uri: DEBUG_COUNTER_TRACK_URI,
-    name: trackName.trim() || `Debug Track ${debugTrackId}`,
-    trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
-    trackGroup: SCROLLING_TRACK_GROUP,
-    initialState: {
-      sqlTableName,
-      columns,
-    },
-  }));
+  const trackInstanceId = uuidv4();
+  globals.dispatchMultiple([
+    Actions.addTrack({
+      id: trackInstanceId,
+      uri: DEBUG_COUNTER_TRACK_URI,
+      name: trackName.trim() || `Debug Track ${debugTrackId}`,
+      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      initialState: {
+        sqlTableName,
+        columns,
+      },
+    }),
+    Actions.toggleTrackPinned({trackId: trackInstanceId}),
+  ]);
 }
