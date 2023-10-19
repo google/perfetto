@@ -148,8 +148,14 @@ void SymbolizeDatabase(trace_processor::TraceProcessor* tp,
 
 std::vector<std::string> GetPerfettoBinaryPath() {
   const char* root = getenv("PERFETTO_BINARY_PATH");
-  if (root != nullptr)
-    return base::SplitString(root, ":");
+  if (root != nullptr) {
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+    const char* delimiter = ";";
+#else
+    const char* delimiter = ":";
+#endif
+    return base::SplitString(root, delimiter);
+  }
   return {};
 }
 
