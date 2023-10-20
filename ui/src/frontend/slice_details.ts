@@ -28,6 +28,10 @@ import {Tree, TreeNode} from '../widgets/tree';
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
 import {SliceDetails} from './sql/slice';
+import {
+  BreakdownByThreadState,
+  BreakdownByThreadStateTreeNode,
+} from './sql/thread_state';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {getProcessName, getThreadName} from './thread_and_process_info';
@@ -44,7 +48,8 @@ function computeDuration(ts: time, dur: duration): m.Children {
 
 // Renders a widget storing all of the generic details for a slice from the
 // slice table.
-export function renderDetails(slice: SliceDetails) {
+export function renderDetails(
+    slice: SliceDetails, durationBreakdown?: BreakdownByThreadState) {
   return m(
       Section,
       {title: 'Details'},
@@ -84,10 +89,18 @@ export function renderDetails(slice: SliceDetails) {
           }),
           exists(slice.absTime) &&
               m(TreeNode, {left: 'Absolute Time', right: slice.absTime}),
-          m(TreeNode, {
-            left: 'Duration',
-            right: computeDuration(slice.ts, slice.dur),
-          }),
+          m(
+              TreeNode,
+              {
+                left: 'Duration',
+                right: computeDuration(slice.ts, slice.dur),
+              },
+              exists(durationBreakdown) && slice.dur > 0 &&
+                  m(BreakdownByThreadStateTreeNode, {
+                    data: durationBreakdown,
+                    dur: slice.dur,
+                  }),
+              ),
           renderThreadDuration(slice),
           slice.thread && m(TreeNode, {
             left: 'Thread',

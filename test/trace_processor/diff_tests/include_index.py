@@ -87,6 +87,7 @@ from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.tests import AndroidStdlib
+from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.chrome.tests import ChromeStdlib
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
@@ -160,7 +161,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *TranslatedArgs(index_path, 'parser/translated_args',
                       'TranslatedArgs').fetch(),
       *Ufs(index_path, 'parser/ufs', 'Ufs').fetch(),
-      # TODO(altimin, lalitm): "parsing" should be split into more specific directories.
+      # TODO(altimin, lalitm): "parsing" should be split into more specific
+      # directories.
       *Parsing(index_path, 'parser/parsing', 'Parsing').fetch(),
       *ParsingDebugAnnotation(index_path, 'parser/parsing',
                               'ParsingDebugAnnotation').fetch(),
@@ -208,6 +210,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
+      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
       *SpanJoinLeftJoin(index_path, 'stdlib/span_join',
                         'SpanJoinLeftJoin').fetch(),
