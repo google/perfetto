@@ -2250,7 +2250,8 @@ class TrackDecider {
       }
     }
 
-    const gpuQueuesGroup = this.lazyTrackGroup('GPU Queues');
+    const gpuQueuesGroup = this.lazyTrackGroup('GPU Queues',
+      {lazyParentGroup: this.gpuGroup});
     for (const track of this.tracksToAdd) {
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
         const trackId = TrackDecider.getTrackId(track);
