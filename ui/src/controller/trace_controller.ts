@@ -124,19 +124,20 @@ import {VsyncController} from './vsync_controller';
 
 type States = 'init' | 'loading_trace' | 'ready';
 
-const METRICS = [
-  'android_startup',
-  'android_ion',
-  'android_lmk',
-  'android_dma_heap',
-  'android_surfaceflinger',
-  'android_batt',
-  'android_other_traces',
-  'chrome_dropped_frames',
-  'chrome_long_latency',
-  'trace_metadata',
-  'android_trusty_workqueues',
-];
+export const METRIC_NAMES: {[key: string]: string} = {
+  'android_startup': 'Start-up',
+  'android_ion': 'ION Memory Allocator',
+  'android_lmk': 'Low Memory Killer',
+  'android_dma_heap': 'DMA Heap',
+  'android_surfaceflinger': 'SurfaceFlinger',
+  'android_batt': 'Battery',
+  'android_other_traces': 'Other Android Traces',
+  'chrome_dropped_frames': 'Dropped Frames',
+  'chrome_long_latency': 'Long Latency',
+  'trace_metadata': 'Trace Metadata',
+  'android_trusty_workqueues': 'Trusty Work Queues',
+};
+const METRICS = Object.keys(METRIC_NAMES);
 const FLAGGED_METRICS: Array<[Flag, string]> = METRICS.map((m) => {
   const id = `forceMetric${m}`;
   let name = m.split('_').join(' ');

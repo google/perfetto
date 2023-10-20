@@ -74,6 +74,7 @@ import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {shouldCreateTrack, shouldCreateTrackGroup} from './track_filter';
 import {TrackInfo} from '../common/plugin_api';
 import {globals} from '../frontend/globals';
+import {METRIC_NAMES} from './trace_controller';
 
 const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
@@ -138,6 +139,8 @@ type LazyTrackGroupArgs = Partial<AddTrackGroupArgs & {
 
 // Type of a function that produces new IDs on demand.
 type LazyIdProvider = (() => string) & {
+  // Whether the group exists, yet
+  exists(): boolean;
   // Revoke an ID previously provided, undoing whatever
   // side-effects its provision entailed
   revoke(): void;
@@ -2263,6 +2266,66 @@ class TrackDecider {
     }
   }
 
+  async groupMetricTracks(engine: EngineProxy): Promise<void> {
+    if (!globals.state.metrics.availableMetrics?.length) {
+      return;
+    }
+
+    const metricTableNames = globals.state.metrics.availableMetrics
+      .map((metric) => `${metric}_event`)
+      .map(sqliteString)
+      .join(',');
+    const metricTableNamesThatExist = new Set<string>();
+    const result = await engine.query(`
+      select name from sqlite_master
+      where type in ('table','view') and
+      name in (${metricTableNames})
+    `);
+    const it = result.iter({name: STR});
+    for (; it.valid(); it.next()) {
+      metricTableNamesThatExist.add(it.name);
+    }
+
+    const metricTrackGroupings = new Map<string, Set<string>>();
+    for (const metric of globals.state.metrics.availableMetrics) {
+      const tableName = `${metric}_event`;
+      if (!metricTableNamesThatExist.has(tableName)) {
+        continue;
+      }
+
+      const result = await engine.query(`
+        select distinct track_name from ${tableName};
+      `);
+      if (!result.numRows()) {
+        continue;
+      }
+
+      const it = result.iter({track_name: STR});
+      const tracks = new Set<string>();
+      metricTrackGroupings.set(METRIC_NAMES[metric], tracks);
+
+      for (; it.valid(); it.next()) {
+        tracks.add(it.track_name);
+      }
+    }
+
+    for (const [groupName, tracks] of metricTrackGroupings) {
+      const groupId = this.lazyTrackGroup(groupName,
+        {description: `Results from calculation of the {$groupName} metric.`});
+      // Don't create a group of just one track but do add
+      // to a group if it already exists
+      if (tracks.size < 2 && !groupId.exists()) {
+        continue;
+      }
+      for (const track of this.tracksToAdd) {
+        if (track.trackGroup === SCROLLING_TRACK_GROUP &&
+              tracks.has(track.name)) {
+            track.trackGroup = groupId();
+        }
+      }
+    }
+  }
+
   sortTopTrackGroups(): void {
     // Must create parent groups before subgroups.
     const topGroups: AddTrackGroupArgs[] = [];
@@ -2402,6 +2465,9 @@ class TrackDecider {
     await this.groupTracksByRegex(
         ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
     await this.groupTracksByRegex(BATTERY_TRACK_REGEX, BATTERY_TRACK_GROUP);
+
+    await this.groupMetricTracks(
+        this.engine.getProxy('TrackDecider::groupMetricTracks'));
 
     // Pre-group all kernel "threads" (actually processes) if this is a linux
     // system trace. Below, addProcessTrackGroups will skip them due to an
@@ -2610,13 +2676,21 @@ class TrackDecider {
       details?: LazyTrackGroupArgs): LazyIdProvider {
     let result = this.lazyTrackGroupIds.get(name);
     if (result === undefined) {
-      let group: AddTrackGroupArgs | undefined;
+      // Does the group exist a priori?
+      let group = this.trackGroupsToAdd.find((g) => g.name === name);
       result = ((): string => {
+        // First, try to find a group that exists
+        if (!group) {
+          group = this.trackGroupsToAdd
+            .find((g) => g.name === name);
+        }
+        // Otherwise, create it
         if (!group) {
           group = this.createPureTrackGroup(uuidv4(), name, details);
         }
         return group.id;
       }) as LazyIdProvider;
+      result.exists = () => !!group;
       result.revoke = () => {
         if (group) {
           this.removeTrackGroup(group.id);
