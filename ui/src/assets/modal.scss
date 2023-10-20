@@ -59,7 +59,8 @@
 .modal-dialog {
   position: absolute;
   z-index: 100;
-  background-color: #fff;
+  background-color: var(--main-background-color);
+  color: var(--main-foreground-color);
   margin: auto;
   min-width: 25vw;
   min-height: 10vh;
@@ -91,7 +92,6 @@
       font-weight: 600;
       font-size: 1.25rem;
       line-height: 1.25;
-      color: #262f3c;
       box-sizing: border-box;
     }
 
@@ -106,7 +106,6 @@
     margin-top: 2rem;
     margin-bottom: 2rem;
     line-height: 1.5;
-    color: rgba(0, 0, 0, 0.8);
 
     .small-font {
       font-size: 0.9rem;
