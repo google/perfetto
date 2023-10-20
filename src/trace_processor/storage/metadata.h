@@ -29,6 +29,7 @@ namespace metadata {
 // Compile time list of metadata items.
 // clang-format off
 #define PERFETTO_TP_METADATA(F)                                               \
+  F(all_data_source_flushed_ns,        KeyType::kMulti,   Variadic::kInt),    \
   F(all_data_source_started_ns,        KeyType::kSingle,  Variadic::kInt),    \
   F(android_build_fingerprint,         KeyType::kSingle,  Variadic::kString), \
   F(android_sdk_version,               KeyType::kSingle,  Variadic::kInt),    \
