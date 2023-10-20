@@ -47,5 +47,9 @@ SELECT AndroidBootMetric(
         SELECT NULL_IF_EMPTY(ProcessStateDurations(
             'total_dur', total_dur,
             'uninterruptible_sleep_dur', uint_sleep_dur))
-        FROM get_durations('com.google.android.gms.persistent'))
+        FROM get_durations('com.google.android.gms.persistent')),
+    'launcher_breakdown', (
+        SELECT NULL_IF_EMPTY(AndroidBootMetric_LauncherBreakdown(
+            'cold_start_dur', dur))
+        FROM slice where name="LauncherColdStartup")
 );
