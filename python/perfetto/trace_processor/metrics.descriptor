@@ -12,16 +12,19 @@
 ad_id_metric (2%.perfetto.protos.AdServicesAdIdMetricR
 adIdMetricT
 app_set_id_metric (2).perfetto.protos.AdServicesAppSetIdMetricRappSetIdMetric
-¨
+È
 2protos/perfetto/metrics/android/android_boot.protoperfetto.protos"p
 ProcessStateDurations
 	total_dur (RtotalDur:
-uninterruptible_sleep_dur (RuninterruptibleSleepDur"î
+uninterruptible_sleep_dur (RuninterruptibleSleepDur"Ž
 AndroidBootMetric^
 system_server_durations (2&.perfetto.protos.ProcessStateDurationsRsystemServerDurationsU
 systemui_durations (2&.perfetto.protos.ProcessStateDurationsRsystemuiDurationsU
 launcher_durations (2&.perfetto.protos.ProcessStateDurationsRlauncherDurationsK
-gms_durations (2&.perfetto.protos.ProcessStateDurationsRgmsDurations
+gms_durations (2&.perfetto.protos.ProcessStateDurationsRgmsDurationsc
+launcher_breakdown (24.perfetto.protos.AndroidBootMetric.LauncherBreakdownRlauncherBreakdown9
+LauncherBreakdown$
+cold_start_dur (RcoldStartDur
 Ò
 6protos/perfetto/metrics/android/process_metadata.protoperfetto.protos"†
 AndroidProcessMetadata
