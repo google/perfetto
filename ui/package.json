@@ -21,7 +21,6 @@
     "@popperjs/core": "^2.11.6",
     "@types/chrome": "0.0.186",
     "@types/color-convert": "^1.9.0",
-    "@types/filesystem": "^0.0.32",
     "@types/mithril": "^2.0.11",
     "@types/node": "^14.0.10",
     "@types/pako": "^1.0.1",
@@ -31,8 +30,6 @@
     "color-convert": "^2.0.1",
     "custom_utils": "file:src/base/utils",
     "devtools-protocol": "0.0.847576",
-    "esbuild": "^0.15.12",
-    "events": "^3.1.0",
     "hsluv": "^0.1.0",
     "immer": "^9.0.2",
     "jsbn-rsa": "^1.0.4",
@@ -40,9 +37,7 @@
     "noice-json-rpc": "^1.2.0",
     "pako": "^1.0.11",
     "protobufjs": "^6.9.0",
-    "util": "^0.12.3",
-    "uuid": "^9.0.0",
-    "vega-lite": "^5.9.0"
+    "uuid": "^9.0.0"
   },
   "devDependencies": {
     "css-tree": "^2.3.1",
