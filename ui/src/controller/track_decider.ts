@@ -166,6 +166,13 @@ function count(n: number, single: string, plural?: string): string {
   return `${n} ${pluralize(n, single, plural)}`;
 }
 
+// User-friendly titles for tracks.
+const TRACK_TITLES: {[key: string]: string} = {
+  'batt.capacity_pct': 'Capacity (%)',
+  'batt.charge_uah': 'Charge (μAh)',
+  'batt.current_ua': 'Current (μA)',
+};
+
 class TrackDecider {
   private engineId: string;
   private engine: Engine;
@@ -197,9 +204,21 @@ class TrackDecider {
   // collects its idle threads (< 0.1% CPU)
   private idleThreadGroups = new Map<number, string>();
 
+  // Top-level "CPU" group for many things CPU-related.
+  private cpuGroup: LazyIdProvider = this.lazyTrackGroup('CPU',
+    {collapsed: false});
+
   // Top-level "GPU" group for all things GPU-related.
   private gpuGroup: LazyIdProvider = this.lazyTrackGroup('GPU',
     {collapsed: false});
+
+  // Top-level "SurfaceFlinger Events" group.
+  private sfEventsGroup: LazyIdProvider = this.lazyTrackGroup('SurfaceFlinger Events');
+
+  // Top-level "Processes" group process groups containing
+  // the process/thread tracks.
+  private processesGroup: LazyIdProvider = this.lazyTrackGroup('Processes',
+    {collapsed: false, description: 'Track groups for each active process.'});
 
   constructor(engineId: string, engine: Engine) {
     this.engineId = engineId;
@@ -400,7 +419,7 @@ class TrackDecider {
     const cpus = await this.engine.getCpus();
     const cpuToSize = await this.guessCpuSizes();
     const groupId = this.lazyTrackGroup('CPU Usage',
-      {collapsed: false, lazyParentGroup: this.lazyTrackGroup('CPU', {collapsed: false})});
+      {collapsed: false, lazyParentGroup: this.cpuGroup});
 
     for (const cpu of cpus) {
       const size = cpuToSize.get(cpu);
@@ -430,7 +449,8 @@ class TrackDecider {
         continue;
       }
       if (counterTracks.includes(track.name)) {
-        track.trackGroup = this.lazyTrackGroup('GPU Counters', {collapsed: false, parentGroup: this.gpuGroup()})();
+        track.trackGroup = this.lazyTrackGroup('GPU Counters',
+          {lazyParentGroup: this.gpuGroup})();
       } else {
         track.trackGroup = this.lazyTrackGroup('Memory Usage')();
       }
@@ -466,7 +486,7 @@ class TrackDecider {
   `);
     const maxCpuFreq = maxCpuFreqResult.firstRow({freq: NUM}).freq;
     const groupId = this.lazyTrackGroup('CPU Frequencies',
-      {lazyParentGroup: this.lazyTrackGroup('CPU', {collapsed: false})});
+      {lazyParentGroup: this.cpuGroup});
 
     for (const cpu of cpus) {
       // Only add a cpu freq track if we have
@@ -1942,12 +1962,10 @@ class TrackDecider {
       chromeProcessLabels: STR,
     });
 
-    const processesGroupId = this.lazyTrackGroup('Processes',
-      {description: 'Track groups for each active process.'});
-    const idleProcessesGroupId = this.lazyTrackGroup('Idle Processes (< 0.1%)',
+   const idleProcessesGroupId = this.lazyTrackGroup('Idle Processes (< 0.1%)',
       {collapsed: true,
         description: 'CPU usage of an idle process accounts for less than 0.1% of the total trace duration.',
-        lazyParentGroup: processesGroupId});
+        lazyParentGroup: this.processesGroup});
 
     // An "idle process" is measured against the duration of the trace.
     // The threshold is 0.1%, or one one-thousandth, of the trace time.
@@ -2032,7 +2050,7 @@ class TrackDecider {
           // jankyness.
           collapsed: !hasHeapProfiles,
           parentGroup: !idleProcess ?
-            processesGroupId() :
+            this.processesGroup() :
             idleProcessesGroupId(),
         };
         this.trackGroupsToAdd.push(trackGroup);
@@ -2065,7 +2083,7 @@ class TrackDecider {
     const nullProcessCount = totalProcessCount - shownProcessCount;
 
     if (shownProcessCount > 0) {
-      const processesGroup = this.getTrackGroup(processesGroupId());
+      const processesGroup = this.getTrackGroup(this.processesGroup());
       if (processesGroup) {
         processesGroup.name = `Processes (${shownProcessCount})`;
         const idleOrNull = idleProcessCount + nullProcessCount;
@@ -2144,8 +2162,7 @@ class TrackDecider {
     }
 
     const layerGroup = (layerName: string) => this.lazyTrackGroup(
-      `Layer - ${layerName}`, {lazyParentGroup: this.lazyTrackGroup('Frame Lifecycle',
-        {lazyParentGroup: this.gpuGroup})});
+      `Layer - ${layerName}`, {lazyParentGroup: this.sfEventsGroup});
     const layerSubgroups = new Map<string, Map<string, string>>();
     const layerSubgroup = (layerName: string, subgroup: string) => {
       let subgroups = layerSubgroups.get(layerName);
@@ -2327,6 +2344,13 @@ class TrackDecider {
     }
   }
 
+  // Assign titles for tracks that needs user-friendly names in the UI.
+  // Don't change the track name because it may originate in the trace
+  // database and so be used for correlation purposes.
+  setTrackTitles(): void {
+    this.tracksToAdd.forEach((track) => track.title = TRACK_TITLES[track.name]);
+  }
+
   sortTopTrackGroups(): void {
     // Must create parent groups before subgroups.
     const topGroups: AddTrackGroupArgs[] = [];
@@ -2355,6 +2379,18 @@ class TrackDecider {
     };
 
     topGroups.sort(comparator);
+
+    // And put SurfaceFlinger Events (if exists) after GPU (if exists)
+    const sfEventsIndex = this.sfEventsGroup.exists() ?
+      topGroups.findIndex((group) => group.id === this.sfEventsGroup()) :
+      -1;
+    const gpuGroupIndex = this.gpuGroup.exists() ?
+      topGroups.findIndex((group) => group.id === this.gpuGroup()) :
+      -1;
+    if (sfEventsIndex >= 0 && gpuGroupIndex >= 0) {
+      const move = topGroups.splice(sfEventsIndex, 1);
+      topGroups.splice(gpuGroupIndex + 1, 0, ...move);
+    }
     this.trackGroupsToAdd.unshift(...topGroups);
   }
 
@@ -2526,6 +2562,8 @@ class TrackDecider {
         this.tracksToAdd.push(...tracksToAdd);
       }
     }
+
+    this.setTrackTitles();
 
     this.sortTopTrackGroups();
 

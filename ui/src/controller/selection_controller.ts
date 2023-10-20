@@ -420,7 +420,10 @@ export class SelectionController extends Controller<'main'> {
     const delta = value - previousValue;
     const duration = endTs - ts;
     const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-    const name = uiTrackId ? globals.state.tracks[uiTrackId].name : undefined;
+    const name = uiTrackId ?
+      globals.state.tracks[uiTrackId].title ??
+        globals.state.tracks[uiTrackId].name :
+      undefined;
     return {startTime: ts, value, delta, duration, name};
   }
 

@@ -76,6 +76,7 @@ export interface AddTrackArgs {
   engineId: string;
   kind: string;
   name: string;
+  title?: string;
   description?: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
@@ -361,7 +362,7 @@ export const StateActions = {
   },
 
   addTrack(state: StateDraft, args: {
-    id?: string; engineId: string; kind: string; name: string;
+    id?: string; engineId: string; kind: string; name: string; title?: string;
     trackGroup?: string; trackSubgroup?: string; config: {};
     trackSortKey: TrackSortKey; description?: string
   }): void {
@@ -374,6 +375,7 @@ export const StateActions = {
       engineId: args.engineId,
       kind: args.kind,
       name: args.name,
+      title: args.title,
       description,
       trackSortKey: args.trackSortKey,
       trackGroup: args.trackGroup,
@@ -477,6 +479,7 @@ export const StateActions = {
         kind: track.kind,
         engineId: track.engineId,
         name: track.name,
+        title: track.title,
         trackSortKey: track.trackSortKey,
         trackGroup: track.trackGroup,
         labels: track.labels,

@@ -95,8 +95,9 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const depth = attrs.trackState.trackGroup === SCROLLING_TRACK_GROUP ?
       0 :
       getContainingTrackIds(globals.state, attrs.trackState.id)?.length ?? 0;
+    const trackTitle = attrs.trackState.title ?? attrs.trackState.name;
     const titleStyling: Record<string, string|undefined> = {
-      fontSize: getTitleSize(attrs.trackState.name),
+      fontSize: getTitleSize(trackTitle),
     };
     if (depth > 0) {
       titleStyling.marginLeft = `${depth/2}rem`;
@@ -120,7 +121,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               title: attrs.trackState.description,
               style: titleStyling,
             },
-            attrs.trackState.name,
+            trackTitle,
             ('namespace' in attrs.trackState.config) &&
                 m('span.chip', 'metric'),
             ),

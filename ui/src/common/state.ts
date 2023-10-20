@@ -240,6 +240,7 @@ export interface TrackState {
   engineId: string;
   kind: string;
   name: string;
+  title?: string;
   description: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
