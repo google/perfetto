@@ -20,6 +20,7 @@ import "protos/perfetto/common/trace_stats.proto";
 import "protos/perfetto/config/trace_config.proto";
 import "protos/perfetto/trace/extension_descriptor.proto";
 import "protos/perfetto/trace/android/android_game_intervention_list.proto";
+import "protos/perfetto/trace/android/android_input_event.proto";
 import "protos/perfetto/trace/android/android_log.proto";
 import "protos/perfetto/trace/android/android_system_property.proto";
 import "protos/perfetto/trace/android/camera_event.proto";
@@ -100,7 +101,7 @@ package perfetto.protos;
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 106.
+// Next id: 107.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -232,6 +233,9 @@ message TracePacket {
     V8WasmCode v8_wasm_code = 101;
     V8RegExpCode v8_reg_exp_code = 102;
     V8CodeMove v8_code_move = 103;
+
+    // InputFlinger traces
+    AndroidInputEvent android_input_event = 106;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
