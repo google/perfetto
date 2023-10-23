@@ -64,13 +64,14 @@ FROM data;
 
 -- Returns an aggregation of thread states (by state and cpu) for a given
 -- interval of time for a given thread.
--- @arg ts           The start of the interval.
--- @arg dur          The duration of the interval.
--- @arg utid         The utid of the thread.
+-- @arg ts INT       The start of the interval.
+-- @arg dur INT      The duration of the interval.
+-- @arg utid INT     The utid of the thread.
 -- @column state     Human-readable thread state name.
 -- @column raw_state Raw thread state name, alias of `thread_state.state`.
 -- @column cpu_type  The type of CPU if available (e.g. "big" / "mid" / "little").
 -- @column cpu       The CPU index.
+-- @column blocked_function The name of the kernel function execution is blocked in.
 -- @column dur       The total duration.
 CREATE PERFETTO FUNCTION thread_state_summary_for_interval(
   ts INT, dur INT, utid INT)
