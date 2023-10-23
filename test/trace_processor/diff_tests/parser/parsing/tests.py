@@ -1213,3 +1213,27 @@ class Parsing(TestSuite):
         "name","dur","tid"
         "test_event",100,584
         """))
+
+  def test_all_data_source_flushed_metadata(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          timestamp: 12344
+          service_event {
+            all_data_sources_flushed: true
+          }
+        }
+        packet {
+          timestamp: 12345
+          service_event {
+            all_data_sources_flushed: true
+          }
+        }
+        """),
+        query="""
+        SELECT name, int_value FROM metadata WHERE name = 'all_data_source_flushed_ns'""",
+        out=Csv("""
+        "name","int_value"
+        "all_data_source_flushed_ns",12344
+        "all_data_source_flushed_ns",12345
+        """))
