@@ -59,6 +59,8 @@ interface TreeNodeAttrs {
   // Whether this node is collapsed or not.
   // If omitted, collapsed state 'uncontrolled' - i.e. controlled internally.
   collapsed?: boolean;
+  // Whether the node should start collapsed or not, default: false.
+  startsCollapsed?: boolean;
   loading?: boolean;
   showCaret?: boolean;
   // Optional icon to show to the left of the text.
@@ -69,7 +71,12 @@ interface TreeNodeAttrs {
 }
 
 export class TreeNode implements m.ClassComponent<TreeNodeAttrs> {
-  private collapsed = false;
+  private collapsed;
+
+  constructor({attrs}: m.CVnode<TreeNodeAttrs>) {
+    this.collapsed = attrs.startsCollapsed ?? false;
+  }
+
   view(vnode: m.CVnode<TreeNodeAttrs>): m.Children {
     const {children, attrs, attrs: {left, onCollapseChanged = () => {}}} =
         vnode;

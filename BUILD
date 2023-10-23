@@ -2259,6 +2259,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/common/metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/percentiles.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/common/thread_states.sql",
         "src/trace_processor/perfetto_sql/stdlib/common/timestamps.sql",
     ],
 )
