@@ -14,10 +14,8 @@
 
 import m from 'mithril';
 
-import {exists} from './utils';
-
 // Check if a mithril component vnode has children
 export function hasChildren({children}: m.Vnode<any>): boolean {
   return Array.isArray(children) && children.length > 0 &&
-      children.some(exists);
+      children.some((value) => value);
 }
