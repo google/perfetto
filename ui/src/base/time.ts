@@ -319,6 +319,10 @@ export class TimeSpan implements Span<time, duration> {
     this.end = end;
   }
 
+  static fromTimeAndDuration(start: time, duration: duration): TimeSpan {
+    return new TimeSpan(start, Time.add(start, duration));
+  }
+
   get duration(): duration {
     return this.end - this.start;
   }

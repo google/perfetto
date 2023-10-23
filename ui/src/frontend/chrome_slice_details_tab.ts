@@ -15,11 +15,12 @@
 import m from 'mithril';
 
 import {Icons} from '../base/semantic_icons';
-import {duration, Time} from '../base/time';
+import {duration, Time, TimeSpan} from '../base/time';
 import {exists} from '../base/utils';
 import {EngineProxy} from '../common/engine';
 import {runQuery} from '../common/queries';
 import {LONG, LONG_NULL, NUM, STR_NULL} from '../common/query_result';
+import {raf} from '../core/raf_scheduler';
 import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
@@ -39,6 +40,10 @@ import {runQueryInNewTab} from './query_result_tab';
 import {renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
+import {
+  BreakdownByThreadState,
+  breakDownIntervalByThreadState,
+} from './sql/thread_state';
 import {asSliceSqlId} from './sql_types';
 
 interface ContextMenuItem {
@@ -226,6 +231,7 @@ export class ChromeSliceDetailsTab extends
   static readonly kind = 'dev.perfetto.ChromeSliceDetailsTab';
 
   private sliceDetails?: SliceDetails;
+  private breakdownByThreadState?: BreakdownByThreadState;
 
   static create(args: NewBottomTabArgs): ChromeSliceDetailsTab {
     return new ChromeSliceDetailsTab(args);
@@ -233,11 +239,23 @@ export class ChromeSliceDetailsTab extends
 
   constructor(args: NewBottomTabArgs) {
     super(args);
+    this.load();
+  }
 
+  async load() {
     // Start loading the slice details
     const {id, table} = this.config;
-    getSliceDetails(this.engine, id, table)
-        .then((sliceDetails) => this.sliceDetails = sliceDetails);
+    const details = await getSliceDetails(this.engine, id, table);
+
+    if (details !== undefined && details.thread !== undefined) {
+      this.breakdownByThreadState = await breakDownIntervalByThreadState(
+          this.engine,
+          TimeSpan.fromTimeAndDuration(details.ts, details.dur),
+          details.thread.utid);
+    }
+
+    this.sliceDetails = details;
+    raf.scheduleFullRedraw();
   }
 
   getTitle(): string {
@@ -245,24 +263,23 @@ export class ChromeSliceDetailsTab extends
   }
 
   viewTab() {
-    if (exists(this.sliceDetails)) {
-      const slice = this.sliceDetails;
-      return m(
-          DetailsShell,
-          {
-            title: 'Slice',
-            description: slice.name,
-            buttons: this.renderContextButton(slice),
-          },
-          m(
-              GridLayout,
-              renderDetails(slice),
-              this.renderRhs(this.engine, slice),
-              ),
-      );
-    } else {
+    if (!exists(this.sliceDetails)) {
       return m(DetailsShell, {title: 'Slice', description: 'Loading...'});
     }
+    const slice = this.sliceDetails;
+    return m(
+        DetailsShell,
+        {
+          title: 'Slice',
+          description: slice.name,
+          buttons: this.renderContextButton(slice),
+        },
+        m(
+            GridLayout,
+            renderDetails(slice, this.breakdownByThreadState),
+            this.renderRhs(this.engine, slice),
+            ),
+    );
   }
 
   isLoading() {
