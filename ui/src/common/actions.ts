@@ -97,6 +97,20 @@ export interface AddTrackGroupArgs {
 
 export type AddTrackLikeArgs = AddTrackArgs | AddTrackGroupArgs;
 
+export interface RemoveTrackArgs {
+  // The ID of the track to remove
+  id: string;
+  // Whether to keep the ID so that it may be reused when the
+  // track is subsequently added again (required for group
+  // summary tracks only).
+  keepId?: boolean;
+}
+
+export interface RemoveTrackGroupArgs {
+  id: string;
+  summaryTrackId: string;
+}
+
 export function isAddTrackArgs(args: AddTrackLikeArgs): args is AddTrackArgs {
   return 'kind' in args && 'trackSortKey' in args &&
     'config' in args;
@@ -180,13 +194,16 @@ function removeTrackGroup(state: StateDraft, groupId: string) {
   delete state.trackGroups[groupId];
   state.pinnedTracks = state.pinnedTracks.filter((id) => id !== groupId);
 }
+
 // Query whether an |other| track matches enough details of a |track| as
 // to represent the same track
-function isSameTrack(track: AddTrackArgs, other: Partial<AddTrackArgs>): boolean {
+function isSameTrack(track: AddTrackArgs,
+    other: Partial<AddTrackArgs>): boolean {
   return track.kind === other.kind &&
-      track.trackGroup == other.trackGroup &&
-      // TODO: This may not be reliable. May need to deep-compare the config object
-      track.name == other.name;
+      track.trackGroup === other.trackGroup &&
+      // TODO: This may not be reliable. May need to deep-compare
+      // the config object
+      track.name === other.name;
 }
 
 function unfilterTracklike(
@@ -199,12 +216,16 @@ function unfilterTracklike(
 }
 
 function unfilterTrack(state: StateDraft, track: TrackState) {
-  unfilterTracklike(state, (filtered) => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
+  unfilterTracklike(state,
+    (filtered) => isAddTrackArgs(filtered) && isSameTrack(filtered, track));
 }
 
 function unfilterTrackGroup(state: StateDraft, trackGroup: TrackGroupState) {
-  unfilterTracklike(state, (filtered) => isAddTrackGroupArgs(filtered) && filtered.id === trackGroup.id);
+  unfilterTracklike(state,
+    (filtered) => isAddTrackGroupArgs(filtered) &&
+      filtered.id === trackGroup.id);
 }
+
 // A helper to delete the private tables and views created by a track.
 // TODO: These should recorded by each track that creates them and cleaned up
 //       by an explicit disposable-track protocol.
@@ -353,6 +374,7 @@ export const StateActions = {
       } else if (track.trackGroup !== undefined) {
         assertExists(state.trackGroups[track.trackGroup]).tracks.push(id);
       }
+      unfilterTrack(state, state.tracks[id]);
     });
   },
 
@@ -389,6 +411,12 @@ export const StateActions = {
     } else if (args.trackGroup !== undefined) {
       assertExists(state.trackGroups[args.trackGroup]).tracks.push(id);
     }
+  },
+
+  addTrackGroups(state: StateDraft,
+      args: {trackGroups: AddTrackGroupArgs[]}): void {
+    args.trackGroups.forEach((trackGroup) =>
+      this.addTrackGroup(state, trackGroup));
   },
 
   addTrackGroup(
@@ -457,7 +485,13 @@ export const StateActions = {
     removeTrack(state, args.trackId);
   },
 
-  removeTrack(state: StateDraft, args: {trackId: string}): void {
+  removeTracks(state: StateDraft, args: {tracks: RemoveTrackArgs[]}): void {
+    args.tracks.forEach((track) => this.removeTrack(
+      state, {trackId: track.id, keepId: track.keepId}));
+  },
+
+  removeTrack(state: StateDraft,
+      args: {trackId: string, keepId?: boolean}): void {
     const track = state.tracks[args.trackId];
     if (!track) {
       return;
@@ -466,27 +500,28 @@ export const StateActions = {
 
     this.cleanUiTrackIdByTraceTrackId(state, track as TrackState, args.trackId);
 
-      // Don't assume that we can reuse the track's ID, unless
-      // it's a group summary track that has a fixed explicit ID.
-      // Note that (some, at least) summary tracks don't reference
-      // their group
-      const id = track.trackGroup !== SCROLLING_TRACK_GROUP &&
-              Object.values(state.trackGroups).some((group) => group.tracks.length && group.tracks[0] === track.id) ?
-          {id: track.id} :
-          {};
-      state.filteredTracks.push({
-        ...id,
-        kind: track.kind,
-        engineId: track.engineId,
-        name: track.name,
-        title: track.title,
-        trackSortKey: track.trackSortKey,
-        trackGroup: track.trackGroup,
-        labels: track.labels,
-        config: current(track.config),
-      });
+    // Don't attempt to reuse track IDs unless requested (usually only
+    // for group summary tracks)
+    const id = args.keepId ? {id: args.trackId} : {};
+    state.filteredTracks.push({
+      ...id,
+      kind: track.kind,
+      engineId: track.engineId,
+      name: track.name,
+      title: track.title,
+      trackSortKey: track.trackSortKey,
+      trackGroup: track.trackGroup,
+      labels: track.labels,
+      config: current(track.config),
+    });
 
     dropTables(track.engineId, track.id);
+  },
+
+  removeTrackGroups(state: StateDraft,
+      args: {trackGroups: RemoveTrackGroupArgs[]}): void {
+    args.trackGroups.forEach((trackGroup) => this.removeTrackGroup(
+      state, trackGroup));
   },
 
   removeTrackGroup(state: StateDraft,
@@ -495,7 +530,8 @@ export const StateActions = {
     if (!trackGroup) {
       return;
     }
-    StateActions.removeTrack(state, {trackId: args.summaryTrackId});
+    this.removeTrack(state,
+      {trackId: args.summaryTrackId, keepId: true});
     removeTrackGroup(state, args.id);
       state.filteredTracks.push({
         id: trackGroup.id,

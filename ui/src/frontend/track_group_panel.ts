@@ -16,7 +16,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
-import {Actions, DeferredAction} from '../common/actions';
+import {Actions, RemoveTrackArgs, RemoveTrackGroupArgs} from '../common/actions';
 import {
   getContainingTrackIds,
   TrackGroupState,
@@ -232,8 +232,17 @@ export class TrackGroupPanel extends Panel<Attrs> {
       result.push(
         m(TrackButton, {
           action: (e: MouseEvent) => {
-            globals.dispatchMultiple(
-              this.collectRemoveTrackGroupActions());
+            const removeTracks: RemoveTrackArgs[] = [];
+            const removeGroups: RemoveTrackGroupArgs[] = [];
+            this.collectRemoveTrackGroupActions(
+              this.trackGroupState,
+              removeTracks,
+              removeGroups,
+            );
+            globals.dispatchMultiple([
+              Actions.removeTracks({tracks: removeTracks}),
+              Actions.removeTrackGroups({trackGroups: removeGroups}),
+            ]);
             e.stopPropagation();
           },
           i: 'delete',
@@ -248,27 +257,27 @@ export class TrackGroupPanel extends Panel<Attrs> {
   // Collect, recursively, the nested track groups and tracks to remove
   // along with the given trackGroup, as deferred actions to be dispatched
   protected collectRemoveTrackGroupActions(
-      trackGroup = this.trackGroupState,
-      actions: DeferredAction[] = []): DeferredAction[] {
+      trackGroup: TrackGroupState,
+      removeTracks: RemoveTrackArgs[],
+      removeGroups: RemoveTrackGroupArgs[]): void {
     // First, recursively remove subgroups, if any
     for (const subgroupId of trackGroup.subgroups) {
       const subgroup = globals.state.trackGroups[subgroupId];
       if (subgroup) {
-        this.collectRemoveTrackGroupActions(subgroup, actions);
+        this.collectRemoveTrackGroupActions(subgroup,
+          removeTracks, removeGroups);
       }
     }
 
-    // Then tracks
-    trackGroup.tracks.forEach(
-      (trackId) => actions.push(Actions.removeTrack({trackId})));
+    // Then tracks, except the summary, which is handled by
+    // the track group, below
+    trackGroup.tracks.slice(1).forEach((id) => removeTracks.push({id}));
 
-    // The the group
-    actions.push(Actions.removeTrackGroup({
-        id: trackGroup.id,
-        summaryTrackId: trackGroup.tracks[0],
-      }));
-
-    return actions;
+    // Then the group
+    removeGroups.push({
+      id: trackGroup.id,
+      summaryTrackId: trackGroup.tracks[0],
+    });
   }
 
   // We cannot delete a track group while its tracks are loading,

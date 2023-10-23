@@ -2575,8 +2575,7 @@ class TrackDecider {
       }));
     }
 
-    actions.push(
-        ...this.trackGroupsToAdd.map(Actions.addTrackGroup));
+    actions.push(Actions.addTrackGroups({trackGroups: this.trackGroupsToAdd}));
     actions.push(Actions.addTracks({tracks: this.tracksToAdd}));
 
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
