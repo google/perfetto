@@ -200,26 +200,6 @@ void TypedLinearSearch(T typed_val,
 RangeOrBitVector NumericStorage::Search(FilterOp op,
                                         SqlValue value,
                                         RowMap::Range range) const {
-  if (is_sorted_)
-    return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
-  return RangeOrBitVector(LinearSearch(op, value, range));
-}
-
-RangeOrBitVector NumericStorage::IndexSearch(FilterOp op,
-                                             SqlValue value,
-                                             uint32_t* indices,
-                                             uint32_t indices_count,
-                                             bool sorted) const {
-  if (sorted) {
-    return RangeOrBitVector(
-        BinarySearchExtrinsic(op, value, indices, indices_count));
-  }
-  return RangeOrBitVector(IndexSearch(op, value, indices, indices_count));
-}
-
-BitVector NumericStorage::LinearSearch(FilterOp op,
-                                       SqlValue sql_val,
-                                       RowMap::Range range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::LinearSearch",
                     [&range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(range.start));
@@ -227,7 +207,33 @@ BitVector NumericStorage::LinearSearch(FilterOp op,
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
+  if (is_sorted_)
+    return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+  return RangeOrBitVector(LinearSearchInternal(op, value, range));
+}
 
+RangeOrBitVector NumericStorage::IndexSearch(FilterOp op,
+                                             SqlValue value,
+                                             uint32_t* indices,
+                                             uint32_t indices_count,
+                                             bool sorted) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
+                    [indices_count, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_count));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+  if (sorted) {
+    return RangeOrBitVector(
+        BinarySearchExtrinsic(op, value, indices, indices_count));
+  }
+  return RangeOrBitVector(
+      IndexSearchInternal(op, value, indices, indices_count));
+}
+
+BitVector NumericStorage::LinearSearchInternal(FilterOp op,
+                                               SqlValue sql_val,
+                                               RowMap::Range range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
     return BitVector(size(), true);
@@ -254,17 +260,10 @@ BitVector NumericStorage::LinearSearch(FilterOp op,
   return std::move(builder).Build();
 }
 
-BitVector NumericStorage::IndexSearch(FilterOp op,
-                                      SqlValue sql_val,
-                                      uint32_t* indices,
-                                      uint32_t indices_count) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
-                    [indices_count, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_count));
-                      r->AddArg("Op",
-                                std::to_string(static_cast<uint32_t>(op)));
-                    });
-
+BitVector NumericStorage::IndexSearchInternal(FilterOp op,
+                                              SqlValue sql_val,
+                                              uint32_t* indices,
+                                              uint32_t indices_count) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
     return BitVector(indices_count, true);
