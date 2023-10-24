@@ -236,6 +236,11 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       RETURN_IF_ERROR(AddTracebackIfNeeded(
           RegisterRuntimeTable(cst->name, cst->sql), parser.statement_sql()));
       source = RewriteToDummySql(parser.statement_sql());
+    } else if (auto* create_view = std::get_if<PerfettoSqlParser::CreateView>(
+                   &parser.statement())) {
+      RETURN_IF_ERROR(AddTracebackIfNeeded(ExecuteCreateView(*create_view),
+                                           parser.statement_sql()));
+      source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* include = std::get_if<PerfettoSqlParser::Include>(
                    &parser.statement())) {
       RETURN_IF_ERROR(ExecuteInclude(*include, parser));
@@ -431,6 +436,16 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
                                  name.c_str());
   return Execute(
              SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
+      .status();
+}
+
+base::Status PerfettoSqlEngine::ExecuteCreateView(
+    const PerfettoSqlParser::CreateView& create_view) {
+  base::StackString<1024> statement("CREATE VIEW %s AS %s",
+                                    create_view.name.c_str(),
+                                    create_view.sql.sql().c_str());
+  return Execute(SqlSource::FromTraceProcessorImplementation(
+                     statement.ToStdString()))
       .status();
 }
 
