@@ -177,6 +177,10 @@ void TraceSorter::SortAndExtractEventsUntilAllocId(
 void TraceSorter::ParseTracePacket(const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
+    case TimestampedEvent::Type::kTraceBlobView:
+      parser_->ParseTraceBlobView(event.ts,
+                                  token_buffer_.Extract<TraceBlobView>(id));
+      return;
     case TimestampedEvent::Type::kTracePacket:
       parser_->ParseTracePacket(event.ts,
                                 token_buffer_.Extract<TracePacketData>(id));
@@ -224,6 +228,7 @@ void TraceSorter::ParseFtracePacket(uint32_t cpu,
     case TimestampedEvent::Type::kTrackEvent:
     case TimestampedEvent::Type::kSystraceLine:
     case TimestampedEvent::Type::kTracePacket:
+    case TimestampedEvent::Type::kTraceBlobView:
     case TimestampedEvent::Type::kJsonValue:
     case TimestampedEvent::Type::kFuchsiaRecord:
       PERFETTO_FATAL("Invalid event type");
@@ -235,6 +240,9 @@ void TraceSorter::ExtractAndDiscardTokenizedObject(
     const TimestampedEvent& event) {
   TraceTokenBuffer::Id id = GetTokenBufferId(event);
   switch (static_cast<TimestampedEvent::Type>(event.event_type)) {
+    case TimestampedEvent::Type::kTraceBlobView:
+      base::ignore_result(token_buffer_.Extract<TraceBlobView>(id));
+      return;
     case TimestampedEvent::Type::kTracePacket:
       base::ignore_result(token_buffer_.Extract<TracePacketData>(id));
       return;
