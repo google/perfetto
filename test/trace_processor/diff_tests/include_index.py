@@ -89,6 +89,7 @@ from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.tests import AndroidStdlib
 from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.chrome.tests import ChromeStdlib
+from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteractions
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.pkvm.tests import Pkvm
@@ -204,6 +205,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
 
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
+      *ChromeInteractions(index_path, 'stdlib/chrome',
+                                      'ChromeInteractions').fetch(),
       *ChromeScrollJankStdlib(index_path, 'stdlib/chrome',
                               'ChromeScrollJankStdlib').fetch(),
       *ChromeStdlib(index_path, 'stdlib/chrome', 'ChromeStdlib').fetch(),
