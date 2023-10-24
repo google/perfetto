@@ -28,6 +28,7 @@
 #include "src/trace_processor/db/overlays/storage_overlay.h"
 #include "src/trace_processor/db/overlays/types.h"
 #include "src/trace_processor/db/query_executor.h"
+#include "src/trace_processor/db/storage/dummy_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
@@ -282,9 +283,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy =
         use_legacy || (col.IsSorted() && col.col_type() == ColumnType::kString);
 
-    // Column types
-    use_legacy = use_legacy || col.col_type() == ColumnType::kDummy;
-
     // Mismatched types
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
                                     overlays::OverlayOp::kOther &&
@@ -311,17 +309,26 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
 
     // Create storage
     std::unique_ptr<Storage> storage;
-    if (col.IsId()) {
-      storage.reset(new storage::IdStorage(column_size));
-    } else if (col.col_type() == ColumnType::kString) {
-      storage.reset(new storage::StringStorage(
-          table->string_pool(),
-          static_cast<const StringPool::Id*>(col.storage_base().data()),
-          col.storage_base().non_null_size()));
-    } else {
-      storage.reset(new storage::NumericStorage(
-          col.storage_base().data(), col.storage_base().non_null_size(),
-          col.col_type(), col.IsSorted()));
+    switch (col.col_type()) {
+      case ColumnType::kDummy:
+        storage.reset(new storage::DummyStorage());
+        break;
+      case ColumnType::kId:
+        storage.reset(new storage::IdStorage(column_size));
+        break;
+      case ColumnType::kString:
+        storage.reset(new storage::StringStorage(
+            table->string_pool(),
+            static_cast<const StringPool::Id*>(col.storage_base().data()),
+            col.storage_base().non_null_size()));
+        break;
+      case ColumnType::kInt64:
+      case ColumnType::kUint32:
+      case ColumnType::kInt32:
+      case ColumnType::kDouble:
+        storage.reset(new storage::NumericStorage(
+            col.storage_base().data(), col.storage_base().non_null_size(),
+            col.col_type(), col.IsSorted()));
     }
     s_col.storage = storage.get();
 
