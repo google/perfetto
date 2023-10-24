@@ -146,6 +146,19 @@ type LazyIdProvider = (() => string) & {
   revoke(): void;
 };
 
+// A data structure for keeping track (no pun intended)
+// of lazily-created track groups in their unique positions
+// in the group hierarchy, accounting for duplication of
+// names in different parent groups. When the group is created
+// it is stored in its tree node.
+type LazyTrackGroupTree = {
+  name: string;
+  id: LazyIdProvider;
+  group?: AddTrackGroupArgs;
+  parent?: LazyTrackGroupTree;
+  children: LazyTrackGroupTree[];
+}
+
 // A process or thread is considered "idle" that uses less than 0.1%
 // as much CPU as its parent context (trace or process, respectively).
 const IDLE_FACTOR = 1000;
@@ -181,9 +194,14 @@ class TrackDecider {
   private tracksToAdd: AddTrackArgs[] = [];
   private trackGroupsToAdd: AddTrackGroupArgs[] = [];
 
-  // Map of track group name to function providing an ID for it
-  // when the time comes that the track group needs to be created
-  private lazyTrackGroupIds = new Map<string, LazyIdProvider>;
+  // A tree of lazily created track groups. Each node
+  // represents a group that may be created when needed
+  // with a function providing its ID when created
+  private lazyTrackGroups: LazyTrackGroupTree = {
+    name: '',
+    id: (() => SCROLLING_TRACK_GROUP) as LazyIdProvider,
+    children: [],
+  };
 
   // Set of |upid| from the |process| table recording
   // processes that are idle (< 0.1% CPU)
@@ -1588,12 +1606,11 @@ class TrackDecider {
     const subgroupsByProcess: Record<string, Record<string, string>> = {};
     const createSubgroup = (kind: string, name: string,
         parentGroup: string) => {
-      const subgroupId = `${parentGroup}-${kind}`;
+      const subgroupId = this.lazyTrackGroup(name, {parentGroup})();
       const byProcess = subgroupsByProcess[kind] ?? {};
       subgroupsByProcess[kind] = byProcess;
       byProcess[parentGroup] = subgroupId;
 
-      this.createPureTrackGroup(subgroupId, name, {parentGroup});
       return subgroupId;
     };
 
@@ -1710,7 +1727,6 @@ class TrackDecider {
     const key = upid ?? 0;
     let result = this.idleThreadGroups.get(key);
     if (!result) {
-      result = uuidv4();
       let name = 'Idle Threads (< 0.1%)';
       const idleThreads = this.idleUtids.get(key)?.size ?? 0;
       if (idleThreads > 0) {
@@ -1724,8 +1740,8 @@ class TrackDecider {
 
       // The group for the process that has this idle thread.
       const processGroup = this.getUuid(utid, upid);
-      this.createPureTrackGroup(result, name,
-        {description, collapsed: true, parentGroup: processGroup});
+      result = this.lazyTrackGroup(name,
+        {description, collapsed: true, parentGroup: processGroup})();
       this.idleThreadGroups.set(key, result);
     }
     return result;
@@ -2154,6 +2170,7 @@ class TrackDecider {
       layerName: STR,
     });
 
+    // Layer names by track ID from the trace DB
     const layersByTrack = new Map<number, string>();
     for (; it.valid(); it.next()) {
       const trackId = it.trackId;
@@ -2163,21 +2180,8 @@ class TrackDecider {
 
     const layerGroup = (layerName: string) => this.lazyTrackGroup(
       `Layer - ${layerName}`, {lazyParentGroup: this.sfEventsGroup});
-    const layerSubgroups = new Map<string, Map<string, string>>();
-    const layerSubgroup = (layerName: string, subgroup: string) => {
-      let subgroups = layerSubgroups.get(layerName);
-      if (subgroups === undefined) {
-        subgroups = new Map<string, string>();
-        layerSubgroups.set(layerName, subgroups);
-      }
-      let result = subgroups.get(subgroup);
-      if (result === undefined) {
-        result = this.createPureTrackGroup(uuidv4(), subgroup,
-          {lazyParentGroup: layerGroup(layerName)}).id;
-        subgroups.set(subgroup, result);
-      }
-      return result;
-    };
+    const layerSubgroup = (layerName: string, subgroup: string) =>
+      this.lazyTrackGroup(subgroup, {lazyParentGroup: layerGroup(layerName)});
 
     for (const track of this.tracksToAdd) {
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
@@ -2189,7 +2193,7 @@ class TrackDecider {
           const subgroupName = track.name.startsWith('Buffer:') ? 'Buffers' : undefined;
           if (subgroupName) {
             // Group the track
-            track.trackGroup = layerSubgroup(layerName, subgroupName);
+            track.trackGroup = layerSubgroup(layerName, subgroupName)();
             // And rename it
             const bufferMatch = /^Buffer: (\d+)?/.exec(track.name);
             if (bufferMatch) {
@@ -2710,32 +2714,114 @@ class TrackDecider {
     }
   }
 
+  // Obtain a function that will create a group of the given |name| only when
+  // it is actually needed to get the containing group ID for some track.
+  // When invoked, the returned function returns the ID of the group created
+  // at that moment or earlier and cached.
   lazyTrackGroup(name: string,
       details?: LazyTrackGroupArgs): LazyIdProvider {
-    let result = this.lazyTrackGroupIds.get(name);
-    if (result === undefined) {
-      // Does the group exist a priori?
-      let group = this.trackGroupsToAdd.find((g) => g.name === name);
-      result = ((): string => {
-        // First, try to find a group that exists
-        if (!group) {
-          group = this.trackGroupsToAdd
-            .find((g) => g.name === name);
-        }
-        // Otherwise, create it
-        if (!group) {
-          group = this.createPureTrackGroup(uuidv4(), name, details);
-        }
-        return group.id;
-      }) as LazyIdProvider;
-      result.exists = () => !!group;
-      result.revoke = () => {
-        if (group) {
-          this.removeTrackGroup(group.id);
-        }
+    const parent = details?.lazyParentGroup ?
+      (details.lazyParentGroup as LazyIdProvider & {node: LazyTrackGroupTree})
+        .node :
+      details?.parentGroup ?
+        this.getLazyTrackGroupTree(details.parentGroup) :
+        this.lazyTrackGroups;
+    let result = parent.children.find((child) => child.name === name);
+    if (!result) {
+      const path = this.getGroupPath(parent);
+      path.push(name);
+
+      const node: LazyTrackGroupTree = {
+        name,
+        parent,
+        children: [],
+        group: this.findGroup(path),
+        id: ((): string => {
+          // First, try to find a group that exists
+          if (!node.group) {
+            node.group = this.findGroup(path);
+          }
+          // Otherwise, create it
+          if (!node.group) {
+            node.group = this.createPureTrackGroup(
+                uuidv4(), name, details);
+          }
+          return node.group.id;
+        }) as LazyIdProvider,
       };
-      this.lazyTrackGroupIds.set(name, result);
+      parent.children.push(node);
+
+      Object.assign(node.id, {
+        node,
+        exists: () => !!node.group,
+        revoke: () => {
+          if (node.group) {
+            this.removeTrackGroup(node.group.id);
+          }
+        },
+      });
+      result = node;
     }
+    return result.id;
+  }
+
+  // Find a group previously added to the |trackGroupsToAdd| property
+  // by the |path| of group names from the top of the UI.
+  private findGroup(path: string[]): AddTrackGroupArgs | undefined {
+    if (path.length === 0) {
+      return undefined;
+    }
+
+    const name = path[path.length - 1];
+    const parentPath = path.slice(0, -1);
+    for (const group of this.trackGroupsToAdd) {
+      if (group.name === name) {
+        // Candidate. Does it not have a parent?
+        if (parentPath.length === 0 &&
+            (!group.parentGroup ||
+              group.parentGroup === SCROLLING_TRACK_GROUP)) {
+          return group;
+        }
+
+        // Otherwise, does its parent match?
+        const parent = this.findGroup(parentPath);
+        if (parent?.id && (parent?.id === group.parentGroup)) {
+          return group;
+        }
+      }
+    }
+
+    return undefined;
+  }
+
+  // Get the tree node book-keeping the lazily created group of the
+  // given ID.
+  //
+  // Preconditions: the |groupId| is the ID of a group that actually has
+  //     been added to the |trackGroupsToAdd| property. i.e., if it is
+  //     a lazily-created group then that lazy creation has occurred
+  private getLazyTrackGroupTree(groupId: string): LazyTrackGroupTree {
+    const group = assertExists(
+      this.trackGroupsToAdd.find((group) => group.id === groupId));
+    const name = group.name;
+    let result: LazyIdProvider;
+    if (!group.parentGroup || group.parentGroup === SCROLLING_TRACK_GROUP) {
+      result = this.lazyTrackGroup(name);
+    } else {
+      const lazyParentGroup = this.getLazyTrackGroupTree(group.parentGroup).id;
+      result = this.lazyTrackGroup(name, {lazyParentGroup});
+    }
+    return (result as LazyIdProvider & {node: LazyTrackGroupTree}).node;
+  }
+
+  // Get the path from the root of the UI to the group represented by the
+  // given lazy-track-group tree |node|.
+  private getGroupPath(node: LazyTrackGroupTree): string[] {
+    if (node === this.lazyTrackGroups) {
+      return [];
+    }
+    const result = this.getGroupPath(node.parent ?? this.lazyTrackGroups);
+    result.push(node.name);
     return result;
   }
 
