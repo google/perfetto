@@ -57,5 +57,9 @@ SELECT TraceMetadata(
   ),
   'sched_duration_ns', (
     SELECT MAX(ts) - MIN(ts) FROM sched
+  ),
+  'tracing_started_ns', (
+    SELECT int_value FROM metadata
+    WHERE name='tracing_started_ns'
   )
 );

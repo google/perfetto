@@ -82,7 +82,9 @@ PATTERN_BY_KIND = {
 # Given a regex pattern and a string to match against, returns all the
 # matching positions. Specifically, it returns a dictionary from the line
 # number of the match to the regex match object.
-def match_pattern(pattern: str, file_str: str) -> Dict[int, re.Match]:
+# Note: this resuts a dict[int, re.Match], but re.Match exists only in later
+# versions of python3, prior to that it was _sre.SRE_Match.
+def match_pattern(pattern: str, file_str: str) -> Dict[int, object]:
   line_number_to_matches = {}
   for match in re.finditer(pattern, file_str, re.MULTILINE):
     line_id = file_str[:match.start()].count('\n')
