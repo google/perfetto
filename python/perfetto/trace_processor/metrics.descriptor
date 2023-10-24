@@ -802,8 +802,8 @@ maxRuntime$
 name (	RnameY
 threads (2?.perfetto.protos.AndroidSimpleperfMetric.PerfEventMetric.ThreadRthreads
 total (Rtotal
-Œ/
-4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"Ã.
+ó1
+4protos/perfetto/metrics/android/startup_metric.protoperfetto.protos6protos/perfetto/metrics/android/process_metadata.proto"ï0
 AndroidStartupMetricG
 startup (2-.perfetto.protos.AndroidStartupMetric.StartupRstartupÛ
 TaskStateBreakdown$
@@ -891,8 +891,10 @@ firstFrame˜
 broadcast_received_count (RbroadcastReceivedCountF
  most_active_non_launch_processes (	RmostActiveNonLaunchProcesses&
 installd_dur_ns (RinstalldDurNs$
-dex2oat_dur_ns (Rdex2oatDurNsê
-
+dex2oat_dur_ns (Rdex2oatDurNsK
+SlowStartReasonDetailed
+reason (	Rreason
+details (	Rdetailså
 Startup
 
 startup_id (R	startupId!
@@ -916,7 +918,8 @@ activitiesq
 dlopenFile?
 startup_concurrent_to_launch (	RstartupConcurrentToLaunchT
 system_state (21.perfetto.protos.AndroidStartupMetric.SystemStateRsystemState*
-slow_start_reason (	RslowStartReasonJ
+slow_start_reason (	RslowStartReasonz
+slow_start_reason_detailed (2=.perfetto.protos.AndroidStartupMetric.SlowStartReasonDetailedRslowStartReasonDetailedJ
 
 —
 4protos/perfetto/metrics/android/surfaceflinger.protoperfetto.protos"á

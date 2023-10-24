@@ -228,7 +228,13 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 21
+  // Contains detailed information for slow startup causes.
+  message SlowStartReasonDetailed {
+    optional string reason = 1;
+    optional string details = 2;
+  }
+
+  // Next id: 22
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -298,6 +304,9 @@ message AndroidStartupMetric {
     // A list of identified potential causes for slow startup.
     // Optional.
     repeated string slow_start_reason = 17;
+
+    // Same as slow_start_reason, but with more detailed information.
+    repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
 
     reserved 10;
   }

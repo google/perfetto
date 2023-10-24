@@ -98,5 +98,15 @@ android_startup {
     slow_start_reason: "GC Activity"
     slow_start_reason: "JIT Activity"
     slow_start_reason: "JIT compiled methods"
+    slow_start_reason_detailed {
+      reason: "GC Activity"
+    }
+    slow_start_reason_detailed {
+      reason: "JIT Activity"
+      details: " target 100ms actual 20000.ms [ longest_chunk: start_s 154.99 dur_ms 10000. thread_id 4 thread_name Jit thread pool ]"
+    }
+    slow_start_reason_detailed {
+      reason: "JIT compiled methods"
+    }
   }
 }

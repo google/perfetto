@@ -25,6 +25,9 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 SELECT RUN_METRIC('android/startup/slice_functions.sql');
 INCLUDE PERFETTO MODULE common.timestamps;
 
+-- Define helper functions related to slow start reasons
+SELECT RUN_METRIC('android/startup/slow_start_reasons.sql');
+
 -- Run all the HSC metrics.
 SELECT RUN_METRIC('android/startup/hsc.sql');
 
@@ -338,6 +341,8 @@ SELECT
       'dex2oat_dur_ns',
       dur_of_process_running_concurrent_to_launch(launches.startup_id, '*dex2oat64')
     ),
+    -- Remove slow_start_reason implementation once slow_start_reason_detailed
+    -- is added to slow_start dashboards. (b/308460401)
     'slow_start_reason', (SELECT RepeatedField(slow_cause)
       FROM (
         SELECT 'No baseline or cloud profiles' AS slow_cause
@@ -481,11 +486,12 @@ SELECT
         SELECT 'Main Thread - Binder transactions blocked'
         WHERE (
           SELECT COUNT(1)
-          FROM BINDER_TRANSACTION_REPLY_SLICES_FOR_LAUNCH(launches.startup_id, 2e7)
+          FROM binder_transaction_reply_slices_for_launch(launches.startup_id, 2e7)
         ) > 0
 
       )
-    )
+    ),
+    'slow_start_reason_detailed', get_slow_start_reason_detailed(launches.startup_id)
   ) AS startup
 FROM android_startups launches;
 

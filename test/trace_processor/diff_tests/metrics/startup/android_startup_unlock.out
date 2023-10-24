@@ -30,5 +30,8 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     slow_start_reason: "Unlock running during launch"
+    slow_start_reason_detailed {
+      reason: "Unlock running during launch"
+    }
   }
 }
