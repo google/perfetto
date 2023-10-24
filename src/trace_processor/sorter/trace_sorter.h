@@ -95,6 +95,11 @@ class TraceSorter {
               SortingMode);
   ~TraceSorter();
 
+  inline void PushTraceBlobView(int64_t timestamp, TraceBlobView tbv) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(tbv));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTraceBlobView, id);
+  }
+
   inline void PushTracePacket(int64_t timestamp,
                               RefPtr<PacketSequenceStateGeneration> state,
                               TraceBlobView tbv) {
@@ -196,6 +201,7 @@ class TraceSorter {
   struct TimestampedEvent {
     enum class Type : uint8_t {
       kFtraceEvent,
+      kTraceBlobView,
       kTracePacket,
       kInlineSchedSwitch,
       kInlineSchedWaking,
