@@ -75,6 +75,7 @@ bool TraceBuffer::Initialize(size_t size) {
     return false;
   }
   size_ = size;
+  used_size_ = 0;
   stats_.set_buffer_size(size);
   max_chunk_size_ = std::min(size, ChunkRecord::kMaxSize);
   wptr_ = begin();
@@ -915,8 +916,8 @@ TraceBuffer::TraceBuffer(CloneCtor, const TraceBuffer& src)
 
   // The assignments below must be done after Initialize().
 
-  data_.EnsureCommitted(data_.size());
-  memcpy(data_.Get(), src.data_.Get(), src.data_.size());
+  EnsureCommitted(src.used_size_);
+  memcpy(data_.Get(), src.data_.Get(), src.used_size_);
   last_chunk_id_written_ = src.last_chunk_id_written_;
 
   stats_ = src.stats_;
