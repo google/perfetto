@@ -78,6 +78,7 @@ message TraceMetadata {
   optional string unique_session_name = 8;
   optional string trace_config_pbtxt = 9;
   optional int64 sched_duration_ns = 10;
+  optional int64 tracing_started_ns = 11;
 }
 
 // Stats counters for the trace.
