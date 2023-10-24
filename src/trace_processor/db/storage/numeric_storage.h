@@ -51,12 +51,14 @@ class NumericStorage final : public Storage {
   uint32_t size() const override { return size_; }
 
  private:
-  BitVector LinearSearch(FilterOp op, SqlValue val, RowMap::Range) const;
+  BitVector LinearSearchInternal(FilterOp op,
+                                 SqlValue val,
+                                 RowMap::Range) const;
 
-  BitVector IndexSearch(FilterOp op,
-                        SqlValue value,
-                        uint32_t* indices,
-                        uint32_t indices_count) const;
+  BitVector IndexSearchInternal(FilterOp op,
+                                SqlValue value,
+                                uint32_t* indices,
+                                uint32_t indices_count) const;
 
   RowMap::Range BinarySearchIntrinsic(FilterOp op,
                                       SqlValue val,
@@ -66,6 +68,7 @@ class NumericStorage final : public Storage {
                                       SqlValue val,
                                       uint32_t* indices,
                                       uint32_t indices_count) const;
+
   const ColumnType type_ = ColumnType::kDummy;
   const void* data_ = nullptr;
   const uint32_t size_ = 0;
