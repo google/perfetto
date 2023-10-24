@@ -24,6 +24,10 @@
 namespace perfetto {
 namespace trace_processor {
 
+std::string FunctionPrototype::ToString() const {
+  return function_name + "(" + SerializeArguments(arguments) + ")";
+}
+
 base::Status ParseFunctionName(base::StringView raw, base::StringView& out) {
   size_t function_name_end = raw.find('(');
   if (function_name_end == base::StringView::npos)
@@ -38,7 +42,7 @@ base::Status ParseFunctionName(base::StringView raw, base::StringView& out) {
   return base::OkStatus();
 }
 
-base::Status ParsePrototype(base::StringView raw, Prototype& out) {
+base::Status ParsePrototype(base::StringView raw, FunctionPrototype& out) {
   // Examples of function prototypes:
   // ANDROID_SDK_LEVEL()
   // STARTUP_SLICE(dur_ns INT)

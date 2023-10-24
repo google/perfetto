@@ -95,23 +95,39 @@ TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1");
-  ASSERT_THAT(*Parse(res),
-              testing::ElementsAre(CreateFn{
-                  false, "foo()", "INT", FindSubstr(res, "select 1"), false}));
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
+                               false, FunctionPrototype{"foo", {}}, "INT",
+                               FindSubstr(res, "select 1"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "create perfetto function bar(x INT, y LONG) returns STRING as "
       "select 'foo'");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false, "bar(x INT, y LONG)", "STRING",
-                               FindSubstr(res, "select 'foo'"), false}));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(
+                  CreateFn{false,
+                           FunctionPrototype{
+                               "bar",
+                               {
+                                   {"$x", sql_argument::Type::kInt},
+                                   {"$y", sql_argument::Type::kLong},
+                               },
+                           },
+                           "STRING", FindSubstr(res, "select 'foo'"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As "
       "select 'foo'");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false, "bar(x INT, y LONG)", "STRING",
-                               FindSubstr(res, "select 'foo'"), false}));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(
+                  CreateFn{false,
+                           FunctionPrototype{
+                               "bar",
+                               {
+                                   {"$x", sql_argument::Type::kInt},
+                                   {"$y", sql_argument::Type::kLong},
+                               },
+                           },
+                           "STRING", FindSubstr(res, "select 'foo'"), false}));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
@@ -133,7 +149,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
       "create perfetto function foo() returns INT as select 1; select foo()");
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
-  CreateFn fn{false, "foo()", "INT", FindSubstr(res, "select 1"), false};
+  CreateFn fn{false, FunctionPrototype{"foo", {}}, "INT",
+              FindSubstr(res, "select 1"), false};
   ASSERT_EQ(parser.statement(), Statement{fn});
   ASSERT_EQ(
       parser.statement_sql().sql(),
