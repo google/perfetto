@@ -32,6 +32,10 @@ import {
 import {NewTrackArgs} from '../../frontend/track';
 import {Plugin, PluginContext, PluginDescriptor} from '../../public';
 
+export interface CustomSqlImportConfig {
+  modules: string[];
+}
+
 export interface CustomSqlTableDefConfig {
   // Table name
   sqlTableName: string;
@@ -62,8 +66,14 @@ export abstract class CustomSqlTableSliceTrack<
   // Override by subclasses.
   abstract getDetailsPanel(): CustomSqlDetailsPanelConfig;
 
+  getSqlImports(): CustomSqlImportConfig {
+    return {
+      modules: [] as string[],
+    };
+  }
 
   async onInit(): Promise<Disposable> {
+    await this.loadImports();
     const config = this.getSqlDataSource();
     let columns = ['*'];
     if (config.columns !== undefined) {
@@ -112,6 +122,12 @@ export abstract class CustomSqlTableSliceTrack<
         config: detailsPanelConfig.config,
       },
     }));
+  }
+
+  async loadImports() {
+    for (const importModule of this.getSqlImports().modules) {
+      await this.engine.query(`INCLUDE PERFETTO MODULE ${importModule};`);
+    }
   }
 }
 
