@@ -245,8 +245,19 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
     return ErrorAtToken(table_name, err.c_str());
   }
   std::string name(table_name.str);
+  std::vector<sql_argument::ArgumentDefinition> schema;
 
   auto token = tokenizer_.NextNonWhitespace();
+
+  // If the next token is a left parenthesis, then the table or view have a
+  // schema.
+  if (token.token_type == SqliteTokenType::TK_LP) {
+    if (!ParseArguments(schema)) {
+      return false;
+    }
+    token = tokenizer_.NextNonWhitespace();
+  }
+
   if (!TokenIsSqliteKeyword("as", token)) {
     base::StackString<1024> err(
         "Expected 'AS' after table_name, received "
@@ -259,12 +270,19 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
   Token terminal = tokenizer_.NextTerminal();
   switch (table_or_view) {
     case TableOrView::kTable:
-      statement_ =
-          CreateTable{std::move(name), tokenizer_.Substr(first, terminal)};
+      statement_ = CreateTable{std::move(name),
+                               tokenizer_.Substr(first, terminal), schema};
       break;
     case TableOrView::kView:
+      SqlSource original_statement =
+          tokenizer_.Substr(first_non_space_token, terminal);
+      SqlSource header = SqlSource::FromTraceProcessorImplementation(
+          "CREATE VIEW " + name + " AS ");
+      SqlSource::Rewriter rewriter(original_statement);
+      tokenizer_.Rewrite(rewriter, first_non_space_token, first, header,
+                         SqliteTokenizer::EndToken::kExclusive);
       statement_ =
-          CreateView{std::move(name), tokenizer_.Substr(first, terminal)};
+          CreateView{std::move(name), std::move(rewriter).Build(), schema};
       break;
   }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
