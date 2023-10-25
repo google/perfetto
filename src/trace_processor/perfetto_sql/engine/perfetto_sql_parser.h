@@ -63,6 +63,12 @@ class PerfettoSqlParser {
     std::string name;
     SqlSource sql;
   };
+  // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
+  // with the following parameters.
+  struct CreateView {
+    std::string name;
+    SqlSource sql;
+  };
   // Indicates that the specified SQL was a INCLUDE PERFETTO MODULE statement
   // with the following parameter.
   struct Include {
@@ -77,8 +83,12 @@ class PerfettoSqlParser {
     SqlSource returns;
     SqlSource sql;
   };
-  using Statement = std::
-      variant<SqliteSql, CreateFunction, CreateTable, Include, CreateMacro>;
+  using Statement = std::variant<SqliteSql,
+                                 CreateFunction,
+                                 CreateTable,
+                                 CreateView,
+                                 Include,
+                                 CreateMacro>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
@@ -126,7 +136,13 @@ class PerfettoSqlParser {
       bool replace,
       SqliteTokenizer::Token first_non_space_token);
 
-  bool ParseCreatePerfettoTable(SqliteTokenizer::Token first_non_space_token);
+  enum class TableOrView {
+    kTable,
+    kView,
+  };
+  bool ParseCreatePerfettoTableOrView(
+      SqliteTokenizer::Token first_non_space_token,
+      TableOrView table_or_view);
 
   bool ParseIncludePerfettoModule(SqliteTokenizer::Token first_non_space_token);
 

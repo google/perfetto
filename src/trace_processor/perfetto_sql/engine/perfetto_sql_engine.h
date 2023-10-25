@@ -152,6 +152,8 @@ class PerfettoSqlEngine {
   // Registers a SQL-defined trace processor C++ table with SQLite.
   base::Status RegisterRuntimeTable(std::string name, SqlSource sql);
 
+  base::Status ExecuteCreateView(const PerfettoSqlParser::CreateView&);
+
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
   std::unique_ptr<QueryCache> query_cache_;
