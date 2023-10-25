@@ -17,6 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
+import {isString} from '../../base/object_utils';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {
@@ -115,7 +116,7 @@ interface CounterTrackState {
 
 function isCounterState(x: unknown): x is CounterTrackState {
   if (x && typeof x === 'object' && 'scale' in x) {
-    if (typeof x.scale === 'string') {
+    if (isString(x.scale)) {
       return true;
     } else {
       return false;

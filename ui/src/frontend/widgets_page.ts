@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 import {Hotkey, Platform} from '../base/hotkeys';
+import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {raf} from '../core/raf_scheduler';
 import {Anchor} from '../widgets/anchor';
@@ -381,7 +382,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
             this.optValues[key] = option.initial;
           } else if (typeof option === 'boolean') {
             this.optValues[key] = option;
-          } else if (typeof option === 'string') {
+          } else if (isString(option)) {
             this.optValues[key] = option;
           }
         }
@@ -428,7 +429,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return this.renderEnumOption(key, value);
     } else if (typeof value === 'boolean') {
       return this.renderBooleanOption(key);
-    } else if (typeof value === 'string') {
+    } else if (isString(value)) {
       return this.renderStringOption(key);
     } else {
       return null;

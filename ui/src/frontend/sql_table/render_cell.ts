@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {copyToClipboard} from '../../base/clipboard';
+import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {duration, Duration, Time} from '../../base/time';
@@ -52,7 +53,7 @@ function getStandardFilters(
       filterOptionMenuItem('is not null', `${c.expression} is not null`, state),
     ];
   }
-  if (typeof value === 'string') {
+  if (isString(value)) {
     return [
       filterOptionMenuItem(
           'equals to', `${c.expression} = ${sqliteString(value)}`, state),
@@ -125,7 +126,7 @@ function getContextMenuItems(
     result.push(
         copyMenuItem('Copy formatted duration', displayDuration(value)));
   }
-  if (typeof value === 'string') {
+  if (isString(value)) {
     result.push(copyMenuItem('Copy', value));
   }
 
