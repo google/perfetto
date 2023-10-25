@@ -14,6 +14,7 @@
 
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
+import {isString} from '../base/object_utils';
 import {base64Encode} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
@@ -153,7 +154,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       const isNested = typeof value === 'object' && !isRepeated;
       for (const entry of (isRepeated ? value as Array<{}> : [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
-        if (typeof entry === 'string') {
+        if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
             yield entry;
           } else {

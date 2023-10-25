@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from '../../base/object_utils';
 import {
   AggregateData,
   Column,
@@ -144,7 +145,7 @@ export abstract class AggregationController extends Controller<'main'> {
         const item = it.get(column.columnId);
         if (item === null) {
           column.data[i] = isStringColumn(column) ? internString('NULL') : 0;
-        } else if (typeof item === 'string') {
+        } else if (isString(item)) {
           column.data[i] = internString(item);
         } else if (item instanceof Uint8Array) {
           column.data[i] = internString('<Binary blob>');

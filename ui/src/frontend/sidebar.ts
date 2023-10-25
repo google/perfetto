@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
+import {isString} from '../base/object_utils';
 import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
@@ -769,8 +770,8 @@ export class Sidebar implements m.ClassComponent {
         let css = '';
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
-          href: typeof item.a === 'string' ? item.a : '#',
-          target: typeof item.a === 'string' ? '_blank' : null,
+          href: isString(item.a) ? item.a : '#',
+          target: isString(item.a) ? '_blank' : null,
           disabled: false,
           id: item.t.toLowerCase().replace(/[^\w]/g, '_'),
         };
