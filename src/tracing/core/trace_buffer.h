@@ -286,6 +286,7 @@ class TraceBuffer {
   const WriterStatsMap& writer_stats() const { return writer_stats_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
+  size_t used_size() const { return used_size_; }
   OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
   bool has_data() const { return has_data_; }
 
@@ -613,9 +614,14 @@ class TraceBuffer {
   ChunkRecord* GetChunkRecordAt(uint8_t* ptr) {
     DcheckIsAlignedAndWithinBounds(ptr);
     // We may be accessing a new (empty) record.
-    data_.EnsureCommitted(
-        static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
+    EnsureCommitted(static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
     return reinterpret_cast<ChunkRecord*>(ptr);
+  }
+
+  void EnsureCommitted(size_t size) {
+    PERFETTO_DCHECK(size <= size_);
+    data_.EnsureCommitted(size);
+    used_size_ = std::max(used_size_, size);
   }
 
   void DiscardWrite();
@@ -639,7 +645,7 @@ class TraceBuffer {
     DcheckIsAlignedAndWithinBounds(wptr);
 
     // We may be writing to this area for the first time.
-    data_.EnsureCommitted(static_cast<size_t>(wptr + record.size - begin()));
+    EnsureCommitted(static_cast<size_t>(wptr + record.size - begin()));
 
     // Deliberately not a *D*CHECK.
     PERFETTO_CHECK(wptr + sizeof(record) + size <= end());
@@ -676,6 +682,12 @@ class TraceBuffer {
 
   base::PagedMemory data_;
   size_t size_ = 0;            // Size in bytes of |data_|.
+
+  // High watermark. The number of bytes (<= |size_|) written into the buffer
+  // before the first wraparound. This increases as data is written into the
+  // buffer and then saturates at |size_|. Used for CloneReadOnly().
+  size_t used_size_ = 0;
+
   size_t max_chunk_size_ = 0;  // Max size in bytes allowed for a chunk.
   uint8_t* wptr_ = nullptr;    // Write pointer.
 
