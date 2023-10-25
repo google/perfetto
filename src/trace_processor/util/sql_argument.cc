@@ -23,6 +23,9 @@ namespace trace_processor {
 namespace sql_argument {
 
 bool IsValidName(base::StringView str) {
+  if (str.empty()) {
+    return false;
+  }
   auto pred = [](char c) { return !(isalnum(c) || c == '_'); };
   return std::find_if(str.begin(), str.end(), pred) == str.end();
 }
@@ -30,21 +33,29 @@ bool IsValidName(base::StringView str) {
 std::optional<Type> ParseType(base::StringView str) {
   if (str == "BOOL") {
     return Type::kBool;
-  } else if (str == "INT") {
+  }
+  if (str == "INT") {
     return Type::kInt;
-  } else if (str == "UINT") {
+  }
+  if (str == "UINT") {
     return Type::kUint;
-  } else if (str == "LONG") {
+  }
+  if (str == "LONG") {
     return Type::kLong;
-  } else if (str == "FLOAT") {
+  }
+  if (str == "FLOAT") {
     return Type::kFloat;
-  } else if (str == "DOUBLE") {
+  }
+  if (str == "DOUBLE") {
     return Type::kDouble;
-  } else if (str == "STRING") {
+  }
+  if (str == "STRING") {
     return Type::kString;
-  } else if (str == "PROTO") {
+  }
+  if (str == "PROTO") {
     return Type::kProto;
-  } else if (str == "BYTES") {
+  }
+  if (str == "BYTES") {
     return Type::kBytes;
   }
   return std::nullopt;
@@ -121,6 +132,21 @@ base::Status ParseArgumentDefinitions(const std::string& args,
     out.emplace_back("$" + arg_name, *opt_arg_type);
   }
   return base::OkStatus();
+}
+
+std::string SerializeArguments(const std::vector<ArgumentDefinition>& args) {
+  bool comma = false;
+  std::string serialized;
+  for (const auto& arg : args) {
+    if (comma) {
+      serialized.append(", ");
+    }
+    comma = true;
+    serialized.append(arg.name().c_str());
+    serialized.push_back(' ');
+    serialized.append(TypeToHumanFriendlyString(arg.type()));
+  }
+  return serialized;
 }
 
 }  // namespace sql_argument
