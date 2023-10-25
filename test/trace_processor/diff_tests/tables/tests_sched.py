@@ -303,20 +303,21 @@ class TablesSched(TestSuite):
           critical_path_utid
         FROM experimental_thread_executing_span_critical_path_stack((select utid from thread where tid = 3487), start_ts, end_ts), trace_bounds
         ORDER BY ts
-        LIMIT 10
+        LIMIT 11
         """,
         out=Csv("""
         "id","ts","dur","utid","stack_depth","name","table_name","critical_path_utid"
         11889,1737349401439,57188,1477,0,"thread_state: R","thread_state",1477
         11889,1737349401439,57188,1477,1,"[NULL]","thread_state",1477
-        11889,1737349401439,57188,1477,2,"process_name: com.android.providers.media.module","thread_state",1477
-        11889,1737349401439,57188,1477,3,"thread_name: rs.media.module","thread_state",1477
+        11889,1737349401439,57188,1477,2,"[NULL]","thread_state",1477
+        11889,1737349401439,57188,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
+        11889,1737349401439,57188,1477,4,"thread_name: rs.media.module","thread_state",1477
         11891,1737349458627,1884896,1477,0,"thread_state: Running","thread_state",1477
         11891,1737349458627,1884896,1477,1,"[NULL]","thread_state",1477
-        11891,1737349458627,1884896,1477,2,"process_name: com.android.providers.media.module","thread_state",1477
-        11891,1737349458627,1884896,1477,3,"thread_name: rs.media.module","thread_state",1477
-        11891,1737349458627,1884896,1477,4,"cpu: 0","thread_state",1477
-        11891,1737351343523,2494,1477,0,"thread_state: Running","thread_state",1477
+        11891,1737349458627,1884896,1477,2,"[NULL]","thread_state",1477
+        11891,1737349458627,1884896,1477,3,"process_name: com.android.providers.media.module","thread_state",1477
+        11891,1737349458627,1884896,1477,4,"thread_name: rs.media.module","thread_state",1477
+        11891,1737349458627,1884896,1477,5,"cpu: 0","thread_state",1477
         """))
 
   def test_thread_executing_span_critical_path_graph(self):
