@@ -210,7 +210,12 @@ bool PerfettoSqlParser::Next() {
               state == State::kCreateOrReplacePerfetto, *first_non_space_token);
         }
         if (TokenIsSqliteKeyword("table", token)) {
-          return ParseCreatePerfettoTable(*first_non_space_token);
+          return ParseCreatePerfettoTableOrView(*first_non_space_token,
+                                                TableOrView::kTable);
+        }
+        if (TokenIsSqliteKeyword("view", token)) {
+          return ParseCreatePerfettoTableOrView(*first_non_space_token,
+                                                TableOrView::kView);
         }
         if (TokenIsCustomKeyword("macro", token)) {
           return ParseCreatePerfettoMacro(state ==
@@ -244,7 +249,9 @@ bool PerfettoSqlParser::ParseIncludePerfettoModule(
   return true;
 }
 
-bool PerfettoSqlParser::ParseCreatePerfettoTable(Token first_non_space_token) {
+bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
+    Token first_non_space_token,
+    TableOrView table_or_view) {
   Token table_name = tokenizer_.NextNonWhitespace();
   if (table_name.token_type != SqliteTokenType::TK_ID) {
     base::StackString<1024> err("Invalid table name %.*s",
@@ -265,7 +272,16 @@ bool PerfettoSqlParser::ParseCreatePerfettoTable(Token first_non_space_token) {
 
   Token first = tokenizer_.NextNonWhitespace();
   Token terminal = tokenizer_.NextTerminal();
-  statement_ = CreateTable{std::move(name), tokenizer_.Substr(first, terminal)};
+  switch (table_or_view) {
+    case TableOrView::kTable:
+      statement_ =
+          CreateTable{std::move(name), tokenizer_.Substr(first, terminal)};
+      break;
+    case TableOrView::kView:
+      statement_ =
+          CreateView{std::move(name), tokenizer_.Substr(first, terminal)};
+      break;
+  }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
   return true;
 }
