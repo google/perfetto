@@ -17,6 +17,7 @@ import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
 import {copyToClipboard} from '../base/clipboard';
+import {isString} from '../base/object_utils';
 import {Duration, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
@@ -57,7 +58,7 @@ function hasTrackId(row: Row): row is Row&{track_id: Numeric} {
 }
 
 function hasType(row: Row): row is Row&{type: string} {
-  return ('type' in row && typeof row.type === 'string');
+  return ('type' in row && isString(row.type));
 }
 
 function hasId(row: Row): row is Row&{id: Numeric} {

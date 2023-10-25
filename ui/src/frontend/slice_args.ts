@@ -15,6 +15,7 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
+import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
@@ -224,7 +225,7 @@ function stringifyKey(...key: Key[]): string {
 }
 
 function isWebLink(value: unknown): value is string {
-  return typeof value === 'string' &&
+  return isString(value) &&
       (value.startsWith('http://') || value.startsWith('https://'));
 }
 
