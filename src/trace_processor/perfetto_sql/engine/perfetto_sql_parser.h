@@ -62,13 +62,18 @@ class PerfettoSqlParser {
   // with the following parameters.
   struct CreateTable {
     std::string name;
+    // SQL source for the select statement.
     SqlSource sql;
+    std::vector<sql_argument::ArgumentDefinition> schema;
   };
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
   // with the following parameters.
   struct CreateView {
     std::string name;
+    // SQL source corresponding to the rewritten statement creating the
+    // underlying view.
     SqlSource sql;
+    std::vector<sql_argument::ArgumentDefinition> schema;
   };
   // Indicates that the specified SQL was a INCLUDE PERFETTO MODULE statement
   // with the following parameter.

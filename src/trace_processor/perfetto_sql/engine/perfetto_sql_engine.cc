@@ -433,12 +433,7 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
-  base::StackString<1024> statement("CREATE VIEW %s AS %s",
-                                    create_view.name.c_str(),
-                                    create_view.sql.sql().c_str());
-  return Execute(SqlSource::FromTraceProcessorImplementation(
-                     statement.ToStdString()))
-      .status();
+  return Execute(create_view.sql).status();
 }
 
 base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
