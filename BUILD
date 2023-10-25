@@ -2263,6 +2263,7 @@ perfetto_filegroup(
         "src/trace_processor/perfetto_sql/stdlib/android/binder.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/broadcasts.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/dvfs.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/freezer.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/garbage_collection.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/input.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/io.sql",

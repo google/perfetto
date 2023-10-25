@@ -1148,4 +1148,16 @@ class AndroidStdlib(TestSuite):
         7,10088,"com.android.rkpdapp","androidx.work.impl.background.systemjob.SystemJobService",582582119592,103911382
         7,10037,"com.android.statementservice","androidx.work.impl.background.systemjob.SystemJobService",583151483122,115767494
         27950934,10022,"com.android.providers.calendar",".CalendarProviderJobService",587237955847,37434516
+        """))
+
+  def test_freezer_events(self):
+    return DiffTestBlueprint(
+        trace=DataPath('post_boot_trace.atr'),
+        query="""
+        INCLUDE PERFETTO MODULE android.freezer;
+        SELECT pid, ts, dur FROM android_freezer_events ORDER BY ts
+      """,
+        out=Csv("""
+        "pid","ts","dur"
+        8361,588092720937,576298685
       """))
