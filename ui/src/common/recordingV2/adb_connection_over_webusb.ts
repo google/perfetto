@@ -16,6 +16,7 @@ import {_TextDecoder, _TextEncoder} from 'custom_utils';
 
 import {defer, Deferred} from '../../base/deferred';
 import {assertExists, assertFalse, assertTrue} from '../../base/logging';
+import {isString} from '../../base/object_utils';
 import {CmdType} from '../../controller/adb_interfaces';
 
 import {AdbConnectionImpl} from './adb_connection_impl';
@@ -196,7 +197,7 @@ export class AdbConnectionOverWebusb extends AdbConnectionImpl {
   }
 
   streamWrite(msg: string|Uint8Array, stream: AdbOverWebusbStream): void {
-    const raw = (typeof msg === 'string') ? textEncoder.encode(msg) : msg;
+    const raw = (isString(msg)) ? textEncoder.encode(msg) : msg;
     if (this.writeInProgress) {
       this.writeQueue.push({message: raw, localStreamId: stream.localStreamId});
       return;
@@ -604,7 +605,7 @@ class AdbMsg {
 
   static encodeData(data?: Uint8Array|string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
-    if (typeof data === 'string') return textEncoder.encode(data + '\0');
+    if (isString(data)) return textEncoder.encode(data + '\0');
     return data;
   }
 }

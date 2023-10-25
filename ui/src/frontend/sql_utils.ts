@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from '../base/object_utils';
 import {EngineProxy} from '../common/engine';
 import {ColumnType, NUM} from '../common/query_result';
 import {SortDirection} from '../common/state';
@@ -68,7 +69,7 @@ export function constraintsToQuerySuffix(c: SQLConstraints): string {
   const orderBy = (c.orderBy ?? []).filter(isDefined);
   if (orderBy.length > 0) {
     const orderBys = orderBy.map((clause) => {
-      if (typeof clause === 'string') {
+      if (isString(clause)) {
         return clause;
       } else {
         const direction = clause.direction ? ` ${clause.direction}` : '';

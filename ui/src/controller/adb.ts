@@ -15,6 +15,7 @@
 import {_TextDecoder, _TextEncoder} from 'custom_utils';
 
 import {assertExists} from '../base/logging';
+import {isString} from '../base/object_utils';
 
 import {Adb, AdbMsg, AdbStream, CmdType} from './adb_interfaces';
 
@@ -435,7 +436,7 @@ export class AdbStreamImpl implements AdbStream {
   }
 
   async write(msg: string|Uint8Array) {
-    const raw = (typeof msg === 'string') ? textEncoder.encode(msg) : msg;
+    const raw = (isString(msg)) ? textEncoder.encode(msg) : msg;
     if (this.sendInProgress ||
         this.state === AdbStreamState.WAITING_INITIAL_OKAY) {
       this.writeQueue.push(raw);
@@ -579,7 +580,7 @@ export class AdbMsgImpl implements AdbMsg {
 
   static encodeData(data?: Uint8Array|string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
-    if (typeof data === 'string') return textEncoder.encode(data + '\0');
+    if (isString(data)) return textEncoder.encode(data + '\0');
     return data;
   }
 }

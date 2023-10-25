@@ -14,6 +14,7 @@
 
 import {arrayEquals} from '../../base/array_utils';
 import {SortDirection} from '../../base/comparison_utils';
+import {isString} from '../../base/object_utils';
 import {sqliteString} from '../../base/string_utils';
 import {EngineProxy} from '../../common/engine';
 import {NUM, Row} from '../../common/query_result';
@@ -134,7 +135,7 @@ export class SqlTableState {
     };
     let cteId = 0;
     for (const filter of this.filters) {
-      if (typeof filter === 'string') {
+      if (isString(filter)) {
         result.filters!.push(filter);
       } else {
         const cteName = `arg_sets_${cteId++}`;

@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {EngineProxy} from '../../common/engine';
 import {Row} from '../../common/query_result';
@@ -48,9 +49,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   renderFilters(): m.Children {
     const filters: m.Child[] = [];
     for (const filter of this.state.getFilters()) {
-      const label = typeof filter === 'string' ?
-          filter :
-          `Arg(${filter.argName}) ${filter.op}`;
+      const label =
+          isString(filter) ? filter : `Arg(${filter.argName}) ${filter.op}`;
       filters.push(m(Button, {
         label,
         icon: 'close',
