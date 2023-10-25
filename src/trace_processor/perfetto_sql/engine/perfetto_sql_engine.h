@@ -107,7 +107,7 @@ class PerfettoSqlEngine {
   // Registers a function with the prototype |prototype| which returns a value
   // of |return_type| and is implemented by executing the SQL statement |sql|.
   base::Status RegisterSqlFunction(bool replace,
-                                   std::string prototype,
+                                   const FunctionPrototype& prototype,
                                    std::string return_type,
                                    SqlSource sql);
 
