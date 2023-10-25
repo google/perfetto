@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "function_util.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
@@ -52,7 +53,7 @@ class PerfettoSqlParser {
   // with the following parameters.
   struct CreateFunction {
     bool replace;
-    std::string prototype;
+    FunctionPrototype prototype;
     std::string returns;
     SqlSource sql;
     bool is_table;
@@ -124,13 +125,18 @@ class PerfettoSqlParser {
   const base::Status& status() const { return status_; }
 
  private:
-  using Argument =
-      std::pair<SqlSource /* name token */, SqlSource /* type token */>;
-
   // This cannot be moved because we keep pointers into |sql_| in
   // |preprocessor_|.
   PerfettoSqlParser(PerfettoSqlParser&&) = delete;
   PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
+
+  // Most of the code needs sql_argument::ArgumentDefinition, but we explcitly
+  // track raw arguments separately, as macro implementations need access to
+  // the underlying tokens.
+  struct RawArgument {
+    SqliteTokenizer::Token name;
+    SqliteTokenizer::Token type;
+  };
 
   bool ParseCreatePerfettoFunction(
       bool replace,
@@ -148,9 +154,17 @@ class PerfettoSqlParser {
 
   bool ParseCreatePerfettoMacro(bool replace);
 
-  bool ParseArgumentDefinitions(std::vector<Argument>&);
+  // Convert a "raw" argument (i.e. one that points to specific tokens) to the
+  // argument definition consumed by the rest of the SQL code.
+  // Guarantees to call ErrorAtToken if std::nullopt is returned.
+  std::optional<sql_argument::ArgumentDefinition> ResolveRawArgument(
+      RawArgument arg);
+  // Parse the arguments in their raw token form.
+  bool ParseRawArguments(std::vector<RawArgument>&);
+  // Same as above, but also convert the raw tokens into argument definitions.
+  bool ParseArguments(std::vector<sql_argument::ArgumentDefinition>&);
 
-  bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
+  bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error, ...);
 
   PerfettoSqlPreprocessor preprocessor_;
   SqliteTokenizer tokenizer_;

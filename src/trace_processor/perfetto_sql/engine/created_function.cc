@@ -37,7 +37,7 @@ namespace {
 
 base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
                              sqlite3* db,
-                             const Prototype& prototype) {
+                             const FunctionPrototype& prototype) {
   int ret = sqlite3_step(stmt);
   RETURN_IF_ERROR(SqliteRetToStatus(db, prototype.function_name, ret));
   if (ret == SQLITE_ROW) {
@@ -54,9 +54,10 @@ base::Status CheckNoMoreRows(sqlite3_stmt* stmt,
 // Note: if the returned type is string / bytes, it will be invalidated by the
 // next call to SQLite, so the caller must take care to either copy or use the
 // value before calling SQLite again.
-base::StatusOr<SqlValue> EvaluateScalarStatement(sqlite3_stmt* stmt,
-                                                 sqlite3* db,
-                                                 const Prototype& prototype) {
+base::StatusOr<SqlValue> EvaluateScalarStatement(
+    sqlite3_stmt* stmt,
+    sqlite3* db,
+    const FunctionPrototype& prototype) {
   int ret = sqlite3_step(stmt);
   RETURN_IF_ERROR(SqliteRetToStatus(db, prototype.function_name, ret));
   if (ret == SQLITE_DONE) {
@@ -89,7 +90,7 @@ base::StatusOr<SqlValue> EvaluateScalarStatement(sqlite3_stmt* stmt,
 }
 
 base::Status BindArguments(sqlite3_stmt* stmt,
-                           const Prototype& prototype,
+                           const FunctionPrototype& prototype,
                            size_t argc,
                            sqlite3_value** argv) {
   // Bind all the arguments to the appropriate places in the function.
@@ -162,7 +163,7 @@ class Memoizer {
 
   // Enables memoization.
   // Only functions with a single int argument returning ints are supported.
-  base::Status EnableMemoization(const Prototype& prototype) {
+  base::Status EnableMemoization(const FunctionPrototype& prototype) {
     if (prototype.arguments.size() != 1 ||
         TypeToSqlValueType(prototype.arguments[0].type()) !=
             SqlValue::Type::kLong) {
@@ -277,7 +278,7 @@ class RecursiveCallUnroller {
  public:
   RecursiveCallUnroller(PerfettoSqlEngine* engine,
                         sqlite3_stmt* stmt,
-                        const Prototype& prototype,
+                        const FunctionPrototype& prototype,
                         Memoizer& memoizer)
       : engine_(engine),
         stmt_(stmt),
@@ -394,7 +395,7 @@ class RecursiveCallUnroller {
 
   PerfettoSqlEngine* engine_;
   sqlite3_stmt* stmt_;
-  const Prototype& prototype_;
+  const FunctionPrototype& prototype_;
   Memoizer& memoizer_;
 
   // Current state of the evaluation.
@@ -441,8 +442,7 @@ class State : public CreatedFunction::Context {
   // Sets the state of the function. Should be called only when the function
   // is invalid (i.e. when it is first created or when the previous statement
   // failed to prepare).
-  void Reset(Prototype prototype,
-             std::string prototype_str,
+  void Reset(FunctionPrototype prototype,
              sql_argument::Type return_type,
              SqlSource sql) {
     // Re-registration of valid functions is not allowed.
@@ -450,7 +450,6 @@ class State : public CreatedFunction::Context {
     PERFETTO_DCHECK(stmts_.empty());
 
     prototype_ = std::move(prototype);
-    prototype_str_ = std::move(prototype_str);
     return_type_ = return_type;
     sql_ = std::move(sql);
   }
@@ -541,7 +540,7 @@ class State : public CreatedFunction::Context {
 
   PerfettoSqlEngine* engine() const { return engine_; }
 
-  const Prototype& prototype() const { return prototype_; }
+  const FunctionPrototype& prototype() const { return prototype_; }
 
   sql_argument::Type return_type() const { return return_type_; }
 
@@ -553,8 +552,7 @@ class State : public CreatedFunction::Context {
 
  private:
   PerfettoSqlEngine* engine_;
-  Prototype prototype_;
-  std::string prototype_str_;
+  FunctionPrototype prototype_;
   sql_argument::Type return_type_;
   std::optional<SqlSource> sql_;
   // Perfetto SQL functions support recursion. Given that each function call in
@@ -680,8 +678,7 @@ base::Status CreatedFunction::VerifyPostConditions(
 
 base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
                                                 bool replace,
-                                                Prototype prototype,
-                                                std::string prototype_str,
+                                                FunctionPrototype prototype,
                                                 sql_argument::Type return_type,
                                                 std::string return_type_str,
                                                 SqlSource source) {
@@ -694,25 +691,25 @@ base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
     if (state->prototype() != prototype) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: function prototype changed",
-          prototype_str.c_str());
+          prototype.ToString().c_str());
     }
     if (state->return_type() != return_type) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: return type changed from %s to %s",
-          prototype_str.c_str(),
+          prototype.ToString().c_str(),
           sql_argument::TypeToHumanFriendlyString(state->return_type()),
           return_type_str.c_str());
     }
     if (state->sql() != source.sql()) {
       return base::ErrStatus(
           "CREATE_FUNCTION[prototype=%s]: function SQL changed from %s to %s",
-          prototype_str.c_str(), state->sql().c_str(), source.sql().c_str());
+          prototype.ToString().c_str(), state->sql().c_str(),
+          source.sql().c_str());
     }
     return base::OkStatus();
   }
 
-  state->Reset(std::move(prototype), std::move(prototype_str), return_type,
-               std::move(source));
+  state->Reset(std::move(prototype), return_type, std::move(source));
 
   // Ideally, we would unregister the function here if the statement prep
   // failed, but SQLite doesn't allow unregistering functions inside active
