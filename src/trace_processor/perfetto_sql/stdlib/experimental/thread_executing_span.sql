@@ -406,7 +406,7 @@ WITH span_starts AS (
 
 -- Limited thread_state view that will later be span joined with the |experimental_thread_executing_span_graph|.
 CREATE VIEW internal_span_thread_state_view
-AS SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function as function, cpu FROM thread_state;
+AS SELECT id AS thread_state_id, ts, dur, utid, state, blocked_function as function, io_wait, cpu FROM thread_state;
 
 -- |experimental_thread_executing_span_graph| span joined with thread_state information.
 CREATE VIRTUAL TABLE internal_span_graph_thread_state_sp
@@ -431,7 +431,7 @@ USING
 -- Limited |experimental_thread_executing_span_graph| + thread_state view.
 CREATE VIEW internal_span_graph_thread_state
 AS
-SELECT ts, dur, id, thread_state_id, state, function, cpu
+SELECT ts, dur, id, thread_state_id, state, function, io_wait, cpu
 FROM internal_span_graph_thread_state_sp;
 
 -- Limited |experimental_thread_executing_span_graph| + slice view.
@@ -460,7 +460,8 @@ WITH span AS MATERIALIZED (
       thread_state.ts + thread_state.dur AS thread_state_end_ts,
       thread_state.state,
       thread_state.function,
-      thread_state.cpu
+      thread_state.cpu,
+      thread_state.io_wait
     FROM span
     JOIN internal_span_graph_thread_state_sp thread_state USING(id)
   )
@@ -473,6 +474,7 @@ SELECT
   state,
   function,
   cpu,
+  io_wait,
   critical_path_id,
   critical_path_blocked_dur,
   critical_path_blocked_state,
@@ -506,6 +508,7 @@ CREATE VIEW internal_self_view
     state AS self_state,
     blocked_function AS self_function,
     cpu AS self_cpu,
+    io_wait AS self_io_wait,
     name AS self_slice_name,
     depth AS self_slice_depth
     FROM internal_self_sp;
@@ -552,8 +555,12 @@ RETURNS
       self_slice_id,
       self_slice_name,
       self_slice_depth,
+      self_function,
+      self_io_wait,
       thread_state_id,
       state,
+      function,
+      io_wait,
       slice_id,
       slice_name,
       slice_depth,
@@ -561,8 +568,7 @@ RETURNS
       utid,
       MAX(ts, $ts) AS ts,
       MIN(ts + dur, $ts + $dur) AS end_ts,
-      critical_path_utid,
-      critical_path_blocked_function
+      critical_path_utid
     FROM internal_self_and_critical_path_sp
     WHERE dur > 0 AND critical_path_utid = $critical_path_utid
   ),
@@ -578,8 +584,12 @@ RETURNS
       self_slice_id,
       self_slice_name,
       self_slice_depth,
+      self_function,
+      self_io_wait,
       thread_state_id,
       state,
+      function,
+      io_wait,
       slice_id,
       slice_name,
       slice_depth,
@@ -588,8 +598,7 @@ RETURNS
       ts,
       end_ts - ts AS dur,
       critical_path_utid,
-      utid,
-      critical_path_blocked_function
+      utid
     FROM relevant_spans_starts
     WHERE dur > 0
   ),
@@ -614,7 +623,19 @@ RETURNS
       dur,
       utid,
       1 AS stack_depth,
-      IIF(self_state GLOB 'R*', NULL, 'kernel function: ' || critical_path_blocked_function) AS name,
+      IIF(self_state GLOB 'R*', NULL, 'kernel function: ' || self_function) AS name,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM relevant_spans
+    UNION ALL
+    -- Builds the self kernel io_wait
+    SELECT
+      self_thread_state_id AS id,
+      ts,
+      dur,
+      utid,
+      2 AS stack_depth,
+      IIF(self_state GLOB 'R*', NULL, 'io_wait: ' || self_io_wait) AS name,
       'thread_state' AS table_name,
       critical_path_utid
     FROM relevant_spans
@@ -625,7 +646,7 @@ RETURNS
       ts,
       dur,
       thread.utid,
-      2 AS stack_depth,
+      3 AS stack_depth,
       IIF($enable_process_name, 'process_name: ' || process.name, NULL) AS name,
       'thread_state' AS table_name,
       critical_path_utid
@@ -641,7 +662,7 @@ RETURNS
       ts,
       dur,
       thread.utid,
-      3 AS stack_depth,
+      4 AS stack_depth,
       IIF($enable_thread_name, 'thread_name: ' || thread.name, NULL) AS name,
       'thread_state' AS table_name,
       critical_path_utid
@@ -657,7 +678,7 @@ RETURNS
       slice.ts,
       slice.dur,
       slice.utid,
-      anc.depth + 4 AS stack_depth,
+      anc.depth + 5 AS stack_depth,
       IIF($enable_self_slice, anc.name, NULL) AS name,
       'slice' AS table_name,
       critical_path_utid
@@ -670,7 +691,7 @@ RETURNS
       ts,
       dur,
       utid,
-      self_slice_depth + 4 AS stack_depth,
+      self_slice_depth + 5 AS stack_depth,
       IIF($enable_self_slice, self_slice_name, NULL) AS name,
       'slice' AS table_name,
       critical_path_utid
@@ -693,6 +714,8 @@ RETURNS
     SELECT
       thread_state_id,
       state,
+      function,
+      io_wait,
       slice_id,
       slice_name,
       slice_depth,
@@ -733,10 +756,8 @@ RETURNS
       'thread_state' AS table_name,
       critical_path_utid
     FROM critical_path_span
-    LEFT JOIN thread
-      USING (utid)
-    LEFT JOIN process
-      USING (upid)
+    JOIN thread USING (utid)
+    LEFT JOIN process USING (upid)
     UNION ALL
     -- Builds the critical_path thread_name
     SELECT
@@ -749,10 +770,33 @@ RETURNS
       'thread_state' AS table_name,
       critical_path_utid
     FROM critical_path_span
-    JOIN thread
-      USING (utid)
-    JOIN process
-      USING (upid)
+    JOIN thread USING (utid)
+    UNION ALL
+    -- Builds the critical_path kernel blocked_function
+    SELECT
+      thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      start_depth + 3 AS stack_depth,
+      'blocking kernel_function: ' || function,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM critical_path_span
+    JOIN thread USING (utid)
+    UNION ALL
+    -- Builds the critical_path kernel io_wait
+    SELECT
+      thread_state_id AS id,
+      ts,
+      dur,
+      thread.utid,
+      start_depth + 4 AS stack_depth,
+      'blocking io_wait: ' || io_wait,
+      'thread_state' AS table_name,
+      critical_path_utid
+    FROM critical_path_span
+    JOIN thread USING (utid)
     UNION ALL
     -- Builds the critical_path 'ancestor' slice stack
     SELECT
@@ -760,7 +804,7 @@ RETURNS
       slice.ts,
       slice.dur,
       slice.utid,
-      anc.depth + start_depth + 3 AS stack_depth,
+      anc.depth + start_depth + 5 AS stack_depth,
       IIF($enable_critical_path_slice, anc.name, NULL) AS name,
       'slice' AS table_name,
       critical_path_utid
@@ -773,7 +817,7 @@ RETURNS
       ts,
       dur,
       utid,
-      slice_depth + start_depth + 3 AS stack_depth,
+      slice_depth + start_depth + 5 AS stack_depth,
       IIF($enable_critical_path_slice, slice_name, NULL) AS name,
       'slice' AS table_name,
       critical_path_utid
