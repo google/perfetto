@@ -135,7 +135,7 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   record.chunk_id = chunk_id;
   record.writer_id = writer_id;
   record.num_fragments = num_fragments;
-  record.flags = chunk_flags;
+  record.flags = chunk_flags & ChunkRecord::kFlagsBitMask;
   ChunkMeta::Key key(record);
 
   // Check whether we have already copied the same chunk previously. This may
@@ -452,7 +452,7 @@ bool TraceBuffer::TryPatchChunkContents(ProducerID producer_id,
   stats_.set_patches_succeeded(stats_.patches_succeeded() + patches_size);
   if (!other_patches_pending) {
     chunk_meta.flags &= ~kChunkNeedsPatching;
-    chunk_record->flags = chunk_meta.flags;
+    chunk_record->flags = chunk_meta.flags & ChunkRecord::kFlagsBitMask;
   }
   return true;
 }
