@@ -38,7 +38,7 @@ class AnnotationPlugin implements Plugin {
     await this.addAnnotationCounterTracks(ctx);
   }
 
-  private async addAnnotationTracks(ctx: PluginContextTrace<undefined>) {
+  private async addAnnotationTracks(ctx: PluginContextTrace) {
     const {engine} = ctx;
 
     const result = await engine.query(`
