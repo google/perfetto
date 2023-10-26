@@ -56,7 +56,7 @@ export class EventLatencyTrack extends
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: EventLatencyTrack.kind,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

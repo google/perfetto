@@ -34,6 +34,11 @@ import {Direction} from './event_set';
  */
 export interface ObjectById<Class extends{id: string}> { [id: string]: Class; }
 
+// Same as ObjectById but the key parameter is called `key` rather than `id`.
+export interface ObjectByKey<Class extends {key: string}> {
+  [key: string]: Class;
+}
+
 export interface Timestamped {
   lastUpdate: number;
 }
@@ -124,7 +129,8 @@ export const MAX_TIME = 180;
 //     longer registered.
 // 40. Ported counter, process summary/sched, & cpu_freq to plugin tracks.
 // 41. Ported all remaining tracks.
-export const STATE_VERSION = 41;
+// 42. Rename trackId -> trackKey.
+export const STATE_VERSION = 42;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -220,7 +226,7 @@ export type TraceSource =
 
 export interface TrackState {
   uri: string;
-  id: string;
+  key: string;
   name: string;
   labels?: string[];
   trackSortKey: TrackSortKey;
@@ -355,7 +361,7 @@ export interface ThreadStateSelection {
 export interface LogSelection {
   kind: 'LOG';
   id: number;
-  trackId: string;
+  trackKey: string;
 }
 
 export interface GenericSliceSelection {
@@ -372,7 +378,7 @@ export type Selection =
     (NoteSelection|SliceSelection|CounterSelection|HeapProfileSelection|
      CpuProfileSampleSelection|ChromeSliceSelection|ThreadStateSelection|
      AreaSelection|PerfSamplesSelection|LogSelection|GenericSliceSelection)&
-    {trackId?: string};
+    {trackKey?: string};
 export type SelectionKind = Selection['kind'];  // 'THREAD_STATE' | 'SLICE' ...
 
 export interface Pagination {
@@ -528,8 +534,8 @@ export interface State {
   traceTime: TraceTime;
   traceUuid?: string;
   trackGroups: ObjectById<TrackGroupState>;
-  tracks: ObjectById<TrackState>;
-  uiTrackIdByTraceTrackId: {[key: number]: string;};
+  tracks: ObjectByKey<TrackState>;
+  trackKeyByTrackId: {[key: number]: string;};
   utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
@@ -938,9 +944,9 @@ export function getBuiltinChromeCategoryList(): string[] {
   ];
 }
 
-export function getContainingTrackId(state: State, trackId: string): null|
+export function getContainingTrackId(state: State, trackKey: string): null|
     string {
-  const track = state.tracks[trackId];
+  const track = state.tracks[trackKey];
   if (!track) {
     return null;
   }

@@ -21,7 +21,7 @@ import {
   PivotTableState,
 } from '../common/state';
 import {
-  getSelectedTrackIds,
+  getSelectedTrackKeys,
 } from '../controller/aggregation/slice_aggregation_controller';
 
 import {globals} from './globals';
@@ -101,7 +101,7 @@ export function areaFilters(area: Area): string[] {
   return [
     `ts + dur > ${area.start}`,
     `ts < ${area.end}`,
-    `track_id in (${getSelectedTrackIds(area).join(', ')})`,
+    `track_id in (${getSelectedTrackKeys(area).join(', ')})`,
   ];
 }
 

@@ -126,8 +126,8 @@ export interface PluginContext {
 export type Migrate<State> = (init: unknown) => State;
 
 export interface TrackContext {
-  // The ID of this track instance.
-  trackInstanceId: string;
+  // This track's key, used for making selections et al.
+  trackKey: string;
 
   // Set of params passed in when the track was created.
   params: unknown;

@@ -111,7 +111,7 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
   onSliceClick(args: OnSliceClickArgs<ThreadStateTrackTypes['slice']>) {
     globals.makeSelection(Actions.selectThreadState({
       id: args.slice.id,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
     }));
   }
 

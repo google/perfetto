@@ -538,10 +538,10 @@ class CpuFreq implements Plugin {
           displayName: `Cpu ${cpu} Frequency`,
           kind: CPU_FREQ_TRACK_KIND,
           cpu,
-          track: ({trackInstanceId}) => {
+          track: ({trackKey}) => {
             return new TrackWithControllerAdapter<Config, Data>(
                 engine,
-                trackInstanceId,
+                trackKey,
                 {
                   cpu,
                   maximumValue: maxCpuFreq,

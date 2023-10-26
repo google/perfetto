@@ -57,7 +57,7 @@ export interface SliceData extends TrackData {
 // notably onBoundsChange().
 export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
   constructor(
-      private maxDepth: number, protected trackInstanceId: string,
+      private maxDepth: number, protected trackKey: string,
       private tableName: string, private namespace?: string) {
     super();
   }
@@ -306,7 +306,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
     if (sliceId !== undefined && sliceId !== -1) {
       globals.makeSelection(Actions.selectChromeSlice({
         id: sliceId,
-        trackId: this.trackInstanceId,
+        trackKey: this.trackKey,
         table: this.namespace,
       }));
       return true;

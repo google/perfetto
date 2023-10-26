@@ -716,13 +716,13 @@ export class TraceController extends Controller<States> {
       });
 
       const id = row.traceProcessorTrackId;
-      const trackId = globals.state.uiTrackIdByTraceTrackId[id];
-      if (trackId === undefined) {
+      const trackKey = globals.state.trackKeyByTrackId[id];
+      if (trackKey === undefined) {
         return;
       }
       globals.makeSelection(Actions.selectChromeSlice({
         id: row.id,
-        trackId,
+        trackKey,
         table: '',
         scroll: true,
       }));

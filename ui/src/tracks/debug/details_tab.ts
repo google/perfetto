@@ -140,15 +140,14 @@ export class DebugSliceDetailsTab extends
 
   private async maybeLoadSlice(
       id: number|undefined, ts: time, dur: duration, table: string|undefined,
-      sqlTrackId?: number): Promise<SliceDetails|undefined> {
+      trackId?: number): Promise<SliceDetails|undefined> {
     if (id === undefined) return undefined;
-    if ((table !== 'slice') && sqlTrackId === undefined) return undefined;
+    if ((table !== 'slice') && trackId === undefined) return undefined;
 
     const slice = await getSlice(this.engine, asSliceSqlId(id));
     if (slice === undefined) return undefined;
     if ((table === 'slice') ||
-        (slice.ts === ts && slice.dur === dur &&
-         slice.sqlTrackId === sqlTrackId)) {
+        (slice.ts === ts && slice.dur === dur && slice.trackId === trackId)) {
       return slice;
     } else {
       return undefined;

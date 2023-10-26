@@ -24,7 +24,7 @@ import {PxSpan, TimeScale} from './time_scale';
 
 // Args passed to the track constructors when creating a new track.
 export interface NewTrackArgs {
-  trackId: string;
+  trackKey: string;
   engine: EngineProxy;
 }
 
@@ -51,8 +51,7 @@ export interface SliceRect {
 
 // The abstract class that needs to be implemented by all tracks.
 export abstract class TrackBase<Config = {}> implements Track {
-  // The UI-generated track ID (not to be confused with the SQL track.id).
-  protected readonly trackId: string;
+  protected readonly trackKey: string;
   protected readonly engine: EngineProxy;
   private _config?: Config;
 
@@ -65,7 +64,7 @@ export abstract class TrackBase<Config = {}> implements Track {
   }
 
   constructor(args: NewTrackArgs) {
-    this.trackId = args.trackId;
+    this.trackKey = args.trackKey;
     this.engine = args.engine;
   }
 
@@ -98,7 +97,7 @@ export abstract class TrackBase<Config = {}> implements Track {
   onFullRedraw(): void {}
 
   render(ctx: CanvasRenderingContext2D) {
-    globals.frontendLocalState.addVisibleTrack(this.trackId);
+    globals.frontendLocalState.addVisibleTrack(this.trackKey);
     this.renderCanvas(ctx);
   }
 
