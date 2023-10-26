@@ -339,6 +339,8 @@ class TraceBuffer {
     uint16_t size;
 
     uint8_t flags : 6;  // See SharedMemoryABI::ChunkHeader::flags.
+    static constexpr size_t kFlagsBitMask = (1 << 6) - 1;
+
     uint8_t is_padding : 1;
     uint8_t unused_flag : 1;
 
