@@ -205,7 +205,7 @@ class ActualFrames implements Plugin {
       const displayName =
           getTrackName({name: trackName, upid, pid, processName, kind});
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.ActualFrames#${upid}`,
         displayName,
         trackIds,

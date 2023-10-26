@@ -634,7 +634,7 @@ class CounterPlugin implements Plugin {
       const config:
           Config = {name, trackId, defaultScale: getCounterScale(name)};
       const uri = `perfetto.Counter#${trackId}`;
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
@@ -643,9 +643,9 @@ class CounterPlugin implements Plugin {
           return new CounterTrack(trackCtx, config, ctx.engine);
         },
       });
-      ctx.suggestTrack({
+      ctx.addDefaultTrack({
         uri,
-        name,
+        displayName: name,
         sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
       });
     }
@@ -713,7 +713,7 @@ class CounterPlugin implements Plugin {
           maximumValue,
           defaultScale: getCounterScale(name),
         };
-        ctx.addTrack({
+        ctx.registerStaticTrack({
           uri,
           displayName: name,
           kind: COUNTER_TRACK_KIND,
@@ -769,7 +769,7 @@ class CounterPlugin implements Plugin {
         trackId,
         defaultScale: getCounterScale(name),
       };
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Counter#cpu${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
@@ -832,7 +832,7 @@ class CounterPlugin implements Plugin {
         endTs: Time.fromRaw(endTs),
         defaultScale: getCounterScale(name),
       };
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Counter#thread${trackId}`,
         displayName: name,
         kind,
@@ -889,7 +889,7 @@ class CounterPlugin implements Plugin {
         endTs: Time.fromRaw(endTs),
         defaultScale: getCounterScale(name),
       };
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Counter#process${trackId}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,

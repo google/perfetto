@@ -189,7 +189,7 @@ class ExpectedFramesPlugin implements Plugin {
       const displayName = getTrackName(
           {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.ExpectedFrames#${upid}`,
         displayName,
         trackIds,

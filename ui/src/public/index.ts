@@ -158,6 +158,9 @@ export interface TrackContext {
   // The ID of this track instance.
   trackInstanceId: string;
 
+  // Set of params passed in when the track was created.
+  params: unknown;
+
   // Creates a new store overlaying the track instance's state object.
   // A migrate function must be passed to convert any existing state to a
   // compatible format.
@@ -170,7 +173,7 @@ export interface TrackContext {
 }
 
 export interface Track {
-  onCreate(): void;
+  onCreate(ctx: TrackContext): void;
   render(ctx: CanvasRenderingContext2D): void;
   onFullRedraw(): void;
   getSliceRect(
@@ -185,24 +188,21 @@ export interface Track {
   onDestroy(): void;
 }
 
+// A definition of a track, including a renderer implementation and metadata.
 export interface TrackDescriptor {
-  // A unique identifier for the track. This must be unique within all tracks.
+  // A unique identifier for this track.
   uri: string;
 
-  // A human friendly name for this track. Used when displaying the list of
-  // tracks to the user. E.g. when adding a new track to the workspace.
-  displayName: string;
-
-  // A factory function returning the track object.
+  // A factory function returning a track object.
   track: (ctx: TrackContext) => Track;
 
-  // The track "kind" Uued by various subsystems e.g. aggregation controllers.
+  // The track "kind", used by various subsystems e.g. aggregation controllers.
   // This is where "XXX_TRACK_KIND" values should be placed.
   // TODO(stevegolton): This will be deprecated once we handle group selections
   // in a more generic way - i.e. EventSet.
-  kind: string;
+  kind?: string;
 
-  // An optional list of track IDs represented by this trace.
+  // Optional: list of track IDs represented by this trace.
   // This list is used for participation in track indexing by track ID.
   // This index is used by various subsystems to find links between tracks based
   // on the track IDs used by trace processor.
@@ -251,21 +251,30 @@ export enum PrimaryTrackSortKey {
   ORDINARY_TRACK,
 }
 
-// Similar to PluginContext but with additional properties to operate on the
-// currently loaded trace. Passed to trace-relevant hooks instead of
+// Similar to PluginContext but with additional methods to operate on the
+// currently loaded trace. Passed to trace-relevant hooks on a plugin instead of
 // PluginContext.
 export interface PluginContextTrace<T = undefined> extends PluginContext {
   readonly engine: EngineProxy;
   readonly store: Store<T>;
 
-  // Add a new track from this plugin. The track is just made available here,
-  // it's not automatically shown until it's added to a workspace.
-  addTrack(trackDetails: TrackDescriptor): void;
+  // Register a new track against a unique key known as a URI.
+  // Once a track is registered it can be referenced multiple times on the
+  // timeline.
+  registerTrack(trackDesc: TrackDescriptor): void;
 
-  // Suggest a track be added to the workspace on a fresh trace load.
-  // Supersedes `findPotentialTracks()` which has been removed.
-  // Note: this API will be deprecated soon.
-  suggestTrack(trackInfo: TrackInstanceDescriptor): void;
+  // Add a new entry to the pool of default tracks. Default tracks are a list of
+  // track references that describe the list of tracks that should be added to
+  // the main timeline on startup.
+  // Default tracks are only used when a trace is first loaded, not when loading
+  // from a permalink, where the existing list of tracks from the shared state
+  // is used instead.
+  addDefaultTrack(track: TrackRef): void;
+
+  // Simultaneously register a track and add it as a default track in one go.
+  // This is simply a helper which calls registerTrack() then addDefaultTrack()
+  // with the same URI.
+  registerStaticTrack(track: TrackDescriptor&TrackRef): void;
 }
 
 export interface BasePlugin<State> {
@@ -305,17 +314,20 @@ export interface PluginClass<T> {
   new(): Plugin<T>;
 }
 
-export interface TrackInstanceDescriptor {
-  // A human readable name for this specific track. It will normally be
-  // displayed on the left-hand-side of the track.
-  name: string;
-
-  // Used to define default sort order for new traces.
-  // Note: sortKey will be deprecated soon in favour of tags.
-  sortKey: PrimaryTrackSortKey;
-
-  // URI of the suggested track.
+// Describes a reference to a registered track.
+export interface TrackRef {
+  // URI of the registered track.
   uri: string;
+
+  // A human readable name for this track - displayed in the track shell.
+  displayName: string;
+
+  // Optional: An opaque object used to customize this instance of the track.
+  params?: unknown;
+
+  // Optional: Used to define default sort order for new traces.
+  // Note: This will be deprecated soon in favour of tags & sort rules.
+  sortKey?: PrimaryTrackSortKey;
 }
 
 // A predicate for selecting a groups of tracks.

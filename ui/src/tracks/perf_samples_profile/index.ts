@@ -228,7 +228,7 @@ class PerfSamplesProfilePlugin implements Plugin {
     for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
       const pid = it.pid;
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.PerfSamplesProfile#${upid}`,
         displayName: `Callstacks ${pid}`,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,

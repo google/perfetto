@@ -17,7 +17,7 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
 import {EngineProxy} from '../common/engine';
-import {Track} from '../public';
+import {Track, TrackContext} from '../public';
 
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
@@ -69,7 +69,7 @@ export abstract class TrackBase<Config = {}> implements Track {
     this.engine = args.engine;
   }
 
-  onCreate() {}
+  onCreate(_ctx: TrackContext) {}
 
   // Last call the track will receive. Called just before the last reference to
   // this object is removed.
