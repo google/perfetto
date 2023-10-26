@@ -55,7 +55,7 @@ export interface SliceDetails {
   ts: time;
   absTime?: string;
   dur: duration;
-  sqlTrackId: number;
+  trackId: number;
   thread?: ThreadInfo;
   process?: ProcessInfo;
   threadTs?: time;
@@ -150,7 +150,7 @@ async function getSliceFromConstraints(
       name: it.name,
       ts: Time.fromRaw(it.ts),
       dur: it.dur,
-      sqlTrackId: it.trackId,
+      trackId: it.trackId,
       thread,
       process,
       threadDur: it.threadDur ?? undefined,
@@ -198,17 +198,17 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
         {
           icon: Icons.UpdateSelection,
           onclick: () => {
-            const uiTrackId =
-                globals.state.uiTrackIdByTraceTrackId[vnode.attrs.sqlTrackId];
-            if (uiTrackId === undefined) return;
-            verticalScrollToTrack(uiTrackId, true);
+            const trackKey =
+                globals.state.trackKeyByTrackId[vnode.attrs.sqlTrackId];
+            if (trackKey === undefined) return;
+            verticalScrollToTrack(trackKey, true);
             // Clamp duration to 1 - i.e. for instant events
             const dur = BigintMath.max(1n, vnode.attrs.dur);
             focusHorizontalRange(
                 vnode.attrs.ts, Time.fromRaw(vnode.attrs.ts + dur));
             globals.makeSelection(
                 Actions.selectChromeSlice(
-                    {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}),
+                    {id: vnode.attrs.id, trackKey, table: 'slice'}),
                 {tab: switchTab ? 'current_selection' : null});
           },
         },
@@ -222,6 +222,6 @@ export function sliceRef(slice: SliceDetails, name?: string): m.Child {
     name: name ?? slice.name,
     ts: slice.ts,
     dur: slice.dur,
-    sqlTrackId: slice.sqlTrackId,
+    sqlTrackId: slice.trackId,
   });
 }

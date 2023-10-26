@@ -44,11 +44,10 @@ export class FlowEventsPanel implements m.ClassComponent {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-      if (uiTrackId) {
+      const trackKey = globals.state.trackKeyByTrackId[trackId];
+      if (trackKey) {
         globals.makeSelection(
-            Actions.selectChromeSlice(
-                {id: sliceId, trackId: uiTrackId, table: 'slice'}),
+            Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
             {tab: 'bound_flows'});
       }
     };

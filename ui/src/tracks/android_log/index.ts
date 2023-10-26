@@ -158,10 +158,10 @@ class AndroidLog implements Plugin {
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
         kind: ANDROID_LOGS_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
-              trackInstanceId,
+              trackKey,
               {},
               AndroidLogTrack,
               AndroidLogTrackController);

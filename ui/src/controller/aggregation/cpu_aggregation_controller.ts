@@ -27,8 +27,8 @@ export class CpuAggregationController extends AggregationController {
     await engine.query(`drop view if exists ${this.kind};`);
 
     const selectedCpus: number[] = [];
-    for (const trackId of area.tracks) {
-      const track = globals.state.tracks[trackId];
+    for (const trackKey of area.tracks) {
+      const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {

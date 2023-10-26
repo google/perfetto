@@ -52,10 +52,10 @@ interface DebugTrackV2Types extends NamedSliceTrackTypes {
 }
 
 export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
-  constructor(engine: EngineProxy, trackInstanceId: string) {
+  constructor(engine: EngineProxy, trackKey: string) {
     super({
       engine,
-      trackId: trackInstanceId,
+      trackKey,
     });
   }
 
@@ -89,8 +89,7 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
   getTrackShellButtons(): m.Children {
     return m(TrackButton, {
       action: () => {
-        globals.dispatch(
-            Actions.removeTracks({trackInstanceIds: [this.trackId]}));
+        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
       i: 'close',
       tooltip: 'Close',
@@ -149,10 +148,10 @@ export async function addDebugSliceTrack(
       from prepared_data
       order by ts;`);
 
-  const trackInstanceId = uuidv4();
+  const trackKey = uuidv4();
   globals.dispatchMultiple([
     Actions.addTrack({
-      id: trackInstanceId,
+      key: trackKey,
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
       uri: DEBUG_SLICE_TRACK_URI,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
@@ -162,6 +161,6 @@ export async function addDebugSliceTrack(
         columns: sliceColumns,
       },
     }),
-    Actions.toggleTrackPinned({trackId: trackInstanceId}),
+    Actions.toggleTrackPinned({trackKey}),
   ]);
 }

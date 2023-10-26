@@ -171,11 +171,11 @@ export class ScrollJankSliceRef implements
               sqlTableName: track.sqlTableName,
               start: vnode.attrs.ts,
               duration: vnode.attrs.dur,
-              trackId: track.id,
+              trackKey: track.key,
               detailsPanelConfig: track.detailsPanelConfig,
             }));
 
-            scrollToTrackAndTs(track.id, vnode.attrs.ts, true);
+            scrollToTrackAndTs(track.key, vnode.attrs.ts, true);
           },
         },
         vnode.attrs.name,

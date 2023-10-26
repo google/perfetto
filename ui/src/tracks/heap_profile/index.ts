@@ -237,10 +237,10 @@ class HeapProfilePlugin implements Plugin {
         displayName: 'Heap Profile',
         kind: HEAP_PROFILE_TRACK_KIND,
         upid,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new TrackWithControllerAdapter(
               ctx.engine,
-              trackInstanceId,
+              trackKey,
               {upid},
               HeapProfileTrack,
               HeapProfileTrackController);
