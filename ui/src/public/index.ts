@@ -110,39 +110,6 @@ export interface MetricVisualisation {
   path: string[];
 }
 
-export interface MetricVisualisation {
-  // The name of the metric e.g. 'android_camera'
-  metric: string;
-
-  // A vega or vega-lite visualisation spec.
-  // The data from the metric under path will be exposed as a
-  // datasource named "metric" in Vega(-Lite)
-  spec: string;
-
-  // A path index into the metric.
-  // For example if the metric returns the folowing protobuf:
-  // {
-  //   foo {
-  //     bar {
-  //       baz: { name: "a" }
-  //       baz: { name: "b" }
-  //       baz: { name: "c" }
-  //     }
-  //   }
-  // }
-  // That becomes the following json:
-  // { "foo": { "bar": { "baz": [
-  //  {"name": "a"},
-  //  {"name": "b"},
-  //  {"name": "c"},
-  // ]}}}
-  // And given path = ["foo", "bar", "baz"]
-  // We extract:
-  // [ {"name": "a"}, {"name": "b"}, {"name": "c"} ]
-  // And pass that to the vega(-lite) visualisation.
-  path: string[];
-}
-
 // This interface defines a context for a plugin, which is an object passed to
 // most hooks within the plugin. It should be used to interact with Perfetto.
 export interface PluginContext {
