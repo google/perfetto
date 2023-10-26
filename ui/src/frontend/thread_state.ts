@@ -149,7 +149,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
       const trackInfo = pluginManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
         if (trackInfo?.cpu === cpu) {
-          trackId = track.id;
+          trackId = track.key;
           break;
         }
       }
@@ -158,7 +158,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   if (trackId === undefined) {
     return;
   }
-  globals.makeSelection(Actions.selectSlice({id, trackId}));
+  globals.makeSelection(Actions.selectSlice({id, trackKey: trackId}));
   scrollToTrackAndTs(trackId, ts);
 }
 
@@ -178,23 +178,23 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
         {
           icon: Icons.UpdateSelection,
           onclick: () => {
-            let trackId: string|number|undefined;
+            let trackKey: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {
               const trackDesc = pluginManager.resolveTrackInfo(track.uri);
               // TODO(stevegolton): Handle v2.
               if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
                   trackDesc.utid === vnode.attrs.utid) {
-                trackId = track.id;
+                trackKey = track.key;
               }
             }
 
-            if (trackId) {
+            if (trackKey) {
               globals.makeSelection(Actions.selectThreadState({
                 id: vnode.attrs.id,
-                trackId: trackId.toString(),
+                trackKey: trackKey.toString(),
               }));
 
-              scrollToTrackAndTs(trackId, vnode.attrs.ts, true);
+              scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
             }
           },
         },

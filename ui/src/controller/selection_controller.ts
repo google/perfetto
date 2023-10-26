@@ -304,23 +304,23 @@ export class SelectionController extends Controller<'main'> {
     const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
     const result = await this.args.engine.query(trackIdQuery);
-    const trackIdTp = result.firstRow({trackId: NUM}).trackId;
+    const trackId = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
-    let trackId = '';
+    let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
       if (track.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === SLICE_TRACK_KIND) {
           const trackIds = trackInfo?.trackIds;
-          if (trackIds && trackIds.length > 0 && trackIds[0] === trackIdTp) {
-            trackId = track.id;
+          if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
+            trackKey = track.key;
             break;
           }
         }
       }
     }
-    return trackId;
+    return trackKey;
   }
 
   // TODO(altimin): We currently rely on the ThreadStateDetails for supporting
@@ -423,8 +423,8 @@ export class SelectionController extends Controller<'main'> {
     const endTs = rightTs !== -1n ? rightTs : globals.state.traceTime.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-    const name = uiTrackId ? globals.state.tracks[uiTrackId].name : undefined;
+    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    const name = trackKey ? globals.state.tracks[trackKey].name : undefined;
     return {startTime: ts, value, delta, duration, name};
   }
 

@@ -26,8 +26,8 @@ export class FrameAggregationController extends AggregationController {
     await engine.query(`drop view if exists ${this.kind};`);
 
     const selectedSqlTrackIds: number[] = [];
-    for (const trackId of area.tracks) {
-      const track = globals.state.tracks[trackId];
+    for (const trackKey of area.tracks) {
+      const track = globals.state.tracks[trackKey];
       // Track will be undefined for track groups.
       if (track?.uri !== undefined) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);

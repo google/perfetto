@@ -38,10 +38,10 @@ class AsyncSliceTrack extends SliceTrackBase {
   private maxDurNs: duration = 0n;
 
   constructor(
-      private engine: EngineProxy, maxDepth: number, trackInstanceId: string,
+      private engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[], namespace?: string) {
     // TODO is 'slice' right here?
-    super(maxDepth, trackInstanceId, 'slice', namespace);
+    super(maxDepth, trackKey, 'slice', namespace);
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -211,11 +211,11 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new AsyncSliceTrack(
               engine,
               maxDepth,
-              trackInstanceId,
+              trackKey,
               trackIds,
           );
         },
@@ -279,11 +279,11 @@ class AsyncSlicePlugin implements Plugin {
         displayName,
         trackIds,
         kind: ASYNC_SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new AsyncSliceTrack(
               ctx.engine,
               maxDepth,
-              trackInstanceId,
+              trackKey,
               trackIds,
           );
         },

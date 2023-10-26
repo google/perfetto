@@ -41,7 +41,7 @@ export class DebugCounterTrack extends
   constructor(engine: EngineProxy, trackKey: string) {
     super({
       engine,
-      trackId: trackKey,
+      trackKey,
     });
   }
 
@@ -57,8 +57,7 @@ export class DebugCounterTrack extends
       this.getCounterContextMenu(),
       m(TrackButton, {
         action: () => {
-          globals.dispatch(
-              Actions.removeTracks({trackInstanceIds: [this.trackId]}));
+          globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
         },
         i: 'close',
         tooltip: 'Close',
@@ -107,10 +106,10 @@ export async function addDebugCounterTrack(
       from data
       order by ts;`);
 
-  const trackInstanceId = uuidv4();
+  const trackKey = uuidv4();
   globals.dispatchMultiple([
     Actions.addTrack({
-      id: trackInstanceId,
+      key: trackKey,
       uri: DEBUG_COUNTER_TRACK_URI,
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
@@ -120,6 +119,6 @@ export async function addDebugCounterTrack(
         columns,
       },
     }),
-    Actions.toggleTrackPinned({trackId: trackInstanceId}),
+    Actions.toggleTrackPinned({trackKey}),
   ]);
 }

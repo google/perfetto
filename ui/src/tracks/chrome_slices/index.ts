@@ -43,9 +43,9 @@ export class ChromeSliceTrack extends SliceTrackBase {
   private maxDurNs: duration = 0n;
 
   constructor(
-      protected engine: EngineProxy, maxDepth: number, trackInstanceId: string,
-      private tpTrackId: number, namespace?: string) {
-    super(maxDepth, trackInstanceId, 'slice', namespace);
+      protected engine: EngineProxy, maxDepth: number, trackKey: string,
+      private trackId: number, namespace?: string) {
+    super(maxDepth, trackKey, 'slice', namespace);
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -55,7 +55,7 @@ export class ChromeSliceTrack extends SliceTrackBase {
     if (this.maxDurNs === Duration.ZERO) {
       const query = `
           SELECT max(iif(dur = -1, (SELECT end_ts FROM trace_bounds) - ts, dur))
-          AS maxDur FROM ${tableName} WHERE track_id = ${this.tpTrackId}`;
+          AS maxDur FROM ${tableName} WHERE track_id = ${this.trackId}`;
       const queryRes = await this.engine.query(query);
       this.maxDurNs = queryRes.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
     }
@@ -72,7 +72,7 @@ export class ChromeSliceTrack extends SliceTrackBase {
         dur = -1 as isIncomplete,
         thread_dur as threadDur
       FROM ${tableName}
-      WHERE track_id = ${this.tpTrackId} AND
+      WHERE track_id = ${this.trackId} AND
         ts >= (${start - this.maxDurNs}) AND
         ts <= ${end}
       GROUP BY depth, tsq`;
@@ -201,11 +201,11 @@ class ChromeSlicesPlugin implements Plugin {
         displayName,
         trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new ChromeSliceTrack(
               engine,
               maxDepth,
-              trackInstanceId,
+              trackKey,
               trackId,
           );
         },
@@ -217,10 +217,10 @@ class ChromeSlicesPlugin implements Plugin {
         uri: `perfetto.ChromeSlices#${trackId}.v2`,
         displayName,
         kind: SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           const track = GenericSliceTrack.create({
             engine: ctx.engine,
-            trackId: trackInstanceId,
+            trackKey,
           });
           track.config = {sqlTrackId: trackId};
           return track;

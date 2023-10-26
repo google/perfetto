@@ -233,10 +233,10 @@ class PerfSamplesProfilePlugin implements Plugin {
         displayName: `Callstacks ${pid}`,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         upid,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new TrackWithControllerAdapter(
               ctx.engine,
-              trackInstanceId,
+              trackKey,
               {upid},
               PerfSamplesProfileTrack,
               PerfSamplesProfileTrackController);

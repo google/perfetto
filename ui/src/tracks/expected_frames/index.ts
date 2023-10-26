@@ -41,9 +41,9 @@ class SliceTrack extends SliceTrackBase {
   private maxDur = Duration.ZERO;
 
   constructor(
-      private engine: EngineProxy, maxDepth: number, trackInstanceId: string,
+      private engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[], namespace?: string) {
-    super(maxDepth, trackInstanceId, '', namespace);
+    super(maxDepth, trackKey, '', namespace);
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -194,11 +194,11 @@ class ExpectedFramesPlugin implements Plugin {
         displayName,
         trackIds,
         kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new SliceTrack(
               engine,
               maxDepth,
-              trackInstanceId,
+              trackKey,
               trackIds,
           );
         },

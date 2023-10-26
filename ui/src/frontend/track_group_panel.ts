@@ -51,20 +51,20 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   private tryLoadTrack() {
-    const trackId = this.trackGroupId;
+    const groupId = this.trackGroupId;
     const trackState = this.summaryTrackState;
 
-    const {id, uri, params} = trackState;
+    const {key, uri, params} = trackState;
 
     const ctx: TrackContext = {
-      trackInstanceId: id,
+      trackKey: key,
       mountStore: <T>(migrate: Migrate<T>) => {
         const {store, state} = globals;
-        const migratedState = migrate(state.trackGroups[trackId].state);
+        const migratedState = migrate(state.trackGroups[groupId].state);
         store.edit((draft) => {
-          draft.trackGroups[trackId].state = migratedState;
+          draft.trackGroups[groupId].state = migratedState;
         });
-        return store.createProxy<T>(['trackGroups', trackId, 'state']);
+        return store.createProxy<T>(['trackGroups', groupId, 'state']);
       },
       params,
     };
@@ -96,8 +96,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     let highlightClass = '';
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults.trackIds[searchIndex];
-      const parentTrackId = getContainingTrackId(globals.state, trackId);
+      const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
+      const parentTrackId = getContainingTrackId(globals.state, trackKey);
       if (parentTrackId === attrs.trackGroupId) {
         highlightClass = 'flash';
       }

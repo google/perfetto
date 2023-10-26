@@ -70,7 +70,7 @@ export abstract class NamedSliceTrack<
   onSliceClick(args: OnSliceClickArgs<T['slice']>) {
     globals.makeSelection(Actions.selectChromeSlice({
       id: args.slice.id,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
 
       // |table| here can be either 'slice' or 'annotation'. The
       // AnnotationSliceTrack overrides the onSliceClick and sets this to

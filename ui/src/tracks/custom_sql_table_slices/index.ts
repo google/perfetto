@@ -102,7 +102,7 @@ export abstract class CustomSqlTableSliceTrack<
     if (selection.kind !== 'GENERIC_SLICE') {
       return false;
     }
-    return selection.trackId === this.trackId;
+    return selection.trackKey === this.trackKey;
   }
 
   onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
@@ -116,7 +116,7 @@ export abstract class CustomSqlTableSliceTrack<
       sqlTableName: this.tableName,
       start: args.slice.ts,
       duration: args.slice.dur,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       detailsPanelConfig: {
         kind: detailsPanelConfig.kind,
         config: detailsPanelConfig.config,

@@ -44,9 +44,9 @@ class TracksImpl {
       const tags = {
         name: track.name,
       };
-      if (predicate(tags) && !this.isPinned(track.id)) {
+      if (predicate(tags) && !this.isPinned(track.key)) {
         globals.dispatch(Actions.toggleTrackPinned({
-          trackId: track.id,
+          trackKey: track.key,
         }));
       }
     }
@@ -58,9 +58,9 @@ class TracksImpl {
       const tags = {
         name: track.name,
       };
-      if (predicate(tags) && this.isPinned(track.id)) {
+      if (predicate(tags) && this.isPinned(track.key)) {
         globals.dispatch(Actions.toggleTrackPinned({
-          trackId: track.id,
+          trackKey: track.key,
         }));
       }
     }

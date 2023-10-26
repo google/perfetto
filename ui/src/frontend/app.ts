@@ -336,14 +336,14 @@ export class App implements m.ClassComponent {
                                      .find(({uri}) => uri === selectedUri);
               if (firstTrack) {
                 console.log(firstTrack);
-                verticalScrollToTrack(firstTrack.id, true);
+                verticalScrollToTrack(firstTrack.key, true);
                 const traceTime = globals.stateTraceTimeTP();
                 globals.makeSelection(
                     Actions.selectArea({
                       area: {
                         start: traceTime.start,
                         end: traceTime.end,
-                        tracks: [firstTrack.id],
+                        tracks: [firstTrack.key],
                       },
                     }),
                 );
