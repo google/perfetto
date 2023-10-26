@@ -56,7 +56,7 @@ class AnnotationPlugin implements Plugin {
       const id = it.id;
       const name = it.name;
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Annotation#${id}`,
         displayName: name,
         kind: SLICE_TRACK_KIND,
@@ -109,7 +109,7 @@ class AnnotationPlugin implements Plugin {
         maximumValue,
       };
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Annotation#counter${id}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,
