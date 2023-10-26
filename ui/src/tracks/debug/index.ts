@@ -18,10 +18,9 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {SLICE_TRACK_KIND} from '../chrome_slices';
 
-import {CounterDebugTrackConfig, DebugCounterTrack} from './counter_track';
-import {DebugTrackV2, DebugTrackV2Config} from './slice_track';
+import {DebugCounterTrack} from './counter_track';
+import {DebugTrackV2} from './slice_track';
 
 export const DEBUG_SLICE_TRACK_URI = 'perfetto.DebugSlices';
 export const DEBUG_COUNTER_TRACK_URI = 'perfetto.DebugCounter';
@@ -30,37 +29,15 @@ class DebugTrackPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    // Add debug slice track
-    ctx.addTrack({
-      displayName: '',
-      kind: SLICE_TRACK_KIND,
+    ctx.registerTrack({
       uri: DEBUG_SLICE_TRACK_URI,
-      track: (trackCtx) => {
-        const store = trackCtx.mountStore((init) => init as DebugTrackV2Config);
-        const track = new DebugTrackV2({
-          engine: ctx.engine,
-          trackId: trackCtx.trackInstanceId,
-        });
-        track.config = store.state;
-        return track;
-      },
+      track: ({trackInstanceId}) =>
+          new DebugTrackV2(ctx.engine, trackInstanceId),
     });
-
-    // Add debug counter track
-    ctx.addTrack({
-      displayName: '',
-      kind: SLICE_TRACK_KIND,
+    ctx.registerTrack({
       uri: DEBUG_COUNTER_TRACK_URI,
-      track: (trackCtx) => {
-        const store =
-            trackCtx.mountStore((init) => init as CounterDebugTrackConfig);
-        const track = new DebugCounterTrack({
-          engine: ctx.engine,
-          trackId: trackCtx.trackInstanceId,
-        });
-        track.config = store.state;
-        return track;
-      },
+      track: ({trackInstanceId}) =>
+          new DebugCounterTrack(ctx.engine, trackInstanceId),
     });
   }
 }

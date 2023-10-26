@@ -196,7 +196,7 @@ class ChromeSlicesPlugin implements Plugin {
         kind: 'Slices',
       });
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.ChromeSlices#${trackId}`,
         displayName,
         trackIds: [trackId],
@@ -213,7 +213,7 @@ class ChromeSlicesPlugin implements Plugin {
 
       // trackIds can only be registered by one track at a time.
       // TODO(hjd): Move trackIds to only be on V2.
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.ChromeSlices#${trackId}.v2`,
         displayName,
         kind: SLICE_TRACK_KIND,

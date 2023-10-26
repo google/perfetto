@@ -76,9 +76,6 @@ import {
   VisibleState,
 } from './state';
 
-export const DEBUG_SLICE_TRACK_KIND = 'dev.perfetto.DebugSliceTrack';
-export const DEBUG_COUNTER_TRACK_KIND = 'dev.perfetto.DebugCounterTrack';
-
 type StateDraft = Draft<State>;
 
 export interface AddTrackArgs {
@@ -88,7 +85,7 @@ export interface AddTrackArgs {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
-  initialState?: unknown;
+  params?: unknown;
 }
 
 export interface PostedTrace {
@@ -244,7 +241,7 @@ export const StateActions = {
         trackGroup: track.trackGroup,
         labels: track.labels,
         uri: track.uri,
-        state: track.initialState,
+        params: track.params,
       };
       this.fillUiTrackIdByTraceTrackId(state, track as TrackState, id);
       if (track.trackGroup === SCROLLING_TRACK_GROUP) {
