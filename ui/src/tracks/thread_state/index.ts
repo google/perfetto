@@ -297,7 +297,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
 class ThreadState implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       select
