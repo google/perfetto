@@ -268,17 +268,17 @@ class TrackDecider {
 
           const parentName = getTrackName({name: rawParentName, kind});
 
-          const summaryTrackId = uuidv4();
+          const summaryTrackKey = uuidv4();
           this.tracksToAdd.push({
             uri: NULL_TRACK_URI,
-            id: summaryTrackId,
+            key: summaryTrackKey,
             trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
             trackGroup: undefined,
             name: parentName,
           });
 
           this.addTrackGroupActions.push(Actions.addTrackGroup({
-            summaryTrackId,
+            summaryTrackKey: summaryTrackKey,
             name: parentName,
             id: trackGroup,
             collapsed: true,
@@ -387,14 +387,14 @@ class TrackDecider {
     }
 
     const id = uuidv4();
-    const summaryTrackId = uuidv4();
+    const summaryTrackKey = uuidv4();
     let foundSummary = false;
 
     for (const track of ionTracks) {
       if (!foundSummary &&
           [MEM_DMA_COUNTER_NAME, MEM_ION].includes(track.name)) {
         foundSummary = true;
-        track.id = summaryTrackId;
+        track.key = summaryTrackKey;
         track.trackGroup = undefined;
       } else {
         track.trackGroup = id;
@@ -402,7 +402,7 @@ class TrackDecider {
     }
 
     const addGroup = Actions.addTrackGroup({
-      summaryTrackId,
+      summaryTrackKey,
       name: MEM_DMA_COUNTER_NAME,
       id,
       collapsed: true,
@@ -436,18 +436,18 @@ class TrackDecider {
 
     for (const [key, value] of devMap) {
       const groupName = group + key;
-      const summaryTrackId = uuidv4();
+      const summaryTrackKey = uuidv4();
 
       this.tracksToAdd.push({
         uri: NULL_TRACK_URI,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
         name: groupName,
         trackGroup: undefined,
       });
 
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId,
+        summaryTrackKey,
         name: groupName,
         id: value,
         collapsed: true,
@@ -470,14 +470,14 @@ class TrackDecider {
     }
 
     const id = uuidv4();
-    const summaryTrackId = uuidv4();
-    ufsCmdTagTracks[0].id = summaryTrackId;
+    const summaryTrackKey = uuidv4();
+    ufsCmdTagTracks[0].key = summaryTrackKey;
     for (const track of ufsCmdTagTracks) {
       track.trackGroup = id;
     }
 
     const addGroup = Actions.addTrackGroup({
-      summaryTrackId,
+      summaryTrackKey,
       name: group,
       id,
       collapsed: true,
@@ -515,18 +515,18 @@ class TrackDecider {
 
     for (const [key, value] of devMap) {
       const groupName = key;
-      const summaryTrackId = uuidv4();
+      const summaryTrackKey = uuidv4();
 
       this.tracksToAdd.push({
         uri: NULL_TRACK_URI,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
         name: groupName,
         trackGroup: undefined,
       });
 
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId,
+        summaryTrackKey,
         name: groupName,
         id: value,
         collapsed: true,
@@ -557,17 +557,17 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackId = uuidv4();
+      const summaryTrackKey = uuidv4();
       this.tracksToAdd.push({
         uri: NULL_TRACK_URI,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
         name: groupName,
         trackGroup: undefined,
       });
 
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId,
+        summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -608,17 +608,17 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackId = uuidv4();
+      const summaryTrackKey = uuidv4();
       this.tracksToAdd.push({
         uri: NULL_TRACK_URI,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
         name: groupName,
         trackGroup: undefined,
       });
 
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId,
+        summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -647,17 +647,17 @@ class TrackDecider {
     }
 
     if (groupUuid !== undefined) {
-      const summaryTrackId = uuidv4();
+      const summaryTrackKey = uuidv4();
       this.tracksToAdd.push({
         uri: NULL_TRACK_URI,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
         name: groupName,
         trackGroup: undefined,
       });
 
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId,
+        summaryTrackKey: summaryTrackKey,
         name: groupName,
         id: groupUuid,
         collapsed: true,
@@ -688,19 +688,19 @@ class TrackDecider {
     const it = result.iter({cpu: NUM});
 
     let groupUuid = undefined;
-    let summaryTrackId = undefined;
+    let summaryTrackKey = undefined;
 
     // use the first one as the summary track
     for (let row = 0; it.valid(); it.next(), row++) {
       if (groupUuid === undefined) {
         groupUuid = 'ftrace-track-group';
-        summaryTrackId = uuidv4();
+        summaryTrackKey = uuidv4();
         this.tracksToAdd.push({
           uri: NULL_TRACK_URI,
           trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
           name: `Ftrace Events`,
           trackGroup: undefined,
-          id: summaryTrackId,
+          key: summaryTrackKey,
         });
       }
       this.tracksToAdd.push({
@@ -711,12 +711,12 @@ class TrackDecider {
       });
     }
 
-    if (groupUuid !== undefined && summaryTrackId !== undefined) {
+    if (groupUuid !== undefined && summaryTrackKey !== undefined) {
       const addGroup = Actions.addTrackGroup({
         name: 'Ftrace Events',
         id: groupUuid,
         collapsed: true,
-        summaryTrackId,
+        summaryTrackKey,
       });
       this.addTrackGroupActions.push(addGroup);
     }
@@ -738,7 +738,7 @@ class TrackDecider {
 
     interface GroupIds {
       id: string;
-      summaryTrackId: string;
+      summaryTrackKey: string;
     }
 
     const groupNameToIds = new Map<string, GroupIds>();
@@ -749,7 +749,7 @@ class TrackDecider {
       const upid = sliceIt.upid;
       const groupName = sliceIt.group_name;
 
-      let summaryTrackId = undefined;
+      let summaryTrackKey = undefined;
       let trackGroupId =
           upid === 0 ? SCROLLING_TRACK_GROUP : this.upidToUuid.get(upid);
 
@@ -762,17 +762,17 @@ class TrackDecider {
           trackGroupId = groupIds.id;
         } else {
           trackGroupId = uuidv4();
-          summaryTrackId = uuidv4();
+          summaryTrackKey = uuidv4();
           groupNameToIds.set(groupName, {
             id: trackGroupId,
-            summaryTrackId,
+            summaryTrackKey,
           });
         }
       }
 
       this.tracksToAdd.push({
         uri: `perfetto.Annotation#${id}`,
-        id: summaryTrackId,
+        key: summaryTrackKey,
         name,
         trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
         trackGroup: trackGroupId,
@@ -781,7 +781,7 @@ class TrackDecider {
 
     for (const [groupName, groupIds] of groupNameToIds) {
       const addGroup = Actions.addTrackGroup({
-        summaryTrackId: groupIds.summaryTrackId,
+        summaryTrackKey: groupIds.summaryTrackKey,
         name: groupName,
         id: groupIds.id,
         collapsed: true,
@@ -1357,15 +1357,15 @@ class TrackDecider {
     // but creating a dedicated track type is out of scope at the time of
     // writing.
     const kthreadGroupUuid = uuidv4();
-    const summaryTrackId = uuidv4();
+    const summaryTrackKey = uuidv4();
     this.tracksToAdd.push({
       uri: 'perfetto.ProcessSummary#kernel',
-      id: summaryTrackId,
+      key: summaryTrackKey,
       trackSortKey: PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
       name: `Kernel thread summary`,
     });
     const addTrackGroup = Actions.addTrackGroup({
-      summaryTrackId,
+      summaryTrackKey,
       name: `Kernel threads`,
       id: kthreadGroupUuid,
       collapsed: true,
@@ -1527,13 +1527,13 @@ class TrackDecider {
       // These should only happen once for each track group.
       if (pUuid === undefined) {
         pUuid = this.getOrCreateUuid(utid, upid);
-        const summaryTrackId = uuidv4();
+        const summaryTrackKey = uuidv4();
         const type = hasSched ? 'schedule' : 'summary';
         const uri = `perfetto.ProcessScheduling#${upid}.${utid}.${type}`;
 
         this.tracksToAdd.push({
           uri,
-          id: summaryTrackId,
+          key: summaryTrackKey,
           trackSortKey: hasSched ?
               PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK :
               PrimaryTrackSortKey.PROCESS_SUMMARY_TRACK,
@@ -1544,7 +1544,7 @@ class TrackDecider {
         const name =
             getTrackName({utid, processName, pid, threadName, tid, upid});
         const addTrackGroup = Actions.addTrackGroup({
-          summaryTrackId,
+          summaryTrackKey,
           name,
           id: pUuid,
           // Perf profiling tracks remain collapsed, otherwise we would have too

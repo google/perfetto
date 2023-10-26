@@ -43,12 +43,12 @@ export class TrackWithControllerAdapter<Config, Data> extends
   private isSetup = false;
 
   constructor(
-      engine: EngineProxy, trackInstanceId: string, config: Config,
+      engine: EngineProxy, trackKey: string, config: Config,
       Track: TrackAdapterClass<Config, Data>,
       Controller: TrackControllerAdapterClass<Config, Data>) {
     super();
     const args: NewTrackArgs = {
-      trackId: trackInstanceId,
+      trackKey,
       engine,
     };
     this.track = new Track(args);
@@ -114,7 +114,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
 export abstract class TrackAdapter<Config, Data> {
   private _config?: Config;
   private dataSource?: () => Data | undefined;
-  protected id: string;
+  protected trackKey: string;
 
   get config(): Config {
     return assertExists(this._config);
@@ -134,7 +134,7 @@ export abstract class TrackAdapter<Config, Data> {
   }
 
   constructor(args: NewTrackArgs) {
-    this.id = args.trackId;
+    this.trackKey = args.trackKey;
   }
 
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;

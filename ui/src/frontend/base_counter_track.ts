@@ -93,7 +93,7 @@ export abstract class BaseCounterTrack<Config> extends TrackBase<Config> {
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.tableName = `track_${this.trackId}`.replace(/[^a-zA-Z0-9_]+/g, '_');
+    this.tableName = `track_${this.trackKey}`.replace(/[^a-zA-Z0-9_]+/g, '_');
   }
 
   getHeight() {

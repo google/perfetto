@@ -200,7 +200,7 @@ export class FlowEventsController extends Controller<'main'> {
     const uiTrackIdToInfo = new Map<string, null|Info>();
     const trackIdToInfo = new Map<number, null|Info>();
 
-    const trackIdToUiTrackId = globals.state.uiTrackIdByTraceTrackId;
+    const trackIdToUiTrackId = globals.state.trackKeyByTrackId;
     const tracks = globals.state.tracks;
 
     const getInfo = (trackId: number): null|Info => {

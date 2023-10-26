@@ -162,13 +162,13 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
 
   const tracksToAdd: AddTrackArgs[] = [];
   const it = result.iter({'trackId': NUM, 'maxDepth': NUM});
-  const addedTrackIds: string[] = [];
+  const addedTrackKeys: string[] = [];
   for (; it.valid(); it.next()) {
     const track =
-        globals.state.tracks[globals.state.uiTrackIdByTraceTrackId[it.trackId]];
+        globals.state.tracks[globals.state.trackKeyByTrackId[it.trackId]];
     const utid = (track.trackSortKey as {utid?: number}).utid;
-    const id = uuidv4();
-    addedTrackIds.push(id);
+    const key = uuidv4();
+    addedTrackKeys.push(key);
 
     const params: VisualisedArgsState = {
       maxDepth: it.maxDepth,
@@ -177,7 +177,7 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
     };
 
     tracksToAdd.push({
-      id,
+      key,
       trackGroup: track.trackGroup,
       name: argName,
       trackSortKey: utid === undefined ?

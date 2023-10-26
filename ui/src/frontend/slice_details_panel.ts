@@ -206,23 +206,23 @@ export class SliceDetailsPanel extends SlicePanel {
       return;
     }
 
-    let trackId: string|number|undefined;
+    let trackKey: string|number|undefined;
     for (const track of Object.values(globals.state.tracks)) {
       const trackDesc = pluginManager.resolveTrackInfo(track.uri);
       // TODO(stevegolton): Handle v2.
       if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
           trackDesc.utid === threadInfo.utid) {
-        trackId = track.id;
+        trackKey = track.key;
       }
     }
 
-    if (trackId && sliceInfo.threadStateId) {
+    if (trackKey && sliceInfo.threadStateId) {
       globals.makeSelection(Actions.selectThreadState({
         id: sliceInfo.threadStateId,
-        trackId: trackId.toString(),
+        trackKey: trackKey.toString(),
       }));
 
-      scrollToTrackAndTs(trackId, sliceInfo.ts, true);
+      scrollToTrackAndTs(trackKey, sliceInfo.ts, true);
     }
   }
 
