@@ -247,7 +247,8 @@ export class ChromeSliceDetailsTab extends
     const {id, table} = this.config;
     const details = await getSliceDetails(this.engine, id, table);
 
-    if (details !== undefined && details.thread !== undefined) {
+    if (details !== undefined && details.thread !== undefined &&
+        details.dur > 0) {
       this.breakdownByThreadState = await breakDownIntervalByThreadState(
           this.engine,
           TimeSpan.fromTimeAndDuration(details.ts, details.dur),
