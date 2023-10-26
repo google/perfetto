@@ -155,7 +155,7 @@ class SliceTrack extends SliceTrackBase {
 class ActualFrames implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       with process_async_tracks as materialized (

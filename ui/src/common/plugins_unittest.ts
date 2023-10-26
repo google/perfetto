@@ -26,9 +26,8 @@ class FakeEngine extends Engine {
   rpcSendRequestBytes(_data: Uint8Array) {}
 }
 
-function makeMockPlugin(): Plugin<any> {
+function makeMockPlugin(): Plugin {
   return {
-    migrate: jest.fn(),
     onActivate: jest.fn(),
     onDeactivate: jest.fn(),
     onTraceLoad: jest.fn(),
@@ -90,18 +89,5 @@ describe('PluginManger', () => {
     manager.deactivatePlugin('foo');
 
     expect(mockPlugin.onTraceUnload).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not invoke migrate at activation time', () => {
-    manager.activatePlugin('foo', viewer);
-
-    expect(mockPlugin.migrate).not.toHaveBeenCalled();
-  });
-
-  it('invokes migrate when trace is loaded', () => {
-    manager.activatePlugin('foo', viewer);
-    manager.onTraceLoad(engine);
-
-    expect(mockPlugin.migrate).toHaveBeenCalledTimes(1);
   });
 });
