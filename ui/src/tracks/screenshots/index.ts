@@ -88,10 +88,10 @@ class ScreenshotsPlugin implements Plugin {
       uri: 'perfetto.Screenshots',
       displayName: 'Screenshots',
       kind: ScreenshotsTrack.kind,
-      track: ({trackInstanceId}) => {
+      track: ({trackKey}) => {
         return new ScreenshotsTrack({
           engine: ctx.engine,
-          trackId: trackInstanceId,
+          trackKey,
         });
       },
     });

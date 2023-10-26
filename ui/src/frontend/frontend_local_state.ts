@@ -159,7 +159,7 @@ export class FrontendLocalState {
   showCookieConsent = false;
   visibleTracks = new Set<string>();
   prevVisibleTracks = new Set<string>();
-  scrollToTrackId?: string|number;
+  scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
 
@@ -193,8 +193,8 @@ export class FrontendLocalState {
     raf.scheduleFullRedraw();
   }
 
-  addVisibleTrack(trackId: string) {
-    this.visibleTracks.add(trackId);
+  addVisibleTrack(trackKey: string) {
+    this.visibleTracks.add(trackKey);
   }
 
   // Called when beginning a canvas redraw.

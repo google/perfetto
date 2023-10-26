@@ -205,7 +205,7 @@ async function getAnnotationSlice(
     name: it.name ?? 'null',
     ts: Time.fromRaw(it.ts),
     dur: it.dur,
-    sqlTrackId: it.trackId,
+    trackId: it.trackId,
     threadDur: it.threadDur ?? undefined,
     category: it.cat ?? undefined,
     absTime: it.absTime ?? undefined,

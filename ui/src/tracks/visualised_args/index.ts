@@ -42,12 +42,12 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
   private helperViewName: string;
 
   constructor(
-      engine: EngineProxy, maxDepth: number, trackInstanceId: string,
-      trackId: number, private argName: string) {
+      engine: EngineProxy, maxDepth: number, trackKey: string, trackId: number,
+      private argName: string) {
     const uuid = uuidv4();
     const namespace = `__arg_visualisation_helper_${argName}_${uuid}`;
     const escapedNamespace = namespace.replace(/[^a-zA-Z]/g, '_');
-    super(engine, maxDepth, trackInstanceId, trackId, escapedNamespace);
+    super(engine, maxDepth, trackKey, trackId, escapedNamespace);
     this.helperViewName = `${escapedNamespace}_slice`;
   }
 
@@ -96,8 +96,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
         // track.
         // This will be easily fixable once we transition to using dynamic
         // tracks instead of this "initial state" approach to add these tracks.
-        globals.dispatch(
-            Actions.removeTracks({trackInstanceIds: [this.trackInstanceId]}));
+        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
       i: 'close',
       tooltip: 'Close',
@@ -121,7 +120,7 @@ class VisualisedArgsPlugin implements Plugin {
         return new VisualisedArgsTrack(
             ctx.engine,
             params.maxDepth,
-            trackCtx.trackInstanceId,
+            trackCtx.trackKey,
             params.trackId,
             params.argName,
         );

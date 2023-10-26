@@ -45,9 +45,9 @@ class SliceTrack extends SliceTrackBase {
   private maxDur = 0n;
 
   constructor(
-      private engine: EngineProxy, maxDepth: number, trackInstanceId: string,
+      private engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[], namespace?: string) {
-    super(maxDepth, trackInstanceId, 'actual_frame_timeline_slice', namespace);
+    super(maxDepth, trackKey, 'actual_frame_timeline_slice', namespace);
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -210,11 +210,11 @@ class ActualFrames implements Plugin {
         displayName,
         trackIds,
         kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new SliceTrack(
               engine,
               maxDepth,
-              trackInstanceId,
+              trackKey,
               trackIds,
           );
         },
