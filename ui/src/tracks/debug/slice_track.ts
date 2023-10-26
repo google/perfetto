@@ -16,16 +16,15 @@ import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {Disposable} from '../../base/disposable';
-import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
+import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
 import {TrackButton} from '../../frontend/track_panel';
-import {PrimaryTrackSortKey} from '../../public';
+import {PrimaryTrackSortKey, TrackContext} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -53,14 +52,18 @@ interface DebugTrackV2Types extends NamedSliceTrackTypes {
 }
 
 export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
-  static readonly kind = DEBUG_SLICE_TRACK_KIND;
-
-  static create(args: NewTrackArgs) {
-    return new DebugTrackV2(args);
+  constructor(engine: EngineProxy, trackInstanceId: string) {
+    super({
+      engine,
+      trackId: trackInstanceId,
+    });
   }
 
-  constructor(args: NewTrackArgs) {
-    super(args);
+  onCreate(ctx: TrackContext): void {
+    // TODO(stevegolton): Validate params before type asserting.
+    // TODO(stevegolton): Avoid just pushing this config up for some base
+    // class to use. Be more explicit.
+    this.config = ctx.params as DebugTrackV2Config;
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
@@ -150,11 +153,11 @@ export async function addDebugSliceTrack(
   globals.dispatchMultiple([
     Actions.addTrack({
       id: trackInstanceId,
-      uri: DEBUG_SLICE_TRACK_URI,
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
+      uri: DEBUG_SLICE_TRACK_URI,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      initialState: {
+      params: {
         sqlTableName,
         columns: sliceColumns,
       },

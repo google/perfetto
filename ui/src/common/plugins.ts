@@ -31,7 +31,7 @@ import {
   Track,
   TrackContext,
   TrackDescriptor,
-  TrackInstanceDescriptor,
+  TrackRef,
   Viewer,
 } from '../public';
 
@@ -85,7 +85,7 @@ class TracePluginContextImpl<T> implements PluginContextTrace<T>, Disposable {
       private ctx: PluginContext, readonly store: Store<T>,
       readonly engine: EngineProxy,
       readonly trackRegistry: Map<string, TrackDescriptor>,
-      private suggestedTracks: Set<TrackInstanceDescriptor>,
+      private defaultTracks: Set<TrackRef>,
       private commandRegistry: Map<string, Command>) {
     this.trash.add(engine);
     this.trash.add(store);
@@ -110,25 +110,32 @@ class TracePluginContextImpl<T> implements PluginContextTrace<T>, Disposable {
     return this.ctx.viewer;
   }
 
-  // Register a new track in this context.
-  // All tracks registered through this method are removed when this context is
-  // destroyed, i.e. when the trace is unloaded.
-  addTrack(trackDetails: TrackDescriptor): void {
+  registerTrack(trackDesc: TrackDescriptor): void {
     // Silently ignore if context is dead.
     if (!this.alive) return;
-    const {uri} = trackDetails;
-    this.trackRegistry.set(uri, trackDetails);
-    this.trash.addCallback(() => this.trackRegistry.delete(uri));
+
+    this.trackRegistry.set(trackDesc.uri, trackDesc);
+    this.trash.addCallback(() => this.trackRegistry.delete(trackDesc.uri));
   }
 
-  // Ask Perfetto to add a track to the track list when a fresh trace is loaded.
-  // Ignored when a trace is loaded from a permalink.
-  // This is a direct replacement for findPotentialTracks().
-  // Note: This interface is likely to be deprecated soon, but is required while
-  // both plugin and original type tracks coexist.
-  suggestTrack(trackInfo: TrackInstanceDescriptor): void {
-    this.suggestedTracks.add(trackInfo);
-    this.trash.addCallback(() => this.suggestedTracks.delete(trackInfo));
+  addDefaultTrack(track: TrackRef): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    this.defaultTracks.add(track);
+    this.trash.addCallback(() => this.defaultTracks.delete(track));
+  }
+
+  registerStaticTrack(track: TrackDescriptor&TrackRef): void {
+    this.registerTrack(track);
+
+    // TODO(stevegolton): Once we've sorted out track_decider, we should also
+    // add this track to the default track list here. E.g.
+    // this.addDefaultTrack({
+    //   uri: trackDetails.uri,
+    //   displayName: trackDetails.displayName,
+    //   sortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+    // });
   }
 
   dispose(): void {
@@ -175,7 +182,7 @@ export class PluginManager {
   private engine?: Engine;
   readonly trackRegistry = new Map<string, TrackDescriptor>();
   readonly commandRegistry = new Map<string, Command>();
-  readonly suggestedTracks = new Set<TrackInstanceDescriptor>();
+  readonly defaultTracks = new Set<TrackRef>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
@@ -233,8 +240,8 @@ export class PluginManager {
     return this.plugins.get(pluginId);
   }
 
-  findPotentialTracks(): TrackInstanceDescriptor[] {
-    return Array.from(this.suggestedTracks);
+  findPotentialTracks(): TrackRef[] {
+    return Array.from(this.defaultTracks);
   }
 
   onTraceLoad(engine: Engine): void {
@@ -299,7 +306,7 @@ export class PluginManager {
           proxyStore,
           engineProxy,
           this.trackRegistry,
-          this.suggestedTracks,
+          this.defaultTracks,
           this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 
@@ -316,7 +323,7 @@ export class PluginManager {
           proxyStore,
           engineProxy,
           this.trackRegistry,
-          this.suggestedTracks,
+          this.defaultTracks,
           this.commandRegistry);
       pluginDetails.traceContext = traceCtx;
 

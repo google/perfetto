@@ -170,7 +170,7 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
     const id = uuidv4();
     addedTrackIds.push(id);
 
-    const initialState: VisualisedArgsState = {
+    const params: VisualisedArgsState = {
       maxDepth: it.maxDepth,
       trackId: it.trackId,
       argName: argName,
@@ -183,7 +183,7 @@ async function addVisualisedArg(engine: EngineProxy, argName: string) {
       trackSortKey: utid === undefined ?
           track.trackSortKey :
           {utid, priority: InThreadTrackSortKey.VISUALISED_ARGS_TRACK},
-      initialState,
+      params,
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
     });
   }

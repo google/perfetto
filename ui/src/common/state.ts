@@ -225,6 +225,7 @@ export interface TrackState {
   labels?: string[];
   trackSortKey: TrackSortKey;
   trackGroup?: string;
+  params?: unknown;
   state?: unknown;
 }
 

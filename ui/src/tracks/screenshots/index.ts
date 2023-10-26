@@ -84,7 +84,7 @@ class ScreenshotsPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
-    ctx.addTrack({
+    ctx.registerStaticTrack({
       uri: 'perfetto.Screenshots',
       displayName: 'Screenshots',
       kind: ScreenshotsTrack.kind,

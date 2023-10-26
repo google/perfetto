@@ -54,7 +54,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     const trackId = this.trackGroupId;
     const trackState = this.summaryTrackState;
 
-    const {id, uri} = trackState;
+    const {id, uri, params} = trackState;
 
     const ctx: TrackContext = {
       trackInstanceId: id,
@@ -66,6 +66,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
         });
         return store.createProxy<T>(['trackGroups', trackId, 'state']);
       },
+      params,
     };
 
     this.summaryTrack = pluginManager.createTrack(uri, ctx);
