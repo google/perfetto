@@ -29,9 +29,9 @@ INCLUDE PERFETTO MODULE common.slices;
 --                          cause among it's children.
 -- @arg prev_slice_id  LONG The slice id of the parent slice that's the reference
 --                          in comparison to |janky_slice_id|.
--- @ret breakdown_id   LONG The slice id of the breakdown that has the maximum
+-- @ret LONG The slice id of the breakdown that has the maximum
 --                          duration delta.
-CREATE PERFETTO FUNCTION get_v3_jank_cause_id(
+CREATE PERFETTO FUNCTION chrome_get_v3_jank_cause_id(
   janky_slice_id LONG,
   prev_slice_id LONG
 )

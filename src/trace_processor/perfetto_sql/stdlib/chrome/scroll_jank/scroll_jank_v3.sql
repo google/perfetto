@@ -330,7 +330,7 @@ WHERE delay_since_last_frame > (select vsync_interval + vsync_interval / 2 from 
 CREATE VIEW chrome_janky_frames_no_subcause AS
 SELECT
   *,
-  get_v3_jank_cause_id(event_latency_id, prev_event_latency_id) AS cause_id
+  chrome_get_v3_jank_cause_id(event_latency_id, prev_event_latency_id) AS cause_id
 FROM chrome_janky_frames_no_cause;
 
 -- Finds all causes of jank for all janky frames, and a cause of sub jank
@@ -352,7 +352,7 @@ SELECT
   slice_name_from_id(cause_id) AS cause_of_jank,
   slice_name_from_id(
     -- Getting sub-cause
-    get_v3_jank_cause_id(
+    chrome_get_v3_jank_cause_id(
       -- Here the cause itself is the parent.
       cause_id,
       -- Get the previous cause id as a child to the previous |EventLatency|.
