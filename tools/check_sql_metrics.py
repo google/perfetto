@@ -54,7 +54,16 @@ CREATE_TABLE_ALLOWLIST = {
 }
 
 
-def match_pattern_to_dict(sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
+def match_create_table_pattern_to_dict(
+    sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
+  res = {}
+  for line_num, matches in match_pattern(pattern, sql).items():
+    res[matches[2]] = [line_num, str(matches[1])]
+  return res
+
+
+def match_drop_view_pattern_to_dict(sql: str,
+                                    pattern: str) -> Dict[str, Tuple[int, str]]:
   res = {}
   for line_num, matches in match_pattern(pattern, sql).items():
     res[matches[1]] = [line_num, str(matches[0])]
@@ -66,8 +75,10 @@ def check(path: str) -> List[str]:
     sql = f.read()
 
   # Check that CREATE VIEW/TABLE has a matching DROP VIEW/TABLE before it.
-  create_table_view_dir = match_pattern_to_dict(sql, CREATE_TABLE_VIEW_PATTERN)
-  drop_table_view_dir = match_pattern_to_dict(sql, DROP_TABLE_VIEW_PATTERN)
+  create_table_view_dir = match_create_table_pattern_to_dict(
+      sql, CREATE_TABLE_VIEW_PATTERN)
+  drop_table_view_dir = match_drop_view_pattern_to_dict(
+      sql, DROP_TABLE_VIEW_PATTERN)
   errors = check_banned_create_table_as(sql,
                                         path.split(ROOT_DIR)[1],
                                         CREATE_TABLE_ALLOWLIST)
