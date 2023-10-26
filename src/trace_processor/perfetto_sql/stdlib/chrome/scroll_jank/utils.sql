@@ -28,7 +28,7 @@
 -- Function : function takes scroll ids of frames to verify it's from
 -- the same scroll, and makes sure the frame ts occured within the scroll
 -- timestamp of the neighbour and computes whether the frame was janky or not.
-CREATE PERFETTO FUNCTION is_janky_frame(cur_gesture_id LONG,
+CREATE PERFETTO FUNCTION internal_is_janky_frame(cur_gesture_id LONG,
                                       neighbour_gesture_id LONG,
                                       neighbour_ts LONG,
                                       cur_gesture_begin_ts LONG,
@@ -56,7 +56,7 @@ SELECT
 --
 -- Returns the jank budget in percentage (i.e. 0.75) of vsync interval
 -- percentage.
-CREATE PERFETTO FUNCTION jank_budget(
+CREATE PERFETTO FUNCTION internal_jank_budget(
   cur_frame_exact FLOAT,
   prev_frame_exact FLOAT,
   next_frame_exact FLOAT
