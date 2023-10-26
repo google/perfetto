@@ -42,7 +42,7 @@ export class NullTrack extends TrackBase {
 class NullTrackPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
-  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     // TODO(stevegolton): This is not the right way to handle blank tracks,
     // instead we should probably just render some blank element at render time
     // if no track uri is supplied.

@@ -108,7 +108,8 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
 
 class VisualisedArgsPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
-  async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
       tags: {

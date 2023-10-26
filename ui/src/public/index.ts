@@ -30,7 +30,7 @@ export {
   STR,
   STR_NULL,
 } from '../common/query_result';
-export {Store} from '../frontend/store';
+export {createStore, Store} from '../frontend/store';
 
 
 // An imperative API for plugins to change the UI.
@@ -146,6 +146,10 @@ export interface MetricVisualisation {
 // This interface defines a context for a plugin, which is an object passed to
 // most hooks within the plugin. It should be used to interact with Perfetto.
 export interface PluginContext {
+  // The unique ID for this plugin.
+  readonly pluginId: string;
+
+  // The viewer API, used to interface with Perfetto.
   readonly viewer: Viewer;
 
   // Add a command.
@@ -254,9 +258,8 @@ export enum PrimaryTrackSortKey {
 // Similar to PluginContext but with additional methods to operate on the
 // currently loaded trace. Passed to trace-relevant hooks on a plugin instead of
 // PluginContext.
-export interface PluginContextTrace<T = undefined> extends PluginContext {
+export interface PluginContextTrace extends PluginContext {
   readonly engine: EngineProxy;
-  readonly store: Store<T>;
 
   // Register a new track against a unique key known as a URI.
   // Once a track is registered it can be referenced multiple times on the
@@ -275,29 +278,21 @@ export interface PluginContextTrace<T = undefined> extends PluginContext {
   // This is simply a helper which calls registerTrack() then addDefaultTrack()
   // with the same URI.
   registerStaticTrack(track: TrackDescriptor&TrackRef): void;
+
+  // Create a store mounted over the top of this plugin's persistent state.
+  mountStore<T>(migrate: Migrate<T>): Store<T>;
 }
 
-export interface BasePlugin<State> {
+export interface Plugin {
   // Lifecycle methods.
   onActivate(ctx: PluginContext): void;
-  onTraceLoad?(ctx: PluginContextTrace<State>): Promise<void>;
-  onTraceUnload?(ctx: PluginContextTrace<State>): Promise<void>;
+  onTraceLoad?(ctx: PluginContextTrace): Promise<void>;
+  onTraceUnload?(ctx: PluginContextTrace): Promise<void>;
   onDeactivate?(ctx: PluginContext): void;
 
   // Extension points.
   metricVisualisations?(ctx: PluginContext): MetricVisualisation[];
 }
-
-export interface StatefulPlugin<State> extends BasePlugin<State> {
-  // Function to migrate the persistent state.
-  migrate(initialState: unknown): State;
-}
-
-// Generic interface all plugins must implement.
-// If a state type is passed, the plugin must implement migrate(). Otherwise if
-// the state type is omitted, migrate need not be defined.
-export type Plugin<State = undefined> =
-    State extends undefined ? BasePlugin<State>: StatefulPlugin<State>;
 
 // This interface defines what a plugin factory should look like.
 // This can be defined in the plugin class definition by defining a constructor
@@ -309,9 +304,9 @@ export type Plugin<State = undefined> =
 //   ... methods from the TracePlugin interface go here ...
 // }
 // ... which can then be passed around by class i.e. MyPlugin
-export interface PluginClass<T> {
+export interface PluginClass {
   // Instantiate the plugin.
-  new(): Plugin<T>;
+  new(): Plugin;
 }
 
 // Describes a reference to a registered track.
@@ -356,9 +351,9 @@ export type TrackTags = Partial<WellKnownTrackTags>&{
 
 // Plugins can be passed as class refs, factory functions, or concrete plugin
 // implementations.
-export type PluginFactory<T> = PluginClass<T>|Plugin<T>|(() => Plugin<T>);
+export type PluginFactory = PluginClass|Plugin|(() => Plugin);
 
-export interface PluginDescriptor<T = undefined> {
+export interface PluginDescriptor {
   // A unique string for your plugin. To ensure the name is unique you
   // may wish to use a URL with reversed components in the manner of
   // Java package names.
@@ -366,5 +361,5 @@ export interface PluginDescriptor<T = undefined> {
 
   // The plugin factory used to instantiate the plugin object, or if this is
   // an actual plugin implementation, it's just used as-is.
-  plugin: PluginFactory<T>;
+  plugin: PluginFactory;
 }
