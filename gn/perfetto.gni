@@ -338,6 +338,13 @@ declare_args() {
   # Skip buildtools dependency checks (needed for ChromeOS).
   skip_buildtools_check = false
 
+  # Used by CrOS builds. Uses pkg-config to determine the appropriate flags
+  # for including and linking system libraries.
+  #   set `pkg_config` to the `BUILD_PKG_CONFIG` and
+  #   set `target_pkg_config` to the target `PKG_CONFIG`.
+  # Note: that if this is enabled `perfetto_use_system_protobuf` should be also.
+  perfetto_use_pkgconfig = false
+
   # Used by CrOS system builds. Uses the system version of protobuf
   # from /usr/include instead of the hermetic one.
   perfetto_use_system_protobuf = false
@@ -393,3 +400,9 @@ assert(perfetto_force_dlog == "" || perfetto_force_dlog == "on" ||
 # must be set as well. Doesn't make sense to build traced_probes without the
 # rest. traced_probes integration tests depend on traced.
 assert(!enable_perfetto_traced_probes || enable_perfetto_platform_services)
+
+# |perfetto_use_pkgconfig| changes the behavior of
+# |perfetto_use_system_protobuf|, so if perfetto_use_pkgconfig is set,
+# |perfetto_use_system_protobuf| must be set.
+assert(!perfetto_use_pkgconfig || perfetto_use_system_protobuf,
+       "perfetto_use_pkgconfig requires perfetto_use_system_protobuf")
