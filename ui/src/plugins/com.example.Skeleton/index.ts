@@ -18,7 +18,6 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
-  TrackInstanceDescriptor,
 } from '../../public';
 
 interface State {
@@ -45,11 +44,6 @@ class Skeleton implements Plugin<State> {
 
   onDeactivate(_: PluginContext): void {
     //
-  }
-
-  async findPotentialTracks(_: PluginContextTrace<State>):
-      Promise<TrackInstanceDescriptor[]> {
-    return [];
   }
 
   metricVisualisations(_: PluginContextTrace<State>): MetricVisualisation[] {

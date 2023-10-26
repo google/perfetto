@@ -349,7 +349,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     if (!trackState) return;
 
-    const {id, uri} = trackState;
+    const {id, uri, params} = trackState;
 
     const trackCtx: TrackContext = {
       trackInstanceId: id,
@@ -361,11 +361,12 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
         });
         return store.createProxy<T>(['tracks', trackId, 'state']);
       },
+      params,
     };
 
     this.track = pluginManager.createTrack(uri, trackCtx);
 
-    this.track?.onCreate();
+    this.track?.onCreate(trackCtx);
     this.trackState = trackState;
   }
 

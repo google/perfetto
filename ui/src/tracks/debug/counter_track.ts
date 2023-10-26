@@ -15,14 +15,13 @@
 import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
-import {Actions, DEBUG_COUNTER_TRACK_KIND} from '../../common/actions';
+import {Actions} from '../../common/actions';
 import {EngineProxy} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs} from '../../frontend/track';
 import {TrackButton} from '../../frontend/track_panel';
-import {PrimaryTrackSortKey} from '../../public';
+import {PrimaryTrackSortKey, TrackContext} from '../../public';
 
 import {DEBUG_COUNTER_TRACK_URI} from '.';
 
@@ -39,14 +38,18 @@ export interface CounterDebugTrackConfig {
 
 export class DebugCounterTrack extends
     BaseCounterTrack<CounterDebugTrackConfig> {
-  static readonly kind = DEBUG_COUNTER_TRACK_KIND;
-
-  static create(args: NewTrackArgs) {
-    return new DebugCounterTrack(args);
+  constructor(engine: EngineProxy, trackKey: string) {
+    super({
+      engine,
+      trackId: trackKey,
+    });
   }
 
-  constructor(args: NewTrackArgs) {
-    super(args);
+  onCreate(ctx: TrackContext): void {
+    // TODO(stevegolton): Validate params before type asserting.
+    // TODO(stevegolton): Avoid just pushing this config up for some base
+    // class to use. Be more explicit.
+    this.config = ctx.params as CounterDebugTrackConfig;
   }
 
   getTrackShellButtons(): m.Children {
@@ -112,7 +115,7 @@ export async function addDebugCounterTrack(
       name: trackName.trim() || `Debug Track ${debugTrackId}`,
       trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      initialState: {
+      params: {
         sqlTableName,
         columns,
       },

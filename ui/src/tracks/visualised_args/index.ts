@@ -26,10 +26,10 @@ import {
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  TrackContext,
 } from '../../public';
 import {ChromeSliceTrack} from '../chrome_slices';
 
-export const VISUALISED_ARGS_SLICE_TRACK_KIND = 'VisualisedArgsTrack';
 export const VISUALISED_ARGS_SLICE_TRACK_URI = 'perfetto.VisualisedArgs';
 
 export interface VisualisedArgsState {
@@ -51,7 +51,7 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
     this.helperViewName = `${escapedNamespace}_slice`;
   }
 
-  async onCreate(): Promise<void> {
+  async onCreate(_ctx: TrackContext): Promise<void> {
     // Create the helper view - just one which is relevant to this slice
     await this.engine.query(`
           create view ${this.helperViewName} as
@@ -109,28 +109,21 @@ export class VisualisedArgsTrack extends ChromeSliceTrack {
 class VisualisedArgsPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
   async onTraceLoad(ctx: PluginContextTrace<undefined>): Promise<void> {
-    ctx.addTrack({
+    ctx.registerTrack({
       uri: VISUALISED_ARGS_SLICE_TRACK_URI,
-      displayName: 'Visualised Args',
-      kind: VISUALISED_ARGS_SLICE_TRACK_KIND,
       tags: {
         metric: true,  // TODO(stevegolton): Is this track really a metric?
       },
       track: (trackCtx) => {
-        // Mount the store and migrate initial state.
-        const store = trackCtx.mountStore((initialState) => {
-          // TODO(stevegolton): Check initialState properly. Note, this is no
-          // worse than the situation we had before with track config.
-          // When we migrate to "proper" dynamic tracks, the problem of
-          // migrating state will be pushed up to the plugin anyway.
-          return initialState as VisualisedArgsState;
-        });
+        // TODO(stevegolton): Validate params properly. Note, this is no
+        // worse than the situation we had before with track config.
+        const params = trackCtx.params as VisualisedArgsState;
         return new VisualisedArgsTrack(
             ctx.engine,
-            store.state.maxDepth,
+            params.maxDepth,
             trackCtx.trackInstanceId,
-            store.state.trackId,
-            store.state.argName,
+            params.trackId,
+            params.argName,
         );
       },
     });
