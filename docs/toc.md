@@ -72,6 +72,7 @@
   * [Trace Packet proto](reference/trace-packet-proto.autogen)
   * [perfetto cmdline](reference/perfetto-cli.md)
   * [heap_profile cmdline](reference/heap_profile-cli.md)
+  * [UI Plugin API](reference/ui-plugin-api.autogen)
   * [Synthetic TrackEvent](reference/synthetic-track-event.md)
   * [Android Version Notes](reference/android-version-notes.md)
   * [Stats table](analysis/sql-stats.autogen)

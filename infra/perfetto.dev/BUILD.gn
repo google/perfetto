@@ -37,6 +37,7 @@ group("site") {
     ":gen_toc",
     ":gen_trace_config_proto",
     ":gen_trace_packet_proto",
+    ":gen_ui_plugin_api_html",
     ":node_assets",
     ":readme",
     ":style_scss",
@@ -188,6 +189,31 @@ md_to_html("gen_sql_stats_html") {
     ":gen_toc",
   ]
   out_html = "docs/analysis/sql-stats"
+}
+
+ui_plugin_api_md = "${target_gen_dir}/ui-plugin-api.md"
+
+nodejs_script("gen_ui_plugin_api_md") {
+  script = "src/gen_ui_reference.js"
+  input = "../../ui/src/public/index.ts"
+  inputs = [ input ]
+  outputs = [ ui_plugin_api_md ]
+  args = [
+    "-i",
+    rebase_path(input, root_build_dir),
+    "-o",
+    rebase_path(ui_plugin_api_md, root_build_dir),
+  ]
+}
+
+md_to_html("gen_ui_plugin_api_html") {
+  markdown = ui_plugin_api_md
+  html_template = "src/template_markdown.html"
+  deps = [
+    ":gen_toc",
+    ":gen_ui_plugin_api_md",
+  ]
+  out_html = "docs/reference/ui-plugin-api"
 }
 
 # Generates a html reference for a proto
