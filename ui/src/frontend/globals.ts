@@ -283,7 +283,7 @@ class Globals {
     sliceIds: new Float64Array(0),
     tsStarts: new BigInt64Array(0),
     utids: new Float64Array(0),
-    trackIds: [],
+    trackKeys: [],
     sources: [],
     totalResults: 0,
   };
@@ -663,7 +663,7 @@ class Globals {
       sliceIds: new Float64Array(0),
       tsStarts: new BigInt64Array(0),
       utids: new Float64Array(0),
-      trackIds: [],
+      trackKeys: [],
       sources: [],
       totalResults: 0,
     };

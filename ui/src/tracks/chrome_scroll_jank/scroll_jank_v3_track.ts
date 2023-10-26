@@ -49,7 +49,7 @@ export class ScrollJankV3Track extends
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: ScrollJankV3Track.kind,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

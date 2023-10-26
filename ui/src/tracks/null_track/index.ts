@@ -50,9 +50,9 @@ class NullTrackPlugin implements Plugin {
       uri: NULL_TRACK_URI,
       displayName: 'Null Track',
       kind: NULL_TRACK_KIND,
-      track: ({trackInstanceId}) => NullTrack.create({
+      track: ({trackKey}) => NullTrack.create({
         engine: ctx.engine,
-        trackId: trackInstanceId,
+        trackKey,
       }),
     });
   }

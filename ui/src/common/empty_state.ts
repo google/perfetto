@@ -93,7 +93,7 @@ export function createEmptyState(): State {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     traceTime: {...defaultTraceTime},
     tracks: {},
-    uiTrackIdByTraceTrackId: {},
+    trackKeyByTrackId: {},
     utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},

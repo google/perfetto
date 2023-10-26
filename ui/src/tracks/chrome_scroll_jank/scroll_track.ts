@@ -59,7 +59,7 @@ export class TopLevelScrollTrack extends
 
     ScrollJankPluginState.getInstance().registerTrack({
       kind: TopLevelScrollTrack.kind,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });

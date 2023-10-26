@@ -133,14 +133,14 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
   private minimumDeltaSeen = 0;
   private maxDurNs: duration = 0n;
   private store: Store<CounterTrackState>;
-  private id: string;
+  private trackKey: string;
   private uuid = uuidv4();
   private isSetup = false;
 
   constructor(
       ctx: TrackContext, private config: Config, private engine: EngineProxy) {
     super();
-    this.id = ctx.trackInstanceId;
+    this.trackKey = ctx.trackKey;
     this.store = ctx.mountStore<CounterTrackState>((init: unknown) => {
       if (isCounterState(init)) {
         return init;
@@ -599,7 +599,7 @@ export class CounterTrack extends BasicAsyncTrack<Data> {
         leftTs: Time.fromRaw(data.timestamps[left]),
         rightTs: Time.fromRaw(right !== -1 ? data.timestamps[right] : -1n),
         id: counterId,
-        trackId: this.id,
+        trackKey: this.trackKey,
       }));
       return true;
     }
