@@ -19,7 +19,7 @@ import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect} from '../frontend/track';
-import {Track} from '../public';
+import {Track, TrackContext} from '../public';
 
 import {TrackData} from './track_data';
 
@@ -45,7 +45,7 @@ export abstract class BasicAsyncTrack<Data> implements Track {
   private currentState?: TrackData;
   protected data?: Data;
 
-  onCreate(): void {}
+  onCreate(_ctx: TrackContext): void {}
 
   onDestroy(): void {
     this.queuedRequest = false;
