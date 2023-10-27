@@ -119,7 +119,7 @@ void RegisterFunction(PerfettoSqlEngine* engine,
                       int argc,
                       Ptr context = nullptr,
                       bool deterministic = true) {
-  auto status = engine->RegisterCppFunction<SqlFunction>(
+  auto status = engine->RegisterStaticFunction<SqlFunction>(
       name, argc, std::move(context), deterministic);
   if (!status.ok())
     PERFETTO_ELOG("%s", status.c_message());

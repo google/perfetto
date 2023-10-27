@@ -322,7 +322,7 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
   return ExecutionResult{std::move(*res), stats};
 }
 
-base::Status PerfettoSqlEngine::RegisterSqlFunction(
+base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
     bool replace,
     const FunctionPrototype& prototype,
     std::string return_type_str,
@@ -348,7 +348,7 @@ base::Status PerfettoSqlEngine::RegisterSqlFunction(
     std::unique_ptr<CreatedFunction::Context> created_fn_ctx =
         CreatedFunction::MakeContext(this);
     ctx = created_fn_ctx.get();
-    RETURN_IF_ERROR(RegisterCppFunction<CreatedFunction>(
+    RETURN_IF_ERROR(RegisterStaticFunction<CreatedFunction>(
         prototype.function_name.c_str(), created_argc,
         std::move(created_fn_ctx)));
   }
@@ -487,7 +487,7 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
     const PerfettoSqlParser& parser) {
   if (!cf.is_table) {
     RETURN_IF_ERROR(
-        RegisterSqlFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
+        RegisterRuntimeFunction(cf.replace, cf.prototype, cf.returns, cf.sql));
     return RewriteToDummySql(parser.statement_sql());
   }
 
