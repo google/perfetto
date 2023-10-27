@@ -15,8 +15,14 @@
 import("perfetto.gni")
 
 declare_args() {
-  pkg_config = "pkg-config"
-  target_pkg_config = "pkg-config"
+  # These are provided by chromium's build/config/linux/pkg_config.gni, but
+  # need to be defined if they have not been already.
+  if (!defined(pkg_config)) {
+    pkg_config = "pkg-config"
+  }
+  if (!defined(host_pkg_config)) {
+    host_pkg_config = "pkg-config"
+  }
 }
 
 # Defines a config specifying the result of running pkg-config for the given
@@ -29,9 +35,9 @@ template("pkg_config") {
       forward_variables_from(invoker, "*")
 
       if (current_toolchain == host_toolchain) {
-        _cmd = pkg_config
+        _cmd = host_pkg_config
       } else {
-        _cmd = target_pkg_config
+        _cmd = pkg_config
       }
       _pkg_config_result =
           exec_script("//gn/pkg-config_wrapper.py", [ _cmd ] + pkg_deps, "json")
