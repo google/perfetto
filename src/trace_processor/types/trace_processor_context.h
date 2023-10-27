@@ -36,6 +36,7 @@ enum TraceType {
   kCtraceTraceType,
   kNinjaLogTraceType,
   kAndroidBugreportTraceType,
+  kPerfDataTraceType,
 };
 
 class ArgsTracker;
@@ -120,6 +121,7 @@ class TraceProcessorContext {
   std::unique_ptr<Destructible> systrace_parser;         // SystraceParser
   std::unique_ptr<Destructible> thread_state_tracker;    // ThreadStateTracker
   std::unique_ptr<Destructible> i2c_tracker;             // I2CTracker
+  std::unique_ptr<Destructible> perf_data_tracker;       // PerfDataTracker
   std::unique_ptr<Destructible> content_analyzer;
 
   // These fields are trace readers which will be called by |forwarding_parser|
@@ -131,12 +133,14 @@ class TraceProcessorContext {
   std::unique_ptr<ChunkedTraceReader> android_bugreport_parser;
   std::unique_ptr<ChunkedTraceReader> systrace_trace_parser;
   std::unique_ptr<ChunkedTraceReader> gzip_trace_parser;
+  std::unique_ptr<ChunkedTraceReader> perf_data_trace_tokenizer;
 
   // These fields are trace parsers which will be called by |forwarding_parser|
   // once the format of the trace is discovered. They are placed here as they
   // are only available in the lib target.
   std::unique_ptr<TraceParser> json_trace_parser;
   std::unique_ptr<TraceParser> fuchsia_trace_parser;
+  std::unique_ptr<TraceParser> perf_data_parser;
 
   // This field contains the list of proto descriptors that can be used by
   // reflection-based parsers.
