@@ -114,7 +114,7 @@ class PERFETTO_EXPORT_COMPONENT TrackEventStateTracker {
 
   // Interface used by the tracker to access tracing session and sequence state
   // and to report parsed track events.
-  class Delegate {
+  class PERFETTO_EXPORT_COMPONENT Delegate {
    public:
     virtual ~Delegate();
 
