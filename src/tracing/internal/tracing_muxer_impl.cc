@@ -1249,8 +1249,9 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
         continue;
       auto* internal_state =
           reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-      if (internal_state->backend_id == backend_id && internal_state->config &&
-          *internal_state->config == cfg) {
+      if (internal_state->backend_id == backend_id &&
+          internal_state->backend_connection_id == backend_connection_id &&
+          internal_state->config && *internal_state->config == cfg) {
         active_for_config = true;
         break;
       }
