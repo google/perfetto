@@ -1708,7 +1708,12 @@ void TracingMuxerImpl::FlushDataSource_AsyncEnd(
   if (!producer)
     return;
 
-  if (producer->connected_) {
+  // If the tracing service disconnects and reconnects while a data source is
+  // handling a flush request, there's no point is sending the flush reply to
+  // the newly reconnected producer.
+  if (producer->connected_ &&
+      backend.producer->connection_id_.load(std::memory_order_relaxed) ==
+          backend_connection_id) {
     producer->NotifyFlushForDataSourceDone(instance_id, flush_id);
   }
 }
