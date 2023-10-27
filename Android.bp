@@ -2277,6 +2277,7 @@ cc_test {
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
+        ":perfetto_src_trace_processor_importers_perf_perf",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -11185,6 +11186,26 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/importers/perf:perf
+filegroup {
+    name: "perfetto_src_trace_processor_importers_perf_perf",
+    srcs: [
+        "src/trace_processor/importers/perf/perf_data_parser.cc",
+        "src/trace_processor/importers/perf/perf_data_reader.cc",
+        "src/trace_processor/importers/perf/perf_data_tokenizer.cc",
+        "src/trace_processor/importers/perf/perf_data_tracker.cc",
+    ],
+}
+
+// GN: //src/trace_processor/importers/perf:unittests
+filegroup {
+    name: "perfetto_src_trace_processor_importers_perf_unittests",
+    srcs: [
+        "src/trace_processor/importers/perf/perf_data_reader_unittest.cc",
+        "src/trace_processor/importers/perf/perf_data_tracker_unittest.cc",
+    ],
+}
+
 // GN: //src/trace_processor/importers/proto:full
 filegroup {
     name: "perfetto_src_trace_processor_importers_proto_full",
@@ -13712,6 +13733,8 @@ cc_test {
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_memory_tracker_unittests",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
+        ":perfetto_src_trace_processor_importers_perf_perf",
+        ":perfetto_src_trace_processor_importers_perf_unittests",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -14425,6 +14448,7 @@ cc_binary {
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
+        ":perfetto_src_trace_processor_importers_perf_perf",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
@@ -14658,6 +14682,7 @@ cc_binary_host {
         ":perfetto_src_trace_processor_importers_json_minimal",
         ":perfetto_src_trace_processor_importers_memory_tracker_graph_processor",
         ":perfetto_src_trace_processor_importers_ninja_ninja",
+        ":perfetto_src_trace_processor_importers_perf_perf",
         ":perfetto_src_trace_processor_importers_proto_full",
         ":perfetto_src_trace_processor_importers_proto_minimal",
         ":perfetto_src_trace_processor_importers_proto_packet_sequence_state_generation_hdr",
