@@ -76,7 +76,7 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
   FunctionPrototype prototype;
   RETURN_IF_ERROR(ParsePrototype(base::StringView(prototype_str), prototype));
 
-  return engine->RegisterSqlFunction(
+  return engine->RegisterRuntimeFunction(
       false, prototype, return_type_str,
       SqlSource::FromTraceProcessorImplementation(std::move(sql_defn_str)));
 }

@@ -246,13 +246,13 @@ struct StackFromStackProfileFrameFunction : public SqlFunction {
 
 base::Status RegisterStackFunctions(PerfettoSqlEngine* engine,
                                     TraceProcessorContext* context) {
-  RETURN_IF_ERROR(engine->RegisterCppFunction<CatStacksFunction>(
+  RETURN_IF_ERROR(engine->RegisterStaticFunction<CatStacksFunction>(
       CatStacksFunction::kFunctionName, -1, context->storage.get()));
   RETURN_IF_ERROR(
-      engine->RegisterCppFunction<StackFromStackProfileFrameFunction>(
+      engine->RegisterStaticFunction<StackFromStackProfileFrameFunction>(
           StackFromStackProfileFrameFunction::kFunctionName, 1,
           context->storage.get()));
-  return engine->RegisterCppFunction<StackFromStackProfileCallsiteFunction>(
+  return engine->RegisterStaticFunction<StackFromStackProfileCallsiteFunction>(
       StackFromStackProfileCallsiteFunction::kFunctionName, -1,
       context->storage.get());
 }
