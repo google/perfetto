@@ -17,11 +17,13 @@ import("perfetto.gni")
 declare_args() {
   # These are provided by chromium's build/config/linux/pkg_config.gni, but
   # need to be defined if they have not been already.
-  if (!defined(pkg_config)) {
-    pkg_config = "pkg-config"
-  }
-  if (!defined(host_pkg_config)) {
-    host_pkg_config = "pkg-config"
+  if (perfetto_use_pkgconfig) {
+    if (!defined(pkg_config)) {
+      pkg_config = "pkg-config"
+    }
+    if (!defined(host_pkg_config)) {
+      host_pkg_config = "pkg-config"
+    }
   }
 }
 
