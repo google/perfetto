@@ -1594,7 +1594,9 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     }
   }
 
-  if (producer->connected_) {
+  if (producer->connected_ &&
+      backend.producer->connection_id_.load(std::memory_order_relaxed) ==
+          backend_connection_id) {
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
