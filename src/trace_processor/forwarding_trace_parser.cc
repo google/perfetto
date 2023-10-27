@@ -22,6 +22,7 @@
 #include "src/trace_processor/importers/proto/proto_trace_parser.h"
 #include "src/trace_processor/importers/proto/proto_trace_reader.h"
 #include "src/trace_processor/sorter/trace_sorter.h"
+#include "src/trace_processor/types/trace_processor_context.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -53,6 +54,7 @@ TraceSorter::SortingMode ConvertSortingMode(SortingMode sorting_mode) {
 // Fuchsia traces have a magic number as documented here:
 // https://fuchsia.googlesource.com/fuchsia/+/HEAD/docs/development/tracing/trace-format/README.md#magic-number-record-trace-info-type-0
 constexpr uint64_t kFuchsiaMagicNumber = 0x0016547846040010;
+constexpr char kPerfMagic[] = "PERFILE2";
 
 }  // namespace
 
@@ -150,6 +152,12 @@ util::Status ForwardingTraceParser::Parse(TraceBlobView blob) {
         }
         return util::ErrStatus("Android Bugreport support is disabled. %s",
                                kNoZlibErr);
+      case kPerfDataTraceType:
+        reader_ = std::move(context_->perf_data_trace_tokenizer);
+        context_->sorter.reset(
+            new TraceSorter(context_, std::move(context_->perf_data_parser),
+                            TraceSorter::SortingMode::kDefault));
+        break;
       case kUnknownTraceType:
         // If renaming this error message don't remove the "(ERR:fmt)" part.
         // The UI's error_dialog.ts uses it to make the dialog more graceful.
@@ -174,6 +182,9 @@ TraceType GuessTraceType(const uint8_t* data, size_t size) {
     memcpy(&first_word, data, sizeof(first_word));
     if (first_word == kFuchsiaMagicNumber)
       return kFuchsiaTraceType;
+  }
+  if (base::StartsWith(start, kPerfMagic)) {
+    return kPerfDataTraceType;
   }
   std::string start_minus_white_space = RemoveWhitespace(start);
   if (base::StartsWith(start_minus_white_space, "{\""))

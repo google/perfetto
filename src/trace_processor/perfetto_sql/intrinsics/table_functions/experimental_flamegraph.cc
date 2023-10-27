@@ -346,7 +346,6 @@ base::Status ExperimentalFlamegraph::ComputeTable(
   if (!table) {
     return base::ErrStatus("Failed to build flamegraph");
   }
-
   if (!values.focus_str.empty()) {
     table =
         FocusTable(context_->storage.get(), std::move(table), values.focus_str);
