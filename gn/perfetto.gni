@@ -340,8 +340,8 @@ declare_args() {
 
   # Used by CrOS builds. Uses pkg-config to determine the appropriate flags
   # for including and linking system libraries.
-  #   set `pkg_config` to the `BUILD_PKG_CONFIG` and
-  #   set `target_pkg_config` to the target `PKG_CONFIG`.
+  #   set `host_pkg_config` to the `BUILD_PKG_CONFIG` and
+  #   set `pkg_config` to the target `PKG_CONFIG`.
   # Note: that if this is enabled `perfetto_use_system_protobuf` should be also.
   perfetto_use_pkgconfig = false
 
