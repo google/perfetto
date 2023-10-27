@@ -28095,6 +28095,66 @@ android_binder {
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
+    client_ts: 25518949676
+    client_dur: 830355
+    client_tid: 665
+    client_pid: 641
+    client_oom_score: -900
+    server_process: "/vendor/bin/hw/android.hardware.sensors-service.example"
+    server_thread: "android.hardwar"
+    server_ts: 25519012535
+    server_dur: 731247
+    server_tid: 458
+    server_pid: 458
+    server_oom_score: -1000
+    is_sync: true
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "D"
+      thread_state_dur: 68596
+      thread_state_count: 2
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "R"
+      thread_state_dur: 31062
+      thread_state_count: 3
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "Running"
+      thread_state_dur: 592795
+      thread_state_count: 4
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "S"
+      thread_state_dur: 38794
+      thread_state_count: 1
+    }
+    thread_states {
+      thread_state_type: "binder_txn"
+      thread_state: "R+"
+      thread_state_dur: 725649
+      thread_state_count: 2
+    }
+    thread_states {
+      thread_state_type: "binder_txn"
+      thread_state: "Running"
+      thread_state_dur: 104706
+      thread_state_count: 3
+    }
+    blocked_functions {
+      thread_state_type: "binder_reply"
+      blocked_function: "filemap_fault"
+      blocked_function_dur: 68596
+      blocked_function_count: 2
+    }
+  }
+  unaggregated_txn_breakdown {
+    client_process: "system_server"
+    client_thread: "system-server-i"
+    is_main_thread: false
     client_ts: 25519832521
     client_dur: 244039
     client_tid: 665
@@ -37998,6 +38058,78 @@ android_binder {
       thread_state: "S"
       thread_state_dur: 301036
       thread_state_count: 1
+    }
+  }
+  unaggregated_txn_breakdown {
+    client_process: "system_server"
+    client_thread: "system_server"
+    is_main_thread: true
+    client_ts: 25527443006
+    client_dur: 1819341
+    client_tid: 641
+    client_pid: 641
+    client_oom_score: -900
+    server_process: "/vendor/bin/hw/android.hardware.health-service.cuttlefish"
+    server_thread: "android.hardwar"
+    server_ts: 25527521293
+    server_dur: 1719445
+    server_tid: 431
+    server_pid: 431
+    server_oom_score: -1000
+    is_sync: true
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "D"
+      thread_state_dur: 309692
+      thread_state_count: 2
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "R"
+      thread_state_dur: 95214
+      thread_state_count: 3
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "Running"
+      thread_state_dur: 391900
+      thread_state_count: 4
+    }
+    thread_states {
+      thread_state_type: "binder_reply"
+      thread_state: "S"
+      thread_state_dur: 922639
+      thread_state_count: 1
+    }
+    thread_states {
+      thread_state_type: "binder_txn"
+      thread_state: "R"
+      thread_state_dur: 890364
+      thread_state_count: 2
+    }
+    thread_states {
+      thread_state_type: "binder_txn"
+      thread_state: "Running"
+      thread_state_dur: 103345
+      thread_state_count: 3
+    }
+    thread_states {
+      thread_state_type: "binder_txn"
+      thread_state: "S"
+      thread_state_dur: 825632
+      thread_state_count: 2
+    }
+    blocked_functions {
+      thread_state_type: "binder_reply"
+      blocked_function: "do_read_cache_page"
+      blocked_function_dur: 157155
+      blocked_function_count: 1
+    }
+    blocked_functions {
+      thread_state_type: "binder_reply"
+      blocked_function: "filemap_fault"
+      blocked_function_dur: 152537
+      blocked_function_count: 1
     }
   }
   unaggregated_txn_breakdown {
