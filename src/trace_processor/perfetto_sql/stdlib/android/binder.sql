@@ -39,16 +39,27 @@ GROUP BY
   slice_name;
 
 CREATE PERFETTO TABLE internal_binder_txn_merged AS
-WITH
+WITH maybe_broken_binder_txn AS (
   -- Fetch the broken binder txns first, i.e, the txns that have children slices
-  -- They are definietly broken because synchronous txns are blocked sleeping while
+  -- They may be broken because synchronous txns are typically blocked sleeping while
   -- waiting for a response.
   -- These broken txns will be excluded below in the binder_txn CTE
-  broken_binder_txn AS (
-    SELECT ancestor.id FROM slice
-    JOIN slice ancestor ON ancestor.id = slice.parent_id
+    SELECT ancestor.id
+    FROM slice
+    JOIN slice ancestor
+      ON ancestor.id = slice.parent_id
     WHERE ancestor.name = 'binder transaction'
     GROUP BY ancestor.id
+), nested_binder_txn AS (
+  -- Detect the non-broken cases which are just nested binder txns
+    SELECT slice_out AS id
+    FROM maybe_broken_binder_txn
+    JOIN following_flow(maybe_broken_binder_txn.id)
+  ), broken_binder_txn AS (
+  -- Exclude the nested txns from the 'maybe broken' set
+    SELECT * FROM maybe_broken_binder_txn
+    EXCEPT
+    SELECT * FROM nested_binder_txn
   ),
   -- Adding MATERIALIZED here matters in cases where there are few/no binder
   -- transactions in the trace. Our cost estimation is not good enough to allow
