@@ -150,8 +150,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
-      if (panel.attrs.id !== undefined) {
-        tracks.push(panel.attrs.id);
+      if (panel.attrs.trackKey !== undefined) {
+        tracks.push(panel.attrs.trackKey);
         continue;
       }
       if (panel.attrs.trackGroupId !== undefined) {
@@ -353,7 +353,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       const vnode = assertExists(this.panelByKey.get(key));
 
       // NOTE: the id can be undefined for singletons like overview timeline.
-      const id = vnode.attrs.id || vnode.attrs.trackGroupId || '';
+      const id = vnode.attrs.trackKey || vnode.attrs.trackGroupId || '';
       const rect = panel.getBoundingClientRect();
       this.panelInfos.push({
         id,
