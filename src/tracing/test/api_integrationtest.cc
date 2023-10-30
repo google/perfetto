@@ -5996,6 +5996,167 @@ TEST_P(PerfettoApiTest, SystemDisconnect) {
   EXPECT_THAT(test_strings, AllOf(Not(IsEmpty()), Each("New session")));
 }
 
+TEST_P(PerfettoApiTest, SystemDisconnectAsyncOnStopNoTracing) {
+  if (GetParam() != perfetto::kSystemBackend) {
+    GTEST_SKIP();
+  }
+  auto* data_source = &data_sources_["my_data_source"];
+  data_source->handle_stop_asynchronously = true;
+
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(64);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  std::atomic<bool> quit1{false};
+  WaitableTestEvent tracing1;
+  std::thread t([&] {
+    while (!quit1) {
+      MockDataSource::Trace(
+          [&](MockDataSource::TraceContext) { tracing1.Notify(); });
+      std::this_thread::yield();
+    }
+  });
+  auto cleanup = MakeCleanup([&] {
+    if (t.joinable()) {
+      quit1 = true;
+      t.join();
+    }
+  });
+  tracing1.Wait();
+
+  // Restarts the system service. This will cause the producer and consumer to
+  // disconnect.
+  system_service_.Restart();
+
+  // The data source instance should be stopped. Don't acknowledge the stop yet.
+  data_source->on_stop.Wait();
+
+  tracing_session->on_stop.Wait();
+
+  std::unique_ptr<perfetto::TracingSession> new_session =
+      perfetto::Tracing::NewTrace(/*backend=*/GetParam());
+  bool reconnected = false;
+  for (size_t i = 0; i < 100; i++) {
+    // Blocking read.
+    auto result = new_session->QueryServiceStateBlocking();
+    perfetto::protos::gen::TracingServiceState state;
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                     result.service_state_data.size()));
+    // The producer has connected to the new restarted system service.
+    if (state.producers().size() == 1) {
+      reconnected = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(reconnected);
+
+  data_source->async_stop_closure();
+
+  data_source->handle_stop_asynchronously = false;
+}
+
+TEST_P(PerfettoApiTest, SystemDisconnectAsyncOnStopRestartTracing) {
+  if (GetParam() != perfetto::kSystemBackend) {
+    GTEST_SKIP();
+  }
+  auto* data_source = &data_sources_["my_data_source"];
+  data_source->handle_stop_asynchronously = true;
+
+  perfetto::TraceConfig cfg;
+  auto* buffer = cfg.add_buffers();
+  buffer->set_size_kb(64);
+  auto* ds_cfg = cfg.add_data_sources()->mutable_config();
+  ds_cfg->set_name("my_data_source");
+  auto* tracing_session = NewTrace(cfg);
+  tracing_session->get()->StartBlocking();
+
+  std::atomic<bool> quit1{false};
+  WaitableTestEvent tracing1;
+  std::atomic<bool> quit2{false};
+  WaitableTestEvent tracing2;
+  std::thread t([&] {
+    while (!quit1) {
+      MockDataSource::Trace(
+          [&](MockDataSource::TraceContext) { tracing1.Notify(); });
+      std::this_thread::yield();
+    }
+    while (!quit2) {
+      MockDataSource::Trace([&](MockDataSource::TraceContext ctx) {
+        {
+          auto packet = ctx.NewTracePacket();
+          packet->set_for_testing()->set_str("New session");
+        }
+        { auto packet = ctx.NewTracePacket(); }
+        tracing2.Notify();
+      });
+      std::this_thread::yield();
+    }
+  });
+  auto cleanup = MakeCleanup([&] {
+    if (t.joinable()) {
+      quit1 = true;
+      quit2 = true;
+      t.join();
+    }
+  });
+  tracing1.Wait();
+
+  // Restarts the system service. This will cause the producer and consumer to
+  // disconnect.
+  system_service_.Restart();
+
+  // The data source instance should be stopped. Don't acknowledge the stop yet.
+  data_source->on_stop.Wait();
+
+  tracing_session->on_stop.Wait();
+
+  std::unique_ptr<perfetto::TracingSession> new_session =
+      perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
+  bool reconnected = false;
+  for (size_t i = 0; i < 100; i++) {
+    // Blocking read.
+    auto result = new_session->QueryServiceStateBlocking();
+    perfetto::protos::gen::TracingServiceState state;
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                     result.service_state_data.size()));
+    // The producer has connected to the new restarted system service.
+    if (state.producers().size() == 1) {
+      reconnected = true;
+      break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_TRUE(reconnected);
+
+  auto* tracing_session2 = NewTrace(cfg);
+  tracing_session2->get()->StartBlocking();
+
+  data_source->async_stop_closure();
+
+  quit1 = true;
+  tracing2.Wait();
+  quit2 = true;
+  t.join();
+
+  data_source->handle_stop_asynchronously = false;
+
+  auto trace = StopSessionAndReturnParsedTrace(tracing_session2);
+  std::vector<std::string> test_strings;
+  for (auto& trace_packet : trace.packet()) {
+    if (trace_packet.has_for_testing()) {
+      test_strings.push_back(trace_packet.for_testing().str());
+    }
+  }
+  EXPECT_THAT(test_strings, AllOf(Not(IsEmpty()), Each("New session")));
+}
+
 class PerfettoStartupTracingApiTest : public PerfettoApiTest {
  public:
   using SetupStartupTracingOpts = perfetto::Tracing::SetupStartupTracingOpts;
