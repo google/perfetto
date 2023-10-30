@@ -19,6 +19,7 @@ import {Icon} from './icon';
 interface CalloutAttrs {
   icon?: string;
   // Remaining attributes forwarded to the underlying HTML <button>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

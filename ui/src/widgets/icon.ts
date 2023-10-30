@@ -24,6 +24,7 @@ export interface IconAttrs {
   filled?: boolean;
   // List of space separated class names forwarded to the icon.
   className?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

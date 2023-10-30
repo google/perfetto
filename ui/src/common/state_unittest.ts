@@ -51,6 +51,7 @@ test('state is serializable', () => {
   const restored: State = deserializeStateObject(json);
 
   // Remove nonSerializableState from original
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const serializableState: any = state as any;
   delete serializableState['nonSerializableState'];
 

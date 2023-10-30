@@ -257,6 +257,7 @@ function PortalButton() {
   let portalOpen = false;
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     view: function({attrs}: any) {
       const {
         zIndex = true,
@@ -351,12 +352,14 @@ interface WidgetShowcaseAttrs {
   label: string;
   description?: string;
   initialOpts?: Options;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderWidget: (options: any) => any;
   wide?: boolean;
 }
 
 // A little helper class to render any vnode with a dynamic set of options
 class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private optValues: any = {};
   private opts?: Options;
 
@@ -508,6 +511,7 @@ export const WidgetsPage = createPage({
         }),
         m(WidgetShowcase, {
           label: 'Switch',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           renderWidget: ({label, ...rest}: any) =>
               m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
           initialOpts: {

@@ -41,6 +41,7 @@ export class CommandManager {
     return sourcesArray.flatMap((source) => source.commands());
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): void {
     const cmd = this.commands.find((cmd) => cmd.id === id);
     if (cmd) {

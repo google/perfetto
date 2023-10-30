@@ -92,6 +92,7 @@ class FrontendApi {
     const edits = actions.map((action) => {
       return traceEvent(`action.${action.type}`, () => {
         return (draft: Draft<State>) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (StateActions as any)[action.type](draft, action.args);
         };
       }, {

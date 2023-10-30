@@ -24,6 +24,7 @@ export interface SelectAttrs {
   disabled?: boolean;
   // Whether to show a search box. Defaults to false.
   filterable?: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
