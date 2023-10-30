@@ -150,6 +150,7 @@ bool TrackEventInternal::Initialize(
     bool (*register_data_source)(const DataSourceDescriptor&)) {
   DataSourceDescriptor dsd;
   dsd.set_name("track_event");
+  dsd.set_no_flush(true);
 
   protozero::HeapBuffered<protos::pbzero::TrackEventDescriptor> ted;
   for (size_t i = 0; i < registry.category_count(); i++) {
