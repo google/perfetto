@@ -840,3 +840,163 @@ class AndroidStdlib(TestSuite):
             /system/bin/servicemanager (0x0)
             /system/bin/storaged (0x0)
         """))
+
+  def test_android_dvfs_counters(self):
+      return DiffTestBlueprint(
+          trace=TextProto(r"""
+          packet {
+            ftrace_events {
+              cpu: 0
+              event {
+                timestamp: 200001000000
+                pid: 2
+                clock_set_rate {
+                  name : "domain@1"
+                  state: 400000
+                }
+              }
+              event {
+                timestamp: 200003000000
+                pid: 2
+                clock_set_rate {
+                  name: "domain@1"
+                  state: 1024000
+                }
+              }
+              event {
+                timestamp: 200005000000
+                pid: 2
+                clock_set_rate {
+                  name: "domain@1"
+                  state: 1024000
+                }
+              }
+            }
+            trusted_uid: 9999
+            trusted_packet_sequence_id: 2
+          }
+         """),
+         query="""
+         INCLUDE PERFETTO MODULE android.dvfs;
+         SELECT * FROM android_dvfs_counters;
+         """,
+         out=Csv("""
+         "name","ts","value","dur"
+         "domain@1 Frequency",200001000000,400000.000000,2000000
+         "domain@1 Frequency",200003000000,1024000.000000,2000000
+         "domain@1 Frequency",200005000000,1024000.000000,1
+         """))
+
+  def test_android_dvfs_counter_stats(self):
+      return DiffTestBlueprint(
+          trace=TextProto(r"""
+          packet {
+            ftrace_events {
+              cpu: 0
+              event {
+                timestamp: 200001000000
+                pid: 2
+                clock_set_rate {
+                  name : "domain@1"
+                  state: 400000
+                }
+              }
+              event {
+                timestamp: 200001000000
+                pid: 2
+                clock_set_rate {
+                name : "bus_throughput"
+                state: 1014000
+                }
+              }
+              event {
+                timestamp: 200003000000
+                pid: 2
+                clock_set_rate {
+                  name: "domain@1"
+                  state: 1024000
+                }
+              }
+              event {
+                timestamp: 200003000000
+                pid: 2
+                clock_set_rate {
+                  name: "bus_throughput"
+                  state: 553000
+                }
+              }
+              event {
+                timestamp: 200005000000
+                pid: 2
+                clock_set_rate {
+                  name: "domain@1"
+                  state: 1024000
+                }
+              }
+              event {
+                timestamp: 200005000000
+                pid: 527
+                clock_set_rate {
+                  name: "bus_throughput"
+                  state: 553000
+                }
+              }
+            }
+            trusted_uid: 9999
+            trusted_packet_sequence_id: 2
+          }
+         """),
+         query="""
+         INCLUDE PERFETTO MODULE android.dvfs;
+         SELECT * FROM android_dvfs_counter_stats;
+         """,
+         out=Csv("""
+         "name","max","min","dur","wgt_avg"
+         "bus_throughput Frequency",1014000.000000,553000.000000,4000000,783499.942375
+         "domain@1 Frequency",1024000.000000,400000.000000,4000000,712000.078000
+         """))
+
+  def test_android_dvfs_counter_residency(self):
+      return DiffTestBlueprint(
+          trace=TextProto(r"""
+          packet {
+            ftrace_events {
+              cpu: 0
+              event {
+                timestamp: 200001000001
+                pid: 2
+                clock_set_rate {
+                name : "bus_throughput"
+                state: 1014000
+                }
+              }
+              event {
+                timestamp: 200003000001
+                pid: 2
+                clock_set_rate {
+                  name: "bus_throughput"
+                  state: 553000
+                }
+              }
+              event {
+                timestamp: 200005000000
+                pid: 527
+                clock_set_rate {
+                  name: "bus_throughput"
+                  state: 553000
+                }
+              }
+            }
+            trusted_uid: 9999
+            trusted_packet_sequence_id: 2
+          }
+         """),
+         query="""
+         INCLUDE PERFETTO MODULE android.dvfs;
+         SELECT * FROM android_dvfs_counter_residency;
+         """,
+         out=Csv("""
+         "name","value","dur","pct"
+         "bus_throughput Frequency",553000.000000,2000000,50.000000
+         "bus_throughput Frequency",1014000.000000,2000000,50.000000
+         """))
