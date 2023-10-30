@@ -37,7 +37,7 @@ import {
   TraceConfig,
   TrackEventConfig,
   VmstatCounters,
-} from '../../core/protos';
+} from '../../protos';
 
 import {TargetInfo} from './recording_interfaces_v2';
 

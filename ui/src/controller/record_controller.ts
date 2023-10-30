@@ -26,12 +26,12 @@ import {
   isChromeTarget,
   RecordingTarget,
 } from '../common/state';
+import {globals} from '../frontend/globals';
+import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 import {
   ConsumerPort,
   TraceConfig,
-} from '../core/protos';
-import {globals} from '../frontend/globals';
-import {publishBufferUsage, publishTrackData} from '../frontend/publish';
+} from '../protos';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';

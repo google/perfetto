@@ -14,7 +14,7 @@
 
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
-import {StatusResult} from '../core/protos';
+import {StatusResult} from '../protos';
 
 import {Engine, LoadingTracker} from './engine';
 

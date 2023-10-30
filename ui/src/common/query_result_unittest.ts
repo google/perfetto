@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {QueryResult as QueryResultProto} from '../core/protos';
+import {QueryResult as QueryResultProto} from '../protos';
 
 import {
   createQueryResult,
