@@ -17,7 +17,7 @@ import {
   PerfettoMetatrace,
   Trace,
   TracePacket,
-} from '../core/protos';
+} from '../protos';
 
 import {featureFlags} from './feature_flags';
 

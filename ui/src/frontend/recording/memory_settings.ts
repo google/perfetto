@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {MeminfoCounters, VmstatCounters} from '../../core/protos';
+import {MeminfoCounters, VmstatCounters} from '../../protos';
 import {globals} from '../globals';
 import {
   Dropdown,
