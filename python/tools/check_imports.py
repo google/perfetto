@@ -62,7 +62,7 @@ digraph g {
     _plugins [shape=ellipse, label="/plugins"];
     _chrome_extension [shape=ellipse, label="/chrome_extension"];
     _trace_processor [shape=ellipse, label="/trace_processor" color="green"];
-    _protos [shape=ellipse, label="/protos" color="green"];
+    _protos [shape=ellipse, label="/protos"];
     engine_worker_bundle [shape=cds, label="Engine worker bundle"];
     frontend_bundle [shape=cds, label="Frontend bundle"];
 
@@ -110,8 +110,8 @@ digraph g {
     _gen -> protos;
     _core -> _gen [color=red];
 
-    _core -> _protos [color=green];
-    _protos -> _gen [color=green];
+    _core -> _protos;
+    _protos -> _gen;
     _trace_processor -> _protos [color=green];
 
     _trace_processor -> _public [color=green];
@@ -218,9 +218,9 @@ class NoCircularDeps(object):
 # NoCircularDeps = forbid introduction of circular dependencies
 RULES = [
     AllowList(
-        ['/core/protos'],
+        ['/protos/index'],
         r'/gen/protos',
-        'protos should be re-exported from /core/protos without the nesting.',
+        'protos should be re-exported from /protos/index without the nesting.',
     ),
     NoDirectDep(
         r'/plugins/.*',

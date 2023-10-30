@@ -27,7 +27,7 @@ import {
   ResetTraceProcessorArgs,
   TraceProcessorRpc,
   TraceProcessorRpcStream,
-} from '../core/protos';
+} from '../protos';
 
 import {ProtoRingBuffer} from './proto_ring_buffer';
 import {
