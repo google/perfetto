@@ -21,7 +21,7 @@ import {
   GetTraceStatsResponse,
   IPCFrame,
   ReadBuffersResponse,
-} from '../core/protos';
+} from '../protos';
 
 import {AdbBaseConsumerPort, AdbConnectionState} from './adb_base_controller';
 import {Adb, AdbStream} from './adb_interfaces';

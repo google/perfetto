@@ -23,12 +23,12 @@ import {
   ReadBuffersResponse,
 } from '../controller/consumer_port_types';
 import {RpcConsumerPort} from '../controller/record_controller_interfaces';
-import {ITraceStats, TraceConfig} from '../core/protos';
 import {
   browserSupportsPerfettoConfig,
   extractTraceConfig,
   hasSystemDataSourceConfig,
 } from '../core/trace_config_utils';
+import {ITraceStats, TraceConfig} from '../protos';
 
 import {DevToolsSocket} from './devtools_socket';
 
