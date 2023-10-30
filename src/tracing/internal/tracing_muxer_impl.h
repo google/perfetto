@@ -114,6 +114,7 @@ class TracingMuxerImpl : public TracingMuxer {
     DataSourceFactory factory{};
     bool supports_multiple_instances = false;
     bool requires_callbacks_under_lock = false;
+    bool no_flush = false;
     DataSourceStaticState* static_state = nullptr;
   };
 
@@ -125,6 +126,7 @@ class TracingMuxerImpl : public TracingMuxer {
   bool RegisterDataSource(const DataSourceDescriptor&,
                           DataSourceFactory,
                           DataSourceParams,
+                          bool no_flush,
                           DataSourceStaticState*) override;
   void UpdateDataSourceDescriptor(const DataSourceDescriptor&,
                                   const DataSourceStaticState*) override;

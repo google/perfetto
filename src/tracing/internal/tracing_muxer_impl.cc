@@ -1058,6 +1058,7 @@ bool TracingMuxerImpl::RegisterDataSource(
     const DataSourceDescriptor& descriptor,
     DataSourceFactory factory,
     DataSourceParams params,
+    bool no_flush,
     DataSourceStaticState* static_state) {
   // Ignore repeated registrations.
   if (static_state->index != kMaxDataSources)
@@ -1084,7 +1085,8 @@ bool TracingMuxerImpl::RegisterDataSource(
   hash.Update(base::GetWallTimeNs().count());
   static_state->id = hash.digest() ? hash.digest() : 1;
 
-  task_runner_->PostTask([this, descriptor, factory, static_state, params] {
+  task_runner_->PostTask([this, descriptor, factory, static_state, params,
+                          no_flush] {
     data_sources_.emplace_back();
     RegisteredDataSource& rds = data_sources_.back();
     rds.descriptor = descriptor;
@@ -1094,6 +1096,7 @@ bool TracingMuxerImpl::RegisterDataSource(
         params.supports_multiple_instances;
     rds.requires_callbacks_under_lock = params.requires_callbacks_under_lock;
     rds.static_state = static_state;
+    rds.no_flush = no_flush;
 
     UpdateDataSourceOnAllBackends(rds, /*is_changed=*/false);
   });
@@ -1848,6 +1851,9 @@ void TracingMuxerImpl::UpdateDataSourceOnAllBackends(RegisteredDataSource& rds,
     if (is_registered && !is_changed)
       continue;
 
+    if (!rds.descriptor.no_flush()) {
+      rds.descriptor.set_no_flush(rds.no_flush);
+    }
     rds.descriptor.set_will_notify_on_start(true);
     rds.descriptor.set_will_notify_on_stop(true);
     rds.descriptor.set_handles_incremental_state_clear(true);
