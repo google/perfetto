@@ -697,6 +697,24 @@ std::vector<std::string> ReadSlicesFromTrace(
   return ReadSlicesFromTrace(parsed_trace, expect_incremental_state_cleared);
 }
 
+bool WaitForOneProducerConnected(perfetto::TracingSession* session) {
+  for (size_t i = 0; i < 100; i++) {
+    // Blocking read.
+    auto result = session->QueryServiceStateBlocking();
+    perfetto::protos::gen::TracingServiceState state;
+    EXPECT_TRUE(result.success);
+    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
+                                     result.service_state_data.size()));
+    // The producer has connected to the new restarted system service.
+    if (state.producers().size() == 1) {
+      return true;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ADD_FAILURE() << "Producer not connected";
+  return false;
+}
+
 // -------------------------
 // Declaration of test class
 // -------------------------
@@ -5958,23 +5976,9 @@ TEST_P(PerfettoApiTest, SystemDisconnect) {
   tracing_session->on_stop.Wait();
 
   std::unique_ptr<perfetto::TracingSession> new_session =
-      perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
-  bool reconnected = false;
-  for (size_t i = 0; i < 100; i++) {
-    // Blocking read.
-    auto result = new_session->QueryServiceStateBlocking();
-    perfetto::protos::gen::TracingServiceState state;
-    EXPECT_TRUE(result.success);
-    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
-                                     result.service_state_data.size()));
-    // The producer has connected to the new restarted system service.
-    if (state.producers().size() == 1) {
-      reconnected = true;
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  ASSERT_TRUE(reconnected);
+      perfetto::Tracing::NewTrace(/*backend=*/GetParam());
+  // Wait for reconnection
+  ASSERT_TRUE(WaitForOneProducerConnected(new_session.get()));
 
   auto* tracing_session2 = NewTrace(cfg);
   tracing_session2->get()->StartBlocking();
@@ -6039,22 +6043,8 @@ TEST_P(PerfettoApiTest, SystemDisconnectAsyncOnStopNoTracing) {
 
   std::unique_ptr<perfetto::TracingSession> new_session =
       perfetto::Tracing::NewTrace(/*backend=*/GetParam());
-  bool reconnected = false;
-  for (size_t i = 0; i < 100; i++) {
-    // Blocking read.
-    auto result = new_session->QueryServiceStateBlocking();
-    perfetto::protos::gen::TracingServiceState state;
-    EXPECT_TRUE(result.success);
-    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
-                                     result.service_state_data.size()));
-    // The producer has connected to the new restarted system service.
-    if (state.producers().size() == 1) {
-      reconnected = true;
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  ASSERT_TRUE(reconnected);
+  // Wait for reconnection
+  ASSERT_TRUE(WaitForOneProducerConnected(new_session.get()));
 
   data_source->async_stop_closure();
 
@@ -6117,23 +6107,9 @@ TEST_P(PerfettoApiTest, SystemDisconnectAsyncOnStopRestartTracing) {
   tracing_session->on_stop.Wait();
 
   std::unique_ptr<perfetto::TracingSession> new_session =
-      perfetto::Tracing::NewTrace(/*BackendType=*/GetParam());
-  bool reconnected = false;
-  for (size_t i = 0; i < 100; i++) {
-    // Blocking read.
-    auto result = new_session->QueryServiceStateBlocking();
-    perfetto::protos::gen::TracingServiceState state;
-    EXPECT_TRUE(result.success);
-    EXPECT_TRUE(state.ParseFromArray(result.service_state_data.data(),
-                                     result.service_state_data.size()));
-    // The producer has connected to the new restarted system service.
-    if (state.producers().size() == 1) {
-      reconnected = true;
-      break;
-    }
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  }
-  ASSERT_TRUE(reconnected);
+      perfetto::Tracing::NewTrace(/*backend=*/GetParam());
+  // Wait for reconnection
+  ASSERT_TRUE(WaitForOneProducerConnected(new_session.get()));
 
   auto* tracing_session2 = NewTrace(cfg);
   tracing_session2->get()->StartBlocking();
