@@ -431,7 +431,7 @@ TEST(QueryExecutor, BinarySearchNotEq) {
   ASSERT_EQ(res.size(), 9u);
 }
 
-TEST(QueryExecutor, StringBinarySearchIsNull) {
+TEST(QueryExecutor, StringSearchIsNull) {
   StringPool pool;
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
@@ -458,6 +458,62 @@ TEST(QueryExecutor, StringBinarySearchIsNull) {
 
   ASSERT_EQ(res.size(), 1u);
   ASSERT_EQ(res.Get(0), 2u);
+}
+
+TEST(QueryExecutor, StringSearchGtSorted) {
+  StringPool pool;
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, ids.data(), 6, true);
+
+  // Final vec {"apple", "burger", "doughnut", "eggplant"}.
+  BitVector selector_bv{1, 1, 0, 1, 1, 0};
+  SelectorOverlay selector_overlay(&selector_bv);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&selector_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue::String("camembert")};
+  QueryExecutor exec({col}, 4);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 2u);
+  ASSERT_EQ(res.Get(0), 2u);
+}
+
+TEST(QueryExecutor, StringSearchNeSorted) {
+  StringPool pool;
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+  StringStorage storage(&pool, ids.data(), 6, true);
+
+  // Final vec {"apple", "burger", "doughnut", "eggplant"}.
+  BitVector selector_bv{1, 1, 0, 1, 1, 0};
+  SelectorOverlay selector_overlay(&selector_bv);
+
+  // Create the column.
+  OverlaysVec overlays_vec;
+  overlays_vec.emplace_back(&selector_overlay);
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kNe, SqlValue::String("doughnut")};
+  QueryExecutor exec({col}, 4);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 3u);
+  ASSERT_EQ(res.Get(0), 0u);
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
