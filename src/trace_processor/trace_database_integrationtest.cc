@@ -398,25 +398,103 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz28766) {
   ASSERT_TRUE(LoadTrace("clusterfuzz_28766", 4096).ok());
 }
 
-TEST_F(TraceProcessorIntegrationTest, RestoreInitialTables) {
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesInvariant) {
   ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  uint64_t first_restore = RestoreInitialTables();
+  ASSERT_EQ(RestoreInitialTables(), first_restore);
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
     ASSERT_EQ(RestoreInitialTables(), 0u);
 
-    auto it = Query("CREATE TABLE user1(unused text);");
-    it.Next();
-    ASSERT_TRUE(it.Status().ok());
+    // 1. Perfetto table
+    {
+      auto it = Query("CREATE PERFETTO TABLE obj1 AS SELECT 1 AS col;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    // 2. Perfetto view
+    {
+      auto it = Query("CREATE PERFETTO VIEW obj2 AS SELECT * FROM stats;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    // 3. Runtime function
+    {
+      auto it = Query("CREATE PERFETTO FUNCTION obj3() RETURNS INT AS 1;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    // 4. Runtime table function
+    {
+      auto it = Query(
+          "CREATE PERFETTO FUNCTION obj4() RETURNS TABLE(col INT) AS SELECT 1 "
+          "AS col;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    // 5. Macro
+    {
+      auto it = Query("CREATE PERFETTO MACRO obj5(a Expr) returns Expr AS $a;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("obj5!(SELECT 1);");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    ASSERT_EQ(RestoreInitialTables(), 5u);
+  }
+}
 
-    it = Query("CREATE TEMPORARY TABLE user2(unused text);");
-    it.Next();
-    ASSERT_TRUE(it.Status().ok());
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  RestoreInitialTables();
 
-    it = Query("CREATE VIEW user3 AS SELECT * FROM stats;");
-    it.Next();
-    ASSERT_TRUE(it.Status().ok());
-
+  for (int repeat = 0; repeat < 3; repeat++) {
+    ASSERT_EQ(RestoreInitialTables(), 0u);
+    {
+      auto it = Query("CREATE TABLE obj1(unused text);");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("CREATE TEMPORARY TABLE obj2(unused text);");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    // Add a view
+    {
+      auto it = Query("CREATE VIEW obj3 AS SELECT * FROM stats;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
     ASSERT_EQ(RestoreInitialTables(), 3u);
+  }
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  RestoreInitialTables();
+
+  for (int repeat = 0; repeat < 3; repeat++) {
+    ASSERT_EQ(RestoreInitialTables(), 0u);
+    {
+      auto it = Query("INCLUDE PERFETTO MODULE common.timestamps;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("SELECT trace_start();");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    RestoreInitialTables();
   }
 }
 
