@@ -30,6 +30,7 @@ export async function nativeKeyboardLayoutMap(): Promise<KeyboardLayoutMap> {
   if ('keyboard' in window.navigator) {
     // Typescript's dom library doesn't know about this feature, so we must
     // take some liberties when it comes to relaxing types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const keyboard = (window.navigator as any).keyboard;
     return await keyboard.getLayoutMap();
   } else {

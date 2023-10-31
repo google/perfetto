@@ -69,6 +69,7 @@ export function serializeStateObject(object: unknown): string {
   return json;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function deserializeStateObject(json: string): any {
   const object = JSON.parse(json, (_key, value) => {
     if (isSerializedBigint(value)) {

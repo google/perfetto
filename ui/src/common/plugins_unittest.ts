@@ -40,7 +40,9 @@ const engine = new FakeEngine();
 globals.initStore(createEmptyState());
 
 // We use `any` here to avoid checking possibly undefined types in tests.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let mockPlugin: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let manager: any;
 
 describe('PluginManger', () => {

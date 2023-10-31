@@ -17,6 +17,7 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 
 export interface TextInputAttrs {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
   extraClasses?: string|string[];
 }

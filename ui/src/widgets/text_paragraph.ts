@@ -22,6 +22,7 @@ export interface TextParagraphAttrs {
   // should render with the default UI wrapping)
   compressSpace?: boolean;
   // Remaining attributes forwarded to the underlying HTML <section>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

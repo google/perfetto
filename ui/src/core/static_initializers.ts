@@ -47,6 +47,7 @@ function initializeProtobuf() {
   // accepting the 2**53 limitation. This is consistent with passing
   // --force-number in the protobuf.js codegen invocation in //ui/BUILD.gn .
   // See also https://github.com/protobufjs/protobuf.js/issues/1253 .
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   protobuf.util.Long = undefined as any;
   protobuf.configure();
 }

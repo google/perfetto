@@ -18,6 +18,7 @@ export interface SectionAttrs {
   // The name of the section, displayed in the title bar
   title: string;
   // Remaining attributes forwarded to the underlying HTML <section>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

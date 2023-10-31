@@ -67,5 +67,8 @@ module.exports = {
     // There are also some properties like: foo.factory these should
     // stay.
     'new-cap': ['error', {'capIsNew': false, 'properties': false}],
+
+    // Don't allow new introduction of any it is most always a mistake.
+    '@typescript-eslint/no-explicit-any': 'error',
   },
 };

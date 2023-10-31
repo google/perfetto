@@ -80,6 +80,7 @@ export class ViewerImpl implements Viewer {
   };
 
   commands = {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     run: (id: string, ...args: any[]) => {
       globals.commandManager.runCommand(id, ...args);
     },
@@ -92,7 +93,9 @@ export class ViewerImpl implements Viewer {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyFunction = (...args: any[]) => any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyProcedure = (...args: any[]) => void;
 
 function wrap<F extends AnyFunction>(
