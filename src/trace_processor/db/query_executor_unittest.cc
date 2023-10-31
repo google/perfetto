@@ -416,6 +416,21 @@ TEST(QueryExecutor, BinarySearchIsNull) {
   ASSERT_EQ(res.Get(2), 2u);
 }
 
+TEST(QueryExecutor, BinarySearchNotEq) {
+  std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64, true);
+
+  OverlaysVec overlays_vec;
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kNe, SqlValue::Long(5)};
+  QueryExecutor exec({col}, 10);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 9u);
+}
+
 TEST(QueryExecutor, StringBinarySearchIsNull) {
   StringPool pool;
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
