@@ -207,8 +207,20 @@ RangeOrBitVector NumericStorage::Search(FilterOp op,
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
-  if (is_sorted_)
-    return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+
+  if (is_sorted_) {
+    if (op != FilterOp::kNe) {
+      return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+    }
+    // Not equal is a special operation on binary search, as it doesn't define a
+    // range, and rather just `not` range returned with `equal` operation.
+    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
+    BitVector bv(r.start, true);
+    bv.Resize(r.end);
+    bv.Resize(range.end, true);
+    return RangeOrBitVector(std::move(bv));
+  }
+
   return RangeOrBitVector(LinearSearchInternal(op, value, range));
 }
 
