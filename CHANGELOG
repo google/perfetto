@@ -1,6 +1,9 @@
 Unreleased:
   Tracing service and probes:
     * Added reporting of TZ offset under system_info.timezone_off_mins .
+    * Added no_flush option to DataSourceDescriptor to avoid unnecessary IPC
+      roundtrips to flush data sources like track_event that rely uniquely on
+      server-side scraping.
   Trace Processor:
     *
   UI:
