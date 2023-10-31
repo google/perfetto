@@ -14,9 +14,9 @@
 
 import {globals} from '../frontend/globals';
 import {Plugin} from '../public';
+import {Engine} from '../trace_processor/engine';
 
 import {createEmptyState} from './empty_state';
-import {Engine} from './engine';
 import {PluginManager, PluginRegistry} from './plugins';
 import {ViewerImpl} from './viewer';
 

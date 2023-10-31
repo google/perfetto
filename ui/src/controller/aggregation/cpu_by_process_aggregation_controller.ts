@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {ColumnDef} from '../../common/aggregation_data';
-import {Engine} from '../../common/engine';
 import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {Engine} from '../../trace_processor/engine';
 import {CPU_SLICE_TRACK_KIND} from '../../tracks/cpu_slices';
 
 import {AggregationController} from './aggregation_controller';

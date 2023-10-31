@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {isString} from '../base/object_utils';
-import {EngineProxy} from '../common/engine';
-import {ColumnType, NUM} from '../common/query_result';
 import {SortDirection} from '../common/state';
+import {EngineProxy} from '../trace_processor/engine';
+import {ColumnType, NUM} from '../trace_processor/query_result';
 
 export interface OrderClause {
   fieldName: string;

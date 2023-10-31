@@ -16,12 +16,12 @@ import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {BaseCounterTrack} from '../../frontend/base_counter_track';
 import {globals} from '../../frontend/globals';
 import {TrackButton} from '../../frontend/track_panel';
 import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {EngineProxy} from '../../trace_processor/engine';
 
 import {DEBUG_COUNTER_TRACK_URI} from '.';
 

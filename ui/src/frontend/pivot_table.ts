@@ -20,7 +20,6 @@ import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {DropDirection} from '../common/dragndrop_logic';
 import {COUNT_AGGREGATION} from '../common/empty_state';
-import {ColumnType} from '../common/query_result';
 import {
   Area,
   PivotTableAreaState,
@@ -28,6 +27,7 @@ import {
   SortDirection,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {ColumnType} from '../trace_processor/query_result';
 import {DurationWidget} from '../widgets/duration';
 
 import {addTab} from './bottom_tab';

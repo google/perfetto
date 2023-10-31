@@ -16,7 +16,7 @@ import {Actions} from '../common/actions';
 import {
   getColorForSlice,
 } from '../common/colorizer';
-import {STR_NULL} from '../common/query_result';
+import {STR_NULL} from '../trace_processor/query_result';
 
 import {
   BASE_SLICE_ROW,

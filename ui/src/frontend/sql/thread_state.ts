@@ -15,8 +15,13 @@
 import m from 'mithril';
 
 import {Duration, duration, TimeSpan} from '../../base/time';
-import {LONG, NUM_NULL, STR, STR_NULL} from '../../common/query_result';
 import {EngineProxy} from '../../public';
+import {
+  LONG,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 import {TreeNode} from '../../widgets/tree';
 import {Utid} from '../sql_types';
 

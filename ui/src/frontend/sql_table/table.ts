@@ -16,8 +16,8 @@ import m from 'mithril';
 
 import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
-import {EngineProxy} from '../../common/engine';
-import {Row} from '../../common/query_result';
+import {EngineProxy} from '../../trace_processor/engine';
+import {Row} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {BasicTable} from '../../widgets/basic_table';
 import {Button} from '../../widgets/button';

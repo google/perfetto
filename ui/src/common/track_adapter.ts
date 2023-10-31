@@ -17,13 +17,14 @@ import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
-import {EngineProxy} from '../common/engine';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {NewTrackArgs, SliceRect} from '../frontend/track';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {BasicAsyncTrack} from './basic_async_track';
 
-export {EngineProxy} from '../common/engine';
+export {Store} from '../frontend/store';
+export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
   LONG_NULL,
@@ -31,8 +32,7 @@ export {
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../common/query_result';
-export {Store} from '../frontend/store';
+} from '../trace_processor/query_result';
 
 // This is an adapter to convert old style controller based tracks to new style
 // tracks.

@@ -15,8 +15,7 @@
 import {fetchWithTimeout} from '../base/http_utils';
 import {assertExists} from '../base/logging';
 import {StatusResult} from '../protos';
-
-import {Engine, LoadingTracker} from './engine';
+import {Engine, LoadingTracker} from '../trace_processor/engine';
 
 export const RPC_URL = 'http://127.0.0.1:9001/';
 export const WS_URL = 'ws://127.0.0.1:9001/websocket';

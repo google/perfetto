@@ -16,9 +16,7 @@
 
 import {Actions} from '../common/actions';
 import {DEFAULT_CHANNEL, getCurrentChannel} from '../common/channels';
-import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
-import {ColumnType, STR} from '../common/query_result';
 import {
   AreaSelection,
   PivotTableQuery,
@@ -32,6 +30,8 @@ import {
   generateQueryFromState,
 } from '../frontend/pivot_table_query_generator';
 import {Aggregation, PivotTree} from '../frontend/pivot_table_types';
+import {Engine} from '../trace_processor/engine';
+import {ColumnType, STR} from '../trace_processor/query_result';
 
 import {Controller} from './controller';
 
