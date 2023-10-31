@@ -15,7 +15,6 @@
 import("../../../../../gn/perfetto_sql.gni")
 
 perfetto_sql_source_set("chrome_sql") {
-  deps = [ "scroll_jank" ]
   sources = [
     "chrome_scrolls.sql",
     "cpu_powerups.sql",
@@ -23,6 +22,11 @@ perfetto_sql_source_set("chrome_sql") {
     "interactions.sql",
     "metadata.sql",
     "page_loads.sql",
+    "scroll_jank/scroll_jank_intervals.sql",
+    "scroll_jank/scroll_jank_v3.sql",
+    "scroll_jank/scroll_jank_v3_cause.sql",
+    "scroll_jank/scroll_offsets.sql",
+    "scroll_jank/utils.sql",
     "speedometer.sql",
     "tasks.sql",
     "vsync_intervals.sql",
