@@ -32,8 +32,12 @@ class StringStorage final : public Storage {
  public:
   StringStorage(StringPool* string_pool,
                 const StringPool::Id* data,
-                uint32_t data_size)
-      : data_(data), size_(data_size), string_pool_(string_pool) {}
+                uint32_t data_size,
+                bool is_sorted = false)
+      : data_(data),
+        size_(data_size),
+        string_pool_(string_pool),
+        is_sorted_(is_sorted) {}
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
@@ -44,7 +48,6 @@ class StringStorage final : public Storage {
                                uint32_t* indices,
                                uint32_t indices_count,
                                bool sorted = false) const override;
-
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
@@ -52,17 +55,28 @@ class StringStorage final : public Storage {
   uint32_t size() const override { return size_; }
 
  private:
-  BitVector LinearSearch(FilterOp, SqlValue, RowMap::Range) const;
+  BitVector LinearSearchInternal(FilterOp, SqlValue, RowMap::Range) const;
+
+  RangeOrBitVector IndexSearchInternal(FilterOp op,
+                                       SqlValue sql_val,
+                                       uint32_t* indices,
+                                       uint32_t indices_size,
+                                       bool) const;
 
   RowMap::Range BinarySearchExtrinsic(FilterOp,
                                       SqlValue,
                                       uint32_t*,
                                       uint32_t) const;
 
+  RowMap::Range BinarySearchIntrinsic(FilterOp op,
+                                      SqlValue val,
+                                      RowMap::Range search_range) const;
+
   const StringPool::Id* data_ = nullptr;
   const uint32_t size_ = 0;
 
   StringPool* string_pool_ = nullptr;
+  const bool is_sorted_ = false;
 };
 
 }  // namespace storage
