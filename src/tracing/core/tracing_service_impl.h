@@ -393,14 +393,16 @@ class TracingServiceImpl : public TracingService {
                        const std::string& ds_name,
                        bool notify_on_start,
                        bool notify_on_stop,
-                       bool handles_incremental_state_invalidation)
+                       bool handles_incremental_state_invalidation,
+                       bool no_flush_)
         : instance_id(id),
           config(cfg),
           data_source_name(ds_name),
           will_notify_on_start(notify_on_start),
           will_notify_on_stop(notify_on_stop),
           handles_incremental_state_clear(
-              handles_incremental_state_invalidation) {}
+              handles_incremental_state_invalidation),
+          no_flush(no_flush_) {}
     DataSourceInstance(const DataSourceInstance&) = delete;
     DataSourceInstance& operator=(const DataSourceInstance&) = delete;
 
@@ -410,6 +412,7 @@ class TracingServiceImpl : public TracingService {
     bool will_notify_on_start;
     bool will_notify_on_stop;
     bool handles_incremental_state_clear;
+    bool no_flush;
 
     enum DataSourceInstanceState {
       CONFIGURED,
@@ -539,9 +542,6 @@ class TracingServiceImpl : public TracingService {
 
     // List of data source instances that have been enabled on the various
     // producers for this tracing session.
-    // TODO(rsavitski): at the time of writing, the map structure is unused
-    // (even when the calling code has a key). This is also an opportunity to
-    // consider an alternative data type, e.g. a map of vectors.
     std::multimap<ProducerID, DataSourceInstance> data_source_instances;
 
     // For each Flush(N) request, keeps track of the set of producers for which

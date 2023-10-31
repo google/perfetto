@@ -2632,6 +2632,46 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
   }
 }
 
+TEST_F(TracingServiceImplTest, NoFlush) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_1 = CreateMockProducer();
+  producer_1->Connect(svc.get(), "mock_producer_1");
+  producer_1->RegisterDataSource("ds_flush");
+  producer_1->RegisterDataSource("ds_noflush", false, false, false, true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_flush");
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_noflush");
+
+  consumer->EnableTracing(trace_config);
+  producer_1->WaitForTracingSetup();
+  producer_1->WaitForDataSourceSetup("ds_flush");
+  producer_1->WaitForDataSourceSetup("ds_noflush");
+  producer_1->WaitForDataSourceStart("ds_flush");
+  producer_1->WaitForDataSourceStart("ds_noflush");
+
+  std::unique_ptr<MockProducer> producer_2 = CreateMockProducer();
+  producer_2->Connect(svc.get(), "mock_producer_2");
+  producer_2->RegisterDataSource("ds_noflush", false, false, false,
+                                 /*no_flush=*/true);
+  producer_2->WaitForTracingSetup();
+  producer_2->WaitForDataSourceSetup("ds_noflush");
+  producer_2->WaitForDataSourceStart("ds_noflush");
+
+  auto wr_p1_ds1 = producer_1->CreateTraceWriter("ds_flush");
+  producer_1->ExpectFlush(wr_p1_ds1.get());
+
+  EXPECT_CALL(*producer_2, Flush(_, _, _, _)).Times(0);
+
+  auto flush_request = consumer->Flush();
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
+}
+
 TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
   std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
   consumer->Connect(svc.get());
