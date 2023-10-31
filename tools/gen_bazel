@@ -166,6 +166,13 @@ external_python_deps: Dict[str, List[str]] = {
     '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
 }
 
+# Additional arguments
+target_overrides = {
+  '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
+    'srcs': 'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
+  }
+}
+
 
 def gen_version_header(target):
   label = BazelLabel(get_bazel_label_name(target.name), 'perfetto_genrule')
@@ -313,7 +320,7 @@ class BazelLabel(object):
     self.name = name
     self.type = type
     self.visibility: Union[List[str], str] = []
-    self.srcs = []
+    self.srcs: Union[List[str], str] = []
     self.hdrs = []
     self.data = []
     self.deps = []
@@ -353,7 +360,7 @@ class BazelLabel(object):
         continue
       res += '    %s = ' % k
       if isinstance(v, basestring):
-        if v.startswith('PERFETTO_CONFIG.'):
+        if v.startswith('PERFETTO_CONFIG.') or v.startswith('glob'):
           res += '%s,\n' % v
         else:
           res += '"%s",\n' % v
@@ -597,7 +604,7 @@ def gen_cc_tp_tables(target: GnParser.Target):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target):
+def gen_target_helper(gn_target: GnParser.Target):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -692,6 +699,16 @@ def gen_target(gn_target: GnParser.Target):
   label.deps = sorted(label.deps)
   label.hdrs = sorted(label.hdrs)
   return [label]
+
+
+def gen_target(gn_target: GnParser.Target):
+  targets = gen_target_helper(gn_target)
+  if gn_target.name not in target_overrides:
+    return targets
+  for target in targets:
+    for key, add_val in target_overrides[gn_target.name].items():
+      setattr(target, key, add_val)
+  return targets
 
 
 def gen_target_str(gn_target):
