@@ -16,12 +16,12 @@ import {BigintMath} from '../../base/bigint_math';
 import {assertFalse} from '../../base/logging';
 import {duration, Time, time} from '../../base/time';
 import {colorForTid} from '../../common/colorizer';
-import {NUM} from '../../common/query_result';
 import {TrackAdapter, TrackControllerAdapter} from '../../common/track_adapter';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
+import {NUM} from '../../trace_processor/query_result';
 
 export const PROCESS_SUMMARY_TRACK = 'ProcessSummaryTrack';
 

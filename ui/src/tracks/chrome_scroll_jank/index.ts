@@ -15,7 +15,6 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions, AddTrackArgs, DeferredAction} from '../../common/actions';
-import {Engine} from '../../common/engine';
 import {featureFlags} from '../../common/feature_flags';
 import {
   generateSqlWithInternalLayout,
@@ -28,6 +27,7 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
 } from '../../public';
+import {Engine} from '../../trace_processor/engine';
 import {CustomSqlDetailsPanelConfig} from '../custom_sql_table_slices';
 import {NULL_TRACK_URI} from '../null_track';
 

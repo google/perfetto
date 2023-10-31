@@ -13,14 +13,14 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {pluginManager} from '../common/plugins';
-import {LONG, NUM, STR_NULL} from '../common/query_result';
 import {Area} from '../common/state';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../frontend/sql_types';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
 import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 

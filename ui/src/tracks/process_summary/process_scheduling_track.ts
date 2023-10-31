@@ -21,11 +21,6 @@ import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
 import {
-  LONG,
-  NUM,
-  QueryResult,
-} from '../../common/query_result';
-import {
   TrackAdapter,
   TrackControllerAdapter,
 } from '../../common/track_adapter';
@@ -33,6 +28,11 @@ import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
+import {
+  LONG,
+  NUM,
+  QueryResult,
+} from '../../trace_processor/query_result';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 

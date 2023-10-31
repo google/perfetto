@@ -20,13 +20,6 @@ import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {hueForCpu} from '../../common/colorizer';
 import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  QueryResult,
-} from '../../common/query_result';
-import {
   TrackAdapter,
   TrackControllerAdapter,
   TrackWithControllerAdapter,
@@ -41,6 +34,13 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  QueryResult,
+} from '../../trace_processor/query_result';
 
 
 export const CPU_FREQ_TRACK_KIND = 'CpuFreqTrack';

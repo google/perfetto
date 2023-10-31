@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {LONG, NUM} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -29,6 +28,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 

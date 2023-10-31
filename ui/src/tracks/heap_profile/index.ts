@@ -15,7 +15,6 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {LONG, NUM, STR} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
 import {
   TrackAdapter,
@@ -34,6 +33,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 

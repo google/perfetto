@@ -15,7 +15,6 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {LONG, NUM} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
 import {
   TrackAdapter,
@@ -33,6 +32,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
