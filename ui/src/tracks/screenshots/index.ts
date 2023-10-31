@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {AddTrackArgs} from '../../common/actions';
-import {Engine} from '../../common/engine';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
@@ -25,6 +24,7 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
 } from '../../public';
+import {Engine} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

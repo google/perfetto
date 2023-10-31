@@ -22,11 +22,11 @@ import {
   Result,
   success,
 } from '../base/result';
-import {EngineProxy} from '../common/engine';
 import {pluginManager, PluginManager} from '../common/plugins';
-import {STR} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
 import {MetricVisualisation} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
+import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
 

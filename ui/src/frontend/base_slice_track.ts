@@ -30,9 +30,9 @@ import {
   colorCompare,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
-import {LONG, NUM} from '../common/query_result';
 import {Selection, SelectionKind} from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';

@@ -16,9 +16,9 @@ import {arrayEquals} from '../../base/array_utils';
 import {SortDirection} from '../../base/comparison_utils';
 import {isString} from '../../base/object_utils';
 import {sqliteString} from '../../base/string_utils';
-import {EngineProxy} from '../../common/engine';
-import {NUM, Row} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
+import {NUM, Row} from '../../trace_processor/query_result';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,

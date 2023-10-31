@@ -17,7 +17,6 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable} from '../../base/disposable';
 import {Actions} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {
@@ -25,6 +24,7 @@ import {
 } from '../../frontend/named_slice_track';
 import {TrackButton} from '../../frontend/track_panel';
 import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,

@@ -21,7 +21,7 @@ import {isString} from '../base/object_utils';
 import {Duration, Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
-import {Row} from '../common/query_result';
+import {Row} from '../trace_processor/query_result';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {Callout} from '../widgets/callout';

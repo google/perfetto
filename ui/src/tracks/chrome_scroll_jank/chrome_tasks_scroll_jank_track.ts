@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../../common/engine';
-import {NUM} from '../../common/query_result';
 import {InThreadTrackSortKey} from '../../common/state';
 import {
   NamedSliceTrack,
@@ -21,6 +19,8 @@ import {
 } from '../../frontend/named_slice_track';
 import {runQueryInNewTab} from '../../frontend/query_result_tab';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
 
 import {
   ENABLE_CHROME_SCROLL_JANK_PLUGIN,

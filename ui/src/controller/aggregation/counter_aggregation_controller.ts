@@ -14,10 +14,10 @@
 
 import {Duration} from '../../base/time';
 import {ColumnDef} from '../../common/aggregation_data';
-import {Engine} from '../../common/engine';
 import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {Engine} from '../../trace_processor/engine';
 import {COUNTER_TRACK_KIND} from '../../tracks/counter';
 
 import {AggregationController} from './aggregation_controller';

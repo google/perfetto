@@ -22,14 +22,14 @@ import {
   TimeSpan,
 } from '../base/time';
 import {exists} from '../base/utils';
-import {Engine} from '../common/engine';
 import {pluginManager} from '../common/plugins';
-import {LONG, NUM, STR} from '../common/query_result';
-import {escapeSearchQuery} from '../common/query_utils';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {OmniboxState} from '../common/state';
 import {globals} from '../frontend/globals';
 import {publishSearch, publishSearchResult} from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM, STR} from '../trace_processor/query_result';
+import {escapeSearchQuery} from '../trace_processor/query_utils';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
 
 import {Controller} from './controller';

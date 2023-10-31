@@ -15,14 +15,6 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Duration, duration, time} from '../../base/time';
 import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../common/query_result';
-import {
   SliceData,
   SliceTrackBase,
 } from '../../frontend/slice_track_base';
@@ -34,6 +26,14 @@ import {
   PluginDescriptor,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 import {GenericSliceTrack} from './generic_slice_track';
 

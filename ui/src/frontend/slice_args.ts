@@ -20,10 +20,10 @@ import {Icons} from '../base/semantic_icons';
 import {sqliteString} from '../base/string_utils';
 import {exists} from '../base/utils';
 import {Actions, AddTrackArgs} from '../common/actions';
-import {EngineProxy} from '../common/engine';
-import {NUM} from '../common/query_result';
 import {InThreadTrackSortKey} from '../common/state';
 import {ArgNode, convertArgsToTree, Key} from '../controller/args_parser';
+import {EngineProxy} from '../trace_processor/engine';
+import {NUM} from '../trace_processor/query_result';
 import {
   VISUALISED_ARGS_SLICE_TRACK_URI,
   VisualisedArgsState,

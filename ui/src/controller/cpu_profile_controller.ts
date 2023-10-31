@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../common/engine';
-import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, CpuProfileSampleSelection} from '../common/state';
 import {CpuProfileDetails, globals} from '../frontend/globals';
 import {publishCpuProfileDetails} from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {NUM, STR} from '../trace_processor/query_result';
 
 import {Controller} from './controller';
 

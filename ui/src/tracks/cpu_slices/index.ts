@@ -25,7 +25,6 @@ import {
   drawTrackHoverTooltip,
 } from '../../common/canvas_utils';
 import {colorForThread} from '../../common/colorizer';
-import {LONG, NUM, STR_NULL} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -42,6 +41,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 

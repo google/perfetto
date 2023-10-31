@@ -14,7 +14,6 @@
 
 import {Duration, time} from '../base/time';
 import {Actions} from '../common/actions';
-import {Engine} from '../common/engine';
 import {
   ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
   DEFAULT_VIEWING_OPTION,
@@ -27,10 +26,11 @@ import {
   SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
 import {pluginManager} from '../common/plugins';
-import {NUM, STR} from '../common/query_result';
 import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {NUM, STR} from '../trace_processor/query_result';
 import {PERF_SAMPLES_PROFILE_TRACK_KIND} from '../tracks/perf_samples_profile';
 
 import {AreaSelectionHandler} from './area_selection_handler';

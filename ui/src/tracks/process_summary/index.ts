@@ -14,12 +14,6 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../common/query_result';
 import {TrackWithControllerAdapter} from '../../common/track_adapter';
 import {
   Plugin,
@@ -27,6 +21,12 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 import {
   Config as ProcessSchedulingTrackConfig,
