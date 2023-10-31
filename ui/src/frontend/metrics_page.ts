@@ -72,6 +72,7 @@ class MetricsController {
   private _selected?: string;
   private _result: Result<string>;
   private _format: Format;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _json: any;
 
   constructor(plugins: PluginManager, engine: EngineProxy) {
@@ -123,6 +124,7 @@ class MetricsController {
     return this._result;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   get resultAsJson(): any {
     return this._json;
   }
@@ -225,8 +227,10 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface MetricVizViewAttrs {
   visualisation: MetricVisualisation;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
 }
 

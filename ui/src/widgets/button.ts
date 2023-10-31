@@ -44,6 +44,7 @@ interface CommonAttrs {
   // Defaults to false.
   dismissPopup?: boolean;
   // Remaining attributes forwarded to the underlying HTML <button>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

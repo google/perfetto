@@ -18,6 +18,7 @@ interface AnchorAttrs {
   // Optional icon to show at the end of the content.
   icon?: string;
   // Remaining items.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
