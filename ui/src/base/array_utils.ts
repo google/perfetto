@@ -32,6 +32,7 @@ export function allUnique(x: string[]): boolean {
   return x.length == new Set(x).size;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function arrayEquals(a: any[]|undefined, b: any[]|undefined): boolean {
   if (a === undefined || b === undefined) return false;
   if (a.length !== b.length) return false;

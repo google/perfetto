@@ -129,6 +129,7 @@ interface SortEventSet<T extends KeySet> extends EventSet<T> {
   readonly isSort: true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UntypedEventSet = EventSet<any>;
 
 // An expression that operates on an Event and produces a Primitive as

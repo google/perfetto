@@ -507,9 +507,11 @@ export const StateActions = {
   // TODO(hjd): Remove setState - it causes problems due to reuse of ids.
   setState(state: StateDraft, args: {newState: State}): void {
     for (const key of Object.keys(state)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (state as any)[key];
     }
     for (const key of Object.keys(args.newState)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (state as any)[key] = (args.newState as any)[key];
     }
 
@@ -1172,7 +1174,9 @@ type DeferredActions<C> = {
 // It's a Proxy such that any attribute access returns a function:
 // (args) => {return {type: ATTRIBUTE_NAME, args};}
 export const Actions =
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     new Proxy<DeferredActions<typeof StateActions>>({} as any, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       get(_: any, prop: string, _2: any) {
         return (args: {}): DeferredAction<{}> => {
           return {

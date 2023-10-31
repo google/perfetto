@@ -29,6 +29,7 @@ export interface CheckboxAttrs {
   // Extra classes
   classes?: string|string[];
   // Remaining attributes forwarded to the underlying HTML <label>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

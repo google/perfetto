@@ -613,6 +613,7 @@ export interface State {
   pendingDeeplink?: PendingDeeplinkState;
 
   // Individual plugin states
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   plugins: {[key: string]: any};
 }
 

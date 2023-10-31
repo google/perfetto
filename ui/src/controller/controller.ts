@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ControllerAny = Controller</* StateType=*/ any>;
 
 export interface ControllerFactory<ConstructorArgs> {
@@ -24,6 +25,7 @@ interface ControllerInitializer<ConstructorArgs> {
   args: ConstructorArgs;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type ControllerInitializerAny = ControllerInitializer<any>;
 
 export function Child<ConstructorArgs>(
