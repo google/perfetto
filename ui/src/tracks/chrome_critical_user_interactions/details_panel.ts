@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
-import {LONG, LONG_NULL, NUM, STR} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -28,6 +27,7 @@ import {
 } from '../../frontend/generic_slice_details_tab';
 import {sqlValueToString} from '../../frontend/sql_utils';
 import {Timestamp} from '../../frontend/widgets/timestamp';
+import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
 import {DurationWidget} from '../../widgets/duration';

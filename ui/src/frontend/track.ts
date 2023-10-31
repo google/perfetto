@@ -16,8 +16,8 @@ import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
-import {EngineProxy} from '../common/engine';
 import {Track, TrackContext} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';

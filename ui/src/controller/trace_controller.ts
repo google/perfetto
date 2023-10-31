@@ -27,7 +27,6 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
-import {Engine} from '../common/engine';
 import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {
   HighPrecisionTime,
@@ -39,15 +38,6 @@ import {
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {pluginManager} from '../common/plugins';
-import {
-  LONG,
-  LONG_NULL,
-  NUM,
-  NUM_NULL,
-  QueryError,
-  STR,
-  STR_NULL,
-} from '../common/query_result';
 import {onSelectionChanged} from '../common/selection_observer';
 import {
   defaultTraceTime,
@@ -74,6 +64,16 @@ import {
 } from '../frontend/publish';
 import {runQueryInNewTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
+import {Engine} from '../trace_processor/engine';
+import {
+  LONG,
+  LONG_NULL,
+  NUM,
+  NUM_NULL,
+  QueryError,
+  STR,
+  STR_NULL,
+} from '../trace_processor/query_result';
 
 import {
   CounterAggregationController,

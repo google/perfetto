@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../common/engine';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 import {Editor} from '../widgets/editor';
 
 import {globals} from './globals';

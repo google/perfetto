@@ -19,7 +19,7 @@ import {isString} from '../../base/object_utils';
 import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
 import {duration, Duration, Time} from '../../base/time';
-import {Row, SqlValue} from '../../common/query_result';
+import {Row, SqlValue} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {Err} from '../../widgets/error';
 import {MenuItem, PopupMenu2} from '../../widgets/menu';

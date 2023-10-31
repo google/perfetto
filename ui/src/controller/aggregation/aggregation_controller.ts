@@ -19,11 +19,11 @@ import {
   ColumnDef,
   ThreadStateExtra,
 } from '../../common/aggregation_data';
-import {Engine} from '../../common/engine';
-import {NUM} from '../../common/query_result';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
 import {publishAggregateData} from '../../frontend/publish';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
 import {AreaSelectionHandler} from '../area_selection_handler';
 import {Controller} from '../controller';
 

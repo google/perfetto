@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../../common/engine';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../../common/query_result';
+} from '../../trace_processor/query_result';
 import {
   ArgSetId,
   ArgsId,

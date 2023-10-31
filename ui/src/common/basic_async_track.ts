@@ -24,7 +24,7 @@ import {Track, TrackContext} from '../public';
 import {TrackData} from './track_data';
 
 export {Store} from '../frontend/store';
-export {EngineProxy} from './engine';
+export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
   LONG_NULL,
@@ -32,7 +32,7 @@ export {
   NUM_NULL,
   STR,
   STR_NULL,
-} from './query_result';
+} from '../trace_processor/query_result';
 
 // This shim track provides the base for async style tracks implementing the new
 // plugin track interface.

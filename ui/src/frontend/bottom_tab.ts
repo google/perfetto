@@ -17,10 +17,10 @@ import {v4 as uuidv4} from 'uuid';
 
 import {stringifyJsonWithBigints} from '../base/json_utils';
 import {Actions} from '../common/actions';
-import {EngineProxy} from '../common/engine';
 import {traceEvent} from '../common/metatracing';
 import {Registry} from '../common/registry';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 

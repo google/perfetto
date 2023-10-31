@@ -13,8 +13,7 @@
 // limitations under the License.
 
 import {assertExists, assertTrue} from '../base/logging';
-
-import {Engine, LoadingTracker} from './engine';
+import {Engine, LoadingTracker} from '../trace_processor/engine';
 
 let bundlePath: string;
 let idleWasmWorker: Worker;

@@ -17,7 +17,6 @@ import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {hslForSlice} from '../../common/colorizer';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -34,6 +33,12 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
