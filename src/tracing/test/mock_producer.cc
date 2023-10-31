@@ -87,12 +87,14 @@ void MockProducer::Connect(TracingService* svc,
 void MockProducer::RegisterDataSource(const std::string& name,
                                       bool ack_stop,
                                       bool ack_start,
-                                      bool handle_incremental_state_clear) {
+                                      bool handle_incremental_state_clear,
+                                      bool no_flush) {
   DataSourceDescriptor ds_desc;
   ds_desc.set_name(name);
   ds_desc.set_will_notify_on_stop(ack_stop);
   ds_desc.set_will_notify_on_start(ack_start);
   ds_desc.set_handles_incremental_state_clear(handle_incremental_state_clear);
+  ds_desc.set_no_flush(no_flush);
   service_endpoint_->RegisterDataSource(ds_desc);
 }
 
