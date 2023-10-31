@@ -105,9 +105,10 @@ class PERFETTO_EXPORT_COMPONENT TraceProcessor : public TraceProcessorStorage {
   // Interrupts the current query. Typically used by Ctrl-C handler.
   virtual void InterruptQuery() = 0;
 
-  // Deletes all tables and views that have been created (by the UI or user)
-  // after the trace was loaded. It preserves the built-in tables/view created
-  // by the ingestion process. Returns the number of table/views deleted.
+  // Restores Trace Processor to its pristine state. It preserves the built-in
+  // tables/views/functions created by the ingestion process. Returns the number
+  // of objects created in runtime that has been deleted.
+  // NOTE: No Iterators can active when called.
   virtual size_t RestoreInitialTables() = 0;
 
   // Sets/returns the name of the currently loaded trace or an empty string if
