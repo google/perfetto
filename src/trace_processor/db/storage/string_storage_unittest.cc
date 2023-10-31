@@ -253,6 +253,99 @@ TEST(StringStorageUnittest, IndexSearchEq) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
 }
 
+TEST(StringStorageUnittest, LinearSearchGtSorted) {
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+
+  StringStorage storage(&pool, ids.data(), 6, true);
+  Range range =
+      storage.Search(FilterOp::kGt, SqlValue::String("camembert"), Range(0, 6))
+          .TakeIfRange();
+
+  ASSERT_EQ(range.size(), 4u);
+  ASSERT_EQ(range.start, 2u);
+  ASSERT_EQ(range.end, 6u);
+}
+
+TEST(StringStorageUnittest, LinearSearchGeSorted) {
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+
+  StringStorage storage(&pool, ids.data(), 6, true);
+  Range range =
+      storage.Search(FilterOp::kGe, SqlValue::String("cheese"), Range(0, 6))
+          .TakeIfRange();
+
+  ASSERT_EQ(range.size(), 4u);
+  ASSERT_EQ(range.start, 2u);
+  ASSERT_EQ(range.end, 6u);
+}
+
+TEST(StringStorageUnittest, LinearSearchLtSorted) {
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+
+  StringStorage storage(&pool, ids.data(), 6, true);
+  Range range =
+      storage.Search(FilterOp::kLt, SqlValue::String("camembert"), Range(0, 6))
+          .TakeIfRange();
+
+  ASSERT_EQ(range.size(), 2u);
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 2u);
+}
+
+TEST(StringStorageUnittest, LinearSearchLeSorted) {
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+
+  StringStorage storage(&pool, ids.data(), 6, true);
+  Range range =
+      storage.Search(FilterOp::kLe, SqlValue::String("cheese"), Range(0, 6))
+          .TakeIfRange();
+
+  ASSERT_EQ(range.size(), 3u);
+  ASSERT_EQ(range.start, 0u);
+  ASSERT_EQ(range.end, 3u);
+}
+
+TEST(StringStorageUnittest, LinearSearchNeSorted) {
+  std::vector<std::string> strings{"apple",    "burger",   "cheese",
+                                   "doughnut", "eggplant", "fries"};
+  std::vector<StringPool::Id> ids;
+  StringPool pool;
+  for (const auto& string : strings) {
+    ids.push_back(pool.InternString(base::StringView(string)));
+  }
+
+  StringStorage storage(&pool, ids.data(), 6, true);
+  BitVector bv =
+      storage.Search(FilterOp::kNe, SqlValue::String("cheese"), Range(0, 6))
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 5u);
+}
+
 }  // namespace
 }  // namespace storage
 }  // namespace trace_processor

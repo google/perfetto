@@ -279,10 +279,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
 
-    // Rare cases where string columns can be sorted.
-    use_legacy =
-        use_legacy || (col.IsSorted() && col.col_type() == ColumnType::kString);
-
     // Mismatched types
     use_legacy = use_legacy || (overlays::FilterOpToOverlayOp(c.op) ==
                                     overlays::OverlayOp::kOther &&
@@ -320,7 +316,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
         storage.reset(new storage::StringStorage(
             table->string_pool(),
             static_cast<const StringPool::Id*>(col.storage_base().data()),
-            col.storage_base().non_null_size()));
+            col.storage_base().non_null_size(), col.IsSorted()));
         break;
       case ColumnType::kInt64:
       case ColumnType::kUint32:
@@ -332,7 +328,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     }
     s_col.storage = storage.get();
 
-    // Create cDBv2 overlays based on col.overlay()
+    // Create cEngine overlays based on col.overlay()
     overlays::SelectorOverlay selector_overlay(
         col.overlay().row_map().GetIfBitVector());
     if (col.overlay().size() != column_size &&
