@@ -42,6 +42,7 @@ export interface MenuItemAttrs {
   // Defaults to false when menuitem has children, true otherwise.
   closePopupOnClick?: boolean;
   // Remaining attributes forwarded to the underlying HTML element.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
@@ -128,6 +129,7 @@ interface PopupMenu2Attrs extends PopupAttrs {
   // an Icon, or some other interactive component.
   // Beware this element will have its `onclick`, `ref`, and `active` attributes
   // overwritten.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trigger: m.Vnode<any, any>;
   // Which side of the trigger to place to popup.
   // Defaults to "bottom".

@@ -269,6 +269,7 @@ function isPostedScrollToRange(obj: unknown):
       wrapped.perfetto.timeEnd !== undefined;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function isPostedTraceWrapped(obj: any): obj is PostedTraceWrapped {
   const wrapped = obj as PostedTraceWrapped;
   if (wrapped.perfetto === undefined) {

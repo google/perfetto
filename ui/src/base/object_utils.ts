@@ -19,6 +19,7 @@ export type Path = PathKey[];
 // A path is defined using an array of path-like elements: I.e. [string|number].
 // Returns undefined if the path doesn't exist.
 export function lookupPath<SubT, T>(value: T, path: Path): SubT|undefined {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let o: any = value;
   for (const p of path) {
     if (p in o) {
@@ -30,6 +31,7 @@ export function lookupPath<SubT, T>(value: T, path: Path): SubT|undefined {
   return o;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function shallowEquals(a: any, b: any) {
   if (a === b) {
     return true;

@@ -39,6 +39,7 @@ interface OmniboxOptionRowAttrs {
   label?: string;
 
   // Additional attrs forwarded to the underlying element.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 

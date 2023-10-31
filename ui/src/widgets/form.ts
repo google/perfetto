@@ -49,6 +49,7 @@ export interface FormAttrs {
   extraClasses?: string|string[];
 
   // Remaining attributes forwarded to the underlying HTML <form>.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
@@ -109,6 +110,7 @@ export class Form implements m.ClassComponent<FormAttrs> {
 
 interface FormLabelAttrs {
   // All attributes are forwarded to the underlying HTML <label> element.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
