@@ -57,6 +57,7 @@ export interface Viewer {
     openQuery(query: string, title: string): void;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   commands: {run(name: string, ...args: any[]): void;}
 }
 
@@ -66,6 +67,7 @@ export interface Command {
   // A human-friendly name for this command.
   name: string;
   // Callback is called when the command is invoked.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   callback: (...args: any[]) => void;
   // Default hotkey for this command.
   // Note: this is just the default and may be changed by the user.

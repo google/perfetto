@@ -38,6 +38,7 @@ function isVegaLite(spec: unknown): boolean {
 }
 
 export interface VegaViewData {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [name: string]: any;
 }
 
@@ -72,6 +73,7 @@ class EngineLoader implements vega.Loader {
     this.loader = vega.loader();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   async load(uri: string, _options?: any): Promise<string> {
     if (this.engine === undefined) {
       return '';
@@ -86,8 +88,10 @@ class EngineLoader implements vega.Loader {
       }
     }
     const columns = result.columns();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rows: any[] = [];
     for (const it = result.iter({}); it.valid(); it.next()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const row: any = {};
       for (const name of columns) {
         let value = it.get(name);
@@ -101,10 +105,12 @@ class EngineLoader implements vega.Loader {
     return JSON.stringify(rows);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   sanitize(uri: string, options: any): Promise<{href: string}> {
     return this.loader.sanitize(uri, options);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   http(uri: string, options: any): Promise<string> {
     return this.loader.http(uri, options);
   }

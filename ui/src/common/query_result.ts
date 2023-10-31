@@ -933,16 +933,19 @@ class WaitableQueryResultImpl implements QueryResult, WritableQueryResult,
 
   // PromiseLike<QueryResult> implementaton.
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   then(onfulfilled: any, onrejected: any): any {
     assertFalse(this.thenCalled);
     this.thenCalled = true;
     return this.impl.ensureAllRowsPromise().then(onfulfilled, onrejected);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   catch(error: any): any {
     return this.impl.ensureAllRowsPromise().catch(error);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   finally(callback: () => void): any {
     return this.impl.ensureAllRowsPromise().finally(callback);
   }

@@ -56,6 +56,7 @@ export interface PopupAttrs {
   // which the popup should hover.
   // Beware this element will have its `onclick`, `ref`, and `active` attributes
   // overwritten.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   trigger: m.Vnode<any, any>;
   // Close when the escape key is pressed
   // Defaults to true.
@@ -138,6 +139,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     ];
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private renderTrigger(trigger: m.Vnode<any, any>): m.Children {
     trigger.attrs = {
       ...trigger.attrs,
@@ -150,6 +152,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     return trigger;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private renderPopup(attrs: PopupAttrs, children: any): m.Children {
     const {
       className,
