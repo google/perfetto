@@ -64,6 +64,7 @@ struct QueryRunner {
   std::optional<protos::QueryTraceResponse> operator()() {
     if (!has_more) {
       if (statefulness == Statefulness::kStateless) {
+        serializer.reset();
         tp->RestoreInitialTables();
       }
       return std::nullopt;

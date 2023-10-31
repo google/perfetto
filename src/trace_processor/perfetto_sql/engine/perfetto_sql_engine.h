@@ -18,7 +18,6 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 
 #include <memory>
-#include <optional>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -141,6 +140,21 @@ class PerfettoSqlEngine {
     return modules_.Find(name);
   }
 
+  // Returns the count of all runtime tables and views created as a result of
+  // using trace processor.
+  uint64_t RuntimeTablesAndViewsCount() {
+    return runtime_tables_.size() + runtime_table_fn_states_.size() +
+           runtime_views_count_;
+  }
+
+  // Returns the count of all objects created as a result of using trace
+  // processor.
+  uint64_t AllRegisteredObjectsCount() {
+    return RuntimeTablesAndViewsCount() + static_table_count_ +
+           static_table_function_count_ + static_function_count_ +
+           runtime_function_count_ + macros_.size();
+  }
+
  private:
   base::StatusOr<SqlSource> ExecuteCreateFunction(
       const PerfettoSqlParser::CreateFunction&,
@@ -156,8 +170,22 @@ class PerfettoSqlEngine {
 
   base::Status ExecuteCreateMacro(const PerfettoSqlParser::CreateMacro&);
 
+  template <typename Function>
+  base::Status RegisterFunctionWithSqlite(
+      const char* name,
+      int argc,
+      std::unique_ptr<typename Function::Context> ctx,
+      bool deterministic = true);
+
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
+
+  uint64_t static_table_count_ = 0;
+  uint64_t static_table_function_count_ = 0;
+  uint64_t static_function_count_ = 0;
+  uint64_t runtime_function_count_ = 0;
+  uint64_t runtime_views_count_ = 0;
+
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
@@ -232,6 +260,7 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     typename Function::Context* ctx,
     bool deterministic) {
+  static_function_count_++;
   return engine_->RegisterFunction(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
       nullptr, deterministic);
@@ -239,6 +268,17 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
 
 template <typename Function>
 base::Status PerfettoSqlEngine::RegisterStaticFunction(
+    const char* name,
+    int argc,
+    std::unique_ptr<typename Function::Context> user_data,
+    bool deterministic) {
+  static_function_count_++;
+  return RegisterFunctionWithSqlite<Function>(name, argc, std::move(user_data),
+                                              deterministic);
+}
+
+template <typename Function>
+base::Status PerfettoSqlEngine::RegisterFunctionWithSqlite(
     const char* name,
     int argc,
     std::unique_ptr<typename Function::Context> user_data,
