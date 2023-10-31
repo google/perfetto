@@ -33,8 +33,8 @@ import {
   TrackRef,
   Viewer,
 } from '../public';
+import {Engine} from '../trace_processor/engine';
 
-import {Engine} from './engine';
 import {Registry} from './registry';
 
 // Every plugin gets its own PluginContext. This is how we keep track

@@ -19,14 +19,14 @@ import {Icons} from '../../base/semantic_icons';
 import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
   NUM,
   STR,
   STR_NULL,
-} from '../../common/query_result';
+} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';

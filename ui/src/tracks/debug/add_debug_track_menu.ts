@@ -15,8 +15,8 @@
 import m from 'mithril';
 
 import {findRef} from '../../base/dom_utils';
-import {EngineProxy} from '../../common/engine';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
 import {Form, FormLabel} from '../../widgets/form';
 import {Select} from '../../widgets/select';
 import {TextInput} from '../../widgets/text_input';

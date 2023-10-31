@@ -15,17 +15,7 @@
 import {assertTrue} from '../base/logging';
 import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {Engine} from '../common/engine';
 import {pluginManager} from '../common/plugins';
-import {
-  durationFromSql,
-  LONG,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-  timeFromSql,
-} from '../common/query_result';
 import {ChromeSliceSelection} from '../common/state';
 import {
   CounterDetails,
@@ -38,6 +28,16 @@ import {
   publishSliceDetails,
   publishThreadStateDetails,
 } from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {
+  durationFromSql,
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+  timeFromSql,
+} from '../trace_processor/query_result';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {Controller} from './controller';

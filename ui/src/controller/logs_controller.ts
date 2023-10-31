@@ -19,7 +19,6 @@ import {
   Time,
   TimeSpan,
 } from '../base/time';
-import {Engine} from '../common/engine';
 import {
   LogBounds,
   LogBoundsKey,
@@ -27,11 +26,12 @@ import {
   LogEntriesKey,
   LogExistsKey,
 } from '../common/logs';
-import {LONG, LONG_NULL, NUM, STR} from '../common/query_result';
-import {escapeGlob, escapeQuery} from '../common/query_utils';
 import {LogFilteringCriteria} from '../common/state';
 import {globals} from '../frontend/globals';
 import {publishTrackData} from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {LONG, LONG_NULL, NUM, STR} from '../trace_processor/query_result';
+import {escapeGlob, escapeQuery} from '../trace_processor/query_utils';
 
 import {Controller} from './controller';
 

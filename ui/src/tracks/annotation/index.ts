@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import {
-  NUM,
-  NUM_NULL,
-  STR,
-} from '../../common/query_result';
-import {
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
 import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {
   Config as CounterTrackConfig,

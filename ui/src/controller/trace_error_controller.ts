@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../common/engine';
-import {NUM} from '../common/query_result';
 import {publishTraceErrors} from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {NUM} from '../trace_processor/query_result';
 
 import {Controller} from './controller';
 

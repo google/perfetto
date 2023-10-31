@@ -20,7 +20,6 @@ import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {Engine} from '../common/engine';
 import {featureFlags} from '../common/feature_flags';
 import {
   disableMetatracingAndGetTrace,
@@ -30,6 +29,7 @@ import {
 import {EngineMode} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
+import {Engine} from '../trace_processor/engine';
 
 import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';

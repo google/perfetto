@@ -18,9 +18,9 @@ import m from 'mithril';
 import {Disposable} from '../base/disposable';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {undoCommonChatAppReplacements} from '../base/string_utils';
-import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 import {Callout} from '../widgets/callout';
 import {Editor} from '../widgets/editor';
 

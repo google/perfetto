@@ -15,7 +15,6 @@
 import {duration, Time, time} from '../../base/time';
 import {BasicAsyncTrack} from '../../common/basic_async_track';
 import {colorForString} from '../../common/colorizer';
-import {LONG, NUM, STR} from '../../common/query_result';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -26,6 +25,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
 
 export const FTRACE_RAW_TRACK_KIND = 'FtraceRawTrack';
 

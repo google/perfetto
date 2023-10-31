@@ -14,9 +14,9 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../../common/engine';
-import {STR} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
+import {STR} from '../../trace_processor/query_result';
 import {FilterableSelect} from '../../widgets/select';
 import {Spinner} from '../../widgets/spinner';
 import {

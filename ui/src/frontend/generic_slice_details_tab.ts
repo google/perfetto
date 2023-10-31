@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
-import {ColumnType} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
+import {ColumnType} from '../trace_processor/query_result';
 import {DetailsShell} from '../widgets/details_shell';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
