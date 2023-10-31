@@ -18,9 +18,15 @@ export type Path = PathKey[];
 // Given an object, return a ref to the object or item at at a given path.
 // A path is defined using an array of path-like elements: I.e. [string|number].
 // Returns undefined if the path doesn't exist.
-export function lookupPath<SubT, T>(value: T, path: Path): SubT|undefined {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let o: any = value;
+// Note: This is an appropriate use of `any`, as we are knowingly getting fast
+// and loose with the type system in this function: it's basically JavaScript.
+// Attempting to pretend it's anything else would result in superfluous type
+// assertions which would have no benefit.
+// I'm sure we could convince TypeScript to follow the path and type everything
+// correctly along the way, but that's a job for another day.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lookupPath<T>(value: any, path: Path): T|undefined {
+  let o = value;
   for (const p of path) {
     if (p in o) {
       o = o[p];
