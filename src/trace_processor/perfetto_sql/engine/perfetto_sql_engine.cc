@@ -175,6 +175,8 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
   if (error) {
     PERFETTO_ELOG("Error adding table to perfetto_tables: %s", error);
     sqlite3_free(error);
+  } else {
+    static_table_count_++;
   }
 }
 
@@ -185,6 +187,7 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
                                                           std::move(fn));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
+  static_table_function_count_++;
 }
 
 base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
@@ -348,10 +351,11 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
     std::unique_ptr<CreatedFunction::Context> created_fn_ctx =
         CreatedFunction::MakeContext(this);
     ctx = created_fn_ctx.get();
-    RETURN_IF_ERROR(RegisterStaticFunction<CreatedFunction>(
+    RETURN_IF_ERROR(RegisterFunctionWithSqlite<CreatedFunction>(
         prototype.function_name.c_str(), created_argc,
         std::move(created_fn_ctx)));
   }
+  runtime_function_count_++;
   return CreatedFunction::ValidateOrPrepare(
       ctx, replace, std::move(prototype), std::move(*opt_return_type),
       std::move(return_type_str), std::move(sql));
@@ -433,7 +437,9 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
-  return Execute(create_view.sql).status();
+  RETURN_IF_ERROR(Execute(create_view.sql).status());
+  runtime_views_count_++;
+  return base::OkStatus();
 }
 
 base::Status PerfettoSqlEngine::EnableSqlFunctionMemoization(
@@ -479,6 +485,7 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
   if (it->statement_count_with_output > 0)
     return base::ErrStatus("INCLUDE: Included module returning values.");
   module_file->included = true;
+
   return base::OkStatus();
 }
 
