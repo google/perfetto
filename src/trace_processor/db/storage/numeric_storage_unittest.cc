@@ -73,6 +73,16 @@ TEST(NumericStorageUnittest, CompareSorted) {
   ASSERT_EQ(range.end, 128u);
 }
 
+TEST(NumericStorageUnittest, CompareSortedNe) {
+  std::vector<uint32_t> data_vec(128);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32, true);
+  BitVector bv =
+      storage.Search(FilterOp::kNe, SqlValue::Long(100), Range(0, 128))
+          .TakeIfBitVector();
+  ASSERT_EQ(bv.CountSetBits(), 127u);
+}
+
 TEST(NumericStorageUnittest, CompareSortedSubset) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
