@@ -30,6 +30,7 @@ class JankType:
   JANK_BUFFER_STUFFING = 128
   JANK_UNKNOWN = 256
   JANK_SF_STUFFING = 512
+  JANK_DROPPED = 1024
 
 
 class PresentType:
@@ -292,6 +293,22 @@ trace.add_actual_display_frame_start_event(
     gpu_composition=0,
     jank_type=JankType.JANK_SF_STUFFING,
     prediction_type=PredictionType.PREDICTION_VALID)
+trace.add_frame_end_event(ts=260, cookie=27)
+
+# DisplayFrame with dropped frame jank
+trace.add_expected_display_frame_start_event(
+    ts=220, cookie=26, token=18, pid=666)
+trace.add_frame_end_event(ts=230, cookie=26)
+trace.add_actual_display_frame_start_event(
+    ts=245,
+    cookie=27,
+    token=18,
+    pid=666,
+    present_type=PresentType.PRESENT_DROPPED,
+    on_time_finish=0,
+    gpu_composition=0,
+    jank_type=JankType.JANK_DROPPED,
+    prediction_type=PredictionType.PREDICTION_UNSPECIFIED)
 trace.add_frame_end_event(ts=260, cookie=27)
 
 sys.stdout.buffer.write(trace.trace.SerializeToString())
