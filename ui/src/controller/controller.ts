@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ControllerAny = Controller</* StateType=*/ any>;
+export type ControllerAny = Controller</* StateType=*/ unknown>;
 
 export interface ControllerFactory<ConstructorArgs> {
   new(args: ConstructorArgs): ControllerAny;
