@@ -88,6 +88,21 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicGt) {
   ASSERT_EQ(range.end, 70u);
 }
 
+TEST(IdStorageUnittest, BinarySearchIntrinsicNe) {
+  IdStorage storage(100);
+  BitVector bv =
+      storage.Search(FilterOp::kNe, SqlValue::Long(40), Range(30, 70))
+          .TakeIfBitVector();
+  ASSERT_EQ(bv.CountSetBits(), 39u);
+}
+
+TEST(IdStorageUnittest, BinarySearchIntrinsicNeInvalidNum) {
+  IdStorage storage(100);
+  Range r = storage.Search(FilterOp::kNe, SqlValue::Long(-1), Range(30, 70))
+                .TakeIfRange();
+  ASSERT_EQ(r.size(), 100u);
+}
+
 TEST(IdStorageUnittest, Sort) {
   std::vector<uint32_t> order{4, 3, 6, 1, 5};
   IdStorage storage(10);
