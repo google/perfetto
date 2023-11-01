@@ -298,6 +298,8 @@ void FrameTimelineEventParser::ParseActualDisplayFrameStart(
     actual_row.jank_tag = jank_tag_self_id_;
   } else if (event.jank_type() == FrameTimelineEvent::JANK_SF_STUFFING) {
     actual_row.jank_tag = jank_tag_sf_stuffing_id_;
+  } else if (event.jank_type() == FrameTimelineEvent::JANK_DROPPED) {
+    actual_row.jank_tag = jank_tag_dropped_id_;
   } else {
     actual_row.jank_tag = jank_tag_none_id_;
   }
