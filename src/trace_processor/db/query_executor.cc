@@ -267,15 +267,17 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
+    if (rm.size() == 0) {
+      return rm;
+    }
     const Column& col = table->columns()[c.col_idx];
     uint32_t column_size =
         col.IsId() ? col.overlay().row_map().Max() : col.storage_base().size();
 
-    // RowMap size
-    bool use_legacy = rm.size() <= 1;
+    // RowMap size is 1.
+    bool use_legacy = rm.size() == 1;
 
-    // Rare cases where we have a range which doesn't match the size of the
-    // column.
+    // Storage has different size than Range overlay.
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
 
