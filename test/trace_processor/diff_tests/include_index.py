@@ -92,6 +92,7 @@ from diff_tests.stdlib.chrome.tests import ChromeStdlib
 from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteractions
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
+from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.slices.tests import Slices
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
@@ -212,6 +213,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ChromeStdlib(index_path, 'stdlib/chrome', 'ChromeStdlib').fetch(),
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
+      *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
       *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
