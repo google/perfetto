@@ -128,17 +128,17 @@ export class ChromeTracingController extends RpcConsumerPort {
     return obj;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  convertToDevToolsConfig(config: any): Protocol.Tracing.TraceConfig {
+  convertToDevToolsConfig(config: unknown): Protocol.Tracing.TraceConfig {
     // DevTools uses a different naming style for config properties: Dictionary
     // keys are named "camelCase" style, rather than "underscore_case" style as
     // in the TraceConfig.
-    config = this.convertDictKeys(config);
+    const convertedConfig = this.convertDictKeys(config);
     // recordMode is specified as an enum with camelCase values.
-    if (config.recordMode) {
-      config.recordMode = this.toCamelCase(config.recordMode as string, '-');
+    if (convertedConfig.recordMode) {
+      convertedConfig.recordMode =
+          this.toCamelCase(convertedConfig.recordMode as string, '-');
     }
-    return config as Protocol.Tracing.TraceConfig;
+    return convertedConfig as Protocol.Tracing.TraceConfig;
   }
 
   // TODO(nicomazz): write unit test for this
