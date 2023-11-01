@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "perfetto/base/logging.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -69,20 +70,20 @@ RangeOrBitVector IndexSearchWithComparator(uint32_t val,
 RangeOrBitVector IdStorage::Search(FilterOp op,
                                    SqlValue sql_val,
                                    RowMap::Range range) const {
-  if (op != FilterOp::kNe)
-    return RangeOrBitVector(BinarySearchIntrinsic(op, sql_val, range));
+  if (op == FilterOp::kNe) {
+    if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
+        sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
+      return RangeOrBitVector(Range(0, size_));
 
-  if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-      sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
-    return RangeOrBitVector(BitVector(size_, false));
+    uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
+    BitVector ret(range.start, false);
+    ret.Resize(range.end, true);
+    ret.Resize(size_, false);
 
-  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
-  BitVector ret(range.start, false);
-  ret.Resize(range.end, true);
-  ret.Resize(size_, false);
-
-  ret.Clear(val);
-  return RangeOrBitVector(std::move(ret));
+    ret.Clear(val);
+    return RangeOrBitVector(std::move(ret));
+  }
+  return RangeOrBitVector(BinarySearchIntrinsic(op, sql_val, range));
 }
 
 RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
