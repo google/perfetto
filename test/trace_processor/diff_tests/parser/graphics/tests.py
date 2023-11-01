@@ -101,6 +101,7 @@ class GraphicsParser(TestSuite):
         150,20,1000,15,14,"Layer1"
         170,6,666,15,0,"[NULL]"
         200,6,666,17,0,"[NULL]"
+        220,-1,666,18,0,"[NULL]"
         220,10,666,18,0,"[NULL]"
         """))
 
@@ -108,7 +109,24 @@ class GraphicsParser(TestSuite):
     return DiffTestBlueprint(
         trace=Path('frame_timeline_events.py'),
         query=Path('actual_frame_timeline_events_test.sql'),
-        out=Path('actual_frame_timeline_events.out'))
+        out=Csv("""
+        "ts","dur","pid","display_frame_token","surface_frame_token","layer_name","present_type","on_time_finish","gpu_composition","jank_type","prediction_type","jank_tag"
+        20,6,666,2,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        21,16,1000,4,1,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        41,33,1000,6,5,"Layer1","Late Present",0,0,"App Deadline Missed","Valid Prediction","Self Jank"
+        42,5,666,4,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        80,110,1000,17,16,"Layer1","Unknown Present",0,0,"Unknown Jank","Expired Prediction","Self Jank"
+        81,7,666,6,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        90,16,1000,8,7,"Layer1","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Other Jank"
+        108,4,666,8,0,"[NULL]","Early Present",1,0,"SurfaceFlinger Scheduling","Valid Prediction","Self Jank"
+        148,8,666,12,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Scheduling, SurfaceFlinger CPU Deadline Missed","Valid Prediction","Self Jank"
+        150,17,1000,15,14,"Layer1","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        150,17,1000,15,14,"Layer2","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        170,6,666,15,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        200,6,666,17,0,"[NULL]","On-time Present",1,0,"None","Valid Prediction","No Jank"
+        245,-1,666,18,0,"[NULL]","Late Present",0,0,"SurfaceFlinger Stuffing","Valid Prediction","SurfaceFlinger Stuffing"
+        245,15,666,18,0,"[NULL]","Dropped Frame",0,0,"Dropped Frame","Unspecified Prediction","Dropped Frame"
+        """))
 
   # Video 4 Linux 2 related tests
   def test_v4l2_vidioc_slice(self):
