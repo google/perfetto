@@ -1268,10 +1268,8 @@ base::Status TracingServiceImpl::StartTracing(TracingSessionID tsid) {
     PeriodicClearIncrementalStateTask(tsid, /*post_next_only=*/true);
   }
 
-  for (auto& kv : tracing_session->data_source_instances) {
-    ProducerID producer_id = kv.first;
-    DataSourceInstance& data_source = kv.second;
-    ProducerEndpointImpl* producer = GetProducer(producer_id);
+  for (auto& [prod_id, data_source] : tracing_session->data_source_instances) {
+    ProducerEndpointImpl* producer = GetProducer(prod_id);
     if (!producer) {
       PERFETTO_DFATAL("Producer does not exist.");
       continue;
@@ -1784,11 +1782,14 @@ void TracingServiceImpl::Flush(TracingSessionID tsid,
   // Send a flush request to each producer involved in the tracing session. In
   // order to issue a flush request we have to build a map of all data source
   // instance ids enabled for each producer.
+
   std::map<ProducerID, std::vector<DataSourceInstanceID>> flush_map;
-  for (const auto& data_source_inst : tracing_session->data_source_instances) {
-    const ProducerID producer_id = data_source_inst.first;
-    const DataSourceInstanceID ds_inst_id = data_source_inst.second.instance_id;
-    flush_map[producer_id].push_back(ds_inst_id);
+  for (const auto& kv : tracing_session->data_source_instances) {
+    const ProducerID producer_id = kv.first;
+    const DataSourceInstance& ds_inst = kv.second;
+    if (ds_inst.no_flush)
+      continue;
+    flush_map[producer_id].push_back(ds_inst.instance_id);
   }
 
   for (const auto& kv : flush_map) {
@@ -2799,7 +2800,8 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
           data_source.descriptor.name(),
           data_source.descriptor.will_notify_on_start(),
           data_source.descriptor.will_notify_on_stop(),
-          data_source.descriptor.handles_incremental_state_clear()));
+          data_source.descriptor.handles_incremental_state_clear(),
+          data_source.descriptor.no_flush()));
   DataSourceInstance* ds_instance = &insert_iter->second;
 
   // New data source instance starts out in CONFIGURED state.
