@@ -18,6 +18,7 @@
 #include "src/trace_processor/db/overlays/arrangement_overlay.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
+#include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
 #include "test/gtest_and_gmock.h"
@@ -28,6 +29,7 @@ namespace {
 
 using OverlaysVec = base::SmallVector<const overlays::StorageOverlay*,
                                       QueryExecutor::kMaxOverlayCount>;
+using IdStorage = storage::IdStorage;
 using NumericStorage = storage::NumericStorage;
 using StringStorage = storage::StringStorage;
 using SimpleColumn = QueryExecutor::SimpleColumn;
@@ -429,6 +431,45 @@ TEST(QueryExecutor, BinarySearchNotEq) {
   RowMap res = exec.Filter({c});
 
   ASSERT_EQ(res.size(), 9u);
+}
+
+TEST(QueryExecutor, IdSearchIsNull) {
+  IdStorage storage(5);
+  OverlaysVec overlays_vec;
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 0u);
+}
+
+TEST(QueryExecutor, IdSearchIsNotNull) {
+  IdStorage storage(5);
+  OverlaysVec overlays_vec;
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kIsNotNull, SqlValue::Long(0)};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 5u);
+}
+
+TEST(QueryExecutor, IdSearchNotEq) {
+  IdStorage storage(5);
+  OverlaysVec overlays_vec;
+  SimpleColumn col{overlays_vec, &storage};
+
+  // Filter.
+  Constraint c{0, FilterOp::kNe, SqlValue::Long(3)};
+  QueryExecutor exec({col}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 4u);
 }
 
 TEST(QueryExecutor, StringSearchIsNull) {
