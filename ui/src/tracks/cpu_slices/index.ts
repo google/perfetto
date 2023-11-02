@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {getCssStr} from '../../frontend/css_constants';
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search, searchEq, searchSegment} from '../../base/binary_search';
 import {assertTrue} from '../../base/logging';
@@ -371,20 +372,22 @@ class CpuSliceTrack extends Track<Config, Data> {
               wakeupPos,
               MARGIN_TOP + RECT_HEIGHT,
               latencyWidth,
-              latencyWidth >= 20);
-          // Latency time with a white semi-transparent background.
+              latencyWidth >= 20,
+              2,
+              getCssStr('--main-foreground-color'));
+          // Latency time background.
           const latency = tStart - details.wakeupTs;
           const displayText = tpTimeToString(latency);
           const measured = ctx.measureText(displayText);
           if (latencyWidth >= measured.width + 2) {
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
+            ctx.fillStyle = getCssStr('--main-background-color');
             ctx.fillRect(
                 wakeupPos + latencyWidth / 2 - measured.width / 2 - 1,
                 MARGIN_TOP + RECT_HEIGHT - 12,
                 measured.width + 2,
                 11);
             ctx.textBaseline = 'bottom';
-            ctx.fillStyle = 'black';
+            ctx.fillStyle = getCssStr('--main-foreground-color');
             ctx.fillText(
                 displayText,
                 wakeupPos + (latencyWidth) / 2,
@@ -399,7 +402,7 @@ class CpuSliceTrack extends Track<Config, Data> {
             Math.floor(visibleTimeScale.tpTimeToPx(details.wakeupTs));
         ctx.beginPath();
         ctx.moveTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 + 8);
-        ctx.fillStyle = 'black';
+        ctx.fillStyle = getCssStr('--main-foreground-color');
         ctx.lineTo(wakeupPos + 6, MARGIN_TOP + RECT_HEIGHT / 2);
         ctx.lineTo(wakeupPos, MARGIN_TOP + RECT_HEIGHT / 2 - 8);
         ctx.lineTo(wakeupPos - 6, MARGIN_TOP + RECT_HEIGHT / 2);

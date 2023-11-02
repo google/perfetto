@@ -468,7 +468,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
             visibleTimeScale,
             globals.sliceDetails.wakeupTs,
             size.height,
-            `black`);
+            getCssStr('--main-foreground-color'));
       }
     }
     // All marked areas should have semi-transparent vertical lines
