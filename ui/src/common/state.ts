@@ -173,8 +173,13 @@ export enum ProfileType {
   PERF_SAMPLE = 'perf',
 }
 
-export type FlamegraphStateViewingOption =
-    'SPACE'|'ALLOC_SPACE'|'OBJECTS'|'ALLOC_OBJECTS'|'PERF_SAMPLES';
+export enum FlamegraphStateViewingOption {
+  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE',
+  ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE',
+  OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS',
+  OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS',
+  PERF_SAMPLES_KEY = 'PERF_SAMPLES',
+}
 
 export interface CallsiteInfo {
   id: number;
