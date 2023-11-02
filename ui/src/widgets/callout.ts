@@ -14,13 +14,12 @@
 
 import m from 'mithril';
 
+import {HTMLAttrs} from './common';
 import {Icon} from './icon';
 
-interface CalloutAttrs {
+interface CalloutAttrs extends HTMLAttrs {
+  // An icon to show to the left of the callout content.
   icon?: string;
-  // Remaining attributes forwarded to the underlying HTML <button>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 export class Callout implements m.ClassComponent<CalloutAttrs> {
@@ -29,7 +28,7 @@ export class Callout implements m.ClassComponent<CalloutAttrs> {
 
     return m(
         '.pf-callout',
-        {...htmlAttrs},
+        htmlAttrs,
         icon && m(Icon, {className: 'pf-left-icon', icon}),
         children,
     );

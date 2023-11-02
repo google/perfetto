@@ -14,9 +14,7 @@
 
 export async function copyToClipboard(text: string): Promise<void> {
   try {
-    // TODO(hjd): Fix typescript type for navigator.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (navigator as any).clipboard.writeText(text);
+    await navigator.clipboard.writeText(text);
   } catch (err) {
     console.error(`Failed to copy "${text}" to clipboard: ${err}`);
   }

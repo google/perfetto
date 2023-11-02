@@ -21,9 +21,6 @@ export interface TextParagraphAttrs {
   // Whether to compress multiple spaces (e.g. the string is multi-line but
   // should render with the default UI wrapping)
   compressSpace?: boolean;
-  // Remaining attributes forwarded to the underlying HTML <section>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 export class TextParagraph implements m.ClassComponent<TextParagraphAttrs> {

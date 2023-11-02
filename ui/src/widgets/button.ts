@@ -16,10 +16,11 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 
+import {HTMLButtonAttrs} from './common';
 import {Icon} from './icon';
 import {Popup} from './popup';
 
-interface CommonAttrs {
+interface CommonAttrs extends HTMLButtonAttrs {
   // Always show the button as if the "active" pseudo class were applied, which
   // makes the button look permanently pressed.
   // Useful for when the button represents some toggleable state, such as
@@ -32,10 +33,6 @@ interface CommonAttrs {
   // Reduces button decorations.
   // Defaults to false.
   minimal?: boolean;
-  // Make the button appear greyed out block any interaction with it. No events
-  // will be fired.
-  // Defaults to false.
-  disabled?: boolean;
   // Optional right icon.
   rightIcon?: string;
   // List of space separated class names forwarded to the icon.
@@ -43,9 +40,6 @@ interface CommonAttrs {
   // Allow clicking this button to close parent popups.
   // Defaults to false.
   dismissPopup?: boolean;
-  // Remaining attributes forwarded to the underlying HTML <button>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 interface IconButtonAttrs extends CommonAttrs {
@@ -65,20 +59,19 @@ export type ButtonAttrs = LabelButtonAttrs|IconButtonAttrs;
 export class Button implements m.ClassComponent<ButtonAttrs> {
   view({attrs}: m.CVnode<ButtonAttrs>) {
     const {
-      label,
       icon,
-      active = false,
-      compact = false,
-      minimal = false,
-      disabled = false,
+      active,
+      compact,
+      minimal,
       rightIcon,
       className,
-      dismissPopup = false,
+      dismissPopup,
       ...htmlAttrs
     } = attrs;
 
+    const label = 'label' in attrs ? attrs.label : undefined;
+
     const classes = classNames(
-        'pf-button',
         active && 'pf-active',
         compact && 'pf-compact',
         minimal && 'pf-minimal',
@@ -88,10 +81,10 @@ export class Button implements m.ClassComponent<ButtonAttrs> {
     );
 
     return m(
-        'button' + (disabled ? '[disabled]' : ''),
+        'button.pf-button',
         {
-          class: classes,
           ...htmlAttrs,
+          className: classes,
         },
         icon && m(Icon, {className: 'pf-left-icon', icon}),
         rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),

@@ -46,14 +46,19 @@ test('getContainingTrackId', () => {
 });
 
 test('state is serializable', () => {
-  const state: State = createEmptyState();
+  const state = createEmptyState();
   const json = serializeStateObject(state);
-  const restored: State = deserializeStateObject(json);
+  const restored = deserializeStateObject<State>(json);
 
-  // Remove nonSerializableState from original
+  // Remove non-serialized fields from the original state object, so it may be
+  // compared fairly with the restored version.
+  // This is a legitimate use of 'any'. We are comparing this object against
+  // one that's taken a round trip through JSON, which has therefore lost any
+  // type information. Attempting to ask TS for help here would serve no
+  // purpose.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const serializableState: any = state as any;
-  delete serializableState['nonSerializableState'];
+  const serializableState: any = state;
+  serializableState.nonSerializableState = undefined;
 
   // Remove any undefined values from original as JSON doesn't serialize them
   for (const key in serializableState) {
