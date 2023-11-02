@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+#include <memory>
 #include <vector>
 
 #include "src/trace_processor/importers/common/args_tracker.h"
+#include "src/trace_processor/importers/common/args_translation_table.h"
 #include "src/trace_processor/importers/common/slice_tracker.h"
 #include "src/trace_processor/importers/common/slice_translation_table.h"
 #include "src/trace_processor/storage/trace_storage.h"
@@ -51,12 +53,24 @@ std::vector<SliceInfo> ToSliceInfo(const tables::SliceTable& slices) {
   return infos;
 }
 
-TEST(SliceTrackerTest, OneSliceDetailed) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+class SliceTrackerTest : public ::testing::Test {
+ public:
+  SliceTrackerTest() {
+    context_.storage = std::make_unique<TraceStorage>();
+    context_.global_args_tracker =
+        std::make_unique<GlobalArgsTracker>(context_.storage.get());
+    context_.args_translation_table =
+        std::make_unique<ArgsTranslationTable>(context_.storage.get());
+    context_.slice_translation_table =
+        std::make_unique<SliceTranslationTable>(context_.storage.get());
+  }
+
+ protected:
+  TraceProcessorContext context_;
+};
+
+TEST_F(SliceTrackerTest, OneSliceDetailed) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
@@ -64,7 +78,7 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/,
               StringId::Raw(1) /*name*/);
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
@@ -75,23 +89,19 @@ TEST(SliceTrackerTest, OneSliceDetailed) {
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
 
-TEST(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
+  SliceTracker tracker(&context_);
 
-  const StringId raw_name = context.storage->InternString("raw_name");
-  const StringId mapped_name = context.storage->InternString("mapped_name");
-  context.slice_translation_table->AddNameTranslationRule("raw_name",
-                                                          "mapped_name");
+  const StringId raw_name = context_.storage->InternString("raw_name");
+  const StringId mapped_name = context_.storage->InternString("mapped_name");
+  context_.slice_translation_table->AddNameTranslationRule("raw_name",
+                                                           "mapped_name");
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/);
   tracker.End(10 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/);
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
@@ -103,12 +113,8 @@ TEST(SliceTrackerTest, OneSliceDetailedWithTranslatedName) {
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
 
-TEST(SliceTrackerTest, NegativeTimestamps) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, NegativeTimestamps) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(-1000 /*ts*/, track, kNullStringId /*cat*/,
@@ -116,7 +122,7 @@ TEST(SliceTrackerTest, NegativeTimestamps) {
   tracker.End(-501 /*ts*/, track, kNullStringId /*cat*/,
               StringId::Raw(1) /*name*/);
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], -1000);
   EXPECT_EQ(slices.dur()[0], 499);
@@ -127,14 +133,8 @@ TEST(SliceTrackerTest, NegativeTimestamps) {
   EXPECT_EQ(slices.arg_set_id()[0], kInvalidArgSetId);
 }
 
-TEST(SliceTrackerTest, OneSliceWithArgs) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.global_args_tracker.reset(
-      new GlobalArgsTracker(context.storage.get()));
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, OneSliceWithArgs) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
@@ -152,7 +152,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
                                  /*value=*/Variadic::Integer(20));
               });
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
@@ -162,7 +162,7 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(slices.depth()[0], 0u);
   auto set_id = slices.arg_set_id()[0];
 
-  const auto& args = context.storage->arg_table();
+  const auto& args = context_.storage->arg_table();
   EXPECT_EQ(args.arg_set_id()[0], set_id);
   EXPECT_EQ(args.flat_key()[0].raw_id(), 1u);
   EXPECT_EQ(args.key()[0].raw_id(), 2u);
@@ -173,19 +173,13 @@ TEST(SliceTrackerTest, OneSliceWithArgs) {
   EXPECT_EQ(args.int_value()[1], 20);
 }
 
-TEST(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.global_args_tracker.reset(
-      new GlobalArgsTracker(context.storage.get()));
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
+  SliceTracker tracker(&context_);
 
-  const StringId raw_name = context.storage->InternString("raw_name");
-  const StringId mapped_name = context.storage->InternString("mapped_name");
-  context.slice_translation_table->AddNameTranslationRule("raw_name",
-                                                          "mapped_name");
+  const StringId raw_name = context_.storage->InternString("raw_name");
+  const StringId mapped_name = context_.storage->InternString("mapped_name");
+  context_.slice_translation_table->AddNameTranslationRule("raw_name",
+                                                           "mapped_name");
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/, raw_name /*name*/,
@@ -201,7 +195,7 @@ TEST(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
                                  /*value=*/Variadic::Integer(20));
               });
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
   EXPECT_EQ(slices.row_count(), 1u);
   EXPECT_EQ(slices.ts()[0], 2);
   EXPECT_EQ(slices.dur()[0], 8);
@@ -212,7 +206,7 @@ TEST(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   EXPECT_EQ(slices.depth()[0], 0u);
   auto set_id = slices.arg_set_id()[0];
 
-  const auto& args = context.storage->arg_table();
+  const auto& args = context_.storage->arg_table();
   EXPECT_EQ(args.arg_set_id()[0], set_id);
   EXPECT_EQ(args.flat_key()[0].raw_id(), 1u);
   EXPECT_EQ(args.key()[0].raw_id(), 2u);
@@ -223,12 +217,8 @@ TEST(SliceTrackerTest, OneSliceWithArgsWithTranslatedName) {
   EXPECT_EQ(args.int_value()[1], 20);
 }
 
-TEST(SliceTrackerTest, TwoSliceDetailed) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, TwoSliceDetailed) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, kNullStringId /*cat*/,
@@ -238,7 +228,7 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   tracker.End(5 /*ts*/, track);
   tracker.End(10 /*ts*/, track);
 
-  const auto& slices = context.storage->slice_table();
+  const auto& slices = context_.storage->slice_table();
 
   EXPECT_EQ(slices.row_count(), 2u);
 
@@ -262,12 +252,8 @@ TEST(SliceTrackerTest, TwoSliceDetailed) {
   EXPECT_NE(slices.stack_id()[1], 0);
 }
 
-TEST(SliceTrackerTest, Scoped) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, Scoped) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(0 /*ts*/, track, kNullStringId, kNullStringId);
@@ -276,21 +262,17 @@ TEST(SliceTrackerTest, Scoped) {
   tracker.End(9 /*ts*/, track);
   tracker.End(10 /*ts*/, track);
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{1, 8}, SliceInfo{2, 6}));
 }
 
-TEST(SliceTrackerTest, ScopedWithTranslatedName) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, ScopedWithTranslatedName) {
+  SliceTracker tracker(&context_);
 
-  const StringId raw_name = context.storage->InternString("raw_name");
-  context.slice_translation_table->AddNameTranslationRule("raw_name",
-                                                          "mapped_name");
+  const StringId raw_name = context_.storage->InternString("raw_name");
+  context_.slice_translation_table->AddNameTranslationRule("raw_name",
+                                                           "mapped_name");
 
   constexpr TrackId track{22u};
   tracker.Begin(0 /*ts*/, track, kNullStringId, raw_name);
@@ -299,17 +281,13 @@ TEST(SliceTrackerTest, ScopedWithTranslatedName) {
   tracker.End(9 /*ts*/, track);
   tracker.End(10 /*ts*/, track);
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{1, 8}, SliceInfo{2, 6}));
 }
 
-TEST(SliceTrackerTest, ParentId) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, ParentId) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(100, track, kNullStringId, kNullStringId);
@@ -319,18 +297,14 @@ TEST(SliceTrackerTest, ParentId) {
   tracker.End(150, track);
   tracker.End(200, track);
 
-  SliceId parent = context.storage->slice_table().id()[0];
-  SliceId child = context.storage->slice_table().id()[1];
-  EXPECT_THAT(context.storage->slice_table().parent_id().ToVectorForTesting(),
+  SliceId parent = context_.storage->slice_table().id()[0];
+  SliceId child = context_.storage->slice_table().id()[1];
+  EXPECT_THAT(context_.storage->slice_table().parent_id().ToVectorForTesting(),
               ElementsAre(std::nullopt, parent, child));
 }
 
-TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, IgnoreMismatchedEnds) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Begin(2 /*ts*/, track, StringId::Raw(5) /*cat*/,
@@ -342,16 +316,12 @@ TEST(SliceTrackerTest, IgnoreMismatchedEnds) {
   tracker.End(5 /*ts*/, track, StringId::Raw(5) /*cat*/,
               StringId::Raw(1) /*name*/);
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 3}));
 }
 
-TEST(SliceTrackerTest, ZeroLengthScoped) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, ZeroLengthScoped) {
+  SliceTracker tracker(&context_);
 
   // Bug scenario: the second zero-length scoped slice prevents the first slice
   // from being closed, leading to an inconsistency when we try to insert the
@@ -366,17 +336,13 @@ TEST(SliceTrackerTest, ZeroLengthScoped) {
   tracker.Scoped(13 /*ts*/, track, kNullStringId /*cat*/,
                  StringId::Raw(1) /*name*/, 1 /* dur */);
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{2, 10}, SliceInfo{2, 0},
                                   SliceInfo{12, 1}, SliceInfo{13, 1}));
 }
 
-TEST(SliceTrackerTest, DifferentTracks) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, DifferentTracks) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track_a{22u};
   constexpr TrackId track_b{23u};
@@ -386,24 +352,20 @@ TEST(SliceTrackerTest, DifferentTracks) {
   tracker.End(10 /*ts*/, track_a);
   tracker.FlushPendingSlices();
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices,
               ElementsAre(SliceInfo{0, 10}, SliceInfo{2, 6}, SliceInfo{3, 4}));
 
-  EXPECT_EQ(context.storage->slice_table().track_id()[0], track_a);
-  EXPECT_EQ(context.storage->slice_table().track_id()[1], track_b);
-  EXPECT_EQ(context.storage->slice_table().track_id()[2], track_b);
-  EXPECT_EQ(context.storage->slice_table().depth()[0], 0u);
-  EXPECT_EQ(context.storage->slice_table().depth()[1], 0u);
-  EXPECT_EQ(context.storage->slice_table().depth()[2], 1u);
+  EXPECT_EQ(context_.storage->slice_table().track_id()[0], track_a);
+  EXPECT_EQ(context_.storage->slice_table().track_id()[1], track_b);
+  EXPECT_EQ(context_.storage->slice_table().track_id()[2], track_b);
+  EXPECT_EQ(context_.storage->slice_table().depth()[0], 0u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[1], 0u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[2], 1u);
 }
 
-TEST(SliceTrackerTest, EndEventOutOfOrder) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, EndEventOutOfOrder) {
+  SliceTracker tracker(&context_);
 
   constexpr TrackId track{22u};
   tracker.Scoped(50 /*ts*/, track, StringId::Raw(11) /*cat*/,
@@ -439,23 +401,19 @@ TEST(SliceTrackerTest, EndEventOutOfOrder) {
 
   tracker.FlushPendingSlices();
 
-  auto slices = ToSliceInfo(context.storage->slice_table());
+  auto slices = ToSliceInfo(context_.storage->slice_table());
   EXPECT_THAT(slices, ElementsAre(SliceInfo{50, 100}, SliceInfo{100, 50},
                                   SliceInfo{450, 100}, SliceInfo{800, 200},
                                   SliceInfo{1100, -1}, SliceInfo{1300, 0 - 1}));
 
-  EXPECT_EQ(context.storage->slice_table().depth()[0], 0u);
-  EXPECT_EQ(context.storage->slice_table().depth()[1], 1u);
-  EXPECT_EQ(context.storage->slice_table().depth()[2], 0u);
-  EXPECT_EQ(context.storage->slice_table().depth()[3], 0u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[0], 0u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[1], 1u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[2], 0u);
+  EXPECT_EQ(context_.storage->slice_table().depth()[3], 0u);
 }
 
-TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, GetTopmostSliceOnTrack) {
+  SliceTracker tracker(&context_);
 
   TrackId track{1u};
   TrackId track2{2u};
@@ -463,12 +421,12 @@ TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), std::nullopt);
 
   tracker.Begin(100, track, StringId::Raw(11), StringId::Raw(11));
-  SliceId slice1 = context.storage->slice_table().id()[0];
+  SliceId slice1 = context_.storage->slice_table().id()[0];
 
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice1);
 
   tracker.Begin(120, track, StringId::Raw(22), StringId::Raw(22));
-  SliceId slice2 = context.storage->slice_table().id()[1];
+  SliceId slice2 = context_.storage->slice_table().id()[1];
 
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track).value(), slice2);
 
@@ -483,12 +441,8 @@ TEST(SliceTrackerTest, GetTopmostSliceOnTrack) {
   EXPECT_EQ(tracker.GetTopmostSliceOnTrack(track), std::nullopt);
 }
 
-TEST(SliceTrackerTest, OnSliceBeginCallback) {
-  TraceProcessorContext context;
-  context.storage.reset(new TraceStorage());
-  context.slice_translation_table.reset(
-      new SliceTranslationTable(context.storage.get()));
-  SliceTracker tracker(&context);
+TEST_F(SliceTrackerTest, OnSliceBeginCallback) {
+  SliceTracker tracker(&context_);
 
   TrackId track1{1u};
   TrackId track2{2u};
@@ -504,17 +458,17 @@ TEST(SliceTrackerTest, OnSliceBeginCallback) {
   EXPECT_TRUE(slice_records.empty());
 
   tracker.Begin(100, track1, StringId::Raw(11), StringId::Raw(11));
-  SliceId slice1 = context.storage->slice_table().id()[0];
+  SliceId slice1 = context_.storage->slice_table().id()[0];
   EXPECT_THAT(track_records, ElementsAre(TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1));
 
   tracker.Begin(120, track2, StringId::Raw(22), StringId::Raw(22));
-  SliceId slice2 = context.storage->slice_table().id()[1];
+  SliceId slice2 = context_.storage->slice_table().id()[1];
   EXPECT_THAT(track_records, ElementsAre(TrackId{1u}, TrackId{2u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2));
 
   tracker.Begin(330, track1, StringId::Raw(33), StringId::Raw(33));
-  SliceId slice3 = context.storage->slice_table().id()[2];
+  SliceId slice3 = context_.storage->slice_table().id()[2];
   EXPECT_THAT(track_records,
               ElementsAre(TrackId{1u}, TrackId{2u}, TrackId{1u}));
   EXPECT_THAT(slice_records, ElementsAre(slice1, slice2, slice3));
