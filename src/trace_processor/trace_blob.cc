@@ -19,6 +19,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <algorithm>
+
 #include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
@@ -41,7 +43,8 @@ TraceBlob TraceBlob::Allocate(size_t size) {
 // static
 TraceBlob TraceBlob::CopyFrom(const void* src, size_t size) {
   TraceBlob blob = Allocate(size);
-  memcpy(blob.data_, src, size);
+  const uint8_t* src_u8 = static_cast<const uint8_t*>(src);
+  std::copy(src_u8, src_u8 + size, blob.data_);
   return blob;
 }
 
