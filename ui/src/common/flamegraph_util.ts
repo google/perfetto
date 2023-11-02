@@ -89,6 +89,17 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
           name: 'Total allocation count'
         },
       ];
+    case ProfileType.MIXED_HEAP_PROFILE:
+      return [
+        {
+          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          name: 'Total allocation size (malloc + java)'
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          name: 'Total allocation count (malloc + java)'
+        },
+      ];
     default:
       const exhaustiveCheck: never = profileType;
       throw new Error(`Unhandled case: ${exhaustiveCheck}`);

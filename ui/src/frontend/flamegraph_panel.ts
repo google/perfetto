@@ -172,7 +172,10 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
   }
 
   private getTitle(): string {
-    switch (this.profileType!) {
+    const profileType = this.profileType!;
+    switch (profileType) {
+      case ProfileType.MIXED_HEAP_PROFILE:
+        return 'Mixed heap profile:';
       case ProfileType.HEAP_PROFILE:
         return 'Heap profile:';
       case ProfileType.NATIVE_HEAP_PROFILE:
@@ -192,9 +195,10 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
     if (this.profileType === undefined) {
       return {};
     }
+    const profileType = this.profileType;
     const viewingOption: FlamegraphStateViewingOption =
         globals.state.currentFlamegraphState!.viewingOption;
-    switch (this.profileType) {
+    switch (profileType) {
       case ProfileType.JAVA_HEAP_GRAPH:
         if (viewingOption ===
             FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY) {
@@ -202,13 +206,15 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
         } else {
           return RENDER_SELF_AND_TOTAL;
         }
+      case ProfileType.MIXED_HEAP_PROFILE:
       case ProfileType.HEAP_PROFILE:
       case ProfileType.NATIVE_HEAP_PROFILE:
       case ProfileType.JAVA_HEAP_SAMPLES:
       case ProfileType.PERF_SAMPLE:
         return RENDER_SELF_AND_TOTAL;
       default:
-        throw new Error('unknown type');
+        const exhaustiveCheck: never = profileType;
+        throw new Error(`Unhandled case: ${exhaustiveCheck}`);
     }
   }
 
@@ -323,7 +329,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
 
   private static selectViewingOptions(profileType: ProfileType) {
     const ret = [];
-    for (let {option, name} of viewingOptions(profileType)) {
+    for (const {option, name} of viewingOptions(profileType)) {
       ret.push(this.buildButtonComponent(option, name));
     }
     return ret;
