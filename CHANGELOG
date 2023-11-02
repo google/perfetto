@@ -1,6 +1,7 @@
 Unreleased:
   Tracing service and probes:
-   *
+   * Changed compression logic to always emit trace UUID and trace config
+      uncompressed for metadata inspection by on-device tools.
   Trace Processor:
    * Fixed conversion of TracingServiceEvent timestamps (tracing_started_ns,
      all_data_source_started_ns, ...) to trace time when primary_trace_clock

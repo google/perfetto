@@ -95,6 +95,7 @@
 #endif
 
 using ::testing::_;
+using ::testing::AnyOf;
 using ::testing::AssertionFailure;
 using ::testing::AssertionResult;
 using ::testing::AssertionSuccess;
@@ -111,6 +112,7 @@ using ::testing::InSequence;
 using ::testing::InvokeWithoutArgs;
 using ::testing::IsEmpty;
 using ::testing::IsSupersetOf;
+using ::testing::IsTrue;
 using ::testing::Mock;
 using ::testing::Ne;
 using ::testing::NiceMock;
@@ -252,6 +254,25 @@ std::vector<protos::gen::TracePacket> DecompressTraceZstd(
   return decompressed;
 }
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZSTD)
+
+// Checks that a TracePacket is compressed, accounting for the fact that some
+// types of packets are special and don't get compressed by the service, to
+// allow inspection by other on-device services.
+// See skip_compression_of_first_n_packets in tracing_service_impl.cc .
+testing::Matcher<const protos::gen::TracePacket&> PacketIsCompressed() {
+  using GenTracePacket = protos::gen::TracePacket;
+  return AnyOf(Property(&GenTracePacket::has_compressed_packets, IsTrue()),
+               Property(&GenTracePacket::has_zstd_compressed_packets, IsTrue()),
+               Property(&GenTracePacket::has_trace_uuid, IsTrue()),
+               Property(&GenTracePacket::has_trace_config, IsTrue()),
+               Property(&GenTracePacket::has_synchronization_marker, IsTrue()),
+               Property(&GenTracePacket::has_clock_snapshot, IsTrue()),
+               Property(&GenTracePacket::has_trace_provenance, IsTrue()),
+               Property(&GenTracePacket::has_system_info, IsTrue()),
+               Property(&GenTracePacket::has_extension_descriptor, IsTrue()),
+               Property(&GenTracePacket::has_trigger, IsTrue()),
+               Property(&GenTracePacket::has_clone_snapshot_trigger, IsTrue()));
+}
 
 std::vector<std::string> GetReceivedTriggers(
     const std::vector<protos::gen::TracePacket>& trace) {
@@ -2414,9 +2435,13 @@ TEST_F(TracingServiceImplTest, CompressionReadIpc) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
+  // Test that the trace config is NOT compressed and can be read in clear.
+  EXPECT_THAT(
+      compressed_packets,
+      Contains(Property(&protos::gen::TracePacket::trace_config,
+                        Property(&protos::gen::TraceConfig::compression_type,
+                                 Eq(TraceConfig::COMPRESSION_TYPE_DEFLATE)))));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(compressed_packets);
   EXPECT_THAT(decompressed_packets,
@@ -2472,9 +2497,7 @@ TEST_F(TracingServiceImplTest, CompressionConfigZstdFallsBackToLegacyDeflate) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
   // Decodes with the zlib (deflate) decompressor, proving the fall-through.
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(compressed_packets);
@@ -2526,9 +2549,7 @@ TEST_F(TracingServiceImplTest, CompressionConfigDeflate) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(compressed_packets);
   EXPECT_THAT(decompressed_packets,
@@ -2634,9 +2655,7 @@ TEST_F(TracingServiceImplTest, CompressionWriteIntoFile) {
   protos::gen::Trace trace;
   ASSERT_TRUE(trace.ParseFromString(trace_raw));
   EXPECT_THAT(trace.packet(), Not(IsEmpty()));
-  EXPECT_THAT(trace.packet(),
-              Each(Property(&protos::gen::TracePacket::compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(trace.packet(), Each(PacketIsCompressed()));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZlib(trace.packet());
   EXPECT_THAT(decompressed_packets,
@@ -2711,9 +2730,7 @@ TEST_F(TracingServiceImplTest, CloneSessionWithCompression) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer2->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
 }
 
 #endif  // PERFETTO_BUILDFLAG(PERFETTO_ZLIB)
@@ -2763,9 +2780,7 @@ TEST_F(TracingServiceImplTest, CompressionZstdReadIpc) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::zstd_compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZstd(compressed_packets);
   EXPECT_THAT(decompressed_packets,
@@ -2819,9 +2834,7 @@ TEST_F(TracingServiceImplTest, CompressionZstdConfiguredLevel) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::zstd_compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZstd(compressed_packets);
   EXPECT_THAT(decompressed_packets,
@@ -2875,9 +2888,7 @@ TEST_F(TracingServiceImplTest, CompressionConfigZstdUsedWhenAvailable) {
   std::vector<protos::gen::TracePacket> compressed_packets =
       consumer->ReadBuffers();
   EXPECT_THAT(compressed_packets, Not(IsEmpty()));
-  EXPECT_THAT(compressed_packets,
-              Each(Property(&protos::gen::TracePacket::zstd_compressed_packets,
-                            Not(IsEmpty()))));
+  EXPECT_THAT(compressed_packets, Each(PacketIsCompressed()));
   // Decodes with the zstd decompressor, proving the preference won.
   std::vector<protos::gen::TracePacket> decompressed_packets =
       DecompressTraceZstd(compressed_packets);
