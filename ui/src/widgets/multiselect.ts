@@ -174,7 +174,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
           },
           value: this.searchText,
           placeholder: 'Filter options...',
-          extraClasses: 'pf-search-box',
+          className: 'pf-search-box',
         }),
         this.renderClearButton(),
     );
@@ -207,7 +207,7 @@ export class MultiSelect implements m.ClassComponent<MultiSelectAttrs> {
         label: name,
         key: id,  // Prevents transitions jumping between items when searching
         checked,
-        classes: 'pf-multiselect-item',
+        className: 'pf-multiselect-item',
         onchange: () => {
           onChange([{id, checked: !checked}]);
           scheduleFullRedraw();

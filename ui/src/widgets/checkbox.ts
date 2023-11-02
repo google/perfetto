@@ -16,43 +16,29 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 
-export interface CheckboxAttrs {
+import {HTMLCheckboxAttrs} from './common';
+
+export interface CheckboxAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the checkbox.
   label?: string;
-  // Whether the label is checked or not, defaults to false.
-  // If omitted, the checkbox will be uncontrolled.
-  checked?: boolean;
-  // Make the checkbox appear greyed out block any interaction with it. No
-  // events will be fired.
-  // Defaults to false.
-  disabled?: boolean;
-  // Extra classes
-  classes?: string|string[];
-  // Remaining attributes forwarded to the underlying HTML <label>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 export class Checkbox implements m.ClassComponent<CheckboxAttrs> {
   view({attrs}: m.CVnode<CheckboxAttrs>) {
-    const {
-      label,
-      checked,
-      disabled = false,
-      classes: extraClasses,
-      ...htmlAttrs
-    } = attrs;
-
+    const {label, disabled, checked, className, ...htmlAttrs} = attrs;
     const classes = classNames(
         disabled && 'pf-disabled',
-        extraClasses,
+        className,
     );
 
     // The default checkbox is removed and an entirely new one created inside
     // the span element in CSS.
     return m(
         'label.pf-checkbox',
-        {class: classes, ...htmlAttrs},
+        {
+          ...htmlAttrs,
+          className: classes,
+        },
         m('input[type=checkbox]', {disabled, checked}),
         m('span'),
         label,

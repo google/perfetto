@@ -274,9 +274,11 @@ export class SqlTableState {
     if ((params?.offset ?? 'reset') === 'reset') {
       this.offset = 0;
     }
-    const updateRowCount = !arrayEquals(this.rowCount?.filters, this.filters);
+
+    const newFilters = this.rowCount?.filters;
+    const filtersMatch = newFilters && arrayEquals(newFilters, this.filters);
     this.data = undefined;
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = undefined;
     }
 
@@ -284,7 +286,7 @@ export class SqlTableState {
     // before the data is loaded.
     setTimeout(() => raf.scheduleFullRedraw(), 50);
 
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();
     }
     this.data = await this.loadData();

@@ -14,12 +14,11 @@
 
 import m from 'mithril';
 
-import {classNames} from '../base/classnames';
-
 import {Button} from './button';
+import {HTMLAttrs, HTMLLabelAttrs} from './common';
 import {Popup} from './popup';
 
-export interface FormAttrs {
+export interface FormAttrs extends HTMLAttrs {
   // Text to show on the "submit" button.
   // Defaults to "Submit".
   submitLabel?: string;
@@ -44,13 +43,6 @@ export interface FormAttrs {
 
   // Prevent default form action on submit. Defaults to true.
   preventDefault?: boolean;
-
-  // Space seperated list or array of class names forwarded to the form.
-  extraClasses?: string|string[];
-
-  // Remaining attributes forwarded to the underlying HTML <form>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 // A simple wrapper around a <form> element providing some opinionated default
@@ -67,16 +59,12 @@ export class Form implements m.ClassComponent<FormAttrs> {
       resetLabel,
       onSubmit = () => {},
       preventDefault = true,
-      className,
       ...htmlAttrs
     } = attrs;
 
     return m(
         'form.pf-form',
-        {
-          class: classNames(className),
-          ...htmlAttrs,
-        },
+        htmlAttrs,
         children,
         m(
             '.pf-form-button-bar',
@@ -108,14 +96,8 @@ export class Form implements m.ClassComponent<FormAttrs> {
   }
 }
 
-interface FormLabelAttrs {
-  // All attributes are forwarded to the underlying HTML <label> element.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
-}
-
 // A simple wrapper around a <label> element. Designed to be used within Form
-// widgets in combination with input controls to provide consistient label
+// widgets in combination with input controls to provide consistent label
 // styling.
 //
 // Like normal labels, FormLabels provide a name for an input while also
@@ -123,8 +105,8 @@ interface FormLabelAttrs {
 //
 // Labels are bound to inputs by placing the input inside the FormLabel widget,
 // or by referencing the input's "id" tag with a "for" tag.
-export class FormLabel implements m.ClassComponent<FormLabelAttrs> {
-  view({attrs, children}: m.CVnode<FormLabelAttrs>) {
+export class FormLabel implements m.ClassComponent<HTMLLabelAttrs> {
+  view({attrs, children}: m.CVnode<HTMLLabelAttrs>) {
     return m('label.pf-form-label', attrs, children);
   }
 }

@@ -155,8 +155,8 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
   }
 
   private rootUpdateHandler = (newState: RootT, oldState: RootT) => {
-    const newSubState = lookupPath<T, RootT>(newState, this.path);
-    const oldSubState = lookupPath<T, RootT>(oldState, this.path);
+    const newSubState = lookupPath<T>(newState, this.path);
+    const oldSubState = lookupPath<T>(oldState, this.path);
     if (exists(newSubState) && exists(oldSubState) &&
         newSubState != oldSubState) {
       this.subscriptions.forEach((subscription) => {
@@ -170,7 +170,7 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
       throw new StoreError('Proxy store is no longer useable');
     }
 
-    const state = lookupPath<T, RootT>(this.rootStore.state, this.path);
+    const state = lookupPath<T>(this.rootStore.state, this.path);
     if (state === undefined) {
       throw new StoreError(`No such subtree: ${this.path}`);
     }
@@ -195,7 +195,7 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
     const rootEdits = edits.map(
         (edit) => (state: Draft<RootT>) => {
           // Extract subtree and apply edits to it.
-          const subtree = lookupPath<Draft<T>, Draft<RootT>>(state, this.path);
+          const subtree = lookupPath<Draft<T>>(state, this.path);
           if (subtree === undefined) {
             throw new StoreError(
                 `Unable to edit missing subtree: ${this.path}`);
