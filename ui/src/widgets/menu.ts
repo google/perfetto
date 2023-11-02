@@ -17,10 +17,11 @@ import m from 'mithril';
 import {classNames} from '../base/classnames';
 import {hasChildren} from '../base/mithril_utils';
 
+import {HTMLAttrs} from './common';
 import {Icon} from './icon';
 import {Popup, PopupAttrs, PopupPosition} from './popup';
 
-export interface MenuItemAttrs {
+export interface MenuItemAttrs extends HTMLAttrs {
   // Text to display on the menu button.
   label: string;
   // Optional left icon.
@@ -41,9 +42,6 @@ export interface MenuItemAttrs {
   // clicking it will result in the popup being dismissed.
   // Defaults to false when menuitem has children, true otherwise.
   closePopupOnClick?: boolean;
-  // Remaining attributes forwarded to the underlying HTML element.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 // An interactive menu element with an icon.
@@ -86,17 +84,22 @@ export class MenuItem implements m.ClassComponent<MenuItemAttrs> {
       disabled,
       active,
       closePopupOnClick = true,
+      className,
       ...htmlAttrs
     } = attrs;
 
     const classes = classNames(
         active && 'pf-active',
         !disabled && closePopupOnClick && Popup.DISMISS_POPUP_GROUP_CLASS,
+        className,
     );
 
     return m(
         'button.pf-menu-item' + (disabled ? '[disabled]' : ''),
-        {class: classes, ...htmlAttrs},
+        {
+          ...htmlAttrs,
+          className: classes,
+        },
         icon && m(Icon, {className: 'pf-left-icon', icon}),
         rightIcon && m(Icon, {className: 'pf-right-icon', icon: rightIcon}),
         label,
