@@ -14,19 +14,19 @@
 
 import m from 'mithril';
 
-export interface SectionAttrs {
+import {HTMLAttrs} from './common';
+
+export interface SectionAttrs extends HTMLAttrs {
   // The name of the section, displayed in the title bar
   title: string;
-  // Remaining attributes forwarded to the underlying HTML <section>.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [htmlAttrs: string]: any;
 }
 
 export class Section implements m.ClassComponent<SectionAttrs> {
   view({attrs, children}: m.CVnode<SectionAttrs>) {
-    const {title} = attrs;
+    const {title, ...htmlAttrs} = attrs;
     return m(
         'section.pf-section',
+        htmlAttrs,
         m(
             'header',
             m('h1', title),
