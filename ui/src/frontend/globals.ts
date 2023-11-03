@@ -221,7 +221,7 @@ function getRoot() {
 }
 
 // Extensions for integration
-const RELAX_CONTENT_SECURITY = 'relaxContentSecurity';
+const CUSTOM_CONTENT_SECURITY_POLICY = 'customContentSecurityPolicy';
 
 /**
  * Global accessors for state/dispatch in the frontend.
@@ -290,7 +290,7 @@ class Globals {
 
 
   // Init from session storage since correct value may be required very early on
-  private _relaxContentSecurity: boolean = window.sessionStorage.getItem(RELAX_CONTENT_SECURITY) === 'true';
+  private _customContentSecurityPolicy = window.sessionStorage.getItem(CUSTOM_CONTENT_SECURITY_POLICY);
 
   private _currentSearchResults: CurrentSearchResults = {
     sliceIds: new Float64Array(0),
@@ -558,8 +558,8 @@ class Globals {
     this._disableHashBasedRouting = value;
   }
 
-  get relaxContentSecurity(): boolean {
-    return !!this._relaxContentSecurity;
+  get customContentSecurityPolicy(): string | null {
+    return this._customContentSecurityPolicy;
   }
 
   get cachePrefix(): string {
