@@ -102,8 +102,6 @@ const NETWORK_TRACK_REGEX = new RegExp('^.* (Received|Transmitted)( KB)?$');
 const NETWORK_TRACK_GROUP = 'Networking';
 const ENTITY_RESIDENCY_REGEX = new RegExp('^Entity residency:');
 const ENTITY_RESIDENCY_GROUP = 'Entity residency';
-const BATTERY_TRACK_REGEX = new RegExp('^(batt|power)\\..*$');
-const BATTERY_TRACK_GROUP = 'Battery';
 // Sets the default 'scale' for counter tracks. If the regex matches
 // then the paired mode is used. Entries are in priority order so the
 // first match wins.
@@ -455,25 +453,52 @@ class TrackDecider {
     }
   }
 
+  // Group global counter tracks by the name of their parent track, if any, with
+  // some exceptions:
+  // - tracks that are already grouped by the time of this call are not re-grouped
+  // - the 'Power' parent track induces a group named 'Battery'
+  // - the 'Memory' parent track induces a group named 'Memory Usage'
+  // - all tracks of |gpu_counter_track| type are grouped in 'GPU Counters'
+  // - global counter tracks that don't have a parent track are grouped in
+  //   an 'Other Counters' group
   async groupCounterTracks(): Promise<void> {
-    const counterTracks : string[] = [];
-    const iter = (await this.engine.query(`select name from gpu_counter_track`)).iter({name: STR});
+    type GroupDetails = Parameters<TrackDecider['lazyTrackGroup']>[1];
+    const groupNameToGroupDetails = new Map<string, GroupDetails>();
+    groupNameToGroupDetails.set('GPU Counters', {lazyParentGroup: this.gpuGroup});
+
+    const groupingResult = await this.engine.query(`
+      select track.id as track_id, track.name as track_name,
+        (case when parent.name = 'Power' then 'Battery'
+              when parent.name = 'Memory' then 'Memory Usage'
+              else parent.name
+         end) as group_name
+      from track
+      left join track as parent on track.parent_id = parent.id
+      where track.type = 'counter_track' and track.name is not null
+      union
+      select track.id as track_id, track.name as track_name,
+        'GPU Counters' as group_name
+      from track
+      where track.type = 'gpu_counter_track' and track.name is not null
+    `);
+    const trackNameToGroupName = new Map<string, string|null>();
+    const iter = groupingResult.iter({track_name: STR, group_name: STR_NULL})
     for (; iter.valid(); iter.next()) {
-      counterTracks.push(iter.name);
+      trackNameToGroupName.set(iter.track_name, iter.group_name);
     }
+
     for (const track of this.tracksToAdd) {
       if (track.kind !== COUNTER_TRACK_KIND ||
         (track.trackGroup && track.trackGroup !== SCROLLING_TRACK_GROUP)) {
         continue;
       }
-      if (counterTracks.includes(track.name)) {
-        track.trackGroup = this.lazyTrackGroup('GPU Counters',
-          {lazyParentGroup: this.gpuGroup})();
-      } else {
-        track.trackGroup = this.lazyTrackGroup('Memory Usage')();
-      }
+      const groupName = trackNameToGroupName.get(track.name) ?? 'Other Counters';
+      const groupIdProvider = this.lazyTrackGroup(groupName,
+          groupNameToGroupDetails.get(groupName) ?? {});
+      track.trackGroup = groupIdProvider();
     }
   }
+
   async addScrollJankTracks(engine: Engine): Promise<void> {
     const topLevelScrolls = addTopLevelScrollTrack(engine);
     const topLevelScrollsResult = await topLevelScrolls;
@@ -2507,7 +2532,6 @@ class TrackDecider {
     await this.groupTracksByRegex(NETWORK_TRACK_REGEX, NETWORK_TRACK_GROUP);
     await this.groupTracksByRegex(
         ENTITY_RESIDENCY_REGEX, ENTITY_RESIDENCY_GROUP);
-    await this.groupTracksByRegex(BATTERY_TRACK_REGEX, BATTERY_TRACK_GROUP);
 
     await this.groupMetricTracks(
         this.engine.getProxy('TrackDecider::groupMetricTracks'));
