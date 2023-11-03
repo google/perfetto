@@ -17,18 +17,21 @@ import re
 from typing import Dict, List
 
 NAME = r'[a-zA-Z_\d\{\}]+'
-ARGS = '[^\)]*'
 ANY_WORDS = r'[^\s].*'
 ANY_NON_QUOTE = r'[^\']*.*'
 TYPE = r'[A-Z]+'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
-COMMENT = r'--[^\n]*'
-NEW_STYLE_ARG = rf'((?: {COMMENT})*) ({NAME}) ({TYPE})'
+COMMENT = r' --[^\n]*\n'
+ARG = rf'(?:{COMMENT})* {NAME} {TYPE}'
+ARG_PATTERN = rf'((?:{COMMENT})*) ({NAME}) ({TYPE})'
+ARGS = rf'(?:{ARG})?(?: ,{ARG})*'
 
 
 # Make the pattern more readable by allowing the use of spaces
 # and replace then with a wildcard in a separate step.
+# NOTE: two whitespaces next to each other are really bad for performance.
+# Take special care to avoid them.
 def update_pattern(pattern):
   return pattern.replace(' ', WS)
 
@@ -73,7 +76,7 @@ NAME_AND_TYPE_PATTERN = update_pattern(fr' ({NAME})\s+({TYPE}) ')
 
 ARG_ANNOTATION_PATTERN = fr'\s*{NAME_AND_TYPE_PATTERN}\s+({ANY_WORDS})'
 
-ARG_DEFINITION_PATTERN = update_pattern(NEW_STYLE_ARG)
+ARG_DEFINITION_PATTERN = update_pattern(ARG_PATTERN)
 
 FUNCTION_RETURN_PATTERN = update_pattern(fr'^ ({TYPE})\s+({ANY_WORDS})')
 

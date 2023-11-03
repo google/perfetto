@@ -106,11 +106,13 @@ LEFT JOIN internal_scroll_deltas
   USING (scroll_update_id);
 
 -- All of the presented frame scroll update ids.
--- @column arg_set_id                ID slice of the presented frame.
--- @column scroll_update_id          A scroll update id that was included in the
---                                   presented frame. There may be zero, one, or
---                                   more.
-CREATE VIEW chrome_deltas_presented_frame_scroll_update_ids AS
+CREATE PERFETTO VIEW chrome_deltas_presented_frame_scroll_update_ids(
+  -- ID slice of the presented frame.
+  arg_set_id INT,
+  -- A scroll update id that was included in the presented frame.
+  -- There may be zero, one, or more.
+  scroll_update_id INT
+) AS
 SELECT
   args.int_value AS scroll_update_id,
   slice.id
@@ -134,14 +136,16 @@ WHERE name = 'InputHandlerProxy::HandleGestureScrollUpdate_Result';
 -- a scroll. This includes input events that were converted to scroll events
 -- which were presented (internal_non_coalesced_scrolls) and scroll events which
 -- were coalesced (internal_coalesced_deltas).
---
--- @column scroll_update_id          Trace Id associated with the scroll.
--- @column ts                        Timestamp the of the scroll input event.
--- @column delta_y                   The delta in raw coordinates between this
---                                   scroll update event and the previous.
--- @column offset_y                  The pixel offset of this scroll update
---                                   event compared to the previous one.
-CREATE PERFETTO TABLE chrome_scroll_input_offsets AS
+CREATE PERFETTO TABLE chrome_scroll_input_offsets(
+  -- Trace id associated with the scroll.
+  scroll_update_id INT,
+  -- Timestamp the of the scroll input event.
+  ts INT,
+  -- The delta in raw coordinates between this scroll update event and the previous.
+  delta_y INT,
+  -- The pixel offset of this scroll update event compared to the previous one.
+  offset_y INT
+) AS
 -- First collect all coalesced and non-coalesced deltas so that the offsets
 -- can be calculated from them in order of timestamp.
 WITH all_deltas AS (
@@ -191,16 +195,18 @@ WHERE internal_scroll_deltas.delta_y IS NOT NULL;
 -- The scrolling offsets for the actual (applied) scroll events. These are not
 -- necessarily inclusive of all user scroll events, rather those scroll events
 -- that are actually processed.
---
--- @column scroll_update_id          Trace Id associated with the scroll.
--- @column ts                        Presentation timestamp.
--- @column delta_y                   The delta in coordinates as processed by
---                                   Chrome between this scroll update event and
---                                   the previous.
--- @column offset_y                  The pixel offset of this scroll update (the
---                                   presented frame) compared to the previous
---                                   one.
-CREATE PERFETTO TABLE chrome_presented_scroll_offsets AS
+CREATE PERFETTO TABLE chrome_presented_scroll_offsets(
+  -- Trace Id associated with the scroll.
+  scroll_update_id INT,
+  -- Presentation timestamp.
+  ts INT,
+  -- The delta in coordinates as processed by Chrome between this scroll update
+  -- event and the previous.
+  delta_y INT,
+  -- The pixel offset of this scroll update (the presented frame) compared to
+  -- the previous one.
+  offset_y INT
+) AS
 WITH all_deltas AS (
   SELECT
     scroll_update_id,
