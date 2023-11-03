@@ -2017,8 +2017,10 @@ class TrackDecider {
       // thread, so it is manifestly idle. We do not distinguish here between
       // "null threads" (no track created) and "idle threads" (having a track)
       // because that is done in the grouping of idle threads elsewhere.
-      const idleThread = it.thread_dur === null ||
-        it.thread_dur < idleThreadThreshold;
+      // NOTE: the faked `0` utid must not be counted amongst the idle threads
+      //       because it doesn't exist
+      const idleThread = (utid !== 0) &&
+        (it.thread_dur === null || it.thread_dur < idleThreadThreshold);
       if (idleThread) {
         const key = upid ?? 0;
         let mostlyIdleUtids = this.idleUtids.get(key);
