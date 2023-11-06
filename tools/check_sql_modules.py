@@ -45,7 +45,8 @@ CREATE_TABLE_ALLOWLIST = {
     ('/src/trace_processor/perfetto_sql/stdlib/experimental/'
      'thread_executing_span.sql'): [
         'internal_wakeup', 'experimental_thread_executing_span_graph',
-        'internal_critical_path', 'internal_wakeup_graph', 'experimental_thread_executing_span_graph'
+        'internal_critical_path', 'internal_wakeup_graph',
+        'experimental_thread_executing_span_graph'
     ],
     '/src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql': [
         'experimental_slice_flattened'
@@ -59,6 +60,17 @@ def main():
       '--stdlib-sources',
       default=os.path.join(ROOT_DIR, "src", "trace_processor", "perfetto_sql",
                            "stdlib"))
+  parser.add_argument(
+      '--verbose',
+      action='store_true',
+      default=False,
+      help='Enable additional logging')
+  parser.add_argument(
+      '--name-filter',
+      default=None,
+      type=str,
+      help='Filter the name of the modules to check (regex syntax)')
+
   args = parser.parse_args()
   errors = []
   modules: List[Tuple[str, str, ParsedFile]] = []
@@ -67,11 +79,26 @@ def main():
       path = os.path.join(root, f)
       if not path.endswith(".sql"):
         continue
+      rel_path = os.path.relpath(path, args.stdlib_sources)
+      if args.name_filter is not None:
+        pattern = re.compile(args.name_filter)
+        if not pattern.match(rel_path):
+          continue
+
+      if args.verbose:
+        print(f'Parsing {rel_path}:')
+
       with open(path, 'r') as f:
         sql = f.read()
 
       parsed = parse_file(path, sql)
       modules.append((path, sql, parsed))
+
+      if args.verbose:
+        function_count = len(parsed.functions) + len(parsed.table_functions)
+        print(f'Parsed {function_count} functions'
+              f', {len(parsed.table_views)} tables/views'
+              f' ({len(parsed.errors)} errors).')
 
   for path, sql, parsed in modules:
     lines = [l.strip() for l in sql.split('\n')]

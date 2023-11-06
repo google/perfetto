@@ -19,17 +19,13 @@ INCLUDE PERFETTO MODULE experimental.flat_slices;
 CREATE VIRTUAL TABLE internal_experimental_span_joined_thread USING
   SPAN_JOIN(experimental_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
 
--- Get the thread state breakdown of a flattened slice from it's slice id.
--- This table pivoted and summed for better visualization and aggragation.
+-- Get the thread state breakdown of a flattened slice from its slice id.
+-- This table pivoted and summed for better visualization and aggregation.
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting. For more information, read the description
 -- of experimental_slice_flattened.
 --
--- @arg slice_id LONG         Id of the slice of interest.
 --
--- @column ts                 Id of a slice.
--- @column dur                Name of the slice
--- @column utid               Time (ns) spent in Uninterruptible Sleep (non-IO)
 -- @column depth              Time (ns) spent in Uninterruptible Sleep (IO)
 -- @column name               Time (ns) spent in Runnable
 -- @column slice_id           Time (ns) spent in Sleeping
@@ -41,35 +37,51 @@ CREATE VIRTUAL TABLE internal_experimental_span_joined_thread USING
 -- @column waker_utid         Time (ns) spent in Parked
 -- @column irq_context        Time (ns) spent in No Load
 CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state(
-  slice_id LONG, utid LONG)
+  -- Id of the slice of interest.
+  slice_id LONG,
+  -- Utid.
+  utid LONG)
 RETURNS
   TABLE(
+    -- Timestamp.
     ts LONG,
+    -- Duration.
     dur LONG,
+    -- Utid.
     utid LONG,
+    -- Depth.
     depth LONG,
+    -- Name.
     name STRING,
+    -- Slice id.
     slice_id LONG,
+    -- Track id.
     track_id LONG,
+    -- CPU.
     cpu INT,
+    -- State.
     state STRING,
+    -- IO wait.
     io_wait INT,
+    -- Thread state's blocked_function.
     blocked_function STRING,
+    -- Thread state's waker utid.
     waker_utid LONG,
-    irq_context LONG)
-AS
+    -- Thread state's IRQ context.
+    irq_context LONG
+) AS
 WITH
-  interesting_slice AS (
-    SELECT ts, dur, slice.track_id AS track_id
-    FROM slice
-    JOIN thread_track
-      ON slice.track_id = thread_track.id
-    JOIN thread
-      USING (utid)
-    WHERE
-      (($slice_id IS NOT NULL AND slice.id = $slice_id) OR ($slice_id IS NULL))
-      AND (($utid IS NOT NULL AND utid = $utid) OR ($utid IS NULL))
-  )
+interesting_slice AS (
+  SELECT ts, dur, slice.track_id AS track_id
+  FROM slice
+  JOIN thread_track
+    ON slice.track_id = thread_track.id
+  JOIN thread
+    USING (utid)
+  WHERE
+    (($slice_id IS NOT NULL AND slice.id = $slice_id) OR ($slice_id IS NULL))
+    AND (($utid IS NOT NULL AND utid = $utid) OR ($utid IS NULL))
+)
 SELECT
   ts,
   dur,
@@ -98,8 +110,6 @@ WHERE
 --
 -- @arg slice_id LONG                  Id of the slice of interest.
 --
--- @column slice_id                    Id of a slice.
--- @column slice_name                  Name of the slice
 -- @column Uninterruptible_Sleep_nonIO Time (ns) spent in Uninterruptible Sleep (non-IO)
 -- @column Uninterruptible_Sleep_IO    Time (ns) spent in Uninterruptible Sleep (IO)
 -- @column Runnable                    Time (ns) spent in Runnable
@@ -119,10 +129,15 @@ WHERE
 -- @column dur                         Total duration of the slice
 -- @column depth                       Depth of the slice in Perfetto
 CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state_aggregated(
-  slice_id LONG, utid LONG)
+  -- Slice id.
+  slice_id LONG,
+  -- Utid.
+  utid LONG)
 RETURNS
   TABLE(
+    -- Id of a slice.
     slice_id LONG,
+    -- Name of the slice.
     slice_name STRING,
     Uninterruptible_Sleep_nonIO LONG,
     Uninterruptible_Sleep_IO LONG,

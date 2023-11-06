@@ -356,26 +356,28 @@ WITH chain AS (
 -- every sleeping thread state is computed and unioned with the thread executing spans on that thread.
 -- The duration of a thread executing span in the critical path is the range between the start of the
 -- thread_executing_span and the start of the next span in the critical path.
---
--- @column id                               Id of the first (runnable) thread state in thread_executing_span.
--- @column ts                               Timestamp of first thread_state in thread_executing_span.
--- @column dur                              Duration of thread_executing_span.
--- @column utid                             Utid of thread with thread_state.
--- @column critical_path_id                 Id of thread executing span following the sleeping thread state for which the critical path is computed.
--- @column critical_path_blocked_dur        Critical path duration.
--- @column critical_path_blocked_state      Sleeping thread state in critical path.
--- @column critical_path_blocked_function   Kernel blocked_function of the critical path.
--- @column critical_path_utid               Thread Utid the critical path was filtered to.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(critical_path_utid INT, ts LONG, dur LONG)
-RETURNS TABLE(
-  id INT,
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(
+  critical_path_utid INT,
   ts LONG,
+  dur LONG)
+RETURNS TABLE(
+  -- Id of the first (runnable) thread state in thread_executing_span.
+  id INT,
+  -- Timestamp of first thread_state in thread_executing_span.
+  ts LONG,
+  -- Duration of thread_executing_span.
   dur LONG,
+  -- Utid of thread with thread_state.
   utid INT,
+  -- Id of thread executing span following the sleeping thread state for which the critical path is computed.
   critical_path_id INT,
+  -- Critical path duration.
   critical_path_blocked_dur LONG,
+  -- Sleeping thread state in critical path.
   critical_path_blocked_state STRING,
+  -- Kernel blocked_function of the critical path.
   critical_path_blocked_function STRING,
+  -- Thread Utid the critical path was filtered to.
   critical_path_utid INT
 ) AS
 WITH span_starts AS (
@@ -950,14 +952,18 @@ WITH
 SELECT EXPERIMENTAL_PROFILE(stack, 'duration', 'ns', dur) AS pprof FROM stacks;
 
 -- Returns a pprof aggreagation of the stacks in |experimental_thread_executing_span_critical_path_stack|
---
--- @arg graph_title INT           Descriptive name for the graph.
--- @arg critical_path_utid INT    Thread utid to filter critical paths to.
--- @arg ts LONG                   Timestamp of start of time range to filter critical paths to.
--- @arg dur LONG                  Duration of time range to filter critical paths to.
---
--- @column pprof BYTES            Pprof of critical path stacks.
-CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_graph(graph_title STRING, critical_path_utid INT, ts INT, dur INT)
-RETURNS TABLE(pprof BYTES)
+CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path_graph(
+  -- Descriptive name for the graph.
+  graph_title STRING,
+  -- Thread utid to filter critical paths to.
+  critical_path_utid INT,
+  -- Timestamp of start of time range to filter critical paths to.
+  ts INT,
+  -- Duration of time range to filter critical paths to.
+  dur INT)
+RETURNS TABLE(
+  -- Pprof of critical path stacks.
+  pprof BYTES
+)
 AS
 SELECT * FROM internal_critical_path_graph($graph_title, $critical_path_utid, $ts, $dur, 1, 1, 1, 1);

@@ -17,12 +17,16 @@
 INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Count Binder transactions per process.
---
--- @column process_name  Name of the process that started the binder transaction.
--- @column pid           PID of the process that started the binder transaction.
--- @column slice_name    Name of the slice with binder transaction.
--- @column event_count   Number of binder transactions in process in slice.
-CREATE VIEW android_binder_metrics_by_process AS
+CREATE PERFETTO VIEW android_binder_metrics_by_process(
+  -- Name of the process that started the binder transaction.
+  process_name INT,
+  -- PID of the process that started the binder transaction.
+  pid INT,
+  -- Name of the slice with binder transaction.
+  slice_name STRING,
+  -- Number of binder transactions in process in slice.
+  event_count INT
+) AS
 SELECT
   process.name AS process_name,
   process.pid AS pid,
@@ -164,28 +168,48 @@ CREATE INDEX internal_oom_score_idx ON internal_oom_score(upid, ts);
 
 -- Breakdown synchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction.
---
--- @column aidl_name name of the binder interface if existing.
--- @column binder_txn_id slice id of the binder txn.
--- @column client_process name of the client process.
--- @column client_thread name of the client thread.
--- @column client_upid Upid of the client process.
--- @column client_utid Utid of the client thread.
--- @column client_tid Tid of the client thread.
--- @column client_ts timestamp of the client txn.
--- @column client_dur dur of the client txn.
--- @column client_oom_score oom score of the client process at the start of the txn.
--- @column is_main_thread Whether the txn was initiated from the main thread of the client process.
--- @column binder_reply_id slice id of the binder reply.
--- @column server_process name of the server process.
--- @column server_thread  name of the server thread.
--- @column server_upid Upid of the server process.
--- @column server_utid Utid of the server thread.
--- @column server_tid Tid of the server thread.
--- @column server_ts timestamp of the server txn.
--- @column server_dur dur of the server txn.
--- @column server_oom_score oom score of the server process at the start of the reply.
-CREATE VIEW android_sync_binder_metrics_by_txn AS
+CREATE PERFETTO VIEW android_sync_binder_metrics_by_txn(
+  -- name of the binder interface if existing.
+  aidl_name STRING,
+  -- slice id of the binder txn.
+  binder_txn_id INT,
+  -- name of the client process.
+  client_process STRING,
+  -- name of the client thread.
+  client_thread STRING,
+  -- Upid of the client process.
+  client_upid INT,
+  -- Utid of the client thread.
+  client_utid INT,
+  -- Tid of the client thread.
+  client_tid INT,
+  -- timestamp of the client txn.
+  client_ts INT,
+  -- dur of the client txn.
+  client_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
+  -- slice id of the binder reply.
+  binder_reply_id INT,
+  -- name of the server process.
+  server_process STRING,
+  -- name of the server thread.
+  server_thread STRING,
+  -- Upid of the server process.
+  server_upid INT,
+  -- Utid of the server thread.
+  server_utid INT,
+  -- Tid of the server thread.
+  server_tid INT,
+  -- timestamp of the server txn.
+  server_ts INT,
+  -- dur of the server txn.
+  server_dur INT,
+  -- oom score of the server process at the start of the reply.
+  server_oom_score INT
+) AS
 SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
 FROM internal_binder_txn_merged binder
 LEFT JOIN internal_oom_score client_oom
@@ -222,15 +246,20 @@ USING
 -- The |thread_state_type| column represents whether a given 'aggregated thread_state'
 -- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
 -- is server side.
---
--- @column binder_txn_id slice id of the binder txn
--- @column binder_reply_id slice id of the binder reply
--- @column thread_state_type whether thread state is on the txn or reply side
--- @column thread_state a thread_state that occurred in the txn
--- @column thread_state_dur aggregated dur of the |thread_state| in the txn
--- @column thread_state_count aggregated count of the |thread_state| in the txn
-CREATE VIEW android_sync_binder_thread_state_by_txn
-AS
+CREATE PERFETTO VIEW android_sync_binder_thread_state_by_txn(
+  -- slice id of the binder txn
+  binder_txn_id INT,
+  -- slice id of the binder reply
+  binder_reply_id INT,
+  -- whether thread state is on the txn or reply side
+  thread_state_type STRING,
+  -- a thread_state that occurred in the txn
+  thread_state STRING,
+  -- aggregated dur of the |thread_state| in the txn
+  thread_state_dur INT,
+  -- aggregated count of the |thread_state| in the txn
+  thread_state_count INT
+) AS
 SELECT
   binder_txn_id,
   client_ts,
@@ -266,15 +295,20 @@ GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state;
 -- The |thread_state_type| column represents whether a given 'aggregated blocked_function'
 -- row is on the client or server side. 'binder_txn' is client side and 'binder_reply'
 -- is server side.
---
--- @column binder_txn_id slice id of the binder txn
--- @column binder_reply_id slice id of the binder reply
--- @column thread_state_type whether thread state is on the txn or reply side
--- @column blocked_function blocked kernel function in a thread state
--- @column blocked_function_dur aggregated dur of the |blocked_function| in the txn
--- @column blocked_function_count aggregated count of the |blocked_function| in the txn
-CREATE VIEW android_sync_binder_blocked_functions_by_txn
-AS
+CREATE PERFETTO VIEW android_sync_binder_blocked_functions_by_txn(
+  -- slice id of the binder txn
+  binder_txn_id INT,
+  -- slice id of the binder reply
+  binder_reply_id INT,
+  -- whether thread state is on the txn or reply side
+  thread_state_type STRING,
+  -- blocked kernel function in a thread state
+  blocked_function STRING,
+  -- aggregated dur of the |blocked_function| in the txn
+  blocked_function_dur INT,
+  -- aggregated count of the |blocked_function| in the txn
+  blocked_function_count INT
+) AS
 SELECT
   binder_txn_id,
   client_ts,
@@ -365,29 +399,48 @@ WHERE binder_reply.name = 'binder async rcv';
 
 -- Breakdown asynchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
---
--- @column aidl_name name of the binder interface if existing.
--- @column binder_txn_id slice id of the binder txn.
--- @column client_process name of the client process.
--- @column client_thread name of the client thread.
--- @column client_upid Upid of the client process.
--- @column client_utid Utid of the client thread.
--- @column client_tid Tid of the client thread.
--- @column client_ts timestamp of the client txn.
--- @column client_dur dur of the client txn.
--- @column client_oom_score oom score of the client process at the start of the txn.
--- @column is_main_thread Whether the txn was initiated from the main thread of the client process.
--- @column binder_reply_id slice id of the binder reply.
--- @column server_process name of the server process.
--- @column server_thread  name of the server thread.
--- @column server_upid Upid of the server process.
--- @column server_utid Utid of the server thread.
--- @column server_tid Tid of the server thread.
--- @column server_ts timestamp of the server txn.
--- @column server_dur dur of the server txn.
--- @column server_oom_score oom score of the server process at the start of the reply.
-CREATE VIEW android_async_binder_metrics_by_txn
-AS
+CREATE PERFETTO VIEW android_async_binder_metrics_by_txn(
+  -- name of the binder interface if existing.
+  aidl_name STRING,
+  -- slice id of the binder txn.
+  binder_txn_id INT,
+  -- name of the client process.
+  client_process STRING,
+  -- name of the client thread.
+  client_thread STRING,
+  -- Upid of the client process.
+  client_upid INT,
+  -- Utid of the client thread.
+  client_utid INT,
+  -- Tid of the client thread.
+  client_tid INT,
+  -- timestamp of the client txn.
+  client_ts INT,
+  -- dur of the client txn.
+  client_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
+  -- slice id of the binder reply.
+  binder_reply_id INT,
+  -- name of the server process.
+  server_process STRING,
+  -- name of the server thread.
+  server_thread STRING,
+  -- Upid of the server process.
+  server_upid INT,
+  -- Utid of the server thread.
+  server_utid INT,
+  -- Tid of the server thread.
+  server_tid INT,
+  -- timestamp of the server txn.
+  server_ts INT,
+  -- dur of the server txn.
+  server_dur INT,
+  -- oom score of the server process at the start of the reply.
+  server_oom_score INT
+) AS
 SELECT binder.*, client_oom.value AS client_oom_score, server_oom.value AS server_oom_score
 FROM internal_binder_async_txn binder
 LEFT JOIN internal_oom_score client_oom
@@ -401,30 +454,50 @@ LEFT JOIN internal_oom_score server_oom
 
 -- Breakdown asynchronous binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
---
--- @column aidl_name name of the binder interface if existing.
--- @column binder_txn_id slice id of the binder txn.
--- @column client_process name of the client process.
--- @column client_thread name of the client thread.
--- @column client_upid Upid of the client process.
--- @column client_utid Utid of the client thread.
--- @column client_tid Tid of the client thread.
--- @column client_ts timestamp of the client txn.
--- @column client_dur dur of the client txn.
--- @column client_oom_score oom score of the client process at the start of the txn.
--- @column is_main_thread Whether the txn was initiated from the main thread of the client process.
--- @column binder_reply_id slice id of the binder reply.
--- @column server_process name of the server process.
--- @column server_thread  name of the server thread.
--- @column server_upid Upid of the server process.
--- @column server_utid Utid of the server thread.
--- @column server_tid Tid of the server thread.
--- @column server_ts timestamp of the server txn.
--- @column server_dur dur of the server txn.
--- @column server_oom_score oom score of the server process at the start of the reply.
--- @column is_sync whether the txn is synchronous or async (oneway).
-CREATE VIEW android_binder_txns
-AS
+CREATE PERFETTO VIEW android_binder_txns(
+  -- name of the binder interface if existing.
+  aidl_name STRING,
+  -- slice id of the binder txn.
+  binder_txn_id INT,
+  -- name of the client process.
+  client_process STRING,
+  -- name of the client thread.
+  client_thread STRING,
+  -- Upid of the client process.
+  client_upid INT,
+  -- Utid of the client thread.
+  client_utid INT,
+  -- Tid of the client thread.
+  client_tid INT,
+  -- timestamp of the client txn.
+  client_ts INT,
+  -- dur of the client txn.
+  client_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
+  -- slice id of the binder reply.
+  binder_reply_id INT,
+  -- name of the server process.
+  server_process STRING,
+  -- name of the server thread.
+  server_thread STRING,
+  -- Upid of the server process.
+  server_upid INT,
+  -- Utid of the server thread.
+  server_utid INT,
+  -- Tid of the server thread.
+  server_tid INT,
+  -- timestamp of the server txn.
+  server_ts INT,
+  -- dur of the server txn.
+  server_dur INT,
+  -- oom score of the server process at the start of the reply.
+  server_oom_score INT,
+  -- whether the txn is synchronous or async (oneway).
+  is_sync BOOL
+) AS
 SELECT *, 1 AS is_sync FROM android_sync_binder_metrics_by_txn
 UNION ALL
 SELECT *, 0 AS is_sync FROM android_async_binder_metrics_by_txn;
@@ -433,11 +506,12 @@ SELECT *, 0 AS is_sync FROM android_async_binder_metrics_by_txn;
 -- The roots of the graph are the threads making the txns and the graph flows from:
 -- thread -> server_process -> AIDL interface -> AIDL method.
 -- The weights of each node represent the wall execution time in the server_process.
---
--- @arg upid STRING      Upid of process to generate an outgoing graph for.
--- @column pprof BYTES   Pprof of outgoing binder txns.
-CREATE PERFETTO FUNCTION android_binder_outgoing_graph(upid INT)
-RETURNS TABLE(pprof BYTES) AS
+CREATE PERFETTO FUNCTION android_binder_outgoing_graph(
+  -- Upid of process to generate an outgoing graph for.
+  upid INT)
+RETURNS TABLE(
+  -- Pprof of outgoing binder txns.
+  pprof BYTES) AS
 WITH threads AS (
   SELECT binder_txn_id, CAT_STACKS(client_thread) AS stack
   FROM android_binder_txns
@@ -463,11 +537,12 @@ WITH threads AS (
 -- The roots of the graph are the clients making the txns and the graph flows from:
 -- client_process -> AIDL interface -> AIDL method.
 -- The weights of each node represent the wall execution time in the server_process.
---
--- @arg upid STRING      Upid of process to generate an outgoing graph for.
--- @column pprof BYTES   Pprof of outgoing binder txns.
-CREATE PERFETTO FUNCTION android_binder_incoming_graph(upid INT)
-RETURNS TABLE(pprof BYTES) AS
+CREATE PERFETTO FUNCTION android_binder_incoming_graph(
+  -- Upid of process to generate an incoming graph for.
+  upid INT)
+RETURNS TABLE(
+  -- Pprof of incoming binder txns.
+  pprof BYTES) AS
 WITH client_process AS (
   SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
   FROM android_binder_txns
@@ -488,14 +563,18 @@ WITH client_process AS (
 -- Returns a graph of all binder txns in a trace.
 -- The nodes are client_process and server_process.
 -- The weights of each node represent the wall execution time in the server_process.
---
--- @arg min_client_oom_score INT   Matches txns from client_processes greater than or equal to the OOM score.
--- @arg max_client_oom_score INT   Matches txns from client_processes less than or equal to the OOM score.
--- @arg min_server_oom_score INT   Matches txns to server_processes greater than or equal to the OOM score.
--- @arg max_server_oom_score INT   Matches txns to server_processes less than or equal to the OOM score.
--- @column pprof BYTES             Pprof of binder txns.
-CREATE PERFETTO FUNCTION android_binder_graph(min_client_oom_score INT, max_client_oom_score INT, min_server_oom_score INT, max_server_oom_score INT)
-RETURNS TABLE(pprof BYTES) AS
+CREATE PERFETTO FUNCTION android_binder_graph(
+  -- Matches txns from client_processes greater than or equal to the OOM score.
+  min_client_oom_score INT,
+  -- Matches txns from client_processes less than or equal to the OOM score.
+  max_client_oom_score INT,
+  -- Matches txns to server_processes greater than or equal to the OOM score.
+  min_server_oom_score INT,
+  -- Matches txns to server_processes less than or equal to the OOM score.
+  max_server_oom_score INT)
+RETURNS TABLE(
+  -- Pprof of binder txns.
+  pprof BYTES) AS
 WITH clients AS (
   SELECT binder_txn_id, CAT_STACKS(client_process) AS stack
    FROM android_binder_txns
