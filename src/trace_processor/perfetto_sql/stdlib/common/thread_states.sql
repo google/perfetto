@@ -43,10 +43,10 @@ ELSE $name
 END;
 
 -- Returns a human-readable name for a thread state.
--- @ret STRING  Human-readable name for the thread state.
 CREATE PERFETTO FUNCTION human_readable_thread_state_name(
   -- Thread state id.
   id INT)
+-- Human-readable name for the thread state.
 RETURNS STRING AS
 WITH data AS (
   SELECT
