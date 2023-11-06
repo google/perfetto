@@ -137,13 +137,12 @@ JOIN process_track ON slice.track_id = process_track.id
 JOIN process USING (upid);
 
 -- Checks if slice has an ancestor with provided name.
---
--- @ret BOOL                Whether `parent_name` is a name of an ancestor slice.
 CREATE PERFETTO FUNCTION has_parent_slice_with_name(
   -- Id of the slice to check parents of.
   id INT,
   -- Name of potential ancestor slice.
   parent_name STRING)
+-- Whether `parent_name` is a name of an ancestor slice.
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT 1
@@ -153,14 +152,13 @@ SELECT EXISTS(
 );
 
 -- Checks if slice has a descendant with provided name.
---
--- @ret BOOL Whether `descendant_name` is a name of an descendant slice.
 CREATE PERFETTO FUNCTION has_descendant_slice_with_name(
   -- Id of the slice to check descendants of.
   id INT,
   -- Name of potential descendant slice.
   descendant_name STRING
 )
+-- Whether `descendant_name` is a name of an descendant slice.
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT 1
@@ -170,11 +168,10 @@ SELECT EXISTS(
 );
 
 -- Count slices with specified name.
---
--- @ret INT               Number of slices with the name.
 CREATE PERFETTO FUNCTION slice_count(
   -- Name of the slices to counted.
   slice_glob STRING)
+-- Number of slices with the name.
 RETURNS INT AS
 SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;;
 
@@ -182,13 +179,13 @@ SELECT COUNT(1) FROM slice WHERE name GLOB $slice_glob;;
 -- If there are multiple descendants with a given name, the function will return the
 -- first one, so it's most useful when working with a timeline broken down into phases,
 -- where each subphase can happen only once.
--- @ret INT end timestamp of the child or NULL if it doesn't exist.
 CREATE PERFETTO FUNCTION descendant_slice_end(
   -- Id of the parent slice.
   parent_id INT,
   -- Name of the child with the desired end TS.
   child_name STRING
 )
+-- End timestamp of the child or NULL if it doesn't exist.
 RETURNS INT AS
 SELECT
   CASE WHEN s.dur
@@ -247,10 +244,10 @@ WHERE parent_id = $parent_id;
 
 -- Given a slice id, returns the name of the slice.
 -- @arg id LONG the slice id which we need the name for.
--- @ret STRING the name of slice with the given id.
 CREATE PERFETTO FUNCTION slice_name_from_id(
   id LONG
 )
+-- The name of slice with the given id.
 RETURNS STRING AS
 SELECT
   name
