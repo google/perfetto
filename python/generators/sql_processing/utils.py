@@ -23,8 +23,9 @@ TYPE = r'[A-Z]+'
 SQL = r'[\s\S]*?'
 WS = r'\s*'
 COMMENT = r' --[^\n]*\n'
-ARG = rf'(?:{COMMENT})* {NAME} {TYPE}'
-ARG_PATTERN = rf'((?:{COMMENT})*) ({NAME}) ({TYPE})'
+COMMENTS = rf'(?:{COMMENT})*'
+ARG = rf'{COMMENTS} {NAME} {TYPE}'
+ARG_PATTERN = rf'({COMMENTS}) ({NAME}) ({TYPE})'
 ARGS = rf'(?:{ARG})?(?: ,{ARG})*'
 
 
@@ -54,15 +55,17 @@ CREATE_FUNCTION_PATTERN = update_pattern(
     # Function name.
     fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "
     # Args: anything in the brackets.
-    fr" \( ({ARGS}) \) "
+    fr" \( ({ARGS}) \)"
     # Type: word after RETURNS.
+    fr"({COMMENTS})"
     fr" RETURNS ({TYPE}) AS ")
 
 CREATE_TABLE_FUNCTION_PATTERN = update_pattern(
     fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "
     # Args: anything in the brackets.
     fr" \( ({ARGS}) \) "
-    # Type: word after RETURNS.
+    # Type: table definition after RETURNS.
+    fr"({COMMENTS})"
     fr" RETURNS TABLE\( ({ANY_WORDS}) \) AS ")
 
 CREATE_MACRO_PATTERN = update_pattern(
@@ -70,6 +73,7 @@ CREATE_MACRO_PATTERN = update_pattern(
     # Args: anything in the brackets.
     fr" \( ({ARGS}) \) "
     # Type: word after RETURNS.
+    fr"({COMMENTS})"
     fr" RETURNS")
 
 COLUMN_ANNOTATION_PATTERN = update_pattern(fr'^ ({NAME}) ({ANY_WORDS})')
