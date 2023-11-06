@@ -46,14 +46,20 @@ USING
   span_join(internal_cpu_freq_counters PARTITIONED cpu, internal_cpu_idle_counters PARTITIONED cpu);
 
 -- Aggregates cpu idle statistics per core.
---
--- @column cpu             CPU core number.
--- @column state           CPU idle state (C-states).
--- @column count           The count of entering idle state.
--- @column dur             Total CPU core idle state duration in nanoseconds.
--- @column avg_dur         Average CPU core idle state duration in nanoseconds.
--- @column idle_percent    Idle state percentage of non suspend time (C-states + P-states).
-CREATE PERFETTO TABLE linux_cpu_idle_stats
+CREATE PERFETTO TABLE linux_cpu_idle_stats(
+  -- CPU core number.
+  cpu INT,
+  -- CPU idle state (C-states).
+  state INT,
+  -- The count of entering idle state.
+  count INT,
+  -- Total CPU core idle state duration in nanoseconds.
+  dur INT,
+  -- Average CPU core idle state duration in nanoseconds.
+  avg_dur INT,
+  -- Idle state percentage of non suspend time (C-states + P-states).
+  idle_percent FLOAT
+)
 AS
 WITH
 total AS (
