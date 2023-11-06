@@ -66,7 +66,7 @@ SELECT
   thread_state.waker_utid
 FROM thread_state
 JOIN first_state USING (id)
-WHERE thread_state.dur != -1 AND thread_state.state = 'R';
+WHERE thread_state.dur != -1 AND thread_state.state = 'R' AND (thread_state.irq_context = 0 OR thread_state.irq_context IS NULL);
 
 --
 -- Finds all sleep states including interruptible (S) and uninterruptible (D).
