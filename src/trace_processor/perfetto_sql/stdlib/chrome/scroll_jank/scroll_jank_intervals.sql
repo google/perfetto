@@ -84,7 +84,7 @@ SELECT
 FROM chrome_janky_event_latencies_v3;
 
 -- Scroll jank frame presentation stats for individual scrolls.
-CREATE PERFETTO VIEW chrome_scroll_state(
+CREATE PERFETTO VIEW chrome_scroll_stats(
   -- Id of the individual scroll.
   scroll_id INT,
   -- The number of missed vsyncs in the scroll.
