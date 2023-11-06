@@ -38,7 +38,7 @@ SELECT RUN_METRIC('android/mem_stats_priority_breakdown.sql', 'table_name', 'jav
 
 -- Find out all process + priority pairs with data to drive the joins (no outer join in sqlite).
 DROP VIEW IF EXISTS mem_all_processes;
-CREATE VIEW mem_all_processes AS
+CREATE PERFETTO VIEW mem_all_processes AS
 SELECT DISTINCT process_name
 FROM
   (
@@ -54,7 +54,7 @@ FROM
   );
 
 DROP VIEW IF EXISTS mem_all_process_priorities;
-CREATE VIEW mem_all_process_priorities AS
+CREATE PERFETTO VIEW mem_all_process_priorities AS
 SELECT DISTINCT process_name, priority
 FROM
   (
@@ -70,7 +70,7 @@ FROM
   );
 
 DROP VIEW IF EXISTS process_priority_view;
-CREATE VIEW process_priority_view AS
+CREATE PERFETTO VIEW process_priority_view AS
 SELECT
   process_name,
   AndroidMemoryMetric_PriorityBreakdown(
@@ -91,7 +91,7 @@ LEFT JOIN anon_and_swap_by_priority_stats_proto USING (process_name, priority)
 LEFT JOIN java_heap_by_priority_stats_proto USING (process_name, priority);
 
 DROP VIEW IF EXISTS process_metrics_view;
-CREATE VIEW process_metrics_view AS
+CREATE PERFETTO VIEW process_metrics_view AS
 SELECT
   AndroidMemoryMetric_ProcessMetrics(
     'process_name', process_name,
@@ -117,7 +117,7 @@ LEFT JOIN anon_and_swap_stats_proto USING (process_name)
 LEFT JOIN java_heap_stats_proto USING (process_name);
 
 DROP VIEW IF EXISTS android_mem_output;
-CREATE VIEW android_mem_output AS
+CREATE PERFETTO VIEW android_mem_output AS
 SELECT
   AndroidMemoryMetric(
     'process_metrics',

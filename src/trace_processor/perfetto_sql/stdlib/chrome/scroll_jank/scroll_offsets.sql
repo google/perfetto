@@ -42,7 +42,7 @@
 INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_v3;
 
 -- Non-coalesced scroll update events and their timestamps.
-CREATE VIEW internal_non_coalesced_scrolls AS
+CREATE PERFETTO VIEW internal_non_coalesced_scrolls AS
 SELECT
   scroll_update_id,
   ts
@@ -68,7 +68,7 @@ WHERE name = "TranslateAndScaleWebInputEvent";
 -- (internal_non_coalesced_scroll_updates) to get the timestamp of the event
 -- those deltas. This allows for ordering delta recordings to track them over
 -- time.
-CREATE VIEW internal_non_coalesced_deltas AS
+CREATE PERFETTO VIEW internal_non_coalesced_deltas AS
 SELECT
   scroll_update_id,
   ts,
@@ -95,7 +95,7 @@ WHERE name = "WebCoalescedInputEvent::CoalesceWith" AND
 -- to get the timestamp of the event those deltas were coalesced into. This
 -- allows us to get the scaled coordinates for all of the input events
 -- (original input coordinates can't be used due to scaling).
-CREATE VIEW internal_coalesced_deltas AS
+CREATE PERFETTO VIEW internal_coalesced_deltas AS
 SELECT
   internal_scroll_update_coalesce_info.coalesced_to_scroll_update_id AS scroll_update_id,
   ts,
@@ -125,7 +125,7 @@ AND args.flat_key GLOB 'scroll_deltas.trace_ids_in_gpu_frame*';;
 -- When every GestureScrollUpdate event is processed, the offset set by the
 -- compositor is recorded. This offset is scaled to the device screen size, and
 -- can be used to calculate deltas.
-CREATE VIEW internal_presented_frame_offsets AS
+CREATE PERFETTO VIEW internal_presented_frame_offsets AS
 SELECT
   EXTRACT_ARG(arg_set_id, 'scroll_deltas.trace_id') AS scroll_update_id,
   EXTRACT_ARG(arg_set_id, 'scroll_deltas.visual_offset_y') AS visual_offset_y
@@ -175,7 +175,7 @@ FROM all_deltas;
 -- Calculate the total visual offset for all presented frames (non-coalesced
 -- scroll updates) that have raw deltas recorded. These visual offsets
 -- correspond with the inverse of the deltas for the presented frame.
-CREATE VIEW internal_preprocessed_presented_frame_offsets AS
+CREATE PERFETTO VIEW internal_preprocessed_presented_frame_offsets AS
 SELECT
   internal_non_coalesced_scrolls.scroll_update_id,
   internal_non_coalesced_scrolls.ts,

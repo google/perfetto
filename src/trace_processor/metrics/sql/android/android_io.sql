@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.io;
 
 DROP VIEW IF EXISTS android_io_output;
-CREATE VIEW android_io_output AS
+CREATE PERFETTO VIEW android_io_output AS
 SELECT AndroidIo(
     'f2fs_counter_stats', (
         SELECT RepeatedField(

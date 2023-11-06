@@ -35,7 +35,7 @@ INCLUDE PERFETTO MODULE android.network_packets;
 -- @column packet_count  The total number of packets in this segment.
 -- @column packet_length The total number of bytes for packets in this segment.
 DROP VIEW IF EXISTS {{view_name}};
-CREATE VIEW {{view_name}} AS
+CREATE PERFETTO VIEW {{view_name}} AS
 WITH quantized AS (
   SELECT
     {{group_by}},
