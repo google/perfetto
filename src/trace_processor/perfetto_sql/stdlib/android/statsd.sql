@@ -17,24 +17,40 @@
 -- Statsd atoms.
 --
 -- A subset of the slice table containing statsd atom instant events.
---
--- @column id                        Unique identifier for this slice.
--- @column type                      The name of the "most-specific" child table containing this row.
--- @column ts                        The timestamp at the start of the slice (in nanoseconds).
--- @column dur                       The duration of the slice (in nanoseconds).
--- @column arg_set_id                The id of the argument set associated with this slice.
--- @column thread_instruction_count  The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
--- @column thread_instruction_delta  The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
--- @column track_id                  The id of the track this slice is located on.
--- @column category                  The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
--- @column name                      The name of the slice. The name describes what was happening during the slice.
--- @column depth                     The depth of the slice in the current stack of slices.
--- @column stack_id                  A unique identifier obtained from the names of all slices in this stack. This is rarely useful and kept around only for legacy reasons.
--- @column parent_stack_id           The stack_id for the parent of this slice. Rarely useful.
--- @column parent_id                 The id of the parent (i.e. immediate ancestor) slice for this slice.
--- @column thread_ts                 The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
--- @column thread_dur                The thread time used by this slice. This column will only be populated if thread timestamp collection is enabled with track_event.
-CREATE VIEW android_statsd_atoms AS
+CREATE PERFETTO VIEW android_statsd_atoms(
+  -- Unique identifier for this slice.
+  id INT,
+  -- The name of the "most-specific" child table containing this row.
+  type STRING,
+  -- The timestamp at the start of the slice (in nanoseconds).
+  ts INT,
+  -- The duration of the slice (in nanoseconds).
+  dur INT,
+  -- The id of the argument set associated with this slice.
+  arg_set_id INT,
+  -- The value of the CPU instruction counter at the start of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
+  thread_instruction_count INT,
+  -- The change in value of the CPU instruction counter between the start and end of the slice. This column will only be populated if thread instruction collection is enabled with track_event.
+  thread_instruction_delta INT,
+  -- The id of the track this slice is located on.
+  track_id INT,
+  -- The "category" of the slice. If this slice originated with track_event, this column contains the category emitted. Otherwise, it is likely to be null (with limited exceptions).
+  category STRING,
+  -- The name of the slice. The name describes what was happening during the slice.
+  name STRING,
+  -- The depth of the slice in the current stack of slices.
+  depth INT,
+  -- A unique identifier obtained from the names of all slices in this stack. This is rarely useful and kept around only for legacy reasons.
+  stack_id INT,
+  -- The stack_id for the parent of this slice. Rarely useful.
+  parent_stack_id INT,
+  -- The id of the parent (i.e. immediate ancestor) slice for this slice.
+  parent_id INT,
+  -- The thread timestamp at the start of the slice. This column will only be populated if thread timestamp collection is enabled with track_event.
+  thread_ts INT,
+  -- The thread time used by this slice. This column will only be populated if thread timestamp collection is enabled with track_event.
+  thread_dur INT
+) AS
 SELECT
   slice.id AS id,
   slice.type AS type,

@@ -75,7 +75,7 @@ SELECT
   end.ts AS end_ts,
   end.ts + end.dur AS end_ts_and_dur,
   end.trace_id AS end_trace_id,
-  calculate_avg_vsync_interval(begin.ts, end.ts) AS avg_vsync_interval
+  chrome_calculate_avg_vsync_interval(begin.ts, end.ts) AS avg_vsync_interval
 FROM {{prefix}}_begin_and_end begin JOIN {{prefix}}_begin_and_end end ON
     begin.trace_id < end.trace_id
     AND begin.name = 'InputLatency::{{gesture_start}}'

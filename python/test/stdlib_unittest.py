@@ -405,3 +405,26 @@ SELECT 1;
     '''.strip())
     # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
     self.assertEqual(len(res.errors), 1)
+
+  def test_function_with_new_style_docs_with_parenthesis(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+-- @ret BOOL                  Exists.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Utid of thread (important).
+    utid INT)
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'utid': Arg('INT', 'Utid of thread (important).'),
+    })
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Exists.')

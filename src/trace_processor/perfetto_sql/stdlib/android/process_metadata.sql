@@ -21,13 +21,18 @@ FROM package_list
 GROUP BY 1;
 
 -- Data about packages running on the process.
---
--- @column upid         Process upid.
--- @column process_name Process name.
--- @column package_name Name of the packages running in this process.
--- @column version_code Package version code.
--- @column debuggable   Whether package is debuggable.
-CREATE PERFETTO TABLE android_process_metadata AS
+CREATE PERFETTO TABLE android_process_metadata(
+  -- Process upid.
+  upid INT,
+  -- Process name.
+  process_name STRING,
+  -- Name of the packages running in this process.
+  package_name STRING,
+  -- Package version code.
+  version_code INT,
+  -- Whether package is debuggable.
+  debuggable INT
+) AS
 SELECT
   process.upid,
   -- workaround for b/169226092: the bug has been fixed it Android T, but
