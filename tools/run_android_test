@@ -154,7 +154,10 @@ def Main():
   AdbCall('shell', 'test -d "%s" || mkdir -p "%s"' % (2 * (trace_dir,)))
   AdbCall('shell', 'rm -rf "%s/*";  ' % trace_dir)
   AdbCall('shell', 'mkdir -p /data/nativetest')
-  AdbCall('shell', 'echo 0 > /d/tracing/tracing_on')
+  AdbCall('shell', 'test -f /sys/kernel/tracing/tracing_on ' +
+                   '&& echo 0 > /sys/kernel/tracing/tracing_on || true')
+  AdbCall('shell', 'test -f /sys/kernel/debug/tracing/tracing_on ' +
+                   '&& echo 0 > /sys/kernel/debug/tracing/tracing_on || true')
 
   # This needs to go into /data/nativetest in order to have the system linker
   # namespace applied, which we need in order to link libdexfile.so.
