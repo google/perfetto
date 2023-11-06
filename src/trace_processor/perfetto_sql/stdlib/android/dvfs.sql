@@ -14,12 +14,16 @@
 -- limitations under the License.
 
 -- Dvfs counter with duration.
---
--- @column name     Counter name.
--- @column ts       Timestamp when counter value changed.
--- @column value    Counter value.
--- @column dur 	    Counter duration.
-CREATE PERFETTO VIEW android_dvfs_counters AS
+CREATE PERFETTO VIEW android_dvfs_counters(
+  -- Counter name.
+  name STRING,
+  -- Timestamp when counter value changed.
+  ts INT,
+  -- Counter value.
+  value INT,
+  -- Counter duration.
+  dur INT
+) AS
 SELECT
   counter_track.name,
   counter.ts,
@@ -61,13 +65,18 @@ WHERE
 ORDER BY ts;
 
 -- Aggregates dvfs counter slice for statistic.
---
--- @column name     Counter name on which all the other values are aggregated on.
--- @column max      Max of all counter values for the counter name.
--- @column min      Min of all counter values for the counter name.
--- @column dur      Duration between the first and last counter value for the counter name.
--- @column wgt_avg  Weighted avergate of all the counter values for the counter name.
-CREATE PERFETTO TABLE android_dvfs_counter_stats AS
+CREATE PERFETTO TABLE android_dvfs_counter_stats(
+  -- Counter name on which all the other values are aggregated on.
+  name STRING,
+  -- Max of all counter values for the counter name.
+  max INT,
+  -- Min of all counter values for the counter name.
+  min INT,
+  -- Duration between the first and last counter value for the counter name.
+  dur INT,
+  -- Weighted avergate of all the counter values for the counter name.
+  wgt_avg FLOAT
+) AS
 SELECT
   name,
   MAX(value) AS max,
@@ -80,12 +89,18 @@ GROUP BY name;
 
 
 -- Aggregates dvfs counter slice for residency
---
--- @column name     Counter name on which all the other values are aggregated on.
--- @column value    Counter value of the residency.
--- @column dur      Total duration of the residency.
--- @column pct      Percentage of the residency.
-CREATE PERFETTO VIEW android_dvfs_counter_residency AS
+CREATE PERFETTO VIEW android_dvfs_counter_residency(
+  -- Id of the corresponding slice in slices table.
+  slice_id INT,
+  -- CPU that entered hypervisor.
+  cpu INT,
+  -- Timestamp when CPU entered hypervisor (in nanoseconds).
+  ts INT,
+  -- How much time CPU spent in hypervisor (in nanoseconds).
+  dur INT,
+  -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
+  reason STRING
+) AS
 WITH
 total AS (
   SELECT
