@@ -108,6 +108,7 @@ TEST_F(PerfettoFtraceIntegrationTest, TestFtraceProducer) {
 
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
+  helper.WaitForDataSourceConnected("linux.ftrace");
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(64);
@@ -242,6 +243,7 @@ TEST_F(PerfettoFtraceIntegrationTest, MAYBE_KernelAddressSymbolization) {
 
   helper.ConnectConsumer();
   helper.WaitForConsumerConnect();
+  helper.WaitForDataSourceConnected("linux.ftrace");
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(64);
@@ -257,6 +259,7 @@ TEST_F(PerfettoFtraceIntegrationTest, MAYBE_KernelAddressSymbolization) {
 
   // Synchronize with the ftrace data source. The kernel symbol map is loaded
   // at this point.
+  helper.WaitForAllDataSourceStarted();
   helper.FlushAndWait(kDefaultTestTimeoutMs);
   helper.DisableTracing();
   helper.WaitForTracingDisabled();
