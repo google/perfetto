@@ -143,7 +143,7 @@ WHERE scroll.scroll_id IS NOT NULL;
 -- the other ones will be null anyway since they won't have
 -- GestureScrollUpdates.
 DROP VIEW IF EXISTS scroll_jank_cause_blocking_touch_move;
-CREATE VIEW scroll_jank_cause_blocking_touch_move AS
+CREATE PERFETTO VIEW scroll_jank_cause_blocking_touch_move AS
 SELECT
   id,
   ts,

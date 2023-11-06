@@ -19,7 +19,7 @@
 -- @column ts       Timestamp when counter value changed.
 -- @column value    Counter value.
 -- @column dur 	    Counter duration.
-CREATE VIEW android_dvfs_counters AS
+CREATE PERFETTO VIEW android_dvfs_counters AS
 SELECT
   counter_track.name,
   counter.ts,
@@ -85,7 +85,7 @@ GROUP BY name;
 -- @column value    Counter value of the residency.
 -- @column dur      Total duration of the residency.
 -- @column pct      Percentage of the residency.
-CREATE VIEW android_dvfs_counter_residency AS
+CREATE PERFETTO VIEW android_dvfs_counter_residency AS
 WITH
 total AS (
   SELECT

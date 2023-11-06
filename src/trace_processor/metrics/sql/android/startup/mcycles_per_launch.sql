@@ -24,12 +24,12 @@ SELECT RUN_METRIC('android/cpu_info.sql');
 -- being span joined have an "id" column, we need to rename
 -- the id column for launches to disambiguate the two.
 DROP VIEW IF EXISTS android_launches_span_join_safe;
-CREATE VIEW android_launches_span_join_safe AS
+CREATE PERFETTO VIEW android_launches_span_join_safe AS
 SELECT ts, dur, startup_id
 FROM android_startups;
 
 DROP VIEW IF EXISTS launches_span_join_safe;
-CREATE VIEW launches_span_join_safe AS
+CREATE PERFETTO VIEW launches_span_join_safe AS
 SELECT startup_id AS launch_id, * FROM android_launches_span_join_safe;
 
 -- Span join the CPU table with the launches table to get the

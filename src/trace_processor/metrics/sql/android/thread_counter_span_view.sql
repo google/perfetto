@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS {{table_name}}_span;
-CREATE VIEW {{table_name}}_span AS
+CREATE PERFETTO VIEW {{table_name}}_span AS
 SELECT
   ts,
   LEAD(ts, 1, (

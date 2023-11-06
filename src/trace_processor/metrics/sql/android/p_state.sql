@@ -16,7 +16,7 @@
 SELECT RUN_METRIC("android/android_cpu_agg.sql");
 
 DROP VIEW IF EXISTS p_state_cpu_idle_counter;
-CREATE VIEW p_state_cpu_idle_counter AS
+CREATE PERFETTO VIEW p_state_cpu_idle_counter AS
 SELECT
   ts,
   ts - LAG(ts) OVER (

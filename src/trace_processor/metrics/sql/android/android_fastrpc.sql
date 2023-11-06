@@ -1,5 +1,5 @@
 DROP VIEW IF EXISTS fastrpc_timeline;
-CREATE VIEW fastrpc_timeline AS
+CREATE PERFETTO VIEW fastrpc_timeline AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
@@ -12,7 +12,7 @@ FROM counter JOIN counter_track
 WHERE (name GLOB 'mem.fastrpc[[]*');
 
 DROP VIEW IF EXISTS fastrpc_subsystem_stats;
-CREATE VIEW fastrpc_subsystem_stats AS
+CREATE PERFETTO VIEW fastrpc_subsystem_stats AS
 SELECT
   subsystem_name,
   SUM(value * dur) / SUM(dur) AS avg_size,
@@ -22,7 +22,7 @@ FROM fastrpc_timeline
 GROUP BY 1;
 
 DROP VIEW IF EXISTS fastrpc_raw_allocs;
-CREATE VIEW fastrpc_raw_allocs AS
+CREATE PERFETTO VIEW fastrpc_raw_allocs AS
 SELECT
   RTRIM(SUBSTR(name, 20), ']') AS subsystem_name,
   ts,
@@ -36,7 +36,7 @@ WINDOW win AS (
 );
 
 DROP VIEW IF EXISTS fastrpc_alloc_stats;
-CREATE VIEW fastrpc_alloc_stats AS
+CREATE PERFETTO VIEW fastrpc_alloc_stats AS
 SELECT
   subsystem_name,
   SUM(instant_value) AS total_alloc_size_bytes
@@ -48,7 +48,7 @@ GROUP BY 1;
 -- max as this will take both allocations into account at that
 -- timestamp.
 DROP VIEW IF EXISTS android_fastrpc_event;
-CREATE VIEW android_fastrpc_event AS
+CREATE PERFETTO VIEW android_fastrpc_event AS
 SELECT
   'counter' AS track_type,
   printf('fastrpc allocations (subsystem: %s)', subsystem_name) AS track_name,
@@ -58,7 +58,7 @@ FROM fastrpc_raw_allocs
 GROUP BY 1, 2, 3;
 
 DROP VIEW IF EXISTS android_fastrpc_output;
-CREATE VIEW android_fastrpc_output AS
+CREATE PERFETTO VIEW android_fastrpc_output AS
 SELECT AndroidFastrpcMetric(
   'subsystem', RepeatedField(
     AndroidFastrpcMetric_Subsystem(

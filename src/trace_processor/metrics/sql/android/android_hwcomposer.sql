@@ -56,7 +56,7 @@ SELECT RUN_METRIC(
 
 
 DROP VIEW IF EXISTS display_ids;
-CREATE VIEW display_ids AS
+CREATE PERFETTO VIEW display_ids AS
 SELECT DISTINCT display_id
 FROM (
   SELECT display_id FROM total_layers
@@ -75,7 +75,7 @@ FROM (
 );
 
 DROP VIEW IF EXISTS metrics_per_display;
-CREATE VIEW metrics_per_display AS
+CREATE PERFETTO VIEW metrics_per_display AS
 SELECT AndroidHwcomposerMetrics_MetricsPerDisplay(
   'display_id', display_id,
   'composition_total_layers',
@@ -138,7 +138,7 @@ SELECT RUN_METRIC('android/process_counter_span_view.sql',
 );
 
 DROP VIEW IF EXISTS dpu_vote_process;
-CREATE VIEW dpu_vote_process AS
+CREATE PERFETTO VIEW dpu_vote_process AS
 SELECT DISTINCT p.upid, p.pid
 FROM (
   SELECT upid FROM dpu_vote_clock_span
@@ -151,7 +151,7 @@ FROM (
 -- These systrace counters are coming from dedicated kernel threads, so we can
 -- assume pid = tid.
 DROP VIEW IF EXISTS dpu_vote_metrics;
-CREATE VIEW dpu_vote_metrics AS
+CREATE PERFETTO VIEW dpu_vote_metrics AS
 SELECT AndroidHwcomposerMetrics_DpuVoteMetrics(
   'tid', pid,
   'avg_dpu_vote_clock',
@@ -171,7 +171,7 @@ FROM dpu_vote_process p
 ORDER BY pid;
 
 DROP VIEW IF EXISTS android_hwcomposer_output;
-CREATE VIEW android_hwcomposer_output AS
+CREATE PERFETTO VIEW android_hwcomposer_output AS
 SELECT AndroidHwcomposerMetrics(
   'composition_total_layers', (SELECT AVG(value) FROM total_layers),
   'composition_dpu_layers', (SELECT AVG(value) FROM dpu_layers),

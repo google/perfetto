@@ -51,7 +51,7 @@ GROUP BY 1
 ORDER BY 1;
 
 DROP VIEW IF EXISTS {{table_name}}_stats_proto;
-CREATE VIEW {{table_name}}_stats_proto AS
+CREATE PERFETTO VIEW {{table_name}}_stats_proto AS
 SELECT
   process_name,
   AndroidMemoryMetric_Counter(

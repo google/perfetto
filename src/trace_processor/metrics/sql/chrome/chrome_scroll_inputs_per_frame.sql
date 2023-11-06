@@ -22,7 +22,7 @@
 
 -- Grab all GestureScrollUpdate slices.
 DROP VIEW IF EXISTS chrome_all_scroll_updates;
-CREATE VIEW chrome_all_scroll_updates AS
+CREATE PERFETTO VIEW chrome_all_scroll_updates AS
 SELECT
   id,
   EXTRACT_ARG(arg_set_id, 'chrome_latency_info.gesture_scroll_id') AS scroll_id,
@@ -35,7 +35,7 @@ WHERE name = "InputLatency::GestureScrollUpdate";
 
 -- Count number of input GestureScrollUpdates per scroll.
 DROP VIEW IF EXISTS chrome_update_count_per_scroll;
-CREATE VIEW chrome_update_count_per_scroll AS
+CREATE PERFETTO VIEW chrome_update_count_per_scroll AS
 SELECT
   CAST(COUNT() AS FLOAT) AS count,
   scroll_id,
@@ -47,7 +47,7 @@ GROUP BY scroll_id;
 -- Count the number of input GestureScrollUpdates that were converted
 -- frames per scroll.
 DROP VIEW IF EXISTS chrome_non_coalesced_update_count_per_scroll;
-CREATE VIEW chrome_non_coalesced_update_count_per_scroll AS
+CREATE PERFETTO VIEW chrome_non_coalesced_update_count_per_scroll AS
 SELECT
   CAST(COUNT() AS FLOAT) AS non_coalesced_count,
   scroll_id,
@@ -60,7 +60,7 @@ GROUP BY scroll_id;
 
 -- Get the average number of inputs per frame per scroll.
 DROP VIEW IF EXISTS chrome_avg_scroll_inputs_per_frame;
-CREATE VIEW chrome_avg_scroll_inputs_per_frame AS
+CREATE PERFETTO VIEW chrome_avg_scroll_inputs_per_frame AS
 SELECT
   count / non_coalesced_count AS avg_inputs_per_frame_per_scroll,
   scroll_id,
@@ -71,7 +71,7 @@ JOIN chrome_update_count_per_scroll USING(scroll_id);
 -- Get the last scroll update event that wasn't coalesced before the
 -- current scroll update.
 DROP VIEW IF EXISTS chrome_frame_main_input_id;
-CREATE VIEW chrome_frame_main_input_id AS
+CREATE PERFETTO VIEW chrome_frame_main_input_id AS
 SELECT
   id,
   scroll_id,
@@ -88,7 +88,7 @@ FROM chrome_all_scroll_updates scrolls;
 
 -- Count the number of inputs per presented frame.
 DROP VIEW IF EXISTS chrome_scroll_inputs_per_frame;
-CREATE VIEW chrome_scroll_inputs_per_frame AS
+CREATE PERFETTO VIEW chrome_scroll_inputs_per_frame AS
 SELECT
   COUNT() AS count_for_frame,
   presented_scroll_id,

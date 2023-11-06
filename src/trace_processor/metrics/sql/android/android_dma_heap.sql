@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS dma_heap_timeline;
-CREATE VIEW dma_heap_timeline AS
+CREATE PERFETTO VIEW dma_heap_timeline AS
 SELECT
   ts,
   LEAD(ts, 1, (SELECT end_ts FROM trace_bounds))
@@ -27,7 +27,7 @@ FROM counter JOIN counter_track
 WHERE (name = 'mem.dma_heap');
 
 DROP VIEW IF EXISTS dma_heap_stats;
-CREATE VIEW dma_heap_stats AS
+CREATE PERFETTO VIEW dma_heap_stats AS
 SELECT
   SUM(value * dur) / SUM(dur) AS avg_size,
   MIN(value) AS min_size,
@@ -35,7 +35,7 @@ SELECT
 FROM dma_heap_timeline;
 
 DROP VIEW IF EXISTS dma_heap_raw_allocs;
-CREATE VIEW dma_heap_raw_allocs AS
+CREATE PERFETTO VIEW dma_heap_raw_allocs AS
 SELECT
   ts,
   value AS instant_value,
@@ -48,7 +48,7 @@ WINDOW win AS (
 );
 
 DROP VIEW IF EXISTS dma_heap_total_stats;
-CREATE VIEW dma_heap_total_stats AS
+CREATE PERFETTO VIEW dma_heap_total_stats AS
 SELECT
   SUM(instant_value) AS total_alloc_size_bytes
 FROM dma_heap_raw_allocs;
@@ -58,7 +58,7 @@ FROM dma_heap_raw_allocs;
 -- max as this will take both allocations into account at that
 -- timestamp.
 DROP VIEW IF EXISTS android_dma_heap_event;
-CREATE VIEW android_dma_heap_event AS
+CREATE PERFETTO VIEW android_dma_heap_event AS
 SELECT
   'counter' AS track_type,
   printf('Buffers created from DMA-BUF heaps: ') AS track_name,
@@ -68,7 +68,7 @@ FROM dma_heap_raw_allocs
 GROUP BY 1, 2, 3;
 
 DROP VIEW IF EXISTS android_dma_heap_output;
-CREATE VIEW android_dma_heap_output AS
+CREATE PERFETTO VIEW android_dma_heap_output AS
 SELECT AndroidDmaHeapMetric(
   'avg_size_bytes', avg_size,
   'min_size_bytes', min_size,

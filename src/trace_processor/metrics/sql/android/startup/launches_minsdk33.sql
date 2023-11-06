@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS launch_async_events;
-CREATE VIEW launch_async_events AS
+CREATE PERFETTO VIEW launch_async_events AS
 SELECT
   ts,
   dur,
@@ -27,7 +27,7 @@ WHERE
   AND INSTR(name, ':') = 0;
 
 DROP VIEW IF EXISTS launch_complete_events;
-CREATE VIEW launch_complete_events AS
+CREATE PERFETTO VIEW launch_complete_events AS
 SELECT
   STR_SPLIT(completed, ':', 0) AS id,
   STR_SPLIT(completed, ':', 2) AS package_name,

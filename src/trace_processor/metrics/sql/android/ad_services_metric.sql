@@ -24,7 +24,7 @@ WHERE
   name = $event_name;
 
 DROP VIEW IF EXISTS ad_services_metric_output;
-CREATE VIEW ad_services_metric_output AS
+CREATE PERFETTO VIEW ad_services_metric_output AS
 SELECT
   AdServicesMetric(
     'ui_metric',
