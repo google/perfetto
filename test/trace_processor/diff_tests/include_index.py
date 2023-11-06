@@ -91,9 +91,12 @@ from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.chrome.tests import ChromeStdlib
 from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteractions
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
+from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
+from diff_tests.stdlib.intervals.tests import StdlibIntervals
+from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
@@ -150,6 +153,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *ProfilingLlvmSymbolizer(index_path, 'parser/profiling',
                                'ProfilingLlvmSymbolizer').fetch(),
       *SchedParser(index_path, 'parser/sched', 'SchedParser').fetch(),
+      *StdlibSched(index_path, 'stdlib/sched', 'StdlibSched').fetch(),
       *Smoke(index_path, 'parser/smoke', 'Smoke').fetch(),
       *SmokeComputeMetrics(index_path, 'parser/smoke',
                            'SmokeComputeMetrics').fetch(),
@@ -191,7 +195,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                        'GraphicsMetrics').fetch(),
       *IRQ(index_path, 'metrics/irq', 'IRQ').fetch(),
       *MemoryMetrics(index_path, 'metrics/memory', 'MemoryMetrics').fetch(),
-      *NetworkMetrics(index_path, 'metrics/network', 'NetworkMetrics').fetch(),
+      *NetworkMetrics(index_path, 'metrics/network', 'orkMetrics').fetch(),
       *Power(index_path, 'metrics/power', 'Power').fetch(),
       *ProfilingMetrics(index_path, 'metrics/profiling',
                         'ProfilingMetrics').fetch(),
@@ -207,7 +211,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   stdlib_tests = [
       *AndroidStdlib(index_path, 'stdlib/android', 'AndroidStdlib').fetch(),
       *ChromeInteractions(index_path, 'stdlib/chrome',
-                                      'ChromeInteractions').fetch(),
+                          'ChromeInteractions').fetch(),
       *ChromeScrollJankStdlib(index_path, 'stdlib/chrome',
                               'ChromeScrollJankStdlib').fetch(),
       *ChromeStdlib(index_path, 'stdlib/chrome', 'ChromeStdlib').fetch(),
@@ -215,7 +219,6 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
-      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
       *SpanJoinLeftJoin(index_path, 'stdlib/span_join',
                         'SpanJoinLeftJoin').fetch(),
@@ -224,6 +227,9 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *SpanJoinRegression(index_path, 'stdlib/span_join',
                           'SpanJoinRegression').fetch(),
       *SpanJoinSmoke(index_path, 'stdlib/span_join', 'SpanJoinSmoke').fetch(),
+      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
+      *StdlibIntervals(index_path, 'stdlib/intervals',
+                       'StdlibIntervals').fetch(),
       *Timestamps(index_path, 'stdlib/timestamps', 'Timestamps').fetch(),
   ]
 
