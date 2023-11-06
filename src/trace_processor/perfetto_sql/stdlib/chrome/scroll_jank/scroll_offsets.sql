@@ -177,13 +177,14 @@ FROM all_deltas;
 -- correspond with the inverse of the deltas for the presented frame.
 CREATE PERFETTO VIEW internal_preprocessed_presented_frame_offsets AS
 SELECT
-  internal_non_coalesced_scrolls.scroll_update_id,
-  internal_non_coalesced_scrolls.ts,
+  chrome_full_frame_view.scroll_update_id,
+  chrome_full_frame_view.presentation_timestamp AS ts,
   chrome_deltas_presented_frame_scroll_update_ids.id,
   internal_presented_frame_offsets.visual_offset_y -
     LAG(internal_presented_frame_offsets.visual_offset_y)
-    OVER (ORDER BY internal_non_coalesced_scrolls.ts) AS presented_frame_visual_offset_y
-FROM internal_non_coalesced_scrolls
+    OVER (ORDER BY chrome_full_frame_view.presentation_timestamp)
+      AS presented_frame_visual_offset_y
+FROM chrome_full_frame_view
 LEFT JOIN internal_scroll_deltas
   USING (scroll_update_id)
 LEFT JOIN chrome_deltas_presented_frame_scroll_update_ids
