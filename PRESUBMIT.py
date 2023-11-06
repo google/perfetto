@@ -327,7 +327,10 @@ def CheckSqlModules(input_api, output_api):
 
   def file_filter(x):
     return input_api.FilterSourceFile(
-        x, files_to_check=['src/trace_processor/stdlib/.*[.]sql$', tool])
+        x,
+        files_to_check=[
+            'src/trace_processor/perfetto_sql/stdlib/.*[.]sql$', tool
+        ])
 
   if not input_api.AffectedSourceFiles(file_filter):
     return []
