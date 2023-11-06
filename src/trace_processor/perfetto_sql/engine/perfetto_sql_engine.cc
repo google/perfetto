@@ -126,6 +126,29 @@ SqlSource RewriteToDummySql(const SqlSource& source) {
       SqlSource::FromTraceProcessorImplementation("SELECT 0 WHERE 0"));
 }
 
+constexpr std::array<const char*, 3> kTokensAllowedInMacro({
+    "ColumnName",
+    "Expr",
+    "TableOrSubquery",
+});
+
+bool IsTokenAllowedInMacro(const std::string& view) {
+  for (const char* allowed_token : kTokensAllowedInMacro) {
+    if (base::ToLower(view) == base::ToLower(allowed_token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+std::string GetTokenNamesAllowedInMacro() {
+  std::vector<std::string> result;
+  for (const char* token : kTokensAllowedInMacro) {
+    result.push_back(token);
+  }
+  return base::Join(result, ", ");
+}
+
 }  // namespace
 
 PerfettoSqlEngine::PerfettoSqlEngine(StringPool* pool)
@@ -606,24 +629,22 @@ base::Status PerfettoSqlEngine::ExecuteCreateMacro(
     const PerfettoSqlParser::CreateMacro& create_macro) {
   // Check that the argument types is one of the allowed types.
   for (const auto& [name, type] : create_macro.args) {
-    std::string lower_type = base::ToLower(type.sql());
-    if (lower_type != "tableorsubquery" && lower_type != "expr") {
+    if (!IsTokenAllowedInMacro(type.sql())) {
       // TODO(lalitm): add a link to create macro documentation.
       return base::ErrStatus(
-          "%sMacro %s argument %s is unkown type %s. Allowed types: "
-          "TableOrSubquery, Expr",
+          "%sMacro '%s' argument '%s' is unknown type '%s'. Allowed types: %s",
           type.AsTraceback(0).c_str(), create_macro.name.sql().c_str(),
-          name.sql().c_str(), type.sql().c_str());
+          name.sql().c_str(), type.sql().c_str(),
+          GetTokenNamesAllowedInMacro().c_str());
     }
   }
-  std::string lower_return = base::ToLower(create_macro.returns.sql());
-  if (lower_return != "tableorsubquery" && lower_return != "expr") {
+  if (!IsTokenAllowedInMacro(create_macro.returns.sql())) {
     // TODO(lalitm): add a link to create macro documentation.
     return base::ErrStatus(
-        "%sMacro %s return type %s is unknown. Allowed types: "
-        "TableOrSubquery, Expr",
+        "%sMacro %s return type %s is unknown. Allowed types: %s",
         create_macro.returns.AsTraceback(0).c_str(),
-        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str());
+        create_macro.name.sql().c_str(), create_macro.returns.sql().c_str(),
+        GetTokenNamesAllowedInMacro().c_str());
   }
 
   std::vector<std::string> args;
