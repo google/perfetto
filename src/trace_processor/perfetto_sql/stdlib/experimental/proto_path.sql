@@ -16,9 +16,10 @@
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
 --
--- @arg path_id  INT LONG of the path in EXPERIMENTAL_PROTO_PATH
 -- @ret BYTES    Stack with one frame
-CREATE PERFETTO FUNCTON EXPERIMENTAL_PROTO_PATH_TO_FRAME(path_id LONG)
+CREATE PERFETTO FUNCTON EXPERIMENTAL_PROTO_PATH_TO_FRAME(
+-- Id of the path in EXPERIMENTAL_PROTO_PATH.
+  path_id LONG)
 RETURNS BYTES AS
 SELECT
   CAT_STACKS(
@@ -32,10 +33,10 @@ WHERE id = $path_id;
 -- Creates a Stack following the parent relations in EXPERIMENTAL_PROTO_PATH
 -- table starting at the given path_id.
 --
--- @arg path_id  LONG Id of the path in EXPERIMENTAL_PROTO_PATH that will be
--- the leaf in the returned stack
 -- @ret BYTES    Stack
-CREATE PERFETTO FUNCTION experimental_proto_path_to_stack(path_id LONG)
+CREATE PERFETTO FUNCTION experimental_proto_path_to_stack(
+-- Id of the path in EXPERIMENTAL_PROTO_PATH that will be the leaf in the returned stack.
+  path_id LONG)
 RETURNS BYTES AS
 WITH
   R AS (

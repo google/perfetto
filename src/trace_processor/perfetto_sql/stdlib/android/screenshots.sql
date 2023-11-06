@@ -13,13 +13,17 @@
 -- limitations under the License.
 
 -- Screenshot slices, used in perfetto UI.
---
--- @column id               Slice id.
--- @column ts               Slice timestamp.
--- @column dur              Slice duration, should be typically 0 since
---                            screeenshot slices are of instant type.
--- @column name             Slice name.
-CREATE PERFETTO TABLE android_screenshots AS
+CREATE PERFETTO TABLE android_screenshots(
+  -- Slice id.
+  id INT,
+  -- Slice timestamp.
+  ts INT,
+  -- Slice duration, should be typically 0 since screeenshot slices are of instant
+  -- type.
+  dur INT,
+  -- Slice name.
+  name STRING
+) AS
 SELECT
   slice.id as id,
   slice.ts as ts,
