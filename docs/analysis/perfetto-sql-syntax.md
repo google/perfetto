@@ -101,3 +101,26 @@ SELECT *
 FROM slice
 WHERE name = 'foo';
 ```
+
+### Schema
+
+Perfetto tables can have an optional explicit schema. The schema syntax is the
+same as the function argument or returned-from-a-function table,
+i.e. a comma-separated list of (column name, colum type) pairs in parenthesis
+after table or view name.
+
+```sql
+CREATE PERFETTO TABLE foo(x INT, y STRING) AS
+SELECT 1 as x, 'test' as y
+```
+
+## CREATE PERFETTO VIEW
+
+Views can be created via `CREATE PERFETTO VIEW`, taking an optional schema.
+With the exception of the schema, they behave exactly the same as regular
+SQLite views.
+
+```sql
+CREATE PERFETTO VIEW foo(x INT, y STRING) AS
+SELECT 1 as x, 'test' as y
+```
