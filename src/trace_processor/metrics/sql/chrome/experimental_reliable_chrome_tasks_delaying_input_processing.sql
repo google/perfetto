@@ -21,7 +21,7 @@ SELECT RUN_METRIC('chrome/chrome_reliable_range.sql') AS suppress_query_output;
 
 DROP VIEW IF EXISTS chrome_reliable_slice;
 
-CREATE VIEW chrome_reliable_slice AS
+CREATE PERFETTO VIEW chrome_reliable_slice AS
 SELECT *
 FROM slice
 WHERE ts + dur >= (SELECT start FROM chrome_reliable_range);

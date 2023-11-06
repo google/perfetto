@@ -18,7 +18,7 @@ SELECT RUN_METRIC('chrome/scroll_flow_event_queuing_delay.sql');
 
 -- See b/184134310 why we remove ThreadController active.
 DROP VIEW IF EXISTS blocking_tasks_no_threadcontroller_active;
-CREATE VIEW blocking_tasks_no_threadcontroller_active AS
+CREATE PERFETTO VIEW blocking_tasks_no_threadcontroller_active AS
 SELECT
   slice.*,
   ancestor.id AS task_ancestor_id,
@@ -124,7 +124,7 @@ WHERE
 -- Additionally for mojo events we replace the descendant_name with just the
 -- "interface_name" since that is more descriptive for our jank purposes.
 DROP VIEW IF EXISTS all_descendant_blocking_tasks_queuing_delay;
-CREATE VIEW all_descendant_blocking_tasks_queuing_delay AS
+CREATE PERFETTO VIEW all_descendant_blocking_tasks_queuing_delay AS
 SELECT
   descendant.id AS descendant_id,
   descendant.ts AS descendant_ts,
@@ -179,7 +179,7 @@ FROM
 -- compute the siblings as the count of all slices with the same parent minus
 -- the current slice.
 DROP VIEW IF EXISTS counted_descendant_blocking_tasks_queuing_delay;
-CREATE VIEW counted_descendant_blocking_tasks_queuing_delay AS
+CREATE PERFETTO VIEW counted_descendant_blocking_tasks_queuing_delay AS
 SELECT
   base.*,
   COALESCE(single_descendant.number_of_siblings, 0) AS number_of_siblings
@@ -199,7 +199,7 @@ FROM
 -- to include single descendant slices in our metric name to keep it easy to
 -- reason about what that code is doing.
 DROP VIEW IF EXISTS blocking_tasks_queuing_delay_with_invalid_depth;
-CREATE VIEW blocking_tasks_queuing_delay_with_invalid_depth AS
+CREATE PERFETTO VIEW blocking_tasks_queuing_delay_with_invalid_depth AS
 SELECT
   base.*,
   (
@@ -229,7 +229,7 @@ ORDER BY
 -- descendant if their depth is less than the first depth with siblings (the
 -- |invalid_depth|).
 DROP VIEW IF EXISTS descendant_blocking_tasks_queuing_delay;
-CREATE VIEW descendant_blocking_tasks_queuing_delay AS
+CREATE PERFETTO VIEW descendant_blocking_tasks_queuing_delay AS
 SELECT
   id,
   ts,
@@ -443,7 +443,7 @@ SELECT
 
 -- Create a common name for each "cause" based on the slice stack we found.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_temp;
-CREATE VIEW scroll_jank_cause_queuing_delay_temp AS
+CREATE PERFETTO VIEW scroll_jank_cause_queuing_delay_temp AS
 SELECT
   top_level_name(name, function, file) || COALESCE(
     "-" || descendant_name, "") AS location,
@@ -461,7 +461,7 @@ FROM descendant_blocking_tasks_queuing_delay base;
 -- Figure out the average time taken during non-janky scrolls updates for each
 -- TraceEvent (metric_name) stack.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_no_jank_time;
-CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
+CREATE PERFETTO VIEW scroll_jank_cause_queuing_delay_average_no_jank_time AS
 SELECT
   location,
   AVG(dur_overlapping_ns) AS avg_dur_overlapping_ns
@@ -472,7 +472,7 @@ GROUP BY 1;
 -- Again figure out the average time, but based on a more restricted set of
 -- trace events.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_average_no_jank_time_restricted;
-CREATE VIEW scroll_jank_cause_queuing_delay_average_no_jank_time_restricted AS
+CREATE PERFETTO VIEW scroll_jank_cause_queuing_delay_average_no_jank_time_restricted AS
 SELECT
   restricted_location,
   AVG(dur_overlapping_ns) AS avg_dur_overlapping_ns_restricted
@@ -484,7 +484,7 @@ GROUP BY 1;
 -- Join every row (jank and non-jank with the average non-jank time for the
 -- given metric_name).
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay_unannotated;
-CREATE VIEW scroll_jank_cause_queuing_delay_unannotated AS
+CREATE PERFETTO VIEW scroll_jank_cause_queuing_delay_unannotated AS
 SELECT
   base.*,
   'InputLatency.LatencyInfo.Flow.QueuingDelay.'
@@ -499,7 +499,7 @@ FROM
 
 -- Join in the restricted set of trace events average as well to form the final output.
 DROP VIEW IF EXISTS scroll_jank_cause_queuing_delay;
-CREATE VIEW scroll_jank_cause_queuing_delay AS
+CREATE PERFETTO VIEW scroll_jank_cause_queuing_delay AS
 SELECT
   base.*,
   'QueuingDelay.'

@@ -25,7 +25,7 @@
 --
 -- Example usage:
 --
--- CREATE VIEW example_table AS
+-- CREATE PERFETTO VIEW example_table AS
 -- SELECT * FROM android_jank_cuj_slice WHERE name = 'binder transaction';
 -- SELECT android_jank_correlate_frame_slice_impl('MainThread',
 --                                                'example_table',

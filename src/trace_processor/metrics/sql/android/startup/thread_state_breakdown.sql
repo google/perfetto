@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.startup.startups;
 
 DROP VIEW IF EXISTS thread_state_extended;
-CREATE VIEW thread_state_extended AS
+CREATE PERFETTO VIEW thread_state_extended AS
 SELECT
   ts,
   IIF(dur = -1, (SELECT end_ts FROM trace_bounds), dur) AS dur,
@@ -51,7 +51,7 @@ WHERE
 GROUP BY 1, 2, 3, 4, 5;
 
 DROP VIEW IF EXISTS launch_thread_state_dur_sum;
-CREATE VIEW launch_thread_state_dur_sum AS
+CREATE PERFETTO VIEW launch_thread_state_dur_sum AS
 SELECT startup_id, state, is_main_thread, thread_name, SUM(dur) AS dur
 FROM launch_thread_state_io_wait_dur_sum
 GROUP BY 1, 2, 3, 4;

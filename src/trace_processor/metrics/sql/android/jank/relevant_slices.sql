@@ -229,7 +229,7 @@ CREATE PERFETTO TABLE android_jank_cuj_sf_on_message_invalidate_slice AS
 SELECT * FROM FIND_ANDROID_JANK_CUJ_SF_MAIN_THREAD_SLICE('onMessageInvalidate *');
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_root_slice;
-CREATE VIEW android_jank_cuj_sf_root_slice AS
+CREATE PERFETTO VIEW android_jank_cuj_sf_root_slice AS
 SELECT * FROM android_jank_cuj_sf_commit_slice
 UNION ALL
 SELECT * FROM android_jank_cuj_sf_composite_slice

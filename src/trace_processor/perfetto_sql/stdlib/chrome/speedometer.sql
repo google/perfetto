@@ -43,7 +43,7 @@
 -- @column suite_name    Suite name
 -- @column test_name     Test name
 -- @column mark_type     Type of mark (start, sync-end, async-end)
-CREATE VIEW internal_chrome_speedometer_mark
+CREATE PERFETTO VIEW internal_chrome_speedometer_mark
 AS
 WITH
   speedometer_21_suite_name(suite_name) AS (

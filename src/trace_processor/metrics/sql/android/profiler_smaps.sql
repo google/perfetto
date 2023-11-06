@@ -17,7 +17,7 @@
 SELECT RUN_METRIC('android/process_metadata.sql') AS unused;
 
 DROP VIEW IF EXISTS profiler_smaps_output;
-CREATE VIEW profiler_smaps_output AS
+CREATE PERFETTO VIEW profiler_smaps_output AS
 WITH base_stat_counts AS (
   SELECT
     ts,

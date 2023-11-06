@@ -17,7 +17,7 @@
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS android_task_names_output;
-CREATE VIEW android_task_names_output AS
+CREATE PERFETTO VIEW android_task_names_output AS
 WITH
 -- Process to thread name
 threads_by_upid AS (

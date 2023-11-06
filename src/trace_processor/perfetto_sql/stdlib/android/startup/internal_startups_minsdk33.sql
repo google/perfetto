@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 
-CREATE VIEW internal_startup_async_events AS
+CREATE PERFETTO VIEW internal_startup_async_events AS
 SELECT
   ts,
   dur,
@@ -25,7 +25,7 @@ WHERE
   AND dur != 0
   AND INSTR(name, ':') = 0;
 
-CREATE VIEW internal_startup_complete_events AS
+CREATE PERFETTO VIEW internal_startup_complete_events AS
 SELECT
   STR_SPLIT(completed, ':', 0) AS startup_id,
   STR_SPLIT(completed, ':', 2) AS package_name,

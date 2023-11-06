@@ -19,17 +19,17 @@ INCLUDE PERFETTO MODULE android.startup.startups;
 
 
 DROP VIEW IF EXISTS launches;
-CREATE VIEW launches AS
+CREATE PERFETTO VIEW launches AS
 SELECT startup_id AS launch_id, *, startup_type as launch_type FROM android_startups;
 
 DROP VIEW IF EXISTS launch_processes;
-CREATE VIEW launch_processes AS
+CREATE PERFETTO VIEW launch_processes AS
 SELECT startup_id AS launch_id, * FROM android_startup_processes;
 
 DROP VIEW IF EXISTS launch_threads;
-CREATE VIEW launch_threads AS
+CREATE PERFETTO VIEW launch_threads AS
 SELECT startup_id AS launch_id, * FROM android_startup_threads;
 
 DROP VIEW IF EXISTS launching_events;
-CREATE VIEW launching_events AS
+CREATE PERFETTO VIEW launching_events AS
 SELECT * FROM internal_startup_events;

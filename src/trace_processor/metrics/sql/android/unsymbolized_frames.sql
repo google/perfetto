@@ -27,7 +27,7 @@
 -- See also https://source.chromium.org/chromium/chromium/src/+/main:services/tracing/public/cpp/stack_sampling/tracing_sampler_profiler.cc;l=603;drc=cba00174ca338153b9c4f0c31ddbabaac7dd38c7
 -- Note that in SQL SUBSTR() indexes are 1-based, not 0 based.
 DROP VIEW IF EXISTS mangled_stack_profile_mapping;
-CREATE VIEW mangled_stack_profile_mapping AS
+CREATE PERFETTO VIEW mangled_stack_profile_mapping AS
 SELECT
   id,
   name,
@@ -54,7 +54,7 @@ SELECT
 FROM stack_profile_mapping;
 
 DROP VIEW IF EXISTS unsymbolized_frames_view;
-CREATE VIEW unsymbolized_frames_view AS
+CREATE PERFETTO VIEW unsymbolized_frames_view AS
 SELECT UnsymbolizedFrames_Frame(
     'module', spm.name,
     'build_id', spm.build_id,
@@ -68,7 +68,7 @@ WHERE spm.build_id != ''
   AND spf.symbol_set_id IS NULL;
 
 DROP VIEW IF EXISTS unsymbolized_frames_output;
-CREATE VIEW unsymbolized_frames_output AS
+CREATE PERFETTO VIEW unsymbolized_frames_output AS
 SELECT UnsymbolizedFrames(
   'frames',
   (SELECT RepeatedField(frame_proto) FROM unsymbolized_frames_view)

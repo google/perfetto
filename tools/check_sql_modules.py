@@ -25,9 +25,11 @@ import re
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.docs_parse import ParsedFile, parse_file
-from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.docs_parse import ParsedFile
+from python.generators.sql_processing.docs_parse import parse_file
 from python.generators.sql_processing.utils import check_banned_create_table_as
+from python.generators.sql_processing.utils import check_banned_create_view_as
+from python.generators.sql_processing.utils import check_banned_words
 
 CREATE_TABLE_ALLOWLIST = {
     '/src/trace_processor/perfetto_sql/stdlib/android/binder.sql': [
@@ -114,6 +116,7 @@ def main():
     errors += check_banned_create_table_as(sql,
                                            path.split(ROOT_DIR)[1],
                                            CREATE_TABLE_ALLOWLIST)
+    errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
 
   if errors:
     sys.stderr.write("\n".join(errors))

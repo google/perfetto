@@ -45,6 +45,8 @@ CREATE_TABLE_VIEW_PATTERN = update_pattern(
 
 CREATE_TABLE_AS_PATTERN = update_pattern(fr'^CREATE TABLE ({NAME}) AS')
 
+CREATE_VIEW_AS_PATTERN = update_pattern(fr'^CREATE VIEW ({NAME}) AS')
+
 DROP_TABLE_VIEW_PATTERN = update_pattern(fr'^DROP (TABLE|VIEW) IF EXISTS '
                                          fr'({NAME});$')
 
@@ -177,4 +179,35 @@ def check_banned_create_table_as(sql: str, filename: str,
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
           f"Offending file: {filename}\n")
+  return errors
+
+
+# Given SQL string check whether there is (not allowlisted) usage of
+# CREATE TABLE {name} AS.
+def check_banned_create_table_as(sql: str, filename: str,
+                                 allowlist: Dict[str, List[str]]) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
+    name = matches[0]
+    if filename not in allowlist:
+      errors.append(f"CREATE TABLE '{name}' is deprecated. "
+                    "Use CREATE PERFETTO TABLE instead.\n"
+                    f"Offending file: {filename}\n")
+      continue
+    if name not in allowlist[filename]:
+      errors.append(
+          f"Table '{name}' uses CREATE TABLE which is deprecated "
+          "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
+          f"Offending file: {filename}\n")
+  return errors
+
+
+# Given SQL string check whether there is usage of CREATE VIEW {name} AS.
+def check_banned_create_view_as(sql: str, filename: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(CREATE_VIEW_AS_PATTERN, sql).items():
+    name = matches[0]
+    errors.append(f"CREATE VIEW '{name}' is deprecated. "
+                  "Use CREATE PERFETTO VIEW instead.\n"
+                  f"Offending file: {filename}\n")
   return errors
