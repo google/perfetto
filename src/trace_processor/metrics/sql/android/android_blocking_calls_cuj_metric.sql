@@ -184,7 +184,7 @@ ORDER BY cuj_id;
 
 
 DROP VIEW IF EXISTS android_blocking_calls_cuj_metric_output;
-CREATE VIEW android_blocking_calls_cuj_metric_output AS
+CREATE PERFETTO VIEW android_blocking_calls_cuj_metric_output AS
 SELECT AndroidBlockingCallsCujMetric('cuj', (
     SELECT RepeatedField(
         AndroidBlockingCallsCujMetric_Cuj(

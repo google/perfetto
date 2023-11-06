@@ -25,7 +25,7 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 --
 -- See b/151077536 for historical context.
 DROP VIEW IF EXISTS sufficient_chrome_processes;
-CREATE VIEW sufficient_chrome_processes AS
+CREATE PERFETTO VIEW sufficient_chrome_processes AS
 SELECT
   CASE WHEN (
       SELECT COUNT(*) FROM chrome_process) = 0

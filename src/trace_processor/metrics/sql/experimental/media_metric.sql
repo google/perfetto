@@ -17,7 +17,7 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 
 -- Helper for thread slices
 DROP VIEW IF EXISTS thread_slice;
-CREATE VIEW thread_slice AS
+CREATE PERFETTO VIEW thread_slice AS
 SELECT s.*, thread.utid, thread.upid
 FROM slice s
 JOIN thread_track ON s.track_id = thread_track.id
@@ -27,7 +27,7 @@ JOIN thread USING(utid);
 -- Find all playbacks on renderer main threads.
 
 DROP VIEW IF EXISTS PlaybackStart;
-CREATE VIEW PlaybackStart AS
+CREATE PERFETTO VIEW PlaybackStart AS
 SELECT
   EXTRACT_ARG(s.arg_set_id, 'debug.id') AS playback_id,
   s.ts AS playback_start,
@@ -44,7 +44,7 @@ WHERE
 -- time_to_video_play.
 
 DROP VIEW IF EXISTS VideoStart;
-CREATE VIEW VideoStart AS
+CREATE PERFETTO VIEW VideoStart AS
 SELECT
   playback_id,
   playback_start,
@@ -62,7 +62,7 @@ GROUP BY playback_id, playback_start, PlaybackStart.upid;
 -- time_to_audio_play.
 
 DROP VIEW IF EXISTS AudioStart;
-CREATE VIEW AudioStart AS
+CREATE PERFETTO VIEW AudioStart AS
 SELECT
   playback_id,
   playback_start,
@@ -80,7 +80,7 @@ GROUP BY playback_id, playback_start, PlaybackStart.upid;
 -- compute dropped_frame_count.
 
 DROP VIEW IF EXISTS DroppedFrameCount;
-CREATE VIEW DroppedFrameCount AS
+CREATE PERFETTO VIEW DroppedFrameCount AS
 SELECT
   playback_id,
   vs.upid,
@@ -101,7 +101,7 @@ GROUP BY playback_id, vs.upid;
 
 -- Find the seeks.
 DROP VIEW IF EXISTS SeekStart;
-CREATE VIEW SeekStart AS
+CREATE PERFETTO VIEW SeekStart AS
 SELECT
   playback_id,
   PlaybackStart.upid,
@@ -117,7 +117,7 @@ WHERE
 -- Partition by the next seek's ts, so that we can filter for events occurring
 -- within each seek's window below.
 DROP VIEW IF EXISTS SeekPartitioned;
-CREATE VIEW SeekPartitioned AS
+CREATE PERFETTO VIEW SeekPartitioned AS
 SELECT
   *,
   LEAD(seek_start) OVER (
@@ -128,7 +128,7 @@ FROM SeekStart;
 
 -- Find the subsequent matching pipeline seeks that occur before the next seek.
 DROP VIEW IF EXISTS PipelineSeek;
-CREATE VIEW PipelineSeek AS
+CREATE PERFETTO VIEW PipelineSeek AS
 SELECT
   seek.*,
   (
@@ -146,7 +146,7 @@ FROM SeekPartitioned seek;
 
 -- Find the subsequent buffering events that occur before the next seek.
 DROP VIEW IF EXISTS SeekComplete;
-CREATE VIEW SeekComplete AS
+CREATE PERFETTO VIEW SeekComplete AS
 SELECT
   seek.*,
   (
@@ -163,7 +163,7 @@ FROM PipelineSeek seek;
 
 -- Find the subsequent buffering events that occur before the next seek.
 DROP VIEW IF EXISTS ValidSeek;
-CREATE VIEW ValidSeek AS
+CREATE PERFETTO VIEW ValidSeek AS
 SELECT
   s.*
 FROM SeekComplete s
@@ -177,7 +177,7 @@ WHERE
 
 -- Helper view that shows either video or audio start for each playback
 DROP VIEW IF EXISTS AVStart;
-CREATE VIEW AVStart AS
+CREATE PERFETTO VIEW AVStart AS
 SELECT
   v.playback_id,
   v.playback_start,
@@ -195,7 +195,7 @@ WHERE a.playback_id NOT IN (SELECT playback_id FROM VideoStart);
 
 -- Find the corresponding media end events and their reported duration.
 DROP VIEW IF EXISTS PlaybackEnd;
-CREATE VIEW PlaybackEnd AS
+CREATE PERFETTO VIEW PlaybackEnd AS
 SELECT
   AVStart.*,
   slice.ts AS playback_end,
@@ -220,7 +220,7 @@ WHERE NOT EXISTS (
 -- Find maximum video roughness and freezing events per playback.
 
 DROP VIEW IF EXISTS VideoRoughness;
-CREATE VIEW VideoRoughness AS
+CREATE PERFETTO VIEW VideoRoughness AS
 SELECT
   playback_id,
   playback_start,
@@ -235,7 +235,7 @@ WHERE
 GROUP BY playback_id, playback_start, PlaybackStart.upid;
 
 DROP VIEW IF EXISTS VideoFreezing;
-CREATE VIEW VideoFreezing AS
+CREATE PERFETTO VIEW VideoFreezing AS
 SELECT
   playback_id,
   playback_start,
@@ -253,7 +253,7 @@ GROUP BY playback_id, playback_start, PlaybackStart.upid;
 -- Output to proto
 
 DROP VIEW IF EXISTS media_metric_output;
-CREATE VIEW media_metric_output AS
+CREATE PERFETTO VIEW media_metric_output AS
 SELECT MediaMetric(
   'time_to_video_play', (
     SELECT RepeatedField((video_start - playback_start) / 1e6)

@@ -26,7 +26,7 @@ INNER JOIN thread ON thread.upid=android_process_metadata.upid
 INNER JOIN thread_state ON thread.utid=thread_state.utid WHERE android_process_metadata.process_name=$process_name;
 
 DROP VIEW IF EXISTS android_boot_output;
-CREATE VIEW android_boot_output AS
+CREATE PERFETTO VIEW android_boot_output AS
 SELECT AndroidBootMetric(
     'system_server_durations', (
         SELECT NULL_IF_EMPTY(ProcessStateDurations(

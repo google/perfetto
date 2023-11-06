@@ -81,7 +81,7 @@ CREATE PERFETTO VIEW chrome_cpu_power_slice(
     ORDER BY ts ASC;
 
 -- We do not want scheduler slices with utid = 0 (the 'swapper' kernel thread).
-CREATE VIEW internal_cpu_power_valid_sched_slice AS
+CREATE PERFETTO VIEW internal_cpu_power_valid_sched_slice AS
   SELECT *
   FROM sched_slice
   WHERE utid != 0;
@@ -145,7 +145,7 @@ CREATE PERFETTO TABLE chrome_cpu_power_first_sched_slice_after_powerup(
 --   slice_id  The slice_id for the top-level slice.
 --   ts        Starting timestamp for the slice.
 --   dur       The duration for the slice.
-CREATE VIEW internal_cpu_power_thread_and_toplevel_slice AS
+CREATE PERFETTO VIEW internal_cpu_power_thread_and_toplevel_slice AS
   SELECT
     t.utid AS utid,
     s.id AS slice_id,

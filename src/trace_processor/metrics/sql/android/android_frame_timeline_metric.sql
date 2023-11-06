@@ -16,7 +16,7 @@
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS splitted_jank_type_timeline;
-CREATE VIEW splitted_jank_type_timeline AS
+CREATE PERFETTO VIEW splitted_jank_type_timeline AS
 WITH RECURSIVE split_jank_type AS (
   SELECT
     upid,
@@ -44,7 +44,7 @@ FROM split_jank_type
 WHERE jank_type != '';
 
 DROP VIEW IF EXISTS android_frame_timeline_metric_per_process;
-CREATE VIEW android_frame_timeline_metric_per_process AS
+CREATE PERFETTO VIEW android_frame_timeline_metric_per_process AS
 WITH frames AS (
   SELECT
     process.upid,
@@ -93,7 +93,7 @@ JOIN process_metadata USING (upid)
 GROUP BY upid, process_name;
 
 DROP VIEW IF EXISTS android_frame_timeline_metric_output;
-CREATE VIEW android_frame_timeline_metric_output AS
+CREATE PERFETTO VIEW android_frame_timeline_metric_output AS
 WITH per_jank_type_metric AS (
   SELECT
     jank_type,

@@ -18,7 +18,7 @@
 -- chrome_event.metadata. Some names can have multiple values:
 -- e.g. trace-category
 DROP VIEW IF EXISTS chrome_event_metadata;
-CREATE VIEW chrome_event_metadata AS
+CREATE PERFETTO VIEW chrome_event_metadata AS
 WITH metadata (arg_set_id) AS (
   SELECT arg_set_id
   FROM raw

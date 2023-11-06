@@ -21,7 +21,7 @@ SELECT RUN_METRIC('chrome/chrome_input_to_browser_intervals.sql');
 
 -- Filter intervals to only durations longer than {{dur_causes_jank_ms}}.
 DROP VIEW IF EXISTS chrome_input_to_browser_longer_intervals;
-CREATE VIEW chrome_input_to_browser_longer_intervals AS
+CREATE PERFETTO VIEW chrome_input_to_browser_longer_intervals AS
 SELECT
   *
 FROM chrome_input_to_browser_intervals
@@ -36,7 +36,7 @@ WHERE
 -- than 8ms here as those are handled separately and are not regarded
 -- as scheduling issues.
 DROP VIEW IF EXISTS chrome_task_barrages_per_interval;
-CREATE VIEW chrome_task_barrages_per_interval AS
+CREATE PERFETTO VIEW chrome_task_barrages_per_interval AS
 SELECT
   GROUP_CONCAT(DISTINCT full_name) AS full_name,
   SUM(dur / 1e6) AS total_duration_ms,
@@ -83,7 +83,7 @@ GROUP BY window_start_ts, window_end_ts;
 -- Filter to task barrages that took more than 8ms, as barrages
 -- that lasted less than that are unlikely to have caused jank.
 DROP VIEW IF EXISTS chrome_scroll_jank_caused_by_scheduling;
-CREATE VIEW chrome_scroll_jank_caused_by_scheduling AS
+CREATE PERFETTO VIEW chrome_scroll_jank_caused_by_scheduling AS
 SELECT *
 FROM chrome_task_barrages_per_interval
 WHERE total_duration_ms > {{dur_causes_jank_ms}} AND count > 1

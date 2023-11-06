@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 -- CPU frequency counter per core.
-CREATE VIEW internal_cpu_freq_counters
+CREATE PERFETTO VIEW internal_cpu_freq_counters
 AS
 SELECT
   ts,
@@ -27,7 +27,7 @@ LEFT JOIN cpu_counter_track cct
 WHERE cct.name = 'cpufreq';
 
 -- CPU idle counter per core.
-CREATE VIEW internal_cpu_idle_counters
+CREATE PERFETTO VIEW internal_cpu_idle_counters
 AS
 SELECT
   ts,

@@ -19,7 +19,7 @@
 
 INCLUDE PERFETTO MODULE common.slices;
 
-CREATE VIEW internal_fcp_metrics AS
+CREATE PERFETTO VIEW internal_fcp_metrics AS
 SELECT
   ts,
   dur,

@@ -221,12 +221,12 @@ LEFT JOIN internal_oom_score server_oom
     binder.server_upid = server_oom.upid
     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
 
-CREATE VIEW internal_binder_txn
+CREATE PERFETTO VIEW internal_binder_txn
 AS
 SELECT client_ts AS ts, client_dur AS dur, client_utid AS utid, *
 FROM android_sync_binder_metrics_by_txn;
 
-CREATE VIEW internal_binder_reply
+CREATE PERFETTO VIEW internal_binder_reply
 AS
 SELECT server_ts AS ts, server_dur AS dur, server_utid AS utid, *
 FROM android_sync_binder_metrics_by_txn;

@@ -14,27 +14,27 @@
 -- limitations under the License.
 --
 DROP VIEW IF EXISTS same_frame;
-CREATE VIEW same_frame AS
+CREATE PERFETTO VIEW same_frame AS
 SELECT COUNT(name) AS total_duplicate_frames
 FROM counters
 WHERE name = 'SAME_FRAME'
   AND value = 1;
 
 DROP VIEW IF EXISTS duplicate_frames_logged;
-CREATE VIEW duplicate_frames_logged AS
+CREATE PERFETTO VIEW duplicate_frames_logged AS
 SELECT CASE WHEN COUNT(name) > 0 THEN 1 ELSE 0 END AS logs_found
 FROM counters
 WHERE name = 'SAME_FRAME' AND value = 0;
 
 DROP VIEW IF EXISTS dpu_underrun;
-CREATE VIEW dpu_underrun AS
+CREATE PERFETTO VIEW dpu_underrun AS
 SELECT COUNT(name) AS total_dpu_underrun_count
 FROM counters
 WHERE name = 'DPU_UNDERRUN'
   AND value = 1;
 
 DROP VIEW IF EXISTS non_repeated_panel_fps;
-CREATE VIEW non_repeated_panel_fps AS
+CREATE PERFETTO VIEW non_repeated_panel_fps AS
 SELECT *
 FROM (
   SELECT
@@ -49,7 +49,7 @@ FROM (
 WHERE prev_value != value;
 
 DROP VIEW IF EXISTS panel_fps_spans;
-CREATE VIEW panel_fps_spans AS
+CREATE PERFETTO VIEW panel_fps_spans AS
 SELECT *
 FROM (
   SELECT
@@ -62,14 +62,14 @@ FROM (
 WHERE dur > 0;
 
 DROP VIEW IF EXISTS update_power_state_stats;
-CREATE VIEW update_power_state_stats AS
+CREATE PERFETTO VIEW update_power_state_stats AS
 SELECT
   CAST(AVG(dur) / 1e3 AS INT64) AS avg_runtime_micro_secs
 FROM slice
 WHERE slice.name = 'DisplayPowerController#updatePowerState' AND slice.dur >= 0;
 
 DROP VIEW IF EXISTS display_metrics_output;
-CREATE VIEW display_metrics_output AS
+CREATE PERFETTO VIEW display_metrics_output AS
 SELECT AndroidDisplayMetrics(
   'total_duplicate_frames', (SELECT total_duplicate_frames
     FROM same_frame),

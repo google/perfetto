@@ -18,7 +18,7 @@ SELECT RUN_METRIC('android/android_cpu.sql');
 
 -- Attaching thread proto with media thread name
 DROP VIEW IF EXISTS core_type_proto_per_thread_name;
-CREATE VIEW core_type_proto_per_thread_name AS
+CREATE PERFETTO VIEW core_type_proto_per_thread_name AS
 SELECT
 thread.name as thread_name,
 core_type_proto_per_thread.proto AS proto
@@ -30,7 +30,7 @@ GROUP BY thread.name;
 
 -- aggregate all cpu the codec threads
 DROP VIEW IF EXISTS codec_per_thread_cpu_use;
-CREATE VIEW codec_per_thread_cpu_use AS
+CREATE PERFETTO VIEW codec_per_thread_cpu_use AS
 SELECT
   upid,
   process.name AS process_name,
@@ -46,7 +46,7 @@ GROUP BY process.name, thread.name;
 
 -- All process that has codec thread
 DROP VIEW IF EXISTS android_codec_process;
-CREATE VIEW android_codec_process AS
+CREATE PERFETTO VIEW android_codec_process AS
 SELECT
   upid,
   process.name as process_name
@@ -59,7 +59,7 @@ GROUP BY process_name;
 
 -- Total cpu for a process
 DROP VIEW IF EXISTS codec_total_per_process_cpu_use;
-CREATE VIEW codec_total_per_process_cpu_use AS
+CREATE PERFETTO VIEW codec_total_per_process_cpu_use AS
 SELECT
   upid,
   process_name,
@@ -71,7 +71,7 @@ GROUP BY process_name;
 
 -- Joining total process with media thread table
 DROP VIEW IF EXISTS codec_per_process_thread_cpu_use;
-CREATE VIEW codec_per_process_thread_cpu_use AS
+CREATE PERFETTO VIEW codec_per_process_thread_cpu_use AS
 SELECT
   *
 FROM codec_total_per_process_cpu_use
@@ -109,7 +109,7 @@ insert into trace_trait_table (trace_trait) values
 -- the same trace with different information.Hence those strings are delimited
 -- using '@' and considered as part of single trace.
 DROP VIEW IF EXISTS codec_slices;
-CREATE VIEW codec_slices AS
+CREATE PERFETTO VIEW codec_slices AS
 SELECT
   DISTINCT extract_codec_string(slice.name, '@') as codec_slice_string
 FROM slice
@@ -117,7 +117,7 @@ JOIN trace_trait_table ON slice.name glob  '*' || trace_trait || '*';
 
 -- combine slice and thread info
 DROP VIEW IF EXISTS slice_with_utid;
-CREATE VIEW slice_with_utid AS
+CREATE PERFETTO VIEW slice_with_utid AS
 SELECT
   extract_codec_string(slice.name, '@') as codec_string,
   ts,
@@ -140,7 +140,7 @@ USING SPAN_LEFT_JOIN(
 
 -- Get cpu_running_time for all the slices of interest
 DROP VIEW IF EXISTS slice_cpu_running;
-CREATE VIEW slice_cpu_running AS
+CREATE PERFETTO VIEW slice_cpu_running AS
 SELECT
   codec_string,
   sum(dur) as cpu_time,
@@ -157,7 +157,7 @@ GROUP BY codec_string, thread_name, process_name;
 
 -- Generate proto for the trace
 DROP VIEW IF EXISTS metrics_per_slice_type;
-CREATE VIEW metrics_per_slice_type AS
+CREATE PERFETTO VIEW metrics_per_slice_type AS
 SELECT
   process_name,
   codec_string,
@@ -170,7 +170,7 @@ FROM slice_cpu_running;
 
 -- Generating codec framework cpu metric
 DROP VIEW IF EXISTS codec_metrics_output;
-CREATE VIEW codec_metrics_output AS
+CREATE PERFETTO VIEW codec_metrics_output AS
 SELECT AndroidCodecMetrics(
   'cpu_usage', (
     SELECT RepeatedField(
