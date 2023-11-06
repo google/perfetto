@@ -260,14 +260,16 @@ WHERE (SELECT count()
 -- Chrome Java views. The view is considered interested if it's not a system
 -- (ContentFrameLayout) or generic library (CompositorViewHolder) views.
 --
--- @column filtered_name                Name of the view.
--- @column is_software_screenshot BOOL  Whether this slice is a part of non-accelerated
---                                      capture toolbar screenshot.
--- @column is_hardware_screenshot BOOL  Whether this slice is a part of accelerated
---                                      capture toolbar screenshot.
 -- TODO(altimin): Add "columns_from slice" annotation.
 -- TODO(altimin): convert this to EXTEND_TABLE when it becomes available.
-CREATE PERFETTO VIEW chrome_java_views AS
+CREATE PERFETTO VIEW chrome_java_views(
+  -- Name of the view.
+  filtered_name STRING,
+  -- Whether this slice is a part of non-accelerated capture toolbar screenshot.
+  is_software_screenshot BOOL,
+  -- Whether this slice is a part of accelerated capture toolbar screenshot.
+  is_hardware_screenshot BOOL
+) AS
 SELECT
   java_view.name AS filtered_name,
   java_view.is_software_screenshot,
@@ -368,23 +370,38 @@ WHERE
 ORDER BY id;
 
 -- A list of tasks executed by Chrome scheduler.
---
--- @column id                    Slice id.
--- @column name                  Name of the task.
--- @column ts                    Timestamp.
--- @column dur                   Duration.
--- @column utid                  Utid of the thread this task run on.
--- @column thread_name           Name of the thread this task run on.
--- @column upid                  Upid of the process of this task.
--- @column process_name          Name of the process of this task.
--- @column track_id              Same as slice.track_id.
--- @column depth                 Same as slice.depth.
--- @column parent_id             Same as slice.parent_id.
--- @column arg_set_id            Same as slice.arg_set_id.
--- @column thread_ts             Same as slice.thread_ts.
--- @column thread_dur            Same as slice.thread_dur.
--- @column posted_from           Source location where the PostTask was called.
-CREATE PERFETTO VIEW chrome_scheduler_tasks AS
+CREATE PERFETTO VIEW chrome_scheduler_tasks(
+  -- Slice id.
+  id INT,
+  -- Name of the task.
+  name STRING,
+  -- Timestamp.
+  ts INT,
+  -- Duration.
+  dur INT,
+  -- Utid of the thread this task run on.
+  utid INT,
+  -- Name of the thread this task run on.
+  thread_name STRING,
+  -- Upid of the process of this task.
+  upid INT,
+  -- Name of the process of this task.
+  process_name STRING,
+  -- Same as slice.track_id.
+  track_id INT,
+  -- Same as slice.depth.
+  depth INT,
+  -- Same as slice.parent_id.
+  parent_id INT,
+  -- Same as slice.arg_set_id.
+  arg_set_id INT,
+  -- Same as slice.thread_ts.
+  thread_ts INT,
+  -- Same as slice.thread_dur.
+  thread_dur INT,
+  -- Source location where the PostTask was called.
+  posted_from STRING
+) AS
 SELECT
   task.id,
   "chrome_scheduler_tasks" as type,
