@@ -44,43 +44,44 @@ FROM slice
 WHERE name = $event_name;
 
 -- Chrome page loads, including associated high-level metrics and properties.
---
--- @column navigation_id               ID of the navigation associated with the
---                                     page load (i.e. the cross-document
---                                     navigation in primary main frame which
---                                     created this page's main document). Also
---                                     note that navigation_id is specific to a
---                                     given Chrome browser process, and not
---                                     globally unique.
--- @column navigation_start_ts         Timestamp of the start of navigation.
--- @column fcp                         Duration between the navigation start and
---                                     the first contentful paint event
---                                     (web.dev/fcp).
--- @column fcp_ts                      Timestamp of the first contentful paint.
--- @column lcp                         Duration between the navigation start and
---                                     the largest contentful paint event
---                                     (web.dev/lcp).
--- @column lcp_ts                      Timestamp of the largest contentful paint.
--- @column dom_content_loaded_event_ts Timestamp of the DomContentLoaded event.
---                                     (https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event)
--- @column load_event_ts               Timestamp of the window load event.
---                                     (https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event)
--- @column mark_fully_loaded_ts        Timestamp of the page self-reporting as
---                                     fully loaded through the
---                                     performance.mark('mark_fully_loaded')
---                                     API.
--- @column mark_fully_visible_ts       Timestamp of the page self-reporting as
---                                     fully visible through the
---                                     performance.mark('mark_fully_visible')
---                                     API.
--- @column mark_interactive_ts         Timestamp of the page self-reporting as
---                                     fully interactive through the
---                                     performance.mark('mark_interactive') API.
--- @column url                         URL at the page load event.
--- @column browser_upid                The unique process id (upid) of the
---                                     browser process where the page load
---                                     occurred.
-CREATE PERFETTO TABLE chrome_page_loads AS
+CREATE PERFETTO TABLE chrome_page_loads(
+  -- ID of the navigation associated with the page load (i.e. the cross-document
+  -- navigation in primary main frame which created this page's main document).
+  -- Also note that navigation_id is specific to a given Chrome browser process,
+  -- and not globally unique.
+  navigation_id INT,
+  -- Timestamp of the start of navigation.
+  navigation_start_ts INT,
+  -- Duration between the navigation start and the first contentful paint event
+  -- (web.dev/fcp).
+  fcp INT,
+  -- Timestamp of the first contentful paint.
+  fcp_ts INT,
+  -- Duration between the navigation start and the largest contentful paint event
+  -- (web.dev/lcp).
+  lcp INT,
+  -- Timestamp of the largest contentful paint.
+  lcp_ts INT,
+  -- Timestamp of the DomContentLoaded event:
+  -- https://developer.mozilla.org/en-US/docs/Web/API/Document/DOMContentLoaded_event
+  dom_content_loaded_event_ts INT,
+  -- Timestamp of the window load event:
+  -- https://developer.mozilla.org/en-US/docs/Web/API/Window/load_event
+  load_event_ts INT,
+  -- Timestamp of the page self-reporting as fully loaded through the
+  -- performance.mark('mark_fully_loaded') API.
+  mark_fully_loaded_ts INT,
+  -- Timestamp of the page self-reporting as fully visible through the
+  -- performance.mark('mark_fully_visible') API.
+  mark_fully_visible_ts INT,
+  -- Timestamp of the page self-reporting as fully interactive through the
+  -- performance.mark('mark_interactive') API.
+  mark_interactive_ts INT,
+  -- URL at the page load event.
+  url STRING,
+  -- The unique process id (upid) of the browser process where the page load occurred.
+  browser_upid INT
+) AS
 SELECT
   fcp.navigation_id,
   fcp.ts AS navigation_start_ts,

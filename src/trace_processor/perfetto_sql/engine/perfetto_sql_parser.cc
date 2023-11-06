@@ -507,7 +507,7 @@ PerfettoSqlParser::ResolveRawArgument(RawArgument arg) {
       sql_argument::ParseType(base::StringView(arg_type));
   if (!parsed_arg_type) {
     base::StackString<1024> err("Invalid type %s", arg_type.c_str());
-    ErrorAtToken(arg.name, err.c_str());
+    ErrorAtToken(arg.type, err.c_str());
     return std::nullopt;
   }
   return sql_argument::ArgumentDefinition("$" + arg_name, *parsed_arg_type);
