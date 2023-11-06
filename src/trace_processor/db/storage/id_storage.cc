@@ -20,6 +20,7 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/tp_metatrace.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -70,6 +71,14 @@ RangeOrBitVector IndexSearchWithComparator(uint32_t val,
 RangeOrBitVector IdStorage::Search(FilterOp op,
                                    SqlValue sql_val,
                                    RowMap::Range range) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::Search",
+                    [&range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(range.start));
+                      r->AddArg("End", std::to_string(range.end));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
   if (op == FilterOp::kNe) {
     if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
         sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
@@ -91,15 +100,35 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
                                         uint32_t* indices,
                                         uint32_t indices_size,
                                         bool) const {
-  if (op == FilterOp::kIsNotNull)
-    return RangeOrBitVector(BitVector(indices_size, true));
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::IndexSearch",
+                    [indices_size, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_size));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+  // Validate sql_val
+  if (PERFETTO_UNLIKELY(sql_val.is_null())) {
+    if (op == FilterOp::kIsNotNull) {
+      return RangeOrBitVector(Range(indices_size, true));
+    }
+    return RangeOrBitVector(Range());
+  }
 
-  if (op == FilterOp::kIsNull || op == FilterOp::kGlob ||
-      op == FilterOp::kRegex || sql_val.is_null() ||
-      sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-      sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
-    return RangeOrBitVector(BitVector(indices_size, false));
+  if (PERFETTO_UNLIKELY(sql_val.AsLong() >
+                        std::numeric_limits<uint32_t>::max())) {
+    if (op == FilterOp::kLe || op == FilterOp::kLt) {
+      return RangeOrBitVector(Range(indices_size, true));
+    }
+    return RangeOrBitVector(Range());
+  }
 
+  if (PERFETTO_UNLIKELY(sql_val.AsLong() <
+                        std::numeric_limits<uint32_t>::min())) {
+    if (op == FilterOp::kGe || op == FilterOp::kGt) {
+      return RangeOrBitVector(Range(indices_size, true));
+    }
+    return RangeOrBitVector(Range());
+  }
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
 
   switch (op) {
@@ -121,40 +150,50 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
     case FilterOp::kGe:
       return IndexSearchWithComparator(val, indices, indices_size,
                                        std::greater_equal<uint32_t>());
+    case FilterOp::kIsNotNull:
+      return RangeOrBitVector(Range(indices_size, true));
+    case FilterOp::kIsNull:
     case FilterOp::kGlob:
     case FilterOp::kRegex:
-    case FilterOp::kIsNotNull:
-    case FilterOp::kIsNull:
-      PERFETTO_FATAL("Illegal argument");
+      return RangeOrBitVector(Range());
   }
   PERFETTO_FATAL("FilterOp not matched");
 }
 
-RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
-                                               SqlValue sql_val,
-                                               Range range) const {
+Range IdStorage::BinarySearchIntrinsic(FilterOp op,
+                                       SqlValue sql_val,
+                                       Range range) const {
   PERFETTO_DCHECK(range.end <= size_);
-  if (op == FilterOp::kEq && sql_val.type == SqlValue::Type::kLong) {
-    int64_t long_val = sql_val.AsLong();
-    if (long_val > std::numeric_limits<uint32_t>::max() ||
-        long_val < std::numeric_limits<uint32_t>::min()) {
-      return RowMap::Range();
+
+  // Validate sql_value
+  if (PERFETTO_UNLIKELY(sql_val.is_null())) {
+    if (op == FilterOp::kIsNotNull) {
+      return range;
     }
-    uint32_t res = static_cast<uint32_t>(long_val);
-    return Range(res, res + (range.start <= res && res < range.end));
+    return Range();
   }
 
-  if (op == FilterOp::kIsNotNull)
-    return range;
+  if (PERFETTO_UNLIKELY(sql_val.AsLong() >
+                        std::numeric_limits<uint32_t>::max())) {
+    if (op == FilterOp::kLe || op == FilterOp::kLt) {
+      return range;
+    }
+    return Range();
+  }
 
-  if (op == FilterOp::kIsNull || op == FilterOp::kGlob || sql_val.is_null() ||
-      sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-      sql_val.AsLong() < std::numeric_limits<uint32_t>::min()) {
-    return RowMap::Range();
+  if (PERFETTO_UNLIKELY(sql_val.AsLong() <
+                        std::numeric_limits<uint32_t>::min())) {
+    if (op == FilterOp::kGe || op == FilterOp::kGt) {
+      return range;
+    }
+    return Range();
   }
 
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
+
   switch (op) {
+    case FilterOp::kEq:
+      return Range(val, val + (range.start <= val && val < range.end));
     case FilterOp::kLe:
       return RowMap::Range(range.start, std::min(val + 1, range.end));
     case FilterOp::kLt:
@@ -163,15 +202,16 @@ RowMap::Range IdStorage::BinarySearchIntrinsic(FilterOp op,
       return RowMap::Range(std::max(val, range.start), range.end);
     case FilterOp::kGt:
       return RowMap::Range(std::max(val + 1, range.start), range.end);
-    case FilterOp::kEq:
-    case FilterOp::kNe:
-    case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
+      return range;
+    case FilterOp::kNe:
+      PERFETTO_FATAL("Shouldn't be called");
+    case FilterOp::kIsNull:
     case FilterOp::kGlob:
     case FilterOp::kRegex:
       return RowMap::Range();
   }
-  return RowMap::Range();
+  PERFETTO_FATAL("FilterOp not matched");
 }
 
 void IdStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
