@@ -38,7 +38,7 @@ def update_pattern(pattern):
 
 CREATE_TABLE_VIEW_PATTERN = update_pattern(
     # Match create table/view and catch type
-    fr'^CREATE (OR REPLACE)? (?:VIRTUAL|PERFETTO)?'
+    fr'^CREATE (OR REPLACE)? (VIRTUAL|PERFETTO)?'
     fr' (TABLE|VIEW) (?:IF NOT EXISTS)?'
     # Catch the name and optional schema.
     fr' ({NAME}) (?: \( ({ARGS}) \) )? (?:AS|USING)? .*')

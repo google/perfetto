@@ -18,11 +18,11 @@
 -- system_server process on U+ devices.
 CREATE PERFETTO VIEW experimental_android_broadcasts_minsdk_u(
   -- The name of the broadcast type which was sent.
-  type INT,
+  type STRING,
   -- The process name the broadcast was sent to.
-  process_name INT,
+  process_name STRING,
   -- The name of the broacast queue the broadcast was dispatched from.
-  queue_name INT,
+  queue_name STRING
 ) AS
 WITH
 broadcast_queues AS (

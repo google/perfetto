@@ -59,7 +59,7 @@ def match_create_table_pattern_to_dict(
     sql: str, pattern: str) -> Dict[str, Tuple[int, str]]:
   res = {}
   for line_num, matches in match_pattern(pattern, sql).items():
-    res[matches[2]] = [line_num, str(matches[1])]
+    res[matches[3]] = [line_num, str(matches[2])]
   return res
 
 
