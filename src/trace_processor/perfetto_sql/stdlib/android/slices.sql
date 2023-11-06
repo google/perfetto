@@ -21,9 +21,10 @@
 --  - DrawFrames/ooFrame. The name also includes the frame number.
 --  - Apk/oat/dex loading: The name of the apk is removed
 --
--- @arg name STRING   Raw name of the slice
 -- @ret STRING        Simplified name.
-CREATE PERFETTO FUNCTION android_standardize_slice_name(name STRING)
+CREATE PERFETTO FUNCTION android_standardize_slice_name(
+  -- The raw slice name.
+  name STRING)
 RETURNS STRING AS
 SELECT
   CASE

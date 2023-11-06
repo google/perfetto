@@ -43,9 +43,10 @@ ELSE $name
 END;
 
 -- Returns a human-readable name for a thread state.
--- @arg id INT  Thread state id.
 -- @ret STRING  Human-readable name for the thread state.
-CREATE PERFETTO FUNCTION human_readable_thread_state_name(id INT)
+CREATE PERFETTO FUNCTION human_readable_thread_state_name(
+  -- Thread state id.
+  id INT)
 RETURNS STRING AS
 WITH data AS (
   SELECT
@@ -64,20 +65,27 @@ FROM data;
 
 -- Returns an aggregation of thread states (by state and cpu) for a given
 -- interval of time for a given thread.
--- @arg ts INT       The start of the interval.
--- @arg dur INT      The duration of the interval.
--- @arg utid INT     The utid of the thread.
--- @column state     Human-readable thread state name.
--- @column raw_state Raw thread state name, alias of `thread_state.state`.
--- @column cpu_type  The type of CPU if available (e.g. "big" / "mid" / "little").
--- @column cpu       The CPU index.
--- @column blocked_function The name of the kernel function execution is blocked in.
--- @column dur       The total duration.
 CREATE PERFETTO FUNCTION thread_state_summary_for_interval(
-  ts INT, dur INT, utid INT)
+  -- The start of the interval.
+  ts INT,
+  -- The duration of the interval.
+  dur INT,
+  -- The utid of the thread.
+  utid INT)
 RETURNS TABLE(
-  state STRING, raw_state STRING, cpu_type STRING, cpu INT, blocked_function STRING, dur INT)
-AS
+  -- Human-readable thread state name.
+  state STRING,
+  -- Raw thread state name, alias of `thread_state.state`.
+  raw_state STRING,
+  -- The type of CPU if available (e.g. "big" / "mid" / "little").
+  cpu_type STRING,
+  -- The CPU index.
+  cpu INT,
+  -- The name of the kernel function execution is blocked in.
+  blocked_function STRING,
+  -- The total duration.
+  dur INT
+) AS
 WITH
 states_starting_inside AS (
   SELECT id

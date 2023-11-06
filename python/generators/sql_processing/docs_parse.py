@@ -196,7 +196,8 @@ class AbstractDocParser(ABC):
         return result
       groups = m.groups()
       comment = None if groups[0] is None else ' '.join(
-          line.strip().lstrip('--').lstrip() for line in groups[0].split('\n'))
+          line.strip().lstrip('--').lstrip()
+          for line in groups[0].rstrip().split('\n'))
       name = groups[-3]
       type = groups[-2]
       result[name] = Arg(type, comment)

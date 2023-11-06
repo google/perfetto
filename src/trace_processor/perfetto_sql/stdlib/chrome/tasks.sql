@@ -568,24 +568,38 @@ ORDER BY id;
 -- A list of "Chrome tasks": top-level execution units (e.g. scheduler tasks /
 -- IPCs / system callbacks) run by Chrome. For a given thread, the slices
 -- corresponding to these tasks will not intersect.
---
--- @column id INT              Id for the given task, also the id of the slice this task corresponds to.
--- @column name STRING         Name for the given task.
--- @column task_type STRING    Type of the task (e.g. "scheduler").
--- @column thread_name STRING  Thread name.
--- @column utid INT            Utid.
--- @column process_name STRING Process name.
--- @column upid INT            Upid.
--- @column full_name STRING    Legacy alias for |task_name|.
--- @column ts INT              Alias of |slice.ts|.
--- @column dur INT             Alias of |slice.dur|.
--- @column track_id INT        Alias of |slice.track_id|.
--- @column category STRING     Alias of |slice.category|.
--- @column arg_set_id INT      Alias of |slice.arg_set_id|.
--- @column thread_ts INT       Alias of |slice.thread_ts|.
--- @column thread_dur INT      Alias of |slice.thread_dur|.
--- @column full_name STRING    Legacy alias for |name|.
-CREATE VIEW chrome_tasks AS
+CREATE PERFETTO VIEW chrome_tasks(
+  -- Id for the given task, also the id of the slice this task corresponds to.
+  id INT,
+  -- Name for the given task.
+  name STRING,
+  -- Type of the task (e.g. "scheduler").
+  task_type STRING,
+  -- Thread name.
+  thread_name STRING,
+  -- Utid.
+  utid INT,
+  -- Process name.
+  process_name STRING,
+  -- Upid.
+  upid INT,
+  -- Alias of |slice.ts|.
+  ts INT,
+  -- Alias of |slice.dur|.
+  dur INT,
+  -- Alias of |slice.track_id|.
+  track_id INT,
+  -- Alias of |slice.category|.
+  category INT,
+  -- Alias of |slice.arg_set_id|.
+  arg_set_id INT,
+  -- Alias of |slice.thread_ts|.
+  thread_ts INT,
+  -- Alias of |slice.thread_dur|.
+  thread_dur INT,
+  -- STRING    Legacy alias for |name|.
+  full_name STRING
+) AS
 SELECT
   cti.id,
   cti.name,
