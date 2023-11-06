@@ -226,7 +226,7 @@ BitVector StringStorage::LinearSearchInternal(FilterOp op,
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = data_ + range.start;
   PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "StringStorage::LinearSearch",
+      metatrace::Category::DB, "StringStorage::Search",
       [range, op, &sql_val](metatrace::Record* r) {
         r->AddArg("Start", std::to_string(range.start));
         r->AddArg("End", std::to_string(range.end));

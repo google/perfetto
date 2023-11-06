@@ -200,7 +200,7 @@ void TypedLinearSearch(T typed_val,
 RangeOrBitVector NumericStorage::Search(FilterOp op,
                                         SqlValue value,
                                         RowMap::Range range) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::LinearSearch",
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::Search",
                     [&range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(range.start));
                       r->AddArg("End", std::to_string(range.end));
