@@ -267,7 +267,7 @@ CREATE INDEX internal_android_monitor_contention_chain_idx
 -- the lock. That way, the thread state span joins below only compute the thread states where
 -- the blocking thread is actually holding the lock. This avoids counting the time when another
 -- waiter acquired the lock before the first waiter.
-CREATE VIEW internal_first_blocked_contention
+CREATE PERFETTO VIEW internal_first_blocked_contention
   AS
 SELECT start.id, start.blocking_utid, start.ts, MIN(end.ts + end.dur) - start.ts AS dur
 FROM android_monitor_contention_chain start
@@ -279,7 +279,7 @@ JOIN android_monitor_contention_chain end
 WHERE start.waiter_count = 0
 GROUP BY start.id;
 
-CREATE VIEW internal_blocking_thread_state
+CREATE PERFETTO VIEW internal_blocking_thread_state
 AS
 SELECT utid AS blocking_utid, ts, dur, state, blocked_function
 FROM thread_state;

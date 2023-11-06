@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP VIEW IF EXISTS {{output}};
-CREATE VIEW {{output}} AS
+CREATE PERFETTO VIEW {{output}} AS
 WITH composition_layer_counts AS (
   SELECT
     LAG(ts) OVER (ORDER BY ts) AS ts,

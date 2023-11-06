@@ -17,7 +17,7 @@
 -- Create all the views used to aggregate CPU data.
 -- View with start and end ts for each cpu frequency, per cpu.
 DROP VIEW IF EXISTS cpu_freq_view;
-CREATE VIEW cpu_freq_view AS
+CREATE PERFETTO VIEW cpu_freq_view AS
 SELECT
   cpu,
   ts,

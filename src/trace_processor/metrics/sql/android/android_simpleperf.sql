@@ -16,7 +16,7 @@
 
 -- Find all counters from track that satisfies regex 'slc/qurg2_(wr|rd):lvl=0x(0|1|3|7)%'
 DROP VIEW IF EXISTS all_qurg2;
-CREATE VIEW all_qurg2 AS
+CREATE PERFETTO VIEW all_qurg2 AS
 SELECT
   ts,
   track_id,
@@ -27,7 +27,7 @@ WHERE name GLOB 'slc/qurg2_??:lvl=0x_*';
 
 -- Find all counters from track that satisfies regex 'slc/qurg2_(wr|rd):lvl=0x(1|3|7)%'
 DROP VIEW IF EXISTS non_zero_qurg2;
-CREATE VIEW non_zero_qurg2 AS
+CREATE PERFETTO VIEW non_zero_qurg2 AS
 SELECT
   *
 FROM all_qurg2
@@ -36,7 +36,7 @@ WHERE name NOT GLOB 'slc/qurg2_??:lvl=0x0*';
 -- Find all event counters from simpleperf in the form of
 -- (<event_name> + '_tid' + <tid> + '_cpu' + <cpu_id>)
 DROP VIEW IF EXISTS simpleperf_event_raw;
-CREATE VIEW simpleperf_event_raw AS
+CREATE PERFETTO VIEW simpleperf_event_raw AS
 SELECT
   SUBSTR(name, 0, tid_pos) AS name,
   CAST(SUBSTR(name, tid_pos + 4, cpu_pos - tid_pos - 4) AS INT) AS tid,
@@ -54,7 +54,7 @@ FROM (
 );
 
 DROP VIEW IF EXISTS simpleperf_event_per_process;
-CREATE VIEW simpleperf_event_per_process AS
+CREATE PERFETTO VIEW simpleperf_event_per_process AS
 SELECT
   e.name,
   t.upid,
@@ -72,7 +72,7 @@ GROUP BY e.name, t.upid;
 
 
 DROP VIEW IF EXISTS simpleperf_event_metric;
-CREATE VIEW simpleperf_event_metric AS
+CREATE PERFETTO VIEW simpleperf_event_metric AS
 SELECT
   AndroidSimpleperfMetric_PerfEventMetric(
     'name', e.name,
@@ -90,7 +90,7 @@ FROM simpleperf_event_per_process e JOIN process p USING (upid)
 GROUP BY e.name;
 
 DROP VIEW IF EXISTS android_simpleperf_output;
-CREATE VIEW android_simpleperf_output AS
+CREATE PERFETTO VIEW android_simpleperf_output AS
 SELECT AndroidSimpleperfMetric(
   'urgent_ratio', (SELECT sum(value) FROM non_zero_qurg2) / (SELECT sum(value) FROM all_qurg2),
   'events', (SELECT RepeatedField(proto) FROM simpleperf_event_metric)

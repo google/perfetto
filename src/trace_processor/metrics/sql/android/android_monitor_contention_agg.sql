@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.monitor_contention;
 
 DROP VIEW IF EXISTS amc_process_agg;
-CREATE VIEW amc_process_agg AS
+CREATE PERFETTO VIEW amc_process_agg AS
 WITH full_contention AS (
   Select process_name, COUNT(*) as total_contention_count, SUM(dur)
   as total_contention_dur from android_monitor_contention group by process_name
@@ -33,7 +33,7 @@ SELECT f.process_name, total_contention_count, total_contention_dur,
  from full_contention as f left join main_thread_contention as m on f.process_name = m.process_name;
 
 DROP VIEW IF EXISTS android_monitor_contention_agg_output;
-CREATE VIEW android_monitor_contention_agg_output AS
+CREATE PERFETTO VIEW android_monitor_contention_agg_output AS
 SELECT AndroidMonitorContentionAggMetric(
   'process_aggregation', (
     SELECT RepeatedField(

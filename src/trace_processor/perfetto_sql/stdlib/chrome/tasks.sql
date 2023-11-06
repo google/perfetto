@@ -267,7 +267,7 @@ WHERE (SELECT count()
 --                                      capture toolbar screenshot.
 -- TODO(altimin): Add "columns_from slice" annotation.
 -- TODO(altimin): convert this to EXTEND_TABLE when it becomes available.
-CREATE VIEW chrome_java_views AS
+CREATE PERFETTO VIEW chrome_java_views AS
 SELECT
   java_view.name AS filtered_name,
   java_view.is_software_screenshot,
@@ -277,7 +277,7 @@ FROM internal_chrome_java_views java_view
 JOIN slice USING (id);
 
 -- A list of Choreographer tasks (Android frame generation) in Chrome.
-CREATE VIEW internal_chrome_choreographer_tasks
+CREATE PERFETTO VIEW internal_chrome_choreographer_tasks
 AS
 SELECT
   id,
@@ -331,7 +331,7 @@ WHERE
 -- @column id INT            Slice id.
 -- @column kind STRING       Type of the task.
 -- @column java_views STRING Concatenated names of Java views used by the task.
-CREATE VIEW internal_chrome_slices_with_java_views AS
+CREATE PERFETTO VIEW internal_chrome_slices_with_java_views AS
 WITH
   -- Select UI thread BeginMainFrames (which are Chrome scheduler tasks) and
   -- Choreographer frames (which are looper tasks).
@@ -384,7 +384,7 @@ ORDER BY id;
 -- @column thread_ts             Same as slice.thread_ts.
 -- @column thread_dur            Same as slice.thread_dur.
 -- @column posted_from           Source location where the PostTask was called.
-CREATE VIEW chrome_scheduler_tasks AS
+CREATE PERFETTO VIEW chrome_scheduler_tasks AS
 SELECT
   task.id,
   "chrome_scheduler_tasks" as type,

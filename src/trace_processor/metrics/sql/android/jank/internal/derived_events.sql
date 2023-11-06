@@ -15,7 +15,7 @@
 
 
 DROP VIEW IF EXISTS android_jank_cuj_event;
-CREATE VIEW android_jank_cuj_event AS
+CREATE PERFETTO VIEW android_jank_cuj_event AS
 -- Computed CUJ boundaries.
 SELECT
   'slice' AS track_type,

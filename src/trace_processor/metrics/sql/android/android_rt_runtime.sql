@@ -15,7 +15,7 @@
 
 DROP VIEW IF EXISTS rt_runtime_all;
 
-CREATE VIEW rt_runtime_all
+CREATE PERFETTO VIEW rt_runtime_all
 AS
 SELECT ts, dur, thread.name AS tname
 FROM sched_slice
@@ -28,7 +28,7 @@ ORDER BY dur DESC;
 
 DROP VIEW IF EXISTS android_rt_runtime_output;
 
-CREATE VIEW android_rt_runtime_output
+CREATE PERFETTO VIEW android_rt_runtime_output
 AS
 SELECT
   AndroidRtRuntimeMetric(

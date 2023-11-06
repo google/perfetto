@@ -33,7 +33,7 @@ SELECT DISTINCT name,
 FROM drain_in_watts;
 
 DROP VIEW IF EXISTS mapped_drain_in_watts;
-CREATE VIEW mapped_drain_in_watts AS
+CREATE PERFETTO VIEW mapped_drain_in_watts AS
 SELECT d.name, ts, dur, drain_w, idx
 FROM drain_in_watts d
 JOIN power_rail_name_mapping p ON d.name = p.name;
@@ -47,7 +47,7 @@ CREATE VIRTUAL TABLE real_{{input}}_power USING SPAN_JOIN(
 -- Actual power usage for chrome across the categorised slices contained in the
 -- input table broken down by subsystem.
 DROP VIEW IF EXISTS {{output}};
-CREATE VIEW {{output}} AS
+CREATE PERFETTO VIEW {{output}} AS
 SELECT s.id,
   ts,
   dur,

@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS gc_slices;
-CREATE VIEW gc_slices AS
+CREATE PERFETTO VIEW gc_slices AS
 SELECT slice_ts AS ts, slice_dur AS dur, utid, startup_id AS launch_id
 FROM thread_slices_for_all_launches
 WHERE

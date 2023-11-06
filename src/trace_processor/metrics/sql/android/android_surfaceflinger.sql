@@ -30,7 +30,7 @@ SELECT RUN_METRIC(
 );
 
 DROP VIEW IF EXISTS android_surfaceflinger_event;
-CREATE VIEW android_surfaceflinger_event AS
+CREATE PERFETTO VIEW android_surfaceflinger_event AS
 SELECT
   'slice' AS track_type,
   'Android Missed Frames' AS track_name,
@@ -41,14 +41,14 @@ FROM frame_missed
 WHERE value = 1 AND ts IS NOT NULL;
 
 DROP VIEW IF EXISTS surfaceflinger_track;
-CREATE VIEW surfaceflinger_track AS
+CREATE PERFETTO VIEW surfaceflinger_track AS
 SELECT tr.id AS track_id, t.utid, t.tid
 FROM process p JOIN thread t ON p.upid = t.upid
 JOIN thread_track tr ON tr.utid = t.utid
 WHERE p.cmdline = '/system/bin/surfaceflinger';
 
 DROP VIEW IF EXISTS gpu_waiting_start;
-CREATE VIEW gpu_waiting_start AS
+CREATE PERFETTO VIEW gpu_waiting_start AS
 SELECT
   CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   ts AS start_ts
@@ -56,7 +56,7 @@ FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
 WHERE s.name GLOB 'Trace GPU completion fence *';
 
 DROP VIEW IF EXISTS gpu_waiting_end;
-CREATE VIEW gpu_waiting_end AS
+CREATE PERFETTO VIEW gpu_waiting_end AS
 SELECT
   CAST(SUBSTR(s.name, 28) AS UINT32) AS fence_id,
   dur,
@@ -65,7 +65,7 @@ FROM slices s JOIN surfaceflinger_track t ON s.track_id = t.track_id
 WHERE s.name GLOB 'waiting for GPU completion *';
 
 DROP VIEW IF EXISTS gpu_waiting_span;
-CREATE VIEW gpu_waiting_span AS
+CREATE PERFETTO VIEW gpu_waiting_span AS
 SELECT
   fence_id,
   ts,
@@ -88,7 +88,7 @@ WHERE event_type = 0 AND fence_id = next_fence_id;
 
 
 DROP VIEW IF EXISTS display_ids;
-CREATE VIEW display_ids AS
+CREATE PERFETTO VIEW display_ids AS
 SELECT DISTINCT display_id
 FROM (
   SELECT display_id FROM frame_missed
@@ -99,7 +99,7 @@ FROM (
 );
 
 DROP VIEW IF EXISTS metrics_per_display;
-CREATE VIEW metrics_per_display AS
+CREATE PERFETTO VIEW metrics_per_display AS
 SELECT AndroidSurfaceflingerMetric_MetricsPerDisplay(
   'display_id', d.display_id,
   'missed_frames',
@@ -118,7 +118,7 @@ SELECT AndroidSurfaceflingerMetric_MetricsPerDisplay(
 FROM display_ids d;
 
 DROP VIEW IF EXISTS android_surfaceflinger_output;
-CREATE VIEW android_surfaceflinger_output AS
+CREATE PERFETTO VIEW android_surfaceflinger_output AS
 SELECT
   AndroidSurfaceflingerMetric(
     'missed_frames', (SELECT COUNT(1) FROM frame_missed WHERE value = 1),

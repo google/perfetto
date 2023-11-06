@@ -15,7 +15,7 @@
 
 -- Marks the beginning of the trace and is equivalent to when the statsd startup
 -- logging begins.
-CREATE VIEW internal_activity_intent_received AS
+CREATE PERFETTO VIEW internal_activity_intent_received AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyIntentStarted';
 
@@ -33,7 +33,7 @@ ORDER BY ts;
 
 -- Filter activity_intent_recv_spans, keeping only the ones that triggered
 -- a startup.
-CREATE VIEW internal_startup_partitions AS
+CREATE PERFETTO VIEW internal_startup_partitions AS
 SELECT * FROM internal_activity_intent_recv_spans AS spans
 WHERE 1 = (
   SELECT COUNT(1)
@@ -42,7 +42,7 @@ WHERE 1 = (
 
 -- Successful activity startup. The end of the 'launching' event is not related
 -- to whether it actually succeeded or not.
-CREATE VIEW internal_activity_intent_startup_successful AS
+CREATE PERFETTO VIEW internal_activity_intent_startup_successful AS
 SELECT ts FROM slice
 WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 

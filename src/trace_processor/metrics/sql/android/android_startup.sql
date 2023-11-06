@@ -86,7 +86,7 @@ LIMIT $top_n;
 
 -- Define the view
 DROP VIEW IF EXISTS startup_view;
-CREATE VIEW startup_view AS
+CREATE PERFETTO VIEW startup_view AS
 SELECT
   AndroidStartupMetric_Startup(
     'startup_id',launches.startup_id,
@@ -479,7 +479,7 @@ SELECT
 FROM android_startups launches;
 
 DROP VIEW IF EXISTS android_startup_event;
-CREATE VIEW android_startup_event AS
+CREATE PERFETTO VIEW android_startup_event AS
 SELECT
   'slice' AS track_type,
   'Android App Startups' AS track_name,
@@ -489,7 +489,7 @@ SELECT
 FROM android_startups l;
 
 DROP VIEW IF EXISTS android_startup_output;
-CREATE VIEW android_startup_output AS
+CREATE PERFETTO VIEW android_startup_output AS
 SELECT
   AndroidStartupMetric(
     'startup', (

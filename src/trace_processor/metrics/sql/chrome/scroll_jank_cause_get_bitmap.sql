@@ -24,7 +24,7 @@ SELECT RUN_METRIC('chrome/scroll_jank.sql');
 -- only occurs on the browser. This saves us the trouble of dealing with all the
 -- different possible names of the browser (when including system tracing).
 DROP VIEW IF EXISTS browser_main_track_id;
-CREATE VIEW browser_main_track_id AS
+CREATE PERFETTO VIEW browser_main_track_id AS
 SELECT
   track_id AS id
 FROM slice
@@ -36,7 +36,7 @@ LIMIT 1;
 -- Grab the last LatencyInfo.Flow for each trace_id on the browser main.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS browser_flows;
-CREATE VIEW browser_flows AS
+CREATE PERFETTO VIEW browser_flows AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.step") AS flow_step,
@@ -57,7 +57,7 @@ GROUP BY trace_id;
 -- Keeping only the GestureScrollUpdates join the maximum flows on the browser
 -- thread.
 DROP VIEW IF EXISTS scroll_with_browser_flows;
-CREATE VIEW scroll_with_browser_flows AS
+CREATE PERFETTO VIEW scroll_with_browser_flows AS
 SELECT
   scroll.trace_id,
   scroll.scroll_id,
@@ -82,7 +82,7 @@ FROM (
 -- Below we determine if there was any bitmaps taken on the browser main.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS get_bitmap_calls;
-CREATE VIEW get_bitmap_calls AS
+CREATE PERFETTO VIEW get_bitmap_calls AS
 SELECT
   id,
   ts,
@@ -94,7 +94,7 @@ WHERE
   AND track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS toolbar_bitmaps;
-CREATE VIEW toolbar_bitmaps AS
+CREATE PERFETTO VIEW toolbar_bitmaps AS
 SELECT
   slice.id,
   slice.ts,
@@ -111,7 +111,7 @@ WHERE
   AND slice.track_id = (SELECT id FROM browser_main_track_id);
 
 DROP VIEW IF EXISTS get_bitmaps_and_toolbar;
-CREATE VIEW get_bitmaps_and_toolbar AS
+CREATE PERFETTO VIEW get_bitmaps_and_toolbar AS
 SELECT
   bitmap.id AS id,
   bitmap.ts AS ts,
@@ -133,7 +133,7 @@ FROM
 -- by a browser thread slice once its done on the browser thread).
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS blocking_bitmap_tasks;
-CREATE VIEW blocking_bitmap_tasks AS
+CREATE PERFETTO VIEW blocking_bitmap_tasks AS
 SELECT
   scroll.scroll_id,
   scroll.trace_id,
@@ -161,7 +161,7 @@ FROM
 -- scroll_id.
 --------------------------------------------------------------------------------
 DROP VIEW IF EXISTS scroll_jank_cause_get_bitmap;
-CREATE VIEW scroll_jank_cause_get_bitmap AS
+CREATE PERFETTO VIEW scroll_jank_cause_get_bitmap AS
 SELECT
   scroll_id,
   trace_id,
