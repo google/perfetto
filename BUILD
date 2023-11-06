@@ -1313,6 +1313,8 @@ perfetto_filegroup(
         "src/trace_processor/db/storage/id_storage.h",
         "src/trace_processor/db/storage/numeric_storage.cc",
         "src/trace_processor/db/storage/numeric_storage.h",
+        "src/trace_processor/db/storage/set_id_storage.cc",
+        "src/trace_processor/db/storage/set_id_storage.h",
         "src/trace_processor/db/storage/storage.cc",
         "src/trace_processor/db/storage/storage.h",
         "src/trace_processor/db/storage/string_storage.cc",
