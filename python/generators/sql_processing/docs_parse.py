@@ -36,6 +36,12 @@ def is_snake_case(s: str) -> bool:
   return re.fullmatch(r'^[a-z_0-9]*$', s) is not None
 
 
+# Parse a SQL comment (i.e. -- Foo\n -- bar.) into a string (i.e. "Foo bar.").
+def parse_comment(comment: str) -> str:
+  return ' '.join(line.strip().lstrip('--').lstrip()
+                  for line in comment.strip().split('\n'))
+
+
 class Arg(NamedTuple):
   # TODO(b/307926059): the type is missing on old-style documentation for
   # tables. Make it "str" after stdlib is migrated.
@@ -161,27 +167,6 @@ class AbstractDocParser(ABC):
             f'Arg "{arg}" is documented but not found in function definition.')
     return args
 
-  def _parse_ret(self, ans: List[DocsExtractor.Annotation],
-                 sql_ret_type: str) -> Tuple[str, str]:
-    rets = [a.value for a in ans if a.key == '@ret']
-    if len(rets) != 1:
-      self._error('Return value is not documentated with @ret')
-      return '', ''
-
-    ret = rets[0]
-    m = re.match(FUNCTION_RETURN_PATTERN, ret)
-    if not m:
-      self._error(
-          f'@ret {ret} does not match pattern {FUNCTION_RETURN_PATTERN}')
-      return '', ''
-
-    ret_type, ret_desc = m.group(1), m.group(2)
-    if ret_type != sql_ret_type:
-      self._error(
-          f'@ret {ret_type} does not match SQL return type {sql_ret_type}')
-      return '', ''
-    return ret_type, ret_desc.strip()
-
   # Parse function argument definition list or a table schema, e.g.
   # arg1 INT, arg2 STRING, including their comments.
   def _parse_args_definition(self, args_str: str) -> Dict[str, Arg]:
@@ -195,9 +180,7 @@ class AbstractDocParser(ABC):
                     '({ARG_DEFINITION_PATTERN})')
         return result
       groups = m.groups()
-      comment = None if groups[0] is None else ' '.join(
-          line.strip().lstrip('--').lstrip()
-          for line in groups[0].rstrip().split('\n'))
+      comment = None if groups[0] is None else parse_comment(groups[0])
       name = groups[-3]
       type = groups[-2]
       result[name] = Arg(type, comment)
@@ -280,7 +263,7 @@ class FunctionDocParser(AbstractDocParser):
     super().__init__(path, module)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[Function]:
-    or_replace, self.name, args, ret = doc.obj_match
+    or_replace, self.name, args, ret_comment, ret_type = doc.obj_match
 
     if or_replace is not None:
       self._error(
@@ -290,14 +273,15 @@ class FunctionDocParser(AbstractDocParser):
     if is_internal(self.name):
       return None
 
-    self._validate_only_contains_annotations(doc.annotations, {'@arg', '@ret'})
-
-    ret_type, ret_desc = self._parse_ret(doc.annotations, ret)
     name = self._parse_name()
 
     if not is_snake_case(name):
       self._error(f'Function name "{name}" is not snake_case'
                   f' (should be {name.casefold()})')
+
+    ret_desc = None if ret_comment is None else parse_comment(ret_comment)
+    if not ret_desc:
+      self._error(f'Function "{name}": return description is missing')
 
     return Function(
         name=name,
@@ -328,7 +312,7 @@ class TableFunctionDocParser(AbstractDocParser):
     super().__init__(path, module)
 
   def parse(self, doc: DocsExtractor.Extract) -> Optional[TableFunction]:
-    or_replace, self.name, args, columns = doc.obj_match
+    or_replace, self.name, args, ret_comment, columns = doc.obj_match
 
     if or_replace is not None:
       self._error(
