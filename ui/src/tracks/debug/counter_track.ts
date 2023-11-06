@@ -66,11 +66,8 @@ export class DebugCounterTrack extends
     ];
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    await this.engine.query(`
-      create view ${tableName} as
-      select * from ${this.config.sqlTableName};
-    `);
+  getSqlSource(): string {
+    return `select * from ${this.config.sqlTableName}`;
   }
 }
 
