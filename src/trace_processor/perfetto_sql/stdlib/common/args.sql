@@ -18,13 +18,13 @@
 -- the value formatted according to the 'value_type' column (e.g. for booleans,
 -- EXTRACT_ARG will return 0 or 1, while FORMATTED_ARG will return 'true' or
 -- 'false').
--- @ret STRING          Formatted value of the argument.
 CREATE PERFETTO FUNCTION formatted_arg(
   -- Id of the arg set.
   arg_set_id INT,
   -- Key of the argument.
   key STRING
 )
+-- Formatted value of the argument.
 RETURNS STRING AS
 SELECT display_value
 FROM args

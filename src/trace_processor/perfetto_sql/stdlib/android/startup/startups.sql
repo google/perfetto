@@ -290,13 +290,12 @@ WHERE startup_id = $startup_id
 -- Returns duration of startup for slice name.
 --
 -- Sums duration of all slices of startup with provided name.
---
--- @ret INT               Sum of duration.
 CREATE PERFETTO FUNCTION android_sum_dur_for_startup_and_slice(
   -- Startup id.
   startup_id LONG,
   -- Slice name.
   slice_name STRING)
+-- Sum of duration.
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups
@@ -306,13 +305,12 @@ WHERE startup_id = $startup_id
 -- Returns duration of startup for slice name on main thread.
 --
 -- Sums duration of all slices of startup with provided name only on main thread.
---
--- @ret INT               Sum of duration.
 CREATE PERFETTO FUNCTION android_sum_dur_on_main_thread_for_startup_and_slice(
   -- Startup id.
   startup_id LONG,
   -- Slice name.
   slice_name STRING)
+-- Sum of duration.
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups

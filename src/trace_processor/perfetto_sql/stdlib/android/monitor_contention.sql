@@ -15,32 +15,29 @@
 --
 
 -- Extracts the blocking thread from a slice name
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_thread(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, "with owner ", 1), " (", 0);
 
 -- Extracts the blocking thread tid from a slice name
---
--- @ret INT                 Blocking thread tid
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_tid(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread tid
 RETURNS INT AS
 SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT);
 
 -- Extracts the blocking method from a slice name
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_method(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
     || "("
@@ -49,23 +46,21 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
 -- Extracts a shortened form of the blocking method name from a slice name.
 -- The shortened form discards the parameter and return
 -- types.
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocking_method(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT
     STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocking_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the monitor contention blocked method from a slice name
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_method(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
     || "("
@@ -74,43 +69,39 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
 -- Extracts a shortened form of the monitor contention blocked method name
 -- from a slice name. The shortened form discards the parameter and return
 -- types.
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocked_method(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT
     STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocked_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the number of waiters on the monitor from a slice name
---
--- @ret INT                 Count of waiters on the lock
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_waiter_count(
   -- Name of slice
   slice_name STRING
 )
+-- Count of waiters on the lock
 RETURNS INT AS
 SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, "waiters=", 1), " ", 0) AS INT);
 
 -- Extracts the monitor contention blocking source location from a slice name
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_src(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 1), ")", 0);
 
 -- Extracts the monitor contention blocked source location from a slice name
---
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_src(
   -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 

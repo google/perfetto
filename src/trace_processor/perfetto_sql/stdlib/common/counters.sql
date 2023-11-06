@@ -16,11 +16,10 @@
 INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Timestamp of first counter value in a counter.
---
--- @ret LONG                  Timestamp of first counter value. Null if doesn't exist.
 CREATE PERFETTO FUNCTION earliest_timestamp_for_counter_track(
   -- Id of a counter track with a counter.
   counter_track_id INT)
+-- Timestamp of first counter value. Null if doesn't exist.
 RETURNS LONG AS
 SELECT MIN(ts) FROM counter WHERE counter.track_id = $counter_track_id;
 

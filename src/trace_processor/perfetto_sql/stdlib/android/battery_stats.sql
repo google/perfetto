@@ -16,13 +16,12 @@
 INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Converts a battery_stats counter value to human readable string.
---
--- @ret STRING        The human-readable name for the counter value.
 CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
   -- The counter track name (e.g. 'battery_stats.audio').
   track STRING,
   -- The counter value.
   value FLOAT)
+-- The human-readable name for the counter value.
 RETURNS STRING AS
 SELECT
   CASE
