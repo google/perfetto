@@ -304,7 +304,6 @@ TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
   TraceConfig::BufferConfig* buf = trace_config.add_buffers();
   buf->set_size_kb(32);
   buf->set_fill_policy(TraceConfig::BufferConfig::DISCARD);
-  trace_config.set_duration_ms(1);
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
   ds_config->set_name("linux.ftrace");
@@ -317,6 +316,9 @@ TEST_F(PerfettoFtraceIntegrationTest, ReportFtraceFailuresInStats) {
   ds_config->set_ftrace_config_raw(ftrace_config.SerializeAsString());
 
   helper.StartTracing(trace_config);
+  helper.WaitForAllDataSourceStarted(kDefaultTestTimeoutMs);
+  helper.FlushAndWait(kDefaultTestTimeoutMs);
+  helper.DisableTracing();
   helper.WaitForTracingDisabled(kDefaultTestTimeoutMs);
 
   helper.ReadData();
