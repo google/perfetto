@@ -36,7 +36,7 @@ ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
 
-EXPECTED_ANY_COUNT = 74
+EXPECTED_ANY_COUNT = 73
 # 'any' is too generic. It will show up in many comments etc. So
 # instead of counting any directly we forbid it using eslint and count
 # the number of suppressions.
