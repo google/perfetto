@@ -103,9 +103,12 @@ let debugTrackCount = 0;
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
   sqlSource: string;
+
+  // Optional: Rename columns from the query result.
+  // If omitted, original column names from the query are used instead.
   // The caller is responsible for ensuring that the number of items in this
   // list matches the number of columns returned by sqlSource.
-  columns: string[];
+  columns?: string[];
 }
 
 export async function addDebugSliceTrack(
