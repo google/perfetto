@@ -20,6 +20,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -88,16 +89,16 @@ bool TraceBuffer::Initialize(size_t size) {
 // Note: |src| points to a shmem region that is shared with the producer. Assume
 // that the producer is malicious and will change the content of |src|
 // while we execute here. Don't do any processing on it other than memcpy().
-void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
-                                     uid_t producer_uid_trusted,
-                                     pid_t producer_pid_trusted,
-                                     WriterID writer_id,
-                                     ChunkID chunk_id,
-                                     uint16_t num_fragments,
-                                     uint8_t chunk_flags,
-                                     bool chunk_complete,
-                                     const uint8_t* src,
-                                     size_t size) {
+void TraceBuffer::CopyChunkUntrusted(
+    ProducerID producer_id_trusted,
+    const ClientIdentity& client_identity_trusted,
+    WriterID writer_id,
+    ChunkID chunk_id,
+    uint16_t num_fragments,
+    uint8_t chunk_flags,
+    bool chunk_complete,
+    const uint8_t* src,
+    size_t size) {
   PERFETTO_CHECK(!read_only_);
 
   // |record_size| = |size| + sizeof(ChunkRecord), rounded up to avoid to end
@@ -263,9 +264,9 @@ void TraceBuffer::CopyChunkUntrusted(ProducerID producer_id_trusted,
   stats_.set_bytes_written(stats_.bytes_written() + record_size);
 
   uint32_t chunk_off = GetOffset(GetChunkRecordAt(wptr_));
-  auto it_and_inserted = index_.emplace(
-      key, ChunkMeta(chunk_off, num_fragments, chunk_complete, chunk_flags,
-                     producer_uid_trusted, producer_pid_trusted));
+  auto it_and_inserted =
+      index_.emplace(key, ChunkMeta(chunk_off, num_fragments, chunk_complete,
+                                    chunk_flags, client_identity_trusted));
   PERFETTO_DCHECK(it_and_inserted.second);
   TRACE_BUFFER_DLOG("  copying @ [%" PRIdPTR " - %" PRIdPTR "] %zu", wptr_ - begin(),
                     uintptr_t(wptr_ - begin()) + record_size, record_size);
@@ -544,7 +545,7 @@ bool TraceBuffer::ReadNextTracePacket(
   TRACE_BUFFER_DLOG("ReadNextTracePacket()");
 
   // Just in case we forget to initialize these below.
-  *sequence_properties = {0, kInvalidUid, base::kInvalidPid, 0};
+  *sequence_properties = {0, ClientIdentity(), 0};
   *previous_packet_on_sequence_dropped = false;
 
   // At the start of each sequence iteration, we consider the last read packet
@@ -585,8 +586,7 @@ bool TraceBuffer::ReadNextTracePacket(
     const WriterID writer_id = read_iter_.writer_id();
     const ProducerAndWriterID producer_and_writer_id =
         MkProducerAndWriterID(trusted_producer_id, writer_id);
-    const uid_t trusted_uid = chunk_meta->trusted_uid;
-    const pid_t trusted_pid = chunk_meta->trusted_pid;
+    const ClientIdentity& client_identity = chunk_meta->client_identity_trusted;
 
     // At this point we have a chunk in |chunk_meta| that has not been fully
     // read. We don't know yet whether we have enough data to read the full
@@ -661,7 +661,7 @@ bool TraceBuffer::ReadNextTracePacket(
             ReadNextPacketInChunk(producer_and_writer_id, chunk_meta, packet);
 
         if (PERFETTO_LIKELY(result == ReadPacketResult::kSucceeded)) {
-          *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
+          *sequence_properties = {trusted_producer_id, client_identity,
                                   writer_id};
           *previous_packet_on_sequence_dropped = previous_packet_dropped;
           return true;
@@ -687,7 +687,7 @@ bool TraceBuffer::ReadNextTracePacket(
       ReadAheadResult ra_res = ReadAhead(packet);
       if (ra_res == ReadAheadResult::kSucceededReturnSlices) {
         stats_.set_readaheads_succeeded(stats_.readaheads_succeeded() + 1);
-        *sequence_properties = {trusted_producer_id, trusted_uid, trusted_pid,
+        *sequence_properties = {trusted_producer_id, client_identity,
                                 writer_id};
         *previous_packet_on_sequence_dropped = previous_packet_dropped;
         return true;

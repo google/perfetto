@@ -16,6 +16,7 @@
 
 #include "src/tracing/test/mock_producer.h"
 
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
@@ -75,7 +76,8 @@ void MockProducer::Connect(TracingService* svc,
                            std::unique_ptr<SharedMemory> shm) {
   producer_name_ = producer_name;
   service_endpoint_ = svc->ConnectProducer(
-      this, uid, pid, producer_name, shared_memory_size_hint_bytes,
+      this, ClientIdentity(uid, pid), producer_name,
+      shared_memory_size_hint_bytes,
       /*in_process=*/true, TracingService::ProducerSMBScrapingMode::kDefault,
       shared_memory_page_size_hint_bytes, std::move(shm));
   auto checkpoint_name = "on_producer_connect_" + producer_name;

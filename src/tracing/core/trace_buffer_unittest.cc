@@ -23,6 +23,7 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
@@ -811,24 +812,24 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
   TraceBuffer::PacketSequenceProperties sequence_properties;
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(
       ReadPacket(&sequence_properties),
       ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'e')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'f')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'c')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'd')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
@@ -1011,9 +1012,9 @@ TEST_F(TraceBufferTest, Malicious_ZeroSizedChunk) {
 
   uint8_t valid_ptr = 0;
   trace_buffer()->CopyChunkUntrusted(
-      ProducerID(1), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-      1 /* num packets */, 0 /* flags */, true /* chunk_complete */, &valid_ptr,
-      sizeof(valid_ptr));
+      ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+      ChunkID(1), 1 /* num packets */, 0 /* flags */, true /* chunk_complete */,
+      &valid_ptr, sizeof(valid_ptr));
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
       .AddPacket(32, 'b')
@@ -1117,8 +1118,8 @@ TEST_F(TraceBufferTest, Malicious_VarintHeaderTooBig) {
   chunk.insert(chunk.end(), 128 - sizeof(ChunkRecord), 0xff);
   chunk.back() = 0x7f;
   trace_buffer()->CopyChunkUntrusted(
-      ProducerID(4), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-      1 /* num packets */, 0 /* flags*/, true /* chunk_complete */,
+      ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+      ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete */,
       chunk.data(), chunk.size());
 
   // Add a valid chunk.
@@ -1143,9 +1144,9 @@ TEST_F(TraceBufferTest, Malicious_JumboVarint) {
   chunk.back() = 0x7f;
   for (int i = 0; i < 3; i++) {
     trace_buffer()->CopyChunkUntrusted(
-        ProducerID(1), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-        1 /* num packets */, 0 /* flags */, true /* chunk_complete */,
-        chunk.data(), chunk.size());
+        ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+        ChunkID(1), 1 /* num packets */, 0 /* flags */,
+        true /* chunk_complete */, chunk.data(), chunk.size());
   }
 
   trace_buffer()->BeginRead();
