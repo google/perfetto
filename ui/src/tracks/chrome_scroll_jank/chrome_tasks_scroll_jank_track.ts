@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {InThreadTrackSortKey} from '../../common/state';
-import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
@@ -86,31 +85,6 @@ export async function decideTracks(
     name: 'Scroll Jank causes - long tasks',
     trackGroup: getTrackGroupUuid(it.utid, it.upid),
   });
-
-  // Initialise the chrome_tasks_delaying_input_processing table. It will be
-  // used in the sql table above.
-  // TODO(stevegolton): Use viewer.tabs.openQuery().
-  await engine.query(`
-select RUN_METRIC(
-   'chrome/chrome_tasks_delaying_input_processing.sql',
-   'duration_causing_jank_ms',
-   /* duration_causing_jank_ms = */ '8');`);
-
-  const query = `
-     select
-       s1.full_name,
-       s1.duration_ms,
-       s1.slice_id,
-       s1.thread_dur_ms,
-       s2.id,
-       s2.ts,
-       s2.dur,
-       s2.track_id
-     from chrome_tasks_delaying_input_processing s1
-     join slice s2 on s1.slice_id=s2.id
-     `;
-  // TODO(stevegolton): This will soon be replaced by ctx.openQuery.
-  globals.openQuery(query, 'Scroll Jank: long tasks');
 
   return result;
 }
