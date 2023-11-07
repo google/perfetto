@@ -15,15 +15,18 @@
 import {
   Plugin,
   PluginContext,
+  PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 
 class AndroidCujs implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.addCommand({
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#ListJankCUJs',
       name: 'Run query: Android Jank CUJs',
-      callback: () => ctx.viewer.tabs.openQuery(
+      callback: () => ctx.tabs.openQuery(
           `
             SELECT RUN_METRIC('android/android_jank_cuj.sql');
             SELECT RUN_METRIC('android/jank/internal/counters.sql');
@@ -89,10 +92,10 @@ class AndroidCujs implements Plugin {
           'Android Jank CUJs'),
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.AndroidCujs#ListLatencyCUJs',
       name: 'Run query: Android Latency CUJs',
-      callback: () => ctx.viewer.tabs.openQuery(
+      callback: () => ctx.tabs.openQuery(
           `
             SELECT
               CASE

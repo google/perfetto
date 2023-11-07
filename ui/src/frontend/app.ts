@@ -42,7 +42,6 @@ import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {fullscreenModalContainer} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
-import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
@@ -532,7 +531,7 @@ export class App implements m.ClassComponent {
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, alt) => {
-        runQueryInNewTab(
+        globals.openQuery(
             undoCommonChatAppReplacements(value),
             alt ? 'Pinned query' : 'Omnibox query',
             alt ? undefined : 'omnibox_query');

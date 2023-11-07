@@ -18,7 +18,6 @@ import {Engine} from '../trace_processor/engine';
 
 import {createEmptyState} from './empty_state';
 import {PluginManager, PluginRegistry} from './plugins';
-import {ViewerImpl} from './viewer';
 
 class FakeEngine extends Engine {
   id: string = 'TestEngine';
@@ -35,7 +34,6 @@ function makeMockPlugin(): Plugin {
   };
 }
 
-const viewer = new ViewerImpl();
 const engine = new FakeEngine();
 globals.initStore(createEmptyState());
 
@@ -57,14 +55,14 @@ describe('PluginManger', () => {
   });
 
   it('can activate plugin', () => {
-    manager.activatePlugin('foo', viewer);
+    manager.activatePlugin('foo');
 
     expect(manager.isActive('foo')).toBe(true);
     expect(mockPlugin.onActivate).toHaveBeenCalledTimes(1);
   });
 
   it('can deactivate plugin', () => {
-    manager.activatePlugin('foo', viewer);
+    manager.activatePlugin('foo');
     manager.deactivatePlugin('foo');
 
     expect(manager.isActive('foo')).toBe(false);
@@ -72,7 +70,7 @@ describe('PluginManger', () => {
   });
 
   it('invokes onTraceLoad when trace is loaded', () => {
-    manager.activatePlugin('foo', viewer);
+    manager.activatePlugin('foo');
     manager.onTraceLoad(engine);
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
@@ -80,13 +78,13 @@ describe('PluginManger', () => {
 
   it('invokes onTraceLoad when plugin activated while trace loaded', () => {
     manager.onTraceLoad(engine);
-    manager.activatePlugin('foo', viewer);
+    manager.activatePlugin('foo');
 
     expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
   });
 
   it('invokes onTraceUnload when plugin deactivated while trace loaded', () => {
-    manager.activatePlugin('foo', viewer);
+    manager.activatePlugin('foo');
     manager.onTraceLoad(engine);
     manager.deactivatePlugin('foo');
 

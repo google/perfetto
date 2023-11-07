@@ -36,7 +36,6 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {FlowPoint, globals} from './globals';
-import {runQueryInNewTab} from './query_result_tab';
 import {renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
@@ -92,7 +91,7 @@ const ITEMS: ContextMenuItem[] = [
   {
     name: 'Average duration of slice name',
     shouldDisplay: (slice: SliceDetails) => hasName(slice),
-    run: (slice: SliceDetails) => runQueryInNewTab(
+    run: (slice: SliceDetails) => globals.openQuery(
         `SELECT AVG(dur) / 1e9 FROM slice WHERE name = '${slice.name!}'`,
         `${slice.name} average dur`,
         ),
