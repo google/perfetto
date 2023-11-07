@@ -357,8 +357,11 @@ WITH chain AS (
 -- The duration of a thread executing span in the critical path is the range between the start of the
 -- thread_executing_span and the start of the next span in the critical path.
 CREATE PERFETTO FUNCTION experimental_thread_executing_span_critical_path(
+  -- Utid of the thread to compute the critical path for.
   critical_path_utid INT,
+  -- Timestamp.
   ts LONG,
+  -- Duration.
   dur LONG)
 RETURNS TABLE(
   -- Id of the first (runnable) thread state in thread_executing_span.
