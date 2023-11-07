@@ -15,18 +15,18 @@
 import {Duration, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {
-  ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-  DEFAULT_VIEWING_OPTION,
+  defaultViewingOption,
   expandCallsites,
   findRootSize,
   mergeCallsites,
-  OBJECTS_ALLOCATED_KEY,
-  OBJECTS_ALLOCATED_NOT_FREED_KEY,
-  PERF_SAMPLES_KEY,
-  SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
 } from '../common/flamegraph_util';
 import {pluginManager} from '../common/plugins';
-import {CallsiteInfo, FlamegraphState, ProfileType} from '../common/state';
+import {
+  CallsiteInfo,
+  FlamegraphState,
+  FlamegraphStateViewingOption,
+  ProfileType
+} from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
 import {Engine} from '../trace_processor/engine';
@@ -147,7 +147,7 @@ export class FlamegraphController extends Controller<'main'> {
         start: area.start,
         end: area.end,
         type: ProfileType.PERF_SAMPLE,
-        viewingOption: PERF_SAMPLES_KEY,
+        viewingOption: defaultViewingOption(ProfileType.PERF_SAMPLE),
       }));
     }
     const selection = globals.state.currentFlamegraphState;
@@ -198,7 +198,7 @@ export class FlamegraphController extends Controller<'main'> {
           key,
           selectedFlamegraphState.viewingOption ?
               selectedFlamegraphState.viewingOption :
-              DEFAULT_VIEWING_OPTION,
+              defaultViewingOption(selectedFlamegraphState.type),
           selection.start,
           selection.end,
           selectedFlamegraphState.upids,
@@ -244,9 +244,8 @@ export class FlamegraphController extends Controller<'main'> {
 
   private prepareAndMergeCallsites(
       flamegraphData: CallsiteInfo[],
-      viewingOption: string|undefined = DEFAULT_VIEWING_OPTION,
-      isInAreaSelection: boolean, rootSize?: number,
-      expandedCallsite?: CallsiteInfo) {
+      viewingOption: FlamegraphStateViewingOption, isInAreaSelection: boolean,
+      rootSize?: number, expandedCallsite?: CallsiteInfo) {
     this.flamegraphDetails.flamegraph = mergeCallsites(
         flamegraphData, this.getMinSizeDisplayed(flamegraphData, rootSize));
     this.flamegraphDetails.expandedCallsite = expandedCallsite;
@@ -266,8 +265,8 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphData(
-      baseKey: string, viewingOption: string, start: time, end: time,
-      upids: number[], type: ProfileType,
+      baseKey: string, viewingOption: FlamegraphStateViewingOption, start: time,
+      end: time, upids: number[], type: ProfileType,
       focusRegex: string): Promise<CallsiteInfo[]> {
     let currentData: CallsiteInfo[];
     const key = `${baseKey}-${viewingOption}`;
@@ -289,7 +288,7 @@ export class FlamegraphController extends Controller<'main'> {
   }
 
   async getFlamegraphDataFromTables(
-      tableName: string, viewingOption = DEFAULT_VIEWING_OPTION,
+      tableName: string, viewingOption: FlamegraphStateViewingOption,
       focusRegex: string) {
     let orderBy = '';
     let totalColumnName: 'cumulativeSize'|'cumulativeAllocSize'|
@@ -299,29 +298,29 @@ export class FlamegraphController extends Controller<'main'> {
     // Alternatively consider collapsing frames of the same label.
     const maxDepth = 100;
     switch (viewingOption) {
-      case ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
+      case FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_size desc, name`;
         totalColumnName = 'cumulativeAllocSize';
         selfColumnName = 'size';
         break;
-      case OBJECTS_ALLOCATED_NOT_FREED_KEY:
+      case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY:
         orderBy = `where cumulative_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_count desc, name`;
         totalColumnName = 'cumulativeCount';
         selfColumnName = 'count';
         break;
-      case OBJECTS_ALLOCATED_KEY:
+      case FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY:
         orderBy = `where cumulative_alloc_count > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_alloc_count desc, name`;
         totalColumnName = 'cumulativeAllocCount';
         selfColumnName = 'count';
         break;
-      case PERF_SAMPLES_KEY:
-      case SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
+      case FlamegraphStateViewingOption.PERF_SAMPLES_KEY:
+      case FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY:
         orderBy = `where cumulative_size > 0 and depth < ${
             maxDepth} order by depth, parent_id,
             cumulative_size desc, name`;
@@ -329,6 +328,8 @@ export class FlamegraphController extends Controller<'main'> {
         selfColumnName = 'size';
         break;
       default:
+        const exhaustiveCheck: never = viewingOption;
+        throw new Error(`Unhandled case: ${exhaustiveCheck}`);
         break;
     }
 
