@@ -24,7 +24,7 @@
 #include <zircon/syscalls.h>
 #include <zircon/types.h>
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-#include <windows.h>
+#include <Windows.h>
 #endif
 
 namespace perfetto {
