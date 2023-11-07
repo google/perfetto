@@ -377,6 +377,8 @@ TraceProcessorImpl::TraceProcessorImpl(const Config& cfg)
                                  kAllWebviewMetricsDescriptor.size(),
                                  skip_prefixes);
 
+  RegisterAdditionalModules(&context_);
+
   InitPerfettoSqlEngine();
 
   bool skip_all_sql = std::find(config_.skip_builtin_metric_paths.begin(),
@@ -665,7 +667,6 @@ void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_.reset(new PerfettoSqlEngine(context_.storage->mutable_string_pool()));
   sqlite3_str_split_init(engine_->sqlite_engine()->db());
-  RegisterAdditionalModules(&context_);
 
   // Register SQL functions only used in local development instances.
   if (config_.enable_dev_features) {
