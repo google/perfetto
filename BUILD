@@ -708,6 +708,7 @@ perfetto_filegroup(
     name = "include_perfetto_ext_tracing_core_core",
     srcs = [
         "include/perfetto/ext/tracing/core/basic_types.h",
+        "include/perfetto/ext/tracing/core/client_identity.h",
         "include/perfetto/ext/tracing/core/commit_data_request.h",
         "include/perfetto/ext/tracing/core/consumer.h",
         "include/perfetto/ext/tracing/core/observable_events.h",

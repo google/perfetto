@@ -26,6 +26,7 @@
 #include <regex>
 #include <unordered_set>
 #include "perfetto/base/time.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN) && \
     !PERFETTO_BUILDFLAG(PERFETTO_OS_NACL)
@@ -350,8 +351,7 @@ TracingServiceImpl::~TracingServiceImpl() {
 
 std::unique_ptr<TracingService::ProducerEndpoint>
 TracingServiceImpl::ConnectProducer(Producer* producer,
-                                    uid_t uid,
-                                    pid_t pid,
+                                    const ClientIdentity& client_identity,
                                     const std::string& producer_name,
                                     size_t shared_memory_size_hint_bytes,
                                     bool in_process,
@@ -361,6 +361,7 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
                                     const std::string& sdk_version) {
   PERFETTO_DCHECK_THREAD(thread_checker_);
 
+  auto uid = client_identity.uid();
   if (lockdown_mode_ && uid != base::GetCurrentUserId()) {
     PERFETTO_DLOG("Lockdown mode. Rejecting producer with UID %ld",
                   static_cast<unsigned long>(uid));
@@ -387,8 +388,8 @@ TracingServiceImpl::ConnectProducer(Producer* producer,
   }
 
   std::unique_ptr<ProducerEndpointImpl> endpoint(new ProducerEndpointImpl(
-      id, uid, pid, this, task_runner_, producer, producer_name, sdk_version,
-      in_process, smb_scraping_enabled));
+      id, client_identity, this, task_runner_, producer, producer_name,
+      sdk_version, in_process, smb_scraping_enabled));
   auto it_and_inserted = producers_.emplace(id, endpoint.get());
   PERFETTO_DCHECK(it_and_inserted.second);
   endpoint->shmem_size_hint_bytes_ = shared_memory_size_hint_bytes;
@@ -1600,7 +1601,7 @@ void TracingServiceImpl::ActivateTriggers(
           !tracing_session.received_triggers.empty();
       tracing_session.received_triggers.push_back(
           {static_cast<uint64_t>(now_ns), iter->name(), producer->name_,
-           producer->uid_});
+           producer->uid()});
       auto weak_this = weak_ptr_factory_.GetWeakPtr();
       switch (trigger_mode) {
         case TraceConfig::TriggerConfig::START_TRACING:
@@ -1992,7 +1993,7 @@ void TracingServiceImpl::ScrapeSharedMemoryBuffers(
           chunk.header()->chunk_id.load(std::memory_order_relaxed);
 
       CopyProducerPageIntoLogBuffer(
-          producer->id_, producer->uid_, producer->pid_, writer_id, chunk_id,
+          producer->id_, producer->client_identity_, writer_id, chunk_id,
           *target_buffer_id, packet_count, flags, chunk_complete,
           chunk.payload_begin(), chunk.payload_size());
     }
@@ -2324,7 +2325,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       }
       PERFETTO_DCHECK(sequence_properties.producer_id_trusted != 0);
       PERFETTO_DCHECK(sequence_properties.writer_id != 0);
-      PERFETTO_DCHECK(sequence_properties.producer_uid_trusted != kInvalidUid);
+      PERFETTO_DCHECK(sequence_properties.client_identity_trusted.has_uid());
       // Not checking sequence_properties.producer_pid_trusted: it is
       // base::kInvalidPid if the platform doesn't support it.
 
@@ -2346,16 +2347,18 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       Slice slice = Slice::Allocate(32);
       protozero::StaticBuffered<protos::pbzero::TracePacket> trusted_packet(
           slice.own_data(), slice.size);
+      const auto& client_identity_trusted =
+          sequence_properties.client_identity_trusted;
       trusted_packet->set_trusted_uid(
-          static_cast<int32_t>(sequence_properties.producer_uid_trusted));
+          static_cast<int32_t>(client_identity_trusted.uid()));
       trusted_packet->set_trusted_packet_sequence_id(
           tracing_session->GetPacketSequenceID(
               sequence_properties.producer_id_trusted,
               sequence_properties.writer_id));
-      if (sequence_properties.producer_pid_trusted != base::kInvalidPid) {
+      if (client_identity_trusted.has_pid()) {
         // Not supported on all platforms.
         trusted_packet->set_trusted_pid(
-            static_cast<int32_t>(sequence_properties.producer_pid_trusted));
+            static_cast<int32_t>(client_identity_trusted.pid()));
       }
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
@@ -2759,7 +2762,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
   PERFETTO_DCHECK(producer);
   // An existing producer that is not ftrace could have registered itself as
   // ftrace, we must not enable it in that case.
-  if (lockdown_mode_ && producer->uid_ != uid_) {
+  if (lockdown_mode_ && producer->uid() != uid_) {
     PERFETTO_DLOG("Lockdown mode: not enabling producer %hu", producer->id_);
     return nullptr;
   }
@@ -2900,8 +2903,7 @@ TracingServiceImpl::DataSourceInstance* TracingServiceImpl::SetupDataSource(
 // in terms of being a valid pointer, but not the contents.
 void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     ProducerID producer_id_trusted,
-    uid_t producer_uid_trusted,
-    pid_t producer_pid_trusted,
+    const ClientIdentity& client_identity_trusted,
     WriterID writer_id,
     ChunkID chunk_id,
     BufferID buffer_id,
@@ -2956,10 +2958,9 @@ void TracingServiceImpl::CopyProducerPageIntoLogBuffer(
     return;
   }
 
-  buf->CopyChunkUntrusted(producer_id_trusted, producer_uid_trusted,
-                          producer_pid_trusted, writer_id, chunk_id,
-                          num_fragments, chunk_flags, chunk_complete, src,
-                          size);
+  buf->CopyChunkUntrusted(producer_id_trusted, client_identity_trusted,
+                          writer_id, chunk_id, num_fragments, chunk_flags,
+                          chunk_complete, src, size);
 }
 
 void TracingServiceImpl::ApplyChunkPatches(
@@ -4162,8 +4163,7 @@ void TracingServiceImpl::ConsumerEndpointImpl::CloneSession(
 
 TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     ProducerID id,
-    uid_t uid,
-    pid_t pid,
+    const ClientIdentity& client_identity,
     TracingServiceImpl* service,
     base::TaskRunner* task_runner,
     Producer* producer,
@@ -4172,8 +4172,7 @@ TracingServiceImpl::ProducerEndpointImpl::ProducerEndpointImpl(
     bool in_process,
     bool smb_scraping_enabled)
     : id_(id),
-      uid_(uid),
-      pid_(pid),
+      client_identity_(client_identity),
       service_(service),
       task_runner_(task_runner),
       producer_(producer),
@@ -4285,7 +4284,7 @@ void TracingServiceImpl::ProducerEndpointImpl::CommitData(
     uint8_t chunk_flags = packets.flags;
 
     service_->CopyProducerPageIntoLogBuffer(
-        id_, uid_, pid_, writer_id, chunk_id, buffer_id, num_fragments,
+        id_, client_identity_, writer_id, chunk_id, buffer_id, num_fragments,
         chunk_flags,
         /*chunk_complete=*/true, chunk.payload_begin(), chunk.payload_size());
 
