@@ -13,11 +13,11 @@
 // limitations under the License.
 
 import {InThreadTrackSortKey} from '../../common/state';
+import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {runQueryInNewTab} from '../../frontend/query_result_tab';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {Engine} from '../../trace_processor/engine';
 import {NUM} from '../../trace_processor/query_result';
@@ -109,7 +109,8 @@ select RUN_METRIC(
      from chrome_tasks_delaying_input_processing s1
      join slice s2 on s1.slice_id=s2.id
      `;
-  runQueryInNewTab(query, 'Scroll Jank: long tasks');
+  // TODO(stevegolton): This will soon be replaced by ctx.openQuery.
+  globals.openQuery(query, 'Scroll Jank: long tasks');
 
   return result;
 }

@@ -62,7 +62,6 @@ import {
   publishRealtimeOffset,
   publishThreads,
 } from '../frontend/publish';
-import {runQueryInNewTab} from '../frontend/query_result_tab';
 import {Router} from '../frontend/router';
 import {Engine} from '../trace_processor/engine';
 import {
@@ -616,7 +615,7 @@ export class TraceController extends Controller<States> {
             pendingDeeplink.visStart, pendingDeeplink.visEnd);
       }
       if (pendingDeeplink.query !== undefined) {
-        runQueryInNewTab(pendingDeeplink.query, 'Deeplink Query');
+        globals.openQuery(pendingDeeplink.query, 'Deeplink Query');
       }
     }
 

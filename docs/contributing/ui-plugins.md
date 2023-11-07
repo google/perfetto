@@ -64,8 +64,8 @@ They can be accessed via the omnibox.
 Follow the [create a plugin](#create-a-plugin) to get an initial
 skeleton for your plugin.
 
-To add your first command, add a call to `ctx.addCommand()` in either your
-`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
+To add your first command, add a call to `ctx.registerCommand()` in either
+your `onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
 commands in `onActivate()` by default unless they require something from
 `TracePluginContext` which is not available on `PluginContext`.
 
@@ -76,7 +76,7 @@ available all the time the plugin is active.
 ```typescript
 class MyPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.addCommand(
+    ctx.registerCommand(
        {
          id: 'dev.perfetto.ExampleSimpleCommand#LogHelloPlugin',
          name: 'Log "Hello, plugin!"',
@@ -86,7 +86,7 @@ class MyPlugin implements Plugin {
   }
 
   onTraceLoad(ctx: TracePluginContext): void {
-    ctx.addCommand(
+    ctx.registerCommand(
        {
          id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloTrace',
          name: 'Log "Hello, trace!"',
