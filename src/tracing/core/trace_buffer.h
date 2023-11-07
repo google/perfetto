@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/core/histogram.h"
@@ -159,9 +160,11 @@ class TraceBuffer {
   // Identifiers that are constant for a packet sequence.
   struct PacketSequenceProperties {
     ProducerID producer_id_trusted;
-    uid_t producer_uid_trusted;
-    pid_t producer_pid_trusted;
+    ClientIdentity client_identity_trusted;
     WriterID writer_id;
+
+    uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
+    pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
   };
 
   // Holds the "used chunk" stats for each <Producer, Writer> tuple.
@@ -204,8 +207,8 @@ class TraceBuffer {
   //
   // TODO(eseckler): Pass in a PacketStreamProperties instead of individual IDs.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
-                          uid_t producer_uid_trusted,
-                          pid_t producer_pid_trusted,
+                          const ClientIdentity& client_identity_trusted,
+
                           WriterID writer_id,
                           ChunkID chunk_id,
                           uint16_t num_fragments,
@@ -414,11 +417,9 @@ class TraceBuffer {
               uint16_t _num_fragments,
               bool complete,
               uint8_t _flags,
-              uid_t _trusted_uid,
-              pid_t _trusted_pid)
+              const ClientIdentity& client_identity)
         : record_off{_record_off},
-          trusted_uid{_trusted_uid},
-          trusted_pid(_trusted_pid),
+          client_identity_trusted(client_identity),
           flags{_flags},
           num_fragments{_num_fragments} {
       if (complete)
@@ -450,9 +451,7 @@ class TraceBuffer {
     }
 
     const uint32_t record_off;  // Offset of ChunkRecord within |data_|.
-    const uid_t trusted_uid;    // uid of the producer.
-    const pid_t trusted_pid;    // pid of the producer.
-
+    const ClientIdentity client_identity_trusted;
     // Flags set by TraceBuffer to track the state of the chunk in the index.
     uint8_t index_flags = 0;
 
