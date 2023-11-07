@@ -15,14 +15,29 @@
 
 set -eu
 
+ROOT_DIR="$(dirname $(dirname $(cd -P ${BASH_SOURCE[0]%/*}; pwd)))"
+
+if [ "$(uname -s)" == "Darwin" ]; then
+readonly NODE_DIR="$ROOT_DIR/buildtools/mac/nodejs"
+else
+readonly NODE_DIR="$ROOT_DIR/buildtools/linux64/nodejs"
+fi
+
+if [ ! -e "$NODE_DIR" ]; then
+  echo 'Could not find Node.js hermetic installation. Please run:'
+  echo 'tools/install-build-deps --ui'
+  exit 1
+fi
+
 # cd into the //infra/perfetto.dev dir, so this works uniformely when invoked by
 # other paths. the cd is required for npm install.
 cd -P ${BASH_SOURCE[0]%/*}
 
-# Ensure that `npm ci` has been called and is current. Note that the set of
+# Ensure that `pnpm` has been called and is current. Note that the set of
 # packages that the docs website requires is != the UI ones.
-if ! test node_modules/.stamp -nt package-lock.json; then
-  ../../tools/npm ci
+if ! test node_modules/.stamp -nt pnpm-lock.yaml; then
+  export PATH="$NODE_DIR/bin:$ROOT_DIR/tools:$PATH"
+  ../../tools/pnpm install --shamefully-hoist --frozen-lockfile
   touch node_modules/.stamp
 fi
 
