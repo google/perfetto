@@ -150,7 +150,6 @@ const ITEMS: ContextMenuItem[] = [
                                         AND short_blocked_method IS NOT NULL
                                   ORDER BY depth
                                 ) SELECT ts, dur, name FROM merged`,
-                    columns: ['ts', 'dur', 'name'],
                   },
                   `Binder names (${getProcessNameFromSlice(slice)}:${
                       getThreadNameFromSlice(slice)})`,

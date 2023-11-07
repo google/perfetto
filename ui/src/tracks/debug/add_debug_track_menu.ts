@@ -31,7 +31,7 @@ export function uuidToViewName(uuid: string): string {
 }
 
 interface AddDebugTrackMenuAttrs {
-  dataSource: SqlDataSource;
+  dataSource: Required<SqlDataSource>;
   engine: EngineProxy;
 }
 
