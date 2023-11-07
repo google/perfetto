@@ -37,6 +37,7 @@ def CheckChange(input, output):
   results = []
   results += RunAndReportIfLong(CheckEslint, input, output)
   results += RunAndReportIfLong(CheckImports, input, output)
+  results += RunAndReportIfLong(CheckAnyRachet, input, output)
   return results
 
 
@@ -94,5 +95,23 @@ def CheckImports(input_api, output_api):
     return []
 
   if subprocess.call([check_imports_path]):
+    return [output_api.PresubmitError(f"")]
+  return []
+
+
+def CheckAnyRachet(input_api, output_api):
+  path = input_api.os_path
+  ui_path = input_api.PresubmitLocalPath()
+  check_ratchet_path = join(dirname(ui_path), 'tools', 'check_ratchet')
+
+  def file_filter(x):
+    return input_api.FilterSourceFile(x, files_to_check=[r'.*\.ts$'])
+
+  files = input_api.AffectedSourceFiles(file_filter)
+
+  if not files:
+    return []
+
+  if subprocess.call([check_ratchet_path]):
     return [output_api.PresubmitError(f"")]
   return []
