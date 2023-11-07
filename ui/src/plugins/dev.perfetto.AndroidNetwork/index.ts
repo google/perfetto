@@ -44,7 +44,7 @@ class AndroidNetwork implements Plugin {
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#batteryEvents',
       name: 'Run query: Pin battery events',
       callback: async (track) => {
@@ -64,7 +64,7 @@ class AndroidNetwork implements Plugin {
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.AndroidNetwork#activityTrack',
       name: 'Run query: Visualize Network Activity',
       callback: async (groupby, filter, trackName) => {

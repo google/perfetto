@@ -230,6 +230,8 @@ export interface MakeSelectionOpts {
   clearSearch?: boolean;
 }
 
+type OpenQueryHandler = (query: string, title: string, tag?: string) => void;
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -275,6 +277,7 @@ class Globals {
   private _cmdManager?: CommandManager = undefined;
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
+  private _openQueryHandler?: OpenQueryHandler;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -838,6 +841,22 @@ class Globals {
     }
 
     return {start, end};
+  }
+
+  // The implementation of the query results tab is not part of the core so we
+  // decouple globals from the implementation using this registration interface.
+  // Once we move the implementation to a plugin, this decoupling will be
+  // simpler as we just need to call a command with a well-known ID, and a
+  // plugin will provide the implementation.
+  registerOpenQueryHandler(cb: OpenQueryHandler) {
+    this._openQueryHandler = cb;
+  }
+
+  // Runs a query and displays results in a new tab.
+  // Queries will override previously opened queries with the same tag.
+  // If the tag is omitted, the results will always open in a new tab.
+  openQuery(query: string, title: string, tag?: string) {
+    assertExists(this._openQueryHandler)(query, title, tag);
   }
 }
 
