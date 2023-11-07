@@ -59,7 +59,7 @@ WHERE track.id = $counter_track_id;
 -- COUNTER_WITH_DUR_FOR_TRACK but in a specified time.
 -- Does calculation over the table ends - creates an artificial counter value at
 -- the start if needed and chops the duration of the last timestamps in range.
-CREATE PERFETTO FUNCTION COUNTER_FOR_TIME_RANGE(
+CREATE PERFETTO FUNCTION counter_for_time_range(
   -- Id of track counter track.
   counter_track_id INT,
   -- Timestamp of the timerange start.

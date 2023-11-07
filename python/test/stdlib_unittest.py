@@ -334,6 +334,33 @@ SELECT 1;
     self.assertEqual(fn.return_type, 'BOOL')
     self.assertEqual(fn.return_desc, 'Exists.')
 
+  def test_function_returns_table_with_new_style_docs(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Utid of thread.
+    utid INT)
+-- Impl comment.
+RETURNS TABLE(
+    -- Count.
+    count INT
+)
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.table_functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'utid': Arg('INT', 'Utid of thread.'),
+    })
+    self.assertEqual(fn.cols, {
+        'count': Arg('INT', 'Count.'),
+    })
+
   def test_function_with_new_style_docs_multiline_comment(self):
     res = parse_file(
         'foo/bar.sql', f'''
