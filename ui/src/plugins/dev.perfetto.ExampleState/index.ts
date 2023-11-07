@@ -40,15 +40,14 @@ class ExampleState implements Plugin {
   }
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const {viewer} = ctx;
     const store = ctx.mountStore((init: unknown) => this.migrate(init));
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = store.state.counter;
-        viewer.tabs.openQuery(
+        ctx.tabs.openQuery(
             `SELECT ${counter} as counter;`, `Show counter ${counter}`);
         store.edit((draft) => ++draft.counter);
       },
