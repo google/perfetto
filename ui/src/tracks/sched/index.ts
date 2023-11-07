@@ -46,18 +46,18 @@ class SchedPlugin implements Plugin {
   }
 
   onActivate(ctx: PluginContext): void {
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.Sched.AddRunnableThreadCountTrackCommand',
       name: 'Add runnable thread count track',
       callback: () => addRunnableThreadCountTrack(),
     });
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.Sched.AddActiveCPUCountTrackCommand',
       name: 'Add active CPU count track',
       callback: () => addActiveCPUCountTrack(),
     });
     for (const cpuType of ['big', 'little', 'mid']) {
-      ctx.addCommand({
+      ctx.registerCommand({
         id: `dev.perfetto.Sched.AddActiveCPUCountTrackCommand.${cpuType}`,
         name: `Add active ${cpuType} CPU count track`,
         callback: () => addActiveCPUCountTrack(cpuType),
