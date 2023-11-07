@@ -84,13 +84,15 @@ action("node_modules") {
     "--stamp",
     rebase_path(stamp_file, root_build_dir),
     "--chdir=$cur_dir",
-    rebase_path("../../tools/npm", root_build_dir),
-    "ci",
+    rebase_path("../../tools/pnpm", root_build_dir),
+    "install",
+    "--shamefully-hoist",
+    "--frozen-lockfile",
   ]
   inputs = [
     "../../tools/npm",
     "package.json",
-    "package-lock.json",
+    "pnpm-lock.yaml",
   ]
   outputs = [ stamp_file ]
 }
@@ -153,7 +155,7 @@ md_to_html("gen_index") {
 }
 
 nodejs_script("style_scss") {
-  script = "node_modules/.bin/node-sass"
+  script = "node_modules/sass/sass.js"
   input = "src/assets/style.scss"
   inputs = [ input ]
   output = "${perfetto_website_out_dir}/assets/style.css"
