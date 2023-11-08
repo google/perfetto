@@ -498,6 +498,45 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
   }
 }
 
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  RestoreInitialTables();
+
+  for (int repeat = 0; repeat < 3; repeat++) {
+    ASSERT_EQ(RestoreInitialTables(), 0u);
+    {
+      auto it = Query(
+          "CREATE TABLE t1(ts BIGINT, dur BIGINT, PRIMARY KEY (ts, dur)) "
+          "WITHOUT ROWID;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query(
+          "CREATE TABLE t2(ts BIGINT, dur BIGINT, PRIMARY KEY (ts, dur)) "
+          "WITHOUT ROWID;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("INSERT INTO t2(ts, dur) VALUES(1, 2), (5, 0), (1, 1);");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("CREATE VIRTUAL TABLE sp USING span_join(t1, t2);;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    {
+      auto it = Query("SELECT ts, dur FROM sp;");
+      it.Next();
+      ASSERT_TRUE(it.Status().ok());
+    }
+    ASSERT_EQ(RestoreInitialTables(), 3u);
+  }
+}
+
 // This test checks that a ninja trace is tokenized properly even if read in
 // small chunks of 1KB each. The values used in the test have been cross-checked
 // with opening the same trace with ninjatracing + chrome://tracing.
