@@ -71,6 +71,16 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableStringSmoke) {
   ASSERT_TRUE(res.ok());
 }
 
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableWithSchemaSmoke) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar"));
+  ASSERT_TRUE(res.ok());
+
+  res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
+  ASSERT_TRUE(res.ok());
+}
+
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableDrop) {
   auto res_create = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
@@ -107,6 +117,16 @@ TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
       "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 2 AS x"));
   ASSERT_TRUE(res.ok());
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableWithIncorrectColumns) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(x INT) AS SELECT 1 as y"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().c_message(),
+      testing::EndsWith("CREATE PERFETTO TABLE: unexpected name for column 0 "
+                        "(differs from schema): expected x, got y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoViewSmoke) {

@@ -26,6 +26,10 @@ CREATE PERFETTO TABLE android_process_metadata(
   upid INT,
   -- Process name.
   process_name STRING,
+  -- Android app UID.
+  uid INT,
+  -- Whether the UID is shared by multiple packages.
+  shared_uid BOOL,
   -- Name of the packages running in this process.
   package_name STRING,
   -- Package version code.

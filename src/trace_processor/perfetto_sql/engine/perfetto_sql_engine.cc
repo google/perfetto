@@ -259,8 +259,8 @@ PerfettoSqlEngine::ExecuteUntilLastStatement(SqlSource sql_source) {
       source = std::move(source_or.value());
     } else if (auto* cst = std::get_if<PerfettoSqlParser::CreateTable>(
                    &parser.statement())) {
-      RETURN_IF_ERROR(AddTracebackIfNeeded(
-          RegisterRuntimeTable(cst->name, cst->sql), parser.statement_sql()));
+      RETURN_IF_ERROR(AddTracebackIfNeeded(ExecuteCreateTable(*cst),
+                                           parser.statement_sql()));
       source = RewriteToDummySql(parser.statement_sql());
     } else if (auto* create_view = std::get_if<PerfettoSqlParser::CreateView>(
                    &parser.statement())) {
@@ -384,9 +384,9 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
       std::move(return_type_str), std::move(sql));
 }
 
-base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
-                                                     SqlSource sql) {
-  auto stmt_or = engine_->PrepareStatement(sql);
+base::Status PerfettoSqlEngine::ExecuteCreateTable(
+    const PerfettoSqlParser::CreateTable& create_table) {
+  auto stmt_or = engine_->PrepareStatement(create_table.sql);
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
 
@@ -408,6 +408,38 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
           col_name.c_str());
     }
     column_names.push_back(col_name);
+  }
+
+  // If the schema is not empty, verify that the names match the actual columns.
+  if (!create_table.schema.empty()) {
+    for (uint32_t i = 0;
+         i < column_names.size() || i < create_table.schema.size(); ++i) {
+      if (i >= column_names.size()) {
+        return base::ErrStatus(
+            "CREATE PERFETTO TABLE: schema has more columns than actual "
+            "columns: %d columns in schema, %d columns in table, first extra "
+            "column: %s",
+            static_cast<int>(create_table.schema.size()),
+            static_cast<int>(column_names.size()),
+            create_table.schema[i].name().c_str());
+      }
+      if (i >= create_table.schema.size()) {
+        return base::ErrStatus(
+            "CREATE PERFETTO TABLE: schema has fewer columns than actual "
+            "columns: %d columns in schema, %d columns in table, first "
+            "missing column: %s",
+            static_cast<int>(create_table.schema.size()),
+            static_cast<int>(column_names.size()), column_names[i].c_str());
+      }
+      if (base::ToLower(create_table.schema[i].name().ToStdString()) !=
+          base::ToLower(column_names[i])) {
+        return base::ErrStatus(
+            "CREATE PERFETTO TABLE: unexpected name for column %d (differs "
+            "from "
+            "schema): expected %s, got %s",
+            i, create_table.schema[i].name().c_str(), column_names[i].c_str());
+      }
+    }
   }
 
   size_t column_count = column_names.size();
@@ -440,19 +472,21 @@ base::Status PerfettoSqlEngine::RegisterRuntimeTable(std::string name,
           return base::ErrStatus(
               "CREATE PERFETTO TABLE on column '%s' in table '%s': bytes "
               "columns are not supported",
-              sqlite3_column_name(stmt.sqlite_stmt(), int_i), name.c_str());
+              sqlite3_column_name(stmt.sqlite_stmt(), int_i),
+              create_table.name.c_str());
       }
     }
   }
   if (res != SQLITE_DONE) {
     return base::ErrStatus("%s: SQLite error while creating table body: %s",
-                           name.c_str(), sqlite3_errmsg(engine_->db()));
+                           create_table.name.c_str(),
+                           sqlite3_errmsg(engine_->db()));
   }
   RETURN_IF_ERROR(table->AddColumnsAndOverlays(rows));
 
-  runtime_tables_.Insert(name, std::move(table));
+  runtime_tables_.Insert(create_table.name, std::move(table));
   base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
-                                 name.c_str());
+                                 create_table.name.c_str());
   return Execute(
              SqlSource::FromTraceProcessorImplementation(create.ToStdString()))
       .status();
