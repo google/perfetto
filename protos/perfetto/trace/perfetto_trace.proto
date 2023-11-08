@@ -10837,7 +10837,6 @@ enum ChromeRAILMode {
   RAIL_MODE_LOAD = 4;
 }
 
-// Next id: 2
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
 
