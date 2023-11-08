@@ -317,7 +317,7 @@ message TracePacket {
   // 1. There are no prior events for the sequence because of data loss, e.g.
   //    due to ring buffer wrapping.
   // 2. There are no prior events for the sequence because it didn't start
-  //    before this packet (= there's definitely no preceeding data loss).
+  //    before this packet (= there's definitely no preceding data loss).
   //
   // Given that older SDK versions do not support this flag, this flag not
   // being present for a particular sequence does not necessarily imply data

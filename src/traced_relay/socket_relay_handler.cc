@@ -32,7 +32,7 @@
 
 namespace perfetto {
 namespace {
-// Use the the default watchdog timeout for task runners.
+// Use the default watchdog timeout for task runners.
 static constexpr int kWatchdogTimeoutMs = 30000;
 // Timeout of the epoll_wait() call.
 static constexpr int kPollTimeoutMs = 30000;

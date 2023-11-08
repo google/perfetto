@@ -119,7 +119,7 @@ base::Status AddTracebackIfNeeded(base::Status status,
   return status;
 }
 
-// This function is used when the the PerfettoSQL has been fully executed by the
+// This function is used when the PerfettoSQL has been fully executed by the
 // PerfettoSqlEngine and a SqlSoruce is needed for SQLite to execute.
 SqlSource RewriteToDummySql(const SqlSource& source) {
   return source.RewriteAllIgnoreExisting(
