@@ -327,7 +327,6 @@ $bottom-tab-padding: 10px;
 .popup-menu {
   position: absolute;
   background-color: white;
-  right: 0;
   box-shadow: 0 0 4px 0 #999;
   /* TODO(hjd): Reduce and make z-index use sensible. */
   z-index: 1000;
