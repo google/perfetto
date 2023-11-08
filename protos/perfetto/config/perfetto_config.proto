@@ -2987,7 +2987,7 @@ message TraceConfig {
   // long (e.g. 24h) traces, where suspend can inflate them to weeks of
   // wall-time, making them more likely to hit device reboots (and hence loss).
   // This option also changes consistently the semantic of
-  // TrigerConfig.stop_delay_ms.
+  // TriggerConfig.stop_delay_ms.
   optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
