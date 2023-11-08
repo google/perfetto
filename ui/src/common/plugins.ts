@@ -168,7 +168,9 @@ class TracePluginContextImpl implements PluginContextTrace, Disposable {
   }
 
   readonly tabs = {
-    openQuery: globals.openQuery,
+    openQuery: (query: string, title: string) => {
+      globals.openQuery(query, title);
+    },
   };
 
   get pluginId(): string {
