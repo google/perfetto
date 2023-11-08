@@ -2987,7 +2987,7 @@ message TraceConfig {
   // long (e.g. 24h) traces, where suspend can inflate them to weeks of
   // wall-time, making them more likely to hit device reboots (and hence loss).
   // This option also changes consistently the semantic of
-  // TrigerConfig.stop_delay_ms.
+  // TriggerConfig.stop_delay_ms.
   optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
@@ -13475,7 +13475,7 @@ message TracePacket {
   // 1. There are no prior events for the sequence because of data loss, e.g.
   //    due to ring buffer wrapping.
   // 2. There are no prior events for the sequence because it didn't start
-  //    before this packet (= there's definitely no preceeding data loss).
+  //    before this packet (= there's definitely no preceding data loss).
   //
   // Given that older SDK versions do not support this flag, this flag not
   // being present for a particular sequence does not necessarily imply data

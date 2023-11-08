@@ -99,7 +99,7 @@ class SqlSource {
 
   // Represents a tree of SQL rewrites, preserving the source for each rewrite.
   //
-  // Suppose that we have the the following situation:
+  // Suppose that we have the following situation:
   // User: `SELECT foo!(a) FROM bar!(slice) a`
   // foo : `$1.x, $1.y`
   // bar : `(SELECT baz!($1) FROM $1)`
