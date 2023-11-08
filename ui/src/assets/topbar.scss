@@ -208,9 +208,9 @@
   right: 5px;
   top: 5px;
   width: 300px;
-  background-color: white;
+  background-color: var(--main-background-color);
   font-size: 12px;
-  color: #3f4040;
+  color: var(--main-foreground-color);
   display: grid;
   border-radius: 5px;
   padding: 8px;
@@ -222,8 +222,8 @@
 }
 
 .hint-dismiss-button {
-  color: #f4fafb;
-  background-color: #19212b;
+  color: var(--main-background-color);
+  background-color: var(--main-foreground-color);
   width: fit-content;
   padding: 3px;
   border-radius: 3px;
