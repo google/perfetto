@@ -482,7 +482,7 @@ class TrackDecider {
       where track.type = 'gpu_counter_track' and track.name is not null
     `);
     const trackNameToGroupName = new Map<string, string|null>();
-    const iter = groupingResult.iter({track_name: STR, group_name: STR_NULL})
+    const iter = groupingResult.iter({track_name: STR, group_name: STR_NULL});
     for (; iter.valid(); iter.next()) {
       trackNameToGroupName.set(iter.track_name, iter.group_name);
     }
@@ -2868,16 +2868,16 @@ class TrackDecider {
     }
 
     this.trackGroupsToAdd.push(result);
-    this.tracksToAdd.push(this.blankSummaryTrack(id));
+    this.tracksToAdd.push(this.blankSummaryTrack(id, name + ' Summary Track'));
     return result;
   }
 
-  blankSummaryTrack(id: string): AddTrackArgs {
+  blankSummaryTrack(id: string, name: string): AddTrackArgs {
     return {
       engineId: this.engineId,
       id: id,
       kind: NULL_TRACK_KIND,
-      name: '',
+      name,
       trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
       trackGroup: undefined,
       config: {},

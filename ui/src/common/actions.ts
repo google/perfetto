@@ -199,11 +199,13 @@ function removeTrackGroup(state: StateDraft, groupId: string) {
 // to represent the same track
 function isSameTrack(track: AddTrackArgs,
     other: Partial<AddTrackArgs>): boolean {
-  return track.kind === other.kind &&
-      track.trackGroup === other.trackGroup &&
-      // TODO: This may not be reliable. May need to deep-compare
-      // the config object
-      track.name === other.name;
+      // Compare based on Id
+      // If no id is present compare by other data
+  return track.id && track.id === other.id ||
+  (
+    track.kind === other.kind &&
+    track.trackGroup === other.trackGroup &&
+    track.name === other.name);
 }
 
 function unfilterTracklike(
