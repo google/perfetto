@@ -151,6 +151,9 @@ void TraceProcessorStorageImpl::NotifyEndOfFile() {
 void TraceProcessorStorageImpl::DestroyContext() {
   TraceProcessorContext context;
   context.storage = std::move(context_.storage);
+
+  // TODO(b/309623584): Decouple from storage and remove from here. This
+  // function should only move storage and delete everything else.
   context.heap_graph_tracker = std::move(context_.heap_graph_tracker);
   context.clock_converter = std::move(context_.clock_converter);
   // "to_ftrace" textual converter of the "raw" table requires remembering the
