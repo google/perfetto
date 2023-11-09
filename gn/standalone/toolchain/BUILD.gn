@@ -490,8 +490,7 @@ toolchain("msvc") {
     pdbname = "$exename.pdb"
     rspfile = "$exename.rsp"
 
-    command =
-        "$linker /nologo /OUT:$exename ${sys_lib_flags} /PDB:$pdbname @$rspfile"
+    command = "$linker /nologo /OUT:$exename ${sys_lib_flags} /DEBUG /PDB:$pdbname @$rspfile"
     default_output_extension = ".exe"
     default_output_dir = "{{root_out_dir}}"
     outputs = [ exename ]
