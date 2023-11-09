@@ -31,16 +31,39 @@ import sys
 import os
 import re
 import argparse
+import collections
+import dataclasses
+
+from dataclasses import dataclass
+
+EXPECTED_ANY_COUNT = 73
+EXPECTED_RUN_METRIC_COUNT = 5
 
 ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 UI_SRC_DIR = os.path.join(ROOT_DIR, 'ui', 'src')
 
-EXPECTED_ANY_COUNT = 73
-# 'any' is too generic. It will show up in many comments etc. So
-# instead of counting any directly we forbid it using eslint and count
-# the number of suppressions.
-ANY_REGEX = r"// eslint-disable-next-line @typescript-eslint/no-explicit-any"
+
+@dataclasses.dataclass
+class Check:
+  regex: str
+  expected_count: int
+  expected_variable_name: str
+  description: str
+
+
+CHECKS = [
+    # 'any' is too generic. It will show up in many comments etc. So
+    # instead of counting any directly we forbid it using eslint and count
+    # the number of suppressions.
+    Check(r"// eslint-disable-next-line @typescript-eslint/no-explicit-any",
+          EXPECTED_ANY_COUNT, "EXPECTED_ANY_COUNT",
+          "We should avoid using any whenever possible. Prefer unknown."),
+    Check(
+        r"RUN_METRIC\(", EXPECTED_RUN_METRIC_COUNT, "EXPECTED_RUN_METRIC_COUNT",
+        "RUN_METRIC() is not a stable trace_processor API. Use a stdlib function or macro. See https://perfetto.dev/docs/analysis/perfetto-sql-syntax#defining-functions."
+    ),
+]
 
 
 def all_source_files():
@@ -51,30 +74,38 @@ def all_source_files():
 
 
 def do_check(options):
-  total_any_count = 0
+  c = collections.Counter()
+
   for path in all_source_files():
     with open(path) as f:
       s = f.read()
-      any_count = len(re.findall(ANY_REGEX, s))
-      total_any_count += any_count
+    for check in CHECKS:
+      count = len(re.findall(check.regex, s))
+      c[check.expected_variable_name] += count
 
-  if total_any_count > EXPECTED_ANY_COUNT:
-    print(f'More "{ANY_REGEX}" {EXPECTED_ANY_COUNT} -> {total_any_count}')
-    print(
-        f'  Expected to find {EXPECTED_ANY_COUNT} instances of "{ANY_REGEX}" accross the .ts & .d.ts files in the code base.'
-    )
-    print(f'  Instead found {total_any_count}.')
-    print(f'  It it likely your CL introduces additional uses of "any".')
-    return 1
-  elif total_any_count < EXPECTED_ANY_COUNT:
-    print(f'Less "{ANY_REGEX}" {EXPECTED_ANY_COUNT} -> {total_any_count}')
-    print(
-        f'  Congratulations your CL reduces the instances of "{ANY_REGEX}" in the code base from {EXPECTED_ANY_COUNT} to {total_any_count}.'
-    )
-    print(
-        f'  Please go to {__file__} and set EXPECTED_ANY_COUNT to {total_any_count}.'
-    )
-    return 1
+  for check in CHECKS:
+    actual_count = c[check.expected_variable_name]
+
+    if actual_count > check.expected_count:
+      print(f'More "{check.regex}" {check.expected_count} -> {actual_count}')
+      print(
+          f'  Expected to find {check.expected_count} instances of "{check.regex}" accross the .ts & .d.ts files in the code base.'
+      )
+      print(f'  Instead found {actual_count}.')
+      print(
+          f'  It it likely your CL introduces additional uses of "{check.regex}".'
+      )
+      print(f'  {check.description}')
+      return 1
+    elif actual_count < check.expected_count:
+      print(f'Less "{check.regex}" {check.expected_count} -> {actual_count}')
+      print(
+          f'  Congratulations your CL reduces the instances of "{check.regex}" in the code base from {check.expected_count} to {actual_count}.'
+      )
+      print(
+          f'  Please go to {__file__} and set {check.expected_variable_name} to {actual_count}.'
+      )
+      return 1
 
   return 0
 
