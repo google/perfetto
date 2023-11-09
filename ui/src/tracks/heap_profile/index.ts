@@ -85,7 +85,12 @@ class HeapProfileTrackController extends TrackControllerAdapter<Config, Data> {
     const it = queryRes.iter({ts: LONG, type: STR});
     for (let row = 0; it.valid(); it.next(), row++) {
       data.tsStarts[row] = it.ts;
-      data.types[row] = profileType(it.type);
+
+      let profType = it.type;
+      if (profType == 'heap_profile:libc.malloc,com.android.art') {
+        profType = 'heap_profile:com.android.art,libc.malloc';
+      }
+      data.types[row] = profileType(profType);
     }
     return data;
   }
