@@ -13,17 +13,16 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
-
-CREATE PERFETTO TABLE internal_startups_maxsdk28 AS
+-- All activity startup events.
+CREATE PERFETTO TABLE internal_startup_events AS
 SELECT
-  "maxsdk28" as sdk,
-  ROW_NUMBER() OVER(ORDER BY ts) AS startup_id,
-  le.ts,
-  le.ts_end AS ts_end,
-  le.ts_end - le.ts AS dur,
-  package_name AS package,
-  NULL AS startup_type
-FROM internal_startup_events le
-ORDER BY ts;
-
+  ts,
+  dur,
+  ts + dur AS ts_end,
+  STR_SPLIT(s.name, ": ", 1) AS package_name
+FROM slice s
+JOIN process_track t ON s.track_id = t.id
+JOIN process USING(upid)
+WHERE
+  s.name GLOB 'launching: *'
+  AND (process.name IS NULL OR process.name = 'system_server');

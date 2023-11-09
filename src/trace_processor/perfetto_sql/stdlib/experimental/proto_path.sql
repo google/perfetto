@@ -15,8 +15,8 @@
 
 -- Creates a Stack consisting of one frame for a path in the
 -- EXPERIMENTAL_PROTO_PATH table.
-CREATE PERFETTO FUNCTON EXPERIMENTAL_PROTO_PATH_TO_FRAME(
-  -- Id of the path in EXPERIMENTAL_PROTO_PATH.
+CREATE PERFETTO FUNCTION experimental_proto_path_to_frame(
+-- Id of the path in EXPERIMENTAL_PROTO_PATH.
   path_id LONG)
 -- Stack with one frame
 RETURNS BYTES AS

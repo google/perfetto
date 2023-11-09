@@ -163,8 +163,9 @@ class PerfettoSqlEngine {
   base::Status ExecuteInclude(const PerfettoSqlParser::Include&,
                               const PerfettoSqlParser& parser);
 
-  // Registers a SQL-defined trace processor C++ table with SQLite.
-  base::Status RegisterRuntimeTable(std::string name, SqlSource sql);
+  // Creates a runtime table and registers it with SQLite.
+  base::Status ExecuteCreateTable(
+      const PerfettoSqlParser::CreateTable& create_table);
 
   base::Status ExecuteCreateView(const PerfettoSqlParser::CreateView&);
 
@@ -176,6 +177,32 @@ class PerfettoSqlEngine {
       int argc,
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
+
+  // Get the column names from a statement.
+  // |operator_name| is used in the error message if the statement is invalid.
+  base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
+      const SqliteEngine::PreparedStatement& stmt,
+      const char* tag) const;
+
+  // Validates that the column names in |column_names| match the |schema|.
+  // |operator_name| is used in the error message if the statement is invalid.
+  base::Status ValidateColumnNames(
+      const std::vector<std::string>& column_names,
+      const std::vector<sql_argument::ArgumentDefinition>& schema,
+      const char* operator_name) const;
+
+  // Given a module and a key, include the correct file(s) from the module.
+  // The key can contain a wildcard to include all files in the module with the
+  // matching prefix.
+  base::Status IncludeModuleImpl(sql_modules::RegisteredModule& module,
+                                 const std::string& key,
+                                 const PerfettoSqlParser& parser);
+
+  // Import a given file.
+  base::Status IncludeFileImpl(
+      sql_modules::RegisteredModule::ModuleFile& module,
+      const std::string& key,
+      const PerfettoSqlParser& parser);
 
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;

@@ -16,12 +16,12 @@
 INCLUDE PERFETTO MODULE common.counters;
 INCLUDE PERFETTO MODULE common.timestamps;
 
-CREATE PERFETTO FUNCTION internal_number_generator(to INT)
+CREATE PERFETTO FUNCTION internal_number_generator(upper_limit INT)
 RETURNS TABLE(num INT) AS
 WITH nums AS
     (SELECT 1 num UNION SELECT num + 1
     from NUMS
-    WHERE num < $to)
+    WHERE num < $upper_limit)
 SELECT num FROM nums;
 
 --
