@@ -15,35 +15,17 @@
 
 INCLUDE PERFETTO MODULE common.slices;
 INCLUDE PERFETTO MODULE android.process_metadata;
-
--- All activity startup events.
-CREATE PERFETTO TABLE internal_startup_events AS
-SELECT
-  ts,
-  dur,
-  ts + dur AS ts_end,
-  STR_SPLIT(s.name, ": ", 1) AS package_name
-FROM slice s
-JOIN process_track t ON s.track_id = t.id
-JOIN process USING(upid)
-WHERE
-  s.name GLOB 'launching: *'
-  AND (process.name IS NULL OR process.name = 'system_server');
-
--- Gather all startup data. Populate by different sdks.
-CREATE TABLE internal_all_startups(
-  sdk STRING,
-  startup_id INTEGER BIGINT,
-  ts BIGINT,
-  ts_end BIGINT,
-  dur BIGINT,
-  package STRING,
-  startup_type STRING
-);
-
 INCLUDE PERFETTO MODULE android.startup.internal_startups_maxsdk28;
 INCLUDE PERFETTO MODULE android.startup.internal_startups_minsdk29;
 INCLUDE PERFETTO MODULE android.startup.internal_startups_minsdk33;
+
+-- Gather all startup data. Populate by different sdks.
+CREATE PERFETTO TABLE internal_all_startups AS
+SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM internal_startups_maxsdk28
+UNION ALL
+SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM internal_startups_minsdk29
+UNION ALL
+SELECT sdk, startup_id, ts, ts_end, dur, package, startup_type FROM internal_startups_minsdk33;
 
 -- All activity startups in the trace by startup id.
 -- Populated by different scripts depending on the platform version/contents.

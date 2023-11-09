@@ -80,7 +80,18 @@ bool IsValidModuleWord(const std::string& word) {
 }
 
 bool ValidateModuleName(const std::string& name) {
+  if (name.empty()) {
+    return false;
+  }
+
   std::vector<std::string> packages = base::SplitString(name, ".");
+
+  // The last part of the path can be a wildcard.
+  if (!packages.empty() && packages.back() == "*") {
+    packages.pop_back();
+  }
+
+  // The rest of the path must be valid words.
   return std::find_if(packages.begin(), packages.end(),
                       std::not_fn(IsValidModuleWord)) == packages.end();
 }
@@ -223,8 +234,8 @@ bool PerfettoSqlParser::ParseIncludePerfettoModule(
 
   if (!ValidateModuleName(key)) {
     base::StackString<1024> err(
-        "Only alphanumeric characters, dots and underscores allowed in include "
-        "keys: '%s'",
+        "Include key should be a dot-separated list of module names, with the"
+        "last name optionally being a wildcard: '%s'",
         key.c_str());
     return ErrorAtToken(tok, err.c_str());
   }
@@ -282,7 +293,8 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
       tokenizer_.Rewrite(rewriter, first_non_space_token, first, header,
                          SqliteTokenizer::EndToken::kExclusive);
       statement_ =
-          CreateView{std::move(name), std::move(rewriter).Build(), schema};
+          CreateView{std::move(name), tokenizer_.Substr(first, terminal),
+                     std::move(rewriter).Build(), schema};
       break;
   }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);

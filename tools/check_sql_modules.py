@@ -30,6 +30,7 @@ from python.generators.sql_processing.docs_parse import parse_file
 from python.generators.sql_processing.utils import check_banned_create_table_as
 from python.generators.sql_processing.utils import check_banned_create_view_as
 from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.utils import check_banned_include_all
 
 CREATE_TABLE_ALLOWLIST = {
     '/src/trace_processor/perfetto_sql/stdlib/android/binder.sql': [
@@ -110,6 +111,9 @@ def main():
       if 'RUN_METRIC' in line:
         errors.append(f"RUN_METRIC is banned in standard library.\n"
                       f"Offending file: {path}\n")
+      if 'insert into' in line.casefold():
+        errors.append(f"INSERT INTO table is not allowed in standard library.\n"
+                      f"Offending file: {path}\n")
 
     errors += parsed.errors
     errors += check_banned_words(sql, path)
@@ -117,6 +121,7 @@ def main():
                                            path.split(ROOT_DIR)[1],
                                            CREATE_TABLE_ALLOWLIST)
     errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
+    errors += check_banned_include_all(sql, path.split(ROOT_DIR)[1])
 
   if errors:
     sys.stderr.write("\n".join(errors))

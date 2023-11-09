@@ -11758,6 +11758,7 @@ genrule {
         "src/trace_processor/perfetto_sql/stdlib/android/process_metadata.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/screenshots.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/slices.sql",
+        "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startup_events.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_maxsdk28.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk29.sql",
         "src/trace_processor/perfetto_sql/stdlib/android/startup/internal_startups_minsdk33.sql",
