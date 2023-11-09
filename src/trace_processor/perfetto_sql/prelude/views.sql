@@ -1,45 +1,45 @@
-CREATE VIEW counters AS 
+CREATE VIEW counters AS
 SELECT *
-FROM counter v 
-JOIN counter_track t ON v.track_id = t.id 
+FROM counter v
+JOIN counter_track t ON v.track_id = t.id
 ORDER BY ts;
 
-CREATE VIEW slice AS 
+CREATE VIEW slice AS
 SELECT
-  *, 
-  category AS cat, 
-  id AS slice_id 
+  *,
+  category AS cat,
+  id AS slice_id
 FROM internal_slice;
 
-CREATE VIEW instant AS 
-SELECT ts, track_id, name, arg_set_id 
-FROM slice 
+CREATE VIEW instant AS
+SELECT ts, track_id, name, arg_set_id
+FROM slice
 WHERE dur = 0;
 
-CREATE VIEW sched AS 
-SELECT 
+CREATE VIEW sched AS
+SELECT
   *,
   ts + dur as ts_end
 FROM sched_slice;
 
-CREATE VIEW slices AS 
+CREATE VIEW slices AS
 SELECT * FROM slice;
 
-CREATE VIEW thread AS 
-SELECT 
+CREATE VIEW thread AS
+SELECT
   id as utid,
   *
 FROM internal_thread;
 
-CREATE VIEW process AS 
-SELECT 
+CREATE VIEW process AS
+SELECT
   id as upid,
-  * 
+  *
 FROM internal_process;
 
 -- This should be kept in sync with GlobalArgsTracker::AddArgSet.
-CREATE VIEW args AS 
-SELECT 
+CREATE VIEW args AS
+SELECT
   *,
   CASE value_type
     WHEN 'int' THEN CAST(int_value AS text)
