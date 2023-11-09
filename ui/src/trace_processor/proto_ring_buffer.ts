@@ -19,7 +19,7 @@ import {assertTrue} from '../base/logging';
 // description. The architecture is identical.
 
 const kGrowBytes = 128 * 1024;
-const kMaxMsgSize = 64 * 1024 * 1024;
+const kMaxMsgSize = 1024 * 1024 * 1024;
 
 export class ProtoRingBuffer {
   private buf = new Uint8Array(kGrowBytes);
