@@ -64,7 +64,9 @@ export abstract class CustomSqlTableSliceTrack<
   abstract getSqlDataSource(): CustomSqlTableDefConfig;
 
   // Override by subclasses.
-  abstract getDetailsPanel(): CustomSqlDetailsPanelConfig;
+  abstract getDetailsPanel(args:
+                               OnSliceClickArgs<NamedSliceTrackTypes['slice']>):
+      CustomSqlDetailsPanelConfig;
 
   getSqlImports(): CustomSqlImportConfig {
     return {
@@ -106,11 +108,11 @@ export abstract class CustomSqlTableSliceTrack<
   }
 
   onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
-    if (this.getDetailsPanel() === undefined) {
+    if (this.getDetailsPanel(args) === undefined) {
       return;
     }
 
-    const detailsPanelConfig = this.getDetailsPanel();
+    const detailsPanelConfig = this.getDetailsPanel(args);
     globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
