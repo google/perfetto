@@ -142,7 +142,7 @@ export class Flamegraph {
 
     this.startingY = y;
 
-    // For each node, we use this map to get information about it's parent
+    // For each node, we use this map to get information about its parent
     // (total size of it, width and where it starts in graph) so we can
     // calculate it's own position in graph.
     const nodesMap = new Map<number, Node>();
