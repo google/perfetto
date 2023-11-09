@@ -264,11 +264,13 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
-  ASSERT_EQ(parser.statement(),
-            Statement(CreateView{"foo",
-                                 SqlSource::FromExecuteQuery(
-                                     "CREATE VIEW foo AS SELECT 42 AS bar"),
-                                 {}}));
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateView{
+          "foo",
+          SqlSource::FromExecuteQuery("SELECT 42 AS bar"),
+          SqlSource::FromExecuteQuery("CREATE VIEW foo AS SELECT 42 AS bar"),
+          {}}));
   ASSERT_FALSE(parser.Next());
 }
 
@@ -277,11 +279,13 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
-  ASSERT_EQ(parser.statement(),
-            Statement(CreateView{"foo",
-                                 SqlSource::FromExecuteQuery(
-                                     "CREATE VIEW foo AS SELECT 42 AS bar"),
-                                 {}}));
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateView{
+          "foo",
+          SqlSource::FromExecuteQuery("SELECT 42 AS bar"),
+          SqlSource::FromExecuteQuery("CREATE VIEW foo AS SELECT 42 AS bar"),
+          {}}));
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
@@ -297,6 +301,7 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
   ASSERT_EQ(parser.statement(),
             Statement(CreateView{
                 "foo",
+                SqlSource::FromExecuteQuery("SELECT 'a' as foo, 42 AS bar"),
                 SqlSource::FromExecuteQuery(
                     "CREATE VIEW foo AS SELECT 'a' as foo, 42 AS bar"),
                 {{"$foo", sql_argument::Type::kString},

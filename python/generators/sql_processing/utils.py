@@ -51,6 +51,9 @@ CREATE_VIEW_AS_PATTERN = update_pattern(fr'^CREATE VIEW ({NAME}) AS')
 DROP_TABLE_VIEW_PATTERN = update_pattern(fr'^DROP (TABLE|VIEW) IF EXISTS '
                                          fr'({NAME});$')
 
+INCLUDE_ALL_PATTERN = update_pattern(
+    fr'^INCLUDE PERFETTO MODULE [a-zA-Z0-9_\.]*\*;')
+
 CREATE_FUNCTION_PATTERN = update_pattern(
     # Function name.
     fr"CREATE (OR REPLACE)? PERFETTO FUNCTION ({NAME}) "
@@ -163,6 +166,7 @@ def check_banned_words(sql: str, path: str) -> List[str]:
       errors.append('SELECT IMPORT is deprecated in trace processor. '
                     'Use INCLUDE PERFETTO MODULE instead.\n'
                     f'Offending file: {path}')
+
   return errors
 
 
@@ -214,4 +218,14 @@ def check_banned_create_view_as(sql: str, filename: str) -> List[str]:
     errors.append(f"CREATE VIEW '{name}' is deprecated. "
                   "Use CREATE PERFETTO VIEW instead.\n"
                   f"Offending file: {filename}\n")
+  return errors
+
+
+# Given SQL string check whether there is usage of CREATE VIEW {name} AS.
+def check_banned_include_all(sql: str, filename: str) -> List[str]:
+  errors = []
+  for _, matches in match_pattern(INCLUDE_ALL_PATTERN, sql).items():
+    errors.append(
+        f"INCLUDE PERFETTO MODULE with wildcards is not allowed in stdlib. "
+        f"Import specific modules instead. Offending file: {filename}")
   return errors

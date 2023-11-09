@@ -102,6 +102,7 @@ from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
 from diff_tests.stdlib.span_join.tests_outer_join import SpanJoinOuterJoin
 from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
+from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
 from diff_tests.syntax.functions.tests import Functions
 from diff_tests.syntax.perfetto_sql.tests import PerfettoSql
@@ -219,6 +220,8 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
+      *StdlibSmoke(index_path, 'stdlib', 'StdlibSmoke').fetch(),
+      *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
       *SpanJoinLeftJoin(index_path, 'stdlib/span_join',
                         'SpanJoinLeftJoin').fetch(),

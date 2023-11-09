@@ -132,10 +132,10 @@ CREATE PERFETTO VIEW android_battery_stats_state(
 ) AS
 SELECT
   ts,
+  IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
   name AS track_name,
   CAST(value AS INT64) AS value,
-  android_battery_stats_counter_to_string(name, value) AS value_name,
-  IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur
+  android_battery_stats_counter_to_string(name, value) AS value_name
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id
@@ -166,10 +166,10 @@ CREATE PERFETTO VIEW android_battery_stats_event_slices(
   dur INT,
   -- The name of the counter track.
   track_name STRING,
-  -- The counter value as a number.
-  value INT,
-  -- The counter value as a human-readable string.
-  value_name STRING
+  -- String value.
+  str_value STRING,
+  -- Int value.
+  int_value INT
 ) AS
 WITH
   event_markers AS (

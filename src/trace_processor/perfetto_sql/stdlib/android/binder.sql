@@ -183,14 +183,14 @@ CREATE PERFETTO VIEW android_sync_binder_metrics_by_txn(
   client_utid INT,
   -- Tid of the client thread.
   client_tid INT,
+  -- Pid of the client process.
+  client_pid INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
   -- timestamp of the client txn.
   client_ts INT,
   -- dur of the client txn.
   client_dur INT,
-  -- oom score of the client process at the start of the txn.
-  client_oom_score INT,
-  -- Whether the txn was initiated from the main thread of the client process.
-  is_main_thread BOOL,
   -- slice id of the binder reply.
   binder_reply_id INT,
   -- name of the server process.
@@ -203,10 +203,14 @@ CREATE PERFETTO VIEW android_sync_binder_metrics_by_txn(
   server_utid INT,
   -- Tid of the server thread.
   server_tid INT,
+  -- Pid of the server thread.
+  server_pid INT,
   -- timestamp of the server txn.
   server_ts INT,
   -- dur of the server txn.
   server_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
   -- oom score of the server process at the start of the reply.
   server_oom_score INT
 ) AS
@@ -249,8 +253,16 @@ USING
 CREATE PERFETTO VIEW android_sync_binder_thread_state_by_txn(
   -- slice id of the binder txn
   binder_txn_id INT,
+  -- Client timestamp
+  client_ts INT,
+  -- Client tid
+  client_tid INT,
   -- slice id of the binder reply
   binder_reply_id INT,
+  -- Server timestamp
+  server_ts INT,
+  -- Server tid
+  server_tid INT,
   -- whether thread state is on the txn or reply side
   thread_state_type STRING,
   -- a thread_state that occurred in the txn
@@ -298,8 +310,16 @@ GROUP BY binder_txn_id, binder_reply_id, thread_state_type, thread_state;
 CREATE PERFETTO VIEW android_sync_binder_blocked_functions_by_txn(
   -- slice id of the binder txn
   binder_txn_id INT,
+  -- Client ts
+  client_ts INT,
+  -- Client tid
+  client_tid INT,
   -- slice id of the binder reply
   binder_reply_id INT,
+  -- Server ts
+  server_ts INT,
+  -- Server tid
+  server_tid INT,
   -- whether thread state is on the txn or reply side
   thread_state_type STRING,
   -- blocked kernel function in a thread state
@@ -414,14 +434,14 @@ CREATE PERFETTO VIEW android_async_binder_metrics_by_txn(
   client_utid INT,
   -- Tid of the client thread.
   client_tid INT,
+  -- Pid of the client thread.
+  client_pid INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
   -- timestamp of the client txn.
   client_ts INT,
   -- dur of the client txn.
   client_dur INT,
-  -- oom score of the client process at the start of the txn.
-  client_oom_score INT,
-  -- Whether the txn was initiated from the main thread of the client process.
-  is_main_thread BOOL,
   -- slice id of the binder reply.
   binder_reply_id INT,
   -- name of the server process.
@@ -434,10 +454,14 @@ CREATE PERFETTO VIEW android_async_binder_metrics_by_txn(
   server_utid INT,
   -- Tid of the server thread.
   server_tid INT,
+  -- Pid of the server thread.
+  server_pid INT,
   -- timestamp of the server txn.
   server_ts INT,
   -- dur of the server txn.
   server_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
   -- oom score of the server process at the start of the reply.
   server_oom_score INT
 ) AS
@@ -469,14 +493,14 @@ CREATE PERFETTO VIEW android_binder_txns(
   client_utid INT,
   -- Tid of the client thread.
   client_tid INT,
+  -- Pid of the client thread.
+  client_pid INT,
+  -- Whether the txn was initiated from the main thread of the client process.
+  is_main_thread BOOL,
   -- timestamp of the client txn.
   client_ts INT,
   -- dur of the client txn.
   client_dur INT,
-  -- oom score of the client process at the start of the txn.
-  client_oom_score INT,
-  -- Whether the txn was initiated from the main thread of the client process.
-  is_main_thread BOOL,
   -- slice id of the binder reply.
   binder_reply_id INT,
   -- name of the server process.
@@ -489,10 +513,14 @@ CREATE PERFETTO VIEW android_binder_txns(
   server_utid INT,
   -- Tid of the server thread.
   server_tid INT,
+  -- Pid of the server thread.
+  server_pid INT,
   -- timestamp of the server txn.
   server_ts INT,
   -- dur of the server txn.
   server_dur INT,
+  -- oom score of the client process at the start of the txn.
+  client_oom_score INT,
   -- oom score of the server process at the start of the reply.
   server_oom_score INT,
   -- whether the txn is synchronous or async (oneway).
