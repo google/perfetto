@@ -42,6 +42,17 @@ SELECT *
 FROM android_startups;
 ```
 
+For interactive development, the key can contain a wildcards:
+```sql
+-- Include all modules under android/.
+INCLUDE PERFETTO MODULE android.*;
+
+-- Or all stdlib modules:
+INCLUDE PERFETTO MODULE *;
+
+-- However, note, that both patterns are not allowed in stdlib.
+```
+
 ## Defining functions
 `CREATE PEFETTO FUNCTION` allows functions to be defined in SQL. The syntax is
 similar to the syntax in PostgreSQL or GoogleSQL.

@@ -13,6 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
+
 -- Marks the beginning of the trace and is equivalent to when the statsd startup
 -- logging begins.
 CREATE PERFETTO VIEW internal_activity_intent_received AS
@@ -48,9 +50,9 @@ WHERE name = 'MetricsLogger:launchObserverNotifyActivityLaunchFinished';
 
 -- Use the starting event package name. The finish event package name
 -- is not reliable in the case of failed startups.
-INSERT INTO internal_all_startups
+CREATE PERFETTO TABLE internal_startups_minsdk29 AS
 SELECT
-  "minsdk29",
+  "minsdk29" as sdk,
   lpart.startup_id,
   lpart.ts,
   le.ts_end,

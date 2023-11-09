@@ -488,23 +488,60 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
   std::string key = include.key;
   PERFETTO_TP_TRACE(metatrace::Category::QUERY_TIMELINE, "Include",
                     [key](metatrace::Record* r) { r->AddArg("Module", key); });
-  std::string module_name = sql_modules::GetModuleName(key);
-  auto module = FindModule(module_name);
-  if (!module)
-    return base::ErrStatus("INCLUDE: Unknown module name provided - %s",
-                           key.c_str());
 
-  auto module_file = module->include_key_to_file.Find(key);
-  if (!module_file) {
-    return base::ErrStatus("INCLUDE: Unknown filename provided - %s",
-                           key.c_str());
-  }
-  // INCLUDE is noop for already included files.
-  if (module_file->included) {
+  if (key == "*") {
+    for (auto moduleIt = modules_.GetIterator(); moduleIt; ++moduleIt) {
+      RETURN_IF_ERROR(IncludeModuleImpl(moduleIt.value(), key, parser));
+    }
     return base::OkStatus();
   }
 
-  auto it = Execute(SqlSource::FromModuleInclude(module_file->sql, key));
+  std::string module_name = sql_modules::GetModuleName(key);
+  auto module = FindModule(module_name);
+  if (!module) {
+    return base::ErrStatus("INCLUDE: Unknown module name provided - %s",
+                           key.c_str());
+  }
+  return IncludeModuleImpl(*module, key, parser);
+}
+
+base::Status PerfettoSqlEngine::IncludeModuleImpl(
+    sql_modules::RegisteredModule& module,
+    const std::string& key,
+    const PerfettoSqlParser& parser) {
+  if (!key.empty() && key.back() == '*') {
+    // If the key ends with a wildcard, iterate through all the keys in the
+    // module and include matching ones.
+    std::string prefix = key.substr(0, key.size() - 1);
+    for (auto fileIt = module.include_key_to_file.GetIterator(); fileIt;
+         ++fileIt) {
+      if (!base::StartsWith(fileIt.key(), prefix))
+        continue;
+      PERFETTO_TP_TRACE(
+          metatrace::Category::QUERY_TIMELINE,
+          "Include (expanded from wildcard)",
+          [&](metatrace::Record* r) { r->AddArg("Module", fileIt.key()); });
+      RETURN_IF_ERROR(IncludeFileImpl(fileIt.value(), fileIt.key(), parser));
+    }
+    return base::OkStatus();
+  }
+  auto* module_file = module.include_key_to_file.Find(key);
+  if (!module_file) {
+    return base::ErrStatus("INCLUDE: unknown module '%s'", key.c_str());
+  }
+  return IncludeFileImpl(*module_file, key, parser);
+}
+
+base::Status PerfettoSqlEngine::IncludeFileImpl(
+    sql_modules::RegisteredModule::ModuleFile& file,
+    const std::string& key,
+    const PerfettoSqlParser& parser) {
+  // INCLUDE is noop for already included files.
+  if (file.included) {
+    return base::OkStatus();
+  }
+
+  auto it = Execute(SqlSource::FromModuleInclude(file.sql, key));
   if (!it.status().ok()) {
     return base::ErrStatus("%s%s",
                            parser.statement_sql().AsTraceback(0).c_str(),
@@ -512,8 +549,7 @@ base::Status PerfettoSqlEngine::ExecuteInclude(
   }
   if (it->statement_count_with_output > 0)
     return base::ErrStatus("INCLUDE: Included module returning values.");
-  module_file->included = true;
-
+  file.included = true;
   return base::OkStatus();
 }
 

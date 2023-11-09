@@ -191,6 +191,19 @@ class PerfettoSqlEngine {
       const std::vector<sql_argument::ArgumentDefinition>& schema,
       const char* operator_name) const;
 
+  // Given a module and a key, include the correct file(s) from the module.
+  // The key can contain a wildcard to include all files in the module with the
+  // matching prefix.
+  base::Status IncludeModuleImpl(sql_modules::RegisteredModule& module,
+                                 const std::string& key,
+                                 const PerfettoSqlParser& parser);
+
+  // Import a given file.
+  base::Status IncludeFileImpl(
+      sql_modules::RegisteredModule::ModuleFile& module,
+      const std::string& key,
+      const PerfettoSqlParser& parser);
+
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
 
