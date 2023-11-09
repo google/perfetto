@@ -161,7 +161,7 @@ STACK_PROFILE_FRAME_TABLE = Table(
         C('name', CppString()),
         C('mapping', CppTableId(STACK_PROFILE_MAPPING_TABLE)),
         C('rel_pc', CppInt64()),
-        C('symbol_set_id', CppOptional(CppUint32())),
+        C('symbol_set_id', CppOptional(CppUint32()), flags=ColumnFlag.DENSE),
         C('deobfuscated_name', CppOptional(CppString())),
     ],
     tabledoc=TableDoc(
