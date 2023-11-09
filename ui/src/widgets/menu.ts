@@ -163,6 +163,7 @@ export class PopupMenu2 implements m.ClassComponent<PopupMenu2Attrs> {
         {
           trigger,
           position: popupPosition,
+          className: 'pf-popup-menu',
           ...popupAttrs,
         },
         m(Menu, children));
