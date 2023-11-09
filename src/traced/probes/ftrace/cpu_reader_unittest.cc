@@ -164,7 +164,9 @@ using BundleProvider = ProtoProvider<protos::pbzero::FtraceEventBundle,
 class BinaryWriter {
  public:
   BinaryWriter()
-      : size_(base::kPageSize), page_(new uint8_t[size_]), ptr_(page_.get()) {}
+      : size_(base::GetSysPageSize()),
+        page_(new uint8_t[size_]),
+        ptr_(page_.get()) {}
 
   template <typename T>
   void Write(T t) {
@@ -443,7 +445,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrint) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_EQ(44ul, page_header->size);
   EXPECT_FALSE(page_header->lost_events);
@@ -566,7 +568,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ReallyLongEvent) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -609,7 +611,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrintNonNullTerminated) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -653,7 +655,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSinglePrintZeroSize) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -745,7 +747,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseThreePrint) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -791,7 +793,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParsePrintWithAndWithoutFilter) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   ASSERT_FALSE(page_header->lost_events);
   ASSERT_LE(parse_pos + page_header->size, page_end);
@@ -867,10 +869,12 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceNoEmptyPackets) {
   // Prepare a buffer with 8 contiguous pages, with the above contents.
   static constexpr size_t kTestPages = 8;
 
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[base::kPageSize * kTestPages]());
+  std::unique_ptr<uint8_t[]> buf(
+      new uint8_t[base::GetSysPageSize() * kTestPages]());
   for (size_t i = 0; i < kTestPages; i++) {
-    void* dest = buf.get() + (i * base::kPageSize);
-    memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
+    void* dest = buf.get() + (i * base::GetSysPageSize());
+    memcpy(dest, static_cast<const void*>(test_page_order[i]),
+           base::GetSysPageSize());
   }
   auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
 
@@ -988,7 +992,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitch) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -1037,7 +1041,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseSixSchedSwitchCompactFormat) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -1152,7 +1156,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseCompactSchedSwitchAndWaking) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -1351,7 +1355,7 @@ TEST_F(CpuReaderTableTest, ParseAllFields) {
       InvalidCompactSchedEventFormatForTesting(), printk_formats);
   FtraceDataSourceConfig ds_config = EmptyConfig();
 
-  FakeEventProvider provider(base::kPageSize);
+  FakeEventProvider provider(base::GetSysPageSize());
 
   BinaryWriter writer;
 
@@ -1437,7 +1441,7 @@ TEST(CpuReaderTest, SysEnterEvent) {
   auto input = writer.GetCopy();
   auto length = writer.written();
 
-  BundleProvider bundle_provider(base::kPageSize);
+  BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(
@@ -1486,7 +1490,7 @@ TEST(CpuReaderTest, MAYBE_SysExitEvent) {
 
   auto input = writer.GetCopy();
   auto length = writer.written();
-  BundleProvider bundle_provider(base::kPageSize);
+  BundleProvider bundle_provider(base::GetSysPageSize());
   FtraceMetadata metadata{};
 
   ASSERT_TRUE(CpuReader::ParseEvent(
@@ -1504,7 +1508,7 @@ TEST(CpuReaderTest, MAYBE_SysExitEvent) {
 }
 
 TEST(CpuReaderTest, TaskRenameEvent) {
-  BundleProvider bundle_provider(base::kPageSize);
+  BundleProvider bundle_provider(base::GetSysPageSize());
 
   BinaryWriter writer;
   ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
@@ -1536,7 +1540,7 @@ TEST(CpuReaderTest, TaskRenameEvent) {
 // zero-terminated strings in some cases. Even though it's a kernel bug, there's
 // no point in rejecting that.
 TEST(CpuReaderTest, EventNonZeroTerminated) {
-  BundleProvider bundle_provider(base::kPageSize);
+  BundleProvider bundle_provider(base::GetSysPageSize());
 
   BinaryWriter writer;
   ProtoTranslationTable* table = GetTable("android_seed_N2F62_3.10.49");
@@ -1612,10 +1616,12 @@ TEST(CpuReaderTest, NewPacketOnLostEvents) {
   // Prepare a buffer with 8 contiguous pages, with the above contents.
   static constexpr size_t kTestPages = 8;
 
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[base::kPageSize * kTestPages]());
+  std::unique_ptr<uint8_t[]> buf(
+      new uint8_t[base::GetSysPageSize() * kTestPages]());
   for (size_t i = 0; i < kTestPages; i++) {
-    void* dest = buf.get() + (i * base::kPageSize);
-    memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
+    void* dest = buf.get() + (i * base::GetSysPageSize());
+    memcpy(dest, static_cast<const void*>(test_page_order[i]),
+           base::GetSysPageSize());
   }
 
   ProtoTranslationTable* table = GetTable("synthetic");
@@ -1662,10 +1668,12 @@ TEST(CpuReaderTest, ProcessPagesForDataSourceError) {
   // Prepare a buffer with 8 contiguous pages, with the above contents.
   static constexpr size_t kTestPages = 8;
 
-  std::unique_ptr<uint8_t[]> buf(new uint8_t[base::kPageSize * kTestPages]());
+  std::unique_ptr<uint8_t[]> buf(
+      new uint8_t[base::GetSysPageSize() * kTestPages]());
   for (size_t i = 0; i < kTestPages; i++) {
-    void* dest = buf.get() + (i * base::kPageSize);
-    memcpy(dest, static_cast<const void*>(test_page_order[i]), base::kPageSize);
+    void* dest = buf.get() + (i * base::GetSysPageSize());
+    memcpy(dest, static_cast<const void*>(test_page_order[i]),
+           base::GetSysPageSize());
   }
 
   ProtoTranslationTable* table = GetTable("synthetic");
@@ -1881,7 +1889,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseAbsoluteTimestamp) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -2365,7 +2373,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseFullPageSchedSwitch) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -2888,7 +2896,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ParseExt4WithOverwrite) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_TRUE(page_header->lost_events);  // data loss
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -2994,7 +3002,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroLengthDataLoc) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -3296,7 +3304,7 @@ TEST_F(CpuReaderParsePagePayloadTest, ZeroPaddedPageWorkaround) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -3341,7 +3349,7 @@ TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesNew) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
@@ -3395,7 +3403,7 @@ TEST_F(CpuReaderParsePagePayloadTest, F2fsTruncatePartialNodesOld) {
   std::optional<CpuReader::PageHeader> page_header =
       CpuReader::ParsePageHeader(&parse_pos, table->page_header_size_len());
 
-  const uint8_t* page_end = page.get() + base::kPageSize;
+  const uint8_t* page_end = page.get() + base::GetSysPageSize();
   ASSERT_TRUE(page_header.has_value());
   EXPECT_FALSE(page_header->lost_events);
   EXPECT_LE(parse_pos + page_header->size, page_end);
