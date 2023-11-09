@@ -198,7 +198,9 @@ ProtoFile::Field FieldFromDescriptor(
     const google::protobuf::Descriptor& parent,
     const google::protobuf::FieldDescriptor& desc) {
   auto field = InitFromDescriptor<ProtoFile::Field>(desc);
-  field.label = kLabelToName[desc.label()];
+  // Map fields have label repeated but are actually emitted without a label
+  // in practice.
+  field.label = desc.is_map() ? "" : kLabelToName[desc.label()];
   field.packageless_type = FieldTypeFromDescriptor(parent, desc, true);
   field.type = FieldTypeFromDescriptor(parent, desc, false);
   field.name = desc.name();
