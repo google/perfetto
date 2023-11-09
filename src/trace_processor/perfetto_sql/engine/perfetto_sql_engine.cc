@@ -390,57 +390,13 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   RETURN_IF_ERROR(stmt_or.status());
   SqliteEngine::PreparedStatement stmt = std::move(stmt_or);
 
-  uint32_t columns =
-      static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
-  std::vector<std::string> column_names;
-  for (uint32_t i = 0; i < columns; ++i) {
-    std::string col_name =
-        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
-    if (col_name.empty()) {
-      return base::ErrStatus(
-          "CREATE PERFETTO TABLE: column name must not be empty");
-    }
-    if (!std::isalpha(col_name.front()) ||
-        !sql_argument::IsValidName(base::StringView(col_name))) {
-      return base::ErrStatus(
-          "Column name %s has to start with a letter and can only consists "
-          "of alphanumeric characters and underscores.",
-          col_name.c_str());
-    }
-    column_names.push_back(col_name);
-  }
+  base::StatusOr<std::vector<std::string>> maybe_column_names =
+      GetColumnNamesFromSelectStatement(stmt, "CREATE PERFETTO TABLE");
+  RETURN_IF_ERROR(maybe_column_names.status());
+  std::vector<std::string> column_names = *maybe_column_names;
 
-  // If the schema is not empty, verify that the names match the actual columns.
-  if (!create_table.schema.empty()) {
-    for (uint32_t i = 0;
-         i < column_names.size() || i < create_table.schema.size(); ++i) {
-      if (i >= column_names.size()) {
-        return base::ErrStatus(
-            "CREATE PERFETTO TABLE: schema has more columns than actual "
-            "columns: %d columns in schema, %d columns in table, first extra "
-            "column: %s",
-            static_cast<int>(create_table.schema.size()),
-            static_cast<int>(column_names.size()),
-            create_table.schema[i].name().c_str());
-      }
-      if (i >= create_table.schema.size()) {
-        return base::ErrStatus(
-            "CREATE PERFETTO TABLE: schema has fewer columns than actual "
-            "columns: %d columns in schema, %d columns in table, first "
-            "missing column: %s",
-            static_cast<int>(create_table.schema.size()),
-            static_cast<int>(column_names.size()), column_names[i].c_str());
-      }
-      if (base::ToLower(create_table.schema[i].name().ToStdString()) !=
-          base::ToLower(column_names[i])) {
-        return base::ErrStatus(
-            "CREATE PERFETTO TABLE: unexpected name for column %d (differs "
-            "from "
-            "schema): expected %s, got %s",
-            i, create_table.schema[i].name().c_str(), column_names[i].c_str());
-      }
-    }
-  }
+  RETURN_IF_ERROR(ValidateColumnNames(column_names, create_table.schema,
+                                      "CREATE PERFETTO TABLE"));
 
   size_t column_count = column_names.size();
   auto table = std::make_unique<RuntimeTable>(pool_, std::move(column_names));
@@ -494,7 +450,22 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
 
 base::Status PerfettoSqlEngine::ExecuteCreateView(
     const PerfettoSqlParser::CreateView& create_view) {
-  RETURN_IF_ERROR(Execute(create_view.sql).status());
+  // Verify that the underlying SQL statement is valid.
+  auto stmt = sqlite_engine()->PrepareStatement(create_view.select_sql);
+  RETURN_IF_ERROR(stmt.status());
+
+  // If the schema is specified, verify that the column names match it.
+  if (!create_view.schema.empty()) {
+    base::StatusOr<std::vector<std::string>> maybe_column_names =
+        GetColumnNamesFromSelectStatement(stmt, "CREATE PERFETTO VIEW");
+    RETURN_IF_ERROR(maybe_column_names.status());
+    std::vector<std::string> column_names = *maybe_column_names;
+
+    RETURN_IF_ERROR(ValidateColumnNames(column_names, create_view.schema,
+                                        "CREATE PERFETTO VIEW"));
+  }
+
+  RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
   runtime_views_count_++;
   return base::OkStatus();
 }
@@ -716,6 +687,92 @@ RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
 void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
     const std::string& name) {
   PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
+}
+
+base::StatusOr<std::vector<std::string>>
+PerfettoSqlEngine::GetColumnNamesFromSelectStatement(
+    const SqliteEngine::PreparedStatement& stmt,
+    const char* tag) const {
+  uint32_t columns =
+      static_cast<uint32_t>(sqlite3_column_count(stmt.sqlite_stmt()));
+  std::vector<std::string> column_names;
+  for (uint32_t i = 0; i < columns; ++i) {
+    std::string col_name =
+        sqlite3_column_name(stmt.sqlite_stmt(), static_cast<int>(i));
+    if (col_name.empty()) {
+      return base::ErrStatus("%s: column %d: name must not be empty", tag, i);
+    }
+    if (!std::isalpha(col_name.front())) {
+      return base::ErrStatus(
+          "%s: Column %i: name '%s' has to start with a letter.", tag, i,
+          col_name.c_str());
+    }
+    if (!sql_argument::IsValidName(base::StringView(col_name))) {
+      return base::ErrStatus(
+          "%s: Column %i: name '%s' has to contain only alphanumeric "
+          "characters and underscores.",
+          tag, i, col_name.c_str());
+    }
+    column_names.push_back(col_name);
+  }
+  return column_names;
+}
+
+base::Status PerfettoSqlEngine::ValidateColumnNames(
+    const std::vector<std::string>& column_names,
+    const std::vector<sql_argument::ArgumentDefinition>& schema,
+    const char* tag) const {
+  // If the user has not provided a schema, we have nothing to validate.
+  if (schema.empty()) {
+    return base::OkStatus();
+  }
+
+  std::vector<std::string> columns_missing_from_query;
+  std::vector<std::string> columns_missing_from_schema;
+
+  for (const std::string& name : column_names) {
+    bool present =
+        std::find_if(schema.begin(), schema.end(), [&name](const auto& arg) {
+          return arg.name() == base::StringView(name);
+        }) != schema.end();
+    if (!present) {
+      columns_missing_from_schema.push_back(name);
+    }
+  }
+
+  for (const auto& arg : schema) {
+    bool present = std::find_if(column_names.begin(), column_names.end(),
+                                [&arg](const std::string& name) {
+                                  return arg.name() == base::StringView(name);
+                                }) != column_names.end();
+    if (!present) {
+      columns_missing_from_query.push_back(arg.name().ToStdString());
+    }
+  }
+
+  if (columns_missing_from_query.empty() &&
+      columns_missing_from_schema.empty()) {
+    return base::OkStatus();
+  }
+
+  if (columns_missing_from_query.empty()) {
+    return base::ErrStatus(
+        "%s: the following columns are missing from the schema: %s", tag,
+        base::Join(columns_missing_from_schema, ", ").c_str());
+  }
+
+  if (columns_missing_from_schema.empty()) {
+    return base::ErrStatus(
+        "%s: the following columns are declared in the schema, but do not "
+        "exist: %s",
+        tag, base::Join(columns_missing_from_query, ", ").c_str());
+  }
+
+  return base::ErrStatus(
+      "%s: the following columns are declared in the schema, but do not exist: "
+      "%s; and the folowing columns exist, but are not declared: %s",
+      tag, base::Join(columns_missing_from_query, ", ").c_str(),
+      base::Join(columns_missing_from_schema, ", ").c_str());
 }
 
 }  // namespace trace_processor

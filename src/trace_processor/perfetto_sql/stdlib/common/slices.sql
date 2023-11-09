@@ -57,6 +57,7 @@ CREATE PERFETTO VIEW thread_slice(
 ) AS
 SELECT
   slice.id,
+  slice.type,
   slice.ts,
   slice.dur,
   slice.category,

@@ -16,19 +16,19 @@
 -- Aggregates f2fs IO and latency stats by counter name.
 CREATE PERFETTO VIEW android_io_f2fs_counter_stats(
   -- Counter name on which all the other values are aggregated on.
-  counter_name STRING,
+  name STRING,
   -- Sum of all counter values for the counter name.
-  counter_sum INT,
+  sum INT,
   -- Max of all counter values for the counter name.
-  counter_max INT,
+  max INT,
   -- Min of all counter values for the counter name.
-  counter_min INT,
+  min INT,
   -- Duration between the first and last counter value for the counter name.
-  counter_dur INT,
+  dur INT,
   -- Count of all the counter values for the counter name.
-  counter_count INT,
+  count INT,
   -- Avergate of all the counter values for the counter name.
-  counter_avg DOUBLE
+  avg DOUBLE
 ) AS
 SELECT
   STR_SPLIT(counter_track.name, '].', 1) AS name,

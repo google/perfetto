@@ -90,16 +90,14 @@ GROUP BY name;
 
 -- Aggregates dvfs counter slice for residency
 CREATE PERFETTO VIEW android_dvfs_counter_residency(
-  -- Id of the corresponding slice in slices table.
-  slice_id INT,
-  -- CPU that entered hypervisor.
-  cpu INT,
-  -- Timestamp when CPU entered hypervisor (in nanoseconds).
-  ts INT,
-  -- How much time CPU spent in hypervisor (in nanoseconds).
+  -- Counter name.
+  name STRING,
+  -- Counter value.
+  value INT,
+  -- Counter duration.
   dur INT,
-  -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
-  reason STRING
+  -- Counter duration as a percentage of total duration.
+  pct FLOAT
 ) AS
 WITH
 total AS (

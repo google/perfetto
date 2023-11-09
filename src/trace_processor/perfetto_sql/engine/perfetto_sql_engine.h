@@ -178,6 +178,19 @@ class PerfettoSqlEngine {
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
 
+  // Get the column names from a statement.
+  // |operator_name| is used in the error message if the statement is invalid.
+  base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
+      const SqliteEngine::PreparedStatement& stmt,
+      const char* tag) const;
+
+  // Validates that the column names in |column_names| match the |schema|.
+  // |operator_name| is used in the error message if the statement is invalid.
+  base::Status ValidateColumnNames(
+      const std::vector<std::string>& column_names,
+      const std::vector<sql_argument::ArgumentDefinition>& schema,
+      const char* operator_name) const;
+
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
 

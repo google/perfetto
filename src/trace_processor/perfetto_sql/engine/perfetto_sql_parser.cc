@@ -282,7 +282,8 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
       tokenizer_.Rewrite(rewriter, first_non_space_token, first, header,
                          SqliteTokenizer::EndToken::kExclusive);
       statement_ =
-          CreateView{std::move(name), std::move(rewriter).Build(), schema};
+          CreateView{std::move(name), tokenizer_.Substr(first, terminal),
+                     std::move(rewriter).Build(), schema};
       break;
   }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);

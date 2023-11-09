@@ -32,12 +32,12 @@ class PerfettoSqlEngineTest : public ::testing::Test {
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS INT AS select 1"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 
   res = engine_.Execute(
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
                                   "RETURNS INT AS select :x + :y"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionArgs) {
@@ -45,7 +45,7 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionArgs) {
       SqlSource::FromExecuteQuery("creatE PeRfEttO FUNCTION foo(x INT, y LONG) "
                                   "RETURNS INT AS select $x + $y;"
                                   "SELECT foo(1, 2)"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_FALSE(res->stmt.IsDone());
   ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 3);
   ASSERT_FALSE(res->stmt.Step());
@@ -62,23 +62,34 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoFunctionError) {
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableStringSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo AS SELECT 'foo' AS bar"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableWithSchemaSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 
   res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO TABLE foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableWithIncorrectColumns) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(x INT) AS SELECT 1 as y"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().c_message(),
+      testing::EndsWith("CREATE PERFETTO TABLE: the following columns are "
+                        "declared in the schema, but do not exist: x; and the "
+                        "folowing columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableDrop) {
@@ -96,7 +107,7 @@ TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableValues) {
       SqlSource::FromExecuteQuery("creatE PeRfEttO TABLE foo AS "
                                   "SELECT 42 as bar;"
                                   "SELECT * from foo"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
   ASSERT_FALSE(res->stmt.IsDone());
   ASSERT_EQ(sqlite3_column_int64(res->stmt.sqlite_stmt(), 0), 42);
   ASSERT_FALSE(res->stmt.Step());
@@ -106,7 +117,7 @@ TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 1 AS x"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 
   res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
@@ -116,33 +127,34 @@ TEST_F(PerfettoSqlEngineTest, CreateTableFunctionDupe) {
   res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE OR REPLACE PERFETTO FUNCTION foo() RETURNS TABLE(x INT) AS "
       "select 2 AS x"));
-  ASSERT_TRUE(res.ok());
-}
-
-TEST_F(PerfettoSqlEngineTest, CreatePerfettoTableWithIncorrectColumns) {
-  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
-      "CREATE PERFETTO TABLE foo(x INT) AS SELECT 1 as y"));
-  ASSERT_FALSE(res.ok());
-  EXPECT_THAT(
-      res.status().c_message(),
-      testing::EndsWith("CREATE PERFETTO TABLE: unexpected name for column 0 "
-                        "(differs from schema): expected x, got y"));
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoViewSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 }
 
 TEST_F(PerfettoSqlEngineTest, CreatePerfettoViewWithSchemaSmoke) {
   auto res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo(bar INT) AS SELECT 42 AS bar"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
 
   res = engine_.Execute(SqlSource::FromExecuteQuery(
       "CREATE PERFETTO VIEW foo2(bar INT) AS SELECT 42 AS bar; SELECT 1"));
-  ASSERT_TRUE(res.ok());
+  ASSERT_TRUE(res.ok()) << res.status().c_message();
+}
+
+TEST_F(PerfettoSqlEngineTest, CreatePerfettoViewWithIncorrectColumns) {
+  auto res = engine_.Execute(SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO VIEW foo(x INT) AS SELECT 1 as y"));
+  ASSERT_FALSE(res.ok());
+  EXPECT_THAT(
+      res.status().c_message(),
+      testing::EndsWith("CREATE PERFETTO VIEW: the following columns are "
+                        "declared in the schema, but do not exist: x; and the "
+                        "folowing columns exist, but are not declared: y"));
 }
 
 TEST_F(PerfettoSqlEngineTest, CreateMacro) {

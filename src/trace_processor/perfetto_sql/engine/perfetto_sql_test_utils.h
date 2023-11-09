@@ -46,7 +46,8 @@ inline bool operator==(const PerfettoSqlParser::CreateTable& a,
 
 inline bool operator==(const PerfettoSqlParser::CreateView& a,
                        const PerfettoSqlParser::CreateView& b) {
-  return std::tie(a.name, a.sql) == std::tie(b.name, b.sql);
+  return std::tie(a.name, a.create_view_sql) ==
+         std::tie(b.name, b.create_view_sql);
 }
 
 inline bool operator==(const PerfettoSqlParser::Include& a,
@@ -82,7 +83,8 @@ inline std::ostream& operator<<(std::ostream& stream,
   }
   if (auto* tab = std::get_if<PerfettoSqlParser::CreateView>(&line)) {
     return stream << "CreateView(name=" << testing::PrintToString(tab->name)
-                  << ", sql=" << testing::PrintToString(tab->sql) << ")";
+                  << ", sql=" << testing::PrintToString(tab->create_view_sql)
+                  << ")";
   }
   if (auto* macro = std::get_if<PerfettoSqlParser::CreateMacro>(&line)) {
     return stream << "CreateTable(name=" << testing::PrintToString(macro->name)
