@@ -14,6 +14,13 @@
 
 @import "theme";
 
+// If we're in a popup menu, remove the padding
+.pf-popup-menu.pf-popup {
+  .pf-popup-content {
+    padding: 0;
+  }
+}
+
 .pf-menu {
   display: flex;
   flex-direction: column;
