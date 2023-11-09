@@ -63,7 +63,6 @@ declare_args() {
       target_cpu != host_cpu || target_os != host_os || target_triplet != ""
 }
 default_configs = [
-  "//gn/standalone:debug_symbols",
   "//gn/standalone:default",
   "//gn/standalone:extra_warnings",
   "//gn/standalone:no_exceptions",
@@ -74,13 +73,14 @@ default_configs = [
   "//gn/standalone:c++17",
 ]
 
-if (is_win) {
-  default_configs += [ "//gn/standalone:win32_lean_and_mean" ]
+if (is_debug) {
+  default_configs += [ "//gn/standalone:debug_noopt" ]
+} else {
+  default_configs += [ "//gn/standalone:release" ]
 }
 
-if (!is_debug) {
-  default_configs -= [ "//gn/standalone:debug_symbols" ]
-  default_configs += [ "//gn/standalone:release" ]
+if (is_win) {
+  default_configs += [ "//gn/standalone:win32_lean_and_mean" ]
 }
 
 set_defaults("source_set") {
