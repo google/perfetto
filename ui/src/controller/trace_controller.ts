@@ -676,7 +676,11 @@ export class TraceController extends Controller<States> {
     if (profile.numRows() !== 1) return;
     const row = profile.firstRow({ts: LONG, type: STR, upid: NUM});
     const ts = Time.fromRaw(row.ts);
-    const type = profileType(row.type);
+    let profType = row.type;
+    if (profType == 'heap_profile:libc.malloc,com.android.art') {
+      profType = 'heap_profile:com.android.art,libc.malloc';
+    }
+    const type = profileType(profType);
     const upid = row.upid;
     globals.dispatch(Actions.selectHeapProfile({id: 0, upid, ts, type}));
   }
