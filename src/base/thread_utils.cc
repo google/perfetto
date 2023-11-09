@@ -56,8 +56,9 @@ typedef HRESULT(WINAPI* GetThreadDescription)(HANDLE hThread,
 bool MaybeSetThreadName(const std::string& name) {
   // The SetThreadDescription API works even if no debugger is attached.
   static auto set_thread_description_func =
-      reinterpret_cast<SetThreadDescription>(::GetProcAddress(
-          ::GetModuleHandleA("Kernel32.dll"), "SetThreadDescription"));
+      reinterpret_cast<SetThreadDescription>(
+          reinterpret_cast<void*>(::GetProcAddress(
+              ::GetModuleHandleA("Kernel32.dll"), "SetThreadDescription")));
   if (!set_thread_description_func) {
     return false;
   }
@@ -72,8 +73,9 @@ bool MaybeSetThreadName(const std::string& name) {
 
 bool GetThreadName(std::string& out_result) {
   static auto get_thread_description_func =
-      reinterpret_cast<GetThreadDescription>(::GetProcAddress(
-          ::GetModuleHandleA("Kernel32.dll"), "GetThreadDescription"));
+      reinterpret_cast<GetThreadDescription>(
+          reinterpret_cast<void*>(::GetProcAddress(
+              ::GetModuleHandleA("Kernel32.dll"), "GetThreadDescription")));
   if (!get_thread_description_func) {
     return false;
   }
