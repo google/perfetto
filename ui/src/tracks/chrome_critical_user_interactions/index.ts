@@ -16,8 +16,14 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Actions} from '../../common/actions';
 import {SCROLLING_TRACK_GROUP} from '../../common/state';
+import {OnSliceClickArgs} from '../../frontend/base_slice_track';
+import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
-import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {
+  NAMED_SLICE_ROW,
+  NamedSliceTrackTypes,
+} from '../../frontend/named_slice_track';
+import {Slice} from '../../frontend/slice';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
@@ -25,6 +31,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
+  STR,
 } from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -33,13 +40,45 @@ import {
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
-import {CriticalUserInteractionDetailsPanel} from './details_panel';
+import {PageLoadDetailsPanel} from './page_load_details_panel';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
-    'org.chromium.TopLevelScrolls.scrolls';
+    'org.chromium.CriticalUserInteraction.track';
+
+export const CRITICAL_USER_INTERACTIONS_SLICE_ROW = {
+  ...NAMED_SLICE_ROW,
+  type: STR,
+};
+export type CriticalUserInteractionSliceRow =
+    typeof CRITICAL_USER_INTERACTIONS_SLICE_ROW;
+
+export interface CriticalUserInteractionSlice extends Slice {
+  type: string;
+}
+
+export interface CriticalUserInteractionSliceTrackTypes extends
+    NamedSliceTrackTypes {
+  slice: CriticalUserInteractionSlice;
+  row: CriticalUserInteractionSliceRow;
+}
+
+enum CriticalUserInteractionType {
+  UNKNOWN = 'Unknown',
+  PAGE_LOAD = 'chrome_page_loads',
+}
+
+function convertToCriticalUserInteractionType(cujType: string):
+    CriticalUserInteractionType {
+  switch (cujType) {
+    case CriticalUserInteractionType.PAGE_LOAD:
+      return CriticalUserInteractionType.PAGE_LOAD;
+    default:
+      return CriticalUserInteractionType.UNKNOWN;
+  }
+}
 
 export class CriticalUserInteractionTrack extends
-    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+    CustomSqlTableSliceTrack<CriticalUserInteractionSliceTrackTypes> {
   static readonly kind = CRITICAL_USER_INTERACTIONS_KIND;
 
   static create(args: NewTrackArgs): TrackBase {
@@ -53,20 +92,48 @@ export class CriticalUserInteractionTrack extends
     };
   }
 
-  getDetailsPanel(): CustomSqlDetailsPanelConfig {
-    return {
-      kind: CriticalUserInteractionDetailsPanel.kind,
+  getDetailsPanel(
+      args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>):
+      CustomSqlDetailsPanelConfig {
+    let detailsPanel = {
+      kind: GenericSliceDetailsTab.kind,
       config: {
         sqlTableName: this.tableName,
-        title: 'Chrome Critical User Interaction',
+        title: 'Chrome Interaction',
       },
     };
+
+    switch (convertToCriticalUserInteractionType(args.slice.type)) {
+      case CriticalUserInteractionType.PAGE_LOAD:
+        detailsPanel = {
+          kind: PageLoadDetailsPanel.kind,
+          config: {
+            sqlTableName: this.tableName,
+            title: 'Chrome Page Load',
+          },
+        };
+        break;
+      default:
+        break;
+    }
+    return detailsPanel;
   }
 
   getSqlImports(): CustomSqlImportConfig {
     return {
       modules: ['chrome.interactions'],
     };
+  }
+
+  getRowSpec(): CriticalUserInteractionSliceTrackTypes['row'] {
+    return CRITICAL_USER_INTERACTIONS_SLICE_ROW;
+  }
+
+  rowToSlice(row: CriticalUserInteractionSliceTrackTypes['row']):
+      CriticalUserInteractionSliceTrackTypes['slice'] {
+    const baseSlice = super.rowToSlice(row);
+    const type = row.type;
+    return {...baseSlice, type};
   }
 }
 
