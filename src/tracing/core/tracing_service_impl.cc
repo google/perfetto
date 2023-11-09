@@ -2013,6 +2013,9 @@ void TracingServiceImpl::FlushAndDisableTracing(TracingSessionID tsid) {
         if (!weak_this)
           return;
         TracingSession* session = weak_this->GetTracingSession(tsid);
+        if (!session) {
+          return;
+        }
         session->final_flush_outcome = success
                                            ? TraceStats::FINAL_FLUSH_SUCCEEDED
                                            : TraceStats::FINAL_FLUSH_FAILED;
