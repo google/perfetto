@@ -22,7 +22,6 @@ import {
   GenericSliceDetailsTabConfig,
   GenericSliceDetailsTabConfigBase,
 } from '../frontend/generic_slice_details_tab';
-import {globals} from '../frontend/globals';
 import {
   Aggregation,
   AggregationFunction,
@@ -1027,7 +1026,7 @@ export const StateActions = {
   togglePivotTable(state: StateDraft, args: {areaId: string|null}) {
     state.nonSerializableState.pivotTable.selectionArea = args.areaId === null ?
         undefined :
-        {areaId: args.areaId, tracks: globals.state.areas[args.areaId].tracks};
+        {areaId: args.areaId, tracks: state.areas[args.areaId].tracks};
     if (args.areaId !==
         state.nonSerializableState.pivotTable.selectionArea?.areaId) {
       state.nonSerializableState.pivotTable.queryResult = null;
