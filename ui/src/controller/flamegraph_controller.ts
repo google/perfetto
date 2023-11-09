@@ -53,6 +53,7 @@ function isProfileType(s: string): s is ProfileType {
 function getFlamegraphType(type: ProfileType) {
   switch (type) {
     case ProfileType.HEAP_PROFILE:
+    case ProfileType.MIXED_HEAP_PROFILE:
     case ProfileType.NATIVE_HEAP_PROFILE:
     case ProfileType.JAVA_HEAP_SAMPLES:
       return 'native';
@@ -61,7 +62,8 @@ function getFlamegraphType(type: ProfileType) {
     case ProfileType.PERF_SAMPLE:
       return 'perf';
     default:
-      throw new Error(`Unexpected profile type ${profileType}`);
+      const exhaustiveCheck: never = type;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
   }
 }
 
