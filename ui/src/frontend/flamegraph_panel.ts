@@ -28,6 +28,8 @@ import {profileType} from '../controller/flamegraph_controller';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {DurationWidget} from '../widgets/duration';
+import {Icon} from '../widgets/icon';
+import {Popup} from '../widgets/popup';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
@@ -91,7 +93,17 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
             [
               m('div.options',
                 [
-                  m('div.title', this.getTitle()),
+                  m('div.title',
+                    this.getTitle(),
+                    (this.profileType === ProfileType.MIXED_HEAP_PROFILE) &&
+                        m(Popup,
+                          {
+                            trigger: m(Icon, {icon: 'warning'}),
+                          },
+                          m('',
+                            {style: {width: '300px'}},
+                            'This is a mixed java/native heap profile, free()s are not visualized. To visualize free()s, remove "all_heaps: true" from the config.')),
+                    ':'),
                   this.getViewingOptionButtons(),
                 ]),
               m('div.details',
@@ -172,17 +184,20 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
   }
 
   private getTitle(): string {
-    switch (this.profileType!) {
+    const profileType = this.profileType!;
+    switch (profileType) {
+      case ProfileType.MIXED_HEAP_PROFILE:
+        return 'Mixed heap profile';
       case ProfileType.HEAP_PROFILE:
-        return 'Heap profile:';
+        return 'Heap profile';
       case ProfileType.NATIVE_HEAP_PROFILE:
-        return 'Native heap profile:';
+        return 'Native heap profile';
       case ProfileType.JAVA_HEAP_SAMPLES:
-        return 'Java heap samples:';
+        return 'Java heap samples';
       case ProfileType.JAVA_HEAP_GRAPH:
-        return 'Java heap graph:';
+        return 'Java heap graph';
       case ProfileType.PERF_SAMPLE:
-        return 'Profile:';
+        return 'Profile';
       default:
         throw new Error('unknown type');
     }
@@ -192,9 +207,10 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
     if (this.profileType === undefined) {
       return {};
     }
+    const profileType = this.profileType;
     const viewingOption: FlamegraphStateViewingOption =
         globals.state.currentFlamegraphState!.viewingOption;
-    switch (this.profileType) {
+    switch (profileType) {
       case ProfileType.JAVA_HEAP_GRAPH:
         if (viewingOption ===
             FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY) {
@@ -202,13 +218,15 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
         } else {
           return RENDER_SELF_AND_TOTAL;
         }
+      case ProfileType.MIXED_HEAP_PROFILE:
       case ProfileType.HEAP_PROFILE:
       case ProfileType.NATIVE_HEAP_PROFILE:
       case ProfileType.JAVA_HEAP_SAMPLES:
       case ProfileType.PERF_SAMPLE:
         return RENDER_SELF_AND_TOTAL;
       default:
-        throw new Error('unknown type');
+        const exhaustiveCheck: never = profileType;
+        throw new Error(`Unhandled case: ${exhaustiveCheck}`);
     }
   }
 
@@ -323,7 +341,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
 
   private static selectViewingOptions(profileType: ProfileType) {
     const ret = [];
-    for (let {option, name} of viewingOptions(profileType)) {
+    for (const {option, name} of viewingOptions(profileType)) {
       ret.push(this.buildButtonComponent(option, name));
     }
     return ret;
