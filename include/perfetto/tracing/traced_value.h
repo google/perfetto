@@ -157,7 +157,7 @@ class PERFETTO_EXPORT_COMPONENT TracedValue {
   // active at the same time. It's only allowed to call methods on the active
   // scope.
   // - When a scope creates a nested scope, the new scope becomes active.
-  // - When a scope is destroyed, it's parent scope becomes active again.
+  // - When a scope is destroyed, its parent scope becomes active again.
   //
   // Typically users will have to create a scope only at the beginning of a
   // conversion function and this scope should be destroyed at the end of it.
