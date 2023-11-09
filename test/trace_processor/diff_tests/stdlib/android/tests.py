@@ -105,7 +105,12 @@ class AndroidStdlib(TestSuite):
         SELECT * FROM android_battery_stats_state
         ORDER BY ts, track_name;
         """,
-        out=Path('android_battery_stats_state.out'))
+        out=Csv("""
+        "ts","dur","track_name","value","value_name"
+        1000,-1,"battery_stats.audio",1,"active"
+        1000,3000,"battery_stats.data_conn",13,"4G (LTE)"
+        4000,-1,"battery_stats.data_conn",20,"5G (NR)"
+        """))
 
   def test_anrs(self):
     return DiffTestBlueprint(
@@ -842,8 +847,8 @@ class AndroidStdlib(TestSuite):
         """))
 
   def test_android_dvfs_counters(self):
-      return DiffTestBlueprint(
-          trace=TextProto(r"""
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
           packet {
             ftrace_events {
               cpu: 0
@@ -876,11 +881,11 @@ class AndroidStdlib(TestSuite):
             trusted_packet_sequence_id: 2
           }
          """),
-         query="""
+        query="""
          INCLUDE PERFETTO MODULE android.dvfs;
          SELECT * FROM android_dvfs_counters;
          """,
-         out=Csv("""
+        out=Csv("""
          "name","ts","value","dur"
          "domain@1 Frequency",200001000000,400000.000000,2000000
          "domain@1 Frequency",200003000000,1024000.000000,2000000
@@ -888,8 +893,8 @@ class AndroidStdlib(TestSuite):
          """))
 
   def test_android_dvfs_counter_stats(self):
-      return DiffTestBlueprint(
-          trace=TextProto(r"""
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
           packet {
             ftrace_events {
               cpu: 0
@@ -946,19 +951,19 @@ class AndroidStdlib(TestSuite):
             trusted_packet_sequence_id: 2
           }
          """),
-         query="""
+        query="""
          INCLUDE PERFETTO MODULE android.dvfs;
          SELECT * FROM android_dvfs_counter_stats;
          """,
-         out=Csv("""
+        out=Csv("""
          "name","max","min","dur","wgt_avg"
          "bus_throughput Frequency",1014000.000000,553000.000000,4000000,783499.942375
          "domain@1 Frequency",1024000.000000,400000.000000,4000000,712000.078000
          """))
 
   def test_android_dvfs_counter_residency(self):
-      return DiffTestBlueprint(
-          trace=TextProto(r"""
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
           packet {
             ftrace_events {
               cpu: 0
@@ -991,11 +996,11 @@ class AndroidStdlib(TestSuite):
             trusted_packet_sequence_id: 2
           }
          """),
-         query="""
+        query="""
          INCLUDE PERFETTO MODULE android.dvfs;
          SELECT * FROM android_dvfs_counter_residency;
          """,
-         out=Csv("""
+        out=Csv("""
          "name","value","dur","pct"
          "bus_throughput Frequency",553000.000000,2000000,50.000000
          "bus_throughput Frequency",1014000.000000,2000000,50.000000

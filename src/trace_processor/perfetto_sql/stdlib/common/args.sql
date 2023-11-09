@@ -22,10 +22,10 @@ CREATE PERFETTO FUNCTION formatted_arg(
   -- Id of the arg set.
   arg_set_id INT,
   -- Key of the argument.
-  key STRING
+  arg_key STRING
 )
 -- Formatted value of the argument.
 RETURNS STRING AS
 SELECT display_value
 FROM args
-WHERE arg_set_id = $arg_set_id AND key = $key;
+WHERE arg_set_id = $arg_set_id AND key = $arg_key;
