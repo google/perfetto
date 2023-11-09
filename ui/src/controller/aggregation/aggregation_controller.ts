@@ -154,7 +154,7 @@ export abstract class AggregationController extends Controller<'main'> {
           // the purposes of aggregation, however the aggregation infrastructure
           // is likely to be significantly reworked when we introduce EventSet,
           // and the complexity of supporting bigints throughout the aggregation
-          // panels in it's current form is not worth it. Thus, we simply
+          // panels in its current form is not worth it. Thus, we simply
           // convert bigints to numbers.
           column.data[i] = Number(item);
         } else {
