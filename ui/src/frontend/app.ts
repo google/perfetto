@@ -554,7 +554,7 @@ export class App implements m.ClassComponent {
 
     return m(Omnibox, {
       value: globals.state.omniboxState.omnibox,
-      placeholder: 'Search...',
+      placeholder: 'Search or type \'>\' for commands or \':\' for SQL mode',
       inputRef: App.OMNIBOX_INPUT_REF,
       onInput: (value, prev) => {
         if (prev === '') {
