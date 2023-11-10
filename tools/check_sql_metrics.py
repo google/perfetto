@@ -34,24 +34,21 @@ from python.generators.sql_processing.utils import match_pattern
 from python.generators.sql_processing.utils import DROP_TABLE_VIEW_PATTERN
 from python.generators.sql_processing.utils import CREATE_TABLE_VIEW_PATTERN
 
+# Allowlist path are relative to the metrics root.
 CREATE_TABLE_ALLOWLIST = {
-    ('/src/trace_processor/metrics/sql/android'
+    ('/android'
      '/android_blocking_calls_cuj_metric.sql'): [
         'android_cujs', 'relevant_binder_calls_with_names',
         'android_blocking_calls_cuj_calls'
     ],
-    '/src/trace_processor/metrics/sql/android/jank/cujs.sql': [
-        'android_jank_cuj'
-    ],
-    '/src/trace_processor/metrics/sql/chrome/gesture_flow_event.sql': [
+    '/android/jank/cujs.sql': ['android_jank_cuj'],
+    '/chrome/gesture_flow_event.sql': [
         '{{prefix}}_latency_info_flow_step_filtered'
     ],
-    '/src/trace_processor/metrics/sql/chrome/gesture_jank.sql': [
+    '/chrome/gesture_jank.sql': [
         '{{prefix}}_jank_maybe_null_prev_and_next_without_precompute'
     ],
-    '/src/trace_processor/metrics/sql/experimental/frame_times.sql': [
-        'DisplayCompositorPresentationEvents'
-    ]
+    '/experimental/frame_times.sql': ['DisplayCompositorPresentationEvents']
 }
 
 
@@ -71,7 +68,7 @@ def match_drop_view_pattern_to_dict(sql: str,
   return res
 
 
-def check(path: str) -> List[str]:
+def check(path: str, metrics_sources: str) -> List[str]:
   with open(path) as f:
     sql = f.read()
 
@@ -82,6 +79,7 @@ def check(path: str) -> List[str]:
       sql, DROP_TABLE_VIEW_PATTERN)
   errors = check_banned_create_table_as(sql,
                                         path.split(ROOT_DIR)[1],
+                                        metrics_sources.split(ROOT_DIR)[1],
                                         CREATE_TABLE_ALLOWLIST)
   errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
   for name, [line, type] in create_table_view_dir.items():
@@ -110,7 +108,7 @@ def main():
     for f in files:
       path = os.path.join(root, f)
       if path.endswith('.sql'):
-        errors += check(path)
+        errors += check(path, metrics_sources)
 
   if errors:
     sys.stderr.write("\n".join(errors))

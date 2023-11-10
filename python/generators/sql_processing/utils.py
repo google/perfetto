@@ -192,17 +192,18 @@ def check_banned_create_table_as(sql: str, filename: str,
 
 # Given SQL string check whether there is (not allowlisted) usage of
 # CREATE TABLE {name} AS.
-def check_banned_create_table_as(sql: str, filename: str,
+def check_banned_create_table_as(sql: str, filename: str, stdlib_path: str,
                                  allowlist: Dict[str, List[str]]) -> List[str]:
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
     name = matches[0]
-    if filename not in allowlist:
+    allowlist_key = filename[len(stdlib_path):]
+    if allowlist_key not in allowlist:
       errors.append(f"CREATE TABLE '{name}' is deprecated. "
                     "Use CREATE PERFETTO TABLE instead.\n"
                     f"Offending file: {filename}\n")
       continue
-    if name not in allowlist[filename]:
+    if name not in allowlist[allowlist_key]:
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
