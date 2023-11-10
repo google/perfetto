@@ -934,11 +934,12 @@ void DoProcessPages(const ExamplePage& test_case,
   ProtoTranslationTable* table = GetTable(test_case.name);
 
   auto repeated_pages =
-      std::make_unique<uint8_t[]>(base::kPageSize * page_repetition);
+      std::make_unique<uint8_t[]>(base::GetSysPageSize() * page_repetition);
   {
     auto page = PageFromXxd(test_case.data);
     for (size_t i = 0; i < page_repetition; i++) {
-      memcpy(&repeated_pages[i * base::kPageSize], &page[0], base::kPageSize);
+      memcpy(&repeated_pages[i * base::GetSysPageSize()], &page[0],
+             base::GetSysPageSize());
     }
   }
 

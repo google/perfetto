@@ -220,14 +220,14 @@ size_t CpuReader::ReadAndProcessBatch(
     bool first_batch_in_cycle,
     CompactSchedBuffer* compact_sched_buf,
     const std::set<FtraceDataSource*>& started_data_sources) {
+  const auto sys_page_size = base::GetSysPageSize();
   size_t pages_read = 0;
   {
     metatrace::ScopedEvent evt(metatrace::TAG_FTRACE,
                                metatrace::FTRACE_CPU_READ_BATCH);
     for (; pages_read < max_pages;) {
-      uint8_t* curr_page = parsing_buf + (pages_read * base::kPageSize);
-      ssize_t res =
-          PERFETTO_EINTR(read(*trace_fd_, curr_page, base::kPageSize));
+      uint8_t* curr_page = parsing_buf + (pages_read * sys_page_size);
+      ssize_t res = PERFETTO_EINTR(read(*trace_fd_, curr_page, sys_page_size));
       if (res < 0) {
         // Expected errors:
         // EAGAIN: no data (since we're in non-blocking mode).
@@ -253,7 +253,7 @@ size_t CpuReader::ReadAndProcessBatch(
         PERFETTO_DLOG("[cpu%zu]: 0-sized read from ftrace pipe.", cpu_);
         break;
       }
-      PERFETTO_CHECK(res == static_cast<ssize_t>(base::kPageSize));
+      PERFETTO_CHECK(res == static_cast<ssize_t>(sys_page_size));
 
       pages_read += 1;
 
@@ -267,11 +267,11 @@ size_t CpuReader::ReadAndProcessBatch(
       // fragmentation, i.e. for the fact that the last trace event didn't fit
       // in the current page and hence the current page was terminated
       // prematurely.
-      static constexpr size_t kRoughlyAPage = base::kPageSize - 512;
+      static const size_t kRoughlyAPage = sys_page_size - 512;
       const uint8_t* scratch_ptr = curr_page;
       std::optional<PageHeader> hdr =
           ParsePageHeader(&scratch_ptr, table_->page_header_size_len());
-      PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= base::kPageSize);
+      PERFETTO_DCHECK(hdr && hdr->size > 0 && hdr->size <= sys_page_size);
       if (!hdr.has_value()) {
         PERFETTO_ELOG("[cpu%zu]: can't parse page header", cpu_);
         break;
@@ -305,8 +305,8 @@ size_t CpuReader::ReadAndProcessBatch(
     if (pages_parsed_ok != pages_read) {
       const size_t first_bad_page_idx = pages_parsed_ok;
       const uint8_t* curr_page =
-          parsing_buf + (first_bad_page_idx * base::kPageSize);
-      LogInvalidPage(curr_page, base::kPageSize);
+          parsing_buf + (first_bad_page_idx * sys_page_size);
+      LogInvalidPage(curr_page, sys_page_size);
       PERFETTO_FATAL("Failed to parse ftrace page");
     }
   }
@@ -423,8 +423,9 @@ size_t CpuReader::ProcessPagesForDataSource(
   size_t pages_parsed = 0;
   bool compact_sched_enabled = ds_config->compact_sched.enabled;
   for (; pages_parsed < pages_read; pages_parsed++) {
-    const uint8_t* curr_page = parsing_buf + (pages_parsed * base::kPageSize);
-    const uint8_t* curr_page_end = curr_page + base::kPageSize;
+    const uint8_t* curr_page =
+        parsing_buf + (pages_parsed * base::GetSysPageSize());
+    const uint8_t* curr_page_end = curr_page + base::GetSysPageSize();
     const uint8_t* parse_pos = curr_page;
     std::optional<PageHeader> page_header =
         ParsePageHeader(&parse_pos, table->page_header_size_len());
@@ -489,7 +490,7 @@ std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
   // (clearing the bit internally).
   constexpr static uint64_t kMissedEventsFlag = (1ull << 31);
 
-  const uint8_t* end_of_page = *ptr + base::kPageSize;
+  const uint8_t* end_of_page = *ptr + base::GetSysPageSize();
   PageHeader page_header;
   if (!CpuReader::ReadAndAdvance<uint64_t>(ptr, end_of_page,
                                            &page_header.timestamp))
@@ -505,7 +506,7 @@ std::optional<CpuReader::PageHeader> CpuReader::ParsePageHeader(
 
   page_header.size = size_and_flags & kDataSizeMask;
   page_header.lost_events = bool(size_and_flags & kMissedEventsFlag);
-  PERFETTO_DCHECK(page_header.size <= base::kPageSize);
+  PERFETTO_DCHECK(page_header.size <= base::GetSysPageSize());
 
   // Reject rest of the number, if applicable. On 32-bit, size_bytes - 4 will
   // evaluate to 0 and this will be a no-op. On 64-bit, this will advance by 4

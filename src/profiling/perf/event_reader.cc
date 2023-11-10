@@ -119,8 +119,8 @@ std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
   PerfRingBuffer ret;
 
   // mmap request is one page larger than the buffer size (for the metadata).
-  ret.data_buf_sz_ = data_page_count * base::kPageSize;
-  ret.mmap_sz_ = ret.data_buf_sz_ + base::kPageSize;
+  ret.data_buf_sz_ = data_page_count * base::GetSysPageSize();
+  ret.mmap_sz_ = ret.data_buf_sz_ + base::GetSysPageSize();
 
   // If PROT_WRITE, kernel won't overwrite unread samples.
   void* mmap_addr = mmap(nullptr, ret.mmap_sz_, PROT_READ | PROT_WRITE,
@@ -132,8 +132,8 @@ std::optional<PerfRingBuffer> PerfRingBuffer::Allocate(int perf_fd,
 
   // Expected layout is [ metadata page ] [ data pages ... ]
   ret.metadata_page_ = reinterpret_cast<perf_event_mmap_page*>(mmap_addr);
-  ret.data_buf_ = reinterpret_cast<char*>(mmap_addr) + base::kPageSize;
-  PERFETTO_CHECK(ret.metadata_page_->data_offset == base::kPageSize);
+  ret.data_buf_ = reinterpret_cast<char*>(mmap_addr) + base::GetSysPageSize();
+  PERFETTO_CHECK(ret.metadata_page_->data_offset == base::GetSysPageSize());
   PERFETTO_CHECK(ret.metadata_page_->data_size == ret.data_buf_sz_);
 
   PERFETTO_DCHECK(IsPowerOfTwo(ret.data_buf_sz_));

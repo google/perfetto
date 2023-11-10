@@ -58,6 +58,10 @@ namespace {
 constexpr char kFooEnablePath[] = "/root/events/group/foo/enable";
 constexpr char kBarEnablePath[] = "/root/events/group/bar/enable";
 
+std::string PageSizeKb() {
+  return std::to_string(base::GetSysPageSize() / 1024);
+}
+
 class MockTaskRunner : public base::TaskRunner {
  public:
   MOCK_METHOD(void, PostTask, (std::function<void()>), (override));
@@ -346,7 +350,8 @@ TEST(FtraceControllerTest, OneSink) {
   // State clearing on tracing teardown.
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
+  EXPECT_CALL(*controller->procfs(),
+              WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
@@ -401,7 +406,8 @@ TEST(FtraceControllerTest, MultipleSinks) {
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile(kBarEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
+  EXPECT_CALL(*controller->procfs(),
+              WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
@@ -435,7 +441,8 @@ TEST(FtraceControllerTest, ControllerMayDieFirst) {
   // State clearing on tracing teardown.
   EXPECT_CALL(*controller->procfs(), WriteToFile(kFooEnablePath, "0"));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"));
+  EXPECT_CALL(*controller->procfs(),
+              WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(*controller->procfs(), WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(*controller->procfs(), ClearFile("/root/trace"))
       .WillOnce(Return(true));
@@ -456,7 +463,8 @@ TEST(FtraceControllerTest, BufferSize) {
 
   // Every time a fake data source is destroyed, the controller will reset the
   // buffer size to a single page.
-  EXPECT_CALL(*controller->procfs(), WriteToFile("/root/buffer_size_kb", "4"))
+  EXPECT_CALL(*controller->procfs(),
+              WriteToFile("/root/buffer_size_kb", PageSizeKb()))
       .Times(AnyNumber());
 
   {
@@ -501,9 +509,9 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "40"));
+                WriteToFile("/root/buffer_size_kb", "64"));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
-    config.set_buffer_size_kb(42);
+    config.set_buffer_size_kb(65);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
@@ -511,10 +519,10 @@ TEST(FtraceControllerTest, BufferSize) {
   {
     // You picked a good size -> your size rounded to nearest page.
     EXPECT_CALL(*controller->procfs(),
-                WriteToFile("/root/buffer_size_kb", "40"));
+                WriteToFile("/root/buffer_size_kb", "64"));
     FtraceConfig config = CreateFtraceConfig({"group/foo"});
     ON_CALL(*controller->procfs(), NumberOfCpus()).WillByDefault(Return(2));
-    config.set_buffer_size_kb(42);
+    config.set_buffer_size_kb(65);
     auto data_source = controller->AddFakeDataSource(config);
     ASSERT_TRUE(controller->StartDataSource(data_source.get()));
   }
@@ -681,8 +689,9 @@ TEST(FtraceControllerTest, OnlySecondaryInstance) {
   EXPECT_CALL(
       *controller->GetInstanceMockProcfs("secondary"),
       WriteToFile("/root/instances/secondary/events/group/foo/enable", "0"));
-  EXPECT_CALL(*controller->GetInstanceMockProcfs("secondary"),
-              WriteToFile("/root/instances/secondary/buffer_size_kb", "4"));
+  EXPECT_CALL(
+      *controller->GetInstanceMockProcfs("secondary"),
+      WriteToFile("/root/instances/secondary/buffer_size_kb", PageSizeKb()));
 
   controller->RemoveDataSource(data_source.get());
 
