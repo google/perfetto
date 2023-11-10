@@ -169,6 +169,17 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
   return base::OkStatus();
 }
 
+base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
+  int ret = sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc),
+                                       SQLITE_UTF8, nullptr, nullptr, nullptr,
+                                       nullptr, nullptr);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to unregister function with name %s", name);
+  }
+  fn_ctx_.Erase({name, argc});
+  return base::OkStatus();
+}
+
 base::Status SqliteEngine::DeclareVirtualTable(const std::string& create_stmt) {
   int res = sqlite3_declare_vtab(db_.get(), create_stmt.c_str());
   if (res != SQLITE_OK) {

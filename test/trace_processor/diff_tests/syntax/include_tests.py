@@ -19,23 +19,7 @@ from python.generators.diff_tests.testing import DiffTestBlueprint
 from python.generators.diff_tests.testing import TestSuite
 
 
-class PerfettoSql(TestSuite):
-
-  def test_create_perfetto_table_double_metric_run(self):
-    return DiffTestBlueprint(
-        trace=TextProto(r''),
-        query="""
-        SELECT RUN_METRIC('android/cpu_info.sql');
-        SELECT RUN_METRIC('android/cpu_info.sql');
-
-        SELECT * FROM cluster_core_type;
-        """,
-        out=Csv("""
-        "cluster","core_type"
-        0,"little"
-        1,"big"
-        2,"bigger"
-        """))
+class PerfettoInclude(TestSuite):
 
   def test_import(self):
     return DiffTestBlueprint(
@@ -156,32 +140,4 @@ class PerfettoSql(TestSuite):
         out=Csv("""
         "TRACE_START()"
         1000
-        """))
-
-  def test_macro(self):
-    return DiffTestBlueprint(
-        trace=TextProto(''),
-        query='''
-        CREATE PERFETTO MACRO foo(a Expr,b Expr) RETURNS TableOrSubquery AS
-        SELECT $a - $b;
-        SELECT (foo!(123, 100)) as res;
-        ''',
-        out=Csv("""
-        "res"
-        23
-        """))
-
-  def test_nested_macro(self):
-    return DiffTestBlueprint(
-        trace=TextProto(''),
-        query='''
-        CREATE PERFETTO MACRO foo(a Expr) returns Expr AS $a;
-        CREATE PERFETTO MACRO bar(a Expr) returns Expr AS (SELECT $a);
-        CREATE PERFETTO MACRO baz(a Expr,b Expr) returns TableOrSubquery AS
-        SELECT bar!(foo!(123)) - $b as res;
-        baz!(123, 100);
-        ''',
-        out=Csv("""
-        "res"
-        23
         """))

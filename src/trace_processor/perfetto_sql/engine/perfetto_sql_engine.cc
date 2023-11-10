@@ -367,6 +367,12 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
   auto* ctx = static_cast<CreatedFunction::Context*>(
       sqlite_engine()->GetFunctionContext(prototype.function_name,
                                           created_argc));
+  if (ctx && replace) {
+    // If the function already exists and we are replacing it, unregister it.
+    RETURN_IF_ERROR(UnregisterFunctionWithSqlite(
+        prototype.function_name.c_str(), created_argc));
+    ctx = nullptr;
+  }
   if (!ctx) {
     // We register the function with SQLite before we prepare the statement so
     // the statement can reference the function itself, enabling recursive
@@ -440,6 +446,18 @@ base::Status PerfettoSqlEngine::ExecuteCreateTable(
   }
   RETURN_IF_ERROR(table->AddColumnsAndOverlays(rows));
 
+  if (runtime_tables_.Find(create_table.name)) {
+    if (!create_table.replace) {
+      return base::ErrStatus("CREATE PERFETTO TABLE: table '%s' already exists",
+                             create_table.name.c_str());
+    }
+
+    base::StackString<1024> drop("DROP TABLE %s", create_table.name.c_str());
+    RETURN_IF_ERROR(
+        Execute(SqlSource::FromTraceProcessorImplementation(drop.ToStdString()))
+            .status());
+  }
+
   runtime_tables_.Insert(create_table.name, std::move(table));
   base::StackString<1024> create("CREATE VIRTUAL TABLE %s USING runtime_table",
                                  create_table.name.c_str());
@@ -453,6 +471,14 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
   // Verify that the underlying SQL statement is valid.
   auto stmt = sqlite_engine()->PrepareStatement(create_view.select_sql);
   RETURN_IF_ERROR(stmt.status());
+
+  if (create_view.replace) {
+    base::StackString<1024> drop_if_exists("DROP VIEW IF EXISTS %s",
+                                           create_view.name.c_str());
+    RETURN_IF_ERROR(Execute(SqlSource::FromTraceProcessorImplementation(
+                                drop_if_exists.ToStdString()))
+                        .status());
+  }
 
   // If the schema is specified, verify that the column names match it.
   if (!create_view.schema.empty()) {
@@ -723,6 +749,11 @@ RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
 void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
     const std::string& name) {
   PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
+}
+
+base::Status PerfettoSqlEngine::UnregisterFunctionWithSqlite(const char* name,
+                                                             int argc) {
+  return engine_->UnregisterFunction(name, argc);
 }
 
 base::StatusOr<std::vector<std::string>>

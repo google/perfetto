@@ -178,6 +178,8 @@ class PerfettoSqlEngine {
       std::unique_ptr<typename Function::Context> ctx,
       bool deterministic = true);
 
+  base::Status UnregisterFunctionWithSqlite(const char* name, int argc);
+
   // Get the column names from a statement.
   // |operator_name| is used in the error message if the statement is invalid.
   base::StatusOr<std::vector<std::string>> GetColumnNamesFromSelectStatement(
