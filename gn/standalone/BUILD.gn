@@ -172,7 +172,10 @@ config("default") {
   libs = []
 
   if ((is_android || is_linux) && !is_wasm) {
-    ldflags += [ "-Wl,--build-id" ]
+    ldflags += [
+      "-Wl,--build-id",
+      "-Wl,-z,max-page-size=16384",
+    ]
   }
 
   if (is_clang || !is_win) {  # Clang or GCC, but not MSVC.

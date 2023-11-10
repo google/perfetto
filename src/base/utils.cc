@@ -136,6 +136,34 @@ CheckCpuOptimizations() {
 namespace perfetto {
 namespace base {
 
+namespace internal {
+
+std::atomic<uint32_t> g_cached_page_size{0};
+
+uint32_t GetSysPageSizeSlowpath() {
+  uint32_t page_size = 0;
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+  const int page_size_int = getpagesize();
+  // If sysconf() fails for obscure reasons (e.g. SELinux denial) assume the
+  // page size is 4KB. This is to avoid regressing subtle SDK usages, as old
+  // versions of this code had a static constant baked in.
+  page_size = static_cast<uint32_t>(page_size_int > 0 ? page_size_int : 4096);
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
+  page_size = static_cast<uint32_t>(vm_page_size);
+#else
+  page_size = 4096;
+#endif
+
+  PERFETTO_CHECK(page_size > 0 && page_size % 4096 == 0);
+
+  // Races here are fine because any thread will write the same value.
+  g_cached_page_size.store(page_size, std::memory_order_relaxed);
+  return page_size;
+}
+
+}  // namespace internal
+
 void MaybeReleaseAllocatorMemToOS() {
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   // mallopt() on Android requires SDK level 26. Many targets and embedders
@@ -150,27 +178,6 @@ void MaybeReleaseAllocatorMemToOS() {
   if (mallopt_fn(PERFETTO_M_PURGE_ALL, 0) == 0) {
     mallopt_fn(PERFETTO_M_PURGE, 0);
   }
-#endif
-}
-
-uint32_t GetSysPageSize() {
-  ignore_result(kPageSize);  // Just to keep the amalgamated build happy.
-#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
-    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
-  static std::atomic<uint32_t> page_size{0};
-  // This function might be called in hot paths. Avoid calling getpagesize() all
-  // the times, in many implementations getpagesize() calls sysconf() which is
-  // not cheap.
-  uint32_t cached_value = page_size.load(std::memory_order_relaxed);
-  if (PERFETTO_UNLIKELY(cached_value == 0)) {
-    cached_value = static_cast<uint32_t>(getpagesize());
-    page_size.store(cached_value, std::memory_order_relaxed);
-  }
-  return cached_value;
-#elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
-  return static_cast<uint32_t>(vm_page_size);
-#else
-  return 4096;
 #endif
 }
 

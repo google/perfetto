@@ -64,7 +64,7 @@ class CpuReader {
     void AllocateIfNeeded() {
       // PagedMemory stays valid as long as it was allocated once.
       if (!ftrace_data_.IsValid()) {
-        ftrace_data_ = base::PagedMemory::Allocate(base::kPageSize *
+        ftrace_data_ = base::PagedMemory::Allocate(base::GetSysPageSize() *
                                                    kFtraceDataBufSizePages);
       }
       // Heap-allocated buffer gets freed and reallocated.
@@ -96,7 +96,7 @@ class CpuReader {
     }
     size_t ftrace_data_buf_pages() const {
       PERFETTO_DCHECK(ftrace_data_.size() ==
-                      base::kPageSize * kFtraceDataBufSizePages);
+                      base::GetSysPageSize() * kFtraceDataBufSizePages);
       return kFtraceDataBufSizePages;
     }
     CompactSchedBuffer* compact_sched_buf() const {
