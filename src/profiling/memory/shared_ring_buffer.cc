@@ -41,18 +41,21 @@ namespace profiling {
 
 namespace {
 
-constexpr auto kMetaPageSize = base::kPageSize;
 constexpr auto kAlignment = 8;  // 64 bits to use aligned memcpy().
 constexpr auto kHeaderSize = kAlignment;
-constexpr auto kGuardSize = base::kPageSize * 1024 * 16;  // 64 MB.
+constexpr auto kGuardSize = 1024 * 1024 * 64;  // 64 MB.
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
 constexpr auto kFDSeals = F_SEAL_SHRINK | F_SEAL_GROW | F_SEAL_SEAL;
 #endif
 
+size_t meta_page_size() {
+  return base::GetSysPageSize();
+}
+
 }  // namespace
 
 SharedRingBuffer::SharedRingBuffer(CreateFlag, size_t size) {
-  size_t size_with_meta = size + kMetaPageSize;
+  size_t size_with_meta = size + meta_page_size();
   base::ScopedFile fd;
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
   bool is_memfd = false;
@@ -101,7 +104,7 @@ SharedRingBuffer::~SharedRingBuffer() {
                 "MetadataPage must be trivially destructible");
 
   if (is_valid()) {
-    size_t outer_size = kMetaPageSize + size_ * 2 + kGuardSize;
+    size_t outer_size = meta_page_size() + size_ * 2 + kGuardSize;
     munmap(meta_, outer_size);
   }
 
@@ -139,19 +142,19 @@ void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {
     return;
   }
   auto size_with_meta = static_cast<size_t>(stat_buf.st_size);
-  auto size = size_with_meta - kMetaPageSize;
+  auto size = size_with_meta - meta_page_size();
 
   // |size_with_meta| must be a power of two number of pages + 1 page (for
   // metadata).
-  if (size_with_meta < 2 * base::kPageSize || size % base::kPageSize ||
-      (size & (size - 1))) {
+  if (size_with_meta < 2 * base::GetSysPageSize() ||
+      size % base::GetSysPageSize() || (size & (size - 1))) {
     PERFETTO_ELOG("SharedRingBuffer size is invalid (%zu)", size_with_meta);
     return;
   }
 
   // First of all reserve the whole virtual region to fit the buffer twice
   // + metadata page + red zone at the end.
-  size_t outer_size = kMetaPageSize + size * 2 + kGuardSize;
+  size_t outer_size = meta_page_size() + size * 2 + kGuardSize;
   uint8_t* region = reinterpret_cast<uint8_t*>(
       mmap(nullptr, outer_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
   if (region == MAP_FAILED) {
@@ -167,7 +170,7 @@ void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {
   // [ METADATA ] [ RING BUFFER SHMEM ] [ RING BUFFER SHMEM ]
   void* reg2 = mmap(region + size_with_meta, size, PROT_READ | PROT_WRITE,
                     MAP_SHARED | MAP_FIXED, *mem_fd,
-                    /*offset=*/kMetaPageSize);
+                    /*offset=*/static_cast<ssize_t>(meta_page_size()));
 
   if (reg1 != region || reg2 != region + size_with_meta) {
     PERFETTO_PLOG("mmap(MAP_SHARED) failed");
@@ -176,7 +179,7 @@ void SharedRingBuffer::Initialize(base::ScopedFile mem_fd) {
   }
   set_size(size);
   meta_ = reinterpret_cast<MetadataPage*>(region);
-  mem_ = region + kMetaPageSize;
+  mem_ = region + meta_page_size();
   mem_fd_ = std::move(mem_fd);
 }
 

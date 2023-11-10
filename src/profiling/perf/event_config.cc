@@ -416,7 +416,7 @@ std::optional<EventConfig> EventConfig::Create(
     // TODO(rsavitski): for now, make an extremely conservative guess of an 8
     // byte sample (stack sampling samples can be up to 64KB). This is most
     // likely as good as no limit in practice.
-    samples_per_tick_limit = *ring_buffer_pages * (base::kPageSize / 8);
+    samples_per_tick_limit = *ring_buffer_pages * (base::GetSysPageSize() / 8);
   }
   PERFETTO_DLOG("Capping samples (not records) per tick to [%" PRIu64 "]",
                 samples_per_tick_limit);

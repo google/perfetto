@@ -54,9 +54,9 @@ ProtoTranslationTable* GetTable(const std::string& name) {
 }
 
 std::unique_ptr<uint8_t[]> PageFromXxd(const std::string& text) {
-  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[base::kPageSize]);
+  auto buffer = std::unique_ptr<uint8_t[]>(new uint8_t[base::GetSysPageSize()]);
   const char* ptr = text.data();
-  memset(buffer.get(), 0xfa, base::kPageSize);
+  memset(buffer.get(), 0xfa, base::GetSysPageSize());
   uint8_t* out = buffer.get();
   while (*ptr != '\0') {
     if (*(ptr++) != ':')
