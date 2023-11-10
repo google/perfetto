@@ -805,6 +805,16 @@ button.query-ctrl {
     &.selected {
       background-color: #ebeef9;
     }
+    &.drag {
+      background-color: #eee;
+      box-shadow: 0 4px 12px -4px #999 inset;
+    }
+    &.drop-before {
+      box-shadow: 0 4px 2px -1px hsl(213, 40%, 50%) inset;
+    }
+    &.drop-after {
+      box-shadow: 0 -4px 2px -1px hsl(213, 40%, 50%) inset;
+    }
   }
   .track-content {
     display: grid;

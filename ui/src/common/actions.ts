@@ -178,6 +178,7 @@ function removeTrack(state: StateDraft, trackId: string) {
     removeTrackId(state.scrollingTracks);
   } else if (track.trackGroup !== undefined) {
     removeTrackId(state.trackGroups[track.trackGroup].tracks);
+    removeTrackId(state.trackGroups[track.trackGroup].sortOrder);
   }
   state.pinnedTracks = state.pinnedTracks.filter((id) => id !== trackId);
 }
@@ -190,6 +191,10 @@ function removeTrackGroup(state: StateDraft, groupId: string) {
     undefined;
   if (parent) {
     remove(parent.subgroups, groupId);
+    remove(parent.sortOrder, groupId);
+  }
+  if (state.scrollingTracks.includes(groupId)) {
+    remove(state.scrollingTracks, groupId);
   }
   delete state.trackGroups[groupId];
   state.pinnedTracks = state.pinnedTracks.filter((id) => id !== groupId);
@@ -375,6 +380,7 @@ export const StateActions = {
         state.scrollingTracks.push(id);
       } else if (track.trackGroup !== undefined) {
         assertExists(state.trackGroups[track.trackGroup]).tracks.push(id);
+        assertExists(state.trackGroups[track.trackGroup]).sortOrder.push(id);
       }
       unfilterTrack(state, state.tracks[id]);
     });
@@ -412,6 +418,7 @@ export const StateActions = {
       state.scrollingTracks.push(id);
     } else if (args.trackGroup !== undefined) {
       assertExists(state.trackGroups[args.trackGroup]).tracks.push(id);
+      assertExists(state.trackGroups[args.trackGroup]).sortOrder.push(id);
     }
   },
 
@@ -434,6 +441,13 @@ export const StateActions = {
       `${args.name}\n\n${args.description}` :
       args.name;
     const subgroups = args.subgroups ? [...args.subgroups] : [];
+    const parentString = args.parentGroup || SCROLLING_TRACK_GROUP;
+    if (parentString === SCROLLING_TRACK_GROUP) {
+      state.scrollingTracks.push(args.id);
+    } else {
+      state.trackGroups[parentString].subgroups.push(args.id);
+      state.trackGroups[parentString].sortOrder.push(args.id);
+    }
     state.trackGroups[args.id] = {
       engineId: args.engineId,
       name: args.name,
@@ -441,15 +455,11 @@ export const StateActions = {
       id: args.id,
       collapsed: args.collapsed,
       tracks: [args.summaryTrackId],
-      parentGroup: args.parentGroup,
+      parentGroup: parentString,
       subgroups,
+      sortOrder: [],
     };
-    const parentGroup = args.parentGroup ?
-      state.trackGroups[args.parentGroup] :
-      undefined;
-    if (parentGroup) {
-      parentGroup.subgroups.push(args.id);
-    }
+
     unfilterTrackGroup(state, state.trackGroups[args.id]);
   },
 
@@ -666,9 +676,55 @@ export const StateActions = {
         trackList.push(x);
       });
     };
+    let trackLikeSrc: TrackState | TrackGroupState =
+      state.trackGroups[args.srcId];
+    let trackLikeDst: TrackState | TrackGroupState =
+      state.trackGroups[args.dstId];
+    let srcParent: string | undefined;
+    let dstParent: string | undefined;
+    if (trackLikeSrc) {
+      srcParent = trackLikeSrc.parentGroup;
+    } else {
+      trackLikeSrc = state.tracks[args.srcId];
+      srcParent = trackLikeSrc.trackGroup;
+    }
 
-    moveWithinTrackList(state.pinnedTracks);
-    moveWithinTrackList(state.scrollingTracks);
+    if (trackLikeDst) {
+      dstParent = trackLikeDst.parentGroup;
+    } else {
+      trackLikeDst = state.tracks[args.dstId];
+      dstParent = trackLikeDst.trackGroup;
+    }
+
+    if (srcParent && srcParent === dstParent) {
+      if (srcParent === SCROLLING_TRACK_GROUP) {
+        moveWithinTrackList(state.scrollingTracks);
+      } else {
+        moveWithinTrackList(state.trackGroups[srcParent].sortOrder);
+      }
+    }
+    // Currently we don't support making track groups pinned
+    if ('trackGroup' in trackLikeSrc) {
+      moveWithinTrackList(state.pinnedTracks);
+    }
+  },
+
+  moveTrackGroupsToBottom(state: StateDraft, args:{ids:string[]}): void {
+    for (const id of args.ids) {
+      const group = state.trackGroups[id];
+      if (group && group.parentGroup) {
+        const parent = state.trackGroups[group.parentGroup];
+        if (!parent) {
+          console.warn('Parent not found');
+          return;
+        }
+        // Move TrackGroup to end of sort order
+        const index = parent.sortOrder.findIndex((id)=>id === group.id);
+        parent.sortOrder.push(...parent.sortOrder.splice(index, 1));
+      } else {
+        console.warn('Group is parentless');
+      }
+    }
   },
 
   toggleTrackPinned(state: StateDraft, args: {trackId: string}): void {

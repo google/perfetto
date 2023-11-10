@@ -260,6 +260,7 @@ export interface TrackGroupState {
   parentGroup?: string; // Parent group id, if a subgroup.
   subgroups: string[]; // Child group ids.
   tracks: string[];  // Child track ids.
+  sortOrder: string[]; // Order to show children in the timeline
 }
 
 export interface EngineConfig {

@@ -2605,11 +2605,26 @@ class TrackDecider {
       }));
     }
 
+    const topLvlTracks = this.tracksToAdd.filter((track, index)=> {
+      if (!track.trackGroup || track.trackGroup === SCROLLING_TRACK_GROUP) {
+        this.tracksToAdd.splice(index, 1);
+        return true;
+      }
+      return false;
+    });
+    actions.push(Actions.addTracks({tracks: topLvlTracks}));
     actions.push(Actions.addTrackGroups({trackGroups: this.trackGroupsToAdd}));
     actions.push(Actions.addTracks({tracks: this.tracksToAdd}));
 
     const threadOrderingMetadata = await this.computeThreadOrderingMetadata();
     actions.push(Actions.setUtidToTrackSortKey({threadOrderingMetadata}));
+    const idleGroups: string[] = [];
+    for (const group of Object.values(this.trackGroupsToAdd)) {
+      if (group.name.search(/\bIdle\b/) >= 0) {
+        idleGroups.push(group.id);
+      }
+    }
+    actions.push(Actions.moveTrackGroupsToBottom({ids: idleGroups}));
 
     this.applyDefaultCounterScale();
 
@@ -2854,12 +2869,12 @@ class TrackDecider {
   createPureTrackGroup(id: string, name: string,
       details: LazyTrackGroupArgs = {}): AddTrackGroupArgs {
     const {lazyParentGroup, ...staticDetails} = details;
-
+    const summaryTrackId = id+':summary';
     const result: AddTrackGroupArgs = {
       id,
       engineId: this.engineId,
       name,
-      summaryTrackId: id, // Group needs a summary track, even if it's blank
+      summaryTrackId, // Group needs a summary track, even if it's blank
       collapsed: true,
       ...staticDetails,
     };
@@ -2868,16 +2883,16 @@ class TrackDecider {
     }
 
     this.trackGroupsToAdd.push(result);
-    this.tracksToAdd.push(this.blankSummaryTrack(id, name + ' Summary Track'));
+    this.tracksToAdd.push(this.blankSummaryTrack(summaryTrackId));
     return result;
   }
 
-  blankSummaryTrack(id: string, name: string): AddTrackArgs {
+  blankSummaryTrack(id: string): AddTrackArgs {
     return {
       engineId: this.engineId,
       id: id,
       kind: NULL_TRACK_KIND,
-      name,
+      name: id,
       trackSortKey: PrimaryTrackSortKey.NULL_TRACK,
       trackGroup: undefined,
       config: {},

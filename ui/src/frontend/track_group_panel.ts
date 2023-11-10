@@ -52,6 +52,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
   private summaryTrack: Track|undefined;
+  private dragging = false;
+  private dropping: 'before'|'after'|undefined = undefined;
 
   // Caches the last state.trackGroups[this.trackGroupId].
   // This is to deal with track group deletion. See comments
@@ -143,10 +145,12 @@ export class TrackGroupPanel extends Panel<Attrs> {
       {style: {marginLeft: `${depth/2}rem`}};
 
     const titleStyling = indent(depth(trackGroup));
+    const dragClass = this.dragging ? `drag` : '';
+    const dropClass = this.dropping ? `drop-${this.dropping}` : '';
     return m(
         `.track-group-panel[collapsed=${collapsed}]`,
         {id: 'track_' + this.trackGroupId},
-        m(`.shell`,
+        m(`.shell[draggable=true]`,
           {
             onclick: (e: MouseEvent) => {
               globals.dispatch(Actions.toggleTrackGroupCollapsed({
@@ -154,7 +158,16 @@ export class TrackGroupPanel extends Panel<Attrs> {
               })),
                   e.stopPropagation();
             },
-            class: `${highlightClass}`,
+            class: `${highlightClass} ${dragClass} ${dropClass}`,
+            ondragstart: this.ondragstart.bind(this),
+            ondragenter: (e: DragEvent)=>{
+              e.preventDefault();
+              e.stopPropagation();
+            },
+            ondragend: this.ondragend.bind(this),
+            ondragover: this.ondragover.bind(this),
+            ondragleave: this.ondragleave.bind(this),
+            ondrop: this.ondrop.bind(this),
           },
 
           m('.fold-button',
@@ -193,7 +206,57 @@ export class TrackGroupPanel extends Panel<Attrs> {
                   null) :
             null);
   }
+  ondragstart(e: DragEvent) {
+    const dataTransfer = e.dataTransfer;
+    if (dataTransfer === null) return;
+    this.dragging = true;
+    e.stopPropagation();
+    globals.rafScheduler.scheduleFullRedraw();
+    dataTransfer.effectAllowed = 'move';
+    dataTransfer.setData('perfetto/track', `${this.trackGroupId}`);
+    dataTransfer.setDragImage(new Image(), 0, 0);
+  }
 
+  ondragend() {
+    this.dragging = false;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondragover(e: DragEvent) {
+    if (this.dragging) return;
+    if (!(e.target instanceof HTMLElement)) return;
+    const dataTransfer = e.dataTransfer;
+    if (dataTransfer === null) return;
+    if (!dataTransfer.types.includes('perfetto/track')) return;
+    e.stopPropagation();
+    dataTransfer.dropEffect = 'move';
+    e.preventDefault();
+
+    // Apply some hysteresis to the drop logic so that the lightened border
+    // changes only when we get close enough to the border.
+    if (e.offsetY < e.target.scrollHeight / 3) {
+      this.dropping = 'before';
+    } else if (e.offsetY > e.target.scrollHeight / 3 * 2) {
+      this.dropping = 'after';
+    }
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondragleave() {
+    this.dropping = undefined;
+    globals.rafScheduler.scheduleFullRedraw();
+  }
+
+  ondrop(e: DragEvent) {
+    if (this.dropping === undefined) return;
+    const dataTransfer = e.dataTransfer;
+    if (dataTransfer === null) return;
+    globals.rafScheduler.scheduleFullRedraw();
+    const srcId = dataTransfer.getData('perfetto/track');
+    const dstId = this.trackGroupId;
+    globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
+    this.dropping = undefined;
+  }
   oncreate(vnode: m.CVnodeDOM<Attrs>) {
     this.onupdate(vnode);
     const trackGroupId = vnode.attrs.trackGroupId;

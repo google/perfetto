@@ -110,6 +110,10 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
         {
           class: `${highlightClass} ${dragClass} ${dropClass}`,
           ondragstart: this.ondragstart.bind(this),
+          ondragenter: (e: DragEvent)=>{
+            e.preventDefault();
+            e.stopPropagation();
+          },
           ondragend: this.ondragend.bind(this),
           ondragover: this.ondragover.bind(this),
           ondragleave: this.ondragleave.bind(this),
@@ -160,7 +164,9 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
     this.dragging = true;
+    e.stopPropagation();
     globals.rafScheduler.scheduleFullRedraw();
+    dataTransfer.effectAllowed = 'move';
     dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
     dataTransfer.setDragImage(new Image(), 0, 0);
   }
@@ -176,6 +182,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
     if (!dataTransfer.types.includes('perfetto/track')) return;
+    e.stopPropagation();
     dataTransfer.dropEffect = 'move';
     e.preventDefault();
 
