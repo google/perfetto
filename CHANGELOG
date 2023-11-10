@@ -4,6 +4,8 @@ Unreleased:
     * Added no_flush option to DataSourceDescriptor to avoid unnecessary IPC
       roundtrips to flush data sources like track_event that rely uniquely on
       server-side scraping.
+    * Added support for running on Linux & Android systems configured with 16K
+      pagetables.
   Trace Processor:
     *
   UI:

@@ -1992,16 +1992,16 @@ TEST_F(TraceBufferTest, Clone_WrappingWithPadding) {
 
 TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
   const size_t kPages = 32;
-  const size_t kPageSize = base::GetSysPageSize();
-  ResetBuffer(kPageSize * kPages);
+  const size_t page_size = base::GetSysPageSize();
+  ResetBuffer(page_size * kPages);
   CreateChunk(ProducerID(1), WriterID(0), ChunkID(0))
       .AddPacket(1024, static_cast<char>('a'))
       .CopyIntoTraceBuffer();
 
   using base::vm_test_utils::IsMapped;
   auto is_only_first_page_mapped = [&](const TraceBuffer& buf) {
-    bool first_mapped = IsMapped(GetBufData(buf), kPageSize);
-    bool rest_mapped = IsMapped(GetBufData(buf) + kPageSize, kPages - 1);
+    bool first_mapped = IsMapped(GetBufData(buf), page_size);
+    bool rest_mapped = IsMapped(GetBufData(buf) + page_size, kPages - 1);
     return first_mapped && !rest_mapped;
   };
 

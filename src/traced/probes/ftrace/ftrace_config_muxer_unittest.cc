@@ -19,6 +19,7 @@
 #include <memory>
 
 #include "ftrace_config_muxer.h"
+#include "perfetto/ext/base/utils.h"
 #include "src/traced/probes/ftrace/atrace_wrapper.h"
 #include "src/traced/probes/ftrace/compact_sched.h"
 #include "src/traced/probes/ftrace/ftrace_procfs.h"
@@ -52,6 +53,10 @@ constexpr const char* kFakeSyscalls[] = {
     "sys_open",
     "sys_read",
 };
+
+std::string PageSizeKb() {
+  return std::to_string(base::GetSysPageSize() / 1024);
+}
 
 class MockFtraceProcfs : public FtraceProcfs {
  public:
@@ -229,17 +234,22 @@ class FtraceConfigMuxerTest : public ::testing::Test {
 };
 
 TEST_F(FtraceConfigMuxerTest, ComputeCpuBufferSizeInPages) {
-  static constexpr size_t kMaxBufSizeInPages = 16 * 1024u;
-  // No buffer size given: good default (128 pages = 2mb).
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(0), 512u);
+  auto Pages = [](uint32_t kb) { return kb * 1024 / base::GetSysPageSize(); };
+  const size_t kMaxBufSizeInPages = Pages(64 * 1024);
+
+  // No buffer size given: good default (2mb).
+  EXPECT_EQ(ComputeCpuBufferSizeInPages(0), Pages(2048));
+
   // Buffer size given way too big: good default.
   EXPECT_EQ(ComputeCpuBufferSizeInPages(10 * 1024 * 1024), kMaxBufSizeInPages);
-  // The limit is 64mb per CPU, 512mb is too much.
   EXPECT_EQ(ComputeCpuBufferSizeInPages(512 * 1024), kMaxBufSizeInPages);
+
   // Your size ends up with less than 1 page per cpu -> 1 page.
   EXPECT_EQ(ComputeCpuBufferSizeInPages(3), 1u);
+
   // You picked a good size -> your size rounded to nearest page.
-  EXPECT_EQ(ComputeCpuBufferSizeInPages(42), 10u);
+  EXPECT_EQ(ComputeCpuBufferSizeInPages(42),
+            42 * 1024 / base::GetSysPageSize());
 }
 
 TEST_F(FtraceConfigMuxerTest, GenericSyscallFiltering) {
@@ -613,7 +623,7 @@ TEST_F(FtraceConfigMuxerTest, TurnFtraceOnOff) {
   EXPECT_CALL(ftrace,
               WriteToFile("/root/events/sched/sched_switch/enable", "0"));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(ftrace, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace, ClearFile("/root/trace"));
   EXPECT_CALL(ftrace, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
@@ -1128,7 +1138,7 @@ TEST_F(FtraceConfigMuxerTest, FallbackOnSetEvent) {
   EXPECT_CALL(ftrace, AppendToFile("/root/set_event", "!cgroup:cgroup_mkdir"))
       .WillOnce(Return(true));
   EXPECT_CALL(ftrace, WriteToFile("/root/tracing_on", "0"));
-  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", "4"));
+  EXPECT_CALL(ftrace, WriteToFile("/root/buffer_size_kb", PageSizeKb()));
   EXPECT_CALL(ftrace, WriteToFile("/root/events/enable", "0"));
   EXPECT_CALL(ftrace, ClearFile("/root/trace"));
   EXPECT_CALL(ftrace, ClearFile(MatchesRegex("/root/per_cpu/cpu[0-9]/trace")));
