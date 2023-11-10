@@ -87,15 +87,18 @@ from diff_tests.parser.track_event.tests import TrackEvent
 from diff_tests.parser.translated_args.tests import TranslatedArgs
 from diff_tests.parser.ufs.tests import Ufs
 from diff_tests.stdlib.android.tests import AndroidStdlib
-from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.chrome.tests import ChromeStdlib
 from diff_tests.stdlib.chrome.tests_chrome_interactions import ChromeInteractions
 from diff_tests.stdlib.chrome.tests_scroll_jank import ChromeScrollJankStdlib
 from diff_tests.stdlib.common.tests import StdlibCommon
+from diff_tests.stdlib.common.tests import StdlibCommon
 from diff_tests.stdlib.dynamic_tables.tests import DynamicTables
+from diff_tests.stdlib.intervals.tests import StdlibIntervals
 from diff_tests.stdlib.linux.tests import LinuxStdlib
 from diff_tests.stdlib.pkvm.tests import Pkvm
-from diff_tests.stdlib.intervals.tests import StdlibIntervals
+from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
+from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
+from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
@@ -104,14 +107,17 @@ from diff_tests.stdlib.span_join.tests_regression import SpanJoinRegression
 from diff_tests.stdlib.span_join.tests_smoke import SpanJoinSmoke
 from diff_tests.stdlib.tests import StdlibSmoke
 from diff_tests.stdlib.timestamps.tests import Timestamps
-from diff_tests.syntax.functions.tests import Functions
-from diff_tests.syntax.perfetto_sql.tests import PerfettoSql
+from diff_tests.syntax.function_tests import PerfettoFunction
+from diff_tests.syntax.include_tests import PerfettoInclude
+from diff_tests.syntax.macro_tests import PerfettoMacro
+from diff_tests.syntax.table_function_tests import PerfettoTableFunction
+from diff_tests.syntax.table_tests import PerfettoTable
+from diff_tests.syntax.view_tests import PerfettoView
 from diff_tests.tables.tests import Tables
 from diff_tests.tables.tests_counters import TablesCounters
 from diff_tests.tables.tests_sched import TablesSched
 
 sys.path.pop()
-
 
 def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   parser_tests = [
@@ -219,6 +225,12 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *DynamicTables(index_path, 'stdlib/dynamic_tables',
                      'DynamicTables').fetch(),
       *LinuxStdlib(index_path, 'stdlib/linux', 'LinuxStdlib').fetch(),
+      *PreludeMathFunctions(index_path, 'stdlib/prelude',
+                            'PreludeMathFunctions').fetch(),
+      *PreludePprofFunctions(index_path, 'stdlib/prelude',
+                             'PreludePprofFunctions').fetch(),
+      *PreludeWindowFunctions(index_path, 'stdlib/prelude',
+                              'PreludeWindowFunctions').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
       *StdlibSmoke(index_path, 'stdlib', 'StdlibSmoke').fetch(),
       *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
@@ -237,8 +249,13 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
   ]
 
   syntax_tests = [
-      *Functions(index_path, 'syntax/functions', 'Functions').fetch(),
-      *PerfettoSql(index_path, 'syntax/perfetto_sql', 'PerfettoSql').fetch(),
+      *PerfettoFunction(index_path, 'syntax', 'PerfettoFunction').fetch(),
+      *PerfettoInclude(index_path, 'syntax', 'PerfettoInclude').fetch(),
+      *PerfettoMacro(index_path, 'syntax', 'PerfettoMacro').fetch(),
+      *PerfettoTable(index_path, 'syntax', 'PerfettoTable').fetch(),
+      *PerfettoTableFunction(index_path, 'syntax',
+                             'PerfettoTableFunction').fetch(),
+      *PerfettoView(index_path, 'syntax', 'PerfettoView').fetch(),
   ]
 
   return parser_tests + metrics_tests + stdlib_tests + syntax_tests + [
