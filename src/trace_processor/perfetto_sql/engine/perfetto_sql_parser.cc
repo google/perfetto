@@ -201,21 +201,20 @@ bool PerfettoSqlParser::Next() {
         break;
       case State::kCreateOrReplacePerfetto:
       case State::kCreatePerfetto:
+        bool replace = state == State::kCreateOrReplacePerfetto;
         if (TokenIsCustomKeyword("function", token)) {
-          return ParseCreatePerfettoFunction(
-              state == State::kCreateOrReplacePerfetto, *first_non_space_token);
+          return ParseCreatePerfettoFunction(replace, *first_non_space_token);
         }
         if (TokenIsSqliteKeyword("table", token)) {
-          return ParseCreatePerfettoTableOrView(*first_non_space_token,
+          return ParseCreatePerfettoTableOrView(replace, *first_non_space_token,
                                                 TableOrView::kTable);
         }
         if (TokenIsSqliteKeyword("view", token)) {
-          return ParseCreatePerfettoTableOrView(*first_non_space_token,
+          return ParseCreatePerfettoTableOrView(replace, *first_non_space_token,
                                                 TableOrView::kView);
         }
         if (TokenIsCustomKeyword("macro", token)) {
-          return ParseCreatePerfettoMacro(state ==
-                                          State::kCreateOrReplacePerfetto);
+          return ParseCreatePerfettoMacro(replace);
         }
         base::StackString<1024> err(
             "Expected 'FUNCTION', 'TABLE' or 'MACRO' after 'CREATE PERFETTO', "
@@ -246,6 +245,7 @@ bool PerfettoSqlParser::ParseIncludePerfettoModule(
 }
 
 bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
+    bool replace,
     Token first_non_space_token,
     TableOrView table_or_view) {
   Token table_name = tokenizer_.NextNonWhitespace();
@@ -281,7 +281,7 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
   Token terminal = tokenizer_.NextTerminal();
   switch (table_or_view) {
     case TableOrView::kTable:
-      statement_ = CreateTable{std::move(name),
+      statement_ = CreateTable{replace, std::move(name),
                                tokenizer_.Substr(first, terminal), schema};
       break;
     case TableOrView::kView:
@@ -292,9 +292,9 @@ bool PerfettoSqlParser::ParseCreatePerfettoTableOrView(
       SqlSource::Rewriter rewriter(original_statement);
       tokenizer_.Rewrite(rewriter, first_non_space_token, first, header,
                          SqliteTokenizer::EndToken::kExclusive);
-      statement_ =
-          CreateView{std::move(name), tokenizer_.Substr(first, terminal),
-                     std::move(rewriter).Build(), schema};
+      statement_ = CreateView{replace, std::move(name),
+                              tokenizer_.Substr(first, terminal),
+                              std::move(rewriter).Build(), schema};
       break;
   }
   statement_sql_ = tokenizer_.Substr(first_non_space_token, terminal);
