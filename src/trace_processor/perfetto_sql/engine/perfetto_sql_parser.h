@@ -61,6 +61,7 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.
   struct CreateTable {
+    bool replace;
     std::string name;
     // SQL source for the select statement.
     SqlSource sql;
@@ -69,6 +70,7 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
   // with the following parameters.
   struct CreateView {
+    bool replace;
     std::string name;
     // SQL source for the select statement.
     SqlSource select_sql;
@@ -154,6 +156,7 @@ class PerfettoSqlParser {
     kView,
   };
   bool ParseCreatePerfettoTableOrView(
+      bool replace,
       SqliteTokenizer::Token first_non_space_token,
       TableOrView table_or_view);
 
