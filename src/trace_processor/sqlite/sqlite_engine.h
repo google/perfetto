@@ -89,6 +89,9 @@ class SqliteEngine {
                                 FnCtxDestructor* ctx_destructor,
                                 bool deterministic);
 
+  // Unregisters a C++ function from SQL.
+  base::Status UnregisterFunction(const char* name, int argc);
+
   // Registers a SQLite virtual table module with the given name.
   template <typename Vtab, typename Context>
   void RegisterVirtualTableModule(const std::string& module_name,
