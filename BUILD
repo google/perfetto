@@ -4243,6 +4243,7 @@ perfetto_proto_library(
         "protos/perfetto/trace/android/initial_display_state.proto",
         "protos/perfetto/trace/android/network_trace.proto",
         "protos/perfetto/trace/android/packages_list.proto",
+        "protos/perfetto/trace/android/shell_transition.proto",
         "protos/perfetto/trace/android/surfaceflinger_common.proto",
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
         "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
@@ -4259,6 +4260,7 @@ perfetto_proto_library(
 perfetto_proto_library(
     name = "protos_perfetto_trace_android_winscope_deps_protos",
     srcs = [
+        "protos/perfetto/trace/android/shell_transition.proto",
         "protos/perfetto/trace/android/surfaceflinger_common.proto",
         "protos/perfetto/trace/android/surfaceflinger_layers.proto",
         "protos/perfetto/trace/android/surfaceflinger_transactions.proto",
