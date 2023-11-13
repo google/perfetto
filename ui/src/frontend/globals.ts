@@ -124,6 +124,9 @@ export interface Flow {
   end: FlowPoint;
   dur: duration;
 
+  // Whether this flow connects a slice with its descendant.
+  flowToDescendant: boolean;
+
   category?: string;
   name?: string;
 }

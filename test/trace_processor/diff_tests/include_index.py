@@ -99,6 +99,7 @@ from diff_tests.stdlib.pkvm.tests import Pkvm
 from diff_tests.stdlib.prelude.math_functions_tests import PreludeMathFunctions
 from diff_tests.stdlib.prelude.pprof_functions_tests import PreludePprofFunctions
 from diff_tests.stdlib.prelude.window_functions_tests import PreludeWindowFunctions
+from diff_tests.stdlib.prelude.slices_tests import PreludeSlices
 from diff_tests.stdlib.sched.tests import StdlibSched
 from diff_tests.stdlib.slices.tests import Slices
 from diff_tests.stdlib.span_join.tests_left_join import SpanJoinLeftJoin
@@ -232,6 +233,7 @@ def fetch_all_diff_tests(index_path: str) -> List['testing.TestCase']:
       *PreludeWindowFunctions(index_path, 'stdlib/prelude',
                               'PreludeWindowFunctions').fetch(),
       *Pkvm(index_path, 'stdlib/pkvm', 'Pkvm').fetch(),
+      *PreludeSlices(index_path, 'stdlib/prelude', 'PreludeSlices').fetch(),
       *StdlibSmoke(index_path, 'stdlib', 'StdlibSmoke').fetch(),
       *StdlibCommon(index_path, 'stdlib/common', 'StdlibCommon').fetch(),
       *Slices(index_path, 'stdlib/slices', 'Slices').fetch(),
