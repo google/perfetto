@@ -27,11 +27,7 @@
 #include <google/protobuf/compiler/code_generator.h>
 #include <google/protobuf/compiler/importer.h>
 #include <google/protobuf/compiler/plugin.h>
-#include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/io/printer.h>
-#include <google/protobuf/io/zero_copy_stream_impl.h>
-#include <google/protobuf/util/field_comparator.h>
-#include <google/protobuf/util/message_differencer.h>
 
 #include "perfetto/ext/base/string_utils.h"
 
