@@ -600,6 +600,7 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
   trace_config_.reset(new TraceConfig());
 
   bool parsed = false;
+  bool cfg_could_be_txt = false;
   const bool will_trace_or_trigger = !is_attach() && !query_service_;
   if (!will_trace_or_trigger) {
     if ((!trace_config_raw.empty() || has_config_options)) {
@@ -625,6 +626,14 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
                                      trace_config_.get());
     } else {
       parsed = trace_config_->ParseFromString(trace_config_raw);
+      cfg_could_be_txt =
+          !parsed && std::all_of(trace_config_raw.begin(),
+                                 trace_config_raw.end(), [](char c) {
+                                   // This is equiv to: isprint(c) || isspace(x)
+                                   // but doesn't depend on and load the locale.
+                                   return (c >= 32 && c <= 126) ||
+                                          (c >= 9 && c <= 13);
+                                 });
     }
   }
 
@@ -633,6 +642,12 @@ std::optional<int> PerfettoCmd::ParseCmdlineAndMaybeDaemonize(int argc,
     trace_config_raw.clear();
   } else if (will_trace_or_trigger && !clone_tsid_) {
     PERFETTO_ELOG("The trace config is invalid, bailing out.");
+    if (cfg_could_be_txt) {
+      PERFETTO_ELOG(
+          "Looks like you are passing a textual config but I'm expecting a "
+          "proto-encoded binary config.");
+      PERFETTO_ELOG("Try adding --txt to the cmdline.");
+    }
     return 1;
   }
 
