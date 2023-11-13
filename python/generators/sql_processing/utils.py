@@ -14,6 +14,7 @@
 
 from enum import Enum
 import re
+import os
 from typing import Dict, List
 
 NAME = r'[a-zA-Z_\d\{\}]+'
@@ -177,12 +178,16 @@ def check_banned_create_table_as(sql: str, filename: str,
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
     name = matches[0]
-    if filename not in allowlist:
+    # Normalize paths before checking presence in the allowlist so it will
+    # work on Windows for the Chrome stdlib presubmit.
+    allowlist_normpath = dict(
+        (os.path.normpath(path), tables) for path, tables in allowlist.items())
+    if os.path.normpath(filename) not in allowlist_normpath:
       errors.append(f"CREATE TABLE '{name}' is deprecated."
                     "Use CREATE PERFETTO TABLE instead.\n"
                     f"Offending file: {filename}\n")
       continue
-    if name not in allowlist[filename]:
+    if name not in allowlist_normpath[os.path.normpath(filename)]:
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
