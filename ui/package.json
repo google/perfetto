@@ -1,7 +1,7 @@
 {
-  "name": "perfetto-ui",
+  "name": "perfetto-webui",
   "version": "1.0.0",
-  "description": "Perfetto UI",
+  "description": "Perfetto Web UI",
   "repository": "https://android.googlesource.com/platform/external/perfetto",
   "main": "main.js",
   "author": "Perfetto Team",
