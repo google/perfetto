@@ -309,7 +309,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                       experimental_thread_executing_span_critical_path(
                         ${this.state?.thread?.utid},
                         trace_bounds.start_ts,
-                        trace_bounds.end_ts) cr,
+                        trace_bounds.end_ts - trace_bounds.start_ts) cr,
                       trace_bounds
                     JOIN thread USING(utid)
                     JOIN process USING(upid)
@@ -334,7 +334,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                         experimental_thread_executing_span_critical_path_stack(
                           ${this.state?.thread?.utid},
                           trace_bounds.start_ts,
-                          trace_bounds.end_ts) cr,
+                          trace_bounds.end_ts - trace_bounds.start_ts) cr,
                         trace_bounds WHERE name IS NOT NULL
                   `,
                   columns: sliceColumnNames,
