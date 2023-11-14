@@ -139,6 +139,12 @@ class ArgsTracker {
         context_->storage->mutable_surfaceflinger_transactions_table(), id);
   }
 
+  BoundInserter AddArgsTo(tables::WindowManagerShellTransitionsTable::Id id) {
+    return AddArgsTo(
+        context_->storage->mutable_window_manager_shell_transitions_table(),
+        id);
+  }
+
   BoundInserter AddArgsTo(MetadataId id) {
     auto* table = context_->storage->mutable_metadata_table();
     uint32_t row = *table->id().IndexOf(id);

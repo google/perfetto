@@ -738,6 +738,15 @@ class TraceStorage {
     return &surfaceflinger_transactions_table_;
   }
 
+  const tables::WindowManagerShellTransitionsTable&
+  window_manager_shell_transitions_table() const {
+    return window_manager_shell_transitions_table_;
+  }
+  tables::WindowManagerShellTransitionsTable*
+  mutable_window_manager_shell_transitions_table() {
+    return &window_manager_shell_transitions_table_;
+  }
+
   const tables::ExperimentalProtoPathTable& experimental_proto_path_table()
       const {
     return experimental_proto_path_table_;
@@ -995,6 +1004,8 @@ class TraceStorage {
   tables::SurfaceFlingerLayerTable surfaceflinger_layer_table_{&string_pool_};
   tables::SurfaceFlingerTransactionsTable surfaceflinger_transactions_table_{
       &string_pool_};
+  tables::WindowManagerShellTransitionsTable
+      window_manager_shell_transitions_table_{&string_pool_};
 
   tables::ExperimentalProtoPathTable experimental_proto_path_table_{
       &string_pool_};

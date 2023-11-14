@@ -120,6 +120,8 @@ SurfaceFlingerLayersSnapshotTable::~SurfaceFlingerLayersSnapshotTable() =
     default;
 SurfaceFlingerLayerTable::~SurfaceFlingerLayerTable() = default;
 SurfaceFlingerTransactionsTable::~SurfaceFlingerTransactionsTable() = default;
+WindowManagerShellTransitionsTable::~WindowManagerShellTransitionsTable() =
+    default;
 
 }  // namespace tables
 

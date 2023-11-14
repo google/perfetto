@@ -60,10 +60,29 @@ SURFACE_FLINGER_TRANSACTIONS_TABLE = Table(
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
-        doc='SurfaceFlinger transactions. Each row contains a set of transactions that SurfaceFlinger committed together.',
+        doc='SurfaceFlinger transactions. Each row contains a set of ' +
+        'transactions that SurfaceFlinger committed together.',
         group='Winscope',
         columns={
             'ts': 'Timestamp of the transactions commit',
+            'arg_set_id': 'Extra args parsed from the proto message',
+        }))
+
+WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionsTable',
+    sql_name='window_manager_shell_transitions',
+    columns=[
+        C('ts', CppInt64()),
+        C('transition_id', CppInt64()),
+        C('arg_set_id', CppUint32()),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transitions',
+        group='Winscope',
+        columns={
+            'ts': 'The timestamp the transition started playing',
+            'transition_id': 'The id of the transition',
             'arg_set_id': 'Extra args parsed from the proto message',
         }))
 
@@ -72,4 +91,5 @@ ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
 ]

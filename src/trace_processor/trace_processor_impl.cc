@@ -855,6 +855,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   RegisterStaticTable(storage->surfaceflinger_layer_table());
   RegisterStaticTable(storage->surfaceflinger_transactions_table());
 
+  RegisterStaticTable(storage->window_manager_shell_transitions_table());
+
   RegisterStaticTable(storage->metadata_table());
   RegisterStaticTable(storage->cpu_table());
   RegisterStaticTable(storage->cpu_freq_table());
