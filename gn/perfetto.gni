@@ -298,7 +298,8 @@ declare_args() {
   # Further per-OS conditionals are applied in gn/BUILD.gn.
   enable_perfetto_trace_processor_httpd =
       enable_perfetto_trace_processor &&
-      (perfetto_build_standalone || perfetto_build_with_android)
+      (perfetto_build_standalone || perfetto_build_with_android ||
+       build_with_chromium)
 
   # Enables Zlib support. This is used to compress traces (by the tracing
   # service and by the "perfetto" cmdline client) and to decompress traces (by
