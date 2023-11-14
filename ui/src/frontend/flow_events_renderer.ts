@@ -214,8 +214,14 @@ export class FlowEventsRenderer {
       endDir = endYConnection.y > beginYConnection.y ? 'DOWN' : 'UP';
     }
 
+
     const begin = {
-      x: this.getXCoordinate(flow.begin.sliceEndTs),
+      // If the flow goes to a descendant, we want to draw the arrow from the
+      // beginning of the slice
+      // rather from the end to avoid the flow arrow going backwards.
+      x: this.getXCoordinate(
+          flow.flowToDescendant ? flow.begin.sliceStartTs :
+                                  flow.begin.sliceEndTs),
       y: beginYConnection.y,
       dir: beginDir,
     };
