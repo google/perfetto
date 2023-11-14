@@ -100,6 +100,7 @@ export class FlowEventsController extends Controller<'main'> {
       name: STR_NULL,
       category: STR_NULL,
       id: NUM,
+      flowToDescendant: NUM,
     });
 
     const nullToStr = (s: null|string): string => {
@@ -155,6 +156,7 @@ export class FlowEventsController extends Controller<'main'> {
         dur: it.endSliceStartTs - it.beginSliceEndTs,
         category,
         name,
+        flowToDescendant: !!it.flowToDescendant,
       });
     }
 
@@ -343,7 +345,8 @@ export class FlowEventsController extends Controller<'main'> {
       (process_in.name || ' ' || process_in.pid) as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
-      f.id as id
+      f.id as id,
+      slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from ${connectedFlows} f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
@@ -417,7 +420,8 @@ export class FlowEventsController extends Controller<'main'> {
       NULL as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
-      f.id as id
+      f.id as id,
+      slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from flow f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
