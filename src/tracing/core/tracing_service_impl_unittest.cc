@@ -5158,4 +5158,55 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
                                              Eq("B|1023|payload"))))));
 }
 
+// This is a regression test for https://b.corp.google.com/issues/307601836. The
+// test covers the case of a consumer disconnecting while the tracing session is
+// executing the final flush.
+TEST_F(TracingServiceImplTest, ConsumerDisconnectionRacesFlushAndDisable) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_config->set_trigger_timeout_ms(100000);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  auto writer1 = producer->CreateTraceWriter("ds");
+
+  auto producer_flush_cb = [&](FlushRequestID flush_req_id,
+                               const DataSourceInstanceID* /*id*/, size_t,
+                               FlushFlags) {
+    // Notify the tracing service that the flush is complete.
+    producer->endpoint()->NotifyFlushComplete(flush_req_id);
+    // Also disconnect the consumer (this terminates the tracing session). The
+    // consumer disconnection is postponed with a PostTask(). The goal is to run
+    // the lambda inside TracingServiceImpl::FlushAndDisableTracing() with an
+    // empty `tracing_sessions_` map.
+    task_runner.PostTask([&]() { consumer.reset(); });
+  };
+  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(Invoke(producer_flush_cb));
+
+  // Cause the tracing session to stop. Note that
+  // TracingServiceImpl::FlushAndDisableTracing() is also called when
+  // duration_ms expires, but in a test it's faster to use a trigger.
+  producer->endpoint()->ActivateTriggers({"trigger_name"});
+  producer->WaitForDataSourceStop("ds");
+
+  task_runner.RunUntilIdle();
+}
+
 }  // namespace perfetto
