@@ -25,6 +25,7 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
+import {asUpid, Upid} from '../../frontend/sql_types';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
@@ -38,7 +39,12 @@ import {dictToTreeNodes, Tree} from '../../widgets/tree';
 interface Data {
   ts: time;
   url: string;
+  // The row id in the chrome_page_loads table is the unique identifier of the
+  // combination of navigation id and browser upid; otherwise, navigation id
+  // is not guaranteed to be unique in a trace.
+  id: number;
   navigationId: number;
+  upid: Upid;
   fcpDuration: duration;
   lcpDuration?: duration;
   fcpTs: time;
@@ -68,7 +74,9 @@ export class PageLoadDetailsPanel extends
   private async loadData() {
     const queryResult = await this.engine.query(`
       SELECT
+        id,
         navigation_id AS navigationId,
+        browser_upid AS upid,
         navigation_start_ts AS ts,
         url,
         fcp AS fcpDuration,
@@ -81,10 +89,12 @@ export class PageLoadDetailsPanel extends
         mark_fully_visible_ts AS markFullyVisibleTs,
         mark_interactive_ts AS markInteractiveTs
       FROM chrome_page_loads
-      WHERE navigation_id = ${this.config.id};`);
+      WHERE id = ${this.config.id};`);
 
     const iter = queryResult.firstRow({
+      id: NUM,
       navigationId: NUM,
+      upid: NUM,
       ts: LONG,
       url: STR,
       fcpDuration: LONG,
@@ -99,10 +109,12 @@ export class PageLoadDetailsPanel extends
     });
 
     this.data = {
+      id: iter.id,
       ts: Time.fromRaw(iter.ts),
       fcpTs: Time.fromRaw(iter.fcpTs),
       fcpDuration: iter.fcpDuration,
       navigationId: iter.navigationId,
+      upid: asUpid(iter.upid),
       url: iter.url,
       lcpTs: Time.fromRaw(iter.lcpTs ?? undefined),
       lcpDuration: iter.lcpDuration ?? undefined,
@@ -157,12 +169,13 @@ export class PageLoadDetailsPanel extends
       }
 
       details['Navigation ID'] = this.data.navigationId;
+      details['Browser Upid'] = this.data.upid;
       details['URL'] =
           m(Anchor,
             {href: this.data.url, target: '_blank', icon: 'open_in_new'},
             this.data.url);
       details['SQL ID'] =
-          m(SqlRef, {table: 'chrome_page_loads', id: this.data.navigationId});
+          m(SqlRef, {table: 'chrome_page_loads', id: this.data.id});
     }
     return details;
   }
