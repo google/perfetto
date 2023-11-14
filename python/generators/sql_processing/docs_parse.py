@@ -68,10 +68,11 @@ class AbstractDocParser(ABC):
     if upper:
       module_pattern = module_pattern.upper()
     starts_with_module_name = re.match(module_pattern, self.name, re.IGNORECASE)
-    if self.module == "common":
+    if self.module == "common" or self.module == "prelude":
       if starts_with_module_name:
-        self._error('Names of tables/views/functions in the "common" module '
-                    f'should not start with {module_pattern}')
+        self._error(
+            'Names of tables/views/functions in the "{self.module}" module '
+            f'should not start with {module_pattern}')
       return self.name
     if not starts_with_module_name:
       self._error('Names of tables/views/functions should be prefixed with the '
