@@ -14,14 +14,13 @@
 
 import m from 'mithril';
 
-import {Duration, time} from '../base/time';
+import {Time, time} from '../base/time';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
 import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
-import {DurationWidget} from '../widgets/duration';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
@@ -42,6 +41,7 @@ import {
   ThreadState,
   ThreadStateRef,
 } from './thread_state';
+import {DurationWidget, renderDuration} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
 interface ThreadStateTabConfig {
@@ -252,7 +252,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     ];
 
     const nameForNextOrPrev = (state: ThreadState) =>
-        `${state.state} for ${Duration.humanise(state.dur)}`;
+        `${state.state} for ${renderDuration(state.dur)}`;
     return [m(
         Tree,
         this.relatedStates.waker && m(TreeNode, {
@@ -278,15 +278,15 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
               {
                 left: 'Woken threads',
               },
-              this.relatedStates.wakee.map(
-                  (state) => m(TreeNode, ({
-                                 left: m(Timestamp, {
-                                   ts: state.ts,
-                                   display: `Start+${
-                                       Duration.humanise(state.ts - startTs)}`,
-                                 }),
-                                 right: renderRef(
-                                     state, getFullThreadName(state.thread)),
+              this.relatedStates.wakee.map((state) => m(TreeNode, ({
+                  left: m(Timestamp, {
+                    ts: state.ts,
+                    display: [
+                      'Start+',
+                      m(DurationWidget, {dur: Time.sub(state.ts, startTs)}),
+                    ],
+                  }),
+                  right: renderRef(state, getFullThreadName(state.thread)),
                   })))),
       ), m(Button,
            {

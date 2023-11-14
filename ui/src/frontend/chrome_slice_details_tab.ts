@@ -24,7 +24,6 @@ import {LONG, LONG_NULL, NUM, STR_NULL} from '../trace_processor/query_result';
 import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
-import {DurationWidget} from '../widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../widgets/grid_layout';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
@@ -44,6 +43,7 @@ import {
   breakDownIntervalByThreadState,
 } from './sql/thread_state';
 import {asSliceSqlId} from './sql_types';
+import {DurationWidget} from './widgets/duration';
 
 interface ContextMenuItem {
   name: string;

@@ -16,10 +16,9 @@ import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
 import {sqliteString} from '../base/string_utils';
-import {Duration, duration, time} from '../base/time';
+import {duration, time} from '../base/time';
 import {exists} from '../base/utils';
 import {Anchor} from '../widgets/anchor';
-import {DurationWidget} from '../widgets/duration';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
@@ -35,12 +34,13 @@ import {
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {getProcessName, getThreadName} from './thread_and_process_info';
+import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
 function computeDuration(ts: time, dur: duration): m.Children {
   if (dur === -1n) {
     const minDuration = globals.state.traceTime.end - ts;
-    return `${Duration.format(minDuration)} (Did not end)`;
+    return [m(DurationWidget, {dur: minDuration}), ' (Did not end)'];
   } else {
     return m(DurationWidget, {dur});
   }
