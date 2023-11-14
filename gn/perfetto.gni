@@ -296,10 +296,12 @@ declare_args() {
 
   # Enables httpd RPC support in the trace processor.
   # Further per-OS conditionals are applied in gn/BUILD.gn.
+  # Chromium+Win: httpd support depends on enable_perfetto_ipc, which is not
+  # enabled on Chromium+Win for now (see a comment there).
   enable_perfetto_trace_processor_httpd =
       enable_perfetto_trace_processor &&
       (perfetto_build_standalone || perfetto_build_with_android ||
-       build_with_chromium)
+       (build_with_chromium && !is_win))
 
   # Enables Zlib support. This is used to compress traces (by the tracing
   # service and by the "perfetto" cmdline client) and to decompress traces (by
