@@ -168,21 +168,13 @@ class TraceViewer implements m.ClassComponent<TraceViewerAttrs> {
             const area = globals.frontendLocalState.selectedArea ?
                 globals.frontendLocalState.selectedArea :
                 globals.state.areas[selection.areaId];
-            let newTime =
+            const newTime =
                 visibleTimeScale.pxToHpTime(currentX - TRACK_SHELL_WIDTH)
                     .toTPTime();
             // Have to check again for when one boundary crosses over the other.
             const curBoundary = onTimeRangeBoundary(prevX);
             if (curBoundary == null) return;
             const keepTime = curBoundary === 'START' ? area.end : area.start;
-            // Don't drag selection outside of current screen.
-            if (newTime < keepTime) {
-              newTime = BigintMath.max(
-                  newTime, visibleTimeScale.timeSpan.start.toTPTime());
-            } else {
-              newTime = BigintMath.max(
-                  newTime, visibleTimeScale.timeSpan.end.toTPTime());
-            }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
             frontendLocalState.selectArea(
