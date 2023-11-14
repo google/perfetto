@@ -895,6 +895,12 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
   module.out.update(target.outputs)
 
   for dep in target.transitive_deps:
+    # Use globs for the chrome stdlib so the file does not need to be
+    # regenerated in autoroll CLs.
+    if dep.name.startswith(
+          '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
+      module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
+      continue
     module.srcs.update(
         [gn_utils.label_to_path(src) for src in gn.get_target(dep.name).inputs])
   blueprint.add_module(module)
