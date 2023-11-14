@@ -24,6 +24,8 @@ perfetto_sql_source_set("android") {
     "android_batt.sql",
     "android_binder.sql",
     "android_blocking_calls_cuj_metric.sql",
+    "sysui_notif_shade_list_builder_metric.sql",
+    "sysui_notif_shade_list_builder_slices.sql",
     "android_boot.sql",
     "android_camera.sql",
     "android_camera_unagg.sql",

@@ -23,6 +23,7 @@ perfetto_proto_library("@TYPE@") {
     "ad_services_metric.proto",
     "android_blocking_call.proto",
     "android_blocking_calls_cuj_metric.proto",
+    "sysui_notif_shade_list_builder_metric.proto",
     "android_boot.proto",
     "android_frame_timeline_metric.proto",
     "android_sysui_notifications_blocking_calls_metric.proto",
