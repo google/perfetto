@@ -115,6 +115,26 @@ Examples:
 - [dev.perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.CoreCommands/index.ts).
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
 
+#### Hotkeys
+
+A default hotkey may be provided when registering a command.
+
+```typescript
+ctx.registerCommand({
+  id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
+  name: 'Log "Hello, World!"',
+  callback: () => console.log('Hello, World!'),
+  defaultHotkey: 'Shift+H',
+});
+```
+
+Even though the hotkey is a string, it's format checked at compile time using 
+typescript's [template literal types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html).
+
+See [hotkey.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/hotkeys.ts)
+for more details on how the hotkey syntax works, and for the available keys and
+modifiers.
+
 ### Tracks
 TBD
 
