@@ -315,7 +315,12 @@ if (build_with_chromium) {
       ]
     }
   }
-  component("libtrace_processor") {
+
+  # In Chromium, we want to ensure that we don't link dynamically against sqlite
+  # (as Chromium also uses a more restricted version of sqlite which is actually
+  # shipped to the users).
+  # static_library helps us to achieve that.
+  static_library("libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
     configs -= [ "//build/config/compiler:chromium_code" ]

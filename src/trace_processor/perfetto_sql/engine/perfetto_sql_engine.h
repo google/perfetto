@@ -132,6 +132,7 @@ class PerfettoSqlEngine {
   // Makes new SQL module available to import.
   void RegisterModule(const std::string& name,
                       sql_modules::RegisteredModule module) {
+    modules_.Erase(name);
     modules_.Insert(name, std::move(module));
   }
 
