@@ -752,6 +752,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Initalize the tables and views in the prelude.
   InitializePreludeTablesViews(engine_->sqlite_engine()->db());
 
+  // Register stdlib modules.
   auto stdlib_modules = GetStdlibModules();
   for (auto module_it = stdlib_modules.GetIterator(); module_it; ++module_it) {
     base::Status status =
@@ -918,6 +919,16 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
     if (metric.proto_field_name) {
       InsertIntoTraceMetricsTable(engine_->sqlite_engine()->db(),
                                   *metric.proto_field_name);
+    }
+  }
+
+  // Import prelude module.
+  {
+    auto result = engine_->Execute(SqlSource::FromTraceProcessorImplementation(
+        "INCLUDE PERFETTO MODULE prelude.*"));
+    if (!result.status().ok()) {
+      PERFETTO_FATAL("Failed to import prelude: %s",
+                     result.status().c_message());
     }
   }
 }
