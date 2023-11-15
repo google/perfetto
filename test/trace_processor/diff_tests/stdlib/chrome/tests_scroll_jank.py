@@ -1,17 +1,7 @@
 #!/usr/bin/env python3
-# Copyright (C) 2023 The Android Open Source Project
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License a
-#
-#      http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2023 The Chromium Authors
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
 
 from python.generators.diff_tests.testing import Path, DataPath, Metric
 from python.generators.diff_tests.testing import Csv, Json, TextProto
@@ -137,4 +127,27 @@ class ChromeScrollJankStdlib(TestSuite):
         1991,4687364083739,-50,-100
         1993,4687375224739,-81,-181
         1996,4687386343739,-66,-247
+        """))
+
+  def test_scroll_jank_cause_map(self):
+    return DiffTestBlueprint(
+        trace=TextProto(''),
+        query="""
+        INCLUDE PERFETTO MODULE chrome.event_latency_description;
+        INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_cause_map;
+
+        SELECT
+          DISTINCT event_latency_stage
+        FROM chrome_scroll_jank_cause_descriptions
+        WHERE event_latency_stage NOT IN
+          (
+            SELECT
+              DISTINCT name
+            FROM chrome_event_latency_stage_descriptions
+          );
+        """,
+        # Empty output is expected to ensure that all scroll jank causes
+        # correspond to a valid EventLatency stage.
+        out=Csv("""
+        "event_latency_stage"
         """))
