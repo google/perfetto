@@ -139,6 +139,12 @@ class AndroidMetrics(TestSuite):
           query=Metric('sysui_notif_shade_list_builder_metric'),
           out=Path('sysui_notif_shade_list_builder_metric.out'))
 
+  def test_sysui_update_notif_on_ui_mode_changed(self):
+      return DiffTestBlueprint(
+          trace=Path('sysui_update_notif_on_ui_mode_changed_metric.py'),
+          query=Metric('sysui_update_notif_on_ui_mode_changed_metric'),
+          out=Path('sysui_update_notif_on_ui_mode_changed_metric.out'))
+
   def test_monitor_contention_metric(self):
     return DiffTestBlueprint(
         trace=DataPath('android_monitor_contention_trace.atr'),
