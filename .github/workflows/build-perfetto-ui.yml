@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v3
       - name: Set Git Short SHA
         id: sha
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+        run: echo "sha_short=$(git rev-parse --short=14 HEAD)" >> $GITHUB_OUTPUT
       - name: Install Dependencies
         run: tools/install-build-deps --ui
       - name: Run build
