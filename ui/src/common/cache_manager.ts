@@ -112,7 +112,7 @@ export async function cacheTrace(
   }
 
   const headers = new Headers([
-    ['x-trace-title', title],
+    ['x-trace-title', encodeURI(title)],
     ['x-trace-url', url],
     ['x-trace-filename', fileName],
     ['x-trace-local-only', `${localOnly}`],
@@ -140,7 +140,7 @@ export async function tryGetTrace(traceUuid: string):
   return {
     type: 'ARRAY_BUFFER',
     buffer: await response.arrayBuffer(),
-    title: response.headers.get('x-trace-title') || '',
+    title: decodeURI(response.headers.get('x-trace-title') || ''),
     fileName: response.headers.get('x-trace-filename') || undefined,
     url: response.headers.get('x-trace-url') || undefined,
     uuid: traceUuid,
