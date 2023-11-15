@@ -17,9 +17,9 @@ import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
-import {DurationWidget} from '../widgets/duration';
 
 import {Flow, globals} from './globals';
+import {DurationWidget} from './widgets/duration';
 
 export const ALL_CATEGORIES = '_all_';
 

@@ -26,11 +26,11 @@ import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
 import {asUpid, Upid} from '../../frontend/sql_types';
+import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
 import {LONG, LONG_NULL, NUM, STR} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 import {DetailsShell} from '../../widgets/details_shell';
-import {DurationWidget} from '../../widgets/duration';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {SqlRef} from '../../widgets/sql_ref';

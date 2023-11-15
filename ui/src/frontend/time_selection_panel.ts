@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {
-  Duration,
   duration,
   Span,
   time,
@@ -37,6 +36,7 @@ import {
   timeScaleForVisibleWindow,
 } from './gridline_helper';
 import {Panel, PanelSize} from './panel';
+import {renderDuration} from './widgets/duration';
 
 export interface BBox {
   x: number;
@@ -203,7 +203,7 @@ export class TimeSelectionPanel extends Panel {
     const {visibleTimeScale} = globals.frontendLocalState;
     const xLeft = visibleTimeScale.timeToPx(span.start);
     const xRight = visibleTimeScale.timeToPx(span.end);
-    const label = Duration.humanise(span.duration);
+    const label = renderDuration(span.duration);
     drawHBar(
         ctx,
         {
