@@ -15,12 +15,12 @@
 import m from 'mithril';
 
 import {DetailsShell} from '../widgets/details_shell';
-import {DurationWidget} from '../widgets/duration';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {Tree, TreeNode} from '../widgets/tree';
 
 import {globals} from './globals';
+import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
 export class CounterDetailsPanel implements m.ClassComponent {

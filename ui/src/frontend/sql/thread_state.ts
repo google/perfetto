@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {Duration, duration, TimeSpan} from '../../base/time';
+import {duration, TimeSpan} from '../../base/time';
 import {EngineProxy} from '../../public';
 import {
   LONG,
@@ -24,6 +24,7 @@ import {
 } from '../../trace_processor/query_result';
 import {TreeNode} from '../../widgets/tree';
 import {Utid} from '../sql_types';
+import {DurationWidget} from '../widgets/duration';
 
 // An individual node of the thread state breakdown tree.
 class Node {
@@ -124,7 +125,10 @@ function renderNode(node: Node, name: string, totalDur: duration): m.Child {
       TreeNode,
       {
         left: name,
-        right: `${Duration.humanise(node.dur)} (${durPercent.toFixed(2)}%)`,
+        right: [
+          m(DurationWidget, {dur: node.dur}),
+          ` (${durPercent.toFixed(2)}%)`,
+        ],
         startsCollapsed: node.startsCollapsed,
       },
       renderChildren(node, totalDur));

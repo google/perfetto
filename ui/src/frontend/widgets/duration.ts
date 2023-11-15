@@ -16,60 +16,44 @@ import m from 'mithril';
 
 import {copyToClipboard} from '../../base/clipboard';
 import {Icons} from '../../base/semantic_icons';
-import {time, Time} from '../../base/time';
-import {Actions} from '../../common/actions';
+import {Duration, duration} from '../../base/time';
 import {
-  setTimestampFormat,
+  DurationPrecision,
+  durationPrecision,
+  setDurationPrecision,
   TimestampFormat,
   timestampFormat,
 } from '../../common/timestamp_format';
 import {raf} from '../../core/raf_scheduler';
 import {Anchor} from '../../widgets/anchor';
 import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
-import {globals} from '../globals';
 
-// import {MenuItem, PopupMenu2} from './menu';
+import {menuItemForFormat} from './timestamp';
 
-interface TimestampAttrs {
-  // The timestamp to print, this should be the absolute, raw timestamp as
-  // found in trace processor.
-  ts: time;
-  // Custom text value to show instead of the default HH:MM:SS.mmm uuu nnn
-  // formatting.
-  display?: m.Children;
+interface DurationWidgetAttrs {
+  dur: duration;
   extraMenuItems?: m.Child[];
 }
 
-export class Timestamp implements m.ClassComponent<TimestampAttrs> {
-  view({attrs}: m.Vnode<TimestampAttrs>) {
-    const {ts} = attrs;
+export class DurationWidget implements m.ClassComponent<DurationWidgetAttrs> {
+  view({attrs}: m.Vnode<DurationWidgetAttrs>) {
+    const {dur} = attrs;
     return m(
         PopupMenu2,
         {
-          trigger:
-              m(Anchor,
-                {
-                  onmouseover: () => {
-                    globals.dispatch(Actions.setHoverCursorTimestamp({ts}));
-                  },
-                  onmouseout: () => {
-                    globals.dispatch(
-                        Actions.setHoverCursorTimestamp({ts: Time.INVALID}));
-                  },
-                },
-                attrs.display ?? renderTimestamp(ts)),
+          trigger: m(Anchor, renderDuration(dur)),
         },
         m(MenuItem, {
           icon: Icons.Copy,
           label: `Copy raw value`,
           onclick: () => {
-            copyToClipboard(ts.toString());
+            copyToClipboard(dur.toString());
           },
         }),
         m(
             MenuItem,
             {
-              label: 'Time format',
+              label: 'Set time format',
             },
             menuItemForFormat(TimestampFormat.Timecode, 'Timecode'),
             menuItemForFormat(TimestampFormat.UTC, 'Realtime (UTC)'),
@@ -79,50 +63,72 @@ export class Timestamp implements m.ClassComponent<TimestampAttrs> {
                 TimestampFormat.RawLocale,
                 'Raw (with locale-specific formatting)'),
             ),
+        m(
+            MenuItem,
+            {
+              label: 'Duration precision',
+              disabled: !durationPrecisionHasEffect(),
+              title: 'Not configurable with current time format',
+            },
+            menuItemForPrecision(DurationPrecision.Full, 'Full'),
+            menuItemForPrecision(
+                DurationPrecision.HumanReadable, 'Human readable'),
+            ),
         attrs.extraMenuItems ? [m(MenuDivider), attrs.extraMenuItems] : null,
     );
   }
 }
 
-export function menuItemForFormat(
-    value: TimestampFormat, label: string): m.Children {
+function menuItemForPrecision(
+    value: DurationPrecision, label: string): m.Children {
   return m(MenuItem, {
     label,
-    active: value === timestampFormat(),
+    active: value === durationPrecision(),
     onclick: () => {
-      setTimestampFormat(value);
+      setDurationPrecision(value);
       raf.scheduleFullRedraw();
     },
   });
 }
 
-function renderTimestamp(time: time): m.Children {
-  const fmt = timestampFormat();
-  const domainTime = globals.toDomainTime(time);
-  switch (fmt) {
-    case TimestampFormat.UTC:
+function durationPrecisionHasEffect(): boolean {
+  switch (timestampFormat()) {
     case TimestampFormat.Timecode:
-      return renderTimecode(domainTime);
-    case TimestampFormat.Raw:
-      return domainTime.toString();
-    case TimestampFormat.RawLocale:
-      return domainTime.toLocaleString();
-    case TimestampFormat.Seconds:
-      return Time.formatSeconds(domainTime);
+    case TimestampFormat.UTC:
+      return true;
     default:
-      const x: never = fmt;
-      throw new Error(`Invalid timestamp ${x}`);
+      return false;
   }
 }
 
-export function renderTimecode(time: time): m.Children {
-  const {dhhmmss, millis, micros, nanos} = Time.toTimecode(time);
-  return m(
-      'span.pf-timecode',
-      m('span.pf-timecode-hms', dhhmmss),
-      '.',
-      m('span.pf-timecode-millis', millis),
-      m('span.pf-timecode-micros', micros),
-      m('span.pf-timecode-nanos', nanos),
-  );
+
+export function renderDuration(dur: duration): string {
+  const fmt = timestampFormat();
+  switch (fmt) {
+    case TimestampFormat.UTC:
+    case TimestampFormat.Timecode:
+      return renderFormattedDuration(dur);
+    case TimestampFormat.Raw:
+      return dur.toString();
+    case TimestampFormat.RawLocale:
+      return dur.toLocaleString();
+    case TimestampFormat.Seconds:
+      return Duration.formatSeconds(dur);
+    default:
+      const x: never = fmt;
+      throw new Error(`Invalid format ${x}`);
+  }
+}
+
+function renderFormattedDuration(dur: duration): string {
+  const fmt = durationPrecision();
+  switch (fmt) {
+    case DurationPrecision.HumanReadable:
+      return Duration.humanise(dur);
+    case DurationPrecision.Full:
+      return Duration.format(dur);
+    default:
+      const x: never = fmt;
+      throw new Error(`Invalid format ${x}`);
+  }
 }

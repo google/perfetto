@@ -28,7 +28,6 @@ import {
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {ColumnType} from '../trace_processor/query_result';
-import {DurationWidget} from '../widgets/duration';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -51,6 +50,7 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
+import {DurationWidget} from './widgets/duration';
 
 interface PathItem {
   tree: PivotTree;
