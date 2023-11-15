@@ -1,5 +1,16 @@
 Unreleased:
   Tracing service and probes:
+    *
+  Trace Processor:
+    *
+  UI:
+    *
+  SDK:
+    *
+
+
+v39.0 - 2023-11-15:
+  Tracing service and probes:
     * Added reporting of TZ offset under system_info.timezone_off_mins .
     * Added no_flush option to DataSourceDescriptor to avoid unnecessary IPC
       roundtrips to flush data sources like track_event that rely uniquely on
@@ -7,11 +18,13 @@ Unreleased:
     * Added support for running on Linux & Android systems configured with 16K
       pagetables.
   Trace Processor:
-    *
+    * New android_boot metric.
+    * Added new PerfettoSQL syntax (CREATE PERFETTO VIEW) for adding schemas to views.
+    * Support perf.data import format.
+    * Add dvfs and cpu_idle to stdlib.
   UI:
     * Add a new type of debug tracks: counter.
-  SDK:
-    *
+    * Improved visualization of timestamps for durations.
 
 
 v38.0 - 2023-10-10:
