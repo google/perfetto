@@ -134,5 +134,14 @@ android_startup {
     slow_start_reason: "GC Activity"
     slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
     slow_start_reason: "Main Thread - Binder transactions blocked"
+    slow_start_reason_detailed {
+      reason: "GC Activity"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Binder transactions blocked"
+    }
   }
 }

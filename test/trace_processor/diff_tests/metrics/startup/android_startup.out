@@ -67,6 +67,10 @@ android_startup {
       installd_dur_ns: 0
       dex2oat_dur_ns: 0
     }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in Runnable state"
+      details: " target 15% actual 74.07% [ longest_chunk: start_s 3.0e-08 dur_ms 8.0e-0 thread_id 3 thread_name com.google.android.calendar ] [ extra_info:  launches_dur_ms 0.0001 runnable_dur_ms 8.0e-0 R_sum_dur_ms 8.0e-0 R+(Preempted)_sum_dur_ms 0.0 ]"
+    } 
     startup_type: "warm"
   }
 }
