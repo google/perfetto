@@ -29,7 +29,12 @@ import {
 } from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {setTimestampFormat, TimestampFormat} from '../common/timestamp_format';
+import {
+  DurationPrecision,
+  setDurationPrecision,
+  setTimestampFormat,
+  TimestampFormat,
+} from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
@@ -187,7 +192,7 @@ export class App implements m.ClassComponent {
   private cmds: Command[] = [
     {
       id: 'perfetto.SetTimestampFormat',
-      name: 'Set timestamp format',
+      name: 'Set timestamp and duration format',
       callback:
           async () => {
             const options: PromptOption[] = [
@@ -200,11 +205,34 @@ export class App implements m.ClassComponent {
                 displayName: 'Raw (with locale-specific formatting)',
               },
             ];
-            const promptText = 'Select timecode format...';
+            const promptText = 'Select format...';
 
             try {
               const result = await this.prompt(promptText, options);
               setTimestampFormat(result as TimestampFormat);
+              raf.scheduleFullRedraw();
+            } catch {
+              // Prompt was probably cancelled - do nothing.
+            }
+          },
+    },
+    {
+      id: 'perfetto.SetDurationPrecision',
+      name: 'Set duration precision',
+      callback:
+          async () => {
+            const options: PromptOption[] = [
+              {key: DurationPrecision.Full, displayName: 'Full'},
+              {
+                key: DurationPrecision.HumanReadable,
+                displayName: 'Human readable',
+              },
+            ];
+            const promptText = 'Select duration precision mode...';
+
+            try {
+              const result = await this.prompt(promptText, options);
+              setDurationPrecision(result as DurationPrecision);
               raf.scheduleFullRedraw();
             } catch {
               // Prompt was probably cancelled - do nothing.

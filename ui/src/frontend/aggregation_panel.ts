@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {Duration} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   AggregateData,
@@ -25,6 +24,8 @@ import {colorForState, textColorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';
+import {DurationWidget} from './widgets/duration';
+
 export interface AggregationPanelAttrs {
   data: AggregateData;
   kind: string;
@@ -112,7 +113,8 @@ export class AggregationPanel implements
     if (selection === null || selection.kind !== 'AREA') return undefined;
     const selectedArea = globals.state.areas[selection.areaId];
     const duration = selectedArea.end - selectedArea.start;
-    return m('.time-range', `Selected range: ${Duration.humanise(duration)}`);
+    return m(
+        '.time-range', 'Selected range: ', m(DurationWidget, {dur: duration}));
   }
 
   // Thread state aggregation panel only

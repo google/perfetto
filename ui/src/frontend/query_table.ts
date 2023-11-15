@@ -18,7 +18,7 @@ import m from 'mithril';
 import {BigintMath} from '../base/bigint_math';
 import {copyToClipboard} from '../base/clipboard';
 import {isString} from '../base/object_utils';
-import {Duration, Time} from '../base/time';
+import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
 import {Row} from '../trace_processor/query_result';
@@ -229,8 +229,7 @@ export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
-    const dur = Duration.humanise(Duration.fromMillis(resp.durationMs));
-    return `Query result (${result}) - ${dur}`;
+    return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
   renderButtons(
