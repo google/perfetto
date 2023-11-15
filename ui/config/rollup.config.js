@@ -93,10 +93,12 @@ function defServiceWorkerBundle() {
   };
 }
 
+const maybeBigtrace = process.env['ENABLE_BIGTRACE'] ? [defBundle('bigtrace', 'dist_version/bigtrace')] : [];
+
 export default [
   defBundle('frontend', 'dist_version'),
   defBundle('engine', 'dist_version'),
   defBundle('traceconv', 'dist_version'),
   defBundle('chrome_extension', 'chrome_extension'),
   defServiceWorkerBundle(),
-];
+].concat(maybeBigtrace);
