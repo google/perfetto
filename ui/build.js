@@ -82,6 +82,7 @@ const cfg = {
   watch: false,
   verbose: false,
   debug: false,
+  bigtrace: false,
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
@@ -108,6 +109,7 @@ const cfg = {
   outGenDir: '',
   outDistDir: '',
   outExtDir: '',
+  outBigtraceDistDir: '',
 };
 
 const RULES = [
@@ -146,6 +148,7 @@ async function main() {
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
   parser.add_argument('--run-integrationtests', '-T', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
+  parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
   parser.add_argument('--no-depscheck', {action: 'store_true'});
@@ -171,8 +174,12 @@ async function main() {
   cfg.watch = !!args.watch;
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
+  cfg.bigtrace = !!args.bigtrace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
+  if (args.bigtrace) {
+    cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
+  }
   if (args.serve_host) {
     cfg.httpServerListenHost = args.serve_host;
   }
@@ -242,6 +249,9 @@ async function main() {
     genVersion();
     transpileTsProject('ui');
     transpileTsProject('ui/src/service_worker');
+    if (cfg.bigtrace) {
+      transpileTsProject('ui/src/bigtrace');
+    }
 
     if (cfg.watch) {
       transpileTsProject('ui', {watch: cfg.watch});
@@ -486,6 +496,9 @@ function transpileTsProject(project, options) {
 function bundleJs(cfgName) {
   const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
   const args = ['-c', rcfg, '--no-indent'];
+  if (cfg.bigtrace) {
+    args.push('--environment', 'ENABLE_BIGTRACE:true');
+  }
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
     // --waitForBundleInput is sadly quite busted so it is required ts
