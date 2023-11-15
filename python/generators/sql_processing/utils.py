@@ -173,7 +173,7 @@ def check_banned_words(sql: str, path: str) -> List[str]:
 
 # Given SQL string check whether there is (not allowlisted) usage of
 # CREATE TABLE {name} AS.
-def check_banned_create_table_as(sql: str, filename: str,
+def check_banned_create_table_as(sql: str, filename: str, stdlib_path: str,
                                  allowlist: Dict[str, List[str]]) -> List[str]:
   errors = []
   for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
@@ -182,33 +182,13 @@ def check_banned_create_table_as(sql: str, filename: str,
     # work on Windows for the Chrome stdlib presubmit.
     allowlist_normpath = dict(
         (os.path.normpath(path), tables) for path, tables in allowlist.items())
-    if os.path.normpath(filename) not in allowlist_normpath:
-      errors.append(f"CREATE TABLE '{name}' is deprecated."
-                    "Use CREATE PERFETTO TABLE instead.\n"
-                    f"Offending file: {filename}\n")
-      continue
-    if name not in allowlist_normpath[os.path.normpath(filename)]:
-      errors.append(
-          f"Table '{name}' uses CREATE TABLE which is deprecated "
-          "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
-          f"Offending file: {filename}\n")
-  return errors
-
-
-# Given SQL string check whether there is (not allowlisted) usage of
-# CREATE TABLE {name} AS.
-def check_banned_create_table_as(sql: str, filename: str, stdlib_path: str,
-                                 allowlist: Dict[str, List[str]]) -> List[str]:
-  errors = []
-  for _, matches in match_pattern(CREATE_TABLE_AS_PATTERN, sql).items():
-    name = matches[0]
-    allowlist_key = filename[len(stdlib_path):]
-    if allowlist_key not in allowlist:
+    allowlist_key = os.path.normpath(filename[len(stdlib_path):])
+    if allowlist_key not in allowlist_normpath:
       errors.append(f"CREATE TABLE '{name}' is deprecated. "
                     "Use CREATE PERFETTO TABLE instead.\n"
                     f"Offending file: {filename}\n")
       continue
-    if name not in allowlist[allowlist_key]:
+    if name not in allowlist_normpath[allowlist_key]:
       errors.append(
           f"Table '{name}' uses CREATE TABLE which is deprecated "
           "and this table is not allowlisted. Use CREATE PERFETTO TABLE.\n"
