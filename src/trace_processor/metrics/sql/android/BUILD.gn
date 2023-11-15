@@ -126,6 +126,7 @@ perfetto_sql_source_set("android") {
     "startup/launches_minsdk33.sql",
     "startup/mcycles_per_launch.sql",
     "startup/slice_functions.sql",
+    "startup/slow_start_reasons.sql",
     "startup/system_state.sql",
     "startup/thread_state_breakdown.sql",
     "unsymbolized_frames.sql",

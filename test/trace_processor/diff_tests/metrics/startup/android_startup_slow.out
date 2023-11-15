@@ -70,5 +70,19 @@ android_startup {
     startup_type: "warm"
     slow_start_reason: "Main Thread - Time spent in interruptible sleep state"
     slow_start_reason: "Main Thread - Time spent in Blocking I/O"
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in Runnable state"
+      details: " target 15% actual 74.07% [ longest_chunk: start_s 30.0 dur_ms 80000. thread_id 3 thread_name com.google.android.calendar ] [ extra_info:  launches_dur_ms 108000 runnable_dur_ms 80000. R_sum_dur_ms 80000. R+(Preempted)_sum_dur_ms 0.0 ]"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in interruptible sleep state"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in Blocking I/O"
+    }
+    slow_start_reason_detailed {
+      reason: "Potential CPU contention with another process"
+      details: " target 100ms actual 80000.ms most_active_process_for_launch init [ longest_chunk: start_s 30.0 dur_ms 80000. thread_id 3 thread_name com.google.android.calendar ] [ extra_info:  runnable_dur_ms 80000. R_sum_dur_ms 80000. R+(Preempted)_sum_dur 0 ]"
+    }
   }
 }

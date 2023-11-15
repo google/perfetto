@@ -62,6 +62,9 @@ android_startup {
       dex2oat_dur_ns: 5000000000
     }
     slow_start_reason: "dex2oat running during launch"
+    slow_start_reason_detailed {
+      reason: "dex2oat running during launch"
+    }
   }
   startup {
     startup_id: 3
@@ -98,6 +101,15 @@ android_startup {
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
     slow_start_reason: "Startup running concurrent to launch"
+    slow_start_reason_detailed {
+      reason: "dex2oat running during launch"
+    }
+    slow_start_reason_detailed {
+      reason: "installd running during launch"
+    }
+    slow_start_reason_detailed {
+      reason: "Startup running concurrent to launch"
+    }
     startup_concurrent_to_launch: "com.google.android.gm"
   }
   startup {
@@ -133,6 +145,15 @@ android_startup {
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
     slow_start_reason: "Startup running concurrent to launch"
+    slow_start_reason_detailed {
+      reason: "dex2oat running during launch"
+    }
+    slow_start_reason_detailed {
+      reason: "installd running during launch"
+    }
+    slow_start_reason_detailed {
+      reason: "Startup running concurrent to launch"
+    }
     startup_concurrent_to_launch: "com.google.android.deskclock"
   }
 }
