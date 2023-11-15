@@ -15,9 +15,9 @@
 import m from 'mithril';
 
 import {duration, time} from '../base/time';
-import {DurationWidget} from '../widgets/duration';
 
 import {globals, SliceDetails} from './globals';
+import {DurationWidget} from './widgets/duration';
 
 // To display process or thread, we want to concatenate their name with ID, but
 // either can be undefined and all the cases need to be considered carefully to

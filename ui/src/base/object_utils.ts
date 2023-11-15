@@ -65,3 +65,9 @@ export function shallowEquals(a: unknown, b: unknown) {
 export function isString(s: unknown): s is string {
   return typeof s === 'string' || s instanceof String;
 }
+
+// Given a string enum |enum|, check that |value| is a valid member of |enum|.
+export function isEnumValue<T extends {}>(
+    enm: T, value: unknown): value is T[keyof T] {
+  return Object.values(enm).includes(value);
+}

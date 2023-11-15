@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isEnumValue} from '../base/object_utils';
+
 export enum TimestampFormat {
   Timecode = 'timecode',
   Raw = 'raw',
@@ -25,13 +27,9 @@ let timestampFormatCached: TimestampFormat|undefined;
 const TIMESTAMP_FORMAT_KEY = 'timestampFormat';
 const DEFAULT_TIMESTAMP_FORMAT = TimestampFormat.Timecode;
 
-function isTimestampFormat(value: unknown): value is TimestampFormat {
-  return Object.values(TimestampFormat).includes(value as TimestampFormat);
-}
-
 export function timestampFormat(): TimestampFormat {
   const storedFormat = localStorage.getItem(TIMESTAMP_FORMAT_KEY);
-  if (storedFormat && isTimestampFormat(storedFormat)) {
+  if (storedFormat && isEnumValue(TimestampFormat, storedFormat)) {
     timestampFormatCached = storedFormat;
   } else {
     timestampFormatCached = DEFAULT_TIMESTAMP_FORMAT;
@@ -42,4 +40,29 @@ export function timestampFormat(): TimestampFormat {
 export function setTimestampFormat(format: TimestampFormat) {
   timestampFormatCached = format;
   localStorage.setItem(TIMESTAMP_FORMAT_KEY, format);
+}
+
+export enum DurationPrecision {
+  Full = 'full',
+  HumanReadable = 'human_readable',
+}
+
+let durationFormatCached: DurationPrecision|undefined;
+
+const DURATION_FORMAT_KEY = 'durationFormat';
+const DEFAULT_DURATION_FORMAT = DurationPrecision.Full;
+
+export function durationPrecision(): DurationPrecision {
+  const storedFormat = localStorage.getItem(DURATION_FORMAT_KEY);
+  if (storedFormat && isEnumValue(DurationPrecision, storedFormat)) {
+    durationFormatCached = storedFormat;
+  } else {
+    durationFormatCached = DEFAULT_DURATION_FORMAT;
+  }
+  return durationFormatCached;
+}
+
+export function setDurationPrecision(format: DurationPrecision) {
+  durationFormatCached = format;
+  localStorage.setItem(DURATION_FORMAT_KEY, format);
 }
