@@ -62,6 +62,9 @@ android_startup {
       dex2oat_dur_ns: 5
     }
     slow_start_reason: "dex2oat running during launch"
+    slow_start_reason_detailed {
+      reason: "dex2oat running during launch"
+    }
   }
   startup {
     startup_id: 3
@@ -95,6 +98,9 @@ android_startup {
       dex2oat_dur_ns: 0
     }
     slow_start_reason: "installd running during launch"
+    slow_start_reason_detailed {
+      reason: "installd running during launch"
+    }
   }
   startup {
     startup_id: 4
@@ -130,5 +136,11 @@ android_startup {
     }
     slow_start_reason: "dex2oat running during launch"
     slow_start_reason: "installd running during launch"
+    slow_start_reason_detailed {
+      reason: "dex2oat running during launch"
+    }
+    slow_start_reason_detailed {
+      reason: "installd running during launch"
+    }
   }
 }
