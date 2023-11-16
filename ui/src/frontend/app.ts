@@ -408,12 +408,10 @@ export class App implements m.ClassComponent {
     if (msgTTL > 0 || engineIsBusy) {
       setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
       return m(
-          `.omnibox.message-mode`,
-          m(`input[placeholder=${
-                globals.state.status.msg}][readonly][disabled][ref=omnibox]`,
-            {
-              value: '',
-            }));
+          `.omnibox.message-mode`, m(`input[readonly][disabled][ref=omnibox]`, {
+            value: '',
+            placeholder: globals.state.status.msg,
+          }));
     }
 
     if (this.omniboxMode === OmniboxMode.Command) {
