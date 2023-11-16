@@ -43,19 +43,19 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
         {
           option:
               FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased size'
+          name: 'Unreleased size',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased count'
+          name: 'Unreleased count',
         },
         {
           option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total size'
+          name: 'Total size',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total count'
+          name: 'Total count',
         },
       ];
     case ProfileType.NATIVE_HEAP_PROFILE:
@@ -63,41 +63,41 @@ export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
         {
           option:
               FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased malloc size'
+          name: 'Unreleased malloc size',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
-          name: 'Unreleased malloc count'
+          name: 'Unreleased malloc count',
         },
         {
           option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total malloc size'
+          name: 'Total malloc size',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total malloc count'
+          name: 'Total malloc count',
         },
       ];
     case ProfileType.JAVA_HEAP_SAMPLES:
       return [
         {
           option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total allocation size'
+          name: 'Total allocation size',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total allocation count'
+          name: 'Total allocation count',
         },
       ];
     case ProfileType.MIXED_HEAP_PROFILE:
       return [
         {
           option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
-          name: 'Total allocation size (malloc + java)'
+          name: 'Total allocation size (malloc + java)',
         },
         {
           option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
-          name: 'Total allocation count (malloc + java)'
+          name: 'Total allocation count (malloc + java)',
         },
       ];
     default:
