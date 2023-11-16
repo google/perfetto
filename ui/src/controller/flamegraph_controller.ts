@@ -25,7 +25,7 @@ import {
   CallsiteInfo,
   FlamegraphState,
   FlamegraphStateViewingOption,
-  ProfileType
+  ProfileType,
 } from '../common/state';
 import {FlamegraphDetails, globals} from '../frontend/globals';
 import {publishFlamegraphDetails} from '../frontend/publish';
