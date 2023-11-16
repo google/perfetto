@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time, time} from '../../base/time';
+import {exists} from '../../base/utils';
 import {
   Plugin,
   PluginContext,
@@ -172,8 +174,39 @@ const coreCommands: Plugin = {
         });
       },
     });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#PanToTimestamp',
+      name: 'Pan To Timestamp',
+      callback: (tsRaw: unknown) => {
+        if (exists(tsRaw)) {
+          if (typeof tsRaw !== 'bigint') {
+            throw Error(`${tsRaw} is not a bigint`);
+          }
+          ctx.timeline.panToTimestamp(Time.fromRaw(tsRaw));
+        } else {
+          // No args passed, probably run from the command palette.
+          const ts = promptForTimestamp('Enter a timestamp');
+          if (exists(ts)) {
+            ctx.timeline.panToTimestamp(Time.fromRaw(ts));
+          }
+        }
+      },
+    });
   },
 };
+
+function promptForTimestamp(message: string): time|undefined {
+  const tsStr = window.prompt(message);
+  if (tsStr !== null) {
+    try {
+      return Time.fromRaw(BigInt(tsStr));
+    } catch {
+      window.alert(`${tsStr} is not an integer`);
+    }
+  }
+  return undefined;
+}
 
 export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.CoreCommands',
