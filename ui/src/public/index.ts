@@ -278,6 +278,9 @@ export interface PluginContextTrace extends PluginContext {
 
     // Retrieve a list of tracks on the timeline.
     tracks: TrackRef[];
+
+    // Bring a timestamp into view.
+    panToTimestamp(ts: time): void;
   }
 
   // Control over the bottom details pane.

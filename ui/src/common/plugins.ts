@@ -16,6 +16,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {Disposable, Trash} from '../base/disposable';
 import {assertFalse} from '../base/logging';
+import {time} from '../base/time';
 import {globals} from '../frontend/globals';
 import {
   Command,
@@ -259,6 +260,11 @@ class TracePluginContextImpl implements PluginContextTrace, Disposable {
               params: trackState.params,
             };
           });
+        },
+
+    panToTimestamp(ts: time):
+        void {
+          globals.panToTimestamp(ts);
         },
   };
 
