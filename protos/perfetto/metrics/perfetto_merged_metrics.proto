@@ -2210,6 +2210,69 @@ message AndroidSurfaceflingerMetric {
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
 
+// Begin of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Statistical performance data row for a set of slices
+message SysUiSlicePerformanceStatisticalData {
+  // Name of the Slice
+  optional string name = 1;
+  // Number of times it happened within the CUJ
+  optional int64 cnt = 2;
+  // Average duration within the CUJ
+  optional int64 avg_dur_ms = 3;
+  // Maximal duration within the CUJ
+  optional int64 max_dur_ms = 4;
+  // Average duration within the CUJ in nanoseconds
+  optional int64 avg_dur_ns = 6;
+  // Maximal duration within the CUJ in nanoseconds
+  optional int64 max_dur_ns = 7;
+}
+// End of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiNotifShadeListBuilderMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  optional SysUiSlicePerformanceStatisticalData slices_with_inflation_performance = 2;
+  optional SysUiSlicePerformanceStatisticalData slices_with_modification_performance = 3;
+
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 4;
+}
+// End of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
+
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiUpdateNotifOnUiModeChangedMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 2;
+}
+// End of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
+
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
 message AndroidTaskNames {
@@ -2324,7 +2387,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 59
+// Next id: 61
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2485,6 +2548,9 @@ message TraceMetrics {
   // Metric for AdServices module.
   optional AdServicesMetric ad_services_metric = 58;
 
+  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+
+  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
   // Demo extensions.
   extensions 450 to 499;
 

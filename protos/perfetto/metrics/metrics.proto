@@ -20,6 +20,8 @@ package perfetto.protos;
 
 import "protos/perfetto/metrics/android/ad_services_metric.proto";
 import "protos/perfetto/metrics/android/android_boot.proto";
+import "protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto";
+import "protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto";
 import "protos/perfetto/metrics/android/android_frame_timeline_metric.proto";
 import "protos/perfetto/metrics/android/anr_metric.proto";
 import "protos/perfetto/metrics/android/batt_metric.proto";
@@ -111,7 +113,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 59
+// Next id: 61
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -272,6 +274,9 @@ message TraceMetrics {
   // Metric for AdServices module.
   optional AdServicesMetric ad_services_metric = 58;
 
+  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+
+  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
   // Demo extensions.
   extensions 450 to 499;
 
