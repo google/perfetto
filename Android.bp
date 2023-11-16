@@ -8140,6 +8140,7 @@ filegroup {
     name: "perfetto_protos_perfetto_trace_processor_zero",
     srcs: [
         "protos/perfetto/trace_processor/metatrace_categories.proto",
+        "protos/perfetto/trace_processor/serialization.proto",
         "protos/perfetto/trace_processor/stack.proto",
         "protos/perfetto/trace_processor/trace_processor.proto",
     ],
@@ -8159,6 +8160,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_processor_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.cc",
+        "external/perfetto/protos/perfetto/trace_processor/serialization.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.cc",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.cc",
     ],
@@ -8178,6 +8180,7 @@ genrule {
     cmd: "mkdir -p $(genDir)/external/perfetto/ && $(location aprotoc) --proto_path=external/perfetto --plugin=protoc-gen-plugin=$(location protozero_plugin) --plugin_out=wrapper_namespace=pbzero:$(genDir)/external/perfetto/ $(locations :perfetto_protos_perfetto_trace_processor_zero)",
     out: [
         "external/perfetto/protos/perfetto/trace_processor/metatrace_categories.pbzero.h",
+        "external/perfetto/protos/perfetto/trace_processor/serialization.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/stack.pbzero.h",
         "external/perfetto/protos/perfetto/trace_processor/trace_processor.pbzero.h",
     ],
