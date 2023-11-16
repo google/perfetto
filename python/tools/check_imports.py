@@ -284,6 +284,11 @@ RULES = [
         r'/plugins/.*',
         'widgets should only depend on base',
     ),
+    NoDep(
+        r'/widgets/.*',
+        r'/common/.*',
+        'widgets should only depend on base',
+    ),
 
     # Fails at the moment as we have several circular dependencies. One
     # example:
