@@ -48,7 +48,7 @@
 // This object is part of the API exposed to tracks / controllers.
 
 // Ensure protobuf is initialized.
-import '../core/static_initializers';
+import '../base/static_initializers';
 
 import protobuf from 'protobufjs/minimal';
 

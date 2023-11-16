@@ -16,14 +16,14 @@ import m from 'mithril';
 import * as vega from 'vega';
 import * as vegaLite from 'vega-lite';
 
-import {Disposable} from '../../base/disposable';
-import {isString, shallowEquals} from '../../base/object_utils';
-import {SimpleResizeObserver} from '../../base/resize_observer';
-import {getErrorMessage} from '../../common/errors';
-import {EngineProxy} from '../../trace_processor/engine';
-import {QueryError} from '../../trace_processor/query_result';
-import {scheduleFullRedraw} from '../../widgets/raf';
-import {Spinner} from '../../widgets/spinner';
+import {Disposable} from '../base/disposable';
+import {getErrorMessage} from '../base/errors';
+import {isString, shallowEquals} from '../base/object_utils';
+import {SimpleResizeObserver} from '../base/resize_observer';
+import {EngineProxy} from '../trace_processor/engine';
+import {QueryError} from '../trace_processor/query_result';
+import {scheduleFullRedraw} from '../widgets/raf';
+import {Spinner} from '../widgets/spinner';
 
 function isVegaLite(spec: unknown): boolean {
   if (typeof spec === 'object') {

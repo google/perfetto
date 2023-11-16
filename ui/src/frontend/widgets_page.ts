@@ -42,11 +42,11 @@ import {Switch} from '../widgets/switch';
 import {TextInput} from '../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
+import {VegaView} from '../widgets/vega_view';
 
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
-import {VegaView} from './widgets/vega_view';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
