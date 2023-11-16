@@ -375,6 +375,38 @@
   },
   {
     "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]\\gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\trace_processor_shell.exe.pdb",
+      "gs://perfetto-luci-artifacts//windows-amd64/trace_processor_shell.exe.pdb"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "Artifact upload.gsutil upload (2)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/trace_processor_shell.exe.pdb@@@"
+    ]
+  },
+  {
+    "cmd": [
       "cipd.bat",
       "pkg-build",
       "-pkg-def",
@@ -475,10 +507,42 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "Artifact upload.gsutil upload (2)",
+    "name": "Artifact upload.gsutil upload (3)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traceconv.exe@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]\\gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traceconv.exe.pdb",
+      "gs://perfetto-luci-artifacts//windows-amd64/traceconv.exe.pdb"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "Artifact upload.gsutil upload (4)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traceconv.exe.pdb@@@"
     ]
   },
   {
@@ -583,10 +647,42 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "Artifact upload.gsutil upload (3)",
+    "name": "Artifact upload.gsutil upload (5)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/perfetto.exe@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]\\gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\perfetto.exe.pdb",
+      "gs://perfetto-luci-artifacts//windows-amd64/perfetto.exe.pdb"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "Artifact upload.gsutil upload (6)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/perfetto.exe.pdb@@@"
     ]
   },
   {
@@ -691,10 +787,42 @@
         "hostname": "rdbhost"
       }
     },
-    "name": "Artifact upload.gsutil upload (4)",
+    "name": "Artifact upload.gsutil upload (7)",
     "~followup_annotations": [
       "@@@STEP_NEST_LEVEL@1@@@",
       "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traced.exe@@@"
+    ]
+  },
+  {
+    "cmd": [
+      "python3",
+      "-u",
+      "RECIPE_MODULE[depot_tools::gsutil]\\resources\\gsutil_smart_retry.py",
+      "--",
+      "RECIPE_REPO[depot_tools]\\gsutil.py",
+      "----",
+      "cp",
+      "[CACHE]\\builder\\perfetto\\out\\windows-amd64\\traced.exe.pdb",
+      "gs://perfetto-luci-artifacts//windows-amd64/traced.exe.pdb"
+    ],
+    "cwd": "[CACHE]\\builder\\perfetto",
+    "infra_step": true,
+    "luci_context": {
+      "realm": {
+        "name": "perfetto:ci"
+      },
+      "resultdb": {
+        "current_invocation": {
+          "name": "invocations/build:8945511751514863184",
+          "update_token": "token"
+        },
+        "hostname": "rdbhost"
+      }
+    },
+    "name": "Artifact upload.gsutil upload (8)",
+    "~followup_annotations": [
+      "@@@STEP_NEST_LEVEL@1@@@",
+      "@@@STEP_LINK@gsutil.upload@https://storage.cloud.google.com/perfetto-luci-artifacts//windows-amd64/traced.exe.pdb@@@"
     ]
   },
   {
