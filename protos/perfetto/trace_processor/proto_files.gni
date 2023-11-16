@@ -16,6 +16,7 @@
 # //ui/BUIlD.gn (for the TypeScript/JS proto codegen).
 trace_processor_protos = [
   "metatrace_categories",
+  "serialization",
   "stack",
   "trace_processor",
 ]
