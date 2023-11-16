@@ -19,9 +19,11 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -104,7 +106,9 @@ SqliteEngine::~SqliteEngine() {
   }
   for (const auto& drop : drop_stmts) {
     int ret = sqlite3_exec(db(), drop.c_str(), nullptr, nullptr, nullptr);
-    PERFETTO_CHECK(ret == SQLITE_OK);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to execute statement: '%s'", drop.c_str());
+    }
   }
 
   // It is important to unregister any functions that have been registered with
@@ -114,7 +118,9 @@ SqliteEngine::~SqliteEngine() {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
                                          nullptr, nullptr, nullptr, nullptr);
-    PERFETTO_CHECK(ret == SQLITE_OK);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
+    }
   }
   fn_ctx_.Clear();
 
@@ -127,7 +133,16 @@ SqliteEngine::~SqliteEngine() {
   saved_tables_.Clear();
 
   // The above operations should have cleared all the tables.
-  PERFETTO_CHECK(sqlite_tables_.size() == 0);
+  if (PERFETTO_UNLIKELY(sqlite_tables_.size() != 0)) {
+    std::vector<std::string> tables;
+    for (auto it = sqlite_tables_.GetIterator(); it; ++it) {
+      tables.push_back(it.key());
+    }
+    std::string joined = base::Join(tables, ",");
+    PERFETTO_FATAL(
+        "SqliteTable instances still exist: count='%zu', tables='[%s]'",
+        sqlite_tables_.size(), joined.c_str());
+  }
 }
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
