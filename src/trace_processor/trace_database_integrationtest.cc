@@ -574,6 +574,24 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesIndex) {
   }
 }
 
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesTraceBounds) {
+  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  {
+    auto it = Query("SELECT * from trace_bounds;");
+    it.Next();
+    ASSERT_TRUE(it.Status().ok());
+    ASSERT_EQ(it.Get(0).AsLong(), 81473009948313l);
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 0u);
+  {
+    auto it = Query("SELECT * from trace_bounds;");
+    it.Next();
+    ASSERT_TRUE(it.Status().ok());
+    ASSERT_EQ(it.Get(0).AsLong(), 81473009948313l);
+  }
+}
+
 // This test checks that a ninja trace is tokenized properly even if read in
 // small chunks of 1KB each. The values used in the test have been cross-checked
 // with opening the same trace with ninjatracing + chrome://tracing.

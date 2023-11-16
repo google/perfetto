@@ -666,7 +666,8 @@ void TraceProcessorImpl::EnableMetatrace(MetatraceConfig config) {
 
 void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_.reset(new PerfettoSqlEngine(context_.storage->mutable_string_pool()));
-  sqlite3_str_split_init(engine_->sqlite_engine()->db());
+  sqlite3* db = engine_->sqlite_engine()->db();
+  sqlite3_str_split_init(db);
 
   // Register SQL functions only used in local development instances.
   if (config_.enable_dev_features) {
@@ -709,22 +710,20 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // Old style function registration.
   // TODO(lalitm): migrate this over to using RegisterFunction once aggregate
   // functions are supported.
-  RegisterLastNonNullFunction(engine_->sqlite_engine()->db());
-  RegisterValueAtMaxTsFunction(engine_->sqlite_engine()->db());
+  RegisterLastNonNullFunction(db);
+  RegisterValueAtMaxTsFunction(db);
   {
     base::Status status = RegisterStackFunctions(engine_.get(), &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status =
-        PprofFunctions::Register(engine_->sqlite_engine()->db(), &context_);
+    base::Status status = PprofFunctions::Register(db, &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
   {
-    base::Status status =
-        LayoutFunctions::Register(engine_->sqlite_engine()->db(), &context_);
+    base::Status status = LayoutFunctions::Register(db, &context_);
     if (!status.ok())
       PERFETTO_ELOG("%s", status.c_message());
   }
@@ -750,7 +749,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
       "window", storage, SqliteTable::TableType::kExplicitCreate, true);
 
   // Initalize the tables and views in the prelude.
-  InitializePreludeTablesViews(engine_->sqlite_engine()->db());
+  InitializePreludeTablesViews(db);
 
   // Register stdlib modules.
   auto stdlib_modules = GetStdlibModules();
@@ -766,9 +765,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   // functions are supported.
   {
     auto ret = sqlite3_create_function_v2(
-        engine_->sqlite_engine()->db(), "RepeatedField", 1, SQLITE_UTF8,
-        nullptr, nullptr, metrics::RepeatedFieldStep,
-        metrics::RepeatedFieldFinal, nullptr);
+        db, "RepeatedField", 1, SQLITE_UTF8, nullptr, nullptr,
+        metrics::RepeatedFieldStep, metrics::RepeatedFieldFinal, nullptr);
     if (ret)
       PERFETTO_FATAL("Error initializing RepeatedField");
   }
@@ -917,8 +915,7 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
 
   for (const auto& metric : sql_metrics_) {
     if (metric.proto_field_name) {
-      InsertIntoTraceMetricsTable(engine_->sqlite_engine()->db(),
-                                  *metric.proto_field_name);
+      InsertIntoTraceMetricsTable(db, *metric.proto_field_name);
     }
   }
 
@@ -931,6 +928,9 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
                      result.status().c_message());
     }
   }
+
+  // Fill trace bounds table.
+  BuildBoundsTable(db, context_.storage->GetTraceTimestampBoundsNs());
 }
 
 namespace {
