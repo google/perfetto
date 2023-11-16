@@ -272,35 +272,29 @@ $bottom-tab-padding: 10px;
 
 .query-table {
   width: 100%;
-  font-size: 14px;
-  border: 0;
+  border-collapse: collapse;
+  border-spacing: 0;
   thead td {
     position: sticky;
     top: 0;
-    background-color: hsl(214, 22%, 90%);
-    color: #262f3c;
-    text-align: center;
+    font-weight: bold;
+  }
+  td {
     padding: 1px 3px;
-    border-style: solid;
-    border-color: #fff;
-    border-right-width: 1px;
-    border-left-width: 1px;
+    border: 1px solid;
   }
   tbody tr {
     @include transition();
-    background-color: hsl(214, 22%, 100%);
+    background-color: var(--main-background-color);
     font-family: var(--monospace-font);
+    border-color: var(--main-foreground-color);
     &:nth-child(even) {
-      background-color: hsl(214, 22%, 95%);
-    }
-    td:first-child {
-      padding-left: 5px;
-    }
-    td:last-child {
-      padding-right: 5px;
+      background-color: var(--alt-background-color);
     }
     &:hover {
-      background-color: hsl(214, 22%, 90%);
+      background-color: var(--main-foreground-color);
+      color: var(--main-background-color);
+      border-color: var(--main-background-color)
     }
     &[clickable] {
       cursor: pointer;
@@ -568,8 +562,6 @@ canvas.main-canvas {
 header.overview {
   display: flex;
   align-content: baseline;
-  background-color: hsl(213, 22%, 82%);
-  color: hsl(213, 22%, 20%);
   font-family: "Roboto Condensed", sans-serif;
   font-size: 15px;
   font-weight: 400;

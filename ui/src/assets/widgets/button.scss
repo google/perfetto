@@ -18,7 +18,6 @@
   font-family: $pf-font;
   line-height: 1;
   user-select: none;
-  color: $pf-primary-foreground;
   background: $pf-primary-background;
   transition: background $pf-anim-timing, box-shadow $pf-anim-timing;
   border-radius: $pf-border-radius;
@@ -66,7 +65,6 @@
   // Remove default background in minimal mode, showing only the text
   &.pf-minimal {
     background: $pf-minimal-background;
-    color: $pf-minimal-foreground;
 
     &:hover {
       background: $pf-minimal-background-hover;
@@ -78,7 +76,6 @@
     }
 
     &[disabled] {
-      color: $pf-minimal-foreground-disabled;
       background: $pf-minimal-background-disabled;
       cursor: not-allowed;
     }
