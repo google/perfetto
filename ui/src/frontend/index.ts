@@ -13,7 +13,7 @@
 // limitations under the License.
 
 // Keep this import first.
-import '../core/static_initializers';
+import '../base/static_initializers';
 import '../gen/all_plugins';
 
 import {Draft} from 'immer';

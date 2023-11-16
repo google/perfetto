@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {getErrorMessage} from '../../base/errors';
 import {
   showAllowUSBDebugging,
   showConnectionLostError,
@@ -22,7 +23,6 @@ import {
   showWebsocketConnectionIssue,
   showWebUSBErrorV2,
 } from '../../frontend/error_dialog';
-import {getErrorMessage} from '../errors';
 
 import {OnMessageCallback} from './recording_interfaces_v2';
 import {
