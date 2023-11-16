@@ -316,11 +316,19 @@ if (build_with_chromium) {
     }
   }
 
+  # TODO(altimin): this is a temp workaround around very strange link failures
+  # on win-dbg-ng buildbot.
+  if (!is_win) {
+    libtrace_processor_target_type = "source_set"
+  } else {
+    libtrace_processor_target_type = "component"
+  }
+
   # In Chromium, we want to ensure that we don't link dynamically against sqlite
   # (as Chromium also uses a more restricted version of sqlite which is actually
   # shipped to the users).
   # source_set helps us to achieve that.
-  source_set("libtrace_processor") {
+  target(libtrace_processor_target_type, "libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
     configs -= [ "//build/config/compiler:chromium_code" ]
