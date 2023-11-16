@@ -964,7 +964,7 @@ export function getContainingTrackIds(state: State, trackId: string): null|
   }
 
   const result = [];
-  while (groupId) {
+  while (groupId && groupId !== SCROLLING_TRACK_GROUP) {
     result.unshift(groupId);
     const trackGroup: TrackGroupState = state.trackGroups[groupId];
     groupId = trackGroup?.parentGroup;
