@@ -52,6 +52,7 @@ import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
 import {Router} from './router';
+import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {createStore, Store} from './store';
@@ -860,6 +861,10 @@ class Globals {
   // If the tag is omitted, the results will always open in a new tab.
   openQuery(query: string, title: string, tag?: string) {
     assertExists(this._openQueryHandler)(query, title, tag);
+  }
+
+  panToTimestamp(ts: time): void {
+    horizontalScrollToTs(ts);
   }
 }
 
