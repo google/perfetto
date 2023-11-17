@@ -517,7 +517,7 @@ TEST(QueryExecutor, StringSearchIsNull) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
-  StringStorage storage(&pool, ids.data(), 7);
+  StringStorage storage(&pool, &ids);
 
   // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};
@@ -545,7 +545,7 @@ TEST(QueryExecutor, StringSearchGtSorted) {
   for (const auto& string : strings) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
 
   // Final vec {"apple", "burger", "doughnut", "eggplant"}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0};
@@ -573,7 +573,7 @@ TEST(QueryExecutor, StringSearchNeSorted) {
   for (const auto& string : strings) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
 
   // Final vec {"apple", "burger", "doughnut", "eggplant"}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0};
@@ -603,7 +603,7 @@ TEST(QueryExecutor, StringBinarySearchRegex) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
-  StringStorage storage(&pool, ids.data(), 7);
+  StringStorage storage(&pool, &ids);
 
   // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};
@@ -633,7 +633,7 @@ TEST(QueryExecutor, StringBinarySearchRegexWithNum) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
-  StringStorage storage(&pool, ids.data(), 7);
+  StringStorage storage(&pool, &ids);
 
   // Final vec {"cheese", "pasta", "NULL", "pierogi", "fries"}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0, 1};

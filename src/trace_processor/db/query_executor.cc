@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/overlays/arrangement_overlay.h"
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
@@ -323,9 +324,8 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
           break;
         case ColumnType::kString:
           storage.reset(new storage::StringStorage(
-              table->string_pool(),
-              static_cast<const StringPool::Id*>(col.storage_base().data()),
-              col.storage_base().non_null_size(), col.IsSorted()));
+              table->string_pool(), &col.storage<StringPool::Id>().vector(),
+              col.IsSorted()));
           break;
         case ColumnType::kInt64:
           if (col.IsNullable()) {
