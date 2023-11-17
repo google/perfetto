@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {featureFlags} from '../common/feature_flags';
+import {featureFlags} from '../core/feature_flags';
 
 let lastReloadDialogTime = 0;
 const kMinTimeBetweenDialogsMs = 10000;

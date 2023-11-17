@@ -17,7 +17,7 @@ import m from 'mithril';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {featureFlags} from '../common/feature_flags';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
