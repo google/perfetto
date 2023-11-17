@@ -96,6 +96,7 @@ data_sources: {
             battery_counters: BATTERY_COUNTER_CAPACITY_PERCENT
             battery_counters: BATTERY_COUNTER_CHARGE
             battery_counters: BATTERY_COUNTER_CURRENT
+            battery_counters: BATTERY_COUNTER_VOLTAGE
         }
     }
 }
