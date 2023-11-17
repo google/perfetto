@@ -80,7 +80,15 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
 SqliteEngine::SqliteEngine() {
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
-  PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
+
+  // Ensure that we open the database with mutexes disabled: this is because
+  // trace processor as a whole cannot be used from multiple threads so there is
+  // no point paying the (potentially significant) cost of mutexes at the SQLite
+  // level.
+  static constexpr int kSqliteOpenFlags =
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
+  PERFETTO_CHECK(sqlite3_open_v2(":memory:", &db, kSqliteOpenFlags, nullptr) ==
+                 SQLITE_OK);
   InitializeSqlite(db);
   db_.reset(std::move(db));
 }
