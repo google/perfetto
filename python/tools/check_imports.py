@@ -313,7 +313,7 @@ RULES = [
     ),
     NoDep(
         r'/bigtrace/.*',
-        r'/tracks/.*',
+        r'/trace_processor/.*',
         'bigtrace should not depend on trace_processor',
     ),
     NoDep(
