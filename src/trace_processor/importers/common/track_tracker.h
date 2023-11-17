@@ -69,8 +69,8 @@ class TrackTracker {
   // Interns a legacy Chrome async event track into the storage.
   TrackId InternLegacyChromeAsyncTrack(StringId name,
                                        uint32_t upid,
-                                       int64_t source_id,
-                                       bool source_id_is_process_scoped,
+                                       int64_t trace_id,
+                                       bool trace_id_is_process_scoped,
                                        StringId source_scope);
 
   // Interns a track for legacy Chrome process-scoped instant events into the
@@ -165,13 +165,13 @@ class TrackTracker {
   };
   struct ChromeTrackTuple {
     std::optional<int64_t> upid;
-    int64_t source_id = 0;
+    int64_t trace_id = 0;
     StringId source_scope = StringId::Null();
 
     friend bool operator<(const ChromeTrackTuple& l,
                           const ChromeTrackTuple& r) {
-      return std::tie(l.source_id, l.upid, l.source_scope) <
-             std::tie(r.source_id, r.upid, r.source_scope);
+      return std::tie(l.trace_id, l.upid, l.source_scope) <
+             std::tie(r.trace_id, r.upid, r.source_scope);
     }
   };
   static constexpr size_t kGroupCount =
@@ -207,8 +207,8 @@ class TrackTracker {
   std::optional<TrackId> trigger_track_id_;
 
   const StringId source_key_ = kNullStringId;
-  const StringId source_id_key_ = kNullStringId;
-  const StringId source_id_is_process_scoped_key_ = kNullStringId;
+  const StringId trace_id_key_ = kNullStringId;
+  const StringId trace_id_is_process_scoped_key_ = kNullStringId;
   const StringId source_scope_key_ = kNullStringId;
   const StringId category_key_ = kNullStringId;
 
