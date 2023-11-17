@@ -315,3 +315,44 @@ class Tables(TestSuite):
                 "system_version","Foobar"
                 "timezone_off_mins",60
                 """))
+
+  def test_flow_table_trace_id(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 0
+            track_event {
+              name: "Track 0 Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 10
+            track_event {
+              name: "Track 0 Nested Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 50
+            track_event {
+              name: "Track 0 Short Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              terminating_flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+        """),
+        query="SELECT * FROM flow;",
+        out=Csv("""
+          "id","type","slice_out","slice_in","trace_id","arg_set_id"
+          0,"flow",0,1,57,0
+          1,"flow",1,2,57,0
+                """))
