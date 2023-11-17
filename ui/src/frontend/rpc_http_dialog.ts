@@ -16,9 +16,9 @@ import m from 'mithril';
 
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
-import {HttpRpcEngine, RPC_URL} from '../common/http_rpc_engine';
 import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
+import {HttpRpcEngine, RPC_URL} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {showModal} from './modal';
