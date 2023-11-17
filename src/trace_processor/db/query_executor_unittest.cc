@@ -33,7 +33,6 @@ using OverlaysVec = base::SmallVector<const overlays::StorageOverlay*,
 using SimpleColumn = QueryExecutor::SimpleColumn;
 
 using IdStorage = storage::IdStorage;
-using NumericStorage = storage::NumericStorage;
 using SetIdStorage = storage::SetIdStorage;
 using StringStorage = storage::StringStorage;
 
@@ -43,7 +42,7 @@ using SelectorOverlay = overlays::SelectorOverlay;
 
 TEST(QueryExecutor, OnlyStorageRange) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   SimpleColumn col{OverlaysVec(), &storage};
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
@@ -56,7 +55,7 @@ TEST(QueryExecutor, OnlyStorageRange) {
 
 TEST(QueryExecutor, OnlyStorageRangeIsNull) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   SimpleColumn col{OverlaysVec(), &storage};
 
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(3)};
@@ -72,7 +71,7 @@ TEST(QueryExecutor, OnlyStorageIndex) {
   std::iota(storage_data.begin(), storage_data.end(), 0);
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 5; });
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   SimpleColumn col{OverlaysVec(), &storage};
   Constraint c{0, FilterOp::kLt, SqlValue::Long(2)};
@@ -88,7 +87,7 @@ TEST(QueryExecutor, OnlyStorageIndex) {
 
 TEST(QueryExecutor, OnlyStorageIndexIsNull) {
   std::vector<int64_t> storage_data{1, 2, 3, 4, 5};
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   SimpleColumn col{OverlaysVec(), &storage};
 
   Constraint c{0, FilterOp::kIsNull, SqlValue::Long(3)};
@@ -101,7 +100,7 @@ TEST(QueryExecutor, OnlyStorageIndexIsNull) {
 TEST(QueryExecutor, NullOverlayBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   overlays::NullOverlay overlay(&bv);
   OverlaysVec overlays_vec;
@@ -121,7 +120,7 @@ TEST(QueryExecutor, NullOverlayBounds) {
 TEST(QueryExecutor, NullOverlayRangeIsNull) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   overlays::NullOverlay overlay(&bv);
   OverlaysVec overlays_vec;
@@ -146,7 +145,7 @@ TEST(QueryExecutor, NullOverlayIndex) {
   std::iota(storage_data.begin(), storage_data.end(), 0);
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 3; });
-  NumericStorage storage(storage_data.data(), 6, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 1, 0, 0, 1};
   NullOverlay overlay(&bv);
@@ -169,7 +168,7 @@ TEST(QueryExecutor, NullOverlayIndex) {
 TEST(QueryExecutor, NullOverlayIndexIsNull) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   overlays::NullOverlay overlay(&bv);
   OverlaysVec overlays_vec;
@@ -192,7 +191,7 @@ TEST(QueryExecutor, NullOverlayIndexIsNull) {
 TEST(QueryExecutor, SelectorOverlayBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   BitVector bv{1, 1, 0, 0, 1};
   SelectorOverlay overlay(&bv);
@@ -214,7 +213,7 @@ TEST(QueryExecutor, SelectorOverlayIndex) {
   std::iota(storage_data.begin(), storage_data.end(), 0);
   std::transform(storage_data.begin(), storage_data.end(), storage_data.begin(),
                  [](int64_t n) { return n % 5; });
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   BitVector bv{1, 1, 0, 1, 1, 0, 1, 0, 0, 1};
   SelectorOverlay overlay(&bv);
@@ -236,7 +235,7 @@ TEST(QueryExecutor, SelectorOverlayIndex) {
 TEST(QueryExecutor, ArrangementOverlayBounds) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   overlays::ArrangementOverlay overlay(&arrangement);
@@ -257,7 +256,7 @@ TEST(QueryExecutor, ArrangementOverlayBounds) {
 TEST(QueryExecutor, ArrangmentOverlayIndex) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
-  NumericStorage storage(storage_data.data(), 5, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
   overlays::ArrangementOverlay overlay(&arrangement);
@@ -277,7 +276,7 @@ TEST(QueryExecutor, ArrangmentOverlayIndex) {
 
 TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
@@ -307,7 +306,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
 
 TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
@@ -337,7 +336,7 @@ TEST(QueryExecutor, SingleConstraintWithNullAndArrangement) {
 
 TEST(QueryExecutor, IsNullWithSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   // Current vector
   // 0, 1, NULL, 2, 3, 0, NULL, NULL, 1, 2, 3, NULL
@@ -367,7 +366,8 @@ TEST(QueryExecutor, IsNullWithSelector) {
 
 TEST(QueryExecutor, BinarySearch) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6};
-  NumericStorage storage(storage_data.data(), 7, ColumnType::kInt64, true);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                           true);
 
   // Add nulls - {0, 1, NULL, NULL, 2, 3, NULL, NULL, 4, 5, 6, NULL}
   BitVector null_bv{1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 0};
@@ -395,7 +395,8 @@ TEST(QueryExecutor, BinarySearch) {
 
 TEST(QueryExecutor, BinarySearchIsNull) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64, true);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                           true);
 
   // Select 6 elements from storage, resulting in a vector {0, 1, 3, 4, 6, 7}.
   BitVector selector_bv{1, 1, 0, 1, 1, 0, 1, 1, 0, 0};
@@ -454,7 +455,8 @@ TEST(QueryExecutor, SetIdStorage) {
 
 TEST(QueryExecutor, BinarySearchNotEq) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
-  NumericStorage storage(storage_data.data(), 10, ColumnType::kInt64, true);
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64,
+                                           true);
 
   OverlaysVec overlays_vec;
   SimpleColumn col{overlays_vec, &storage};

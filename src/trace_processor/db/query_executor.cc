@@ -15,9 +15,11 @@
  */
 
 #include <array>
+#include <cmath>
 #include <cstddef>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
@@ -326,12 +328,52 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
               col.storage_base().non_null_size(), col.IsSorted()));
           break;
         case ColumnType::kInt64:
+          if (col.IsNullable()) {
+            storage.reset(new storage::NumericStorage<int64_t>(
+                &col.storage<std::optional<int64_t>>().non_null_vector(),
+                col.col_type(), col.IsSorted()));
+
+          } else {
+            storage.reset(new storage::NumericStorage<int64_t>(
+                &col.storage<int64_t>().vector(), col.col_type(),
+                col.IsSorted()));
+          }
+          break;
         case ColumnType::kUint32:
+          if (col.IsNullable()) {
+            storage.reset(new storage::NumericStorage<uint32_t>(
+                &col.storage<std::optional<uint32_t>>().non_null_vector(),
+                col.col_type(), col.IsSorted()));
+
+          } else {
+            storage.reset(new storage::NumericStorage<uint32_t>(
+                &col.storage<uint32_t>().vector(), col.col_type(),
+                col.IsSorted()));
+          }
+          break;
         case ColumnType::kInt32:
+          if (col.IsNullable()) {
+            storage.reset(new storage::NumericStorage<int32_t>(
+                &col.storage<std::optional<int32_t>>().non_null_vector(),
+                col.col_type(), col.IsSorted()));
+
+          } else {
+            storage.reset(new storage::NumericStorage<int32_t>(
+                &col.storage<int32_t>().vector(), col.col_type(),
+                col.IsSorted()));
+          }
+          break;
         case ColumnType::kDouble:
-          storage.reset(new storage::NumericStorage(
-              col.storage_base().data(), col.storage_base().non_null_size(),
-              col.col_type(), col.IsSorted()));
+          if (col.IsNullable()) {
+            storage.reset(new storage::NumericStorage<double_t>(
+                &col.storage<std::optional<double_t>>().non_null_vector(),
+                col.col_type(), col.IsSorted()));
+
+          } else {
+            storage.reset(new storage::NumericStorage<double_t>(
+                &col.storage<double_t>().vector(), col.col_type(),
+                col.IsSorted()));
+          }
       }
     }
     s_col.storage = storage.get();
