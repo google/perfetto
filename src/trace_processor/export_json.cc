@@ -913,7 +913,7 @@ class JsonExporter {
         }
         writer_.WriteCommonEvent(event);
       } else if (is_child_track ||
-                 (legacy_chrome_track && track_args->isMember("source_id"))) {
+                 (legacy_chrome_track && track_args->isMember("trace_id"))) {
         // Async event slice.
         auto opt_process_row = process_track.id().IndexOf(TrackId{track_id});
         if (legacy_chrome_track) {
@@ -929,24 +929,24 @@ class JsonExporter {
 
           // Preserve original event IDs for legacy tracks. This is so that e.g.
           // memory dump IDs show up correctly in the JSON trace.
-          PERFETTO_DCHECK(track_args->isMember("source_id"));
-          PERFETTO_DCHECK(track_args->isMember("source_id_is_process_scoped"));
+          PERFETTO_DCHECK(track_args->isMember("trace_id"));
+          PERFETTO_DCHECK(track_args->isMember("trace_id_is_process_scoped"));
           PERFETTO_DCHECK(track_args->isMember("source_scope"));
-          uint64_t source_id =
-              static_cast<uint64_t>((*track_args)["source_id"].asInt64());
+          uint64_t trace_id =
+              static_cast<uint64_t>((*track_args)["trace_id"].asInt64());
           std::string source_scope = (*track_args)["source_scope"].asString();
           if (!source_scope.empty())
             event["scope"] = source_scope;
-          bool source_id_is_process_scoped =
-              (*track_args)["source_id_is_process_scoped"].asBool();
-          if (source_id_is_process_scoped) {
-            event["id2"]["local"] = base::Uint64ToHexString(source_id);
+          bool trace_id_is_process_scoped =
+              (*track_args)["trace_id_is_process_scoped"].asBool();
+          if (trace_id_is_process_scoped) {
+            event["id2"]["local"] = base::Uint64ToHexString(trace_id);
           } else {
             // Some legacy importers don't understand "id2" fields, so we use
             // the "usually" global "id" field instead. This works as long as
             // the event phase is not in {'N', 'D', 'O', '(', ')'}, see
             // "LOCAL_ID_PHASES" in catapult.
-            event["id"] = base::Uint64ToHexString(source_id);
+            event["id"] = base::Uint64ToHexString(trace_id);
           }
         } else {
           if (opt_thread_track_row) {
@@ -1263,15 +1263,16 @@ class JsonExporter {
           current_sample->second.callsite_id() == callsite_id) {
         current_sample->second.UpdateWithNewSample(ts);
         return current_sample->second.event_id();
-      } else {
-        if (current_sample != current_events_.end())
-          current_events_.erase(current_sample);
-
-        auto new_entry = current_events_.emplace(
-            std::piecewise_construct, std::forward_as_tuple(utid),
-            std::forward_as_tuple(writer_, callsite_id, ts, event));
-        return new_entry.first->second.event_id();
       }
+
+      if (current_sample != current_events_.end()) {
+        current_events_.erase(current_sample);
+      }
+
+      auto new_entry = current_events_.emplace(
+          std::piecewise_construct, std::forward_as_tuple(utid),
+          std::forward_as_tuple(writer_, callsite_id, ts, event));
+      return new_entry.first->second.event_id();
     }
 
     static uint64_t GenerateNewEventId() {
