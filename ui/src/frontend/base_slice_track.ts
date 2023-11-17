@@ -917,11 +917,26 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   }
 
   getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
-    // TODO(hjd): Implement this as part of updating flow events.
-    return undefined;
+      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
+      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
+      |undefined {
+    this.updateSliceAndTrackHeight();
+
+    const pxEnd = windowSpan.end;
+    const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
+    const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
+
+    const visible = visibleWindow.intersects(tStart, tEnd);
+
+    const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
+
+    return {
+      left,
+      width: Math.max(right - left, 1),
+      top: this.sliceLayout.padding + depth * (totalSliceHeight),
+      height: this.computedSliceHeight,
+      visible,
+    };
   }
 }
 
