@@ -15,6 +15,7 @@
  */
 
 #include <limits>
+#include <optional>
 
 #include <stdint.h>
 
@@ -141,7 +142,8 @@ void FlowTracker::ClosePendingEventsOnTrack(TrackId track_id,
 void FlowTracker::InsertFlow(FlowId flow_id,
                              SliceId slice_out_id,
                              SliceId slice_in_id) {
-  tables::FlowTable::Row row(slice_out_id, slice_in_id, kInvalidArgSetId);
+  tables::FlowTable::Row row(slice_out_id, slice_in_id, flow_id,
+                             kInvalidArgSetId);
   auto id = context_->storage->mutable_flow_table()->Insert(row).id;
 
   auto* it = flow_id_to_v1_flow_id_map_.Find(flow_id);
@@ -155,7 +157,8 @@ void FlowTracker::InsertFlow(FlowId flow_id,
 }
 
 void FlowTracker::InsertFlow(SliceId slice_out_id, SliceId slice_in_id) {
-  tables::FlowTable::Row row(slice_out_id, slice_in_id, kInvalidArgSetId);
+  tables::FlowTable::Row row(slice_out_id, slice_in_id, std::nullopt,
+                             kInvalidArgSetId);
   context_->storage->mutable_flow_table()->Insert(row);
 }
 
