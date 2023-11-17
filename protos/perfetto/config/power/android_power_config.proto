@@ -33,6 +33,9 @@ message AndroidPowerConfig {
 
     // Avg current.
     BATTERY_COUNTER_CURRENT_AVG = 4;
+
+    // Instantaneous voltage.
+    BATTERY_COUNTER_VOLTAGE = 5;
   }
   optional uint32 battery_poll_ms = 1;
   repeated BatteryCounters battery_counters = 2;

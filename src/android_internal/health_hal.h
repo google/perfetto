@@ -35,6 +35,7 @@ enum class BatteryCounter {
   kCapacityPercent,
   kCurrent,
   kCurrentAvg,
+  kVoltage,
 };
 
 extern "C" {
