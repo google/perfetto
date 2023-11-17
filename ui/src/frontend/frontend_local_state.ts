@@ -19,7 +19,6 @@ import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   Area,
   FrontendLocalState as FrontendState,
@@ -27,6 +26,7 @@ import {
   VisibleState,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
