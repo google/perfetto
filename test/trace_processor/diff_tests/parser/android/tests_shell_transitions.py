@@ -73,3 +73,19 @@ class ShellTransitions(TestSuite):
         "targets[1].window_id","54474511"
         "type","1"
         """))
+
+  def test_has_shell_handlers(self):
+    return DiffTestBlueprint(
+        trace=Path('shell_handlers.textproto'),
+        query="""
+      SELECT
+        handler_id, handler_name
+      FROM
+        window_manager_shell_transition_handlers;
+      """,
+        out=Csv("""
+      "handler_id","handler_name"
+      1,"DefaultTransitionHandler"
+      2,"RecentsTransitionHandler"
+      3,"FreeformTaskTransitionHandler"
+      """))

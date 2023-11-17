@@ -30,6 +30,7 @@ WinscopeModule::WinscopeModule(TraceProcessorContext* context)
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
                    context);
   RegisterForField(TracePacket::kShellTransitionFieldNumber, context);
+  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber, context);
 }
 
 void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
@@ -46,7 +47,11 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
           timestamp, decoder.surfaceflinger_transactions());
       return;
     case TracePacket::kShellTransitionFieldNumber:
-      shell_transitions_parser_.Parse(timestamp, decoder.shell_transition());
+      shell_transitions_parser_.ParseTransition(decoder.shell_transition());
+      return;
+    case TracePacket::kShellHandlerMappingsFieldNumber:
+      shell_transitions_parser_.ParseHandlerMappings(
+          decoder.shell_handler_mappings());
       return;
   }
 }

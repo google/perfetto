@@ -29,7 +29,8 @@ class TraceProcessorContext;
 class ShellTransitionsParser {
  public:
   explicit ShellTransitionsParser(TraceProcessorContext*);
-  void Parse(int64_t timestamp, protozero::ConstBytes);
+  void ParseTransition(protozero::ConstBytes);
+  void ParseHandlerMappings(protozero::ConstBytes);
 
  private:
   static constexpr auto* kShellTransitionsProtoName =

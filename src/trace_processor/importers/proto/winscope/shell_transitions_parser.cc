@@ -33,7 +33,7 @@ ShellTransitionsParser::ShellTransitionsParser(TraceProcessorContext* context)
                                  kWinscopeDescriptor.size());
 }
 
-void ShellTransitionsParser::Parse(int64_t, protozero::ConstBytes blob) {
+void ShellTransitionsParser::ParseTransition(protozero::ConstBytes blob) {
   protos::pbzero::ShellTransition::Decoder transition(blob);
 
   auto row_id =
@@ -56,6 +56,23 @@ void ShellTransitionsParser::Parse(int64_t, protozero::ConstBytes blob) {
   if (!status.ok()) {
     context_->storage->IncrementStats(
         stats::winscope_shell_transitions_parse_errors);
+  }
+}
+
+void ShellTransitionsParser::ParseHandlerMappings(protozero::ConstBytes blob) {
+  auto* shell_handlers_table =
+      context_->storage
+          ->mutable_window_manager_shell_transition_handlers_table();
+
+  protos::pbzero::ShellHandlerMappings::Decoder handler_mappings(blob);
+  for (auto it = handler_mappings.mapping(); it; ++it) {
+    protos::pbzero::ShellHandlerMapping::Decoder mapping(it.field().as_bytes());
+
+    tables::WindowManagerShellTransitionHandlersTable::Row row;
+    row.handler_id = mapping.id();
+    row.handler_name = context_->storage->InternString(
+        base::StringView(mapping.name().ToStdString()));
+    shell_handlers_table->Insert(row);
   }
 }
 

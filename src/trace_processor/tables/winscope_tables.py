@@ -18,6 +18,7 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import CppString
 
 SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE = Table(
     python_module=__file__,
@@ -86,10 +87,27 @@ WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE = Table(
             'arg_set_id': 'Extra args parsed from the proto message',
         }))
 
+WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE = Table(
+    python_module=__file__,
+    class_name='WindowManagerShellTransitionHandlersTable',
+    sql_name='window_manager_shell_transition_handlers',
+    columns=[
+        C('handler_id', CppInt64()),
+        C('handler_name', CppString()),
+    ],
+    tabledoc=TableDoc(
+        doc='Window Manager Shell Transition Handlers',
+        group='Winscope',
+        columns={
+            'handler_id': 'The id of the handler',
+            'handler_name': 'The name of the handler',
+        }))
+
 # Keep this list sorted.
 ALL_TABLES = [
     SURFACE_FLINGER_LAYERS_SNAPSHOT_TABLE,
     SURFACE_FLINGER_LAYER_TABLE,
     SURFACE_FLINGER_TRANSACTIONS_TABLE,
     WINDOW_MANAGER_SHELL_TRANSITIONS_TABLE,
+    WINDOW_MANAGER_SHELL_TRANSITION_HANDLERS_TABLE,
 ]
