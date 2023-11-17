@@ -34,7 +34,7 @@ TEST(StringStorageUnittest, LinearSearchEq) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kEq, SqlValue::String("pizza"), Range(0, 6))
           .TakeIfBitVector();
@@ -52,7 +52,7 @@ TEST(StringStorageUnittest, LinearSearchNe) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kNe, SqlValue::String("pizza"), Range(0, 6))
           .TakeIfBitVector();
@@ -69,7 +69,7 @@ TEST(StringStorageUnittest, LinearSearchLe) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kLe, SqlValue::String("noodles"), Range(0, 6))
           .TakeIfBitVector();
@@ -88,7 +88,7 @@ TEST(StringStorageUnittest, LinearSearchLt) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kLt, SqlValue::String("pasta"), Range(0, 6))
           .TakeIfBitVector();
@@ -108,7 +108,7 @@ TEST(StringStorageUnittest, LinearSearchGe) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kGe, SqlValue::String("noodles"), Range(0, 6))
           .TakeIfBitVector();
@@ -129,7 +129,7 @@ TEST(StringStorageUnittest, LinearSearchGt) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kGt, SqlValue::String("pasta"), Range(0, 6))
           .TakeIfBitVector();
@@ -149,7 +149,7 @@ TEST(StringStorageUnittest, LinearSearchIsNull) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 7);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kIsNull, SqlValue::String("pasta"), Range(0, 7))
           .TakeIfBitVector();
@@ -167,7 +167,7 @@ TEST(StringStorageUnittest, LinearSearchIsNotNull) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage
           .Search(FilterOp::kIsNotNull, SqlValue::String("pasta"), Range(0, 7))
@@ -186,7 +186,7 @@ TEST(StringStorageUnittest, LinearSearchGlob) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kGlob, SqlValue::String("p*"), Range(0, 7))
           .TakeIfBitVector();
@@ -205,7 +205,7 @@ TEST(StringStorageUnittest, LinearSearchRegex) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kRegex, SqlValue::String(".*zz.*"), Range(0, 7))
           .TakeIfBitVector();
@@ -223,7 +223,7 @@ TEST(StringStorageUnittest, LinearSearchRegexMalformed) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 6);
+  StringStorage storage(&pool, &ids);
   BitVector bv =
       storage.Search(FilterOp::kRegex, SqlValue::String("*"), Range(0, 7))
           .TakeIfBitVector();
@@ -242,7 +242,7 @@ TEST(StringStorageUnittest, IndexSearchEq) {
   }
   ids.insert(ids.begin() + 3, StringPool::Id::Null());
 
-  StringStorage storage(&pool, ids.data(), 7);
+  StringStorage storage(&pool, &ids);
   std::vector<uint32_t> indices{6, 5, 4, 3, 2, 1, 0};
   BitVector bv = storage
                      .IndexSearch(FilterOp::kEq, SqlValue::String("pasta"),
@@ -262,7 +262,7 @@ TEST(StringStorageUnittest, LinearSearchGtSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
   Range range =
       storage.Search(FilterOp::kGt, SqlValue::String("camembert"), Range(0, 6))
           .TakeIfRange();
@@ -281,7 +281,7 @@ TEST(StringStorageUnittest, LinearSearchGeSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
   Range range =
       storage.Search(FilterOp::kGe, SqlValue::String("cheese"), Range(0, 6))
           .TakeIfRange();
@@ -300,7 +300,7 @@ TEST(StringStorageUnittest, LinearSearchLtSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
   Range range =
       storage.Search(FilterOp::kLt, SqlValue::String("camembert"), Range(0, 6))
           .TakeIfRange();
@@ -319,7 +319,7 @@ TEST(StringStorageUnittest, LinearSearchLeSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
   Range range =
       storage.Search(FilterOp::kLe, SqlValue::String("cheese"), Range(0, 6))
           .TakeIfRange();
@@ -338,7 +338,7 @@ TEST(StringStorageUnittest, LinearSearchNeSorted) {
     ids.push_back(pool.InternString(base::StringView(string)));
   }
 
-  StringStorage storage(&pool, ids.data(), 6, true);
+  StringStorage storage(&pool, &ids, true);
   BitVector bv =
       storage.Search(FilterOp::kNe, SqlValue::String("cheese"), Range(0, 6))
           .TakeIfBitVector();
