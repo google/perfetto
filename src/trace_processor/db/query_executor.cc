@@ -312,8 +312,13 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     // Create storage
     std::unique_ptr<Storage> storage;
     if (col.IsSetId()) {
-      storage.reset(new storage::SetIdStorage(
-          col.storage_base().data(), col.storage_base().non_null_size()));
+      if (col.IsNullable()) {
+        storage.reset(new storage::SetIdStorage(
+            &col.storage<std::optional<uint32_t>>().non_null_vector()));
+      } else {
+        storage.reset(
+            new storage::SetIdStorage(&col.storage<uint32_t>().vector()));
+      }
     } else {
       switch (col.col_type()) {
         case ColumnType::kDummy:

@@ -424,8 +424,8 @@ TEST(QueryExecutor, BinarySearchIsNull) {
 }
 
 TEST(QueryExecutor, SetIdStorage) {
-  std::vector storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(storage_data.data(), 12);
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
 
   // Select 6 elements from storage, resulting in a vector {0, 3, 3, 6, 9, 9}.
   BitVector selector_bv{0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1};
