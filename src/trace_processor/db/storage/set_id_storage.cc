@@ -66,7 +66,7 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  PERFETTO_DCHECK(range.end <= size_);
+  PERFETTO_DCHECK(range.end <= size());
 
   if (op == FilterOp::kNe) {
     if (sql_val.is_null()) {
@@ -127,27 +127,27 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
   // property of SetId data - that for each index i, data[i] <= i.
   switch (op) {
     case FilterOp::kEq:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::equal_to<uint32_t>(), builder);
       break;
     case FilterOp::kNe:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::not_equal_to<uint32_t>(), builder);
       break;
     case FilterOp::kLe:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::less_equal<uint32_t>(), builder);
       break;
     case FilterOp::kLt:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::less<uint32_t>(), builder);
       break;
     case FilterOp::kGt:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::greater<uint32_t>(), builder);
       break;
     case FilterOp::kGe:
-      utils::IndexSearchWithComparator(val, data_, indices,
+      utils::IndexSearchWithComparator(val, values_->data(), indices,
                                        std::greater_equal<uint32_t>(), builder);
       break;
     case FilterOp::kIsNotNull:
@@ -192,17 +192,19 @@ Range SetIdStorage::BinarySearchIntrinsic(FilterOp op,
 
   switch (op) {
     case FilterOp::kEq:
-      return Range(LowerBoundIntrinsic(data_, val, range),
-                   UpperBoundIntrinsic(data_, val, range));
+      return Range(LowerBoundIntrinsic(values_->data(), val, range),
+                   UpperBoundIntrinsic(values_->data(), val, range));
     case FilterOp::kLe: {
-      return Range(range.start, UpperBoundIntrinsic(data_, val, range));
+      return Range(range.start,
+                   UpperBoundIntrinsic(values_->data(), val, range));
     }
     case FilterOp::kLt:
-      return Range(range.start, LowerBoundIntrinsic(data_, val, range));
+      return Range(range.start,
+                   LowerBoundIntrinsic(values_->data(), val, range));
     case FilterOp::kGe:
-      return Range(LowerBoundIntrinsic(data_, val, range), range.end);
+      return Range(LowerBoundIntrinsic(values_->data(), val, range), range.end);
     case FilterOp::kGt:
-      return Range(UpperBoundIntrinsic(data_, val, range), range.end);
+      return Range(UpperBoundIntrinsic(values_->data(), val, range), range.end);
     case FilterOp::kIsNotNull:
       return range;
     case FilterOp::kNe:
