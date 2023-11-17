@@ -216,6 +216,7 @@ class ChromeSlicesPlugin implements Plugin {
       ctx.registerStaticTrack({
         uri: `perfetto.ChromeSlices#${trackId}.v2`,
         displayName,
+        trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
         track: ({trackKey}) => {
           const track = GenericSliceTrack.create({
