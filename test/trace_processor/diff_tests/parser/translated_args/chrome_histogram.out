@@ -13,4 +13,4 @@
 "event.name","event.name","[NULL]","slice3"
 "is_root_in_scope","is_root_in_scope",1,"[NULL]"
 "source","source","[NULL]","descriptor"
-"source_id","source_id",12345,"[NULL]"
+"trace_id","trace_id",12345,"[NULL]"
