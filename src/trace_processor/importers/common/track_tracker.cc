@@ -55,9 +55,9 @@ const char* GetNameForGroup(TrackTracker::Group group) {
 
 TrackTracker::TrackTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
-      source_id_key_(context->storage->InternString("source_id")),
-      source_id_is_process_scoped_key_(
-          context->storage->InternString("source_id_is_process_scoped")),
+      trace_id_key_(context->storage->InternString("trace_id")),
+      trace_id_is_process_scoped_key_(
+          context->storage->InternString("trace_id_is_process_scoped")),
       source_scope_key_(context->storage->InternString("source_scope")),
       category_key_(context->storage->InternString("category")),
       fuchsia_source_(context->storage->InternString("fuchsia")),
@@ -124,13 +124,13 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
 TrackId TrackTracker::InternLegacyChromeAsyncTrack(
     StringId name,
     uint32_t upid,
-    int64_t source_id,
-    bool source_id_is_process_scoped,
+    int64_t trace_id,
+    bool trace_id_is_process_scoped,
     StringId source_scope) {
   ChromeTrackTuple tuple;
-  if (source_id_is_process_scoped)
+  if (trace_id_is_process_scoped)
     tuple.upid = upid;
-  tuple.source_id = source_id;
+  tuple.trace_id = trace_id;
   tuple.source_scope = source_scope;
 
   auto it = chrome_tracks_.find(tuple);
@@ -156,9 +156,9 @@ TrackId TrackTracker::InternLegacyChromeAsyncTrack(
 
   context_->args_tracker->AddArgsTo(id)
       .AddArg(source_key_, Variadic::String(chrome_source_))
-      .AddArg(source_id_key_, Variadic::Integer(source_id))
-      .AddArg(source_id_is_process_scoped_key_,
-              Variadic::Boolean(source_id_is_process_scoped))
+      .AddArg(trace_id_key_, Variadic::Integer(trace_id))
+      .AddArg(trace_id_is_process_scoped_key_,
+              Variadic::Boolean(trace_id_is_process_scoped))
       .AddArg(source_scope_key_, Variadic::String(source_scope));
 
   return id;
