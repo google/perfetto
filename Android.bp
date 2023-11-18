@@ -14446,7 +14446,7 @@ cc_binary {
         host: {
             static_libs: [
                 "libprotobuf-cpp-full",
-                "libsqlite",
+                "libsqlite_static_noicu",
                 "libz",
                 "sqlite_ext_percentile",
             ],
@@ -14598,7 +14598,7 @@ cc_binary_host {
         ":perfetto_src_traceconv_utils",
     ],
     static_libs: [
-        "libsqlite",
+        "libsqlite_static_noicu",
         "libz",
         "perfetto_src_trace_processor_demangle",
         "sqlite_ext_percentile",
