@@ -16,13 +16,16 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_ID_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_ID_STORAGE_H_
 
-#include <variant>
-
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
@@ -45,6 +48,8 @@ class IdStorage final : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
+  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
+
   uint32_t size() const override { return size_; }
 
  private:
@@ -52,6 +57,7 @@ class IdStorage final : public Storage {
   RowMap::Range BinarySearchIntrinsic(FilterOp op,
                                       SqlValue val,
                                       RowMap::Range search_range) const;
+
   const uint32_t size_ = 0;
 };
 
