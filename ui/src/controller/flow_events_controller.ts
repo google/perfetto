@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {featureFlags} from '../common/feature_flags';
 import {pluginManager} from '../common/plugins';
 import {Area} from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
 import {asSliceSqlId} from '../frontend/sql_types';

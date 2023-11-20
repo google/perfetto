@@ -21,7 +21,6 @@ import {
   AddTrackArgs,
   DeferredAction,
 } from '../common/actions';
-import {featureFlags, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {pluginManager} from '../common/plugins';
 import {
   InThreadTrackSortKey,
@@ -29,6 +28,7 @@ import {
   TrackSortKey,
   UtidToTrackSortKey,
 } from '../common/state';
+import {featureFlags, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {PrimaryTrackSortKey} from '../public';
 import {getTrackName} from '../public/utils';
 import {Engine, EngineProxy} from '../trace_processor/engine';

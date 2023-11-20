@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {FlagsForTesting as Flags, FlagStore} from './feature_flags';
+import {FlagsForTesting as Flags, FlagStore} from '../core/feature_flags';
 
 class TestFlagStore implements FlagStore {
   o: object = {};
