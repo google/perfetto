@@ -157,8 +157,6 @@ export class FrontendLocalState {
   private _windowSpan = PxSpan.ZERO;
   showPanningHint = false;
   showCookieConsent = false;
-  visibleTracks = new Set<string>();
-  prevVisibleTracks = new Set<string>();
   scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
@@ -191,26 +189,6 @@ export class FrontendLocalState {
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
     raf.scheduleFullRedraw();
-  }
-
-  addVisibleTrack(trackKey: string) {
-    this.visibleTracks.add(trackKey);
-  }
-
-  // Called when beginning a canvas redraw.
-  clearVisibleTracks() {
-    this.visibleTracks.clear();
-  }
-
-  // Called when the canvas redraw is complete.
-  sendVisibleTracks() {
-    if (this.prevVisibleTracks.size !== this.visibleTracks.size ||
-        ![...this.prevVisibleTracks].every(
-            (value) => this.visibleTracks.has(value))) {
-      globals.dispatch(
-          Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
-      this.prevVisibleTracks = new Set(this.visibleTracks);
-    }
   }
 
   zoomVisibleWindow(ratio: number, centerPoint: number) {

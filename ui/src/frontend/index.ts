@@ -76,8 +76,7 @@ class FrontendApi {
     // Only redraw if something other than the frontendLocalState changed.
     let key: keyof State;
     for (key in state) {
-      if (key !== 'frontendLocalState' && key !== 'visibleTracks' &&
-          oldState[key] !== state[key]) {
+      if (key !== 'frontendLocalState' && oldState[key] !== state[key]) {
         raf.scheduleFullRedraw();
         break;
       }
