@@ -315,9 +315,6 @@ class Globals {
         () => this.state.perfDebug,
         () => this.dispatch(Actions.togglePerfDebug({})));
 
-    raf.beforeRedraw = () => this.frontendLocalState.clearVisibleTracks();
-    raf.afterRedraw = () => this.frontendLocalState.sendVisibleTracks();
-
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
         self.location && self.location.search.indexOf('testing=1') >= 0;
