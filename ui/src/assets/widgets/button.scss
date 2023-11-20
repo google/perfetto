@@ -24,6 +24,7 @@
   padding: 4px 8px;
   white-space: nowrap;
   min-width: max-content;
+  color: white;
 
   & > .pf-left-icon {
     float: left;
@@ -64,6 +65,7 @@
 
   // Remove default background in minimal mode, showing only the text
   &.pf-minimal {
+    color: inherit;
     background: $pf-minimal-background;
 
     &:hover {

@@ -140,7 +140,7 @@ export class Popup implements m.ClassComponent<PopupAttrs> {
     } = attrs;
 
     const portalAttrs: PortalAttrs = {
-      className: 'pf-popup-portal',
+      className: 'perfetto pf-popup-portal',
       onBeforeContentMount: (dom: Element): MountOptions => {
         // Check to see if dom is a descendant of a popup
         // If so, get the popup's "container" and put it in there instead

@@ -19,7 +19,7 @@
   font-size: inherit;
   outline: none; // Disable the default outline
   border: none; // Disable the default border
-  border-bottom: solid 1px $pf-minimal-foreground; // Thin underline
+  border-bottom: solid 1px var(--main-foreground-color); // Thin underline
   background: none;
   transition: border $pf-anim-timing, box-shadow $pf-anim-timing,
     background $pf-anim-timing;
