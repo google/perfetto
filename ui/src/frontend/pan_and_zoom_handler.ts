@@ -275,7 +275,13 @@ export class PanAndZoomHandler {
     if (!this.shouldHandlekey(e)) return;
 
     // Handle key events that are not pan or zoom.
-    if (handleKey(e, true)) return;
+    const handleKeyResult = handleKey(e, true);
+    if (handleKeyResult.resetShift) {
+      this.updateShift(false);
+    }
+    if (handleKeyResult.wasHandled) {
+      return;
+    }
 
     if (keyToPan(e) !== Pan.None) {
       if (this.panning !== keyToPan(e)) {
@@ -305,7 +311,13 @@ export class PanAndZoomHandler {
     if (!this.shouldHandlekey(e)) return;
 
     // Handle key events that are not pan or zoom.
-    if (handleKey(e, false)) return;
+    const handleKeyResult = handleKey(e, false);
+    if (handleKeyResult.resetShift) {
+      this.updateShift(false);
+    }
+    if (handleKeyResult.wasHandled) {
+      return;
+    }
 
     if (keyToPan(e) === this.panning) {
       this.panning = Pan.None;

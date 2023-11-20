@@ -28,9 +28,22 @@ const INSTANT_FOCUS_DURATION = 1n;
 const INCOMPLETE_SLICE_DURATION = 30_000n;
 type Direction = 'Forward'|'Backward';
 
+export interface HandleKeyResult {
+  wasHandled: boolean;
+  resetShift?: boolean;
+}
+
+function handleKeyResult(wasHandled: boolean, resetShift?: boolean):
+  HandleKeyResult {
+  return {
+    wasHandled,
+    resetShift,
+  };
+}
+
 // Handles all key events than are not handled by the
 // pan and zoom handler. Returns true if the event was handled.
-export function handleKey(e: KeyboardEvent, down: boolean): boolean {
+export function handleKey(e: KeyboardEvent, down: boolean): HandleKeyResult {
   const key = e.key.toLowerCase();
   const selection = globals.state.currentSelection;
   const noModifiers = !(e.ctrlKey || e.metaKey || e.altKey || e.shiftKey);
@@ -44,11 +57,11 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
     } else if (selection) {
       lockSliceSpan(e.shiftKey);
     }
-    return true;
+    return handleKeyResult(true);
   }
   if (down && 'f' === key && noModifiers) {
     findCurrentSelection();
-    return true;
+    return handleKeyResult(true);
   }
   if (down && 'a' === key && ctrlOrMeta) {
     let tracksToSelect: string[] = [];
@@ -82,48 +95,48 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
       },
     }));
     e.preventDefault();
-    return true;
+    return handleKeyResult(true);
   }
   if (down && 'b' === key && ctrlOrMeta) {
     globals.dispatch(Actions.toggleSidebar({}));
-    return true;
+    return handleKeyResult(true);
   }
   if (down && '?' === key && maybeShift) {
     toggleHelp();
-    return true;
+    return handleKeyResult(true, true);
   }
   if (down && 'enter' === key && maybeShift) {
     e.preventDefault();
     executeSearch(e.shiftKey);
-    return true;
+    return handleKeyResult(true);
   }
   if (down && 'escape' === key) {
     globals.frontendLocalState.deselectArea();
     globals.makeSelection(Actions.deselect({}));
     globals.dispatch(Actions.removeNote({id: '0'}));
-    return true;
+    return handleKeyResult(true);
   }
   if (down && ']' === key && ctrlOrMeta) {
     focusOtherFlow('Forward');
-    return true;
+    return handleKeyResult(true);
   }
   if (down && ']' === key && noModifiers) {
     moveByFocusedFlow('Forward');
-    return true;
+    return handleKeyResult(true);
   }
   if (down && '[' === key && ctrlOrMeta) {
     focusOtherFlow('Backward');
-    return true;
+    return handleKeyResult(true);
   }
   if (down && '[' === key && noModifiers) {
     moveByFocusedFlow('Backward');
-    return true;
+    return handleKeyResult(true);
   }
   if (down && 'v' === key && noModifiers) {
     globals.frontendLocalState.toggleVsyncHighlight();
-    return true;
+    return handleKeyResult(true);
   }
-  return false;
+  return handleKeyResult(false);
 }
 
 // Search |boundFlows| for |flowId| and return the id following it.
