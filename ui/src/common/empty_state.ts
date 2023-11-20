@@ -97,7 +97,6 @@ export function createEmptyState(): State {
     utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
-    visibleTracks: [],
     pinnedTracks: [],
     scrollingTracks: [],
     areas: {},
