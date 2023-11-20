@@ -15,11 +15,11 @@
 import {v4 as uuidv4} from 'uuid';
 
 import {Actions, AddTrackArgs, DeferredAction} from '../../common/actions';
-import {featureFlags} from '../../common/feature_flags';
 import {
   generateSqlWithInternalLayout,
 } from '../../common/internal_layout_utils';
 import {ObjectByKey} from '../../common/state';
+import {featureFlags} from '../../core/feature_flags';
 import {
   NUM,
   Plugin,

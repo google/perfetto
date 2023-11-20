@@ -16,7 +16,6 @@
 
 import {Actions} from '../common/actions';
 import {DEFAULT_CHANNEL, getCurrentChannel} from '../common/channels';
-import {featureFlags} from '../common/feature_flags';
 import {
   AreaSelection,
   PivotTableQuery,
@@ -24,6 +23,7 @@ import {
   PivotTableResult,
   PivotTableState,
 } from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {globals} from '../frontend/globals';
 import {
   aggregationIndex,

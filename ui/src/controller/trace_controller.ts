@@ -27,7 +27,6 @@ import {
   DeferredAction,
 } from '../common/actions';
 import {cacheTrace} from '../common/cache_manager';
-import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../common/feature_flags';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
@@ -44,6 +43,7 @@ import {
   PendingDeeplinkState,
   ProfileType,
 } from '../common/state';
+import {featureFlags, Flag, PERF_SAMPLE_FLAG} from '../core/feature_flags';
 import {BottomTabList} from '../frontend/bottom_tab';
 import {
   FtraceStat,
