@@ -147,7 +147,8 @@ class TestCase:
       return None
 
     if isinstance(self.blueprint.trace, DataPath):
-      path = os.path.join(self.test_dir, 'data', self.blueprint.trace.filename)
+      path = os.path.join(self.test_data_dir, 'data',
+                          self.blueprint.trace.filename)
     else:
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.trace.filename))
@@ -162,7 +163,8 @@ class TestCase:
       return None
 
     if isinstance(self.blueprint.out, DataPath):
-      path = os.path.join(self.test_dir, 'data', self.blueprint.out.filename)
+      path = os.path.join(self.test_data_dir, 'data',
+                          self.blueprint.out.filename)
     else:
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.out.filename))
@@ -172,12 +174,12 @@ class TestCase:
           f"Out file ({path}) for test '{self.name}' does not exist.")
     return path
 
-  def __init__(self, name: str, blueprint: DiffTestBlueprint,
-               index_dir: str) -> None:
+  def __init__(self, name: str, blueprint: DiffTestBlueprint, index_dir: str,
+               test_data_dir: str) -> None:
     self.name = name
     self.blueprint = blueprint
     self.index_dir = index_dir
-    self.test_dir = os.path.abspath(os.path.join(__file__, '../../../../test'))
+    self.test_data_dir = test_data_dir
 
     if blueprint.is_metric():
       self.type = TestType.METRIC
@@ -199,14 +201,21 @@ class TestCase:
 # All functions with name starting with `test_` have to return
 # DiffTestBlueprint and function name is a test name. All DiffTestModules have
 # to be included in `test/diff_tests/trace_processor/include_index.py`.
-# `fetch_diff_test` function should not be overwritten.
+# `fetch` function should not be overwritten.
 class TestSuite:
 
-  def __init__(self, include_index_dir: str, dir_name: str,
-               class_name: str) -> None:
+  def __init__(
+      self,
+      include_index_dir: str,
+      dir_name: str,
+      class_name: str,
+      test_data_dir: str = os.path.abspath(
+          os.path.join(__file__, '../../../../test'))
+  ) -> None:
     self.dir_name = dir_name
     self.index_dir = os.path.join(include_index_dir, dir_name)
     self.class_name = class_name
+    self.test_data_dir = test_data_dir
 
   def __test_name(self, method_name):
     return f"{self.class_name}:{method_name.split('test_',1)[1]}"
@@ -215,7 +224,9 @@ class TestSuite:
     attrs = (getattr(self, name) for name in dir(self))
     methods = [attr for attr in attrs if inspect.ismethod(attr)]
     return [
-        TestCase(self.__test_name(method.__name__), method(), self.index_dir)
+        TestCase(
+            self.__test_name(method.__name__), method(), self.index_dir,
+            self.test_data_dir)
         for method in methods
         if method.__name__.startswith('test_')
     ]
