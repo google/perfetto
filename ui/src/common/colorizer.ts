@@ -14,11 +14,11 @@
 
 import {hsl} from 'color-convert';
 
+import {clamp} from '../base/math_utils';
 import {hash} from '../common/hash';
 import {cachedHsluvToHex} from '../frontend/hsluv_cache';
 
 export interface Color {
-  c: string;
   h: number;
   s: number;
   l: number;
@@ -26,28 +26,27 @@ export interface Color {
 }
 
 const MD_PALETTE: Color[] = [
-  {c: 'red', h: 4, s: 90, l: 58},
-  {c: 'pink', h: 340, s: 82, l: 52},
-  {c: 'purple', h: 291, s: 64, l: 42},
-  {c: 'deep purple', h: 262, s: 52, l: 47},
-  {c: 'indigo', h: 231, s: 48, l: 48},
-  {c: 'blue', h: 207, s: 90, l: 54},
-  {c: 'light blue', h: 199, s: 98, l: 48},
-  {c: 'cyan', h: 187, s: 100, l: 42},
-  {c: 'teal', h: 174, s: 100, l: 29},
-  {c: 'green', h: 122, s: 39, l: 49},
-  {c: 'light green', h: 88, s: 50, l: 53},
-  {c: 'lime', h: 66, s: 70, l: 54},
-  {c: 'amber', h: 45, s: 100, l: 51},
-  {c: 'orange', h: 36, s: 100, l: 50},
-  {c: 'deep orange', h: 14, s: 100, l: 57},
-  {c: 'brown', h: 16, s: 25, l: 38},
-  {c: 'blue gray', h: 200, s: 18, l: 46},
-  {c: 'yellow', h: 54, s: 100, l: 62},
+  {h: 4, s: 90, l: 58},
+  {h: 340, s: 82, l: 52},
+  {h: 291, s: 64, l: 42},
+  {h: 262, s: 52, l: 47},
+  {h: 231, s: 48, l: 48},
+  {h: 207, s: 90, l: 54},
+  {h: 199, s: 98, l: 48},
+  {h: 187, s: 100, l: 42},
+  {h: 174, s: 100, l: 29},
+  {h: 122, s: 39, l: 49},
+  {h: 88, s: 50, l: 53},
+  {h: 66, s: 70, l: 54},
+  {h: 45, s: 100, l: 51},
+  {h: 36, s: 100, l: 50},
+  {h: 14, s: 100, l: 57},
+  {h: 16, s: 25, l: 38},
+  {h: 200, s: 18, l: 46},
+  {h: 54, s: 100, l: 62},
 ];
 
 export const GRAY_COLOR: Color = {
-  c: 'grey',
   h: 0,
   s: 0,
   l: 62,
@@ -56,7 +55,6 @@ export const GRAY_COLOR: Color = {
 // A piece of wisdom from a long forgotten blog post: "Don't make
 // colors you want to change something normal like grey."
 export const UNEXPECTED_PINK_COLOR: Color = {
-  c: '#ff69b4',
   h: 330,
   s: 1.0,
   l: 0.706,
@@ -67,38 +65,32 @@ export function hueForCpu(cpu: number): number {
 }
 
 const DESAT_RED: Color = {
-  c: 'desat red',
   h: 3,
   s: 30,
   l: 49,
 };
 const DARK_GREEN: Color = {
-  c: 'dark green',
   h: 120,
   s: 44,
   l: 34,
 };
 const LIME_GREEN: Color = {
-  c: 'lime green',
   h: 75,
   s: 55,
   l: 47,
 };
 const TRANSPARENT_WHITE: Color = {
-  c: 'white',
   h: 0,
   s: 1,
   l: 97,
   a: 0.55,
 };
 const ORANGE: Color = {
-  c: 'orange',
   h: 36,
   s: 100,
   l: 50,
 };
 const INDIGO: Color = {
-  c: 'indigo',
   h: 231,
   s: 48,
   l: 48,
@@ -187,8 +179,13 @@ export function colorToStr(color: Color) {
   return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
 }
 
-export function colorCompare(x: Color, y: Color) {
+export function colorCompare(x: Color, y: Color): number {
   return (x.h - y.h) || (x.s - y.s) || (x.l - y.l);
+}
+
+// Return true if two colors have the same value.
+export function colorsEqual(a: Color, b: Color): boolean {
+  return a.h === b.h && a.s === b.s && a.l === b.l && a.a === b.a;
 }
 
 export function getColorForSlice(
@@ -197,9 +194,87 @@ export function getColorForSlice(
   const [hue, saturation, lightness] = hslForSlice(name, hasFocus);
 
   return {
-    c: cachedHsluvToHex(hue, saturation, lightness),
     h: hue,
     s: saturation,
     l: lightness,
   };
+}
+
+const LIGHTNESS_MAX = 100;
+const LIGHTNESS_MIN = 0;
+
+// Lighten color by a percentage.
+export function colorLighten(color: Color, amount: number): Color {
+  return {
+    ...color,
+    l: clamp(color.l + amount, LIGHTNESS_MIN, LIGHTNESS_MAX),
+  };
+}
+
+// Darken color by a percentage.
+export function colorDarken(color: Color, amount: number): Color {
+  return colorLighten(color, -amount);
+}
+
+const SATURATION_MAX = 100;
+const SATURATION_MIN = 0;
+
+// Saturate color by a percentage.
+export function colorSaturate(color: Color, amount: number): Color {
+  return {
+    ...color,
+    s: clamp(color.s + amount, SATURATION_MIN, SATURATION_MAX),
+  };
+}
+
+// Desaturate color by a percentage.
+export function colorDesaturate(color: Color, amount: number): Color {
+  return colorSaturate(color, -amount);
+}
+
+// Convert color to RGB values in the range 0-255
+export function colorToRGB(color: Color): [number, number, number] {
+  const h = color.h;
+  const s = color.s / SATURATION_MAX;
+  const l = color.l / LIGHTNESS_MAX;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+  const m = l - c / 2;
+
+  let [r, g, b] = [0, 0, 0];
+
+  if (0 <= h && h < 60) {
+    [r, g, b] = [c, x, 0];
+  } else if (60 <= h && h < 120) {
+    [r, g, b] = [x, c, 0];
+  } else if (120 <= h && h < 180) {
+    [r, g, b] = [0, c, x];
+  } else if (180 <= h && h < 240) {
+    [r, g, b] = [0, x, c];
+  } else if (240 <= h && h < 300) {
+    [r, g, b] = [x, 0, c];
+  } else if (300 <= h && h < 360) {
+    [r, g, b] = [c, 0, x];
+  }
+
+  // Convert to 0-255 range
+  r = Math.round((r + m) * 255);
+  g = Math.round((g + m) * 255);
+  b = Math.round((b + m) * 255);
+
+  return [r, g, b];
+}
+
+// Get whether a color should be considered "light" based on its perceived
+// brightness.
+export function colorIsLight(color: Color): boolean {
+  // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
+  const [r, g, b] = colorToRGB(color);
+  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+  return (yiq >= 128);
+}
+
+export function colorIsDark(color: Color): boolean {
+  return !colorIsLight(color);
 }

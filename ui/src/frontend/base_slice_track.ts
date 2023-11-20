@@ -14,6 +14,7 @@
 
 import {Disposable, NullDisposable} from '../base/disposable';
 import {assertExists} from '../base/logging';
+import {clamp, floatEqual} from '../base/math_utils';
 import {
   duration,
   Span,
@@ -27,7 +28,13 @@ import {
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
 import {
+  Color,
   colorCompare,
+  colorDesaturate,
+  colorIsLight,
+  colorLighten,
+  colorsEqual,
+  colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
@@ -424,7 +431,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     for (const slice of vizSlicesByColor) {
       if (slice.color !== lastColor) {
         lastColor = slice.color;
-        ctx.fillStyle = slice.color.c;
+        ctx.fillStyle = colorToStr(slice.color);
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -438,8 +445,48 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       }
     }
 
+    // Pass 2.5: Draw fillRatio light section.
+    let prevColor: Color|undefined;
+    for (const slice of vizSlicesByColor) {
+      // Can't draw fill ratio on incomplete or instant slices.
+      if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
+        continue;
+      }
+
+      // Clamp fillRatio between 0.0 -> 1.0
+      const fillRatio = clamp(slice.fillRatio, 0, 1);
+
+      // Don't draw anything if the fill ratio is 1.0ish
+      if (floatEqual(fillRatio, 1)) {
+        continue;
+      }
+
+      // Work out the width of the light section
+      const sliceDrawWidth = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
+      const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
+
+      // Don't draw anything if the light section is smaller than 1 px
+      if (lightSectionDrawWidth < 1) {
+        continue;
+      }
+
+      // Lighten and desaturate the slice color
+      const color = getFillRatioLightColor(slice.color);
+
+      // Set color if not set previously
+      // Slices are sorted by color and light tint is a pure function of slice
+      // color so we should be able to re-use colors quite frequently
+      if (prevColor === undefined || !colorsEqual(color, prevColor)) {
+        ctx.fillStyle = colorToStr(color);
+        prevColor = color;
+      }
+
+      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
+      ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
+    }
+
     // Third pass, draw the titles (e.g., process name for sched slices).
-    ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
@@ -449,6 +496,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         continue;
       }
 
+      // Change the title color dynamically depending on contrast.
+      ctx.fillStyle = colorIsLight(slice.color) ? 'black' : 'white';
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
@@ -734,6 +783,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       depth: row.depth,
       title: '',
       subTitle: '',
+      fillRatio: 1,
 
       // The derived class doesn't need to initialize these. They are
       // rewritten on every renderCanvas() call. We just need to initialize
@@ -900,7 +950,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
           (this.hoveredSlice && this.hoveredSlice.title === slice.title);
       if (isHovering) {
         slice.color = {
-          c: slice.baseColor.c,
           h: slice.baseColor.h,
           s: slice.baseColor.s,
           l: 30,
@@ -944,4 +993,8 @@ export interface OnSliceOutArgs<S extends Slice> {
 export interface OnSliceClickArgs<S extends Slice> {
   // Input args (BaseSliceTrack -> Impl):
   slice: S;  // The slice which is clicked.
+}
+
+function getFillRatioLightColor(color: Color): Color {
+  return colorLighten(colorDesaturate(color, 15), 15);
 }

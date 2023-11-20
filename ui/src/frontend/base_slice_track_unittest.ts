@@ -37,6 +37,7 @@ function slice(start: number, duration: number): Slice {
     subTitle: '',
     baseColor: GRAY_COLOR,
     color: GRAY_COLOR,
+    fillRatio: 1,
   };
 }
 
