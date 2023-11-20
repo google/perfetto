@@ -19,6 +19,7 @@ import m from 'mithril';
 
 import {defer} from '../base/deferred';
 import {reportError, setErrorHandler} from '../base/logging';
+import {initLiveReloadIfLocalhost} from '../core/live_reload';
 import {raf} from '../core/raf_scheduler';
 import {setScheduleFullRedraw} from '../widgets/raf';
 
@@ -111,6 +112,8 @@ function onCssLoaded() {
   raf.domRedraw = () => {
     m.render(document.body, m('div'));
   };
+
+  initLiveReloadIfLocalhost(false);
 }
 
 main();
