@@ -370,10 +370,6 @@ export const StateActions = {
     }
   },
 
-  setVisibleTracks(state: StateDraft, args: {tracks: string[]}) {
-    state.visibleTracks = args.tracks;
-  },
-
   moveTrack(
       state: StateDraft,
       args: {srcId: string; op: 'before' | 'after', dstId: string}): void {
