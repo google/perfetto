@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {channelChanged, getNextChannel, setChannel} from '../common/channels';
-import {featureFlags, Flag, OverrideState} from '../common/feature_flags';
+import {featureFlags, Flag, OverrideState} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 
 import {createPage} from './pages';

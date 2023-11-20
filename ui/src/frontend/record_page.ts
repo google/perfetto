@@ -16,7 +16,6 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {featureFlags} from '../common/feature_flags';
 import {
   AdbRecordingTarget,
   getDefaultRecordingTargets,
@@ -36,6 +35,7 @@ import {
   createEmptyRecordConfig,
   RecordConfig,
 } from '../controller/record_config_types';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
