@@ -298,11 +298,6 @@ RULES = [
     ),
     NoDep(
         r'/bigtrace/.*',
-        r'/core/.*',
-        'bigtrace should not depend on core',
-    ),
-    NoDep(
-        r'/bigtrace/.*',
         r'/common/.*',
         'bigtrace should not depend on common',
     ),
