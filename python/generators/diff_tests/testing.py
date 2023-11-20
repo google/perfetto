@@ -132,7 +132,7 @@ class TestCase:
       return None
 
     if isinstance(self.blueprint.query, DataPath):
-      path = os.path.join(self.test_dir, 'data', self.blueprint.query.filename)
+      path = os.path.join(self.test_data_dir, self.blueprint.query.filename)
     else:
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.query.filename))
@@ -147,8 +147,7 @@ class TestCase:
       return None
 
     if isinstance(self.blueprint.trace, DataPath):
-      path = os.path.join(self.test_data_dir, 'data',
-                          self.blueprint.trace.filename)
+      path = os.path.join(self.test_data_dir, self.blueprint.trace.filename)
     else:
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.trace.filename))
@@ -163,8 +162,7 @@ class TestCase:
       return None
 
     if isinstance(self.blueprint.out, DataPath):
-      path = os.path.join(self.test_data_dir, 'data',
-                          self.blueprint.out.filename)
+      path = os.path.join(self.test_data_dir, self.blueprint.out.filename)
     else:
       path = os.path.abspath(
           os.path.join(self.index_dir, self.blueprint.out.filename))
@@ -210,7 +208,7 @@ class TestSuite:
       dir_name: str,
       class_name: str,
       test_data_dir: str = os.path.abspath(
-          os.path.join(__file__, '../../../../test'))
+          os.path.join(__file__, '../../../../test/data'))
   ) -> None:
     self.dir_name = dir_name
     self.index_dir = os.path.join(include_index_dir, dir_name)
