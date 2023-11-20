@@ -308,7 +308,7 @@ function onCssLoaded() {
     m.render(document.body, m(App, globals.router.resolve()));
   };
 
-  initLiveReloadIfLocalhost();
+  initLiveReloadIfLocalhost(globals.embeddedMode);
 
   if (!RECORDING_V2_FLAG.get()) {
     updateAvailableAdbDevices();

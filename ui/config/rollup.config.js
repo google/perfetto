@@ -21,9 +21,9 @@ const path = require('path');
 const ROOT_DIR = path.dirname(path.dirname(__dirname));  // The repo root.
 const OUT_SYMLINK = path.join(ROOT_DIR, 'ui/out');
 
-function defBundle(bundle, distDir) {
+function defBundle(tsRoot, bundle, distDir) {
   return {
-    input: `${OUT_SYMLINK}/tsc/${bundle}/index.js`,
+    input: `${OUT_SYMLINK}/${tsRoot}/${bundle}/index.js`,
     output: {
       name: bundle,
       format: 'iife',
@@ -93,12 +93,14 @@ function defServiceWorkerBundle() {
   };
 }
 
-const maybeBigtrace = process.env['ENABLE_BIGTRACE'] ? [defBundle('bigtrace', 'dist_version/bigtrace')] : [];
+const maybeBigtrace = process.env['ENABLE_BIGTRACE'] ?
+    [defBundle('tsc/bigtrace', 'bigtrace', 'dist_version/bigtrace')] :
+    [];
 
 export default [
-  defBundle('frontend', 'dist_version'),
-  defBundle('engine', 'dist_version'),
-  defBundle('traceconv', 'dist_version'),
-  defBundle('chrome_extension', 'chrome_extension'),
+  defBundle('tsc', 'frontend', 'dist_version'),
+  defBundle('tsc', 'engine', 'dist_version'),
+  defBundle('tsc', 'traceconv', 'dist_version'),
+  defBundle('tsc', 'chrome_extension', 'chrome_extension'),
   defServiceWorkerBundle(),
 ].concat(maybeBigtrace);
