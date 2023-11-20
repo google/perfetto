@@ -12,20 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {searchSegment} from '../../base/binary_search';
-import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {ProfileType} from '../../common/state';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-  TrackWithControllerAdapter,
-} from '../../common/track_adapter';
-import {TrackData} from '../../common/track_data';
+import {ProfileType, Selection} from '../../common/state';
 import {profileType} from '../../controller/flamegraph_controller';
-import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
+import {
+  BASE_SLICE_ROW,
+  BaseSliceTrack,
+  BaseSliceTrackTypes,
+  OnSliceClickArgs,
+  OnSliceOverArgs,
+} from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
-import {TimeScale} from '../../frontend/time_scale';
+import {Slice} from '../../frontend/slice';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
@@ -33,197 +31,84 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
-import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {NUM, STR} from '../../trace_processor/query_result';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
-export interface Data extends TrackData {
-  tsStarts: BigInt64Array;
-  types: ProfileType[];
+const HEAP_PROFILE_SLICE_ROW = {
+  ...BASE_SLICE_ROW,
+  type: STR,
+};
+type HeapProfileSliceRow = typeof HEAP_PROFILE_SLICE_ROW;
+interface HeapProfileSlice extends Slice {
+  type: ProfileType;
 }
 
-export interface Config {
-  upid: number;
+interface HeapProfileTrackTypes extends BaseSliceTrackTypes {
+  row: HeapProfileSliceRow;
+  slice: HeapProfileSlice;
 }
 
-class HeapProfileTrackController extends TrackControllerAdapter<Config, Data> {
-  async onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data> {
-    if (this.config.upid === undefined) {
-      return {
-        start,
-        end,
-        resolution,
-        length: 0,
-        tsStarts: new BigInt64Array(),
-        types: new Array<ProfileType>(),
-      };
-    }
-    const queryRes = await this.query(`
-    select * from (
-      select distinct
-        ts,
-        'heap_profile:' ||
-          (select group_concat(distinct heap_name) from heap_profile_allocation
-            where upid = ${this.config.upid}) AS type
-      from heap_profile_allocation
-      where upid = ${this.config.upid}
-      union
-      select distinct graph_sample_ts as ts, 'graph' as type
-      from heap_graph_object
-      where upid = ${this.config.upid}) order by ts`);
-    const numRows = queryRes.numRows();
-    const data: Data = {
-      start,
-      end,
-      resolution,
-      length: numRows,
-      tsStarts: new BigInt64Array(numRows),
-      types: new Array<ProfileType>(numRows),
-    };
+class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
+  private upid: number;
 
-    const it = queryRes.iter({ts: LONG, type: STR});
-    for (let row = 0; it.valid(); it.next(), row++) {
-      data.tsStarts[row] = it.ts;
-
-      let profType = it.type;
-      if (profType == 'heap_profile:libc.malloc,com.android.art') {
-        profType = 'heap_profile:com.android.art,libc.malloc';
-      }
-      data.types[row] = profileType(profType);
-    }
-    return data;
-  }
-}
-const HEAP_PROFILE_COLOR = 'hsl(224, 45%, 70%)';
-
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 4.5;
-const RECT_HEIGHT = 30.5;
-
-class HeapProfileTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): HeapProfileTrack {
-    return new HeapProfileTrack(args);
-  }
-
-  private centerY = this.getHeight() / 2;
-  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
-  private hoveredTs: bigint|undefined = undefined;
-
-  constructor(args: NewTrackArgs) {
+  constructor(args: NewTrackArgs, upid: number) {
     super(args);
+    this.upid = upid;
   }
 
-  getHeight() {
-    return MARGIN_TOP + RECT_HEIGHT - 1;
+  getSqlSource(): string {
+    return `select
+      *,
+      0 AS dur,
+      0 AS depth
+      from (
+        select distinct
+          id,
+          ts,
+          'heap_profile:' || (select group_concat(distinct heap_name) from heap_profile_allocation where upid = ${
+        this.upid}) AS type
+        from heap_profile_allocation
+        where upid = ${this.upid}
+        union
+        select distinct
+          id,
+          graph_sample_ts AS ts,
+          'graph' AS type
+        from heap_graph_object
+        where upid = ${this.upid}
+      )`;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
-    const {
-      visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
-    const data = this.data();
+  getRowSpec(): HeapProfileSliceRow {
+    return HEAP_PROFILE_SLICE_ROW;
+  }
 
-    if (data === undefined) return;
-
-    for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = Time.fromRaw(data.tsStarts[i]);
-      const selection = globals.state.currentSelection;
-      const isHovered = this.hoveredTs === centerX;
-      const isSelected = selection !== null &&
-          selection.kind === 'HEAP_PROFILE' && selection.ts === centerX;
-      const strokeWidth = isSelected ? 3 : 0;
-      this.drawMarker(
-          ctx,
-          timeScale.timeToPx(centerX),
-          this.centerY,
-          isHovered,
-          strokeWidth);
+  rowToSlice(row: HeapProfileSliceRow): HeapProfileSlice {
+    const slice = super.rowToSlice(row);
+    let type = row.type;
+    if (type === 'heap_profile:libc.malloc,com.android.art') {
+      type = 'heap_profile:com.android.art,libc.malloc';
     }
+    slice.type = profileType(type);
+    return slice;
   }
 
-  drawMarker(
-      ctx: CanvasRenderingContext2D, x: number, y: number, isHovered: boolean,
-      strokeWidth: number): void {
-    ctx.beginPath();
-    ctx.moveTo(x, y - this.markerWidth);
-    ctx.lineTo(x - this.markerWidth, y);
-    ctx.lineTo(x, y + this.markerWidth);
-    ctx.lineTo(x + this.markerWidth, y);
-    ctx.lineTo(x, y - this.markerWidth);
-    ctx.closePath();
-    ctx.fillStyle = isHovered ? FLAMEGRAPH_HOVERED_COLOR : HEAP_PROFILE_COLOR;
-    ctx.fill();
-    if (strokeWidth > 0) {
-      ctx.strokeStyle = FLAMEGRAPH_HOVERED_COLOR;
-      ctx.lineWidth = strokeWidth;
-      ctx.stroke();
-    }
+  onSliceOver(args: OnSliceOverArgs<HeapProfileSlice>) {
+    args.tooltip = [args.slice.type];
   }
 
-  onMouseMove({x, y}: {x: number, y: number}) {
-    const data = this.data();
-    if (data === undefined) return;
-    const {
-      visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
-    const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
-    this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
+  onSliceClick(args: OnSliceClickArgs<HeapProfileSlice>) {
+    globals.makeSelection(Actions.selectHeapProfile({
+      id: args.slice.id,
+      upid: this.upid,
+      ts: args.slice.ts,
+      type: args.slice.type,
+    }));
   }
 
-  onMouseOut() {
-    this.hoveredTs = undefined;
-  }
-
-  onMouseClick({x, y}: {x: number, y: number}) {
-    const data = this.data();
-    if (data === undefined) return false;
-    const {
-      visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
-
-    const time = timeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTime());
-
-    const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
-
-    if (index !== -1) {
-      const ts = Time.fromRaw(data.tsStarts[index]);
-      const type = data.types[index];
-      globals.makeSelection(Actions.selectHeapProfile(
-          {id: index, upid: this.config.upid, ts, type}));
-      return true;
-    }
-    return false;
-  }
-
-  // If the markers overlap the rightmost one will be selected.
-  findTimestampIndex(
-      left: number, timeScale: TimeScale, data: Data, x: number, y: number,
-      right: number): number {
-    let index = -1;
-    if (left !== -1) {
-      const start = Time.fromRaw(data.tsStarts[left]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = left;
-      }
-    }
-    if (right !== -1) {
-      const start = Time.fromRaw(data.tsStarts[right]);
-      const centerX = timeScale.timeToPx(start);
-      if (this.isInMarker(x, y, centerX)) {
-        index = right;
-      }
-    }
-    return index;
-  }
-
-  isInMarker(x: number, y: number, centerX: number) {
-    return Math.abs(x - centerX) + Math.abs(y - this.centerY) <=
-        this.markerWidth;
+  protected isSelectionHandled(selection: Selection): boolean {
+    return selection.kind === 'HEAP_PROFILE';
   }
 }
 
@@ -243,12 +128,12 @@ class HeapProfilePlugin implements Plugin {
         kind: HEAP_PROFILE_TRACK_KIND,
         upid,
         track: ({trackKey}) => {
-          return new TrackWithControllerAdapter(
-              ctx.engine,
-              trackKey,
-              {upid},
-              HeapProfileTrack,
-              HeapProfileTrackController);
+          return new HeapProfileTrack(
+              {
+                engine: ctx.engine,
+                trackKey,
+              },
+              upid);
         },
       });
     }
