@@ -130,7 +130,8 @@ export const MAX_TIME = 180;
 // 40. Ported counter, process summary/sched, & cpu_freq to plugin tracks.
 // 41. Ported all remaining tracks.
 // 42. Rename trackId -> trackKey.
-export const STATE_VERSION = 42;
+// 43. Remove visibleTracks.
+export const STATE_VERSION = 43;
 
 export const SCROLLING_TRACK_GROUP = 'ScrollingTracks';
 
@@ -545,7 +546,6 @@ export interface State {
   utidToThreadSortKey: UtidToTrackSortKey;
   areas: ObjectById<AreaById>;
   aggregatePreferences: ObjectById<AggregationState>;
-  visibleTracks: string[];
   scrollingTracks: string[];
   pinnedTracks: string[];
   debugTrackId?: string;

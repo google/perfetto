@@ -19,7 +19,6 @@ import {duration, Span, time} from '../base/time';
 import {Track, TrackContext} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
-import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
 
 // Args passed to the track constructors when creating a new track.
@@ -97,7 +96,6 @@ export abstract class TrackBase<Config = {}> implements Track {
   onFullRedraw(): void {}
 
   render(ctx: CanvasRenderingContext2D) {
-    globals.frontendLocalState.addVisibleTrack(this.trackKey);
     this.renderCanvas(ctx);
   }
 
