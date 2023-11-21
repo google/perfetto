@@ -19,7 +19,7 @@ import {globals} from '../../frontend/globals';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -48,11 +48,7 @@ export class EventLatencyTrack extends
     CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
   static readonly kind = CHROME_EVENT_LATENCY_TRACK_KIND;
 
-  static create(args: NewTrackArgs): TrackBase {
-    return new EventLatencyTrack(args);
-  }
-
-  constructor(args: NewTrackArgs) {
+  constructor(args: NewTrackArgs, private baseTable: string) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: EventLatencyTrack.kind,
@@ -68,7 +64,7 @@ export class EventLatencyTrack extends
   }
 
   getSqlSource(): string {
-    return `SELECT * FROM ${this.config.baseTable}`;
+    return `SELECT * FROM ${this.baseTable}`;
   }
 
   getDetailsPanel(): CustomSqlDetailsPanelConfig {
@@ -80,7 +76,7 @@ export class EventLatencyTrack extends
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      sqlTableName: this.config.baseTable,
+      sqlTableName: this.baseTable,
     };
   }
 

@@ -184,12 +184,10 @@ type CastInternal<S extends Slice> = S&SliceInternal;
 export interface BaseSliceTrackTypes {
   slice: Slice;
   row: BaseSliceRow;
-  config: {};
 }
 
-export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
-                                                   BaseSliceTrackTypes> extends
-    TrackBase<T['config']> {
+export abstract class BaseSliceTrack<
+    T extends BaseSliceTrackTypes = BaseSliceTrackTypes> extends TrackBase {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
 
   // This is the over-skirted cached bounds:
