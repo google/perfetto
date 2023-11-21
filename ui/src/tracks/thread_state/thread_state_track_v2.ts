@@ -96,7 +96,6 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     for (const slice of slices) {
       if (slice === this.hoveredSlice) {
         slice.color = {
-          c: slice.baseColor.c,
           h: slice.baseColor.h,
           s: slice.baseColor.s,
           l: 30,

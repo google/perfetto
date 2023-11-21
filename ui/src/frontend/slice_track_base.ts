@@ -18,6 +18,7 @@ import {BasicAsyncTrack} from '../common/basic_async_track';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {
   colorForThreadIdleSlice,
+  colorToStr,
   getColorForSlice,
 } from '../common/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
@@ -145,7 +146,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
 
       let color: string;
       if (colorOverride === undefined) {
-        color = colorObj.c;
+        color = colorToStr(colorObj);
       } else {
         color = colorOverride;
       }
