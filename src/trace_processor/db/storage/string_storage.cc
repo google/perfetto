@@ -15,10 +15,12 @@
  */
 
 #include "src/trace_processor/db/storage/string_storage.h"
+
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -476,6 +478,17 @@ void StringStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
               return string_pool_->Get(values_->data()[a_idx]) <
                      string_pool_->Get(values_->data()[b_idx]);
             });
+}
+
+void StringStorage::Serialize(
+    protos::pbzero::SerializedColumn::Storage* msg) const {
+  auto* string_storage = msg->set_string_storage();
+  string_storage->set_is_sorted(is_sorted_);
+
+  auto* vec_msg = string_storage->set_values();
+  vec_msg->set_size(size());
+  vec_msg->set_data(reinterpret_cast<const uint8_t*>(values_->data()),
+                    sizeof(StringPool::Id) * size());
 }
 
 }  // namespace storage

@@ -16,14 +16,15 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_DUMMY_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_DUMMY_STORAGE_H_
 
-#include <variant>
-
-#include "perfetto/base/logging.h"
-#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
@@ -44,6 +45,8 @@ class DummyStorage final : public Storage {
   void StableSort(uint32_t*, uint32_t) const override;
 
   void Sort(uint32_t*, uint32_t) const override;
+
+  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
 
   uint32_t size() const override;
 };

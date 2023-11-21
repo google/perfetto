@@ -22,6 +22,11 @@
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
@@ -53,6 +58,9 @@ class Storage {
   // Stable sorts |rows| in ascending order with the comparator:
   // data[rows[a]] < data[rows[b]].
   virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
+
+  // Serializes storage data to proto format.
+  virtual void Serialize(protos::pbzero::SerializedColumn_Storage*) const = 0;
 
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;

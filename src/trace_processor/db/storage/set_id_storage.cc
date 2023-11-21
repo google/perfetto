@@ -15,8 +15,11 @@
  */
 
 #include "src/trace_processor/db/storage/set_id_storage.h"
+
 #include <functional>
+
 #include "perfetto/base/logging.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -225,6 +228,14 @@ void SetIdStorage::StableSort(uint32_t*, uint32_t) const {
 void SetIdStorage::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_ELOG("Not implemented");
+}
+
+void SetIdStorage::Serialize(
+    protos::pbzero::SerializedColumn::Storage* msg) const {
+  auto* vec_msg = msg->set_set_id_storage()->set_values();
+  vec_msg->set_size(size());
+  vec_msg->set_data(reinterpret_cast<const uint8_t*>(values_->data()),
+                    sizeof(SetId) * size());
 }
 
 }  // namespace storage
