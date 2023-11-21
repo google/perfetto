@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
+import {hsluvToRgb} from 'hsluv';
 
 import {clamp} from '../base/math_utils';
 import {hash} from '../common/hash';
@@ -172,13 +173,6 @@ export function colorForThreadIdleSlice(
   return cachedHsluvToHex(hue, saturation, newLightness);
 }
 
-export function colorToStr(color: Color) {
-  if (color.a !== undefined) {
-    return `hsla(${color.h}, ${color.s}%, ${color.l}%, ${color.a})`;
-  }
-  return `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
-}
-
 export function colorCompare(x: Color, y: Color): number {
   return (x.h - y.h) || (x.s - y.s) || (x.l - y.l);
 }
@@ -270,7 +264,7 @@ export function colorToRGB(color: Color): [number, number, number] {
 // brightness.
 export function colorIsLight(color: Color): boolean {
   // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
-  const [r, g, b] = colorToRGB(color);
+  const [r, g, b] = hsluvToRgb([color.h, color.s, color.l]);
   const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
   return (yiq >= 128);
 }

@@ -84,6 +84,18 @@ export class EventLatencyTrack extends
     };
   }
 
+  // TODO(stevegolton): The janky event color should be assigned in rowToSlice.
+  // For example:
+
+  // rowToSlice(row: NamedSliceRow): Slice {
+  //   const baseSlice = super.rowToSlice(row);
+  //   if (baseSlice.title === JANKY_LATENCY_NAME) {
+  //     return {...baseSlice, baseColor: RED_COLOR};
+  //   } else {
+  //     return baseSlice;
+  //   }
+  // }
+
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
       const currentSelection = globals.state.currentSelection;
