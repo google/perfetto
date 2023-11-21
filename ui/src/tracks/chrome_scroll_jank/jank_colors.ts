@@ -15,13 +15,13 @@
 import {Color} from '../../common/colorizer';
 
 export const RED_COLOR: Color = {
-  h: 196,
-  s: 30,
-  l: 58,
+  h: 7,
+  s: 100,
+  l: 46,
 };
 
 export const DEEP_RED_COLOR: Color = {
-  h: 136,
-  s: 8,
-  l: 8,
+  h: 11,
+  s: 100,
+  l: 32,
 };
