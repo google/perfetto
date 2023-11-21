@@ -15,8 +15,10 @@
  */
 
 #include "src/trace_processor/db/storage/id_storage.h"
+
 #include "perfetto/base/logging.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -221,6 +223,12 @@ void IdStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
 
 void IdStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
   std::sort(indices, indices + indices_size);
+}
+
+void IdStorage::Serialize(
+    protos::pbzero::SerializedColumn::Storage* storage) const {
+  auto* id_storage = storage->set_id_storage();
+  id_storage->set_size(size_);
 }
 
 }  // namespace storage

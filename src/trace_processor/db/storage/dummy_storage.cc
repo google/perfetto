@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/storage/dummy_storage.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -42,6 +43,10 @@ void DummyStorage::Sort(uint32_t*, uint32_t) const {
 
 uint32_t DummyStorage::size() const {
   return 0;
+}
+
+void DummyStorage::Serialize(protos::pbzero::SerializedColumn::Storage*) const {
+  PERFETTO_FATAL("Shouldn't be called");
 }
 
 }  // namespace storage
