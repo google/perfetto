@@ -27,6 +27,18 @@ export interface Slice {
   readonly depth: number;
   readonly flags: number;
 
+  // Each slice can represent some extra numerical information by rendering a
+  // portion of the slice with a lighter tint.
+  // |fillRatio\ describes the ratio of the normal area to the tinted area
+  // width of the slice, normalized between 0.0 -> 1.0.
+  // 0.0 means the whole slice is tinted.
+  // 1.0 means none of the slice is tinted.
+  // E.g. If |fillRatio| = 0.65 the slice will be rendered like this:
+  // [############|*******]
+  // ^------------^-------^
+  //     Normal     Light
+  readonly fillRatio: number;
+
   // These can be changed by the Impl.
   title: string;
   subTitle: string;
