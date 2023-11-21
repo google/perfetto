@@ -22,6 +22,11 @@
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
@@ -42,14 +47,16 @@ class NumericStorageBase : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  uint32_t size() const override { return size_; }
+  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
+
+  inline uint32_t size() const override { return size_; }
 
  protected:
   NumericStorageBase(const void* data,
                      uint32_t size,
                      ColumnType type,
                      bool is_sorted = false)
-      : type_(type), data_(data), size_(size), is_sorted_(is_sorted) {}
+      : size_(size), data_(data), type_(type), is_sorted_(is_sorted) {}
 
  private:
   BitVector LinearSearchInternal(FilterOp op,
@@ -70,9 +77,9 @@ class NumericStorageBase : public Storage {
                                       uint32_t* indices,
                                       uint32_t indices_count) const;
 
-  const ColumnType type_ = ColumnType::kDummy;
-  const void* data_ = nullptr;
   const uint32_t size_ = 0;
+  const void* data_ = nullptr;
+  const ColumnType type_ = ColumnType::kDummy;
   const bool is_sorted_ = false;
 };
 
