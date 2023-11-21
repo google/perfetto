@@ -34,7 +34,6 @@ import {
   colorIsLight,
   colorLighten,
   colorsEqual,
-  colorToStr,
   UNEXPECTED_PINK_COLOR,
 } from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
@@ -431,7 +430,8 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     for (const slice of vizSlicesByColor) {
       if (slice.color !== lastColor) {
         lastColor = slice.color;
-        ctx.fillStyle = colorToStr(slice.color);
+        const {h, s, l} = slice.color;
+        ctx.fillStyle = cachedHsluvToHex(h, s, l);
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -477,7 +477,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       // Slices are sorted by color and light tint is a pure function of slice
       // color so we should be able to re-use colors quite frequently
       if (prevColor === undefined || !colorsEqual(color, prevColor)) {
-        ctx.fillStyle = colorToStr(color);
+        ctx.fillStyle = cachedHsluvToHex(color.h, color.s, color.l);
         prevColor = color;
       }
 
