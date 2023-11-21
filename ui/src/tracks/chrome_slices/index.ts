@@ -13,11 +13,18 @@
 // limitations under the License.
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
+import {clamp} from '../../base/math_utils';
 import {Duration, duration, time} from '../../base/time';
+import {
+  NAMED_SLICE_ROW,
+  NamedSliceTrack,
+  NamedSliceTrackTypes,
+} from '../../frontend/named_slice_track';
 import {
   SliceData,
   SliceTrackBase,
 } from '../../frontend/slice_track_base';
+import {NewTrackArgs} from '../../frontend/track';
 import {
   EngineProxy,
   Plugin,
@@ -34,8 +41,6 @@ import {
   STR,
   STR_NULL,
 } from '../../trace_processor/query_result';
-
-import {GenericSliceTrack} from './generic_slice_track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
@@ -146,6 +151,68 @@ export class ChromeSliceTrack extends SliceTrackBase {
   }
 }
 
+export const CHROME_SLICE_ROW = {
+  // Base columns (tsq, ts, dur, id, depth).
+  ...NAMED_SLICE_ROW,
+
+  // Chrome-specific columns.
+  threadDur: LONG_NULL,
+};
+export type ChromeSliceRow = typeof CHROME_SLICE_ROW;
+
+export interface ChromeSliceTrackTypes extends NamedSliceTrackTypes {
+  row: ChromeSliceRow;
+}
+
+export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
+  constructor(args: NewTrackArgs, private trackId: number) {
+    super(args);
+  }
+
+  // This is used by the base class to call iter().
+  getRowSpec() {
+    return CHROME_SLICE_ROW;
+  }
+
+  getSqlSource(): string {
+    return `select
+      ts,
+      dur,
+      id,
+      depth,
+      ifnull(name, '') as name,
+      thread_dur as threadDur
+    from slice
+    where track_id = ${this.trackId}`;
+  }
+
+  // Converts a SQL result row to an "Impl" Slice.
+  rowToSlice(row: ChromeSliceTrackTypes['row']):
+      ChromeSliceTrackTypes['slice'] {
+    const namedSlice = super.rowToSlice(row);
+
+    if (row.dur > 0n && row.threadDur !== null) {
+      const fillRatio = clamp(BIMath.ratio(row.threadDur, row.dur), 0, 1);
+      return {...namedSlice, fillRatio};
+    } else {
+      return namedSlice;
+    }
+  }
+
+  onUpdatedSlices(slices: ChromeSliceTrackTypes['slice'][]) {
+    for (const slice of slices) {
+      if (slice === this.hoveredSlice) {
+        slice.color = {
+          ...slice.baseColor,
+          l: 30,
+        };
+      } else {
+        slice.color = slice.baseColor;
+      }
+    }
+  }
+}
+
 class ChromeSlicesPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
@@ -219,12 +286,11 @@ class ChromeSlicesPlugin implements Plugin {
         trackIds: [trackId],
         kind: SLICE_TRACK_KIND,
         track: ({trackKey}) => {
-          const track = GenericSliceTrack.create({
+          const newTrackArgs = {
             engine: ctx.engine,
             trackKey,
-          });
-          track.config = {sqlTrackId: trackId};
-          return track;
+          };
+          return new ChromeSliceTrackV2(newTrackArgs, trackId);
         },
       });
     }
