@@ -25,9 +25,9 @@ import {showModal} from './modal';
 import {KeyMapping} from './pan_and_zoom_handler';
 import {Spinner} from './widgets/spinner';
 
-export function toggleHelp() {
+export function toggleHelp(): Promise<void> {
   globals.logging.logEvent('User Actions', 'Show help');
-  showHelp();
+  return showHelp();
 }
 
 function keycap(glyph: m.Children): m.Children {
@@ -185,8 +185,8 @@ class KeyMappingsHelp implements m.ClassComponent {
   }
 }
 
-function showHelp() {
-  showModal({
+function showHelp(): Promise<void> {
+  return showModal({
     title: 'Perfetto Help',
     content: () => m(KeyMappingsHelp),
     buttons: [],
