@@ -605,16 +605,20 @@ export const StateActions = {
     // rather than T1, T10, T11, ..., T2, T20, T21 .
     const coll = new Intl.Collator([], {sensitivity: 'base', numeric: true});
     for (const group of Object.values(state.trackGroups)) {
-      group.tracks.sort((a: string, b: string) => {
-        const aRank = getFullKey(a);
-        const bRank = getFullKey(b);
-        for (let i = 0; i < aRank.length; i++) {
-          if (aRank[i] !== bRank[i]) return aRank[i] - bRank[i];
-        }
+      group.sortOrder.sort((a: string, b: string) => {
+        if (state.tracks[a] && state.tracks[b]) {
+          const aRank = getFullKey(a);
+          const bRank = getFullKey(b);
+          for (let i = 0; i < aRank.length; i++) {
+            if (aRank[i] !== bRank[i]) return aRank[i] - bRank[i];
+          }
 
-        const aName = state.tracks[a].name.toLocaleLowerCase();
-        const bName = state.tracks[b].name.toLocaleLowerCase();
-        return coll.compare(aName, bName);
+          const aName = state.tracks[a].name.toLocaleLowerCase();
+          const bName = state.tracks[b].name.toLocaleLowerCase();
+          return coll.compare(aName, bName);
+        } else {
+          return 0;
+        }
       });
     }
   },
