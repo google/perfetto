@@ -57,8 +57,8 @@ def list_files(path, scan_new_files=False):
     for fname in files:
       if fname.endswith('.swp'):
         continue  # Temporary files left around if CTRL-C-ing while downloading.
-      if fname == "OWNERS":
-        continue  # OWNERS file should not be uploaded.
+      if fname in ["OWNERS", "README.md"]:
+        continue  # OWNERS or README.md file should not be uploaded.
       fpath = os.path.join(root, fname)
       if not os.path.isfile(fpath) or fname.startswith('.'):
         continue
