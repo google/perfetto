@@ -31,11 +31,11 @@ class DebugTrackPlugin implements Plugin {
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     ctx.registerTrack({
       uri: DEBUG_SLICE_TRACK_URI,
-      track: ({trackKey}) => new DebugTrackV2(ctx.engine, trackKey),
+      track: (trackCtx) => new DebugTrackV2(ctx.engine, trackCtx),
     });
     ctx.registerTrack({
       uri: DEBUG_COUNTER_TRACK_URI,
-      track: ({trackKey}) => new DebugCounterTrack(ctx.engine, trackKey),
+      track: (trackCtx) => new DebugCounterTrack(ctx.engine, trackCtx),
     });
   }
 }

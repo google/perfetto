@@ -61,7 +61,7 @@ export interface RenderOptions {
   yBoundaries: 'strict'|'human_readable';
 }
 
-export abstract class BaseCounterTrack<Config = {}> extends TrackBase<Config> {
+export abstract class BaseCounterTrack extends TrackBase {
   protected readonly tableName: string;
 
   // This is the over-skirted cached bounds:
