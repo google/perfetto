@@ -264,9 +264,10 @@ export function colorToRGB(color: Color): [number, number, number] {
 // brightness.
 export function colorIsLight(color: Color): boolean {
   // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
+  // hsluvToRgb returns rgb in range 0..1
   const [r, g, b] = hsluvToRgb([color.h, color.s, color.l]);
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 128);
+  const yiq = ((r * 255 * 299) + (g * 255 * 587) + (b * 255 * 114)) / 1000;
+  return yiq >= 128;
 }
 
 export function colorIsDark(color: Color): boolean {
