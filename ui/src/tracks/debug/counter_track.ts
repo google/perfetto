@@ -36,16 +36,15 @@ export interface CounterDebugTrackConfig {
   columns: CounterColumns;
 }
 
-export class DebugCounterTrack extends
-    BaseCounterTrack<CounterDebugTrackConfig> {
-  constructor(engine: EngineProxy, trackKey: string) {
+export class DebugCounterTrack extends BaseCounterTrack {
+  private config: CounterDebugTrackConfig;
+
+  constructor(engine: EngineProxy, ctx: TrackContext) {
     super({
       engine,
-      trackKey,
+      trackKey: ctx.trackKey,
     });
-  }
 
-  onCreate(ctx: TrackContext): void {
     // TODO(stevegolton): Validate params before type asserting.
     // TODO(stevegolton): Avoid just pushing this config up for some base
     // class to use. Be more explicit.

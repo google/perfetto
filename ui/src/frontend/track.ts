@@ -14,7 +14,6 @@
 
 import m from 'mithril';
 
-import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
 import {Track, TrackContext} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
@@ -49,18 +48,9 @@ export interface SliceRect {
 }
 
 // The abstract class that needs to be implemented by all tracks.
-export abstract class TrackBase<Config = {}> implements Track {
+export abstract class TrackBase implements Track {
   protected readonly trackKey: string;
   protected readonly engine: EngineProxy;
-  private _config?: Config;
-
-  get config(): Config {
-    return assertExists(this._config);
-  }
-
-  set config(x: Config) {
-    this._config = x;
-  }
 
   constructor(args: NewTrackArgs) {
     this.trackKey = args.trackKey;
