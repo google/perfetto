@@ -37,11 +37,7 @@ class SchedPlugin implements Plugin {
     });
     ctx.registerTrack({
       uri: ActiveCPUCountTrack.kind,
-      track: (trackCtx) => {
-        const track = new ActiveCPUCountTrack(
-            {engine: ctx.engine, trackKey: trackCtx.trackKey});
-        return track;
-      },
+      track: (trackCtx) => new ActiveCPUCountTrack(trackCtx, ctx.engine),
     });
   }
 
