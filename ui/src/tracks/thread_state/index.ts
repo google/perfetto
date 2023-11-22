@@ -355,12 +355,12 @@ class ThreadState implements Plugin {
         kind: THREAD_STATE_TRACK_V2_KIND,
         utid,
         track: ({trackKey}) => {
-          const track = ThreadStateTrackV2.create({
-            engine: ctx.engine,
-            trackKey,
-          });
-          track.config = {utid};
-          return track;
+          return new ThreadStateTrackV2(
+              {
+                engine: ctx.engine,
+                trackKey,
+              },
+              utid);
         },
       });
     }

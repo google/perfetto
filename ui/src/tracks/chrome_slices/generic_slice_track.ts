@@ -18,26 +18,13 @@ import {
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 
-export interface GenericSliceTrackConfig {
-  sqlTrackId: number;
-}
-
-export interface GenericSliceTrackTypes extends NamedSliceTrackTypes {
-  config: GenericSliceTrackConfig;
-}
-
-export class GenericSliceTrack extends NamedSliceTrack<GenericSliceTrackTypes> {
-  static readonly kind = 'GenericSliceTrack';
-  static create(args: NewTrackArgs) {
-    return new GenericSliceTrack(args);
-  }
-
-  constructor(args: NewTrackArgs) {
+export class GenericSliceTrack extends NamedSliceTrack<NamedSliceTrackTypes> {
+  constructor(args: NewTrackArgs, private sqlTrackId: number) {
     super(args);
   }
 
   getSqlSource(): string {
     return `select ts, dur, id, depth, ifnull(name, '') as name
-    from slice where track_id = ${this.config.sqlTrackId}`;
+    from slice where track_id = ${this.sqlTrackId}`;
   }
 }

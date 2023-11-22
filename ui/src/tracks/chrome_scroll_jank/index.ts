@@ -297,16 +297,7 @@ class ChromeScrollJankPlugin implements Plugin {
       displayName: 'Chrome Scroll Input Latencies',
       kind: EventLatencyTrack.kind,
       track: ({trackKey}) => {
-        const track = new EventLatencyTrack({
-          engine: ctx.engine,
-          trackKey,
-        });
-
-        track.config = {
-          baseTable,
-        };
-
-        return track;
+        return new EventLatencyTrack({engine: ctx.engine, trackKey}, baseTable);
       },
     });
   }

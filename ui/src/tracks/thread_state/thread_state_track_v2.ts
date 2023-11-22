@@ -38,23 +38,14 @@ export const THREAD_STATE_ROW = {
 
 export type ThreadStateRow = typeof THREAD_STATE_ROW;
 
-export interface ThreadStateTrackConfig {
-  utid: number;
-}
-
 export interface ThreadStateTrackTypes extends BaseSliceTrackTypes {
   row: ThreadStateRow;
-  config: ThreadStateTrackConfig;
 }
 
 export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
-  static create(args: NewTrackArgs) {
-    return new ThreadStateTrack(args);
-  }
-
   protected sliceLayout: SliceLayout = {...SLICE_LAYOUT_FLAT_DEFAULTS};
 
-  constructor(args: NewTrackArgs) {
+  constructor(args: NewTrackArgs, private utid: number) {
     super(args);
   }
 
@@ -76,7 +67,7 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
         0 as depth
       from thread_state
       where
-        utid = ${this.config.utid} and
+        utid = ${this.utid} and
         state != 'x' and
         state != 'S'
     `;
