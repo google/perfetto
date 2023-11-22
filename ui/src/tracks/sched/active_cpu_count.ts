@@ -25,8 +25,7 @@ import {
 } from '../../frontend/base_counter_track';
 import {CloseTrackButton} from '../../frontend/close_track_button';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs} from '../../frontend/track';
-import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {EngineProxy, PrimaryTrackSortKey, TrackContext} from '../../public';
 
 export function addActiveCPUCountTrack(cpuType?: string) {
   const cpuTypeName = cpuType === undefined ? '' : ` ${cpuType} `;
@@ -52,15 +51,17 @@ export interface ActiveCPUCountTrackConfig {
   cpuType?: string;
 }
 
-export class ActiveCPUCountTrack extends
-    BaseCounterTrack<ActiveCPUCountTrackConfig> {
+export class ActiveCPUCountTrack extends BaseCounterTrack {
+  private config: ActiveCPUCountTrackConfig;
+
   static readonly kind = 'dev.perfetto.Sched.ActiveCPUCount';
 
-  constructor(args: NewTrackArgs) {
-    super(args);
-  }
+  constructor(ctx: TrackContext, engine: EngineProxy) {
+    super({
+      engine,
+      trackKey: ctx.trackKey,
+    });
 
-  onCreate(ctx: TrackContext): void {
     // TODO(stevegolton): Validate params before type asserting.
     // TODO(stevegolton): Avoid just pushing this config up for some base
     // class to use. Be more explicit.
@@ -87,10 +88,10 @@ export class ActiveCPUCountTrack extends
   }
 
   getSqlSource() {
-    const sourceTable = this.config.cpuType === undefined ?
+    const sourceTable = this.config!.cpuType === undefined ?
         'sched_active_cpu_count' :
         `sched_active_cpu_count_for_core_type(${
-            sqliteString(this.config.cpuType)})`;
+            sqliteString(this.config!.cpuType)})`;
     return `
     select
       ts,
