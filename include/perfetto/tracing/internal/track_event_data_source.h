@@ -1080,6 +1080,9 @@ class TrackEventDataSource
       // We haven't seen this category before. Let's figure out if it's enabled.
       // This requires grabbing a lock to read the session's trace config.
       auto ds = ctx->GetDataSourceLocked();
+      if (!ds) {
+        return false;
+      }
       Category category{Category::FromDynamicCategory(dynamic_category)};
       bool enabled = TrackEventInternal::IsCategoryEnabled(
           *Registry, ds->config_, category);
