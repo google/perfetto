@@ -17,7 +17,7 @@ import {Color, colorForState} from '../../common/colorizer';
 import {Selection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {
-  BASE_SLICE_ROW,
+  BASE_ROW,
   BaseSliceTrack,
   BaseSliceTrackTypes,
   OnSliceClickArgs,
@@ -31,7 +31,7 @@ import {NewTrackArgs} from '../../frontend/track';
 import {NUM_NULL, STR} from '../../trace_processor/query_result';
 
 export const THREAD_STATE_ROW = {
-  ...BASE_SLICE_ROW,
+  ...BASE_ROW,
   state: STR,
   ioWait: NUM_NULL,
 };

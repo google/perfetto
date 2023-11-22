@@ -38,12 +38,12 @@ import {
 } from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {Slice} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {cachedHsluvToHex} from './hsluv_cache';
-import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {PxSpan, TimeScale} from './time_scale';
@@ -150,7 +150,7 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 //   slices at depth 0..N.
 // If you need temporally overlapping slices, look at AsyncSliceTrack, which
 // merges several tracks into one visual track.
-export const BASE_SLICE_ROW = {
+export const BASE_ROW = {
   id: NUM,     // The slice ID, for selection / lookups.
   ts: LONG,    // Start time in nanoseconds.
   dur: LONG,   // Duration in nanoseconds. -1 = incomplete, 0 = instant.
@@ -161,7 +161,7 @@ export const BASE_SLICE_ROW = {
   tsqEnd: LONG,  // Quantized |ts+dur|. The end bucket.
 };
 
-export type BaseSliceRow = typeof BASE_SLICE_ROW;
+export type BaseRow = typeof BASE_ROW;
 
 // These properties change @ 60FPS and shouldn't be touched by the subclass.
 // since the Impl doesn't see every frame attempting to reason on them in a
@@ -182,7 +182,7 @@ type CastInternal<S extends Slice> = S&SliceInternal;
 // Derived classes can extend this interface to override these types if needed.
 export interface BaseSliceTrackTypes {
   slice: Slice;
-  row: BaseSliceRow;
+  row: BaseRow;
 }
 
 export abstract class BaseSliceTrack<
@@ -258,7 +258,7 @@ export abstract class BaseSliceTrack<
   abstract getSqlSource(): string;
 
   getRowSpec(): T['row'] {
-    return BASE_SLICE_ROW;
+    return BASE_ROW;
   }
   onSliceOver(_args: OnSliceOverArgs<T['slice']>): void {}
   onSliceOut(_args: OnSliceOutArgs<T['slice']>): void {}
@@ -285,7 +285,7 @@ export abstract class BaseSliceTrack<
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).
     const allCols = Object.keys(this.getRowSpec());
-    const baseCols = Object.keys(BASE_SLICE_ROW);
+    const baseCols = Object.keys(BASE_ROW);
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
   }
 
