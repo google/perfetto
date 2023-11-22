@@ -14,11 +14,11 @@
 
 import {Time} from '../base/time';
 import {GRAY_COLOR} from '../common/colorizer';
+import {Slice} from '../public';
 
 import {
   filterVisibleSlicesForTesting as filterVisibleSlices,
 } from './base_slice_track';
-import {Slice} from './slice';
 
 function slice(start: number, duration: number): Slice {
   const startNsQ = Time.fromRaw(BigInt(start));
