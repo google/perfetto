@@ -20,10 +20,9 @@ import {OnSliceClickArgs} from '../../frontend/base_slice_track';
 import {GenericSliceDetailsTab} from '../../frontend/generic_slice_details_tab';
 import {globals} from '../../frontend/globals';
 import {
-  NAMED_SLICE_ROW,
+  NAMED_ROW,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {Slice} from '../../frontend/slice';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
@@ -31,6 +30,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
+  Slice,
   STR,
 } from '../../public';
 import {
@@ -45,12 +45,11 @@ import {PageLoadDetailsPanel} from './page_load_details_panel';
 export const CRITICAL_USER_INTERACTIONS_KIND =
     'org.chromium.CriticalUserInteraction.track';
 
-export const CRITICAL_USER_INTERACTIONS_SLICE_ROW = {
-  ...NAMED_SLICE_ROW,
+export const CRITICAL_USER_INTERACTIONS_ROW = {
+  ...NAMED_ROW,
   type: STR,
 };
-export type CriticalUserInteractionSliceRow =
-    typeof CRITICAL_USER_INTERACTIONS_SLICE_ROW;
+export type CriticalUserInteractionRow = typeof CRITICAL_USER_INTERACTIONS_ROW;
 
 export interface CriticalUserInteractionSlice extends Slice {
   type: string;
@@ -59,7 +58,7 @@ export interface CriticalUserInteractionSlice extends Slice {
 export interface CriticalUserInteractionSliceTrackTypes extends
     NamedSliceTrackTypes {
   slice: CriticalUserInteractionSlice;
-  row: CriticalUserInteractionSliceRow;
+  row: CriticalUserInteractionRow;
 }
 
 enum CriticalUserInteractionType {
@@ -126,7 +125,7 @@ export class CriticalUserInteractionTrack extends
   }
 
   getRowSpec(): CriticalUserInteractionSliceTrackTypes['row'] {
-    return CRITICAL_USER_INTERACTIONS_SLICE_ROW;
+    return CRITICAL_USER_INTERACTIONS_ROW;
   }
 
   rowToSlice(row: CriticalUserInteractionSliceTrackTypes['row']):
