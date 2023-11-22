@@ -16,7 +16,7 @@ import {BigintMath as BIMath} from '../../base/bigint_math';
 import {clamp} from '../../base/math_utils';
 import {Duration, duration, time} from '../../base/time';
 import {
-  NAMED_SLICE_ROW,
+  NAMED_ROW,
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
@@ -153,7 +153,7 @@ export class ChromeSliceTrack extends SliceTrackBase {
 
 export const CHROME_SLICE_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
-  ...NAMED_SLICE_ROW,
+  ...NAMED_ROW,
 
   // Chrome-specific columns.
   threadDur: LONG_NULL,
