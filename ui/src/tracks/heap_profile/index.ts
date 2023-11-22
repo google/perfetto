@@ -16,36 +16,36 @@ import {Actions} from '../../common/actions';
 import {ProfileType, Selection} from '../../common/state';
 import {profileType} from '../../controller/flamegraph_controller';
 import {
-  BASE_SLICE_ROW,
+  BASE_ROW,
   BaseSliceTrack,
   BaseSliceTrackTypes,
   OnSliceClickArgs,
   OnSliceOverArgs,
 } from '../../frontend/base_slice_track';
 import {globals} from '../../frontend/globals';
-import {Slice} from '../../frontend/slice';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Slice,
 } from '../../public';
 import {NUM, STR} from '../../trace_processor/query_result';
 
 export const HEAP_PROFILE_TRACK_KIND = 'HeapProfileTrack';
 
-const HEAP_PROFILE_SLICE_ROW = {
-  ...BASE_SLICE_ROW,
+const HEAP_PROFILE_ROW = {
+  ...BASE_ROW,
   type: STR,
 };
-type HeapProfileSliceRow = typeof HEAP_PROFILE_SLICE_ROW;
+type HeapProfileRow = typeof HEAP_PROFILE_ROW;
 interface HeapProfileSlice extends Slice {
   type: ProfileType;
 }
 
 interface HeapProfileTrackTypes extends BaseSliceTrackTypes {
-  row: HeapProfileSliceRow;
+  row: HeapProfileRow;
   slice: HeapProfileSlice;
 }
 
@@ -80,11 +80,11 @@ class HeapProfileTrack extends BaseSliceTrack<HeapProfileTrackTypes> {
       )`;
   }
 
-  getRowSpec(): HeapProfileSliceRow {
-    return HEAP_PROFILE_SLICE_ROW;
+  getRowSpec(): HeapProfileRow {
+    return HEAP_PROFILE_ROW;
   }
 
-  rowToSlice(row: HeapProfileSliceRow): HeapProfileSlice {
+  rowToSlice(row: HeapProfileRow): HeapProfileSlice {
     const slice = super.rowToSlice(row);
     let type = row.type;
     if (type === 'heap_profile:libc.malloc,com.android.art') {
