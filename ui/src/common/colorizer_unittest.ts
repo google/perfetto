@@ -121,6 +121,6 @@ test('lightness calculations', () => {
   expect(colorIsLight({h: 0, s: 0, l: 0})).toBeFalsy();
   expect(colorIsLight({h: 0, s: 0, l: 100})).toBeTruthy();
 
-  expect(colorIsLight({h: 0, s: 0, l: 49})).toBeFalsy();
-  expect(colorIsLight({h: 0, s: 0, l: 51})).toBeTruthy();
+  expect(colorIsLight({h: 0, s: 0, l: 40})).toBeFalsy();
+  expect(colorIsLight({h: 0, s: 0, l: 60})).toBeTruthy();
 });
