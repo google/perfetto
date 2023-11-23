@@ -22,12 +22,12 @@ import {
 } from '../common/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
+import {SliceRect} from '../public';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {cachedHsluvToHex} from './hsluv_cache';
 import {PxSpan, TimeScale} from './time_scale';
-import {SliceRect} from './track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;

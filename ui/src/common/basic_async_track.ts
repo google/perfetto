@@ -18,8 +18,7 @@ import {duration, Span, Time, time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {SliceRect} from '../frontend/track';
-import {Track, TrackContext} from '../public';
+import {SliceRect, Track, TrackContext} from '../public';
 
 import {TrackData} from './track_data';
 
