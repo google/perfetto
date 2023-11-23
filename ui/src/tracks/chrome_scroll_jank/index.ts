@@ -238,9 +238,11 @@ class ChromeScrollJankPlugin implements Plugin {
           'FIRST_GESTURE_SCROLL_UPDATE',
           'GESTURE_SCROLL_UPDATE',
           'INERTIAL_GESTURE_SCROLL_UPDATE')
-        AND HAS_DESCENDANT_SLICE_WITH_NAME(
+        AND has_descendant_slice_with_name(
           id,
-          'SubmitCompositorFrameToPresentationCompositorFrame')`,
+          'SubmitCompositorFrameToPresentationCompositorFrame')
+        AND name = 'EventLatency'
+        AND depth = 0`,
     });
 
     // Table name must be unique - it cannot include '-' characters or begin
@@ -248,22 +250,22 @@ class ChromeScrollJankPlugin implements Plugin {
     const baseTable =
         `table_${uuidv4().split('-').join('_')}_janky_event_latencies_v3`;
     const tableDefSql = `CREATE TABLE ${baseTable} AS
-        WITH event_latencies AS (
+        WITH
+        event_latencies AS MATERIALIZED (
           ${subTableSql}
-        ), latency_stages AS (
-        SELECT
-          d.id,
-          d.ts,
-          d.dur,
-          d.track_id,
-          d.name,
-          d.depth,
-          min(a.id) AS parent_id
-        FROM slice s
-          JOIN descendant_slice(s.id) d
-          JOIN ancestor_slice(d.id) a
-        WHERE s.id IN (SELECT id FROM event_latencies)
-        GROUP BY d.id, d.ts, d.dur, d.track_id, d.name, d.parent_id, d.depth)
+        ),
+        latency_stages AS (
+          SELECT
+            stage.id,
+            stage.ts,
+            stage.dur,
+            stage.track_id,
+            stage.name,
+            stage.depth,
+            event.id as event_latency_id
+          FROM event_latencies event
+          JOIN descendant_slice(event.id) stage
+        )
       SELECT
         id,
         ts,
@@ -279,14 +281,17 @@ class ChromeScrollJankPlugin implements Plugin {
       FROM event_latencies
       UNION ALL
       SELECT
-        ls.id,
-        ls.ts,
-        ls.dur,
-        ls.name,
-        depth + (
-          (SELECT depth FROM event_latencies
-          WHERE id = ls.parent_id LIMIT 1) * 3) AS depth
-      FROM latency_stages ls;`;
+        stage.id,
+        stage.ts,
+        stage.dur,
+        stage.name,
+        stage.depth + (
+          (
+            SELECT depth FROM event_latencies
+            WHERE id = stage.event_latency_id
+          ) * 3
+        ) AS depth
+      FROM latency_stages stage;`;
 
     await ctx.engine.query(
         `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
