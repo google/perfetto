@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {Trash} from '../base/disposable';
+import {Gate} from '../base/mithril_utils';
 import {Actions} from '../common/actions';
 import {isEmptyData} from '../common/aggregation_data';
 import {LogExists, LogExistsKey} from '../common/logs';
@@ -410,11 +411,16 @@ export class DetailsPanel implements m.ClassComponent {
         }),
         currentTabKey: currentTabDetails?.key,
       }),
-      m('.details-panel-container',
-        {
-          style: {height: `${this.detailsHeight}px`},
-        },
-        panel),
+      m(
+          '.details-panel-container',
+          {
+            style: {height: `${this.detailsHeight}px`},
+          },
+          detailsPanels.map((tab) => {
+            const active = tab === currentTabDetails;
+            return m(Gate, {open: active}, tab.vnode);
+          }),
+          ),
     ];
   }
 }
