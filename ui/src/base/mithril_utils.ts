@@ -19,3 +19,34 @@ export function hasChildren<T>({children}: m.Vnode<T>): boolean {
   return Array.isArray(children) && children.length > 0 &&
       children.some((value) => value);
 }
+
+// A component which simply passes through it's children.
+// Can be used for having something to attach lifecycle hooks to without having
+// to add an extra HTML element to the DOM.
+export const Passthrough = {
+  view({children}: m.VnodeDOM) {
+    return children;
+  },
+};
+
+export interface GateAttrs {
+  open: boolean;
+}
+
+// The gate component is a wrapper which can either be open or closed.
+// - When open, children are rendered inside a div where display = contents.
+// - When closed, children are rendered inside a div where display = none, and
+//   the children's view() function(s) will not be called.
+// Use this component when we want to conditionally render certain children,
+// but we want to maintain their state.
+export const Gate = {
+  view({attrs, children}: m.VnodeDOM<GateAttrs>) {
+    return m(
+        '',
+        {
+          style: {display: attrs.open ? 'contents' : 'none'},
+        },
+        m(Passthrough, {onbeforeupdate: () => attrs.open}, children),
+    );
+  },
+};
