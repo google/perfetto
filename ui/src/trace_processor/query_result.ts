@@ -150,7 +150,7 @@ export class QueryError extends Error {
   }
 
   toString() {
-    return `Query: ${this.query}\n` + super.toString();
+    return `${super.toString()}\nQuery:\n${this.query}`;
   }
 }
 
@@ -510,6 +510,10 @@ class QueryResultImpl implements QueryResult, WritableQueryResult {
     return assertExists(this.allRowsPromise);
   }
 
+  get errorInfo(): QueryErrorInfo {
+    return this._errorInfo;
+  }
+
   private resolveOrReject(promise: Deferred<QueryResult>, arg: QueryResult) {
     if (this._error === undefined) {
       promise.resolve(arg);
@@ -689,11 +693,14 @@ class RowIteratorImpl implements RowIteratorBase {
     return this.isValid;
   }
 
+  private makeError(message: string): QueryError {
+    return new QueryError(message, this.resultObj.errorInfo);
+  }
 
   get(columnName: string): ColumnType {
     const res = this.rowData[columnName];
     if (res === undefined) {
-      throw new Error(
+      throw this.makeError(
           `Column '${columnName}' doesn't exist. ` +
           `Actual columns: [${this.columnNames.join(',')}]`);
     }
@@ -769,7 +776,7 @@ class RowIteratorImpl implements RowIteratorBase {
           break;
 
         default:
-          throw new Error(`Invalid cell type ${cellType}`);
+          throw this.makeError(`Invalid cell type ${cellType}`);
       }
     }  // For (cells)
     this.isValid = true;
@@ -802,7 +809,7 @@ class RowIteratorImpl implements RowIteratorBase {
     // Check that all the expected columns are present.
     for (const expectedCol of Object.keys(this.rowSpec)) {
       if (this.columnNames.indexOf(expectedCol) < 0) {
-        throw new Error(
+        throw this.makeError(
             `Column ${expectedCol} not found in the SQL result ` +
             `set {${this.columnNames.join(' ')}}`);
       }
@@ -845,9 +852,9 @@ class RowIteratorImpl implements RowIteratorBase {
         }
       }
       if (err.length > 0) {
-        throw new Error(
-            `Error @ row: ${Math.floor(i / numColumns)} col: '` +
-            `${colName}': ${err}`);
+        const row = Math.floor(i / numColumns);
+        const message = `Error @ row: ${row} col: '${colName}': ${err}`;
+        throw this.makeError(message);
       }
     }
     return true;
