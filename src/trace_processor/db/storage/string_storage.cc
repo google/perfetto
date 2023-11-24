@@ -482,13 +482,12 @@ void StringStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
 
 void StringStorage::Serialize(
     protos::pbzero::SerializedColumn::Storage* msg) const {
-  auto* string_storage = msg->set_string_storage();
-  string_storage->set_is_sorted(is_sorted_);
+  auto* string_storage_msg = msg->set_string_storage();
+  string_storage_msg->set_is_sorted(is_sorted_);
 
-  auto* vec_msg = string_storage->set_values();
-  vec_msg->set_size(size());
-  vec_msg->set_data(reinterpret_cast<const uint8_t*>(values_->data()),
-                    sizeof(StringPool::Id) * size());
+  string_storage_msg->set_values(
+      reinterpret_cast<const uint8_t*>(values_->data()),
+      sizeof(StringPool::Id) * size());
 }
 
 }  // namespace storage
