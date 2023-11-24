@@ -114,6 +114,10 @@ target_vendor_available = [
     '//:libperfetto_client_experimental',
 ]
 
+target_product_available = [
+    '//:libperfetto_client_experimental',
+]
+
 # Proto target groups which will be made public.
 proto_groups = {
     'trace': [
@@ -256,8 +260,7 @@ additional_args = {
     ],
     'libperfetto_client_experimental': [
         ('apex_available', {
-            '//apex_available:platform', 'com.android.art',
-            'com.android.art.debug', 'com.android.tethering'
+            '//apex_available:platform', '//apex_available:anyapex'
         }),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
@@ -509,6 +512,7 @@ class Module(object):
     self.cmd: Optional[str] = None
     self.host_supported = False
     self.vendor_available = False
+    self.product_available = False
     self.init_rc = set()
     self.out = set()
     self.export_include_dirs = set()
@@ -558,6 +562,8 @@ class Module(object):
       self._output_field(output, 'host_supported')
     if self.vendor_available:
       self._output_field(output, 'vendor_available')
+    if self.product_available:
+      self._output_field(output, 'product_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -1032,6 +1038,7 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
   module.vendor_available = (name_without_toolchain in target_vendor_available)
+  module.product_available = (name_without_toolchain in target_product_available)
   module.init_rc.update(target_initrc.get(target.name, []))
   if target.type != 'proto_library':
     # proto_library embeds a "root" filegroup in its srcs.

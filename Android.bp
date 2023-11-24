@@ -1003,6 +1003,7 @@ cc_library_static {
     ],
     host_supported: true,
     vendor_available: true,
+    product_available: true,
     export_include_dirs: [
         "include",
         "include/perfetto/base/build_configs/android_tree",
@@ -1117,10 +1118,8 @@ cc_library_static {
         "perfetto_defaults",
     ],
     apex_available: [
+        "//apex_available:anyapex",
         "//apex_available:platform",
-        "com.android.art",
-        "com.android.art.debug",
-        "com.android.tethering",
     ],
     min_sdk_version: "30",
 }
