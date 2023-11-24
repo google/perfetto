@@ -232,10 +232,9 @@ void SetIdStorage::Sort(uint32_t*, uint32_t) const {
 
 void SetIdStorage::Serialize(
     protos::pbzero::SerializedColumn::Storage* msg) const {
-  auto* vec_msg = msg->set_set_id_storage()->set_values();
-  vec_msg->set_size(size());
-  vec_msg->set_data(reinterpret_cast<const uint8_t*>(values_->data()),
-                    sizeof(SetId) * size());
+  auto* vec_msg = msg->set_set_id_storage();
+  vec_msg->set_values(reinterpret_cast<const uint8_t*>(values_->data()),
+                      sizeof(SetId) * size());
 }
 
 }  // namespace storage
