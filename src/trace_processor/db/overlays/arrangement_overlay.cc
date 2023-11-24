@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/db/overlays/arrangement_overlay.h"
 #include <iterator>
+#include "perfetto/base/logging.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/overlays/types.h"
 
@@ -106,6 +108,14 @@ CostEstimatePerRow ArrangementOverlay::EstimateCostPerRow(OverlayOp) const {
   estimate.index_search = 0;
 
   return estimate;
+}
+
+void ArrangementOverlay::Serialize(OverlayProto* msg) const {
+  PERFETTO_CHECK(arrangement_);
+  auto* arrangement_msg = msg->set_arrangement_overlay();
+  arrangement_msg->set_values(
+      reinterpret_cast<const uint8_t*>(arrangement_->data()),
+      sizeof(uint32_t) * arrangement_->size());
 }
 
 }  // namespace overlays
