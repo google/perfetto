@@ -129,6 +129,18 @@
 #define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ANDROID_USERDEBUG_BUILD() 0
 #endif
 
+// Processor architecture detection.  For more info on what's defined, see:
+//   http://msdn.microsoft.com/en-us/library/b0084kay.aspx
+//   http://www.agner.org/optimize/calling_conventions.pdf
+//   or with gcc, run: "echo | gcc -E -dM -"
+#if defined(_M_X64) || defined(__x86_64__)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_ARM64() 0
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_X86_64() 1
+#elif defined(__aarch64__) || defined(_M_ARM64)
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_ARM64() 1
+#define PERFETTO_BUILDFLAG_DEFINE_PERFETTO_ARCH_CPU_X86_64() 0
+#endif
+
 // perfetto_build_flags.h contains the tweakable build flags defined via GN.
 // - In GN builds (e.g., standalone, chromium, v8) this file is generated at
 //   build time via the gen_rule //gn/gen_buildflags.
