@@ -15,6 +15,7 @@
  */
 
 #include "src/trace_processor/db/overlays/selector_overlay.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/overlays/types.h"
 
@@ -101,6 +102,11 @@ CostEstimatePerRow SelectorOverlay::EstimateCostPerRow(OverlayOp) const {
   estimate.index_search = 0;
 
   return estimate;
+}
+
+void SelectorOverlay::Serialize(OverlayProto* msg) const {
+  auto* bv_message = msg->set_selector_overlay()->set_bit_vector();
+  selected_->Serialize(bv_message);
 }
 
 }  // namespace overlays
