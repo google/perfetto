@@ -1283,6 +1283,8 @@ perfetto_cc_library(
         "src/trace_processor/containers/string_pool.h",
     ],
     deps = [
+        ":protos_perfetto_common_zero",
+        ":protos_perfetto_trace_processor_zero",
         ":src_base_base",
     ],
     linkstatic = True,

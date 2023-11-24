@@ -47,6 +47,8 @@ class NullOverlay : public StorageOverlay {
 
   CostEstimatePerRow EstimateCostPerRow(OverlayOp) const override;
 
+  void Serialize(OverlayProto*) const override;
+
  private:
   // Non null data in the overlay.
   const BitVector* non_null_;

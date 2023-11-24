@@ -38,6 +38,7 @@ perfetto_component("containers") {
   deps = [
     "../../../gn:default_deps",
     "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace_processor:zero",
     "../../base",
   ]
 }
@@ -55,6 +56,8 @@ perfetto_unittest_source_set("unittests") {
     ":containers",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/protozero",
+    "../../../protos/perfetto/trace_processor:zero",
   ]
 }
 
