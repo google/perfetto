@@ -33,6 +33,8 @@ namespace storage {
 // Backing storage for columnar tables.
 class Storage {
  public:
+  using StorageProto = protos::pbzero::SerializedColumn_Storage;
+
   virtual ~Storage();
 
   // Searches for elements which match |op| and |value| between |range.start|
@@ -60,7 +62,7 @@ class Storage {
   virtual void StableSort(uint32_t* rows, uint32_t rows_size) const = 0;
 
   // Serializes storage data to proto format.
-  virtual void Serialize(protos::pbzero::SerializedColumn_Storage*) const = 0;
+  virtual void Serialize(StorageProto*) const = 0;
 
   // Number of elements in stored data.
   virtual uint32_t size() const = 0;

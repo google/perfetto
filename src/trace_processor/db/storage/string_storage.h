@@ -51,7 +51,7 @@ class StringStorage final : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
+  void Serialize(StorageProto*) const override;
 
   uint32_t size() const override {
     return static_cast<uint32_t>(values_->size());
