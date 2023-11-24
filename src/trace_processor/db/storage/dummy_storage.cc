@@ -45,7 +45,7 @@ uint32_t DummyStorage::size() const {
   return 0;
 }
 
-void DummyStorage::Serialize(protos::pbzero::SerializedColumn::Storage*) const {
+void DummyStorage::Serialize(StorageProto*) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

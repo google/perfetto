@@ -400,8 +400,7 @@ void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
 
 void NumericStorageBase::Sort(uint32_t*, uint32_t) const {}
 
-void NumericStorageBase::Serialize(
-    protos::pbzero::SerializedColumn::Storage* msg) const {
+void NumericStorageBase::Serialize(StorageProto* msg) const {
   auto* numeric_storage_msg = msg->set_numeric_storage();
   numeric_storage_msg->set_is_sorted(is_sorted_);
   numeric_storage_msg->set_column_type(static_cast<uint32_t>(type_));

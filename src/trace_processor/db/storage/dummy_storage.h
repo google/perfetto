@@ -46,7 +46,7 @@ class DummyStorage final : public Storage {
 
   void Sort(uint32_t*, uint32_t) const override;
 
-  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
+  void Serialize(StorageProto*) const override;
 
   uint32_t size() const override;
 };

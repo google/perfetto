@@ -225,8 +225,7 @@ void IdStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
   std::sort(indices, indices + indices_size);
 }
 
-void IdStorage::Serialize(
-    protos::pbzero::SerializedColumn::Storage* storage) const {
+void IdStorage::Serialize(StorageProto* storage) const {
   auto* id_storage = storage->set_id_storage();
   id_storage->set_size(size_);
 }
