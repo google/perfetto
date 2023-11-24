@@ -47,7 +47,7 @@ class NumericStorageBase : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  void Serialize(protos::pbzero::SerializedColumn_Storage*) const override;
+  void Serialize(StorageProto*) const override;
 
   inline uint32_t size() const override { return size_; }
 
