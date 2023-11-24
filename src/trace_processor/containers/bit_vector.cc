@@ -18,6 +18,7 @@
 
 #include <limits>
 
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector_iterators.h"
 
 #if PERFETTO_BUILDFLAG(PERFETTO_X64_CPU_OPT)
@@ -327,6 +328,39 @@ BitVector BitVector::IntersectRange(uint32_t range_start,
   }
 
   return std::move(builder).Build();
+}
+
+void BitVector::Serialize(
+    protos::pbzero::SerializedColumn::BitVector* msg) const {
+  msg->set_size(size_);
+  if (!counts_.empty()) {
+    msg->set_counts(reinterpret_cast<const uint8_t*>(counts_.data()),
+                    sizeof(uint32_t) * counts_.size());
+  }
+  if (!words_.empty()) {
+    msg->set_words(reinterpret_cast<const uint8_t*>(words_.data()),
+                   sizeof(uint64_t) * words_.size());
+  }
+}
+
+// Deserialize BitVector from proto.
+void BitVector::Deserialize(
+    const protos::pbzero::SerializedColumn::BitVector::Decoder& bv_msg) {
+  size_ = bv_msg.size();
+  if (bv_msg.has_counts()) {
+    counts_.resize(
+        static_cast<size_t>(bv_msg.counts().size / sizeof(uint32_t)));
+    memcpy(counts_.data(), bv_msg.counts().data, bv_msg.counts().size);
+  } else {
+    counts_.clear();
+  }
+
+  if (bv_msg.has_words()) {
+    words_.resize(static_cast<size_t>(bv_msg.words().size / sizeof(uint64_t)));
+    memcpy(words_.data(), bv_msg.words().data, bv_msg.words().size);
+  } else {
+    words_.clear();
+  }
 }
 
 }  // namespace trace_processor

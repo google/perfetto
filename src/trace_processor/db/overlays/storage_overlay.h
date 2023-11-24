@@ -20,6 +20,11 @@
 #include "src/trace_processor/db/overlays/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Overlay;
+}
+
 namespace trace_processor {
 namespace overlays {
 
@@ -44,6 +49,7 @@ namespace overlays {
 // structure with the semantics.
 class StorageOverlay {
  public:
+  using OverlayProto = protos::pbzero::SerializedColumn_Overlay;
   virtual ~StorageOverlay();
 
   // Maps a range of indices in table space to an equivalent range of
@@ -86,6 +92,9 @@ class StorageOverlay {
   // Estimates the per-row costs of the methods of this class. Allows for
   // deciding which algorithm to use to search/sort the storage.
   virtual CostEstimatePerRow EstimateCostPerRow(OverlayOp) const = 0;
+
+  // Serializes the contents of the overlay.
+  virtual void Serialize(OverlayProto*) const = 0;
 };
 
 }  // namespace overlays

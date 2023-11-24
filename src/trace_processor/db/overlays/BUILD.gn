@@ -29,6 +29,7 @@ source_set("overlays") {
   ]
   deps = [
     "../../../../gn:default_deps",
+    "../../../../protos/perfetto/trace_processor:zero",
     "../../../base",
     "../../containers",
     "../storage",
