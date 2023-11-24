@@ -49,6 +49,7 @@ inline TimeNanos FromPosixTimespec(const struct timespec& ts) {
 }
 
 void SleepMicroseconds(unsigned interval_us);
+void InitializeTime();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
