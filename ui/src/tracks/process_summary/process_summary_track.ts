@@ -184,10 +184,7 @@ export class ProcessSummaryTrack extends TrackAdapter<Config, Data> {
 
     // TODO(hjd): Dedupe this math.
     const color = colorForTid(this.config.pidForColor);
-    color.l = Math.min(color.l + 10, 60);
-    color.s -= 20;
-
-    ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+    ctx.fillStyle = color.base.cssString;
     ctx.beginPath();
     ctx.moveTo(lastX, lastY);
     for (let i = 0; i < data.utilizations.length; i++) {

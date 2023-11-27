@@ -12,13 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {
-  getColorForSlice,
-} from '../../common/colorizer';
 import {globals} from '../../frontend/globals';
-import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
+import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -31,7 +28,7 @@ import {
   ScrollJankPluginState,
   ScrollJankTracks as DecideTracksResult,
 } from './index';
-import {DEEP_RED_COLOR, RED_COLOR} from './jank_colors';
+import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
@@ -87,6 +84,24 @@ export class ScrollJankV3Track extends
     ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 
+  rowToSlice(row: NamedRow): Slice {
+    const slice = super.rowToSlice(row);
+
+    let stage = slice.title.substring(0, slice.title.indexOf(JANK_SLICE_NAME));
+    // Stage may include substage, in which case we use the substage for
+    // color selection.
+    const separator = '::';
+    if (stage.indexOf(separator) != -1) {
+      stage = stage.substring(stage.indexOf(separator) + separator.length);
+    }
+
+    if (stage == UNKNOWN_SLICE_NAME) {
+      return {...slice, colorScheme: JANK_COLOR};
+    } else {
+      return slice;
+    }
+  }
+
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
       const currentSelection = globals.state.currentSelection;
@@ -96,25 +111,7 @@ export class ScrollJankV3Track extends
 
       const highlighted = globals.state.highlightedSliceId === slice.id;
       const hasFocus = highlighted || isSelected;
-
-      let stage =
-          slice.title.substring(0, slice.title.indexOf(JANK_SLICE_NAME));
-      // Stage may include substage, in which case we use the substage for
-      // color selection.
-      const separator = '::';
-      if (stage.indexOf(separator) != -1) {
-        stage = stage.substring(stage.indexOf(separator) + separator.length);
-      }
-
-      if (stage == UNKNOWN_SLICE_NAME) {
-        if (hasFocus) {
-          slice.baseColor = DEEP_RED_COLOR;
-        } else {
-          slice.baseColor = RED_COLOR;
-        }
-      } else {
-        slice.baseColor = getColorForSlice(stage, hasFocus);
-      }
+      slice.isHighlighted = !!hasFocus;
     }
     super.onUpdatedSlices(slices);
   }

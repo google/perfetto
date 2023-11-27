@@ -27,15 +27,8 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
-import {
-  Color,
-  colorCompare,
-  colorDesaturate,
-  colorIsLight,
-  colorLighten,
-  colorsEqual,
-  UNEXPECTED_PINK_COLOR,
-} from '../common/colorizer';
+import {colorCompare} from '../common/color';
+import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {Slice, SliceRect} from '../public';
@@ -43,7 +36,6 @@ import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
-import {cachedHsluvToHex} from './hsluv_cache';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {PxSpan, TimeScale} from './time_scale';
@@ -59,7 +51,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const CHEVRON_WIDTH_PX = 10;
-const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK_COLOR;
+const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
 
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
@@ -423,13 +415,15 @@ export abstract class BaseSliceTrack<
 
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
-    vizSlicesByColor.sort((a, b) => colorCompare(a.color, b.color));
+    vizSlicesByColor.sort(
+        (a, b) => colorCompare(a.colorScheme.base, b.colorScheme.base));
     let lastColor = undefined;
     for (const slice of vizSlicesByColor) {
-      if (slice.color !== lastColor) {
-        lastColor = slice.color;
-        const {h, s, l} = slice.color;
-        ctx.fillStyle = cachedHsluvToHex(h, s, l);
+      const color = slice.isHighlighted ? slice.colorScheme.variant.cssString :
+                                          slice.colorScheme.base.cssString;
+      if (color !== lastColor) {
+        lastColor = color;
+        ctx.fillStyle = color;
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -444,7 +438,7 @@ export abstract class BaseSliceTrack<
     }
 
     // Pass 2.5: Draw fillRatio light section.
-    let prevColor: Color|undefined;
+    ctx.fillStyle = `#FFFFFF50`;
     for (const slice of vizSlicesByColor) {
       // Can't draw fill ratio on incomplete or instant slices.
       if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
@@ -468,17 +462,6 @@ export abstract class BaseSliceTrack<
         continue;
       }
 
-      // Lighten and desaturate the slice color
-      const color = getFillRatioLightColor(slice.color);
-
-      // Set color if not set previously
-      // Slices are sorted by color and light tint is a pure function of slice
-      // color so we should be able to re-use colors quite frequently
-      if (prevColor === undefined || !colorsEqual(color, prevColor)) {
-        ctx.fillStyle = cachedHsluvToHex(color.h, color.s, color.l);
-        prevColor = color;
-      }
-
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
       ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
@@ -495,7 +478,9 @@ export abstract class BaseSliceTrack<
       }
 
       // Change the title color dynamically depending on contrast.
-      ctx.fillStyle = colorIsLight(slice.color) ? 'black' : 'white';
+      const textColor = slice.isHighlighted ? slice.colorScheme.textVariant :
+                                              slice.colorScheme.textBase;
+      ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
@@ -527,9 +512,9 @@ export abstract class BaseSliceTrack<
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
-      const color = slice.color;
+      const color = slice.colorScheme;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = cachedHsluvToHex(color.h, 100, 10);
+      ctx.strokeStyle = color.base.setHSL({s: 100, l: 10}).cssString;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
@@ -786,8 +771,8 @@ export abstract class BaseSliceTrack<
       // The derived class doesn't need to initialize these. They are
       // rewritten on every renderCanvas() call. We just need to initialize
       // them to something.
-      baseColor: DEFAULT_SLICE_COLOR,
-      color: DEFAULT_SLICE_COLOR,
+      colorScheme: DEFAULT_SLICE_COLOR,
+      isHighlighted: false,
     };
   }
 
@@ -946,15 +931,7 @@ export abstract class BaseSliceTrack<
     for (const slice of slices) {
       const isHovering = globals.state.highlightedSliceId === slice.id ||
           (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      if (isHovering) {
-        slice.color = {
-          h: slice.baseColor.h,
-          s: slice.baseColor.s,
-          l: 30,
-        };
-      } else {
-        slice.color = slice.baseColor;
-      }
+      slice.isHighlighted = !!isHovering;
     }
   }
 
@@ -1006,8 +983,4 @@ export interface OnSliceOutArgs<S extends Slice> {
 export interface OnSliceClickArgs<S extends Slice> {
   // Input args (BaseSliceTrack -> Impl):
   slice: S;  // The slice which is clicked.
-}
-
-function getFillRatioLightColor(color: Color): Color {
-  return colorLighten(colorDesaturate(color, 15), 15);
 }
