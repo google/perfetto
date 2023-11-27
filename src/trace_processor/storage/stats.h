@@ -262,6 +262,11 @@ namespace stats {
                                           kSingle,  kInfo,     kAnalysis,      \
       "SurfaceFlinger transactions packet has unknown fields, which results "  \
       "in some arguments missing. You may need a newer version of trace "      \
+      "processor to parse them."),                                             \
+  F(winscope_shell_transitions_parse_errors,                                   \
+                                          kSingle,  kInfo,     kAnalysis,      \
+      "Shell transition packet has unknown fields, which results "  \
+      "in some arguments missing. You may need a newer version of trace "      \
       "processor to parse them.")
 // clang-format on
 
