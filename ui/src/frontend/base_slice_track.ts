@@ -38,7 +38,7 @@ import {
 } from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Slice} from '../public';
+import {Slice, SliceRect} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
@@ -47,7 +47,7 @@ import {cachedHsluvToHex} from './hsluv_cache';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {PxSpan, TimeScale} from './time_scale';
-import {NewTrackArgs, SliceRect, TrackBase} from './track';
+import {NewTrackArgs, TrackBase} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
 // The common class that underpins all tracks drawing slices.

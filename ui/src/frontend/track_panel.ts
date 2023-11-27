@@ -22,7 +22,7 @@ import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Migrate, Track, TrackContext} from '../public';
+import {Migrate, SliceRect, Track, TrackContext} from '../public';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -30,7 +30,6 @@ import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {PxSpan, TimeScale} from './time_scale';
-import {SliceRect} from './track';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
