@@ -28,6 +28,7 @@ perfetto_proto_library("@TYPE@") {
     "initial_display_state.proto",
     "network_trace.proto",
     "packages_list.proto",
+    "shell_transition.proto",
     "surfaceflinger_common.proto",
     "surfaceflinger_layers.proto",
     "surfaceflinger_transactions.proto",
@@ -37,6 +38,7 @@ perfetto_proto_library("@TYPE@") {
 perfetto_proto_library("winscope_deps") {
   proto_generators = [ "source_set" ]
   sources = [
+    "shell_transition.proto",
     "surfaceflinger_common.proto",
     "surfaceflinger_layers.proto",
     "surfaceflinger_transactions.proto",
