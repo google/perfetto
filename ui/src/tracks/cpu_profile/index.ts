@@ -16,7 +16,7 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {hslForSlice} from '../../common/colorizer';
+import {colorForSample} from '../../common/colorizer';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -24,7 +24,6 @@ import {
 } from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
 import {globals} from '../../frontend/globals';
-import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -88,12 +87,6 @@ class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
 
     return data;
   }
-}
-
-function colorForSample(callsiteId: number, isHovered: boolean): string {
-  const [hue, saturation, lightness] =
-      hslForSlice(String(callsiteId), isHovered);
-  return cachedHsluvToHex(hue, saturation, lightness);
 }
 
 class CpuProfileTrack extends TrackAdapter<Config, Data> {

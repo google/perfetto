@@ -12,16 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Color} from '../../common/colorizer';
+import {HSLColor} from '../../common/color';
+import {makeColorScheme} from '../../common/colorizer';
 
-export const RED_COLOR: Color = {
-  h: 7,
-  s: 100,
-  l: 46,
-};
-
-export const DEEP_RED_COLOR: Color = {
-  h: 11,
-  s: 100,
-  l: 32,
-};
+export const JANK_COLOR = makeColorScheme(new HSLColor([343, 100, 43]));

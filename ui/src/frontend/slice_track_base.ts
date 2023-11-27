@@ -16,17 +16,13 @@ import {duration, Span, Time, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {BasicAsyncTrack} from '../common/basic_async_track';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
-import {
-  colorForThreadIdleSlice,
-  getColorForSlice,
-} from '../common/colorizer';
+import {getColorForSlice} from '../common/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
 import {SliceRect} from '../public';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
-import {cachedHsluvToHex} from './hsluv_cache';
 import {PxSpan, TimeScale} from './time_scale';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
@@ -141,11 +137,14 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
           globals.state.highlightedSliceId === sliceId;
 
       const hasFocus = highlighted || isSelected;
-      const colorObj = getColorForSlice(title, hasFocus);
+      const colorScheme = getColorForSlice(title);
+      const colorObj = hasFocus ? colorScheme.variant : colorScheme.base;
+      const textColor =
+          hasFocus ? colorScheme.textVariant : colorScheme.textBase;
 
       let color: string;
       if (colorOverride === undefined) {
-        color = cachedHsluvToHex(colorObj.h, colorObj.s, colorObj.l);
+        color = colorObj.cssString;
       } else {
         color = colorOverride;
       }
@@ -165,7 +164,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
             ctx.translate(rect.left, rect.top);
 
             // Draw a rectangle around the selected slice
-            ctx.strokeStyle = cachedHsluvToHex(colorObj.h, 100, 10);
+            ctx.strokeStyle = colorObj.setHSL({s: 100, l: 10}).cssString;
             ctx.beginPath();
             ctx.lineWidth = 3;
             ctx.strokeRect(
@@ -196,9 +195,8 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
         const cpuTimeRatio = data.cpuTimeRatio![i];
         const firstPartWidth = rect.width * cpuTimeRatio;
         const secondPartWidth = rect.width * (1 - cpuTimeRatio);
-        ctx.fillRect(rect.left, rect.top, firstPartWidth, SLICE_HEIGHT);
-        ctx.fillStyle = colorForThreadIdleSlice(
-            colorObj.h, colorObj.s, colorObj.l, hasFocus);
+        ctx.fillRect(rect.left, rect.top, rect.width, SLICE_HEIGHT);
+        ctx.fillStyle = '#FFFFFF50';
         ctx.fillRect(
             rect.left + firstPartWidth,
             rect.top,
@@ -211,7 +209,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
       // Selected case
       if (isSelected) {
         drawRectOnSelected = () => {
-          ctx.strokeStyle = cachedHsluvToHex(colorObj.h, 100, 10);
+          ctx.strokeStyle = colorObj.setHSL({s: 100, l: 10}).cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
@@ -222,7 +220,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
 
       // Don't render text when we have less than 5px to play with.
       if (rect.width >= 5) {
-        ctx.fillStyle = colorObj.l > 65 ? '#404040' : 'white';
+        ctx.fillStyle = textColor.cssString;
         const displayText = cropText(title, charWidth, rect.width);
         const rectXCenter = rect.left + rect.width / 2;
         ctx.textBaseline = 'middle';
