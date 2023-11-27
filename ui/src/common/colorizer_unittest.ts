@@ -13,15 +13,8 @@
 // limitations under the License.
 
 import {
-  Color,
-  colorCompare,
+  colorForCpu,
   colorForThread,
-  colorIsLight,
-  colorLighten,
-  colorSaturate,
-  colorsEqual,
-  colorToRGB,
-  hueForCpu,
 } from './colorizer';
 
 const PROCESS_A_THREAD_A = {
@@ -61,66 +54,12 @@ test('it gives threads colors by tid if pid missing', () => {
   expect(colorUnkA).toEqual(colorUnkB);
 });
 
-test('it copies colors', () => {
+test('it doesn\'t copy colors', () => {
   const a = colorForThread(PROCESS_A_THREAD_A);
   const b = colorForThread(PROCESS_A_THREAD_A);
-  expect(a === b).toEqual(false);
+  expect(a).toBe(b);
 });
 
 test('it gives different cpus different hues', () => {
-  expect(hueForCpu(0)).not.toEqual(hueForCpu(1));
-});
-
-test('colorCompare', () => {
-  const col: Color = {h: 123, s: 66, l: 45};
-
-  expect(colorCompare({...col}, col)).toBe(0);
-
-  expect(colorCompare({...col, h: 34}, col)).toBeLessThan(0);
-  expect(colorCompare({...col, h: 156}, col)).toBeGreaterThan(0);
-
-  expect(colorCompare({...col, s: 22}, col)).toBeLessThan(0);
-  expect(colorCompare({...col, s: 100}, col)).toBeGreaterThan(0);
-
-  expect(colorCompare({...col, l: 22}, col)).toBeLessThan(0);
-  expect(colorCompare({...col, l: 76}, col)).toBeGreaterThan(0);
-});
-
-test('colorsEqual', () => {
-  const col: Color = {h: 123, s: 66, l: 45};
-  expect(colorsEqual(col, {h: 123, s: 66, l: 45})).toBeTruthy();
-  expect(colorsEqual(col, {h: 86, s: 66, l: 45})).toBeFalsy();
-  expect(colorsEqual(col, {h: 123, s: 43, l: 45})).toBeFalsy();
-  expect(colorsEqual(col, {h: 123, s: 43, l: 78})).toBeFalsy();
-});
-
-test('colorLighten', () => {
-  const col: Color = {h: 123, s: 66, l: 45};
-  expect(colorLighten(col, 20)).toEqual({...col, l: 65});
-  expect(colorLighten(col, 100)).toEqual({...col, l: 100});
-  expect(colorLighten(col, -100)).toEqual({...col, l: 0});
-});
-
-test('colorSaturate', () => {
-  const col: Color = {h: 123, s: 66, l: 45};
-  expect(colorSaturate(col, 20)).toEqual({...col, s: 86});
-  expect(colorSaturate(col, 100)).toEqual({...col, s: 100});
-  expect(colorSaturate(col, -100)).toEqual({...col, s: 0});
-});
-
-test('colorToRGB', () => {
-  // Pick a few well-known conversions to check we're in the right ballpark.
-  expect(colorToRGB({h: 0, s: 0, l: 0})).toEqual([0, 0, 0]);
-  expect(colorToRGB({h: 0, s: 100, l: 50})).toEqual([255, 0, 0]);
-  expect(colorToRGB({h: 120, s: 100, l: 50})).toEqual([0, 255, 0]);
-  expect(colorToRGB({h: 240, s: 100, l: 50})).toEqual([0, 0, 255]);
-});
-
-test('lightness calculations', () => {
-  // Pick a few obvious light/dark colours to check we're in the right ballpark.
-  expect(colorIsLight({h: 0, s: 0, l: 0})).toBeFalsy();
-  expect(colorIsLight({h: 0, s: 0, l: 100})).toBeTruthy();
-
-  expect(colorIsLight({h: 0, s: 0, l: 40})).toBeFalsy();
-  expect(colorIsLight({h: 0, s: 0, l: 60})).toBeTruthy();
+  expect(colorForCpu(0)).not.toEqual(colorForCpu(1));
 });

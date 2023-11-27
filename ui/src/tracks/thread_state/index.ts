@@ -246,21 +246,15 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
           currentSelection.kind === 'THREAD_STATE' &&
           currentSelection.id === data.ids[i];
 
-      const color = colorForState(state);
-
-      let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
-      if (color.a) {
-        colorStr = `hsla(${color.h},${color.s}%,${color.l}%, ${color.a})`;
-      }
-      ctx.fillStyle = colorStr;
-
+      const colorScheme = colorForState(state);
+      ctx.fillStyle = colorScheme.base.cssString;
       ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 10px to play with.
       if (rectWidth < 10 || state === 'Sleeping') continue;
       const title = cropText(state, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
-      ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
+      ctx.fillStyle = colorScheme.textBase.cssString;
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
 
       if (isSelected) {
@@ -269,8 +263,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
               Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
           const rectEnd =
               Math.min(windowSpan.end + EXCESS_WIDTH, timeScale.timeToPx(tEnd));
-          const color = colorForState(state);
-          ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
+          ctx.strokeStyle = colorScheme.base.cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(

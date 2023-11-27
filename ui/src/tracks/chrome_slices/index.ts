@@ -201,14 +201,7 @@ export class ChromeSliceTrackV2 extends NamedSliceTrack<ChromeSliceTrackTypes> {
 
   onUpdatedSlices(slices: ChromeSliceTrackTypes['slice'][]) {
     for (const slice of slices) {
-      if (slice === this.hoveredSlice) {
-        slice.color = {
-          ...slice.baseColor,
-          l: 30,
-        };
-      } else {
-        slice.color = slice.baseColor;
-      }
+      slice.isHighlighted = (slice === this.hoveredSlice);
     }
   }
 }
