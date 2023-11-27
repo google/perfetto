@@ -33,6 +33,7 @@ source_set("tracing") {
     "console_interceptor.h",
     "data_source.h",
     "debug_annotation.h",
+    "default_socket.h",
     "event_context.h",
     "interceptor.h",
     "internal/basic_types.h",

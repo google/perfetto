@@ -970,6 +970,7 @@ void TracingMuxerImpl::AddProducerBackend(TracingProducerBackend* backend,
   rb.producer_conn_args.shmem_size_hint_bytes = args.shmem_size_hint_kb * 1024;
   rb.producer_conn_args.shmem_page_size_hint_bytes =
       args.shmem_page_size_hint_kb * 1024;
+  rb.producer_conn_args.create_socket_async = args.create_socket_async;
   rb.producer->Initialize(rb.backend->ConnectProducer(rb.producer_conn_args));
 }
 
