@@ -1,0 +1,21 @@
+packet {
+  trusted_uid: 10225
+  trusted_packet_sequence_id: 12
+  previous_packet_dropped: true
+  trusted_pid: 3981
+  first_packet_on_sequence: true
+  shell_handler_mappings {
+    mapping {
+        id: 1
+        name: "DefaultTransitionHandler"
+    }
+    mapping {
+        id: 2
+        name: "RecentsTransitionHandler"
+    }
+    mapping {
+        id: 3
+        name: "FreeformTaskTransitionHandler"
+    }
+  }
+}
