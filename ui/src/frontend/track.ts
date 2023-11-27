@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {duration, Span, time} from '../base/time';
-import {Track, TrackContext} from '../public';
+import {SliceRect, Track, TrackContext} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
 import {PxSpan, TimeScale} from './time_scale';
@@ -24,27 +24,6 @@ import {PxSpan, TimeScale} from './time_scale';
 export interface NewTrackArgs {
   trackKey: string;
   engine: EngineProxy;
-}
-
-// This interface forces track implementations to have some static properties.
-// Typescript does not have abstract static members, which is why this needs to
-// be in a separate interface.
-export interface TrackCreator {
-  // Store the kind explicitly as a string as opposed to using class.kind in
-  // case we ever minify our code.
-  readonly kind: string;
-
-  // We need the |create| method because the stored value in the registry can be
-  // an abstract class, and we cannot call 'new' on an abstract class.
-  create(args: NewTrackArgs): TrackBase;
-}
-
-export interface SliceRect {
-  left: number;
-  width: number;
-  top: number;
-  height: number;
-  visible: boolean;
 }
 
 // The abstract class that needs to be implemented by all tracks.
