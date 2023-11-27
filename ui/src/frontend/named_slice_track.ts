@@ -58,8 +58,8 @@ export abstract class NamedSliceTrack<
     const baseSlice = super.rowToSlice(row);
     // Ignore PIDs or numeric arguments when hashing.
     const name = row.name || '';
-    const baseColor = getColorForSlice(name, false);
-    return {...baseSlice, title: name, baseColor};
+    const colorScheme = getColorForSlice(name);
+    return {...baseSlice, title: name, colorScheme};
   }
 
   onSliceOver(args: OnSliceOverArgs<T['slice']>) {

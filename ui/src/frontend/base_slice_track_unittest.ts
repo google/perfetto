@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Time} from '../base/time';
-import {GRAY_COLOR} from '../common/colorizer';
+import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Slice} from '../public';
 
 import {
@@ -35,9 +35,9 @@ function slice(start: number, duration: number): Slice {
     flags: 0,
     title: '',
     subTitle: '',
-    baseColor: GRAY_COLOR,
-    color: GRAY_COLOR,
+    colorScheme: UNEXPECTED_PINK,
     fillRatio: 1,
+    isHighlighted: false,
   };
 }
 

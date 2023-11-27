@@ -18,7 +18,7 @@ import {assertTrue} from '../../base/logging';
 import {duration, time, Time} from '../../base/time';
 import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
-import {hueForCpu} from '../../common/colorizer';
+import {colorForCpu} from '../../common/colorizer';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -326,13 +326,14 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     const yLabel = `${num} ${kUnits[unitGroup + 1]}Hz`;
 
     // Draw the CPU frequency graph.
-    const hue = hueForCpu(this.config.cpu);
+    const color = colorForCpu(this.config.cpu);
     let saturation = 45;
     if (globals.state.hoveredUtid !== -1) {
       saturation = 0;
     }
-    ctx.fillStyle = `hsl(${hue}, ${saturation}%, 70%)`;
-    ctx.strokeStyle = `hsl(${hue}, ${saturation}%, 55%)`;
+
+    ctx.fillStyle = color.setHSL({s: saturation, l: 70}).cssString;
+    ctx.strokeStyle = color.setHSL({s: saturation, l: 55}).cssString;
 
     const calculateX = (timestamp: time) => {
       return Math.floor(visibleTimeScale.timeToPx(timestamp));
@@ -412,8 +413,8 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     if (this.hoveredValue !== undefined && this.hoveredTs !== undefined) {
       let text = `${this.hoveredValue.toLocaleString()}kHz`;
 
-      ctx.fillStyle = `hsl(${hue}, 45%, 75%)`;
-      ctx.strokeStyle = `hsl(${hue}, 45%, 45%)`;
+      ctx.fillStyle = color.setHSL({s: 45, l: 75}).cssString;
+      ctx.strokeStyle = color.setHSL({s: 45, l: 45}).cssString;
 
       const xStart = Math.floor(visibleTimeScale.timeToPx(this.hoveredTs));
       const xEnd = this.hoveredTsEnd === undefined ?

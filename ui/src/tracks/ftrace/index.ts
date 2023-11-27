@@ -14,7 +14,7 @@
 
 import {duration, Time, time} from '../../base/time';
 import {BasicAsyncTrack} from '../../common/basic_async_track';
-import {colorForString} from '../../common/colorizer';
+import {colorForFtrace} from '../../common/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
@@ -116,13 +116,7 @@ class FtraceRawTrack extends BasicAsyncTrack<Data> {
 
     for (let i = 0; i < data.timestamps.length; i++) {
       const name = data.names[i];
-      const color = colorForString(name);
-      const hsl = `hsl(
-        ${color.h},
-        ${color.s - 20}%,
-        ${Math.min(color.l + 10, 60)}%
-      )`;
-      ctx.fillStyle = hsl;
+      ctx.fillStyle = colorForFtrace(name).base.cssString;
       const timestamp = Time.fromRaw(data.timestamps[i]);
       const xPos = Math.floor(visibleTimeScale.timeToPx(timestamp));
 
