@@ -16,30 +16,35 @@ import("../../../../../gn/perfetto_cc_proto_descriptor.gni")
 
 source_set("full") {
   sources = [
+    "shell_transitions_parser.cc",
+    "shell_transitions_parser.h",
+    "shell_transitions_tracker.cc",
+    "shell_transitions_tracker.h",
     "surfaceflinger_layers_parser.cc",
     "surfaceflinger_layers_parser.h",
     "surfaceflinger_transactions_parser.cc",
     "surfaceflinger_transactions_parser.h",
-    "winscope_args_parser.h",
     "winscope_args_parser.cc",
+    "winscope_args_parser.h",
     "winscope_module.cc",
     "winscope_module.h",
   ]
   deps = [
     ":gen_cc_winscope_descriptor",
+    "../:proto_importer_module",
     "../../../../../gn:default_deps",
-    "../../../../../protos/perfetto/trace/android:zero",
     "../../../../../protos/perfetto/trace:zero",
+    "../../../../../protos/perfetto/trace/android:zero",
     "../../../storage",
     "../../../tables",
     "../../../types",
     "../../common",
     "../../common:parser_types",
-    "../:proto_importer_module",
   ]
 }
 
 perfetto_cc_proto_descriptor("gen_cc_winscope_descriptor") {
   descriptor_name = "winscope.descriptor"
-  descriptor_target = "../../../../../protos/perfetto/trace/android:winscope_descriptor"
+  descriptor_target =
+      "../../../../../protos/perfetto/trace/android:winscope_descriptor"
 }

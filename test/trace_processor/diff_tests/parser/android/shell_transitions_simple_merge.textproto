@@ -1,0 +1,62 @@
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 2
+  previous_packet_dropped: true
+  trusted_pid: 1336
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 15
+    create_time_ns: 2187614568227
+    send_time_ns: 2187671767120
+    start_transaction_id: 5738076308937
+    finish_transaction_id: 5738076308938
+    type: 1
+    targets {
+      mode: 1
+      layer_id: 244
+      window_id: 219481253
+      flags: 0
+    }
+    targets {
+      mode: 4
+      layer_id: 47
+      window_id: 54474511
+      flags: 1
+    }
+    flags: 0
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 3
+  previous_packet_dropped: true
+  trusted_pid: 1336
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 15
+    finish_time_ns: 2188195968659
+  }
+}
+packet {
+  trusted_uid: 1000
+  trusted_packet_sequence_id: 5
+  previous_packet_dropped: true
+  trusted_pid: 1336
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 15
+    starting_window_remove_time_ns: 2188652838898
+  }
+}
+packet {
+  trusted_uid: 10225
+  trusted_packet_sequence_id: 12
+  previous_packet_dropped: true
+  trusted_pid: 3981
+  first_packet_on_sequence: true
+  shell_transition {
+    id: 15
+    dispatch_time_ns: 2187673373973
+    handler: 2
+  }
+}
