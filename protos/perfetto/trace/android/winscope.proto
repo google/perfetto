@@ -18,6 +18,7 @@ syntax = "proto2";
 
 package perfetto.protos;
 
+import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 
@@ -26,4 +27,5 @@ import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 message WinscopeTraceData {
   optional LayersSnapshotProto layers_snapshot = 1;
   optional TransactionTraceEntry transactions = 2;
+  optional ShellTransition shell_transition = 3;
 }

@@ -29,6 +29,7 @@ import "protos/perfetto/trace/android/graphics_frame_event.proto";
 import "protos/perfetto/trace/android/initial_display_state.proto";
 import "protos/perfetto/trace/android/network_trace.proto";
 import "protos/perfetto/trace/android/packages_list.proto";
+import "protos/perfetto/trace/android/shell_transition.proto";
 import "protos/perfetto/trace/android/surfaceflinger_layers.proto";
 import "protos/perfetto/trace/android/surfaceflinger_transactions.proto";
 import "protos/perfetto/trace/chrome/chrome_benchmark_metadata.proto";
@@ -216,6 +217,8 @@ message TracePacket {
     // Winscope traces
     LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
     TransactionTraceEntry surfaceflinger_transactions = 94;
+    ShellTransition shell_transition = 96;
+    ShellHandlerMappings shell_handler_mappings = 97;
 
     // Events from the Windows etw infrastructure.
     EtwTraceEventBundle etw_events = 95;
