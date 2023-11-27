@@ -335,7 +335,7 @@ def enable_libunwind(module):
 
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
-    module.static_libs.add('libsqlite')
+    module.static_libs.add('libsqlite_static_noicu')
     module.static_libs.add('sqlite_ext_percentile')
   elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
@@ -344,7 +344,7 @@ def enable_sqlite(module):
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
     module.android.static_libs.add('sqlite_ext_percentile')
-    module.host.static_libs.add('libsqlite')
+    module.host.static_libs.add('libsqlite_static_noicu')
     module.host.static_libs.add('sqlite_ext_percentile')
   else:
     module.shared_libs.add('libsqlite')
