@@ -13,91 +13,159 @@
 // limitations under the License.
 
 import {hsl} from 'color-convert';
-import {hsluvToRgb} from 'hsluv';
 
-import {clamp} from '../base/math_utils';
 import {hash} from '../common/hash';
-import {cachedHsluvToHex} from '../frontend/hsluv_cache';
+import {featureFlags} from '../core/feature_flags';
 
-export interface Color {
-  h: number;
-  s: number;
-  l: number;
-  a?: number;
+import {Color, HSLColor, HSLuvColor} from './color';
+
+// This file defines some opinionated colors and provides functions to access
+// random but predictable colors based on a seed, as well as standardized ways
+// to access colors for core objects such as slices and thread states.
+
+// We have, over the years, accumulated a number of different color palettes
+// which are used for different parts of the UI.
+// It would be nice to combine these into a single palette in the future, but
+// changing colors is difficult especially for slice colors, as folks get used
+// to certain slices being certain colors and are resistant to change.
+// However we do it, we should make it possible for folks to switch back the a
+// previous palette, or define their own.
+
+const USE_CONSISTENT_COLORS = featureFlags.register({
+  id: 'useConsistentColors',
+  name: 'Use common color palette for timeline elements',
+  description: 'Use the same color palette for all timeline elements.',
+  defaultValue: false,
+});
+
+// |ColorScheme| defines a collection of colors which can be used for various UI
+// elements. In the future we would expand this interface to include light and
+// dark variants.
+export interface ColorScheme {
+  // The base color to be used for the bulk of the element.
+  readonly base: Color;
+
+  // A variant on the base color, commonly used for highlighting.
+  readonly variant: Color;
+
+  // Grayed out color to represent a disabled state.
+  readonly disabled: Color;
+
+  // Appropriate colors for text to be displayed on top of the above colors.
+  readonly textBase: Color;
+  readonly textVariant: Color;
+  readonly textDisabled: Color;
 }
 
-const MD_PALETTE: Color[] = [
-  {h: 4, s: 90, l: 58},
-  {h: 340, s: 82, l: 52},
-  {h: 291, s: 64, l: 42},
-  {h: 262, s: 52, l: 47},
-  {h: 231, s: 48, l: 48},
-  {h: 207, s: 90, l: 54},
-  {h: 199, s: 98, l: 48},
-  {h: 187, s: 100, l: 42},
-  {h: 174, s: 100, l: 29},
-  {h: 122, s: 39, l: 49},
-  {h: 88, s: 50, l: 53},
-  {h: 66, s: 70, l: 54},
-  {h: 45, s: 100, l: 51},
-  {h: 36, s: 100, l: 50},
-  {h: 14, s: 100, l: 57},
-  {h: 16, s: 25, l: 38},
-  {h: 200, s: 18, l: 46},
-  {h: 54, s: 100, l: 62},
+const MD_PALETTE_RAW: Color[] = [
+  new HSLColor({h: 4, s: 90, l: 58}),
+  new HSLColor({h: 340, s: 82, l: 52}),
+  new HSLColor({h: 291, s: 64, l: 42}),
+  new HSLColor({h: 262, s: 52, l: 47}),
+  new HSLColor({h: 231, s: 48, l: 48}),
+  new HSLColor({h: 207, s: 90, l: 54}),
+  new HSLColor({h: 199, s: 98, l: 48}),
+  new HSLColor({h: 187, s: 100, l: 42}),
+  new HSLColor({h: 174, s: 100, l: 29}),
+  new HSLColor({h: 122, s: 39, l: 49}),
+  new HSLColor({h: 88, s: 50, l: 53}),
+  new HSLColor({h: 66, s: 70, l: 54}),
+  new HSLColor({h: 45, s: 100, l: 51}),
+  new HSLColor({h: 36, s: 100, l: 50}),
+  new HSLColor({h: 14, s: 100, l: 57}),
+  new HSLColor({h: 16, s: 25, l: 38}),
+  new HSLColor({h: 200, s: 18, l: 46}),
+  new HSLColor({h: 54, s: 100, l: 62}),
 ];
 
-export const GRAY_COLOR: Color = {
-  h: 0,
-  s: 0,
-  l: 62,
-};
+const WHITE_COLOR = new HSLColor([0, 0, 100]);
+const BLACK_COLOR = new HSLColor([0, 0, 0]);
+const GRAY_COLOR = new HSLColor([0, 0, 90]);
+
+const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
+  const base = color.lighten(10, 60).desaturate(20);
+  const variant = base.lighten(30, 80).desaturate(20);
+
+  return {
+    base,
+    variant,
+    disabled: GRAY_COLOR,
+    textBase: WHITE_COLOR,  // White text suits MD colors quite well
+    textVariant: WHITE_COLOR,
+    textDisabled: WHITE_COLOR,  // Low contrast is on purpose
+  };
+});
+
+// Create a color scheme based on a single color, which defines the variant
+// color as a slightly darker and more saturated version of the base color.
+export function makeColorScheme(base: Color): ColorScheme {
+  const variant = base.darken(15).saturate(15);
+
+  return {
+    base,
+    variant,
+    disabled: GRAY_COLOR,
+    textBase: base.isLight ? BLACK_COLOR : WHITE_COLOR,
+    textVariant: variant.isLight ? BLACK_COLOR : WHITE_COLOR,
+    textDisabled: WHITE_COLOR,  // Low contrast is on purpose
+  };
+}
+
+const GRAY = makeColorScheme(new HSLColor([0, 0, 62]));
+const DESAT_RED = makeColorScheme(new HSLColor([3, 30, 49]));
+const DARK_GREEN = makeColorScheme(new HSLColor([120, 44, 34]));
+const LIME_GREEN = makeColorScheme(new HSLColor([75, 55, 47]));
+const TRANSPARENT_WHITE = makeColorScheme(new HSLColor([0, 1, 97], 0.55));
+const ORANGE = makeColorScheme(new HSLColor([36, 100, 50]));
+const INDIGO = makeColorScheme(new HSLColor([231, 48, 48]));
 
 // A piece of wisdom from a long forgotten blog post: "Don't make
 // colors you want to change something normal like grey."
-export const UNEXPECTED_PINK_COLOR: Color = {
-  h: 330,
-  s: 1.0,
-  l: 0.706,
-};
+export const UNEXPECTED_PINK = makeColorScheme(new HSLColor([330, 100, 70]));
 
-export function hueForCpu(cpu: number): number {
-  return (128 + (32 * cpu)) % 256;
+// Selects a predictable color scheme from a palette of material design colors,
+// based on a string seed.
+function materialColorScheme(seed: string): ColorScheme {
+  const colorIdx = hash(seed, MD_PALETTE.length);
+  return MD_PALETTE[colorIdx];
 }
 
-const DESAT_RED: Color = {
-  h: 3,
-  s: 30,
-  l: 49,
-};
-const DARK_GREEN: Color = {
-  h: 120,
-  s: 44,
-  l: 34,
-};
-const LIME_GREEN: Color = {
-  h: 75,
-  s: 55,
-  l: 47,
-};
-const TRANSPARENT_WHITE: Color = {
-  h: 0,
-  s: 1,
-  l: 97,
-  a: 0.55,
-};
-const ORANGE: Color = {
-  h: 36,
-  s: 100,
-  l: 50,
-};
-const INDIGO: Color = {
-  h: 231,
-  s: 48,
-  l: 48,
-};
+const proceduralColorCache = new Map<string, ColorScheme>();
 
-export function colorForState(state: string): Readonly<Color> {
+// Procedurally generates a predictable color scheme based on a string seed.
+function proceduralColorScheme(seed: string): ColorScheme {
+  const colorScheme = proceduralColorCache.get(seed);
+  if (colorScheme) {
+    return colorScheme;
+  } else {
+    const hue = hash(seed, 360);
+    // Saturation 100 would give the most differentiation between colors, but
+    // it's garish.
+    const saturation = 80;
+
+    // Prefer using HSLuv, not the browser's built-in vanilla HSL handling. This
+    // is because this function chooses hue/lightness uniform at random, but HSL
+    // is not perceptually uniform.
+    // See https://www.boronine.com/2012/03/26/Color-Spaces-for-Human-Beings/.
+    const base =
+        new HSLuvColor({h: hue, s: saturation, l: hash(seed + 'x', 40) + 40});
+    const variant = new HSLuvColor({h: hue, s: saturation, l: 30});
+    const colorScheme: ColorScheme = {
+      base,
+      variant,
+      disabled: GRAY_COLOR,
+      textBase: base.isLight ? BLACK_COLOR : WHITE_COLOR,
+      textVariant: variant.isLight ? BLACK_COLOR : WHITE_COLOR,
+      textDisabled: WHITE_COLOR,
+    };
+
+    proceduralColorCache.set(seed, colorScheme);
+
+    return colorScheme;
+  }
+}
+
+export function colorForState(state: string): ColorScheme {
   if (state === 'Running') {
     return DARK_GREEN;
   } else if (state.startsWith('Runnable')) {
@@ -113,163 +181,59 @@ export function colorForState(state: string): Readonly<Color> {
   return INDIGO;
 }
 
-export function textColorForState(stateCode: string): string {
-  const background = colorForState(stateCode);
-  return background.l > 80 ? '#404040' : '#fff';
+export function colorForTid(tid: number): ColorScheme {
+  return materialColorScheme(tid.toString());
 }
 
-export function colorForString(identifier: string): Color {
-  const colorIdx = hash(identifier, MD_PALETTE.length);
-  return Object.assign({}, MD_PALETTE[colorIdx]);
-}
-
-export function colorForTid(tid: number): Color {
-  return colorForString(tid.toString());
-}
-
-export function colorForThread(thread?: {pid?: number, tid: number}): Color {
+export function colorForThread(thread?: {pid?: number, tid: number}):
+    ColorScheme {
   if (thread === undefined) {
-    return Object.assign({}, GRAY_COLOR);
+    return GRAY;
   }
   const tid = thread.pid ? thread.pid : thread.tid;
   return colorForTid(tid);
 }
 
-// 40 different random hues 9 degrees apart.
+export function colorForCpu(cpu: number): Color {
+  if (USE_CONSISTENT_COLORS.get()) {
+    return materialColorScheme(cpu.toString()).base;
+  } else {
+    const hue = (128 + (32 * cpu)) % 256;
+    return new HSLColor({h: hue, s: 50, l: 50});
+  }
+}
+
 export function randomColor(): string {
-  const hue = Math.floor(Math.random() * 40) * 9;
-  return '#' + hsl.hex([hue, 90, 30]);
+  const rand = Math.random();
+  if (USE_CONSISTENT_COLORS.get()) {
+    return materialColorScheme(rand.toString()).base.cssString;
+  } else {
+    // 40 different random hues 9 degrees apart.
+    const hue = Math.floor(rand * 40) * 9;
+    return '#' + hsl.hex([hue, 90, 30]);
+  }
 }
 
-// Chooses a color uniform at random based on hash(sliceName).  Returns [hue,
-// saturation, lightness].
-//
-// Prefer converting this to an RGB color using hsluv, not the browser's
-// built-in vanilla HSL handling.  This is because this function chooses
-// hue/lightness uniform at random, but HSL is not perceptually uniform.  See
-// https://www.boronine.com/2012/03/26/Color-Spaces-for-Human-Beings/.
-//
-// If isSelected, the color will be particularly dark, making it stand out.
-export function hslForSlice(
-    sliceName: string, isSelected: boolean|null): [number, number, number] {
-  const hue = hash(sliceName, 360);
-  // Saturation 100 would give the most differentiation between colors, but it's
-  // garish.
-  const saturation = 80;
-  const lightness = isSelected ? 30 : hash(sliceName + 'x', 40) + 40;
-  return [hue, saturation, lightness];
-}
-
-// Lightens the color for thread slices to represent wall time.
-export function colorForThreadIdleSlice(
-    hue: number,
-    saturation: number,
-    lightness: number,
-    isSelected: boolean|null): string {
-  // Increase lightness by 80% when selected and 40% otherwise,
-  // without exceeding 88.
-  let newLightness = isSelected ? lightness * 1.8 : lightness * 1.4;
-  newLightness = Math.min(newLightness, 88);
-  return cachedHsluvToHex(hue, saturation, newLightness);
-}
-
-export function colorCompare(x: Color, y: Color): number {
-  return (x.h - y.h) || (x.s - y.s) || (x.l - y.l);
-}
-
-// Return true if two colors have the same value.
-export function colorsEqual(a: Color, b: Color): boolean {
-  return a.h === b.h && a.s === b.s && a.l === b.l && a.a === b.a;
-}
-
-export function getColorForSlice(
-    sliceName: string, hasFocus: boolean|null): Color {
+export function getColorForSlice(sliceName: string): ColorScheme {
   const name = sliceName.replace(/( )?\d+/g, '');
-  const [hue, saturation, lightness] = hslForSlice(name, hasFocus);
-
-  return {
-    h: hue,
-    s: saturation,
-    l: lightness,
-  };
+  if (USE_CONSISTENT_COLORS.get()) {
+    return materialColorScheme(name);
+  } else {
+    return proceduralColorScheme(name);
+  }
 }
 
-const LIGHTNESS_MAX = 100;
-const LIGHTNESS_MIN = 0;
-
-// Lighten color by a percentage.
-export function colorLighten(color: Color, amount: number): Color {
-  return {
-    ...color,
-    l: clamp(color.l + amount, LIGHTNESS_MIN, LIGHTNESS_MAX),
-  };
+export function colorForFtrace(name: string): ColorScheme {
+  return materialColorScheme(name);
 }
 
-// Darken color by a percentage.
-export function colorDarken(color: Color, amount: number): Color {
-  return colorLighten(color, -amount);
-}
-
-const SATURATION_MAX = 100;
-const SATURATION_MIN = 0;
-
-// Saturate color by a percentage.
-export function colorSaturate(color: Color, amount: number): Color {
-  return {
-    ...color,
-    s: clamp(color.s + amount, SATURATION_MIN, SATURATION_MAX),
-  };
-}
-
-// Desaturate color by a percentage.
-export function colorDesaturate(color: Color, amount: number): Color {
-  return colorSaturate(color, -amount);
-}
-
-// Convert color to RGB values in the range 0-255
-export function colorToRGB(color: Color): [number, number, number] {
-  const h = color.h;
-  const s = color.s / SATURATION_MAX;
-  const l = color.l / LIGHTNESS_MAX;
-
-  const c = (1 - Math.abs(2 * l - 1)) * s;
-  const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-  const m = l - c / 2;
-
-  let [r, g, b] = [0, 0, 0];
-
-  if (0 <= h && h < 60) {
-    [r, g, b] = [c, x, 0];
-  } else if (60 <= h && h < 120) {
-    [r, g, b] = [x, c, 0];
-  } else if (120 <= h && h < 180) {
-    [r, g, b] = [0, c, x];
-  } else if (180 <= h && h < 240) {
-    [r, g, b] = [0, x, c];
-  } else if (240 <= h && h < 300) {
-    [r, g, b] = [x, 0, c];
-  } else if (300 <= h && h < 360) {
-    [r, g, b] = [c, 0, x];
+export function colorForSample(callsiteId: number, isHovered: boolean): string {
+  let colorScheme;
+  if (USE_CONSISTENT_COLORS.get()) {
+    colorScheme = materialColorScheme(String(callsiteId));
+  } else {
+    colorScheme = proceduralColorScheme(String(callsiteId));
   }
 
-  // Convert to 0-255 range
-  r = Math.round((r + m) * 255);
-  g = Math.round((g + m) * 255);
-  b = Math.round((b + m) * 255);
-
-  return [r, g, b];
-}
-
-// Get whether a color should be considered "light" based on its perceived
-// brightness.
-export function colorIsLight(color: Color): boolean {
-  // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
-  // hsluvToRgb returns rgb in range 0..1
-  const [r, g, b] = hsluvToRgb([color.h, color.s, color.l]);
-  const yiq = ((r * 255 * 299) + (g * 255 * 587) + (b * 255 * 114)) / 1000;
-  return yiq >= 128;
-}
-
-export function colorIsDark(color: Color): boolean {
-  return !colorIsLight(color);
+  return isHovered ? colorScheme.variant.cssString : colorScheme.base.cssString;
 }
