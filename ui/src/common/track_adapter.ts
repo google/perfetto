@@ -18,7 +18,8 @@ import {v4 as uuidv4} from 'uuid';
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {NewTrackArgs, SliceRect} from '../frontend/track';
+import {NewTrackArgs} from '../frontend/track';
+import {SliceRect} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
 import {BasicAsyncTrack} from './basic_async_track';

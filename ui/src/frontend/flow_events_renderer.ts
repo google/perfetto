@@ -15,12 +15,12 @@
 import {time} from '../base/time';
 import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
+import {SliceRect} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, FlowPoint, globals} from './globals';
 import {PanelVNode} from './panel';
-import {SliceRect} from './track';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
 
