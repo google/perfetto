@@ -20,7 +20,7 @@ import {
   Time,
   time,
 } from '../base/time';
-import {hueForCpu} from '../common/colorizer';
+import {colorForCpu} from '../common/colorizer';
 import {timestampFormat, TimestampFormat} from '../common/timestamp_format';
 
 import {
@@ -135,7 +135,8 @@ export class OverviewTimelinePanel extends Panel {
           const xEnd = Math.ceil(this.timeScale.timeToPx(loads[i].end));
           const yOff = Math.floor(headerHeight + y * trackHeight);
           const lightness = Math.ceil((1 - loads[i].load * 0.7) * 100);
-          ctx.fillStyle = `hsl(${hueForCpu(y)}, 50%, ${lightness}%)`;
+          const color = colorForCpu(y).setHSL({s: 50, l: lightness});
+          ctx.fillStyle = color.cssString;
           ctx.fillRect(xStart, yOff, xEnd - xStart, Math.ceil(trackHeight));
         }
         y++;

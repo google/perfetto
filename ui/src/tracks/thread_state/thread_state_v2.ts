@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import {Actions} from '../../common/actions';
-import {Color, colorForState} from '../../common/colorizer';
+import {colorForState} from '../../common/colorizer';
 import {Selection} from '../../common/state';
 import {translateState} from '../../common/thread_state';
 import {
@@ -84,21 +84,13 @@ export class ThreadStateTrack extends BaseSliceTrack<ThreadStateTrackTypes> {
     const baseSlice = super.rowToSlice(row);
     const ioWait = row.ioWait === null ? undefined : !!row.ioWait;
     const title = translateState(row.state, ioWait);
-    const baseColor: Color = colorForState(title);
-    return {...baseSlice, title, baseColor};
+    const color = colorForState(title);
+    return {...baseSlice, title, colorScheme: color};
   }
 
   onUpdatedSlices(slices: ThreadStateTrackTypes['slice'][]) {
     for (const slice of slices) {
-      if (slice === this.hoveredSlice) {
-        slice.color = {
-          h: slice.baseColor.h,
-          s: slice.baseColor.s,
-          l: 30,
-        };
-      } else {
-        slice.color = slice.baseColor;
-      }
+      slice.isHighlighted = (slice === this.hoveredSlice);
     }
   }
 

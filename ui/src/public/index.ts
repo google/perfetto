@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
 import {duration, Span, time} from '../base/time';
-import {Color} from '../common/colorizer';
+import {ColorScheme} from '../common/colorizer';
 import {Store} from '../frontend/store';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {EngineProxy} from '../trace_processor/engine';
@@ -59,8 +59,8 @@ export interface Slice {
   // These can be changed by the Impl.
   title: string;
   subTitle: string;
-  baseColor: Color;
-  color: Color;
+  colorScheme: ColorScheme;
+  isHighlighted: boolean;
 }
 
 export interface Command {

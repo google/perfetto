@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {time, Time} from '../base/time';
 import {Actions} from '../common/actions';
-import {colorForString} from '../common/colorizer';
+import {colorForFtrace} from '../common/colorizer';
 import {StringListPatch} from '../common/state';
 import {DetailsShell} from '../widgets/details_shell';
 import {
@@ -177,12 +177,7 @@ export class FtracePanel implements m.ClassComponent {
 
         const rank = i + offset;
 
-        const color = colorForString(name);
-        const hsl = `hsl(
-          ${color.h},
-          ${color.s - 20}%,
-          ${Math.min(color.l + 10, 60)}%
-        )`;
+        const color = colorForFtrace(name).base.cssString;
 
         rows.push(m(
             `.row`,
@@ -192,7 +187,7 @@ export class FtracePanel implements m.ClassComponent {
               onmouseout: this.onRowOut.bind(this),
             },
             m('.cell', timestamp),
-            m('.cell', m('span.colour', {style: {background: hsl}}), name),
+            m('.cell', m('span.colour', {style: {background: color}}), name),
             m('.cell', cpu),
             m('.cell', process),
             m('.cell', args),
