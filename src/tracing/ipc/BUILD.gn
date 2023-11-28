@@ -50,6 +50,7 @@ source_set("default_socket") {
     "../../../gn:default_deps",
     "../../../include/perfetto/ext/ipc",
     "../../../include/perfetto/ext/tracing/core",
+    "../../../include/perfetto/tracing",
     "../../base",
   ]
 }
