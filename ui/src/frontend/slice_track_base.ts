@@ -24,12 +24,14 @@ import {SliceRect} from '../public';
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
+import {CROP_INCOMPLETE_SLICE_FLAG} from './base_slice_track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
 const TRACK_PADDING = 2;
 const CHEVRON_WIDTH_PX = 10;
 const HALF_CHEVRON_WIDTH_PX = CHEVRON_WIDTH_PX / 2;
+const INCOMPLETE_SLICE_WIDTH_PX = 20;
 
 export interface SliceData extends TrackData {
   // Slices are stored in a columnar fashion.
@@ -115,7 +117,7 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
       if (isIncomplete) {  // incomplete slice
         // TODO(stevegolton): This isn't exactly equivalent, ideally we should
         // choose tEnd once we've converted to screen space coords.
-        tEnd = visibleWindowTime.end.toTime('ceil');
+        tEnd = this.getEndTimeIfInComplete(tStart);
       }
 
       if (!visibleTimeSpan.intersects(tStart, tEnd)) {
@@ -187,7 +189,8 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
       }
 
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
-        drawIncompleteSlice(ctx, rect.left, rect.top, rect.width, SLICE_HEIGHT);
+        drawIncompleteSlice(ctx, rect.left, rect.top, rect.width,
+            SLICE_HEIGHT, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else if (
           data.cpuTimeRatio !== undefined && data.cpuTimeRatio[i] < 1 - 1e-9) {
         // We draw two rectangles, representing the ratio between wall time and
@@ -248,7 +251,6 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
-      visibleWindowTime: visibleHPTimeSpan,
     } = globals.frontendLocalState;
     if (y < TRACK_PADDING) return;
     const instantWidthTime = timeScale.pxDeltaToDuration(HALF_CHEVRON_WIDTH_PX);
@@ -269,13 +271,26 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
         const end = Time.fromRaw(data.ends[i]);
         let tEnd = HighPrecisionTime.fromTime(end);
         if (data.isIncomplete[i]) {
-          tEnd = visibleHPTimeSpan.end;
+          const endTime = this.getEndTimeIfInComplete(start);
+          tEnd = HighPrecisionTime.fromTime(endTime);
         }
         if (tStart.lte(t) && t.lte(tEnd)) {
           return i;
         }
       }
     }
+  }
+
+  getEndTimeIfInComplete(start: time) : time {
+    const {visibleTimeScale, visibleWindowTime} = globals.frontendLocalState;
+
+    let end = visibleWindowTime.end.toTime('ceil');
+    if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+      const widthTime = visibleTimeScale.pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX).toTime();
+      end = Time.add(start, widthTime);
+    }
+
+    return end;
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
