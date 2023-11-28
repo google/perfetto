@@ -3,7 +3,7 @@
 ## Prerequisites
 
 *   [ADB](https://developer.android.com/studio/command-line/adb) installed.
-*   A device running Android R+.
+*   A device running Android T+.
 *   Either a debuggable (`userdebug`/`eng`) Android image, or the apps to be
     profiled need to be
     [marked as profileable or debuggable](https://developer.android.com/guide/topics/manifest/profileable-element)
