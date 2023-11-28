@@ -19,6 +19,11 @@ import {featureFlags} from '../core/feature_flags';
 
 import {Color, HSLColor, HSLuvColor} from './color';
 
+// 128 would provide equal weighting between dark and light text, but we want to
+// slightly prefer light text for stylistic reasons.
+// 140 means we must be brighter on average before switching to dark text.
+const PERCEIVED_BRIGHTNESS_LIMIT = 140;
+
 // This file defines some opinionated colors and provides functions to access
 // random but predictable colors based on a seed, as well as standardized ways
 // to access colors for core objects such as slices and thread states.
@@ -98,15 +103,19 @@ const MD_PALETTE: ColorScheme[] = MD_PALETTE_RAW.map((color): ColorScheme => {
 
 // Create a color scheme based on a single color, which defines the variant
 // color as a slightly darker and more saturated version of the base color.
-export function makeColorScheme(base: Color): ColorScheme {
-  const variant = base.darken(15).saturate(15);
+export function makeColorScheme(base: Color, variant?: Color): ColorScheme {
+  variant = variant ?? base.darken(15).saturate(15);
 
   return {
     base,
     variant,
     disabled: GRAY_COLOR,
-    textBase: base.isLight ? BLACK_COLOR : WHITE_COLOR,
-    textVariant: variant.isLight ? BLACK_COLOR : WHITE_COLOR,
+    textBase: base.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
+        BLACK_COLOR :
+        WHITE_COLOR,
+    textVariant: variant.perceivedBrightness >= PERCEIVED_BRIGHTNESS_LIMIT ?
+        BLACK_COLOR :
+        WHITE_COLOR,
     textDisabled: WHITE_COLOR,  // Low contrast is on purpose
   };
 }
@@ -150,14 +159,7 @@ function proceduralColorScheme(seed: string): ColorScheme {
     const base =
         new HSLuvColor({h: hue, s: saturation, l: hash(seed + 'x', 40) + 40});
     const variant = new HSLuvColor({h: hue, s: saturation, l: 30});
-    const colorScheme: ColorScheme = {
-      base,
-      variant,
-      disabled: GRAY_COLOR,
-      textBase: base.isLight ? BLACK_COLOR : WHITE_COLOR,
-      textVariant: variant.isLight ? BLACK_COLOR : WHITE_COLOR,
-      textDisabled: WHITE_COLOR,
-    };
+    const colorScheme = makeColorScheme(base, variant);
 
     proceduralColorCache.set(seed, colorScheme);
 
