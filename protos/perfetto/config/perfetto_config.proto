@@ -546,6 +546,41 @@ message PackagesListConfig {
 
 // End of protos/perfetto/config/android/packages_list_config.proto
 
+// Begin of protos/perfetto/common/protolog_common.proto
+
+enum ProtoLogLevel {
+  PROTOLOG_LEVEL_UNDEFINED = 0;
+  PROTOLOG_LEVEL_DEBUG = 1;
+  PROTOLOG_LEVEL_VERBOSE = 2;
+  PROTOLOG_LEVEL_INFO = 3;
+  PROTOLOG_LEVEL_WARN = 4;
+  PROTOLOG_LEVEL_ERROR = 5;
+  PROTOLOG_LEVEL_WTF = 6;
+}
+// End of protos/perfetto/common/protolog_common.proto
+
+// Begin of protos/perfetto/config/android/protolog_config.proto
+
+// Custom configuration for the "android.protolog" data source.
+// ProtoLog is a logging mechanism that is intented to be more efficient than
+// logcat. This configures what logs to capture in the tracing instance.
+message ProtoLogConfig {
+  // Specified the configurations for each of the logging groups. If none is
+  // specified for a group the defaults will be used.
+  repeated ProtoLogGroup group_overrides = 1;
+}
+
+message ProtoLogGroup {
+  // The ProtoLog tag this configuration entry applies to.
+  optional string tag = 1;
+  // Specify the level from which to start capturing protologs.
+  // e.g. if ProtoLogLevel.WARN is specified only warning, errors and fatal log
+  // message will be traced.
+  optional ProtoLogLevel log_from = 2;
+}
+
+// End of protos/perfetto/config/android/protolog_config.proto
+
 // Begin of protos/perfetto/config/android/surfaceflinger_layers_config.proto
 
 // Custom configuration for the "android.surfaceflinger.layers" data source.
@@ -3162,6 +3197,9 @@ message DataSourceConfig {
 
   // Data source name: windows.etw
   optional EtwConfig etw_config = 125 [lazy = true];
+
+  // Data source name: android.protolog
+  optional ProtoLogConfig protolog_config = 126 [lazy = true];
 
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
