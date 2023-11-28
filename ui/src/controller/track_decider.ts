@@ -1078,12 +1078,24 @@ class TrackDecider {
       const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
-      this.tracksToAdd.push({
-        uri: `perfetto.ActualFrames#${upid}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ActualFrames#${upid}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ActualFrames#${upid}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
     }
   }
 
@@ -1135,12 +1147,24 @@ class TrackDecider {
       const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
-      this.tracksToAdd.push({
-        uri: `perfetto.ExpectedFrames#${upid}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ExpectedFrames#${upid}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ExpectedFrames#${upid}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
     }
   }
 

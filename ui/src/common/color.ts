@@ -48,7 +48,10 @@ interface HSL {
 // creation time, so they may be used in the hot path (render loop).
 export interface Color {
   readonly cssString: string;
-  readonly isLight: boolean;
+
+  // The perceived brightness of the color using a weighted average of the
+  // r, g and b channels based on human perception.
+  readonly perceivedBrightness: number;
 
   // Bring up the lightness by |percent| percent.
   lighten(percent: number, max?: number): Color;
@@ -78,11 +81,14 @@ abstract class HSLColorBase<T extends Color> {
   // Saturation: 0-100
   // Lightness:  0-100
   // Alpha:      0-1
-  constructor(hsl: ColorTuple|HSL, alpha?: number) {
-    if (Array.isArray(hsl)) {
-      this.hsl = hsl;
+  constructor(init: ColorTuple|HSL|string, alpha?: number) {
+    if (Array.isArray(init)) {
+      this.hsl = init;
+    } else if (typeof init === 'string') {
+      const rgb = hexToRgb(init);
+      this.hsl = rgbToHsl(rgb);
     } else {
-      this.hsl = [hsl.h, hsl.s, hsl.l];
+      this.hsl = [init.h, init.s, init.l];
     }
     this.alpha = alpha;
   }
@@ -128,19 +134,19 @@ abstract class HSLColorBase<T extends Color> {
 // Describes a color defined in standard HSL color space.
 export class HSLColor extends HSLColorBase<HSLColor> implements Color {
   readonly cssString: string;
-  readonly isLight: boolean;
+  readonly perceivedBrightness: number;
 
   // Values are in the range:
   // Hue:        0-360
   // Saturation: 0-100
   // Lightness:  0-100
   // Alpha:      0-1
-  constructor(hsl: ColorTuple|HSL, alpha?: number) {
+  constructor(hsl: ColorTuple|HSL|string, alpha?: number) {
     super(hsl, alpha);
 
-    const [r, g, b] = hslToRGB(...this.hsl);
+    const [r, g, b] = hslToRgb(...this.hsl);
 
-    this.isLight = isLight(r, g, b);
+    this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
       this.cssString = `rgb(${r} ${g} ${b})`;
@@ -149,7 +155,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
     }
   }
 
-  create(values: ColorTuple|HSL, alpha?: number|undefined): HSLuvColor {
+  create(values: ColorTuple|HSL, alpha?: number|undefined): HSLColor {
     return new HSLColor(values, alpha);
   }
 }
@@ -158,7 +164,7 @@ export class HSLColor extends HSLColorBase<HSLColor> implements Color {
 // See: https://www.hsluv.org/
 export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
   readonly cssString: string;
-  readonly isLight: boolean;
+  readonly perceivedBrightness: number;
 
   constructor(hsl: ColorTuple|HSL, alpha?: number) {
     super(hsl, alpha);
@@ -168,7 +174,7 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
     const g = Math.floor(rgb[1] * 255);
     const b = Math.floor(rgb[2] * 255);
 
-    this.isLight = isLight(r, g, b);
+    this.perceivedBrightness = perceivedBrightness(r, g, b);
 
     if (this.alpha === undefined) {
       this.cssString = `rgb(${r} ${g} ${b})`;
@@ -186,7 +192,7 @@ export class HSLuvColor extends HSLColorBase<HSLuvColor> implements Color {
 // Saturation: 0-100
 // Lightness: 0-100
 // RGB: 0-255
-export function hslToRGB(h: number, s: number, l: number): ColorTuple {
+export function hslToRgb(h: number, s: number, l: number): ColorTuple {
   h = h;
   s = s / SATURATION_MAX;
   l = l / LIGHTNESS_MAX;
@@ -219,12 +225,63 @@ export function hslToRGB(h: number, s: number, l: number): ColorTuple {
   return [r, g, b];
 }
 
-// Get whether a color should be considered "light" based on its perceived
-// brightness.
-function isLight(r: number, g: number, b: number): boolean {
+export function hexToRgb(hex: string): ColorTuple {
+  // Convert hex to RGB first
+  let r: number = 0;
+  let g: number = 0;
+  let b: number = 0;
+
+  if (hex.length === 4) {
+    r = parseInt(hex[1] + hex[1], 16);
+    g = parseInt(hex[2] + hex[2], 16);
+    b = parseInt(hex[3] + hex[3], 16);
+  } else if (hex.length === 7) {
+    r = parseInt(hex.substring(1, 3), 16);
+    g = parseInt(hex.substring(3, 5), 16);
+    b = parseInt(hex.substring(5, 7), 16);
+  }
+
+  return [r, g, b];
+}
+
+export function rgbToHsl(rgb: ColorTuple): ColorTuple {
+  let [r, g, b] = rgb;
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h: number = (max + min) / 2;
+  let s: number = (max + min) / 2;
+  const l: number = (max + min) / 2;
+
+  if (max === min) {
+    h = s = 0;  // achromatic
+  } else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      case b:
+        h = (r - g) / d + 4;
+        break;
+    }
+    h /= 6;
+  }
+
+  return [h * 360, s * 100, l * 100];
+}
+
+// Return the perceived brightness of a color using a weighted average of the
+// r, g and b channels based on human perception.
+function perceivedBrightness(r: number, g: number, b: number): number {
   // YIQ calculation from https://24ways.org/2010/calculating-color-contrast
-  const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-  return (yiq >= 128);
+  return ((r * 299) + (g * 587) + (b * 114)) / 1000;
 }
 
 // Comparison function used for sorting colors.
