@@ -66,7 +66,7 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
                ProducerIPCClient::ConnectionFlags::kRetryIfUnreachable},
           producer, producer_name, task_runner, smb_scraping_mode,
           shared_memory_size_hint_bytes, shared_memory_page_size_hint_bytes,
-          std::move(shm), std::move(shm_arbiter)));
+          std::move(shm), std::move(shm_arbiter), CreateSocketAsync()));
 }
 
 // static. (Declared in include/tracing/ipc/producer_ipc_client.h).
@@ -79,13 +79,14 @@ std::unique_ptr<TracingService::ProducerEndpoint> ProducerIPCClient::Connect(
     size_t shared_memory_size_hint_bytes,
     size_t shared_memory_page_size_hint_bytes,
     std::unique_ptr<SharedMemory> shm,
-    std::unique_ptr<SharedMemoryArbiter> shm_arbiter) {
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter,
+    CreateSocketAsync create_socket_async) {
   return std::unique_ptr<TracingService::ProducerEndpoint>(
-      new ProducerIPCClientImpl(std::move(conn_args), producer, producer_name,
-                                task_runner, smb_scraping_mode,
-                                shared_memory_size_hint_bytes,
-                                shared_memory_page_size_hint_bytes,
-                                std::move(shm), std::move(shm_arbiter)));
+      new ProducerIPCClientImpl(
+          std::move(conn_args), producer, producer_name, task_runner,
+          smb_scraping_mode, shared_memory_size_hint_bytes,
+          shared_memory_page_size_hint_bytes, std::move(shm),
+          std::move(shm_arbiter), create_socket_async));
 }
 
 ProducerIPCClientImpl::ProducerIPCClientImpl(
@@ -97,13 +98,12 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     size_t shared_memory_size_hint_bytes,
     size_t shared_memory_page_size_hint_bytes,
     std::unique_ptr<SharedMemory> shm,
-    std::unique_ptr<SharedMemoryArbiter> shm_arbiter)
+    std::unique_ptr<SharedMemoryArbiter> shm_arbiter,
+    CreateSocketAsync create_socket_async)
     : producer_(producer),
       task_runner_(task_runner),
       receive_shmem_fd_cb_fuchsia_(
           std::move(conn_args.receive_shmem_fd_cb_fuchsia)),
-      ipc_channel_(
-          ipc::Client::CreateInstance(std::move(conn_args), task_runner)),
       producer_port_(
           new protos::gen::ProducerPortProxy(this /* event_listener */)),
       shared_memory_(std::move(shm)),
@@ -124,7 +124,28 @@ ProducerIPCClientImpl::ProducerIPCClientImpl(
     shared_buffer_page_size_kb_ = shared_memory_page_size_hint_bytes_ / 1024;
   }
 
-  ipc_channel_->BindService(producer_port_->GetWeakPtr());
+  if (create_socket_async) {
+    PERFETTO_DCHECK(conn_args.socket_name);
+    auto weak_this = weak_factory_.GetWeakPtr();
+    create_socket_async(
+        [weak_this, task_runner = task_runner_](base::SocketHandle fd) {
+          task_runner->PostTask([weak_this, fd] {
+            base::ScopedSocketHandle handle(fd);
+            if (!weak_this) {
+              return;
+            }
+            ipc::Client::ConnArgs args(std::move(handle));
+            weak_this->ipc_channel_ = ipc::Client::CreateInstance(
+                std::move(args), weak_this->task_runner_);
+            weak_this->ipc_channel_->BindService(
+                weak_this->producer_port_->GetWeakPtr());
+          });
+        });
+  } else {
+    ipc_channel_ =
+        ipc::Client::CreateInstance(std::move(conn_args), task_runner);
+    ipc_channel_->BindService(producer_port_->GetWeakPtr());
+  }
   PERFETTO_DCHECK_THREAD(thread_checker_);
 }
 
