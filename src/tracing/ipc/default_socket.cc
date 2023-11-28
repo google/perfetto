@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "perfetto/ext/tracing/ipc/default_socket.h"
+#include "perfetto/tracing/default_socket.h"
 
 #include "perfetto/base/build_config.h"
 #include "perfetto/base/logging.h"
