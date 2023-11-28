@@ -13,6 +13,31 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
+// Begin of protos/perfetto/metrics/android/ad_services_metric.proto
+
+// Next: 2
+message AdServicesUiMetric {
+  optional double latency = 1;
+}
+
+// Next: 2
+message AdServicesAdIdMetric {
+  optional double latency = 1;
+}
+
+// Next: 2
+message AdServicesAppSetIdMetric {
+  optional double latency = 1;
+}
+
+// Next: 4
+message AdServicesMetric {
+  repeated AdServicesUiMetric ui_metric = 1;
+  repeated AdServicesAdIdMetric ad_id_metric = 2;
+  repeated AdServicesAppSetIdMetric app_set_id_metric = 3;
+}
+// End of protos/perfetto/metrics/android/ad_services_metric.proto
+
 // Begin of protos/perfetto/metrics/android/android_blocking_call.proto
 
 // Blocking call on the main thread.
@@ -118,6 +143,12 @@ message AndroidBootMetric {
   optional ProcessStateDurations systemui_durations = 2;
   optional ProcessStateDurations launcher_durations = 3;
   optional ProcessStateDurations gms_durations = 4;
+  // Launcher related boot metrics
+  message LauncherBreakdown {
+    //  reports cold start time of NexusLauncher
+    optional int64 cold_start_dur = 1;
+  }
+  optional LauncherBreakdown launcher_breakdown = 5;
 }
 
 // End of protos/perfetto/metrics/android/android_boot.proto
@@ -2021,7 +2052,13 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 21
+  // Contains detailed information for slow startup causes.
+  message SlowStartReasonDetailed {
+    optional string reason = 1;
+    optional string details = 2;
+  }
+
+  // Next id: 22
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -2091,6 +2128,9 @@ message AndroidStartupMetric {
     // A list of identified potential causes for slow startup.
     // Optional.
     repeated string slow_start_reason = 17;
+
+    // Same as slow_start_reason, but with more detailed information.
+    repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
 
     reserved 10;
   }
@@ -2169,6 +2209,69 @@ message AndroidSurfaceflingerMetric {
 }
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Statistical performance data row for a set of slices
+message SysUiSlicePerformanceStatisticalData {
+  // Name of the Slice
+  optional string name = 1;
+  // Number of times it happened within the CUJ
+  optional int64 cnt = 2;
+  // Average duration within the CUJ
+  optional int64 avg_dur_ms = 3;
+  // Maximal duration within the CUJ
+  optional int64 max_dur_ms = 4;
+  // Average duration within the CUJ in nanoseconds
+  optional int64 avg_dur_ns = 6;
+  // Maximal duration within the CUJ in nanoseconds
+  optional int64 max_dur_ns = 7;
+}
+// End of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiNotifShadeListBuilderMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  optional SysUiSlicePerformanceStatisticalData slices_with_inflation_performance = 2;
+  optional SysUiSlicePerformanceStatisticalData slices_with_modification_performance = 3;
+
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 4;
+}
+// End of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
+
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiUpdateNotifOnUiModeChangedMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 2;
+}
+// End of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
 
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
@@ -2251,6 +2354,7 @@ message TraceMetadata {
   optional string unique_session_name = 8;
   optional string trace_config_pbtxt = 9;
   optional int64 sched_duration_ns = 10;
+  optional int64 tracing_started_ns = 11;
 }
 
 // Stats counters for the trace.
@@ -2283,7 +2387,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 58
+// Next id: 61
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2435,11 +2539,18 @@ message TraceMetrics {
 
   // Metrics for App Not Responding (ANR) errors.
   optional AndroidAnrMetric android_anr = 55;
+
   // Aggregated Android Monitor Contention metrics
   optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
 
   optional AndroidBootMetric android_boot = 57;
 
+  // Metric for AdServices module.
+  optional AdServicesMetric ad_services_metric = 58;
+
+  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+
+  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
   // Demo extensions.
   extensions 450 to 499;
 

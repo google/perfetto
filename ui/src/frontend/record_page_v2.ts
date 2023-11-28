@@ -494,6 +494,7 @@ function recordMenu(routePage: string) {
       m('ul', probes));
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   const components: m.Children[] = [RecordHeader()];
   if (controller.getState() === RecordingState.NO_TARGET) {

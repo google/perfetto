@@ -16,7 +16,6 @@ import m from 'mithril';
 
 import {assertTrue} from '../../base/logging';
 import {exists} from '../../base/utils';
-import {EngineProxy} from '../../common/engine';
 import {
   BottomTab,
   bottomTabRegistry,
@@ -27,6 +26,7 @@ import {
 } from '../../frontend/generic_slice_details_tab';
 import {getSlice, SliceDetails} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
+import {EngineProxy} from '../../trace_processor/engine';
 
 async function getSliceDetails(
     engine: EngineProxy, id: number): Promise<SliceDetails|undefined> {

@@ -266,18 +266,93 @@ class Tables(TestSuite):
 
   def test_thread_state_flattened_aggregated(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_monitor_contention_trace.atr'),
-      query="""
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
       INCLUDE PERFETTO MODULE experimental.thread_state_flattened;
       select * from experimental_get_flattened_thread_state_aggregated(11155, NULL);
       """,
-      out=Path('thread_state_flattened_aggregated_csv.out'))
+        out=Path('thread_state_flattened_aggregated_csv.out'))
 
   def test_thread_state_flattened(self):
     return DiffTestBlueprint(
-      trace=DataPath('android_monitor_contention_trace.atr'),
-      query="""
+        trace=DataPath('android_monitor_contention_trace.atr'),
+        query="""
       INCLUDE PERFETTO MODULE experimental.thread_state_flattened;
       select * from experimental_get_flattened_thread_state(11155, NULL);
       """,
-      out=Path('thread_state_flattened_csv.out'))
+        out=Path('thread_state_flattened_csv.out'))
+
+  def test_metadata(self):
+    return DiffTestBlueprint(
+        trace=TextProto(r"""
+        packet {
+          system_info {
+            tracing_service_version: "Perfetto v38.0-0bb49ab54 (0bb49ab54dbe55ce5b9dfea3a2ada68b87aecb65)"
+            timezone_off_mins: 60
+            utsname {
+              sysname: "Darwin"
+              version: "Foobar"
+              machine: "x86_64"
+              release: "22.6.0"
+            }
+          }
+          trusted_uid: 158158
+          trusted_packet_sequence_id: 1
+        }
+        """),
+        query=r"""SELECT name, COALESCE(str_value, int_value) as val
+              FROM metadata
+              WHERE name IN (
+                  "system_name", "system_version", "system_machine",
+                  "system_release", "timezone_off_mins")
+              ORDER BY name
+        """,
+        out=Csv(r"""
+                "name","val"
+                "system_machine","x86_64"
+                "system_name","Darwin"
+                "system_release","22.6.0"
+                "system_version","Foobar"
+                "timezone_off_mins",60
+                """))
+
+  def test_flow_table_trace_id(self):
+    return DiffTestBlueprint(
+        trace=TextProto("""
+          packet {
+            timestamp: 0
+            track_event {
+              name: "Track 0 Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 10
+            track_event {
+              name: "Track 0 Nested Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+          packet {
+            timestamp: 50
+            track_event {
+              name: "Track 0 Short Event"
+              type: TYPE_SLICE_BEGIN
+              track_uuid: 10
+              terminating_flow_ids: 57
+            }
+            trusted_packet_sequence_id: 123
+          }
+        """),
+        query="SELECT * FROM flow;",
+        out=Csv("""
+          "id","type","slice_out","slice_in","trace_id","arg_set_id"
+          0,"flow",0,1,57,0
+          1,"flow",1,2,57,0
+                """))

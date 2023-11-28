@@ -1,0 +1,147 @@
+android_startup {
+  startup {
+    startup_id: 1
+    package_name: "com.some.app"
+    process_name: "com.some.app"
+    zygote_new_process: false
+    to_first_frame {
+      dur_ns: 999999900
+      main_thread_by_task_state {
+        running_dur_ns: 0
+        runnable_dur_ns: 0
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
+      }
+      other_processes_spawned_count: 0
+      time_activity_manager {
+        dur_ns: 2
+        dur_ms: 2e-06
+      }
+      time_activity_resume {
+        dur_ns: 5
+        dur_ms: 5e-06
+      }
+      dur_ms: 999.9999
+      time_dex_open {
+        dur_ns: 499999845
+        dur_ms: 499.999845
+      }
+      time_verify_class {
+        dur_ns: 40
+        dur_ms: 4e-05
+      }
+      jit_compiled_methods: 2
+      time_jit_thread_pool_on_cpu {
+        dur_ns: 20
+        dur_ms: 2e-05
+      }
+      time_gc_total {
+        dur_ns: 130
+        dur_ms: 0.00013
+      }
+      time_gc_on_cpu {
+        dur_ns: 50
+        dur_ms: 5e-05
+      }
+      time_dex_open_thread_main {
+        dur_ns: 499999845
+        dur_ms: 499.999845
+      }
+      time_dlopen_thread_main {
+        dur_ns: 2
+        dur_ms: 2e-06
+      }
+      time_to_running_state {
+        dur_ns: 55
+        dur_ms: 5.5e-05
+      }
+    }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.some.app"
+      uid: 10001
+      package {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.some.app"
+        apk_version_code: 123
+        debuggable: false
+      }
+      pid: 3
+    }
+    event_timestamps {
+      intent_received: 100
+      first_frame: 1000000000
+    }
+    long_binder_transactions {
+      duration {
+        dur_ns: 40000000
+        dur_ms: 40.0
+      }
+      destination_process: "system_server"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
+    }
+    long_binder_transactions {
+      duration {
+        dur_ns: 100000000
+        dur_ms: 100.0
+      }
+      thread: "Binder"
+      destination_process: "system_server"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
+    }
+    long_binder_transactions {
+      duration {
+        dur_ns: 200000000
+        dur_ms: 200.0
+      }
+      thread: "fonts"
+      destination_thread: "Binder"
+      destination_process: "com.some.app"
+      flags: "0x00 No Flags Set"
+      code: "0x00 Java Layer Dependent"
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
+    }
+    verify_class {
+      name: "vr"
+      dur_ns: 30
+    }
+    verify_class {
+      name: "vp"
+      dur_ns: 5
+    }
+    verify_class {
+      name: "dl"
+      dur_ns: 5
+    }
+    dlopen_file: "libandroid.so"
+    dlopen_file: "libandroid2.so"
+    startup_type: "hot"
+    slow_start_reason: "GC Activity"
+    slow_start_reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
+    slow_start_reason: "Main Thread - Binder transactions blocked"
+    slow_start_reason_detailed {
+      reason: "GC Activity"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in OpenDexFilesFromOat*"
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Binder transactions blocked"
+    }
+  }
+}

@@ -15,13 +15,16 @@
  */
 
 #include "src/trace_processor/db/storage/string_storage.h"
+
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 #include "perfetto/base/logging.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -132,26 +135,98 @@ struct IsNotNull {
   }
 };
 
+uint32_t LowerBoundIntrinsic(StringPool* pool,
+                             const StringPool::Id* data,
+                             NullTermStringView val,
+                             RowMap::Range search_range) {
+  Less comp{pool};
+  auto lower =
+      std::lower_bound(data + search_range.start, data + search_range.end, val,
+                       [comp](StringPool::Id id, NullTermStringView val) {
+                         return comp(id, val);
+                       });
+  return static_cast<uint32_t>(std::distance(data, lower));
+}
+
+uint32_t UpperBoundIntrinsic(StringPool* pool,
+                             const StringPool::Id* data,
+                             NullTermStringView val,
+                             RowMap::Range search_range) {
+  Greater comp{pool};
+  auto upper =
+      std::upper_bound(data + search_range.start, data + search_range.end, val,
+                       [comp](NullTermStringView val, StringPool::Id id) {
+                         return comp(id, val);
+                       });
+  return static_cast<uint32_t>(std::distance(data, upper));
+}
+
 }  // namespace
 
 RangeOrBitVector StringStorage::Search(FilterOp op,
-                                       SqlValue sql_val,
+                                       SqlValue value,
                                        RowMap::Range range) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::LinearSearch",
+                    [&range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(range.start));
+                      r->AddArg("End", std::to_string(range.end));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
+  if (is_sorted_) {
+    if (op != FilterOp::kNe) {
+      return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+    }
+    // Not equal is a special operation on binary search, as it doesn't define
+    // a range, and rather just `not` range returned with `equal` operation.
+    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
+    BitVector bv(r.start, true);
+    bv.Resize(r.end);
+    bv.Resize(range.end, true);
+    return RangeOrBitVector(std::move(bv));
+  }
+  return RangeOrBitVector(LinearSearchInternal(op, value, range));
+}
+
+RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
+                                            SqlValue value,
+                                            uint32_t* indices,
+                                            uint32_t indices_count,
+                                            bool sorted) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::IndexSearch",
+                    [indices_count, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_count));
+                      r->AddArg("Op",
+                                std::to_string(static_cast<uint32_t>(op)));
+                    });
+
+  if (sorted) {
+    return RangeOrBitVector(
+        BinarySearchExtrinsic(op, value, indices, indices_count));
+  }
+  return RangeOrBitVector(
+      IndexSearchInternal(op, value, indices, indices_count, sorted));
+}
+
+BitVector StringStorage::LinearSearchInternal(FilterOp op,
+                                              SqlValue sql_val,
+                                              RowMap::Range range) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
-    return RangeOrBitVector(Range());
+    return BitVector();
   }
 
   if (sql_val.type != SqlValue::kString &&
       (op == FilterOp::kGlob || op == FilterOp::kRegex)) {
-    return RangeOrBitVector(Range());
+    return BitVector();
   }
 
   StringPool::Id val =
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
-  const StringPool::Id* start = data_ + range.start;
+  const StringPool::Id* start = values_->data() + range.start;
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "StringStorage::Search",
       [range, op, &sql_val](metatrace::Record* r) {
@@ -240,14 +315,14 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
       utils::LinearSearchWithComparator(val, start, IsNotNull(), builder);
   }
 
-  return RangeOrBitVector(std::move(builder).Build());
+  return std::move(builder).Build();
 }
 
-RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
-                                            SqlValue sql_val,
-                                            uint32_t* indices,
-                                            uint32_t indices_size,
-                                            bool) const {
+RangeOrBitVector StringStorage::IndexSearchInternal(FilterOp op,
+                                                    SqlValue sql_val,
+                                                    uint32_t* indices,
+                                                    uint32_t indices_size,
+                                                    bool) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
     return RangeOrBitVector(Range());
@@ -256,7 +331,7 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
       (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
-  const StringPool::Id* start = data_;
+  const StringPool::Id* start = values_->data();
   PERFETTO_TP_TRACE(
       metatrace::Category::DB, "StringStorage::IndexSearch",
       [indices_size, op, &sql_val](metatrace::Record* r) {
@@ -325,6 +400,64 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
+RowMap::Range StringStorage::BinarySearchIntrinsic(
+    FilterOp op,
+    SqlValue sql_val,
+    RowMap::Range search_range) const {
+  if (sql_val.is_null() &&
+      (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
+    return Range();
+  }
+
+  if (sql_val.type != SqlValue::kString &&
+      (op == FilterOp::kGlob || op == FilterOp::kRegex)) {
+    return Range();
+  }
+
+  if (op == FilterOp::kIsNotNull)
+    return search_range;
+
+  StringPool::Id val =
+      (op == FilterOp::kIsNull || op == FilterOp::kIsNotNull)
+          ? StringPool::Id::Null()
+          : string_pool_->InternString(base::StringView(sql_val.AsString()));
+  NullTermStringView val_str = string_pool_->Get(val);
+
+  switch (op) {
+    case FilterOp::kEq:
+      return RowMap::Range(LowerBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range),
+                           UpperBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range));
+    case FilterOp::kLe: {
+      return RowMap::Range(search_range.start,
+                           UpperBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range));
+    }
+    case FilterOp::kLt:
+      return RowMap::Range(search_range.start,
+                           LowerBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range));
+    case FilterOp::kGe:
+      return RowMap::Range(LowerBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range),
+                           search_range.end);
+    case FilterOp::kGt:
+      return RowMap::Range(UpperBoundIntrinsic(string_pool_, values_->data(),
+                                               val_str, search_range),
+                           search_range.end);
+
+    case FilterOp::kNe:
+      PERFETTO_FATAL("Shouldn't be called");
+    case FilterOp::kIsNull:
+    case FilterOp::kIsNotNull:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return RowMap::Range();
+  }
+  return RowMap::Range();
+}
+
 RowMap::Range StringStorage::BinarySearchExtrinsic(FilterOp,
                                                    SqlValue,
                                                    uint32_t*,
@@ -334,17 +467,27 @@ RowMap::Range StringStorage::BinarySearchExtrinsic(FilterOp,
 void StringStorage::StableSort(uint32_t* indices, uint32_t indices_size) const {
   std::stable_sort(indices, indices + indices_size,
                    [this](uint32_t a_idx, uint32_t b_idx) {
-                     return string_pool_->Get(data_[a_idx]) <
-                            string_pool_->Get(data_[b_idx]);
+                     return string_pool_->Get(values_->data()[a_idx]) <
+                            string_pool_->Get(values_->data()[b_idx]);
                    });
 }
 
 void StringStorage::Sort(uint32_t* indices, uint32_t indices_size) const {
   std::sort(indices, indices + indices_size,
             [this](uint32_t a_idx, uint32_t b_idx) {
-              return string_pool_->Get(data_[a_idx]) <
-                     string_pool_->Get(data_[b_idx]);
+              return string_pool_->Get(values_->data()[a_idx]) <
+                     string_pool_->Get(values_->data()[b_idx]);
             });
+}
+
+void StringStorage::Serialize(
+    protos::pbzero::SerializedColumn::Storage* msg) const {
+  auto* string_storage_msg = msg->set_string_storage();
+  string_storage_msg->set_is_sorted(is_sorted_);
+
+  string_storage_msg->set_values(
+      reinterpret_cast<const uint8_t*>(values_->data()),
+      sizeof(StringPool::Id) * size());
 }
 
 }  // namespace storage

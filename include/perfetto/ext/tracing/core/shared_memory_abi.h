@@ -424,7 +424,7 @@ class SharedMemoryABI {
       ChunkHeader* chunk_header = header();
       auto packets = chunk_header->packets.load(std::memory_order_relaxed);
       if (packets.count < packet_count)
-        packets.count = packet_count;
+        packets.count = packet_count & ChunkHeader::Packets::kMaxCount;
       chunk_header->packets.store(packets, std::memory_order_release);
       return packets.count;
     }

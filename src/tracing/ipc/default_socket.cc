@@ -67,8 +67,6 @@ bool UseRunPerfettoBaseDir() {
 
 }  // anonymous namespace
 
-static_assert(kInvalidUid == ipc::kInvalidUid, "kInvalidUid mismatching");
-
 const char* GetProducerSocket() {
   const char* name = getenv("PERFETTO_PRODUCER_SOCK_NAME");
   if (name == nullptr) {

@@ -17,7 +17,7 @@ INCLUDE PERFETTO MODULE android.battery;
 INCLUDE PERFETTO MODULE android.battery_stats;
 
 DROP VIEW IF EXISTS battery_view;
-CREATE VIEW battery_view AS
+CREATE PERFETTO VIEW battery_view AS
 SELECT * FROM android_battery_charge;
 
 DROP TABLE IF EXISTS android_batt_wakelocks_merged;
@@ -51,7 +51,7 @@ FROM (
 GROUP BY group_id;
 
 DROP VIEW IF EXISTS suspend_slice_from_minimal;
-CREATE VIEW suspend_slice_from_minimal AS
+CREATE PERFETTO VIEW suspend_slice_from_minimal AS
 SELECT ts, dur
 FROM track t JOIN slice s ON s.track_id = t.id
 WHERE t.name = 'Suspend/Resume Minimal';
@@ -101,7 +101,7 @@ CREATE VIRTUAL TABLE screen_state_span_with_suspend
 USING span_join(screen_state_span, suspend_slice_);
 
 DROP VIEW IF EXISTS android_batt_event;
-CREATE VIEW android_batt_event AS
+CREATE PERFETTO VIEW android_batt_event AS
 SELECT
   ts,
   dur,
@@ -205,7 +205,7 @@ FROM (
 WHERE track_name IS NOT NULL;
 
 DROP VIEW IF EXISTS android_batt_output;
-CREATE VIEW android_batt_output AS
+CREATE PERFETTO VIEW android_batt_output AS
 SELECT AndroidBatteryMetric(
   'battery_counters', (
     SELECT RepeatedField(

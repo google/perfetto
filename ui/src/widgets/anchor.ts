@@ -14,11 +14,11 @@
 
 import m from 'mithril';
 
-interface AnchorAttrs {
+import {HTMLAnchorAttrs} from './common';
+
+interface AnchorAttrs extends HTMLAnchorAttrs {
   // Optional icon to show at the end of the content.
   icon?: string;
-  // Remaining items.
-  [htmlAttrs: string]: any;
 }
 
 export class Anchor implements m.ClassComponent<AnchorAttrs> {

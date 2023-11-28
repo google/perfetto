@@ -438,7 +438,7 @@ void SysStatsDataSource::ReadStat(protos::pbzero::SysStats* sys_stats) {
       auto* cpu_stat = sys_stats->add_cpu_stat();
       cpu_stat->set_cpu_id(static_cast<uint32_t>(cpu_id));
       cpu_stat->set_user_ns(cpu_times[0] * ns_per_user_hz_);
-      cpu_stat->set_user_ice_ns(cpu_times[1] * ns_per_user_hz_);
+      cpu_stat->set_user_nice_ns(cpu_times[1] * ns_per_user_hz_);
       cpu_stat->set_system_mode_ns(cpu_times[2] * ns_per_user_hz_);
       cpu_stat->set_idle_ns(cpu_times[3] * ns_per_user_hz_);
       cpu_stat->set_io_wait_ns(cpu_times[4] * ns_per_user_hz_);

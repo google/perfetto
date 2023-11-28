@@ -12,10 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
 import {AddTrackArgs} from '../../common/actions';
-import {Engine} from '../../common/engine';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
@@ -23,6 +20,7 @@ import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
+  PluginContextTrace,
   PluginDescriptor,
   PrimaryTrackSortKey,
 } from '../../public';
@@ -35,8 +33,6 @@ import {
 import {
   ScreenshotTab,
 } from './screenshot_panel';
-
-export {Data} from '../chrome_slices';
 
 class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
@@ -66,29 +62,37 @@ export type DecideTracksResult = {
   tracksToAdd: AddTrackArgs[],
 };
 
-export async function decideTracks(engine: Engine):
-    Promise<DecideTracksResult> {
+// TODO(stevegolton): Use suggestTrack().
+export async function decideTracks(): Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
-
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: ScreenshotsTrack.kind,
-    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+    uri: 'perfetto.Screenshots',
     name: 'Screenshots',
-    config: {},
-    trackGroup: undefined,
+    trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
   });
   return result;
 }
 
 class ScreenshotsPlugin implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrack(ScreenshotsTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    await ctx.engine.query(`INCLUDE PERFETTO MODULE android.screenshots`);
+
+    ctx.registerStaticTrack({
+      uri: 'perfetto.Screenshots',
+      displayName: 'Screenshots',
+      kind: ScreenshotsTrack.kind,
+      track: ({trackKey}) => {
+        return new ScreenshotsTrack({
+          engine: ctx.engine,
+          trackKey,
+        });
+      },
+    });
   }
 }
 

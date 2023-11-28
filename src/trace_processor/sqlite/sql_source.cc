@@ -313,7 +313,7 @@ SqlSource::Rewriter::Rewriter(Node source) : orig_(std::move(source)) {
 void SqlSource::Rewriter::Rewrite(uint32_t rewritten_start,
                                   uint32_t rewritten_end,
                                   SqlSource source) {
-  PERFETTO_CHECK(rewritten_start < rewritten_end);
+  PERFETTO_CHECK(rewritten_start <= rewritten_end);
   PERFETTO_CHECK(rewritten_end <= orig_.rewritten_sql.size());
 
   uint32_t original_start =

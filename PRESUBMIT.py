@@ -125,7 +125,12 @@ def CheckAndroidBlueprint(input_api, output_api):
   # If no GN files were modified, bail out.
   def build_file_filter(x):
     return input_api.FilterSourceFile(
-        x, files_to_check=('.*BUILD[.]gn$', '.*[.]gni$', tool))
+        x,
+        files_to_check=('.*BUILD[.]gn$', '.*[.]gni$', tool),
+        # Do not require Android.bp to be regenerated for chrome
+        # stdlib changes.
+        files_to_skip=(
+            'src/trace_processor/perfetto_sql/stdlib/chrome/BUILD.gn'))
 
   if not input_api.AffectedSourceFiles(build_file_filter):
     return []
@@ -327,7 +332,10 @@ def CheckSqlModules(input_api, output_api):
 
   def file_filter(x):
     return input_api.FilterSourceFile(
-        x, files_to_check=['src/trace_processor/stdlib/.*[.]sql$', tool])
+        x,
+        files_to_check=[
+            'src/trace_processor/perfetto_sql/stdlib/.*[.]sql$', tool
+        ])
 
   if not input_api.AffectedSourceFiles(file_filter):
     return []

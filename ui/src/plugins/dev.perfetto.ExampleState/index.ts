@@ -25,8 +25,8 @@ interface State {
 
 // This example plugin shows using state that is persisted in the
 // permalink.
-class ExampleState implements Plugin<State> {
-  migrate(initialState: unknown): State {
+class ExampleState implements Plugin {
+  private migrate(initialState: unknown): State {
     if (initialState && typeof initialState === 'object' &&
         'counter' in initialState && typeof initialState.counter === 'number') {
       return {counter: initialState.counter};
@@ -39,14 +39,15 @@ class ExampleState implements Plugin<State> {
     //
   }
 
-  async onTraceLoad(ctx: PluginContextTrace<State>): Promise<void> {
-    const {viewer, store} = ctx;
-    ctx.addCommand({
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const store = ctx.mountStore((init: unknown) => this.migrate(init));
+
+    ctx.registerCommand({
       id: 'dev.perfetto.ExampleState#ShowCounter',
       name: 'Show ExampleState counter',
       callback: () => {
         const counter = store.state.counter;
-        viewer.tabs.openQuery(
+        ctx.tabs.openQuery(
             `SELECT ${counter} as counter;`, `Show counter ${counter}`);
         store.edit((draft) => ++draft.counter);
       },
@@ -54,7 +55,7 @@ class ExampleState implements Plugin<State> {
   }
 }
 
-export const plugin: PluginDescriptor<State> = {
+export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.ExampleState',
   plugin: ExampleState,
 };

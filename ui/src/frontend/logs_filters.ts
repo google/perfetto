@@ -56,7 +56,7 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
     return m(
         Select,
         {
-          onchange: (e: InputEvent) => {
+          onchange: (e: Event) => {
             const selectionValue = (e.target as HTMLSelectElement).value;
             attrs.onSelect(Number(selectionValue));
           },

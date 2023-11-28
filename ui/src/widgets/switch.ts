@@ -16,34 +16,31 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 
-export interface SwitchAttrs {
+import {HTMLCheckboxAttrs} from './common';
+
+export interface SwitchAttrs extends HTMLCheckboxAttrs {
   // Optional text to show to the right of the switch.
   // If omitted, no text will be shown.
   label?: string;
-  // Whether the switch is checked or not.
-  // If omitted, the switch will be uncontrolled.
-  checked?: boolean;
-  // Make the switch appear greyed out block any interaction with it.
-  // No events will be fired when interacting with it.
-  // Defaults to false.
-  disabled?: boolean;
-  // Remaining attributes forwarded to the underlying HTML <label>.
-  [htmlAttrs: string]: any;
 }
 
 export class Switch implements m.ClassComponent<SwitchAttrs> {
   view({attrs}: m.CVnode<SwitchAttrs>) {
-    const {label, checked, disabled = false, ...htmlAttrs} = attrs;
+    const {label, checked, disabled, className, ...htmlAttrs} = attrs;
 
     const classes = classNames(
         disabled && 'pf-disabled',
+        className,
     );
 
     // The default checkbox is removed and an entirely new one created inside
     // the span element in CSS.
     return m(
         'label.pf-switch',
-        {class: classes, ...htmlAttrs},
+        {
+          ...htmlAttrs,
+          className: classes,
+        },
         m('input[type=checkbox]', {disabled, checked}),
         m('span'),
         label,

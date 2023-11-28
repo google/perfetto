@@ -14,13 +14,13 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../common/engine';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 import {Editor} from '../widgets/editor';
+import {VegaView} from '../widgets/vega_view';
 
 import {globals} from './globals';
 import {createPage} from './pages';
-import {VegaView} from './widgets/vega_view';
 
 function getEngine(): EngineProxy|undefined {
   const engineId = globals.getCurrentEngine()?.id;

@@ -95,12 +95,21 @@ class TraceSorter {
               SortingMode);
   ~TraceSorter();
 
+  inline void PushTraceBlobView(int64_t timestamp, TraceBlobView tbv) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(tbv));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTraceBlobView, id);
+  }
+
+  inline void PushTracePacket(int64_t timestamp, TracePacketData data) {
+    TraceTokenBuffer::Id id = token_buffer_.Append(std::move(data));
+    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTracePacket, id);
+  }
+
   inline void PushTracePacket(int64_t timestamp,
                               RefPtr<PacketSequenceStateGeneration> state,
                               TraceBlobView tbv) {
-    TraceTokenBuffer::Id id =
-        token_buffer_.Append(TracePacketData{std::move(tbv), std::move(state)});
-    AppendNonFtraceEvent(timestamp, TimestampedEvent::Type::kTracePacket, id);
+    PushTracePacket(timestamp,
+                    TracePacketData{std::move(tbv), std::move(state)});
   }
 
   inline void PushJsonValue(int64_t timestamp, std::string json_value) {
@@ -196,6 +205,7 @@ class TraceSorter {
   struct TimestampedEvent {
     enum class Type : uint8_t {
       kFtraceEvent,
+      kTraceBlobView,
       kTracePacket,
       kInlineSchedSwitch,
       kInlineSchedWaking,

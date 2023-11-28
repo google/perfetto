@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from '../base/object_utils';
 import {RecordConfig} from '../controller/record_config_types';
 
 export const BUCKET_NAME = 'perfetto-ui-data';
@@ -50,7 +51,7 @@ export function isSerializedBigint(value: unknown): value is SerializedBigint {
     return false;
   }
   if ('__kind' in value && 'value' in value) {
-    return value.__kind === 'bigint' && typeof value.value === 'string';
+    return value.__kind === 'bigint' && isString(value.value);
   }
   return false;
 }
@@ -68,14 +69,14 @@ export function serializeStateObject(object: unknown): string {
   return json;
 }
 
-export function deserializeStateObject(json: string): any {
+export function deserializeStateObject<T>(json: string): T {
   const object = JSON.parse(json, (_key, value) => {
     if (isSerializedBigint(value)) {
       return BigInt(value.value);
     }
     return value;
   });
-  return object;
+  return object as T;
 }
 
 export async function saveState(stateOrConfig: State|

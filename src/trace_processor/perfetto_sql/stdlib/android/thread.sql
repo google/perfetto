@@ -18,22 +18,21 @@ RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT(STR_SPLIT(STR_SPLIT($thread_name, "-", 0), "[", 0), ":", 0), " ", 0);
 
 -- Per process stats of threads created in a process
---
--- @arg min_thread_dur FLOAT       Minimum duration between creating and destroying a thread before
--- their the thread creation event is considered. If NULL, considers all thread creations.
--- @arg sliding_window_dur FLOAT   Sliding window duration for counting the thread creations. Each
--- window starts at the first thread creation per <process, thread_name_prefix>.
---
--- @column process_name            Process name creating threads.
--- @column pid                     Process pid creating threads.
--- @column thread_name_prefix      String prefix of thread names created.
--- @column max_count_per_sec       Max number of threads created within a time window.
 CREATE PERFETTO FUNCTION android_thread_creation_spam(
-  min_thread_dur FLOAT, sliding_window_dur FLOAT)
+  -- Minimum duration between creating and destroying a thread before their the
+  -- thread creation event is considered. If NULL, considers all thread creations.
+  min_thread_dur FLOAT,
+  -- Sliding window duration for counting the thread creations. Each window
+  -- starts at the first thread creation per <process, thread_name_prefix>.
+  sliding_window_dur FLOAT)
 RETURNS TABLE(
+  -- Process name creating threads.
   process_name STRING,
+  -- Process pid creating threads.
   pid INT,
+  -- String prefix of thread names created.
   thread_name_prefix STRING,
+  -- Max number of threads created within a time window.
   max_count_per_sec INT
 ) AS
 WITH

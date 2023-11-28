@@ -13,21 +13,22 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
 
-CREATE VIEW internal_startup_async_events AS
+CREATE PERFETTO VIEW internal_startup_async_events AS
 SELECT
   ts,
   dur,
-  SUBSTR(name, 19) AS startup_id
+  CAST(SUBSTR(name, 19) AS INT) AS startup_id
 FROM slice
 WHERE
   name GLOB 'launchingActivity#*'
   AND dur != 0
   AND INSTR(name, ':') = 0;
 
-CREATE VIEW internal_startup_complete_events AS
+CREATE PERFETTO VIEW internal_startup_complete_events AS
 SELECT
-  STR_SPLIT(completed, ':', 0) AS startup_id,
+  CAST(STR_SPLIT(completed, ':', 0) AS INT) AS startup_id,
   STR_SPLIT(completed, ':', 2) AS package_name,
   CASE
     WHEN STR_SPLIT(completed, ':', 1) = 'completed-hot' THEN 'hot'
@@ -47,14 +48,14 @@ FROM (
 )
 GROUP BY 1, 2, 3;
 
-INSERT INTO internal_all_startups
+CREATE PERFETTO TABLE internal_startups_minsdk33 AS
 SELECT
-  "minsdk33",
+  "minsdk33" as sdk,
   startup_id,
   ts,
   ts + dur AS ts_end,
   dur,
-  package_name,
+  package_name AS package,
   startup_type
 FROM internal_startup_async_events
 JOIN internal_startup_complete_events USING (startup_id);

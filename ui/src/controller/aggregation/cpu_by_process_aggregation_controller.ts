@@ -13,10 +13,10 @@
 // limitations under the License.
 
 import {ColumnDef} from '../../common/aggregation_data';
-import {Engine} from '../../common/engine';
 import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
+import {Engine} from '../../trace_processor/engine';
 import {CPU_SLICE_TRACK_KIND} from '../../tracks/cpu_slices';
 
 import {AggregationController} from './aggregation_controller';
@@ -26,8 +26,8 @@ export class CpuByProcessAggregationController extends AggregationController {
     await engine.query(`drop view if exists ${this.kind};`);
 
     const selectedCpus: number[] = [];
-    for (const trackId of area.tracks) {
-      const track = globals.state.tracks[trackId];
+    for (const trackKey of area.tracks) {
+      const track = globals.state.tracks[trackKey];
       if (track?.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {

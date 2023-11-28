@@ -14,15 +14,22 @@
 -- limitations under the License.
 
 -- Aggregates f2fs IO and latency stats by counter name.
---
--- @column counter_name   Counter name on which all the other values are aggregated on.
--- @column counter_sum    Sum of all counter values for the counter name.
--- @column counter_max    Max of all counter values for the counter name.
--- @column counter_min    Min of all counter values for the counter name.
--- @column counter_dur    Duration between the first and last counter value for the counter name.
--- @column counter_count  Count of all the counter values for the counter name.
--- @column counter_avg    Avergate of all the counter values for the counter name.
-CREATE VIEW android_io_f2fs_counter_stats AS
+CREATE PERFETTO VIEW android_io_f2fs_counter_stats(
+  -- Counter name on which all the other values are aggregated on.
+  name STRING,
+  -- Sum of all counter values for the counter name.
+  sum INT,
+  -- Max of all counter values for the counter name.
+  max INT,
+  -- Min of all counter values for the counter name.
+  min INT,
+  -- Duration between the first and last counter value for the counter name.
+  dur INT,
+  -- Count of all the counter values for the counter name.
+  count INT,
+  -- Avergate of all the counter values for the counter name.
+  avg DOUBLE
+) AS
 SELECT
   STR_SPLIT(counter_track.name, '].', 1) AS name,
   SUM(counter.value) AS sum,
@@ -38,18 +45,28 @@ GROUP BY name
 ORDER BY sum DESC;
 
 -- Aggregates f2fs_write stats by inode and thread.
---
--- @column utid          Utid of the thread.
--- @column tid           Tid of the thread.
--- @column thread_name   Name of the thread.
--- @column upid          Upid of the process.
--- @column pid           Pid of the process.
--- @column process_name  Name of the thread.
--- @column ino           Inode number of the file being written.
--- @column dev           Device node number of the file being written.
--- @column bytes         Total number of bytes written on this file by the |utid|.
--- @column write_count   Total count of write requests for this file.
-CREATE VIEW android_io_f2fs_write_stats AS
+CREATE PERFETTO VIEW android_io_f2fs_write_stats(
+  -- Utid of the thread.
+  utid INT,
+  -- Tid of the thread.
+  tid INT,
+  -- Name of the thread.
+  thread_name STRING,
+  -- Upid of the process.
+  upid INT,
+  -- Pid of the process.
+  pid INT,
+  -- Name of the thread.
+  process_name STRING,
+  -- Inode number of the file being written.
+  ino INT,
+  -- Device node number of the file being written.
+  dev INT,
+  -- Total number of bytes written on this file by the |utid|.
+  bytes BYTES,
+  -- Total count of write requests for this file.
+  write_count INT
+) AS
 WITH
   f2fs_write_end AS (
     SELECT
@@ -82,14 +99,20 @@ ORDER BY bytes DESC;
 
 -- Aggregates f2fs write stats. Counts distinct datapoints, total write operations,
 -- and bytes written
---
--- @column total_write_count        Total number of writes in the trace.
--- @column distinct_processes       Number of distinct processes.
--- @column total_bytes_written      Total number of bytes written.
--- @column distinct_device_count    Count of distinct devices written to.
--- @column distict_inode_count      Count of distinct inodes written to.
--- @column distinct_thread_count    Count of distinct threads writing.
-CREATE VIEW android_io_f2fs_aggregate_write_stats AS
+CREATE PERFETTO VIEW android_io_f2fs_aggregate_write_stats(
+  -- Total number of writes in the trace.
+  total_write_count INT,
+  -- Number of distinct processes.
+  distinct_processes INT,
+  -- Total number of bytes written.
+  total_bytes_written INT,
+  -- Count of distinct devices written to.
+  distinct_device_count INT,
+  -- Count of distinct inodes written to.
+  distict_inode_count INT,
+  -- Count of distinct threads writing.
+  distinct_thread_count INT
+) AS
 select SUM(write_count) as total_write_count,
       COUNT(DISTINCT pid) distinct_processes,
       SUM(bytes) as total_bytes_written,

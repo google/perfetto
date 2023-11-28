@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/temp_file.h"
 #include "perfetto/ext/base/utils.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/consumer.h"
 #include "perfetto/ext/tracing/core/observable_events.h"
 #include "perfetto/ext/tracing/core/producer.h"
@@ -187,7 +188,7 @@ class TracingServiceImplTest : public testing::Test {
   ProducerID* last_producer_id() { return &svc->last_producer_id_; }
 
   uid_t GetProducerUid(ProducerID producer_id) {
-    return svc->GetProducer(producer_id)->uid_;
+    return svc->GetProducer(producer_id)->uid();
   }
 
   TracingServiceImpl::TracingSession* GetTracingSession(TracingSessionID tsid) {
@@ -1590,9 +1591,10 @@ TEST_F(TracingServiceImplTest, LockdownMode) {
   producer->WaitForDataSourceStart("data_source");
 
   std::unique_ptr<MockProducer> producer_otheruid = CreateMockProducer();
-  auto x = svc->ConnectProducer(producer_otheruid.get(),
-                                base::GetCurrentUserId() + 1,
-                                base::GetProcessId(), "mock_producer_ouid");
+  auto x = svc->ConnectProducer(
+      producer_otheruid.get(),
+      ClientIdentity(base::GetCurrentUserId() + 1, base::GetProcessId()),
+      "mock_producer_ouid");
   EXPECT_CALL(*producer_otheruid, OnConnect()).Times(0);
   task_runner.RunUntilIdle();
   Mock::VerifyAndClearExpectations(producer_otheruid.get());
@@ -2630,6 +2632,46 @@ TEST_F(TracingServiceImplTest, PeriodicFlush) {
                                   Property(&protos::gen::TestEvent::str,
                                            Eq("f_" + std::to_string(i))))));
   }
+}
+
+TEST_F(TracingServiceImplTest, NoFlush) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer_1 = CreateMockProducer();
+  producer_1->Connect(svc.get(), "mock_producer_1");
+  producer_1->RegisterDataSource("ds_flush");
+  producer_1->RegisterDataSource("ds_noflush", false, false, false, true);
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_flush");
+  trace_config.add_data_sources()->mutable_config()->set_name("ds_noflush");
+
+  consumer->EnableTracing(trace_config);
+  producer_1->WaitForTracingSetup();
+  producer_1->WaitForDataSourceSetup("ds_flush");
+  producer_1->WaitForDataSourceSetup("ds_noflush");
+  producer_1->WaitForDataSourceStart("ds_flush");
+  producer_1->WaitForDataSourceStart("ds_noflush");
+
+  std::unique_ptr<MockProducer> producer_2 = CreateMockProducer();
+  producer_2->Connect(svc.get(), "mock_producer_2");
+  producer_2->RegisterDataSource("ds_noflush", false, false, false,
+                                 /*no_flush=*/true);
+  producer_2->WaitForTracingSetup();
+  producer_2->WaitForDataSourceSetup("ds_noflush");
+  producer_2->WaitForDataSourceStart("ds_noflush");
+
+  auto wr_p1_ds1 = producer_1->CreateTraceWriter("ds_flush");
+  producer_1->ExpectFlush(wr_p1_ds1.get());
+
+  EXPECT_CALL(*producer_2, Flush(_, _, _, _)).Times(0);
+
+  auto flush_request = consumer->Flush();
+  ASSERT_TRUE(flush_request.WaitForReply());
+
+  consumer->DisableTracing();
 }
 
 TEST_F(TracingServiceImplTest, PeriodicClearIncrementalState) {
@@ -5114,6 +5156,57 @@ TEST_F(TracingServiceImplTest, StringFilteringAndCloneSession) {
               Not(Contains(Property(&protos::gen::TracePacket::for_testing,
                                     Property(&protos::gen::TestEvent::str,
                                              Eq("B|1023|payload"))))));
+}
+
+// This is a regression test for https://b.corp.google.com/issues/307601836. The
+// test covers the case of a consumer disconnecting while the tracing session is
+// executing the final flush.
+TEST_F(TracingServiceImplTest, ConsumerDisconnectionRacesFlushAndDisable) {
+  std::unique_ptr<MockConsumer> consumer = CreateMockConsumer();
+  consumer->Connect(svc.get());
+
+  std::unique_ptr<MockProducer> producer = CreateMockProducer();
+  producer->Connect(svc.get(), "mock_producer");
+
+  producer->RegisterDataSource("ds");
+
+  TraceConfig trace_config;
+  trace_config.add_buffers()->set_size_kb(128);
+  auto* trigger_config = trace_config.mutable_trigger_config();
+  trigger_config->set_trigger_mode(TraceConfig::TriggerConfig::STOP_TRACING);
+  trigger_config->set_trigger_timeout_ms(100000);
+  auto* trigger = trigger_config->add_triggers();
+  trigger->set_name("trigger_name");
+  auto* ds_cfg = trace_config.add_data_sources()->mutable_config();
+  ds_cfg->set_name("ds");
+
+  consumer->EnableTracing(trace_config);
+  producer->WaitForTracingSetup();
+  producer->WaitForDataSourceSetup("ds");
+  producer->WaitForDataSourceStart("ds");
+
+  auto writer1 = producer->CreateTraceWriter("ds");
+
+  auto producer_flush_cb = [&](FlushRequestID flush_req_id,
+                               const DataSourceInstanceID* /*id*/, size_t,
+                               FlushFlags) {
+    // Notify the tracing service that the flush is complete.
+    producer->endpoint()->NotifyFlushComplete(flush_req_id);
+    // Also disconnect the consumer (this terminates the tracing session). The
+    // consumer disconnection is postponed with a PostTask(). The goal is to run
+    // the lambda inside TracingServiceImpl::FlushAndDisableTracing() with an
+    // empty `tracing_sessions_` map.
+    task_runner.PostTask([&]() { consumer.reset(); });
+  };
+  EXPECT_CALL(*producer, Flush(_, _, _, _)).WillOnce(Invoke(producer_flush_cb));
+
+  // Cause the tracing session to stop. Note that
+  // TracingServiceImpl::FlushAndDisableTracing() is also called when
+  // duration_ms expires, but in a test it's faster to use a trigger.
+  producer->endpoint()->ActivateTriggers({"trigger_name"});
+  producer->WaitForDataSourceStop("ds");
+
+  task_runner.RunUntilIdle();
 }
 
 }  // namespace perfetto

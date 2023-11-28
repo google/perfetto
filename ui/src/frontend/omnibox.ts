@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 import {FuzzySegment} from '../base/fuzzy';
+import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 import {raf} from '../core/raf_scheduler';
 import {EmptyState} from '../widgets/empty_state';
@@ -38,6 +39,7 @@ interface OmniboxOptionRowAttrs {
   label?: string;
 
   // Additional attrs forwarded to the underlying element.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [htmlAttrs: string]: any;
 }
 
@@ -62,7 +64,7 @@ class OmniboxOptionRow implements m.ClassComponent<OmniboxOptionRowAttrs> {
   }
 
   private renderTitle(title: FuzzySegment[]|string): m.Children {
-    if (typeof title === 'string') {
+    if (isString(title)) {
       return title;
     } else {
       return title.map(({matching, value}) => {

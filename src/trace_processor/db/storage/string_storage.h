@@ -16,14 +16,17 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_STRING_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_STRING_STORAGE_H_
 
-#include <variant>
-
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
@@ -31,9 +34,9 @@ namespace storage {
 class StringStorage final : public Storage {
  public:
   StringStorage(StringPool* string_pool,
-                const StringPool::Id* data,
-                uint32_t data_size)
-      : data_(data), size_(data_size), string_pool_(string_pool) {}
+                const std::vector<StringPool::Id>* data,
+                bool is_sorted = false)
+      : values_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
@@ -44,25 +47,39 @@ class StringStorage final : public Storage {
                                uint32_t* indices,
                                uint32_t indices_count,
                                bool sorted = false) const override;
-
   void StableSort(uint32_t* rows, uint32_t rows_size) const override;
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  uint32_t size() const override { return size_; }
+  void Serialize(StorageProto*) const override;
+
+  uint32_t size() const override {
+    return static_cast<uint32_t>(values_->size());
+  }
 
  private:
-  BitVector LinearSearch(FilterOp, SqlValue, RowMap::Range) const;
+  BitVector LinearSearchInternal(FilterOp, SqlValue, RowMap::Range) const;
+
+  RangeOrBitVector IndexSearchInternal(FilterOp op,
+                                       SqlValue sql_val,
+                                       uint32_t* indices,
+                                       uint32_t indices_size,
+                                       bool) const;
 
   RowMap::Range BinarySearchExtrinsic(FilterOp,
                                       SqlValue,
                                       uint32_t*,
                                       uint32_t) const;
 
-  const StringPool::Id* data_ = nullptr;
-  const uint32_t size_ = 0;
+  RowMap::Range BinarySearchIntrinsic(FilterOp op,
+                                      SqlValue val,
+                                      RowMap::Range search_range) const;
 
+  // TODO(b/307482437): After the migration vectors should be owned by storage,
+  // so change from pointer to value.
+  const std::vector<StringPool::Id>* values_ = nullptr;
   StringPool* string_pool_ = nullptr;
+  const bool is_sorted_ = false;
 };
 
 }  // namespace storage

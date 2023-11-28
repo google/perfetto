@@ -27,7 +27,7 @@ SELECT RUN_METRIC(
 );
 
 DROP VIEW IF EXISTS g2d_output;
-CREATE VIEW g2d_output AS
+CREATE PERFETTO VIEW g2d_output AS
 SELECT G2dMetrics(
   'g2d_hw', (SELECT metric FROM g2d_hw_duration_metric),
   'g2d_sw', (SELECT metric FROM g2d_sw_duration_metric)

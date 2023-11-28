@@ -45,6 +45,7 @@ import {TrackGroupAttrs} from './viewer_page';
 const SCROLLING_CANVAS_OVERDRAW_FACTOR = 1.2;
 
 // We need any here so we can accept vnodes with arbitrary attrs.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyAttrsVnode = m.Vnode<any, any>;
 
 export interface Attrs {
@@ -150,8 +151,8 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
-      if (panel.attrs.id !== undefined) {
-        tracks.push(panel.attrs.id);
+      if (panel.attrs.trackKey !== undefined) {
+        tracks.push(panel.attrs.trackKey);
         continue;
       }
       if (panel.attrs.trackGroupId !== undefined) {
@@ -353,7 +354,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       const vnode = assertExists(this.panelByKey.get(key));
 
       // NOTE: the id can be undefined for singletons like overview timeline.
-      const id = vnode.attrs.id || vnode.attrs.trackGroupId || '';
+      const id = vnode.attrs.trackKey || vnode.attrs.trackGroupId || '';
       const rect = panel.getBoundingClientRect();
       this.panelInfos.push({
         id,

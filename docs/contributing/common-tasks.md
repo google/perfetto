@@ -22,33 +22,43 @@ Here is an [example change](https://android-review.googlesource.com/c/platform/e
 
 Files inside the standard library have to be formatted in a very specific way, as its structure is used to generate documentation. There are presubmit checks, but they are not infallible.
 
-- Running the file cannot generate any data. There can be only `CREATE PERFETTO FUNCTION` and `CREATE TABLE` or `CREATE VIEW` statements inside.
-- The name of each table/view/function needs to start with `{module_name}_` or `{internal_}`. Views/tables are must be `[a-z_]`, while functions are `[A-Z_]`. When a module is imported (using the `IMPORT` function), objects prefixed with internal should not be used.
+- Running the file cannot generate any data. There can be only
+  `CREATE PERFETTO FUNCTION`, `CREATE PERFETTO TABLE` and `CREATE PERFETTO VIEW` statements inside.
+- The name of each table/view/function needs to start with `{module_name}_` or `{internal_}`.
+  The names of views/tables/functions are must be `[a-z_]`. When a module is imported (using the `IMPORT` function), objects prefixed with internal should not be used.
   - The only exception is the `common` module. The name of functions/views/tables inside should not be prefixed with `common_`, as they are supposed to be module agnostic and widely used.
-- Every non internal object has be prefixed with an SQL comment following a particular documentation schema e.g. similar to javadoc. The schema is a comment directly over the SQL which creates it, without empty lines. Any text is going to be parsed as markdown, so usage of markdown functionality (code, links, lists) is encouraged. Whitespaces in anything apart from descriptions are ignored, so comments can be formatted neatly. If the line with description exceeds 80 chars, description can be continued in following lines.
-  - **Table/view**: each has to have object description and list of columns.
-    - Description is any text above column comments.
-    - For each column there has to be a comment line `-- @column {col name} {col description}`.
-  - **Scalar Functions**: each has to have a function description, list of arguments (names, types, description) and description of return value in this order.
-    - Function description is any text above argument comments.
-    - For each argument there has to be a comment line `-- @arg {arg name} {arg type} {arg description}`. Arg name should follow `[a-z_]*`, arg type has to be exactly the same as specified in the function, so `[A-Z]*`.
-    - Return comment is `-- @ret {return type} {return description}`. Return type should be exactly the same as specified in the function, so `[A-Z]*`.
+- Every table or view should have [a schema](/docs/analysis/perfetto-sql-syntax.md#tableview-schema).
+- Every non internal object, as well as its function arguments and columns in its schema have to be prefixed with an SQL comment documenting it.
+  Any text is going to be parsed as markdown, so usage of markdown functionality (code, links, lists) is encouraged.
+  Whitespaces in anything apart from descriptions are ignored, so comments can be formatted neatly.
+  If the line with description exceeds 80 chars, description can be continued in following lines.
+  - **Table/view**: each has to have schema, object description and a comment above each column's definition in the schema.
+    - Description is any text in the comment above `CREATE PERFETTO {TABLE,VIEW}` statement.
+    - Column's comment is the text immediately above column definition in the schema.
+  - **Scalar Functions**: each has to have a function description and description of return value in this order.
+    - Function description is any text in the comment above `CREATE PERFETTO FUNCTION` statement.
+    - For each argument there has to be a comment line immediately above argument definition.
+    - Return comment should immediately precede `RETURNS`.
   - **Table Functions**: each has to have a function description, list of arguments (names, types, description) and list of columns.
-    - Function description is any text above argument comments.
-    - For each argument there has to be a comment line `-- @arg {arg name} {arg type} {arg description}`. Arg name should follow `[a-z_]*`, arg type has to be exactly the same as specified in the function, so `[A-Z]*`.
-    - For each column there has to be a comment line `-- @column {col name} {col description}`.
+    - Function description is any text in the comment above `CREATE PERFETTO FUNCTION` statement.
+    - For each argument there has to be a comment line immediately above argument definition.
+    - For each column there has to be a comment line immediately above column definition.
 
 NOTE: Break lines outside of import description will be ignored.
 
 Example of properly formatted view in module `android`:
 ```sql
 -- Count Binder transactions per process.
---
--- @column process_name  Name of the process that started the binder transaction.
--- @column pid           PID of the process that started the binder transaction.
--- @column slice_name    Name of the slice with binder transaction.
--- @column event_count   Number of binder transactions in process in slice.
-CREATE VIEW android_binder_metrics_by_process AS
+CREATE PERFETTO VIEW android_binder_metrics_by_process(
+  -- Name of the process that started the binder transaction.
+  process_name STRING,
+  -- PID of the process that started the binder transaction.
+  pid INT,
+-- Name of the slice with binder transaction.
+  slice_name STRING,
+-- Number of binder transactions in process in slice.
+  event_count INT
+) AS
 SELECT
   process.name AS process_name,
   process.pid AS pid,
@@ -68,10 +78,10 @@ GROUP BY
 Example of function in module `common`:
 ```sql
 -- Extracts an int value with the given name from the metadata table.
---
--- @arg name STRING The name of the metadata entry.
--- @ret LONG int_value for the given name. NULL if there's no such entry.
-CREATE PERFETTO FUNCTION extract_int_metadata(name STRING)
+CREATE PERFETTO FUNCTION extract_int_metadata(
+  -- The name of the metadata entry.
+  name STRING)
+-- int_value for the given name. NULL if there's no such entry.
 RETURNS LONG
 AS SELECT int_value FROM metadata WHERE name = ($name)
 ```
@@ -79,23 +89,22 @@ AS SELECT int_value FROM metadata WHERE name = ($name)
 Example of table function in module `android`:
 ```sql
 -- Given a launch id and GLOB for a slice name, returns columns for matching slices.
---
--- @arg launch_id INT         Id of launch.
--- @arg slice_name STRING     Name of slice with launch.
--- @column slice_name         Name of slice with launch.
--- @column slice_ts INT       Timestamp of slice start.
--- @column slice_dur INT      Duration of slice.
--- @column thread_name STRING Name of thread with slice
--- @column arg_set_id INT     Arg set id.
 CREATE PERFETTO FUNCTION ANDROID_SLICES_FOR_LAUNCH_AND_SLICE_NAME(
+  -- Id of launch.
   launch_id INT,
+  -- Name of slice with launch.
   slice_name STRING
 )
 RETURNS TABLE(
+  -- Name of slice with launch.
   slice_name STRING,
+  -- Timestamp of slice start.
   slice_ts INT,
+  -- Duration of slice.
   slice_dur INT,
+  -- Name of thread with slice.
   thread_name STRING,
+  -- Arg set id.
   arg_set_id INT
 )
 AS

@@ -15,20 +15,21 @@
 import m from 'mithril';
 
 import {assertExists, assertTrue} from '../base/logging';
+import {isString} from '../base/object_utils';
 import {Actions} from '../common/actions';
 import {getCurrentChannel} from '../common/channels';
 import {TRACE_SUFFIX} from '../common/constants';
 import {ConversionJobStatus} from '../common/conversion_jobs';
-import {Engine} from '../common/engine';
-import {featureFlags} from '../common/feature_flags';
 import {
   disableMetatracingAndGetTrace,
   enableMetatracing,
   isMetatracingEnabled,
 } from '../common/metatracing';
 import {EngineMode} from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
+import {Engine} from '../trace_processor/engine';
 
 import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
@@ -769,8 +770,8 @@ export class Sidebar implements m.ClassComponent {
         let css = '';
         let attrs = {
           onclick: typeof item.a === 'function' ? item.a : null,
-          href: typeof item.a === 'string' ? item.a : '#',
-          target: typeof item.a === 'string' ? '_blank' : null,
+          href: isString(item.a) ? item.a : '#',
+          target: isString(item.a) ? '_blank' : null,
           disabled: false,
           id: item.t.toLowerCase().replace(/[^\w]/g, '_'),
         };

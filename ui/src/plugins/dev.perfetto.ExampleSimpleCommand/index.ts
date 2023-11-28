@@ -21,7 +21,7 @@ import {
 // This is just an example plugin, used to prove that the plugin system works.
 class ExampleSimpleCommand implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
       name: 'Log "Hello, world!"',
       callback: () => console.log('Hello, world!'),

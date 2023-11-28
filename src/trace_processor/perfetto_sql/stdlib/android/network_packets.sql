@@ -14,22 +14,40 @@
 -- limitations under the License.
 
 -- Android network packet events (from android.network_packets data source).
---
--- @column ts                  Timestamp in nanoseconds.
--- @column dur                 Duration (non-zero only in aggregate events)
--- @column track_name          The track name (interface and direction)
--- @column package_name        Traffic package source (or uid=$X if not found)
--- @column iface               Traffic interface name (linux interface name)
--- @column direction           Traffic direction ('Transmitted' or 'Received')
--- @column packet_count        Number of packets in this event
--- @column packet_length       Number of bytes in this event (wire size)
--- @column packet_transport    Transport used for traffic in this event
--- @column packet_tcp_flags    TCP flags used by tcp frames in this event
--- @column socket_tag          The Android traffic tag of the network socket
--- @column socket_uid          The Linux user id of the network socket
--- @column local_port          The local port number (for udp or tcp only)
--- @column remote_port         The remote port number (for udp or tcp only)
-CREATE VIEW android_network_packets AS
+CREATE PERFETTO VIEW android_network_packets(
+  -- Timestamp in nanoseconds.
+  ts INT,
+  -- Duration (non-zero only in aggregate events)
+  dur INT,
+  -- The track name (interface and direction)
+  track_name STRING,
+  -- Traffic package source (or uid=$X if not found)
+  package_name STRING,
+  -- Traffic interface name (linux interface name)
+  iface STRING,
+  -- Traffic direction ('Transmitted' or 'Received')
+  direction STRING,
+  -- Number of packets in this event
+  packet_count INT,
+  -- Number of bytes in this event (wire size)
+  packet_length INT,
+  -- Transport used for traffic in this event
+  packet_transport STRING,
+  -- TCP flags used by tcp frames in this event
+  packet_tcp_flags INT,
+  -- The Android traffic tag of the network socket
+  socket_tag STRING,
+  -- The Linux user id of the network socket
+  socket_uid INT,
+  -- The local port number (for udp or tcp only)
+  local_port INT,
+  -- The remote port number (for udp or tcp only)
+  remote_port INT,
+  -- 1-byte ICMP type identifier.
+  packet_icmp_type INT,
+  -- 1-byte ICMP code identifier.
+  packet_icmp_code INT
+) AS
 SELECT
   ts,
   dur,

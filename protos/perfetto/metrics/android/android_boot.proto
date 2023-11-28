@@ -29,4 +29,10 @@ message AndroidBootMetric {
   optional ProcessStateDurations systemui_durations = 2;
   optional ProcessStateDurations launcher_durations = 3;
   optional ProcessStateDurations gms_durations = 4;
+  // Launcher related boot metrics
+  message LauncherBreakdown {
+    //  reports cold start time of NexusLauncher
+    optional int64 cold_start_dur = 1;
+  }
+  optional LauncherBreakdown launcher_breakdown = 5;
 }

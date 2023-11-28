@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EnableTracingRequest, TraceConfig} from '../core/protos';
+import {EnableTracingRequest, TraceConfig} from '../protos';
 
 // In this file are contained a few functions to simplify the proto parsing.
 

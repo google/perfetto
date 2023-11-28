@@ -15,32 +15,29 @@
 --
 
 -- Extracts the blocking thread from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_thread(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, "with owner ", 1), " (", 0);
 
 -- Extracts the blocking thread tid from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret INT                 Blocking thread tid
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_tid(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread tid
 RETURNS INT AS
 SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, " (", 1), ")", 0) AS INT);
 
 -- Extracts the blocking method from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_method(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
     || "("
@@ -49,23 +46,21 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, ") at ", 1), "(", 0)
 -- Extracts a shortened form of the blocking method name from a slice name.
 -- The shortened form discards the parameter and return
 -- types.
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocking_method(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT
     STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocking_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the monitor contention blocked method from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_method(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
     || "("
@@ -74,43 +69,39 @@ SELECT STR_SPLIT(STR_SPLIT($slice_name, "blocking from ", 1), "(", 0)
 -- Extracts a shortened form of the monitor contention blocked method name
 -- from a slice name. The shortened form discards the parameter and return
 -- types.
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_short_blocked_method(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT
     STR_SPLIT(STR_SPLIT(android_extract_android_monitor_contention_blocked_method($slice_name), " ", 1), "(", 0);
 
 -- Extracts the number of waiters on the monitor from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret INT                 Count of waiters on the lock
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_waiter_count(
+  -- Name of slice
   slice_name STRING
 )
+-- Count of waiters on the lock
 RETURNS INT AS
 SELECT CAST(STR_SPLIT(STR_SPLIT($slice_name, "waiters=", 1), " ", 0) AS INT);
 
 -- Extracts the monitor contention blocking source location from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocking_src(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 1), ")", 0);
 
 -- Extracts the monitor contention blocked source location from a slice name
---
--- @arg slice_name STRING   Name of slice
--- @ret STRING              Blocking thread
 CREATE PERFETTO FUNCTION android_extract_android_monitor_contention_blocked_src(
+  -- Name of slice
   slice_name STRING
 )
+-- Blocking thread
 RETURNS STRING AS
 SELECT STR_SPLIT(STR_SPLIT($slice_name, ")(", 2), ")", 0);
 
@@ -267,7 +258,7 @@ CREATE INDEX internal_android_monitor_contention_chain_idx
 -- the lock. That way, the thread state span joins below only compute the thread states where
 -- the blocking thread is actually holding the lock. This avoids counting the time when another
 -- waiter acquired the lock before the first waiter.
-CREATE VIEW internal_first_blocked_contention
+CREATE PERFETTO VIEW internal_first_blocked_contention
   AS
 SELECT start.id, start.blocking_utid, start.ts, MIN(end.ts + end.dur) - start.ts AS dur
 FROM android_monitor_contention_chain start
@@ -279,7 +270,7 @@ JOIN android_monitor_contention_chain end
 WHERE start.waiter_count = 0
 GROUP BY start.id;
 
-CREATE VIEW internal_blocking_thread_state
+CREATE PERFETTO VIEW internal_blocking_thread_state
 AS
 SELECT utid AS blocking_utid, ts, dur, state, blocked_function
 FROM thread_state;
@@ -328,14 +319,16 @@ USING
 --
 -- Note that this data is only available for the first waiter on a lock.
 --
--- @column id Slice id of the monitor contention.
--- @column thread_state A |thread_state| that occurred in the blocking thread during the contention.
--- @column thread_state_dur Total time the blocking thread spent in the |thread_state| during
--- contention.
--- @column thread_state_count Count of all times the blocking thread entered |thread_state| during
--- the contention.
-CREATE VIEW android_monitor_contention_chain_thread_state_by_txn
-AS
+CREATE PERFETTO VIEW android_monitor_contention_chain_thread_state_by_txn(
+  -- Slice id of the monitor contention.
+  id INT,
+  -- A |thread_state| that occurred in the blocking thread during the contention.
+  thread_state STRING,
+  -- Total time the blocking thread spent in the |thread_state| during contention.
+  thread_state_dur INT,
+  -- Count of all times the blocking thread entered |thread_state| during the contention.
+  thread_state_count INT
+) AS
 SELECT
   id,
   state AS thread_state,
@@ -350,16 +343,16 @@ GROUP BY id, thread_state;
 -- blocked function durations on the blocking thread.
 --
 -- Note that this data is only available for the first waiter on a lock.
---
--- @column id Slice id of the monitor contention.
--- @column blocked_function Blocked kernel function in a thread state in the blocking thread during
--- the contention.
--- @column blocked_function_dur Total time the blocking thread spent in the |blocked_function|
--- during the contention.
--- @column blocked_function_count Count of all times the blocking thread executed the
--- |blocked_function| during the contention.
-CREATE VIEW android_monitor_contention_chain_blocked_functions_by_txn
-AS
+CREATE PERFETTO VIEW android_monitor_contention_chain_blocked_functions_by_txn(
+  -- Slice id of the monitor contention.
+  id INT,
+  -- Blocked kernel function in a thread state in the blocking thread during the contention.
+  blocked_function STRING,
+  -- Total time the blocking thread spent in the |blocked_function| during the contention.
+  blocked_function_dur INT,
+  -- Count of all times the blocking thread executed the |blocked_function| during the contention.
+  blocked_function_count INT
+) AS
 SELECT
   id,
   blocked_function,
@@ -374,11 +367,12 @@ GROUP BY id, blocked_function;
 -- Each edge connects from a node waiting on a lock to a node holding a lock.
 -- The weights of each node represent the cumulative wall time the node blocked
 -- other nodes connected to it.
---
--- @arg upid INT         Upid of process to generate a lock graph for.
--- @column pprof BYTES   Pprof of lock graph.
-CREATE PERFETTO FUNCTION android_monitor_contention_graph(upid INT)
-RETURNS TABLE(pprof BYTES) AS
+CREATE PERFETTO FUNCTION android_monitor_contention_graph(
+  -- Upid of process to generate a lock graph for.
+  upid INT)
+RETURNS TABLE(
+  -- Pprof of lock graph.
+  pprof BYTES) AS
 WITH contention_chain AS (
 SELECT *,
        IIF(blocked_thread_name GLOB 'binder:*', 'binder', blocked_thread_name)

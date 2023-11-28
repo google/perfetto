@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {DataSourceDescriptor} from '../../core/protos';
+import {DataSourceDescriptor} from '../../protos';
 import {globals} from '../globals';
 import {
   Dropdown,

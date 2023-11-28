@@ -14,13 +14,18 @@
 -- limitations under the License.
 
 -- Battery charge at timestamp.
---
--- @column ts                  Timestamp.
--- @column current_avg_ua      Current average micro ampers.
--- @column capacity_percent    Current capacity percentage.
--- @column charge_uah          Current charge in micro ampers.
--- @column current_ua          Current micro ampers.
-CREATE VIEW android_battery_charge AS
+CREATE PERFETTO VIEW android_battery_charge(
+  -- Timestamp.
+  ts INT,
+  -- Current average micro ampers.
+  current_avg_ua INT,
+  -- Current capacity percentage.
+  capacity_percent INT,
+  -- Current charge in micro ampers.
+  charge_uah INT,
+  -- Current micro ampers.
+  current_ua INT
+)  AS
 SELECT
   all_ts.ts,
   current_avg_ua,

@@ -18,11 +18,11 @@ INCLUDE PERFETTO MODULE android.binder;
 
 -- Count Binder transactions per process
 DROP VIEW IF EXISTS binder_metrics_by_process;
-CREATE VIEW binder_metrics_by_process AS
+CREATE PERFETTO VIEW binder_metrics_by_process AS
 SELECT * FROM android_binder_metrics_by_process;
 
 DROP VIEW IF EXISTS android_binder_output;
-CREATE VIEW android_binder_output AS
+CREATE PERFETTO VIEW android_binder_output AS
 SELECT AndroidBinderMetric(
   'process_breakdown', (
     SELECT RepeatedField(

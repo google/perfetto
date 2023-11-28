@@ -15,9 +15,9 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 import {createPage} from './pages';

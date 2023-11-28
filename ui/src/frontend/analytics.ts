@@ -36,6 +36,7 @@ export function initAnalytics() {
 }
 
 const gtagGlobals = window as {} as {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dataLayer: any[];
   gtag: (command: string, event: string|Date, args?: {}) => void;
 };
@@ -70,6 +71,7 @@ class AnalyticsImpl implements Analytics {
     // [1] https://developers.google.com/analytics/devguides/collection/gtagjs .
     gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function gtagFunction(..._: any[]) {
       // This needs to be a function and not a lambda. |arguments| behaves
       // slightly differently in a lambda and breaks GA.

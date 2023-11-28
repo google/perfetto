@@ -64,8 +64,8 @@ They can be accessed via the omnibox.
 Follow the [create a plugin](#create-a-plugin) to get an initial
 skeleton for your plugin.
 
-To add your first command, add a call to `ctx.addCommand()` in either your
-`onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
+To add your first command, add a call to `ctx.registerCommand()` in either
+your `onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
 commands in `onActivate()` by default unless they require something from
 `TracePluginContext` which is not available on `PluginContext`.
 
@@ -76,7 +76,7 @@ available all the time the plugin is active.
 ```typescript
 class MyPlugin implements Plugin {
   onActivate(ctx: PluginContext): void {
-    ctx.addCommand(
+    ctx.registerCommand(
        {
          id: 'dev.perfetto.ExampleSimpleCommand#LogHelloPlugin',
          name: 'Log "Hello, plugin!"',
@@ -86,7 +86,7 @@ class MyPlugin implements Plugin {
   }
 
   onTraceLoad(ctx: TracePluginContext): void {
-    ctx.addCommand(
+    ctx.registerCommand(
        {
          id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloTrace',
          name: 'Log "Hello, trace!"',
@@ -114,6 +114,26 @@ Examples:
 - [dev.perfetto.ExampleSimpleCommand](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleSimpleCommand/index.ts).
 - [dev.perfetto.CoreCommands](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.CoreCommands/index.ts).
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).
+
+#### Hotkeys
+
+A default hotkey may be provided when registering a command.
+
+```typescript
+ctx.registerCommand({
+  id: 'dev.perfetto.ExampleSimpleCommand#LogHelloWorld',
+  name: 'Log "Hello, World!"',
+  callback: () => console.log('Hello, World!'),
+  defaultHotkey: 'Shift+H',
+});
+```
+
+Even though the hotkey is a string, it's format checked at compile time using 
+typescript's [template literal types](https://www.typescriptlang.org/docs/handbook/2/template-literal-types.html).
+
+See [hotkey.ts](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/base/hotkeys.ts)
+for more details on how the hotkey syntax works, and for the available keys and
+modifiers.
 
 ### Tracks
 TBD
@@ -176,58 +196,73 @@ interface MyState {
 }
 ```
 
-This interface will be used as type parameter to the `Plugin` and
-`TracePluginContext` interfaces.
+To access permalink state, call `mountStore()` on your `TracePluginContext`
+object, passing in a migration function.
 ```typescript
-class MyPlugin implements Plugin<MyState> {
-
-  migrate(initialState: unknown): MyState {
-    // ...
+class MyPlugin implements Plugin {
+  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+    const store = ctx.mountStore(migrate);
   }
+}
 
-  async onTraceLoad(ctx: TracePluginContext<MyState>): Promise<void> {
-    // You can access the store on ctx.store
-  }
-
-  async onTraceUnload(ctx: TracePluginContext<MyState>): Promise<void> {
-    // You can access the store on ctx.store
-  }
-
+function migrate(initialState: unknown): MyState {
   // ...
 }
 ```
 
-`migrate()` is called after `onActivate()` just before `onTraceLoad()`. There
-are two cases to consider:
+When it comes to migration, there are two cases to consider:
 - Loading a new trace
 - Loading from a permalink
 
-In case of a new trace `migrate()` is called with `undefined`. In this
-case you should return a default version of `MyState`:
+In case of a new trace, your migration function is called with `undefined`. In
+this case you should return a default version of `MyState`:
 ```typescript
-class MyPlugin implements Plugin<MyState> {
+const DEFAULT = {favouriteSlices: []};
 
-  migrate(initialState: unknown): MyState {
-    if (initialState === undefined) {
-      return {
-        favouriteSlices: [];
-      };
-    }
-    // ...
+function migrate(initialState: unknown): MyState {
+  if (initialState === undefined) {
+    // Return default version of MyState.
+    return DEFAULT;
+  } else {
+    // Migrate old version here.
   }
-
-  // ...
 }
 ```
 
-In the permalink case `migrate()` is called with the state of the plugin
-store at the time the permalink was generated. This may be from a
-older or newer version of the plugin.
-**Plugin's must not make assumptions about the contents of `initialState`**.
+In the permalink case, your migration function is called with the state of the
+plugin store at the time the permalink was generated. This may be from an older
+or newer version of the plugin.
 
-In this case you need to carefully validate the state object.
+**Plugins must not make assumptions about the contents of `initialState`!**
 
-TODO: Add validation example.
+In this case you need to carefully validate the state object. This could be
+achieved in several ways, none of which are particularly straight forward. State
+migration is difficult!
+
+One brute force way would be to use a version number.
+
+```typescript
+interface MyState {
+  version: number;
+  favouriteSlices: MySliceInfo[];
+}
+
+const VERSION = 3;
+const DEFAULT = {favouriteSlices: []};
+
+function migrate(initialState: unknown): MyState {
+  if (initialState && (initialState as {version: any}).version === VERSION) {
+    // Version number checks out, assume the structure is correct.
+    return initialState as State;
+  } else {
+    // Null, undefined, or bad version number - return default value.
+    return DEFAULT;
+  }
+}
+```
+
+You'll need to remember to update your version number when making changes!
+Migration should be unit-tested to ensure compatibility.
 
 Examples:
 - [dev.perfetto.ExampleState](https://cs.android.com/android/platform/superproject/main/+/main:external/perfetto/ui/src/plugins/dev.perfetto.ExampleState/index.ts).

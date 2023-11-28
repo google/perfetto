@@ -55,7 +55,8 @@ class MockProducer : public Producer {
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,
-                          bool handle_incremental_state_clear = false);
+                          bool handle_incremental_state_clear = false,
+                          bool no_flush = false);
   void UnregisterDataSource(const std::string& name);
   void RegisterTrackEventDataSource(
       const std::initializer_list<std::string>& categories,

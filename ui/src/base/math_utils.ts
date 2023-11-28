@@ -16,3 +16,10 @@
 export function clamp(val: number, lower: number, upper: number): number {
   return Math.max(lower, Math.min(upper, val));
 }
+
+const FLOAT_EPSILON = 1e-9;
+
+// Returns true if two floats are close enough to be considered equal.
+export function floatEqual(a: number, b: number, eps = FLOAT_EPSILON): boolean {
+  return Math.abs(a - b) < eps;
+}

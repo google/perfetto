@@ -1,0 +1,76 @@
+android_startup {
+  startup {
+    startup_id: 2
+    package_name: "com.google.android.calendar"
+    process_name: "com.google.android.calendar"
+    zygote_new_process: false
+    to_first_frame {
+      dur_ns: 108
+      main_thread_by_task_state {
+        running_dur_ns: 10
+        runnable_dur_ns: 80
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 10
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
+      }
+      other_processes_spawned_count: 1
+      time_activity_manager {
+        dur_ns: 8
+        dur_ms: 8e-06
+      }
+      time_activity_start {
+        dur_ns: 2
+        dur_ms: 2e-06
+      }
+      time_activity_resume {
+        dur_ns: 1
+        dur_ms: 1e-06
+      }
+      dur_ms: 0.000108
+      time_to_running_state {
+        dur_ns: 8
+        dur_ms: 8e-06
+      }
+    }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      },
+      pid: 3
+    }
+    report_fully_drawn {
+      dur_ns: 198
+      dur_ms: 0.000198
+    }
+    event_timestamps {
+      intent_received: 102
+      first_frame: 210
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
+      most_active_non_launch_processes: "init"
+      most_active_non_launch_processes: "com.google.android.calendar"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
+    }
+    slow_start_reason_detailed {
+      reason: "Main Thread - Time spent in Runnable state"
+      details: " target 15% actual 74.07% [ longest_chunk: start_s 3.0e-08 dur_ms 8.0e-0 thread_id 3 thread_name com.google.android.calendar ] [ extra_info:  launches_dur_ms 0.0001 runnable_dur_ms 8.0e-0 R_sum_dur_ms 8.0e-0 R+(Preempted)_sum_dur_ms 0.0 ]"
+    } 
+    startup_type: "warm"
+  }
+}

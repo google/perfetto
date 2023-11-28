@@ -101,9 +101,9 @@ struct Sqrt : public SqlFunction {
 }  // namespace
 
 base::Status RegisterMathFunctions(PerfettoSqlEngine& engine) {
-  RETURN_IF_ERROR(engine.RegisterCppFunction<Ln>("ln", 1, nullptr, true));
-  RETURN_IF_ERROR(engine.RegisterCppFunction<Exp>("exp", 1, nullptr, true));
-  return engine.RegisterCppFunction<Sqrt>("sqrt", 1, nullptr, true);
+  RETURN_IF_ERROR(engine.RegisterStaticFunction<Ln>("ln", 1, nullptr, true));
+  RETURN_IF_ERROR(engine.RegisterStaticFunction<Exp>("exp", 1, nullptr, true));
+  return engine.RegisterStaticFunction<Sqrt>("sqrt", 1, nullptr, true);
 }
 
 }  // namespace perfetto::trace_processor

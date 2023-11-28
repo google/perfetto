@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from './engine';
-import {STR} from './query_result';
+import {EngineProxy} from '../trace_processor/engine';
+import {STR} from '../trace_processor/query_result';
 
 const CACHED_SCHEMAS = new WeakMap<EngineProxy, DatabaseSchema>();
 

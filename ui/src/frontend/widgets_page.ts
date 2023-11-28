@@ -16,6 +16,7 @@ import m from 'mithril';
 
 import {classNames} from '../base/classnames';
 import {Hotkey, Platform} from '../base/hotkeys';
+import {isString} from '../base/object_utils';
 import {Icons} from '../base/semantic_icons';
 import {raf} from '../core/raf_scheduler';
 import {Anchor} from '../widgets/anchor';
@@ -41,11 +42,11 @@ import {Switch} from '../widgets/switch';
 import {TextInput} from '../widgets/text_input';
 import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
+import {VegaView} from '../widgets/vega_view';
 
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
-import {VegaView} from './widgets/vega_view';
 
 const DATA_ENGLISH_LETTER_FREQUENCY = {
   table: [
@@ -256,6 +257,7 @@ function PortalButton() {
   let portalOpen = false;
 
   return {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     view: function({attrs}: any) {
       const {
         zIndex = true,
@@ -350,12 +352,14 @@ interface WidgetShowcaseAttrs {
   label: string;
   description?: string;
   initialOpts?: Options;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderWidget: (options: any) => any;
   wide?: boolean;
 }
 
 // A little helper class to render any vnode with a dynamic set of options
 class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private optValues: any = {};
   private opts?: Options;
 
@@ -381,7 +385,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
             this.optValues[key] = option.initial;
           } else if (typeof option === 'boolean') {
             this.optValues[key] = option;
-          } else if (typeof option === 'string') {
+          } else if (isString(option)) {
             this.optValues[key] = option;
           }
         }
@@ -428,7 +432,7 @@ class WidgetShowcase implements m.ClassComponent<WidgetShowcaseAttrs> {
       return this.renderEnumOption(key, value);
     } else if (typeof value === 'boolean') {
       return this.renderBooleanOption(key);
-    } else if (typeof value === 'string') {
+    } else if (isString(value)) {
       return this.renderStringOption(key);
     } else {
       return null;
@@ -507,6 +511,7 @@ export const WidgetsPage = createPage({
         }),
         m(WidgetShowcase, {
           label: 'Switch',
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           renderWidget: ({label, ...rest}: any) =>
               m(Switch, {label: label ? 'Switch' : undefined, ...rest}),
           initialOpts: {

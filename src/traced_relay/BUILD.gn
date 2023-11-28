@@ -14,6 +14,7 @@
 
 import("../../gn/perfetto.gni")
 import("../../gn/perfetto_component.gni")
+import("../../gn/test.gni")
 
 executable("traced_relay") {
   deps = [
@@ -44,4 +45,34 @@ source_set("lib") {
     "../base",
     "//src/ipc:perfetto_ipc",
   ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../base",
+    "../base:test_support",
+    "../base/threading",
+    "//src/ipc:perfetto_ipc",
+  ]
+  sources = [
+    "relay_service_unittest.cc",
+    "socket_relay_handler_unittest.cc",
+  ]
+}
+
+source_set("integrationtests") {
+  testonly = true
+  deps = [
+    ":lib",
+    "../../gn:default_deps",
+    "../../gn:gtest_and_gmock",
+    "../../test:test_helper",
+    "../base",
+    "../base:test_support",
+  ]
+  sources = [ "relay_service_integrationtest.cc" ]
 }

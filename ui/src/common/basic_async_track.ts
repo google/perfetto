@@ -18,14 +18,12 @@ import {duration, Span, Time, time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {SliceRect} from '../frontend/track';
-import {TrackButtonAttrs} from '../frontend/track_panel';
-import {Track} from '../public';
+import {SliceRect, Track, TrackContext} from '../public';
 
 import {TrackData} from './track_data';
 
 export {Store} from '../frontend/store';
-export {EngineProxy} from './engine';
+export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
   LONG_NULL,
@@ -33,7 +31,7 @@ export {
   NUM_NULL,
   STR,
   STR_NULL,
-} from './query_result';
+} from '../trace_processor/query_result';
 
 // This shim track provides the base for async style tracks implementing the new
 // plugin track interface.
@@ -46,7 +44,7 @@ export abstract class BasicAsyncTrack<Data> implements Track {
   private currentState?: TrackData;
   protected data?: Data;
 
-  onCreate(): void {}
+  onCreate(_ctx: TrackContext): void {}
 
   onDestroy(): void {
     this.queuedRequest = false;
@@ -67,12 +65,8 @@ export abstract class BasicAsyncTrack<Data> implements Track {
 
   abstract getHeight(): number;
 
-  getTrackShellButtons(): m.Vnode<TrackButtonAttrs, {}>[] {
+  getTrackShellButtons(): m.Children {
     return [];
-  }
-
-  getContextMenu(): m.Vnode<any, {}>|null {
-    return null;
   }
 
   onMouseMove(_position: {x: number; y: number;}): void {}

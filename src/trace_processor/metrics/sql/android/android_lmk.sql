@@ -38,7 +38,7 @@ LEFT JOIN oom_score_span oom_scores
 ORDER BY 1;
 
 DROP VIEW IF EXISTS android_lmk_event;
-CREATE VIEW android_lmk_event AS
+CREATE PERFETTO VIEW android_lmk_event AS
 WITH raw_events AS (
   SELECT
     ts,
@@ -78,7 +78,7 @@ SELECT
 FROM lmks_with_proc_name AS lmk;
 
 DROP VIEW IF EXISTS android_lmk_output;
-CREATE VIEW android_lmk_output AS
+CREATE PERFETTO VIEW android_lmk_output AS
 WITH lmk_counts AS (
   SELECT score, COUNT(1) AS count
   FROM lmk_events

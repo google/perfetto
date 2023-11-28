@@ -29,7 +29,7 @@ TEST(NumericStorageUnittest, StableSortTrivial) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
-  NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
   RowMap rm(0, 9);
   storage.StableSort(out.data(), 9);
 
@@ -41,7 +41,7 @@ TEST(NumericStorageUnittest, StableSort) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
 
-  NumericStorage storage(data_vec.data(), 9, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
   RowMap rm(0, 9);
   storage.StableSort(out.data(), 9);
 
@@ -52,7 +52,7 @@ TEST(NumericStorageUnittest, StableSort) {
 TEST(NumericStorageUnittest, CompareFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
   RangeOrBitVector range_or_bv =
       storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128));
   BitVector bv = std::move(range_or_bv).TakeIfBitVector();
@@ -64,7 +64,7 @@ TEST(NumericStorageUnittest, CompareFast) {
 TEST(NumericStorageUnittest, CompareSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32, true);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
   Range range =
       storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(0, 128))
           .TakeIfRange();
@@ -73,10 +73,20 @@ TEST(NumericStorageUnittest, CompareSorted) {
   ASSERT_EQ(range.end, 128u);
 }
 
+TEST(NumericStorageUnittest, CompareSortedNe) {
+  std::vector<uint32_t> data_vec(128);
+  std::iota(data_vec.begin(), data_vec.end(), 0);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
+  BitVector bv =
+      storage.Search(FilterOp::kNe, SqlValue::Long(100), Range(0, 128))
+          .TakeIfBitVector();
+  ASSERT_EQ(bv.CountSetBits(), 127u);
+}
+
 TEST(NumericStorageUnittest, CompareSortedSubset) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
-  NumericStorage storage(data_vec.data(), 128, ColumnType::kUint32, true);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
   Range range =
       storage.Search(FilterOp::kGe, SqlValue::Long(100), Range(102, 104))
           .TakeIfRange();
@@ -89,7 +99,7 @@ TEST(NumericStorageUnittest, CompareSortedIndexesGreaterEqual) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
-  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
 
   Range range = storage
                     .IndexSearch(FilterOp::kGe, SqlValue::Long(60),
@@ -105,7 +115,7 @@ TEST(NumericStorageUnittest, CompareSortedIndexesLess) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
-  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
 
   Range range = storage
                     .IndexSearch(FilterOp::kLt, SqlValue::Long(60),
@@ -121,7 +131,7 @@ TEST(NumericStorageUnittest, CompareSortedIndexesEqual) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
-  NumericStorage storage(data_vec.data(), 10, ColumnType::kUint32);
+  NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
 
   Range range = storage
                     .IndexSearch(FilterOp::kEq, SqlValue::Long(60),

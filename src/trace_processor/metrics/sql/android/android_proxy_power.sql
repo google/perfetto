@@ -26,7 +26,7 @@
 --     FROM power_per_thread
 --     GROUP BY utid;
 -- 2) Compute the total power cost of all slices from a table 'my_slice':
---     CREATE VIEW my_slice_utid AS
+--     CREATE PERFETTO VIEW my_slice_utid AS
 --     SELECT ts, dur, utid
 --     FROM my_slice
 --     JOIN thread_track ON track_id = thread_track.id;
@@ -43,7 +43,7 @@ SELECT RUN_METRIC('android/android_cpu_agg.sql');
 SELECT RUN_METRIC('android/power_profile_data.sql');
 
 DROP VIEW IF EXISTS device;
-CREATE VIEW device AS
+CREATE PERFETTO VIEW device AS
 WITH
 after_first_slash(str) AS (
   SELECT SUBSTR(str_value, INSTR(str_value, '/') + 1)
@@ -57,7 +57,7 @@ before_second_slash(str) AS (
 SELECT str AS name FROM before_second_slash;
 
 DROP VIEW IF EXISTS power_view;
-CREATE VIEW power_view AS
+CREATE PERFETTO VIEW power_view AS
 SELECT
   cpu_freq_view.cpu AS cpu,
   ts,
@@ -73,7 +73,7 @@ JOIN power_profile ON (
 -- utid = 0 is a reserved value used to mark sched slices where CPU was idle.
 -- It doesn't correspond to any real thread.
 DROP VIEW IF EXISTS sched_real_threads;
-CREATE VIEW sched_real_threads AS
+CREATE PERFETTO VIEW sched_real_threads AS
 SELECT *
 FROM sched
 WHERE utid != 0;

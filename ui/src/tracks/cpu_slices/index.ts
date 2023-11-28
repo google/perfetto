@@ -24,8 +24,8 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../../common/canvas_utils';
+import {Color} from '../../common/color';
 import {colorForThread} from '../../common/colorizer';
-import {LONG, NUM, STR_NULL} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -42,6 +42,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM, STR_NULL} from '../../trace_processor/query_result';
 
 export const CPU_SLICE_TRACK_KIND = 'CpuSliceTrack';
 
@@ -285,20 +286,22 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
       const isHovering = globals.state.hoveredUtid !== -1;
       const isThreadHovered = globals.state.hoveredUtid === utid;
       const isProcessHovered = globals.state.hoveredPid === pid;
-      const color = colorForThread(threadInfo);
+      const colorScheme = colorForThread(threadInfo);
+      let color: Color;
+      let textColor: Color;
       if (isHovering && !isThreadHovered) {
         if (!isProcessHovered) {
-          color.l = 90;
-          color.s = 0;
+          color = colorScheme.disabled;
+          textColor = colorScheme.textDisabled;
         } else {
-          color.l = Math.min(color.l + 30, 80);
-          color.s -= 20;
+          color = colorScheme.variant;
+          textColor = colorScheme.textVariant;
         }
       } else {
-        color.l = Math.min(color.l + 10, 60);
-        color.s -= 20;
+        color = colorScheme.base;
+        textColor = colorScheme.textBase;
       }
-      ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+      ctx.fillStyle = color.cssString;
       if (data.isIncomplete[i]) {
         drawIncompleteSlice(ctx, rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
       } else {
@@ -330,10 +333,10 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
       title = cropText(title, charWidth, visibleWidth);
       subTitle = cropText(subTitle, charWidth, visibleWidth);
       const rectXCenter = left + visibleWidth / 2;
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = textColor.cssString;
       ctx.font = '12px Roboto Condensed';
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 - 1);
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.fillStyle = textColor.setAlpha(0.6).cssString;
       ctx.font = '10px Roboto Condensed';
       ctx.fillText(subTitle, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 9);
     }
@@ -352,7 +355,7 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
         const rectWidth = Math.max(1, rectEnd - rectStart);
 
         // Draw a rectangle around the slice that is currently selected.
-        ctx.strokeStyle = `hsl(${color.h}, ${color.s}%, 30%)`;
+        ctx.strokeStyle = color.base.setHSL({l: 30}).cssString;
         ctx.beginPath();
         ctx.lineWidth = 3;
         ctx.strokeRect(rectStart, MARGIN_TOP - 1.5, rectWidth, RECT_HEIGHT + 3);
@@ -454,7 +457,6 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseClick({x}: {x: number}) {
-    console.log(this.mousePos);
     const data = this.data();
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
@@ -462,7 +464,7 @@ class CpuSliceTrack extends TrackAdapter<Config, Data> {
     const index = search(data.starts, time.toTime());
     const id = index === -1 ? undefined : data.ids[index];
     if (!id || this.utidHoveredInThisTrack === -1) return false;
-    globals.makeSelection(Actions.selectSlice({id, trackId: this.id}));
+    globals.makeSelection(Actions.selectSlice({id, trackKey: this.trackKey}));
     return true;
   }
 }
@@ -481,15 +483,15 @@ class CpuSlices implements Plugin {
       const uri = `perfetto.CpuSlices#cpu${cpu}`;
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       const config: Config = {cpu};
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri,
         displayName: name,
         kind: CPU_SLICE_TRACK_KIND,
         cpu,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
-              trackInstanceId,
+              trackKey,
               config,
               CpuSliceTrack,
               CpuSliceTrackController);

@@ -24,6 +24,7 @@
 #include <variant>
 #include <vector>
 
+#include "function_util.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/perfetto_sql/engine/perfetto_sql_preprocessor.h"
@@ -52,7 +53,7 @@ class PerfettoSqlParser {
   // with the following parameters.
   struct CreateFunction {
     bool replace;
-    std::string prototype;
+    FunctionPrototype prototype;
     std::string returns;
     SqlSource sql;
     bool is_table;
@@ -60,8 +61,23 @@ class PerfettoSqlParser {
   // Indicates that the specified SQL was a CREATE PERFETTO TABLE statement
   // with the following parameters.
   struct CreateTable {
+    bool replace;
     std::string name;
+    // SQL source for the select statement.
     SqlSource sql;
+    std::vector<sql_argument::ArgumentDefinition> schema;
+  };
+  // Indicates that the specified SQL was a CREATE PERFETTO VIEW statement
+  // with the following parameters.
+  struct CreateView {
+    bool replace;
+    std::string name;
+    // SQL source for the select statement.
+    SqlSource select_sql;
+    // SQL source corresponding to the rewritten statement creating the
+    // underlying view.
+    SqlSource create_view_sql;
+    std::vector<sql_argument::ArgumentDefinition> schema;
   };
   // Indicates that the specified SQL was a INCLUDE PERFETTO MODULE statement
   // with the following parameter.
@@ -77,8 +93,12 @@ class PerfettoSqlParser {
     SqlSource returns;
     SqlSource sql;
   };
-  using Statement = std::
-      variant<SqliteSql, CreateFunction, CreateTable, Include, CreateMacro>;
+  using Statement = std::variant<SqliteSql,
+                                 CreateFunction,
+                                 CreateTable,
+                                 CreateView,
+                                 Include,
+                                 CreateMacro>;
 
   // Creates a new SQL parser with the a block of PerfettoSQL statements.
   // Concretely, the passed string can contain >1 statement.
@@ -114,27 +134,47 @@ class PerfettoSqlParser {
   const base::Status& status() const { return status_; }
 
  private:
-  using Argument =
-      std::pair<SqlSource /* name token */, SqlSource /* type token */>;
-
   // This cannot be moved because we keep pointers into |sql_| in
   // |preprocessor_|.
   PerfettoSqlParser(PerfettoSqlParser&&) = delete;
   PerfettoSqlParser& operator=(PerfettoSqlParser&&) = delete;
 
+  // Most of the code needs sql_argument::ArgumentDefinition, but we explcitly
+  // track raw arguments separately, as macro implementations need access to
+  // the underlying tokens.
+  struct RawArgument {
+    SqliteTokenizer::Token name;
+    SqliteTokenizer::Token type;
+  };
+
   bool ParseCreatePerfettoFunction(
       bool replace,
       SqliteTokenizer::Token first_non_space_token);
 
-  bool ParseCreatePerfettoTable(SqliteTokenizer::Token first_non_space_token);
+  enum class TableOrView {
+    kTable,
+    kView,
+  };
+  bool ParseCreatePerfettoTableOrView(
+      bool replace,
+      SqliteTokenizer::Token first_non_space_token,
+      TableOrView table_or_view);
 
   bool ParseIncludePerfettoModule(SqliteTokenizer::Token first_non_space_token);
 
   bool ParseCreatePerfettoMacro(bool replace);
 
-  bool ParseArgumentDefinitions(std::vector<Argument>&);
+  // Convert a "raw" argument (i.e. one that points to specific tokens) to the
+  // argument definition consumed by the rest of the SQL code.
+  // Guarantees to call ErrorAtToken if std::nullopt is returned.
+  std::optional<sql_argument::ArgumentDefinition> ResolveRawArgument(
+      RawArgument arg);
+  // Parse the arguments in their raw token form.
+  bool ParseRawArguments(std::vector<RawArgument>&);
+  // Same as above, but also convert the raw tokens into argument definitions.
+  bool ParseArguments(std::vector<sql_argument::ArgumentDefinition>&);
 
-  bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error);
+  bool ErrorAtToken(const SqliteTokenizer::Token&, const char* error, ...);
 
   PerfettoSqlPreprocessor preprocessor_;
   SqliteTokenizer tokenizer_;

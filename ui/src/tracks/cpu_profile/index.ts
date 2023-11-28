@@ -16,17 +16,28 @@
 import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {hslForSlice} from '../../common/colorizer';
-import {LONG, NUM} from '../../common/query_result';
-import {TrackData} from '../../common/track_data';
+import {colorForSample} from '../../common/colorizer';
 import {
-  TrackController,
-} from '../../controller/track_controller';
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
+import {TrackData} from '../../common/track_data';
 import {globals} from '../../frontend/globals';
-import {cachedHsluvToHex} from '../../frontend/hsluv_cache';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 const BAR_HEIGHT = 3;
 const MARGIN_TOP = 4.5;
@@ -44,8 +55,7 @@ export interface Config {
   utid: number;
 }
 
-class CpuProfileTrackController extends TrackController<Config, Data> {
-  static readonly kind = CPU_PROFILE_TRACK_KIND;
+class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const query = `select
@@ -79,14 +89,7 @@ class CpuProfileTrackController extends TrackController<Config, Data> {
   }
 }
 
-function colorForSample(callsiteId: number, isHovered: boolean): string {
-  const [hue, saturation, lightness] =
-      hslForSlice(String(callsiteId), isHovered);
-  return cachedHsluvToHex(hue, saturation, lightness);
-}
-
-class CpuProfileTrack extends TrackBase<Config, Data> {
-  static readonly kind = CPU_PROFILE_TRACK_KIND;
+class CpuProfileTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): CpuProfileTrack {
     return new CpuProfileTrack(args);
   }
@@ -245,9 +248,48 @@ class CpuProfileTrack extends TrackBase<Config, Data> {
 }
 
 class CpuProfile implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.LEGACY_registerTrackController(CpuProfileTrackController);
-    ctx.LEGACY_registerTrack(CpuProfileTrack);
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const result = await ctx.engine.query(`
+      select
+        utid,
+        tid,
+        upid,
+        thread.name as threadName
+      from
+        thread
+        join (select utid
+            from cpu_profile_stack_sample group by utid
+        ) using(utid)
+        left join process using(upid)
+      where utid != 0
+      group by utid`);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM_NULL,
+      tid: NUM_NULL,
+      threadName: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const utid = it.utid;
+      const threadName = it.threadName;
+      ctx.registerStaticTrack({
+        uri: `perfetto.CpuProfile#${utid}`,
+        displayName: `${threadName} (CPU Stack Samples)`,
+        kind: CPU_PROFILE_TRACK_KIND,
+        utid,
+        track: ({trackKey}) => {
+          return new TrackWithControllerAdapter(
+              ctx.engine,
+              trackKey,
+              {utid},
+              CpuProfileTrack,
+              CpuProfileTrackController);
+        },
+      });
+    }
   }
 }
 

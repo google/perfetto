@@ -91,8 +91,6 @@ static constexpr PacketSequenceID kServicePacketSequenceID = 1;
 static constexpr PacketSequenceID kMaxPacketSequenceID =
     static_cast<PacketSequenceID>(-1);
 
-constexpr uid_t kInvalidUid = ::perfetto::base::kInvalidUid;
-
 constexpr uint32_t kDefaultFlushTimeoutMs = 5000;
 
 // The special id 0xffff..ffff represents the tracing session with the highest

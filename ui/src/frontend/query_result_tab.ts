@@ -17,8 +17,8 @@ import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {QueryResponse, runQuery} from '../common/queries';
-import {QueryError} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
+import {QueryError} from '../trace_processor/query_result';
 import {
   AddDebugTrackMenu,
   uuidToViewName,
@@ -34,6 +34,7 @@ import {
   closeTab,
   NewBottomTabArgs,
 } from './bottom_tab';
+import {globals} from './globals';
 import {QueryTable} from './query_table';
 
 export function runQueryInNewTab(query: string, title: string, tag?: string) {
@@ -46,6 +47,8 @@ export function runQueryInNewTab(query: string, title: string, tag?: string) {
     },
   });
 }
+
+globals.registerOpenQueryHandler(runQueryInNewTab);
 
 interface QueryResultTabConfig {
   readonly query: string;

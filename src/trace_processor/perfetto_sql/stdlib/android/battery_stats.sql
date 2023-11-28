@@ -16,11 +16,12 @@
 INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Converts a battery_stats counter value to human readable string.
---
--- @arg track STRING  The counter track name (e.g. 'battery_stats.audio').
--- @arg value FLOAT   The counter value.
--- @ret STRING        The human-readable name for the counter value.
-CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(track STRING, value FLOAT)
+CREATE PERFETTO FUNCTION android_battery_stats_counter_to_string(
+  -- The counter track name (e.g. 'battery_stats.audio').
+  track STRING,
+  -- The counter value.
+  value FLOAT)
+-- The human-readable name for the counter value.
 RETURNS STRING AS
 SELECT
   CASE
@@ -117,19 +118,24 @@ SELECT
 -- View of human readable battery stats counter-based states. These are recorded
 -- by BatteryStats as a bitmap where each 'category' has a unique value at any
 -- given time.
---
--- @column ts                  Timestamp in nanoseconds.
--- @column dur                 The duration the state was active.
--- @column track_name          The name of the counter track.
--- @column value               The counter value as a number.
--- @column value_name          The counter value as a human-readable string.
-CREATE VIEW android_battery_stats_state AS
+CREATE PERFETTO VIEW android_battery_stats_state(
+  -- Timestamp in nanoseconds.
+  ts INT,
+  -- The duration the state was active.
+  dur INT,
+  -- The name of the counter track.
+  track_name STRING,
+  -- The counter value as a number.
+  value INT,
+  -- The counter value as a human-readable string.
+  value_name STRING
+) AS
 SELECT
   ts,
+  IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur,
   name AS track_name,
   CAST(value AS INT64) AS value,
-  android_battery_stats_counter_to_string(name, value) AS value_name,
-  IFNULL(LEAD(ts) OVER (PARTITION BY name ORDER BY ts) - ts, -1) AS dur
+  android_battery_stats_counter_to_string(name, value) AS value_name
 FROM counter
 JOIN counter_track
   ON counter.track_id = counter_track.id
@@ -153,13 +159,18 @@ WHERE counter_track.name GLOB 'battery_stats.*';
 --     track_name='battery_stats.top'
 --     str_value='com.google.android.apps.nexuslauncher'
 --     int_value=10215
---
--- @column track_name          The battery stats track name.
--- @column ts                  Timestamp in nanoseconds.
--- @column dur                 The duration of the event.
--- @column str_value           The string part of the event identifier.
--- @column int_value           The integer part of the event identifier.
-CREATE VIEW android_battery_stats_event_slices AS
+CREATE PERFETTO VIEW android_battery_stats_event_slices(
+  -- Timestamp in nanoseconds.
+  ts INT,
+  -- The duration the state was active.
+  dur INT,
+  -- The name of the counter track.
+  track_name STRING,
+  -- String value.
+  str_value STRING,
+  -- Int value.
+  int_value INT
+) AS
 WITH
   event_markers AS (
     SELECT

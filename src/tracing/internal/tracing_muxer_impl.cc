@@ -1249,8 +1249,9 @@ void TracingMuxerImpl::SetupDataSource(TracingBackendId backend_id,
         continue;
       auto* internal_state =
           reinterpret_cast<DataSourceState*>(&static_state.instances[i]);
-      if (internal_state->backend_id == backend_id && internal_state->config &&
-          *internal_state->config == cfg) {
+      if (internal_state->backend_id == backend_id &&
+          internal_state->backend_connection_id == backend_connection_id &&
+          internal_state->config && *internal_state->config == cfg) {
         active_for_config = true;
         break;
       }
@@ -1594,7 +1595,9 @@ void TracingMuxerImpl::StopDataSource_AsyncEnd(TracingBackendId backend_id,
     }
   }
 
-  if (producer->connected_) {
+  if (producer->connected_ &&
+      backend.producer->connection_id_.load(std::memory_order_relaxed) ==
+          backend_connection_id) {
     // Flush any commits that might have been batched by SharedMemoryArbiter.
     producer->service_->MaybeSharedMemoryArbiter()
         ->FlushPendingCommitDataRequests();
@@ -1705,7 +1708,12 @@ void TracingMuxerImpl::FlushDataSource_AsyncEnd(
   if (!producer)
     return;
 
-  if (producer->connected_) {
+  // If the tracing service disconnects and reconnects while a data source is
+  // handling a flush request, there's no point is sending the flush reply to
+  // the newly reconnected producer.
+  if (producer->connected_ &&
+      backend.producer->connection_id_.load(std::memory_order_relaxed) ==
+          backend_connection_id) {
     producer->NotifyFlushForDataSourceDone(instance_id, flush_id);
   }
 }

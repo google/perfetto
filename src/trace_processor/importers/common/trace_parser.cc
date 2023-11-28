@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/importers/common/trace_parser.h"
 
+#include "perfetto/trace_processor/trace_blob_view.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/fuchsia/fuchsia_record.h"
 #include "src/trace_processor/importers/systrace/systrace_line.h"
@@ -23,6 +24,9 @@
 namespace perfetto {
 namespace trace_processor {
 
+void TraceParser::ParseTraceBlobView(int64_t, TraceBlobView) {
+  PERFETTO_FATAL("Wrong parser type");
+}
 void TraceParser::ParseTracePacket(int64_t, TracePacketData) {
   PERFETTO_FATAL("Wrong parser type");
 }

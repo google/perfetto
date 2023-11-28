@@ -15,16 +15,19 @@
 import {
   Plugin,
   PluginContext,
+  PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 
 class LargeScreensPerf implements Plugin {
-  onActivate(ctx: PluginContext): void {
-    ctx.addCommand({
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerCommand({
       id: 'dev.perfetto.LargeScreensPerf#PinUnfoldLatencyTracks',
       name: 'Pin: Unfold latency tracks',
       callback: () => {
-        ctx.viewer.tracks.pin((tags) => {
+        ctx.timeline.pinTracksByPredicate((tags) => {
           return !!tags.name?.includes('UNFOLD') ||
               tags.name?.includes('Screen on blocked') ||
               tags.name?.startsWith('waitForAllWindowsDrawn') ||

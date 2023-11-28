@@ -83,20 +83,40 @@ def main():
             'name': table.name,
             'desc': table.desc,
             'type': table.type,
-            'cols': table.cols,
+            'cols': {
+                col_name: {
+                    'type': col.type,
+                    'desc': col.description,
+                } for (col_name, col) in table.cols.items()
+            },
         } for table in docs.table_views],
         'functions': [{
             'name': function.name,
             'desc': function.desc,
-            'args': function.args,
+            'args': {
+                arg_name: {
+                    'type': arg.type,
+                    'desc': arg.description,
+                } for (arg_name, arg) in function.args.items()
+            },
             'return_type': function.return_type,
             'return_desc': function.return_desc,
         } for function in docs.functions],
         'table_functions': [{
             'name': function.name,
             'desc': function.desc,
-            'args': function.args,
-            'cols': function.cols,
+            'args': {
+                arg_name: {
+                    'type': arg.type,
+                    'desc': arg.description,
+                } for (arg_name, arg) in function.args.items()
+            },
+            'cols': {
+                col_name: {
+                    'type': col.type,
+                    'desc': col.description,
+                } for (col_name, col) in function.cols.items()
+            },
         } for function in docs.table_functions],
     }
     modules[module_name].append(file_dict)

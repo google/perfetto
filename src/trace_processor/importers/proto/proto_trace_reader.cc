@@ -447,6 +447,8 @@ util::Status ProtoTraceReader::ParseServiceEvent(int64_t ts, ConstBytes blob) {
         metadata::all_data_source_started_ns, Variadic::Integer(ts));
   }
   if (tse.all_data_sources_flushed()) {
+    context_->metadata_tracker->AppendMetadata(
+        metadata::all_data_source_flushed_ns, Variadic::Integer(ts));
     context_->sorter->NotifyFlushEvent();
   }
   if (tse.read_tracing_buffers_completed()) {

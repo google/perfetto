@@ -22,7 +22,7 @@ export interface CurrentSearchResults {
   sliceIds: Float64Array;
   tsStarts: BigInt64Array;
   utids: Float64Array;
-  trackIds: string[];
+  trackKeys: string[];
   sources: string[];
   totalResults: number;
 }

@@ -15,7 +15,7 @@
 
 DROP VIEW IF EXISTS chrome_histogram_hashes_output;
 
-CREATE VIEW chrome_histogram_hashes_output AS
+CREATE PERFETTO VIEW chrome_histogram_hashes_output AS
 SELECT ChromeHistogramHashes(
   'hash', (
     SELECT RepeatedField(int_value)

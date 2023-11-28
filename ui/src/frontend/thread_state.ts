@@ -22,11 +22,12 @@ import {
 } from '../base/time';
 import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
-import {EngineProxy} from '../common/engine';
 import {pluginManager} from '../common/plugins';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
 import {translateState} from '../common/thread_state';
+import {EngineProxy} from '../trace_processor/engine';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
 import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {Anchor} from '../widgets/anchor';
 
 import {globals} from './globals';
@@ -148,7 +149,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
       const trackInfo = pluginManager.resolveTrackInfo(track.uri);
       if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
         if (trackInfo?.cpu === cpu) {
-          trackId = track.id;
+          trackId = track.key;
           break;
         }
       }
@@ -157,7 +158,7 @@ export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   if (trackId === undefined) {
     return;
   }
-  globals.makeSelection(Actions.selectSlice({id, trackId}));
+  globals.makeSelection(Actions.selectSlice({id, trackKey: trackId}));
   scrollToTrackAndTs(trackId, ts);
 }
 
@@ -177,21 +178,23 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
         {
           icon: Icons.UpdateSelection,
           onclick: () => {
-            let trackId: string|number|undefined;
+            let trackKey: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {
-              if (track.kind === 'ThreadStateTrack' &&
-                  (track.config as {utid: number}).utid === vnode.attrs.utid) {
-                trackId = track.id;
+              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+              // TODO(stevegolton): Handle v2.
+              if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+                  trackDesc.utid === vnode.attrs.utid) {
+                trackKey = track.key;
               }
             }
 
-            if (trackId) {
+            if (trackKey) {
               globals.makeSelection(Actions.selectThreadState({
                 id: vnode.attrs.id,
-                trackId: trackId.toString(),
+                trackKey: trackKey.toString(),
               }));
 
-              scrollToTrackAndTs(trackId, vnode.attrs.ts, true);
+              scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
             }
           },
         },

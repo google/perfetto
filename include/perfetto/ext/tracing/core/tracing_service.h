@@ -43,6 +43,7 @@ class Consumer;
 class Producer;
 class SharedMemoryArbiter;
 class TraceWriter;
+class ClientIdentity;
 
 // TODO: for the moment this assumes that all the calls happen on the same
 // thread/sequence. Not sure this will be the case long term in Chrome.
@@ -356,8 +357,7 @@ class PERFETTO_EXPORT_COMPONENT TracingService {
   // connected.
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
       Producer*,
-      uid_t uid,
-      pid_t pid,
+      const ClientIdentity& client_identity,
       const std::string& name,
       size_t shared_memory_size_hint_bytes = 0,
       bool in_process = false,

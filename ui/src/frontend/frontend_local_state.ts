@@ -19,7 +19,6 @@ import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   Area,
   FrontendLocalState as FrontendState,
@@ -27,6 +26,7 @@ import {
   VisibleState,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
@@ -157,9 +157,7 @@ export class FrontendLocalState {
   private _windowSpan = PxSpan.ZERO;
   showPanningHint = false;
   showCookieConsent = false;
-  visibleTracks = new Set<string>();
-  prevVisibleTracks = new Set<string>();
-  scrollToTrackId?: string|number;
+  scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
 
@@ -191,26 +189,6 @@ export class FrontendLocalState {
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
     raf.scheduleFullRedraw();
-  }
-
-  addVisibleTrack(trackId: string) {
-    this.visibleTracks.add(trackId);
-  }
-
-  // Called when beginning a canvas redraw.
-  clearVisibleTracks() {
-    this.visibleTracks.clear();
-  }
-
-  // Called when the canvas redraw is complete.
-  sendVisibleTracks() {
-    if (this.prevVisibleTracks.size !== this.visibleTracks.size ||
-        ![...this.prevVisibleTracks].every(
-            (value) => this.visibleTracks.has(value))) {
-      globals.dispatch(
-          Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
-      this.prevVisibleTracks = new Set(this.visibleTracks);
-    }
   }
 
   zoomVisibleWindow(ratio: number, centerPoint: number) {

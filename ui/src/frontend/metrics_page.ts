@@ -22,17 +22,17 @@ import {
   Result,
   success,
 } from '../base/result';
-import {EngineProxy} from '../common/engine';
 import {pluginManager, PluginManager} from '../common/plugins';
-import {STR} from '../common/query_result';
 import {raf} from '../core/raf_scheduler';
 import {MetricVisualisation} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
+import {STR} from '../trace_processor/query_result';
 import {Select} from '../widgets/select';
 import {Spinner} from '../widgets/spinner';
+import {VegaView} from '../widgets/vega_view';
 
 import {globals} from './globals';
 import {createPage} from './pages';
-import {VegaView} from './widgets/vega_view';
 
 type Format = 'json'|'prototext'|'proto';
 const FORMATS: Format[] = ['json', 'prototext', 'proto'];
@@ -72,6 +72,7 @@ class MetricsController {
   private _selected?: string;
   private _result: Result<string>;
   private _format: Format;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private _json: any;
 
   constructor(plugins: PluginManager, engine: EngineProxy) {
@@ -123,6 +124,7 @@ class MetricsController {
     return this._result;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   get resultAsJson(): any {
     return this._json;
   }
@@ -225,8 +227,10 @@ class MetricPicker implements m.ClassComponent<MetricPickerAttrs> {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 interface MetricVizViewAttrs {
   visualisation: MetricVisualisation;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
 }
 

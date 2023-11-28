@@ -12,9 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time, time} from '../../base/time';
+import {exists} from '../../base/utils';
 import {
   Plugin,
   PluginContext,
+  PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
 
@@ -85,94 +88,125 @@ order by total_self_size desc
 limit 100;`;
 
 const coreCommands: Plugin = {
-  onActivate: function(ctx: PluginContext): void {
-    const {viewer} = ctx;
+  onActivate(_ctx: PluginContext) {},
 
-    ctx.addCommand({
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#ToggleLeftSidebar',
       name: 'Toggle left sidebar',
       callback: () => {
-        if (viewer.sidebar.isVisible()) {
-          viewer.sidebar.hide();
+        if (ctx.sidebar.isVisible()) {
+          ctx.sidebar.hide();
         } else {
-          viewer.sidebar.show();
+          ctx.sidebar.show();
         }
       },
       defaultHotkey: '!Mod+B',
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryAllProcesses',
       name: 'Run query: all processes',
       callback: () => {
-        viewer.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
+        ctx.tabs.openQuery(ALL_PROCESSES_QUERY, 'All Processes');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryCpuTimeByProcess',
       name: 'Run query: CPU time by process',
       callback: () => {
-        viewer.tabs.openQuery(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
+        ctx.tabs.openQuery(CPU_TIME_FOR_PROCESSES, 'CPU time by process');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryCyclesByStateByCpu',
       name: 'Run query: cycles by p-state by CPU',
       callback: () => {
-        viewer.tabs.openQuery(
+        ctx.tabs.openQuery(
             CYCLES_PER_P_STATE_PER_CPU, 'Cycles by p-state by CPU');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryCyclesByCpuByProcess',
       name: 'Run query: CPU Time by CPU by process',
       callback: () => {
-        viewer.tabs.openQuery(
+        ctx.tabs.openQuery(
             CPU_TIME_BY_CPU_BY_PROCESS, 'CPU Time by CPU by process');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#RunQueryHeapGraphBytesPerType',
       name: 'Run query: heap graph bytes per type',
       callback: () => {
-        viewer.tabs.openQuery(
+        ctx.tabs.openQuery(
             HEAP_GRAPH_BYTES_PER_TYPE, 'Heap graph bytes per type');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#DebugSqlPerformance',
       name: 'Debug SQL performance',
       callback: () => {
-        viewer.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
+        ctx.tabs.openQuery(SQL_STATS, 'Recent SQL queries');
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#PinFtraceTracks',
       name: 'Pin ftrace tracks',
       callback: () => {
-        viewer.tracks.pin((tags) => {
+        ctx.timeline.pinTracksByPredicate((tags) => {
           return !!tags.name?.startsWith('Ftrace Events Cpu ');
         });
       },
     });
 
-    ctx.addCommand({
+    ctx.registerCommand({
       id: 'dev.perfetto.CoreCommands#UnpinAllTracks',
       name: 'Unpin all tracks',
       callback: () => {
-        viewer.tracks.unpin((_) => {
+        ctx.timeline.unpinTracksByPredicate((_) => {
           return true;
         });
       },
     });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.CoreCommands#PanToTimestamp',
+      name: 'Pan To Timestamp',
+      callback: (tsRaw: unknown) => {
+        if (exists(tsRaw)) {
+          if (typeof tsRaw !== 'bigint') {
+            throw Error(`${tsRaw} is not a bigint`);
+          }
+          ctx.timeline.panToTimestamp(Time.fromRaw(tsRaw));
+        } else {
+          // No args passed, probably run from the command palette.
+          const ts = promptForTimestamp('Enter a timestamp');
+          if (exists(ts)) {
+            ctx.timeline.panToTimestamp(Time.fromRaw(ts));
+          }
+        }
+      },
+    });
   },
 };
+
+function promptForTimestamp(message: string): time|undefined {
+  const tsStr = window.prompt(message);
+  if (tsStr !== null) {
+    try {
+      return Time.fromRaw(BigInt(tsStr));
+    } catch {
+      window.alert(`${tsStr} is not an integer`);
+    }
+  }
+  return undefined;
+}
 
 export const plugin: PluginDescriptor = {
   pluginId: 'dev.perfetto.CoreCommands',

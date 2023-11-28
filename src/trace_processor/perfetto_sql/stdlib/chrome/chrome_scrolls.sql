@@ -1,29 +1,9 @@
--- Copyright 2023 The Android Open Source Project
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
--- You may obtain a copy of the License at
---
---     https://www.apache.org/licenses/LICENSE-2.0
---
--- Unless required by applicable law or agreed to in writing, software
--- distributed under the License is distributed on an "AS IS" BASIS,
--- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
--- See the License for the specific language governing permissions and
--- limitations under the License.
+-- Copyright 2023 The Chromium Authors
+-- Use of this source code is governed by a BSD-style license that can be
+-- found in the LICENSE file.
 
 -- Defines slices for all of the individual scrolls in a trace based on the
 -- LatencyInfo-based scroll definition.
---
--- @column id                          The unique identifier of the scroll.
--- @column ts                          The start timestamp of the scroll.
--- @column dur                         The duration of the scroll.
--- @column gesture_scroll_begin_ts     The earliest timestamp of the
---                                     InputLatency::GestureScrollBegin for the
---                                     corresponding scroll id.
--- @column gesture_scroll_end_ts       The earliest timestamp of the
---                                     InputLatency::GestureScrollEnd for the
---                                     corresponding scroll id.
 --
 -- NOTE: this view of top level scrolls is based on the LatencyInfo definition
 -- of a scroll, which differs subtly from the definition based on
@@ -32,7 +12,20 @@
 -- WebView instances. Currently gesture_scroll_id unique within an instance, but
 -- is not unique across multiple instances. Switching to an EventLatency based
 -- definition of scrolls should resolve this.
-CREATE PERFETTO TABLE chrome_scrolls AS
+CREATE PERFETTO TABLE chrome_scrolls(
+  -- The unique identifier of the scroll.
+  id INT,
+  -- The start timestamp of the scroll.
+  ts INT,
+  -- The duration of the scroll.
+  dur INT,
+  -- The earliest timestamp of the InputLatency::GestureScrollBegin for the
+  -- corresponding scroll id.
+  gesture_scroll_begin_ts INT,
+  -- The earliest timestamp of the InputLatency::GestureScrollEnd for the
+  -- corresponding scroll id.
+  gesture_scroll_end_ts INT
+) AS
 WITH all_scrolls AS (
   SELECT
     name,
@@ -75,12 +68,16 @@ GROUP BY sa.scroll_id;
 -- definition in chrome_scrolls. Note that scrolls may overlap (particularly in
 -- cases of jank/broken traces, etc); so scrolling intervals are not exactly the
 -- same as individual scrolls.
---
--- @column id            The unique identifier of the scroll interval. This may
---                       span multiple scrolls if they overlap.
--- @column ts            The start timestamp of the scroll interval.
--- @column dur           The duration of the scroll interval.
-CREATE VIEW chrome_scrolling_intervals AS
+CREATE PERFETTO VIEW chrome_scrolling_intervals(
+  -- The unique identifier of the scroll interval. This may span multiple scrolls if they overlap.
+  id INT,
+  -- Comma-separated list of scroll ids that are included in this interval.
+  scroll_ids STRING,
+  -- The start timestamp of the scroll interval.
+  ts INT,
+  -- The duration of the scroll interval.
+  dur INT
+) AS
 WITH all_scrolls AS (
   SELECT
     id AS scroll_id,

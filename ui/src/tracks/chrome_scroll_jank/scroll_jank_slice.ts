@@ -17,8 +17,6 @@ import m from 'mithril';
 import {Icons} from '../../base/semantic_icons';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
-import {LONG, NUM} from '../../common/query_result';
 import {globals} from '../../frontend/globals';
 import {scrollToTrackAndTs} from '../../frontend/scroll_helper';
 import {SliceSqlId} from '../../frontend/sql_types';
@@ -26,6 +24,8 @@ import {
   constraintsToQuerySuffix,
   SQLConstraints,
 } from '../../frontend/sql_utils';
+import {EngineProxy} from '../../trace_processor/engine';
+import {LONG, NUM} from '../../trace_processor/query_result';
 import {Anchor} from '../../widgets/anchor';
 
 import {EventLatencyTrack} from './event_latency_track';
@@ -171,11 +171,11 @@ export class ScrollJankSliceRef implements
               sqlTableName: track.sqlTableName,
               start: vnode.attrs.ts,
               duration: vnode.attrs.dur,
-              trackId: track.id,
+              trackKey: track.key,
               detailsPanelConfig: track.detailsPanelConfig,
             }));
 
-            scrollToTrackAndTs(track.id, vnode.attrs.ts, true);
+            scrollToTrackAndTs(track.key, vnode.attrs.ts, true);
           },
         },
         vnode.attrs.name,

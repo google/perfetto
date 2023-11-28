@@ -13,7 +13,6 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {LONG, NUM} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -29,6 +28,7 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export const ANDROID_LOGS_TRACK_KIND = 'AndroidLogTrack';
 
@@ -154,14 +154,14 @@ class AndroidLog implements Plugin {
         await ctx.engine.query(`select count(1) as cnt from android_logs`);
     const count = result.firstRow({cnt: NUM}).cnt;
     if (count > 0) {
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
         kind: ANDROID_LOGS_TRACK_KIND,
-        track: ({trackInstanceId}) => {
+        track: ({trackKey}) => {
           return new TrackWithControllerAdapter<Config, Data>(
               ctx.engine,
-              trackInstanceId,
+              trackKey,
               {},
               AndroidLogTrack,
               AndroidLogTrackController);

@@ -13,21 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
 
-import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
+import {Disposable} from '../../base/disposable';
+import {Actions} from '../../common/actions';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
-import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {TrackButton} from '../../frontend/track_panel';
+import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
+import {DEBUG_SLICE_TRACK_URI} from '.';
 import {ARG_PREFIX} from './add_debug_track_menu';
 import {DebugSliceDetailsTab} from './details_tab';
 
@@ -43,24 +45,25 @@ export interface DebugTrackV2Config {
   columns: SliceColumns;
 }
 
-interface DebugTrackV2Types extends NamedSliceTrackTypes {
-  config: DebugTrackV2Config;
-}
+export class DebugTrackV2 extends
+    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  private config: DebugTrackV2Config;
 
-export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
-  static readonly kind = DEBUG_SLICE_TRACK_KIND;
+  constructor(engine: EngineProxy, ctx: TrackContext) {
+    super({
+      engine,
+      trackKey: ctx.trackKey,
+    });
 
-  static create(args: NewTrackArgs) {
-    return new DebugTrackV2(args);
-  }
-
-  constructor(args: NewTrackArgs) {
-    super(args);
+    // TODO(stevegolton): Validate params before type asserting.
+    // TODO(stevegolton): Avoid just pushing this config up for some base
+    // class to use. Be more explicit.
+    this.config = ctx.params as DebugTrackV2Config;
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      sqlTableName: this.config.sqlTableName,
+      sqlTableName: this.config!.sqlTableName,
     };
   }
 
@@ -68,25 +71,25 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
     return {
       kind: DebugSliceDetailsTab.kind,
       config: {
-        sqlTableName: this.config.sqlTableName,
+        sqlTableName: this.config!.sqlTableName,
         title: 'Debug Slice',
       },
     };
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    super.initSqlTable(tableName);
+  async onInit(): Promise<Disposable> {
+    return super.onInit();
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
-    return [m(TrackButton, {
+  getTrackShellButtons(): m.Children {
+    return m(TrackButton, {
       action: () => {
-        globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
+        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
       i: 'close',
       tooltip: 'Close',
       showButton: true,
-    })];
+    });
   }
 }
 
@@ -95,12 +98,15 @@ let debugTrackCount = 0;
 export interface SqlDataSource {
   // SQL source selecting the necessary data.
   sqlSource: string;
+
+  // Optional: Rename columns from the query result.
+  // If omitted, original column names from the query are used instead.
   // The caller is responsible for ensuring that the number of items in this
   // list matches the number of columns returned by sqlSource.
-  columns: string[];
+  columns?: string[];
 }
 
-export async function addDebugTrack(
+export async function addDebugSliceTrack(
     engine: EngineProxy,
     data: SqlDataSource,
     trackName: string,
@@ -140,12 +146,19 @@ export async function addDebugTrack(
       from prepared_data
       order by ts;`);
 
-  globals.dispatch(Actions.addDebugTrack({
-    engineId: engine.engineId,
-    name: trackName.trim() || `Debug Track ${debugTrackId}`,
-    config: {
-      sqlTableName,
-      columns: sliceColumns,
-    },
-  }));
+  const trackKey = uuidv4();
+  globals.dispatchMultiple([
+    Actions.addTrack({
+      key: trackKey,
+      name: trackName.trim() || `Debug Track ${debugTrackId}`,
+      uri: DEBUG_SLICE_TRACK_URI,
+      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      params: {
+        sqlTableName,
+        columns: sliceColumns,
+      },
+    }),
+    Actions.toggleTrackPinned({trackKey}),
+  ]);
 }

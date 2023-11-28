@@ -12,9 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {getErrorMessage} from '../../../base/errors';
 import {assertExists} from '../../../base/logging';
-import {getErrorMessage} from '../../errors';
-import {RECORDING_V2_FLAG} from '../../feature_flags';
+import {RECORDING_V2_FLAG} from '../../../core/feature_flags';
 import {AdbKeyManager} from '../auth/adb_key_manager';
 import {RecordingError} from '../recording_error_handling';
 import {

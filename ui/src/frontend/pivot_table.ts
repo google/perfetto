@@ -20,7 +20,6 @@ import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {DropDirection} from '../common/dragndrop_logic';
 import {COUNT_AGGREGATION} from '../common/empty_state';
-import {ColumnType} from '../common/query_result';
 import {
   Area,
   PivotTableAreaState,
@@ -28,7 +27,7 @@ import {
   SortDirection,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {DurationWidget} from '../widgets/duration';
+import {ColumnType} from '../trace_processor/query_result';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
@@ -51,6 +50,7 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
+import {DurationWidget} from './widgets/duration';
 
 interface PathItem {
   tree: PivotTree;

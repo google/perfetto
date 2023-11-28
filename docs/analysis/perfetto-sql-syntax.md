@@ -42,6 +42,17 @@ SELECT *
 FROM android_startups;
 ```
 
+For interactive development, the key can contain a wildcards:
+```sql
+-- Include all modules under android/.
+INCLUDE PERFETTO MODULE android.*;
+
+-- Or all stdlib modules:
+INCLUDE PERFETTO MODULE *;
+
+-- However, note, that both patterns are not allowed in stdlib.
+```
+
 ## Defining functions
 `CREATE PEFETTO FUNCTION` allows functions to be defined in SQL. The syntax is
 similar to the syntax in PostgreSQL or GoogleSQL.
@@ -100,4 +111,27 @@ CREATE PERFETTO TABLE slice_sub_table AS
 SELECT *
 FROM slice
 WHERE name = 'foo';
+```
+
+### Schema
+
+Perfetto tables can have an optional explicit schema. The schema syntax is the
+same as the function argument or returned-from-a-function table,
+i.e. a comma-separated list of (column name, colum type) pairs in parenthesis
+after table or view name.
+
+```sql
+CREATE PERFETTO TABLE foo(x INT, y STRING) AS
+SELECT 1 as x, 'test' as y
+```
+
+## CREATE PERFETTO VIEW
+
+Views can be created via `CREATE PERFETTO VIEW`, taking an optional schema.
+With the exception of the schema, they behave exactly the same as regular
+SQLite views.
+
+```sql
+CREATE PERFETTO VIEW foo(x INT, y STRING) AS
+SELECT 1 as x, 'test' as y
 ```

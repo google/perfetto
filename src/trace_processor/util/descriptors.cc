@@ -239,7 +239,8 @@ base::Status DescriptorPool::AddFromFileDescriptorSet(
     const std::string file_name = file.name().ToStdString();
     if (base::StartsWithAny(file_name, skip_prefixes))
       continue;
-    if (processed_files_.find(file_name) != processed_files_.end()) {
+    if (!merge_existing_messages &&
+        processed_files_.find(file_name) != processed_files_.end()) {
       // This file has been loaded once already. Skip.
       continue;
     }

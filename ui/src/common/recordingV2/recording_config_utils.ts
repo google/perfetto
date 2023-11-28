@@ -13,6 +13,7 @@
 // limitations under the License.
 
 
+import {isString} from '../../base/object_utils';
 import {base64Encode} from '../../base/string_utils';
 import {RecordConfig} from '../../controller/record_config_types';
 import {
@@ -36,7 +37,7 @@ import {
   TraceConfig,
   TrackEventConfig,
   VmstatCounters,
-} from '../../core/protos';
+} from '../../protos';
 
 import {TargetInfo} from './recording_interfaces_v2';
 
@@ -261,6 +262,7 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
     sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return MeminfoCounters[name as any as number] as any as number;
     });
   }
@@ -269,6 +271,7 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.vmstatPeriodMs = uiCfg.vmstatPeriodMs;
     sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return VmstatCounters[name as any as number] as any as number;
     });
   }
@@ -365,6 +368,7 @@ export function genTraceConfig(
     ds.config.name = 'android.log';
     ds.config.androidLogConfig = new AndroidLogConfig();
     ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return AndroidLogId[name as any as number] as any as number;
     });
 
@@ -721,7 +725,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
       const isNested = typeof value === 'object' && !isRepeated;
       for (const entry of (isRepeated ? value as Array<{}>: [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
-        if (typeof entry === 'string') {
+        if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
             yield entry;
           } else {

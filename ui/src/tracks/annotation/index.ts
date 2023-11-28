@@ -13,16 +13,17 @@
 // limitations under the License.
 
 import {
-  NUM,
-  NUM_NULL,
-  STR,
-} from '../../common/query_result';
-import {
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  NUM,
+  NUM_NULL,
+  STR,
+} from '../../trace_processor/query_result';
+import {ChromeSliceTrack, SLICE_TRACK_KIND} from '../chrome_slices/';
 import {
   Config as CounterTrackConfig,
   COUNTER_TRACK_KIND,
@@ -33,7 +34,46 @@ class AnnotationPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    await this.addAnnotationTracks(ctx);
     await this.addAnnotationCounterTracks(ctx);
+  }
+
+  private async addAnnotationTracks(ctx: PluginContextTrace) {
+    const {engine} = ctx;
+
+    const result = await engine.query(`
+      select id, name
+      from annotation_slice_track
+      order by name
+    `);
+
+    const it = result.iter({
+      id: NUM,
+      name: STR,
+    });
+
+    for (; it.valid(); it.next()) {
+      const id = it.id;
+      const name = it.name;
+
+      ctx.registerStaticTrack({
+        uri: `perfetto.Annotation#${id}`,
+        displayName: name,
+        kind: SLICE_TRACK_KIND,
+        tags: {
+          metric: true,
+        },
+        track: (({trackKey}) => {
+          return new ChromeSliceTrack(
+              engine,
+              0,
+              trackKey,
+              id,
+              'annotation',
+          );
+        }),
+      });
+    }
   }
 
   private async addAnnotationCounterTracks(ctx: PluginContextTrace) {
@@ -69,7 +109,7 @@ class AnnotationPlugin implements Plugin {
         maximumValue,
       };
 
-      ctx.addTrack({
+      ctx.registerStaticTrack({
         uri: `perfetto.Annotation#counter${id}`,
         displayName: name,
         kind: COUNTER_TRACK_KIND,

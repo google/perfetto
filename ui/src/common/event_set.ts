@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {arrayEquals, isArrayOf} from '../base/array_utils';
+import {isString} from '../base/object_utils';
 import {intersect} from '../base/set_utils';
 
 // Contents:
@@ -128,6 +129,7 @@ interface SortEventSet<T extends KeySet> extends EventSet<T> {
   readonly isSort: true;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type UntypedEventSet = EventSet<any>;
 
 // An expression that operates on an Event and produces a Primitive as
@@ -796,7 +798,7 @@ class Constant implements Expr {
     const value = this.value;
     if (value === null) {
       return 'NULL';
-    } else if (typeof value === 'string') {
+    } else if (isString(value)) {
       return `'${value}'`;
     } else if (typeof value === 'boolean') {
       return value ? 'TRUE' : 'FALSE';
@@ -1000,7 +1002,7 @@ function freeVariablesFromSorts(sorts: Sort[], initialKeySet?: KeySet): KeySet {
 function primativeToRank(p: Primitive) {
   if (p === null) {
     return 0;
-  } else if (typeof p === 'string') {
+  } else if (isString(p)) {
     return 2;
   } else {
     return 1;

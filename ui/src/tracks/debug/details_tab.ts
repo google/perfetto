@@ -15,13 +15,6 @@
 import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
-import {
-  ColumnType,
-  durationFromSql,
-  LONG,
-  STR,
-  timeFromSql,
-} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -50,9 +43,16 @@ import {
   ThreadState,
   threadStateRef,
 } from '../../frontend/thread_state';
+import {DurationWidget} from '../../frontend/widgets/duration';
 import {Timestamp} from '../../frontend/widgets/timestamp';
+import {
+  ColumnType,
+  durationFromSql,
+  LONG,
+  STR,
+  timeFromSql,
+} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
-import {DurationWidget} from '../../widgets/duration';
 import {GridLayout} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';
 import {
@@ -140,15 +140,14 @@ export class DebugSliceDetailsTab extends
 
   private async maybeLoadSlice(
       id: number|undefined, ts: time, dur: duration, table: string|undefined,
-      sqlTrackId?: number): Promise<SliceDetails|undefined> {
+      trackId?: number): Promise<SliceDetails|undefined> {
     if (id === undefined) return undefined;
-    if ((table !== 'slice') && sqlTrackId === undefined) return undefined;
+    if ((table !== 'slice') && trackId === undefined) return undefined;
 
     const slice = await getSlice(this.engine, asSliceSqlId(id));
     if (slice === undefined) return undefined;
     if ((table === 'slice') ||
-        (slice.ts === ts && slice.dur === dur &&
-         slice.sqlTrackId === sqlTrackId)) {
+        (slice.ts === ts && slice.dur === dur && slice.trackId === trackId)) {
       return slice;
     } else {
       return undefined;

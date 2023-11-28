@@ -45,7 +45,9 @@ enum TraceProcessorApiVersion {
   // Changes:
   // 7. Introduce GUESS_CPU_SIZE
   // 8. Add 'json' option to ComputeMetricArgs
-  TRACE_PROCESSOR_CURRENT_API_VERSION = 8;
+  // 9. Add get_thread_state_summary_for_interval.
+  // 10. Add 'slice_is_ancestor' to stdlib.
+  TRACE_PROCESSOR_CURRENT_API_VERSION = 10;
 }
 
 // At lowest level, the wire-format of the RPC procol is a linear sequence of

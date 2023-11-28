@@ -17,9 +17,9 @@ import m from 'mithril';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {raf} from '../core/raf_scheduler';
-import {DurationWidget} from '../widgets/duration';
 
 import {Flow, globals} from './globals';
+import {DurationWidget} from './widgets/duration';
 
 export const ALL_CATEGORIES = '_all_';
 
@@ -44,11 +44,10 @@ export class FlowEventsPanel implements m.ClassComponent {
     }
 
     const flowClickHandler = (sliceId: number, trackId: number) => {
-      const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-      if (uiTrackId) {
+      const trackKey = globals.state.trackKeyByTrackId[trackId];
+      if (trackKey) {
         globals.makeSelection(
-            Actions.selectChromeSlice(
-                {id: sliceId, trackId: uiTrackId, table: 'slice'}),
+            Actions.selectChromeSlice({id: sliceId, trackKey, table: 'slice'}),
             {tab: 'bound_flows'});
       }
     };

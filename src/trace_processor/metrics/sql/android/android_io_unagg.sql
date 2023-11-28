@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.io;
 
 DROP VIEW IF EXISTS android_io_unagg_output;
-CREATE VIEW android_io_unagg_output AS
+CREATE PERFETTO VIEW android_io_unagg_output AS
 SELECT AndroidIoUnaggregated(
     'f2fs_write_unaggregated_stats', (
         SELECT RepeatedField(

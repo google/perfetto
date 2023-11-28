@@ -14,6 +14,7 @@
 
 import("perfetto.gni")
 import("perfetto_python.gni")
+import("pkg_config.gni")
 import("proto_library.gni")
 
 if (perfetto_root_path == "//") {
@@ -227,8 +228,19 @@ config("system_protoc") {
   libs = [ "protoc" ]  # This will link against libprotoc.so
 }
 
+# pkg_deps selects the appropriate pkg-config based on current_toolchain and
+# this is a no-op if |perfetto_use_pkgconfig| is false.
+pkg_config("pkgconfig_protobuf") {
+  pkg_deps = [ "protobuf" ]
+}
+
 config("system_protobuf") {
-  libs = [ "protobuf" ]  # This will link against libprotobuf.so
+  if (perfetto_use_pkgconfig) {
+    configs = [ ":pkgconfig_protobuf" ]
+  } else {
+    # Fallback if pkg-config isn't enabled.
+    libs = [ "protobuf" ]  # This will link against libprotobuf.so
+  }
 }
 
 # protoc compiler library, it's used for building protoc plugins.

@@ -37,7 +37,7 @@ SELECT COALESCE($symbol,
 -- The timestamps for those tasks are going to be used later on to gather
 -- information about stack traces that were collected during running them.
 DROP VIEW IF EXISTS chrome_targeted_task;
-CREATE VIEW chrome_targeted_task AS
+CREATE PERFETTO VIEW chrome_targeted_task AS
 SELECT
   chrome_tasks.full_name AS full_name,
   chrome_tasks.dur AS dur,
@@ -56,7 +56,7 @@ WHERE
 -- reused between stack frames, callsite ids are unique per
 -- stack sample.
 DROP VIEW IF EXISTS chrome_non_symbolized_frames;
-CREATE VIEW chrome_non_symbolized_frames AS
+CREATE PERFETTO VIEW chrome_non_symbolized_frames AS
 SELECT
   frames.name AS frame_name,
   callsite.id AS callsite_id,
@@ -69,7 +69,7 @@ JOIN stack_profile_callsite callsite
 -- Only lowest child frames are join-able with chrome_non_symbolized_frames
 -- which we need for the time at which the callstack was taken.
 DROP VIEW IF EXISTS chrome_symbolized_child_frames;
-CREATE VIEW chrome_symbolized_child_frames AS
+CREATE PERFETTO VIEW chrome_symbolized_child_frames AS
 SELECT
   thread.name AS thread_name,
   sample.utid AS sample_utid,
@@ -84,7 +84,7 @@ JOIN process USING(upid);
 -- are not symbolized, use the file name as it is usually descriptive
 -- of the function.
 DROP VIEW IF EXISTS chrome_thread_symbolized_child_frames;
-CREATE VIEW chrome_thread_symbolized_child_frames AS
+CREATE PERFETTO VIEW chrome_thread_symbolized_child_frames AS
 SELECT
   describe_symbol(symbol.name, frame_name) AS description,
   depth,
@@ -99,7 +99,7 @@ WHERE thread_name = {{thread_name}} ORDER BY ts DESC;
 -- timestamp to all it's ancestor frames to use it later on for
 -- filtering frames within specific windows
 DROP VIEW IF EXISTS chrome_non_symbolized_frames_timed;
-CREATE VIEW chrome_non_symbolized_frames_timed AS
+CREATE PERFETTO VIEW chrome_non_symbolized_frames_timed AS
 SELECT
   chrome_non_symbolized_frames.frame_name,
   chrome_non_symbolized_frames.depth,
@@ -115,7 +115,7 @@ JOIN chrome_non_symbolized_frames
   ON chrome_non_symbolized_frames.callsite_id = child.id;
 
 DROP VIEW IF EXISTS chrome_frames_timed_and_symbolized;
-CREATE VIEW chrome_frames_timed_and_symbolized AS
+CREATE PERFETTO VIEW chrome_frames_timed_and_symbolized AS
 SELECT
   describe_symbol(symbol.name, frame_name) AS description,
   ts,
@@ -130,7 +130,7 @@ ORDER BY DEPTH ASC;
 -- Union leaf stack frames with all stack frames after the timestamp
 -- is attached to get a view of all frames timestamped.
 DROP VIEW IF EXISTS all_frames;
-CREATE VIEW all_frames AS
+CREATE PERFETTO VIEW all_frames AS
 SELECT
   *
 FROM
@@ -150,7 +150,7 @@ ORDER BY depth ASC;
 -- Filter stack samples that happened only during the specified
 -- task on the specified thread.
 DROP VIEW IF EXISTS chrome_stack_samples_for_task;
-CREATE VIEW chrome_stack_samples_for_task AS
+CREATE PERFETTO VIEW chrome_stack_samples_for_task AS
 SELECT
   all_frames.*
 FROM

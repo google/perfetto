@@ -22,6 +22,7 @@ perfetto_sql_source_set("common") {
     "metadata.sql",
     "percentiles.sql",
     "slices.sql",
+    "thread_states.sql",
     "timestamps.sql",
   ]
 }

@@ -18,11 +18,14 @@
 -- the value formatted according to the 'value_type' column (e.g. for booleans,
 -- EXTRACT_ARG will return 0 or 1, while FORMATTED_ARG will return 'true' or
 -- 'false').
--- @arg arg_set_id INT  Id of the arg set.
--- @arg key STRING      Key of the argument.
--- @ret STRING          Formatted value of the argument.
-CREATE PERFETTO FUNCTION formatted_arg(arg_set_id INT, key STRING)
+CREATE PERFETTO FUNCTION formatted_arg(
+  -- Id of the arg set.
+  arg_set_id INT,
+  -- Key of the argument.
+  arg_key STRING
+)
+-- Formatted value of the argument.
 RETURNS STRING AS
 SELECT display_value
 FROM args
-WHERE arg_set_id = $arg_set_id AND key = $key;
+WHERE arg_set_id = $arg_set_id AND key = $arg_key;

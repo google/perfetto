@@ -22,7 +22,7 @@ SELECT RUN_METRIC('android/android_cpu_raw_metrics_per_core.sql',
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS metrics_per_core_type;
-CREATE VIEW metrics_per_core_type AS
+CREATE PERFETTO VIEW metrics_per_core_type AS
 SELECT
   utid,
   core_type,
@@ -42,7 +42,7 @@ GROUP BY utid, core_type;
 
 -- Aggregate everything per thread.
 DROP VIEW IF EXISTS core_proto_per_thread;
-CREATE VIEW core_proto_per_thread AS
+CREATE PERFETTO VIEW core_proto_per_thread AS
 SELECT
   utid,
   RepeatedField(
@@ -61,7 +61,7 @@ FROM raw_metrics_per_core
 GROUP BY utid;
 
 DROP VIEW IF EXISTS core_type_proto_per_thread;
-CREATE VIEW core_type_proto_per_thread AS
+CREATE PERFETTO VIEW core_type_proto_per_thread AS
 SELECT
   utid,
   RepeatedField(
@@ -74,7 +74,7 @@ FROM metrics_per_core_type
 GROUP BY utid;
 
 DROP VIEW IF EXISTS metrics_proto_per_thread;
-CREATE VIEW metrics_proto_per_thread AS
+CREATE PERFETTO VIEW metrics_proto_per_thread AS
 SELECT
   utid,
   AndroidCpuMetric_Metrics(
@@ -91,7 +91,7 @@ GROUP BY utid;
 
 -- Aggregate everything per perocess
 DROP VIEW IF EXISTS thread_proto_per_process;
-CREATE VIEW thread_proto_per_process AS
+CREATE PERFETTO VIEW thread_proto_per_process AS
 SELECT
   upid,
   RepeatedField(
@@ -109,7 +109,7 @@ LEFT JOIN metrics_proto_per_thread USING(utid)
 GROUP BY upid;
 
 DROP VIEW IF EXISTS core_metrics_per_process;
-CREATE VIEW core_metrics_per_process AS
+CREATE PERFETTO VIEW core_metrics_per_process AS
 SELECT
   upid,
   cpu,
@@ -129,7 +129,7 @@ JOIN thread USING (utid)
 GROUP BY upid, cpu;
 
 DROP VIEW IF EXISTS core_proto_per_process;
-CREATE VIEW core_proto_per_process AS
+CREATE PERFETTO VIEW core_proto_per_process AS
 SELECT
   upid,
   RepeatedField(
@@ -142,7 +142,7 @@ FROM core_metrics_per_process
 GROUP BY upid;
 
 DROP VIEW IF EXISTS core_type_metrics_per_process;
-CREATE VIEW core_type_metrics_per_process AS
+CREATE PERFETTO VIEW core_type_metrics_per_process AS
 SELECT
   upid,
   core_type,
@@ -162,7 +162,7 @@ JOIN thread USING (utid)
 GROUP BY upid, core_type;
 
 DROP VIEW IF EXISTS core_type_proto_per_process;
-CREATE VIEW core_type_proto_per_process AS
+CREATE PERFETTO VIEW core_type_proto_per_process AS
 SELECT
   upid,
   RepeatedField(
@@ -175,7 +175,7 @@ FROM core_type_metrics_per_process
 GROUP BY upid;
 
 DROP VIEW IF EXISTS metrics_proto_per_process;
-CREATE VIEW metrics_proto_per_process AS
+CREATE PERFETTO VIEW metrics_proto_per_process AS
 SELECT
   upid,
   AndroidCpuMetric_Metrics(
@@ -192,7 +192,7 @@ JOIN thread USING (utid)
 GROUP BY upid;
 
 DROP VIEW IF EXISTS android_cpu_output;
-CREATE VIEW android_cpu_output AS
+CREATE PERFETTO VIEW android_cpu_output AS
 SELECT AndroidCpuMetric(
   'process_info', (
     SELECT RepeatedField(

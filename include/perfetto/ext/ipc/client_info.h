@@ -32,7 +32,8 @@ class ClientInfo {
       : client_id_(client_id), uid_(uid), pid_(pid) {}
 
   bool operator==(const ClientInfo& other) const {
-    return (client_id_ == other.client_id_ && uid_ == other.uid_);
+    return std::tie(client_id_, uid_, pid_) ==
+           std::tie(other.client_id_, other.uid_, other.pid_);
   }
   bool operator!=(const ClientInfo& other) const { return !(*this == other); }
 
@@ -55,6 +56,8 @@ class ClientInfo {
 
  private:
   ClientID client_id_ = 0;
+  // The following fields are emitted to trace packets and should be kept in
+  // sync with perfetto::ClientIdentity.
   uid_t uid_ = kInvalidUid;
   pid_t pid_ = base::kInvalidPid;
 };

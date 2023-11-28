@@ -15,9 +15,9 @@
 import m from 'mithril';
 
 import {duration, Time, time} from '../../base/time';
-import {EngineProxy} from '../../common/engine';
-import {LONG, NUM, STR} from '../../common/query_result';
-import {VegaView} from '../../frontend/widgets/vega_view';
+import {EngineProxy} from '../../trace_processor/engine';
+import {LONG, NUM, STR} from '../../trace_processor/query_result';
+import {VegaView} from '../../widgets/vega_view';
 
 const USER_CATEGORY = 'User';
 const APPLIED_CATEGORY = 'Applied';

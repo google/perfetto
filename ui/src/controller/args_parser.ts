@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {isString} from '../base/object_utils';
 import {exists} from '../base/utils';
 
 export type Key = string|number;
@@ -102,7 +103,7 @@ export function convertArgsToObject<A extends ArgLike<T>, T>(input: A[]):
 
 function parseNodes<A extends ArgLike<T>, T>(nodes: ArgNode<A>[]):
     ObjectType<T> {
-  if (nodes.every(({key}) => typeof key === 'string')) {
+  if (nodes.every(({key}) => isString(key))) {
     const dict: ObjectType<T> = {};
     for (const node of nodes) {
       if (node.key in dict) {

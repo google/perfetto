@@ -20,6 +20,7 @@ source_set("core") {
   ]
   sources = [
     "basic_types.h",
+    "client_identity.h",
     "commit_data_request.h",
     "consumer.h",
     "observable_events.h",

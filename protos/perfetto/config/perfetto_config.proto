@@ -198,6 +198,15 @@ message DataSourceDescriptor {
   // contents, and knows how to stop referring to the already-emitted data.
   optional bool handles_incremental_state_clear = 4;
 
+  // If true, indicates that the data source does nothing upon Flush. This
+  // allows the service to reduce the flush-related IPC traffic and better deal
+  // with frozen producers (see go/perfetto-frozen). This is usually the case
+  // for data sources like 'track_event' that don't have access to the various
+  // thread task runners to post a flush task and rely purely on server-side
+  // scraping.
+  // Introduced in v39 / Android V.
+  optional bool no_flush = 9;
+
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
 
@@ -901,7 +910,7 @@ message InterceptorConfig {
   // Matches the name given to RegisterInterceptor().
   optional string name = 1;
 
-  optional ConsoleConfig console_config = 100 [lazy = true];
+  optional ConsoleConfig console_config = 100;
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
@@ -923,6 +932,9 @@ message AndroidPowerConfig {
 
     // Avg current.
     BATTERY_COUNTER_CURRENT_AVG = 4;
+
+    // Instantaneous voltage.
+    BATTERY_COUNTER_VOLTAGE = 5;
   }
   optional uint32 battery_poll_ms = 1;
   repeated BatteryCounters battery_counters = 2;
@@ -2978,7 +2990,7 @@ message TraceConfig {
   // long (e.g. 24h) traces, where suspend can inflate them to weeks of
   // wall-time, making them more likely to hit device reboots (and hence loss).
   // This option also changes consistently the semantic of
-  // TrigerConfig.stop_delay_ms.
+  // TriggerConfig.stop_delay_ms.
   optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client

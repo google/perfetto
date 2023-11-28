@@ -14,10 +14,11 @@
 
 import {arrayEquals} from '../../base/array_utils';
 import {SortDirection} from '../../base/comparison_utils';
+import {isString} from '../../base/object_utils';
 import {sqliteString} from '../../base/string_utils';
-import {EngineProxy} from '../../common/engine';
-import {NUM, Row} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
+import {NUM, Row} from '../../trace_processor/query_result';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
@@ -134,7 +135,7 @@ export class SqlTableState {
     };
     let cteId = 0;
     for (const filter of this.filters) {
-      if (typeof filter === 'string') {
+      if (isString(filter)) {
         result.filters!.push(filter);
       } else {
         const cteName = `arg_sets_${cteId++}`;
@@ -273,9 +274,11 @@ export class SqlTableState {
     if ((params?.offset ?? 'reset') === 'reset') {
       this.offset = 0;
     }
-    const updateRowCount = !arrayEquals(this.rowCount?.filters, this.filters);
+
+    const newFilters = this.rowCount?.filters;
+    const filtersMatch = newFilters && arrayEquals(newFilters, this.filters);
     this.data = undefined;
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = undefined;
     }
 
@@ -283,7 +286,7 @@ export class SqlTableState {
     // before the data is loaded.
     setTimeout(() => raf.scheduleFullRedraw(), 50);
 
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();
     }
     this.data = await this.loadData();

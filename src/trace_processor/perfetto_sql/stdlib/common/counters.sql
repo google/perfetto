@@ -16,32 +16,32 @@
 INCLUDE PERFETTO MODULE common.timestamps;
 
 -- Timestamp of first counter value in a counter.
---
--- @arg counter_track_id  INT Id of a counter track with a counter.
--- @ret LONG                  Timestamp of first counter value. Null if doesn't exist.
-CREATE PERFETTO FUNCTION earliest_timestamp_for_counter_track(counter_track_id INT)
+CREATE PERFETTO FUNCTION earliest_timestamp_for_counter_track(
+  -- Id of a counter track with a counter.
+  counter_track_id INT)
+-- Timestamp of first counter value. Null if doesn't exist.
 RETURNS LONG AS
 SELECT MIN(ts) FROM counter WHERE counter.track_id = $counter_track_id;
 
 -- Counter values with details of counter track with calculated duration of each counter value.
 -- Duration is calculated as time from counter to the next counter.
---
--- @arg counter_track_id INT   Id of track counter track.
--- @column ts                  Timestamp of the counter value.
--- @column dur                 Duration of the counter value.
--- @column value               Counter value.
--- @column track_id            If of the counter track.
--- @column track_name          Name of the counter track.
--- @column track_arg_set_id    Counter track set id.
--- @column arg_set_id          Counter arg set id.
-CREATE PERFETTO FUNCTION counter_with_dur_for_track(counter_track_id INT)
+CREATE PERFETTO FUNCTION counter_with_dur_for_track(
+  -- Id of track counter track.
+  counter_track_id INT)
 RETURNS TABLE(
+    -- Timestamp of the counter value.
     ts LONG,
+    -- Duration of the counter value.
     dur LONG,
+    -- Counter value.
     value DOUBLE,
+    -- Id of the counter track.
     track_id INT,
+    -- Name of the counter track.
     track_name STRING,
+    -- Counter track set id.
     track_arg_set_id INT,
+    -- Counter arg set id.
     arg_set_id INT
 ) AS
 SELECT
@@ -59,27 +59,28 @@ WHERE track.id = $counter_track_id;
 -- COUNTER_WITH_DUR_FOR_TRACK but in a specified time.
 -- Does calculation over the table ends - creates an artificial counter value at
 -- the start if needed and chops the duration of the last timestamps in range.
---
--- @arg counter_track_id INT   Id of track counter track.
--- @arg start_ts LONG          Timestamp of the timerange start.
--- Can be earlier than the first counter value.
--- @arg end_ts LONG            Timestamp of the timerange end.
--- @column ts                  Timestamp of the counter value.
--- @column dur                 Duration of the counter value.
--- @column value               Counter value.
--- @column track_id            If of the counter track.
--- @column track_name          Name of the counter track.
--- @column track_arg_set_id    Counter track set id.
--- @column arg_set_id          Counter arg set id.
-CREATE PERFETTO FUNCTION COUNTER_FOR_TIME_RANGE(
-  counter_track_id INT, start_ts LONG, end_ts LONG)
+CREATE PERFETTO FUNCTION counter_for_time_range(
+  -- Id of track counter track.
+  counter_track_id INT,
+  -- Timestamp of the timerange start.
+  -- Can be earlier than the first counter value.
+  start_ts LONG,
+  -- Timestamp of the timerange end.
+  end_ts LONG)
 RETURNS TABLE(
+  -- Timestamp of the counter value.
   ts LONG,
+  -- Duration of the counter value.
   dur LONG,
+  -- Counter value.
   value DOUBLE,
+  -- If of the counter track.
   track_id INT,
+  -- Name of the counter track.
   track_name STRING,
+  -- Counter track set id.
   track_arg_set_id INT,
+  -- Counter arg set id.
   arg_set_id INT
 ) AS
 SELECT

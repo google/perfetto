@@ -14,12 +14,6 @@
 
 import {v4 as uuidv4} from 'uuid';
 
-import {
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../../common/query_result';
 import {TrackWithControllerAdapter} from '../../common/track_adapter';
 import {
   Plugin,
@@ -27,6 +21,12 @@ import {
   PluginContextTrace,
   PluginDescriptor,
 } from '../../public';
+import {
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
 import {
   Config as ProcessSchedulingTrackConfig,
@@ -217,19 +217,19 @@ class ProcessSummaryPlugin implements Plugin {
             utid,
           };
 
-          ctx.addTrack({
+          ctx.registerStaticTrack({
             uri,
             displayName: `${upid === null ? tid : pid} schedule`,
             kind: PROCESS_SCHEDULING_TRACK_KIND,
             tags: {
               isDebuggable,
             },
-            track: ({trackInstanceId}) => {
+            track: ({trackKey}) => {
               return new TrackWithControllerAdapter<
                   ProcessSchedulingTrackConfig,
                   ProcessSchedulingTrackData>(
                   ctx.engine,
-                  trackInstanceId,
+                  trackKey,
                   config,
                   ProcessSchedulingTrack,
                   ProcessSchedulingTrackController);
@@ -242,19 +242,19 @@ class ProcessSummaryPlugin implements Plugin {
             utid,
           };
 
-          ctx.addTrack({
+          ctx.registerStaticTrack({
             uri,
             displayName: `${upid === null ? tid : pid} summary`,
             kind: PROCESS_SUMMARY_TRACK,
             tags: {
               isDebuggable,
             },
-            track: ({trackInstanceId}) => {
+            track: ({trackKey}) => {
               return new TrackWithControllerAdapter<
                   ProcessSummaryTrackConfig,
                   ProcessSummaryTrackData>(
                   ctx.engine,
-                  trackInstanceId,
+                  trackKey,
                   config,
                   ProcessSummaryTrack,
                   ProcessSummaryTrackController);
@@ -310,16 +310,16 @@ class ProcessSummaryPlugin implements Plugin {
       utid: it.utid,
     };
 
-    ctx.addTrack({
+    ctx.registerStaticTrack({
       uri: 'perfetto.ProcessSummary#kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
-      track: ({trackInstanceId}) => {
+      track: ({trackKey}) => {
         return new TrackWithControllerAdapter<
             ProcessSummaryTrackConfig,
             ProcessSummaryTrackData>(
             ctx.engine,
-            trackInstanceId,
+            trackKey,
             config,
             ProcessSummaryTrack,
             ProcessSummaryTrackController);

@@ -47,6 +47,24 @@ class ModuleMd:
     long_s = []
     long_s.append(f'## Module: {self.module_name}')
 
+    if self.module_name == 'prelude':
+      # Prelude is a special module which is automatically imported and doesn't
+      # have any include keys.
+      objs = '\n'.join(obj for file in self.files_md for obj in file.objs)
+      if objs:
+        long_s.append('#### Views/Tables')
+        long_s.append(objs)
+      funs = '\n'.join(fun for file in self.files_md for fun in file.funs)
+      if funs:
+        long_s.append('#### Functions')
+        long_s.append(funs)
+      table_funs = '\n'.join(
+          view_fun for file in self.files_md for view_fun in file.view_funs)
+      if table_funs:
+        long_s.append('#### Table Functions')
+        long_s.append(table_funs)
+      return '\n'.join(long_s)
+
     for file in self.files_md:
       if not file.objs and not file.funs and not file.view_funs:
         continue
@@ -70,6 +88,7 @@ class FileMd:
 
   def __init__(self, module_name, file_dict):
     self.import_key = file_dict['import_key']
+    import_key_name = self.import_key if module_name != 'prelude' else 'N/A'
     self.objs, self.funs, self.view_funs = [], [], []
     summary_objs_list, summary_funs_list, summary_view_funs_list = [], [], []
 
@@ -81,16 +100,17 @@ class FileMd:
       # Add summary of imported view/table
       desc = data['desc'].split('.')[0]
       summary_objs_list.append(f'''[{data['name']}](#{anchor})|'''
-                               f'''{file_dict['import_key']}|'''
+                               f'''{import_key_name}|'''
                                f'''{desc}''')
 
       self.objs.append(f'''\n\n<a name="{anchor}"></a>'''
                        f'''**{data['name']}**, {data['type']}\n\n'''
                        f'''{data['desc']}\n''')
 
-      self.objs.append('Column | Description\n------ | -----------')
-      for name, desc in data['cols'].items():
-        self.objs.append(f'{name} | {desc}')
+      self.objs.append(
+          'Column | Type | Description\n------ | --- | -----------')
+      for name, info in data['cols'].items():
+        self.objs.append(f'{name} | {info["type"]} | {info["desc"]}')
 
       self.objs.append('\n\n')
 
@@ -101,7 +121,7 @@ class FileMd:
 
       # Add summary of imported function
       summary_funs_list.append(f'''[{data['name']}](#{anchor})|'''
-                               f'''{file_dict['import_key']}|'''
+                               f'''{import_key_name}|'''
                                f'''{data['return_type']}|'''
                                f'''{data['desc'].split('.')[0]}''')
       self.funs.append(
@@ -124,7 +144,7 @@ class FileMd:
       anchor = rf'''view_fun/{module_name}/{data['name']}'''
       # Add summary of imported view function
       summary_view_funs_list.append(f'''[{data['name']}](#{anchor})|'''
-                                    f'''{file_dict['import_key']}|'''
+                                    f'''{import_key_name}|'''
                                     f'''{data['desc'].split('.')[0]}''')
 
       self.view_funs.append(f'''\n\n<a name="{anchor}"></a>'''
@@ -137,9 +157,10 @@ class FileMd:
           self.view_funs.append(
               f'''{name} | {arg_dict['type']} | {arg_dict['desc']}''')
         self.view_funs.append('\n')
-      self.view_funs.append('Column | Description\n' '------ | -----------')
-      for name, desc in data['cols'].items():
-        self.view_funs.append(f'{name} | {desc}')
+      self.view_funs.append('Column | Type | Description\n'
+                            '------ | -- | -----------')
+      for name, column in data['cols'].items():
+        self.view_funs.append(f'{name} | {column["type"]} | {column["desc"]}')
 
       self.view_funs.append('\n\n')
 
@@ -163,6 +184,7 @@ def main():
     modules_dict[module_name] = ModuleMd(module_name, module_files)
 
   common_module = modules_dict.pop('common')
+  prelude_module = modules_dict.pop('prelude')
 
   with open(args.output, 'w') as f:
     f.write('''
@@ -195,6 +217,9 @@ SELECT *
 FROM android_startups;
 ```
 
+Prelude is a special module is automatically imported. It contains key helper
+tables, views and functions which are universally useful.
+
 More information on importing modules is available in the
 [syntax documentation](/docs/analysis/perfetto-sql-syntax#including-perfettosql-modules)
 for the `INCLUDE PERFETTO MODULE` statement.
@@ -204,23 +229,29 @@ for the `INCLUDE PERFETTO MODULE` statement.
 ## Summary
 ''')
 
-    summary_objs = [common_module.summary_objs
-                   ] if common_module.summary_objs else []
+    summary_objs = [prelude_module.summary_objs
+                   ] if prelude_module.summary_objs else []
+    summary_objs += [common_module.summary_objs
+                    ] if common_module.summary_objs else []
     summary_objs += [
         module.summary_objs
         for name, module in modules_dict.items()
         if (module.summary_objs and name != 'experimental')
     ]
 
-    summary_funs = [common_module.summary_funs
-                   ] if common_module.summary_funs else []
+    summary_funs = [prelude_module.summary_funs
+                   ] if prelude_module.summary_funs else []
+    summary_funs += [common_module.summary_funs
+                    ] if common_module.summary_funs else []
     summary_funs += [
         module.summary_funs
         for name, module in modules_dict.items()
         if (module.summary_funs and name != 'experimental')
     ]
-    summary_view_funs = [common_module.summary_view_funs
-                        ] if common_module.summary_view_funs else []
+    summary_view_funs = [prelude_module.summary_view_funs
+                        ] if prelude_module.summary_view_funs else []
+    summary_view_funs += [common_module.summary_view_funs
+                         ] if common_module.summary_view_funs else []
     summary_view_funs += [
         module.summary_view_funs
         for name, module in modules_dict.items()
@@ -249,6 +280,8 @@ for the `INCLUDE PERFETTO MODULE` statement.
       f.write('\n')
 
     f.write('\n\n')
+    f.write(prelude_module.print_description())
+    f.write('\n')
     f.write(common_module.print_description())
     f.write('\n')
     f.write('\n'.join(

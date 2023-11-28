@@ -26,7 +26,7 @@ namespace trace_processor {
 
 TrackEventTracker::TrackEventTracker(TraceProcessorContext* context)
     : source_key_(context->storage->InternString("source")),
-      source_id_key_(context->storage->InternString("source_id")),
+      source_id_key_(context->storage->InternString("trace_id")),
       is_root_in_scope_key_(context->storage->InternString("is_root_in_scope")),
       category_key_(context->storage->InternString("category")),
       has_first_packet_on_sequence_key_id_(

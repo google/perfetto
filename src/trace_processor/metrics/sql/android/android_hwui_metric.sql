@@ -17,7 +17,7 @@
 
 -- TOP processes that have a RenderThread, sorted by CPU time on RT
 DROP VIEW IF EXISTS hwui_processes;
-CREATE VIEW hwui_processes AS
+CREATE PERFETTO VIEW hwui_processes AS
 SELECT
   process.name AS process_name,
   process.upid AS process_upid,
@@ -30,7 +30,7 @@ GROUP BY process.name
 ORDER BY rt_cpu_time_ms DESC;
 
 DROP VIEW IF EXISTS hwui_draw_frame;
-CREATE VIEW hwui_draw_frame AS
+CREATE PERFETTO VIEW hwui_draw_frame AS
 SELECT
   count(*) AS draw_frame_count,
   max(dur) AS draw_frame_max,
@@ -43,7 +43,7 @@ WHERE slice.name GLOB 'DrawFrame*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_flush_commands;
-CREATE VIEW hwui_flush_commands AS
+CREATE PERFETTO VIEW hwui_flush_commands AS
 SELECT
   count(*) AS flush_count,
   max(dur) AS flush_max,
@@ -56,7 +56,7 @@ WHERE slice.name = 'flush commands' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_prepare_tree;
-CREATE VIEW hwui_prepare_tree AS
+CREATE PERFETTO VIEW hwui_prepare_tree AS
 SELECT
   count(*) AS prepare_tree_count,
   max(dur) AS prepare_tree_max,
@@ -69,7 +69,7 @@ WHERE slice.name = 'prepareTree' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_gpu_completion;
-CREATE VIEW hwui_gpu_completion AS
+CREATE PERFETTO VIEW hwui_gpu_completion AS
 SELECT
   count(*) AS gpu_completion_count,
   max(dur) AS gpu_completion_max,
@@ -83,7 +83,7 @@ WHERE slice.name GLOB 'waiting for GPU completion*' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_ui_record;
-CREATE VIEW hwui_ui_record AS
+CREATE PERFETTO VIEW hwui_ui_record AS
 SELECT
   count(*) AS ui_record_count,
   max(dur) AS ui_record_max,
@@ -98,7 +98,7 @@ WHERE slice.name = 'Record View#draw()' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_shader_compile;
-CREATE VIEW hwui_shader_compile AS
+CREATE PERFETTO VIEW hwui_shader_compile AS
 SELECT
   count(*) AS shader_compile_count,
   sum(dur) AS shader_compile_time,
@@ -110,7 +110,7 @@ WHERE slice.name = 'shader_compile' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_hit;
-CREATE VIEW hwui_cache_hit AS
+CREATE PERFETTO VIEW hwui_cache_hit AS
 SELECT
   count(*) AS cache_hit_count,
   sum(dur) AS cache_hit_time,
@@ -122,7 +122,7 @@ WHERE slice.name = 'cache_hit' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_cache_miss;
-CREATE VIEW hwui_cache_miss AS
+CREATE PERFETTO VIEW hwui_cache_miss AS
 SELECT
   count(*) AS cache_miss_count,
   sum(dur) AS cache_miss_time,
@@ -134,7 +134,7 @@ WHERE slice.name = 'cache_miss' AND slice.dur >= 0
 GROUP BY thread_track.utid;
 
 DROP VIEW IF EXISTS hwui_graphics_cpu_mem;
-CREATE VIEW hwui_graphics_cpu_mem AS
+CREATE PERFETTO VIEW hwui_graphics_cpu_mem AS
 SELECT
   max(value) AS graphics_cpu_mem_max,
   min(value) AS graphics_cpu_mem_min,
@@ -146,7 +146,7 @@ WHERE name = 'HWUI CPU Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_graphics_gpu_mem;
-CREATE VIEW hwui_graphics_gpu_mem AS
+CREATE PERFETTO VIEW hwui_graphics_gpu_mem AS
 SELECT
   max(value) AS graphics_gpu_mem_max,
   min(value) AS graphics_gpu_mem_min,
@@ -158,7 +158,7 @@ WHERE name = 'HWUI Misc Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_texture_mem;
-CREATE VIEW hwui_texture_mem AS
+CREATE PERFETTO VIEW hwui_texture_mem AS
 SELECT
   max(value) AS texture_mem_max,
   min(value) AS texture_mem_min,
@@ -170,7 +170,7 @@ WHERE name = 'HWUI Texture Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS hwui_all_mem;
-CREATE VIEW hwui_all_mem AS
+CREATE PERFETTO VIEW hwui_all_mem AS
 SELECT
   max(value) AS all_mem_max,
   min(value) AS all_mem_min,
@@ -182,7 +182,7 @@ WHERE name = 'HWUI All Memory' AND counter.value >= 0
 GROUP BY process_counter_track.upid;
 
 DROP VIEW IF EXISTS android_hwui_metric_output;
-CREATE VIEW android_hwui_metric_output AS
+CREATE PERFETTO VIEW android_hwui_metric_output AS
 SELECT AndroidHwuiMetric(
   'process_info', (
     SELECT RepeatedField(

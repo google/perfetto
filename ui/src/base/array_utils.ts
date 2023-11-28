@@ -32,8 +32,8 @@ export function allUnique(x: string[]): boolean {
   return x.length == new Set(x).size;
 }
 
-export function arrayEquals(a: any[]|undefined, b: any[]|undefined): boolean {
-  if (a === undefined || b === undefined) return false;
+// Check whether two arrays are identical.
+export function arrayEquals<T>(a: ArrayLike<T>, b: ArrayLike<T>): boolean {
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) {
     if (a[i] !== b[i]) return false;

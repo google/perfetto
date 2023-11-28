@@ -21,8 +21,6 @@ export interface TextParagraphAttrs {
   // Whether to compress multiple spaces (e.g. the string is multi-line but
   // should render with the default UI wrapping)
   compressSpace?: boolean;
-  // Remaining attributes forwarded to the underlying HTML <section>.
-  [htmlAttrs: string]: any;
 }
 
 export class TextParagraph implements m.ClassComponent<TextParagraphAttrs> {

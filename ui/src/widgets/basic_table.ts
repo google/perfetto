@@ -24,13 +24,18 @@ export interface TableAttrs<T> {
   columns: ColumnDescriptor<T>[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export class BasicTable implements m.ClassComponent<TableAttrs<any>> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   renderColumnHeader(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       _vnode: m.Vnode<TableAttrs<any>>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       column: ColumnDescriptor<any>): m.Children {
     return m('td', column.title);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   view(vnode: m.Vnode<TableAttrs<any>>): m.Child {
     const attrs = vnode.attrs;
 

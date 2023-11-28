@@ -23,12 +23,21 @@
 
 #include <algorithm>
 #include <array>
+#include <cstring>
 #include <optional>
 #include <vector>
 
 #include "perfetto/base/logging.h"
 
 namespace perfetto {
+
+namespace protos {
+namespace pbzero {
+class SerializedColumn_BitVector;
+class SerializedColumn_BitVector_Decoder;
+}  // namespace pbzero
+}  // namespace protos
+
 namespace trace_processor {
 
 namespace internal {
@@ -394,6 +403,13 @@ class BitVector {
     // bits and the cost of the counts vector.
     return BlockCount(n) * Block::kBits + BlockCount(n) * sizeof(uint32_t);
   }
+
+  // Serialize internals of BitVector to proto.
+  void Serialize(protos::pbzero::SerializedColumn_BitVector* msg) const;
+
+  // Deserialize BitVector from proto.
+  void Deserialize(
+      const protos::pbzero::SerializedColumn_BitVector_Decoder& bv_msg);
 
  private:
   friend class internal::BaseIterator;

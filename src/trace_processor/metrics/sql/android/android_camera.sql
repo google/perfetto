@@ -24,7 +24,7 @@ SELECT RUN_METRIC('android/global_counter_span_view.sql',
 
 -- RSS of GCA.
 DROP VIEW IF EXISTS rss_gca;
-CREATE VIEW rss_gca AS
+CREATE PERFETTO VIEW rss_gca AS
 SELECT ts, dur, rss_val AS gca_rss_val
 FROM rss_and_swap_span
 JOIN (
@@ -36,7 +36,7 @@ JOIN (
 
 -- RSS of camera HAL.
 DROP VIEW IF EXISTS rss_camera_hal;
-CREATE VIEW rss_camera_hal AS
+CREATE PERFETTO VIEW rss_camera_hal AS
 SELECT ts, dur, rss_val AS hal_rss_val
 FROM rss_and_swap_span
 JOIN (
@@ -48,7 +48,7 @@ JOIN (
 
 -- RSS of cameraserver.
 DROP VIEW IF EXISTS rss_cameraserver;
-CREATE VIEW rss_cameraserver AS
+CREATE PERFETTO VIEW rss_cameraserver AS
 SELECT ts, dur, rss_val AS cameraserver_rss_val
 FROM rss_and_swap_span
 JOIN (
@@ -74,7 +74,7 @@ CREATE VIRTUAL TABLE rss_and_dma_all_camera_join
 USING SPAN_OUTER_JOIN(dma_span, rss_all_camera);
 
 DROP VIEW IF EXISTS rss_and_dma_all_camera_span;
-CREATE VIEW rss_and_dma_all_camera_span AS
+CREATE PERFETTO VIEW rss_and_dma_all_camera_span AS
 SELECT
   ts,
   dur,
@@ -92,7 +92,7 @@ FROM rss_and_dma_all_camera_join;
 -- we are dividing and casting to real when calculating avg_value
 -- to avoid issues such as the one in b/203613535
 DROP VIEW IF EXISTS rss_and_dma_all_camera_stats;
-CREATE VIEW rss_and_dma_all_camera_stats AS
+CREATE PERFETTO VIEW rss_and_dma_all_camera_stats AS
 SELECT
   MIN(rss_and_dma_val) AS min_value,
   MAX(rss_and_dma_val) AS max_value,
@@ -100,7 +100,7 @@ SELECT
 FROM rss_and_dma_all_camera_span;
 
 DROP VIEW IF EXISTS android_camera_event;
-CREATE VIEW android_camera_event AS
+CREATE PERFETTO VIEW android_camera_event AS
 SELECT
   'counter' AS track_type,
   'Camera Memory' AS track_name,
@@ -109,7 +109,7 @@ SELECT
 FROM rss_and_dma_all_camera_span;
 
 DROP VIEW IF EXISTS android_camera_output;
-CREATE VIEW android_camera_output AS
+CREATE PERFETTO VIEW android_camera_output AS
 SELECT
   AndroidCameraMetric(
     'gc_rss_and_dma', AndroidCameraMetric_Counter(

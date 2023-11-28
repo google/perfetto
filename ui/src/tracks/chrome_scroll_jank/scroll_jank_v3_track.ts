@@ -12,19 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
-import {
-  getColorForSlice,
-} from '../../common/colorizer';
-import {Engine} from '../../common/engine';
-import {
-  SCROLLING_TRACK_GROUP,
-} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
+import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -33,13 +24,12 @@ import {
 
 import {EventLatencyTrackTypes} from './event_latency_track';
 import {
+  SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
   ScrollJankTracks as DecideTracksResult,
 } from './index';
-import {DEEP_RED_COLOR, RED_COLOR} from './jank_colors';
+import {JANK_COLOR} from './jank_colors';
 import {ScrollJankV3DetailsPanel} from './scroll_jank_v3_details_panel';
-
-export {Data} from '../chrome_slices';
 
 const UNKNOWN_SLICE_NAME = 'Unknown';
 const JANK_SLICE_NAME = ' Jank';
@@ -56,7 +46,7 @@ export class ScrollJankV3Track extends
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: ScrollJankV3Track.kind,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });
@@ -94,6 +84,24 @@ export class ScrollJankV3Track extends
     ScrollJankPluginState.getInstance().unregisterTrack(ScrollJankV3Track.kind);
   }
 
+  rowToSlice(row: NamedRow): Slice {
+    const slice = super.rowToSlice(row);
+
+    let stage = slice.title.substring(0, slice.title.indexOf(JANK_SLICE_NAME));
+    // Stage may include substage, in which case we use the substage for
+    // color selection.
+    const separator = '::';
+    if (stage.indexOf(separator) != -1) {
+      stage = stage.substring(stage.indexOf(separator) + separator.length);
+    }
+
+    if (stage == UNKNOWN_SLICE_NAME) {
+      return {...slice, colorScheme: JANK_COLOR};
+    } else {
+      return slice;
+    }
+  }
+
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
     for (const slice of slices) {
       const currentSelection = globals.state.currentSelection;
@@ -103,47 +111,23 @@ export class ScrollJankV3Track extends
 
       const highlighted = globals.state.highlightedSliceId === slice.id;
       const hasFocus = highlighted || isSelected;
-
-      let stage =
-          slice.title.substring(0, slice.title.indexOf(JANK_SLICE_NAME));
-      // Stage may include substage, in which case we use the substage for
-      // color selection.
-      const separator = '::';
-      if (stage.indexOf(separator) != -1) {
-        stage = stage.substring(stage.indexOf(separator) + separator.length);
-      }
-
-      if (stage == UNKNOWN_SLICE_NAME) {
-        if (hasFocus) {
-          slice.baseColor = DEEP_RED_COLOR;
-        } else {
-          slice.baseColor = RED_COLOR;
-        }
-      } else {
-        slice.baseColor = getColorForSlice(stage, hasFocus);
-      }
+      slice.isHighlighted = !!hasFocus;
     }
     super.onUpdatedSlices(slices);
   }
 }
 
-export async function addScrollJankV3ScrollTrack(engine: Engine):
+export async function addScrollJankV3ScrollTrack():
     Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  await engine.query(
-      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
-
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: ScrollJankV3Track.kind,
+    uri: 'perfetto.ChromeScrollJank#scrollJankV3',
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scroll Janks',
-    config: {},
-    trackGroup: SCROLLING_TRACK_GROUP,
+    trackGroup: SCROLL_JANK_GROUP_ID,
   });
 
   return result;

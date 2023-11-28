@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP VIEW IF EXISTS android_jank_cuj_slice;
-CREATE VIEW android_jank_cuj_slice AS
+CREATE PERFETTO VIEW android_jank_cuj_slice AS
 SELECT
   cuj_id,
   process.upid,
@@ -73,7 +73,7 @@ JOIN slice
 WHERE slice.dur > 0;
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_slice;
-CREATE VIEW android_jank_cuj_sf_slice AS
+CREATE PERFETTO VIEW android_jank_cuj_sf_slice AS
 SELECT
   cuj_id,
   upid,

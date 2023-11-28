@@ -14,6 +14,7 @@
 
 import {Message, Method, rpc, RPCImplCallback} from 'protobufjs';
 
+import {isString} from '../base/object_utils';
 import {base64Encode} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {TRACE_SUFFIX} from '../common/constants';
@@ -25,12 +26,12 @@ import {
   isChromeTarget,
   RecordingTarget,
 } from '../common/state';
+import {globals} from '../frontend/globals';
+import {publishBufferUsage, publishTrackData} from '../frontend/publish';
 import {
   ConsumerPort,
   TraceConfig,
-} from '../core/protos';
-import {globals} from '../frontend/globals';
-import {publishBufferUsage, publishTrackData} from '../frontend/publish';
+} from '../protos';
 
 import {AdbOverWebUsb} from './adb';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -153,7 +154,7 @@ export function toPbtxt(configBuffer: Uint8Array): string {
       const isNested = typeof value === 'object' && !isRepeated;
       for (const entry of (isRepeated ? value as Array<{}> : [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
-        if (typeof entry === 'string') {
+        if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
             yield entry;
           } else {

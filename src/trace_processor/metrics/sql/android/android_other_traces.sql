@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS android_other_traces_view;
-CREATE VIEW android_other_traces_view AS
+CREATE PERFETTO VIEW android_other_traces_view AS
 SELECT
   ts,
   dur,
@@ -28,7 +28,7 @@ WHERE
   slice.name GLOB 'finalize-uuid-*';
 
 DROP VIEW IF EXISTS android_other_traces_event;
-CREATE VIEW android_other_traces_event AS
+CREATE PERFETTO VIEW android_other_traces_event AS
 SELECT
   'slice' AS track_type,
   'Other Traces' AS track_name,
@@ -38,7 +38,7 @@ SELECT
 FROM android_other_traces_view;
 
 DROP VIEW IF EXISTS android_other_traces_output;
-CREATE VIEW android_other_traces_output AS
+CREATE PERFETTO VIEW android_other_traces_output AS
 SELECT AndroidOtherTracesMetric(
     'finalized_traces_uuid', (
       SELECT RepeatedField(uuid)

@@ -16,29 +16,21 @@ import m from 'mithril';
 
 import {exists} from '../base/utils';
 
+import {HTMLInputAttrs} from './common';
 import {Menu, MenuItem} from './menu';
 import {scheduleFullRedraw} from './raf';
 import {TextInput} from './text_input';
 
-export interface SelectAttrs {
-  disabled?: boolean;
-  // Whether to show a search box. Defaults to false.
-  filterable?: boolean;
-  [htmlAttrs: string]: any;
-}
 
-export class Select implements m.ClassComponent<SelectAttrs> {
-  view({attrs, children}: m.CVnode<SelectAttrs>) {
-    const {disabled = false, ...htmlAttrs} = attrs;
-
-    return m(
-        'select.pf-select' + (disabled ? '[disabled]' : ''),
-        htmlAttrs,
-        children);
+export class Select implements m.ClassComponent<HTMLInputAttrs> {
+  view({attrs, children}: m.CVnode<HTMLInputAttrs>) {
+    return m('select.pf-select', attrs, children);
   }
 }
 
-export interface FilterableSelectAttrs extends SelectAttrs {
+export interface FilterableSelectAttrs {
+  // Whether to show a search box. Defaults to false.
+  filterable?: boolean;
   // The values to show in the select.
   values: string[];
   // Called when the user selects an option.
@@ -86,7 +78,7 @@ export class FilterableSelect implements
             },
             value: this.searchText,
             placeholder: 'Filter...',
-            extraClasses: 'pf-search-box',
+            className: 'pf-search-box',
           }),
           m(Menu,
             ...displayedValues.map((value) => m(MenuItem, {

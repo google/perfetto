@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {LoadingTracker} from '../common/engine';
 import {publishLoading} from '../frontend/publish';
+import {LoadingTracker} from '../trace_processor/engine';
 
 // Used to keep track of whether the engine is currently querying.
 export class LoadingManager implements LoadingTracker {

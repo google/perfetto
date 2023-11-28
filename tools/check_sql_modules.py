@@ -25,31 +25,34 @@ import re
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.sql_processing.docs_parse import ParsedFile, parse_file
-from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.docs_parse import ParsedFile
+from python.generators.sql_processing.docs_parse import parse_file
 from python.generators.sql_processing.utils import check_banned_create_table_as
+from python.generators.sql_processing.utils import check_banned_create_view_as
+from python.generators.sql_processing.utils import check_banned_words
+from python.generators.sql_processing.utils import check_banned_include_all
 
+# Allowlist path are relative to the stdlib root.
 CREATE_TABLE_ALLOWLIST = {
-    '/src/trace_processor/perfetto_sql/stdlib/android/binder.sql': [
+    '/android/binder.sql': [
         'internal_oom_score', 'internal_async_binder_reply',
         'internal_binder_async_txn_raw'
     ],
-    '/src/trace_processor/perfetto_sql/stdlib/android/monitor_contention.sql': [
+    '/android/monitor_contention.sql': [
         'internal_isolated', 'android_monitor_contention_chain',
         'android_monitor_contention'
     ],
-    '/src/trace_processor/perfetto_sql/stdlib/chrome/tasks.sql': [
+    '/chrome/tasks.sql': [
         'internal_chrome_mojo_slices', 'internal_chrome_java_views',
         'internal_chrome_scheduler_tasks', 'internal_chrome_tasks'
     ],
-    ('/src/trace_processor/perfetto_sql/stdlib/experimental/'
+    ('/experimental/'
      'thread_executing_span.sql'): [
         'internal_wakeup', 'experimental_thread_executing_span_graph',
-        'internal_critical_path', 'internal_wakeup_graph', 'experimental_thread_executing_span_graph'
+        'internal_critical_path', 'internal_wakeup_graph',
+        'experimental_thread_executing_span_graph'
     ],
-    '/src/trace_processor/perfetto_sql/stdlib/experimental/flat_slices.sql': [
-        'experimental_slice_flattened'
-    ]
+    '/experimental/flat_slices.sql': ['experimental_slice_flattened']
 }
 
 
@@ -59,6 +62,17 @@ def main():
       '--stdlib-sources',
       default=os.path.join(ROOT_DIR, "src", "trace_processor", "perfetto_sql",
                            "stdlib"))
+  parser.add_argument(
+      '--verbose',
+      action='store_true',
+      default=False,
+      help='Enable additional logging')
+  parser.add_argument(
+      '--name-filter',
+      default=None,
+      type=str,
+      help='Filter the name of the modules to check (regex syntax)')
+
   args = parser.parse_args()
   errors = []
   modules: List[Tuple[str, str, ParsedFile]] = []
@@ -67,11 +81,26 @@ def main():
       path = os.path.join(root, f)
       if not path.endswith(".sql"):
         continue
+      rel_path = os.path.relpath(path, args.stdlib_sources)
+      if args.name_filter is not None:
+        pattern = re.compile(args.name_filter)
+        if not pattern.match(rel_path):
+          continue
+
+      if args.verbose:
+        print(f'Parsing {rel_path}:')
+
       with open(path, 'r') as f:
         sql = f.read()
 
       parsed = parse_file(path, sql)
       modules.append((path, sql, parsed))
+
+      if args.verbose:
+        function_count = len(parsed.functions) + len(parsed.table_functions)
+        print(f'Parsed {function_count} functions'
+              f', {len(parsed.table_views)} tables/views'
+              f' ({len(parsed.errors)} errors).')
 
   for path, sql, parsed in modules:
     lines = [l.strip() for l in sql.split('\n')]
@@ -81,12 +110,18 @@ def main():
       if 'RUN_METRIC' in line:
         errors.append(f"RUN_METRIC is banned in standard library.\n"
                       f"Offending file: {path}\n")
+      if 'insert into' in line.casefold():
+        errors.append(f"INSERT INTO table is not allowed in standard library.\n"
+                      f"Offending file: {path}\n")
 
     errors += parsed.errors
     errors += check_banned_words(sql, path)
-    errors += check_banned_create_table_as(sql,
-                                           path.split(ROOT_DIR)[1],
-                                           CREATE_TABLE_ALLOWLIST)
+    errors += check_banned_create_table_as(
+        sql,
+        path.split(ROOT_DIR)[1],
+        args.stdlib_sources.split(ROOT_DIR)[1], CREATE_TABLE_ALLOWLIST)
+    errors += check_banned_create_view_as(sql, path.split(ROOT_DIR)[1])
+    errors += check_banned_include_all(sql, path.split(ROOT_DIR)[1])
 
   if errors:
     sys.stderr.write("\n".join(errors))

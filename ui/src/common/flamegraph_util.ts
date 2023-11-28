@@ -12,15 +12,104 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {CallsiteInfo} from './state';
+import {CallsiteInfo, FlamegraphStateViewingOption, ProfileType} from './state';
 
-export const SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY = 'SPACE';
-export const ALLOC_SPACE_MEMORY_ALLOCATED_KEY = 'ALLOC_SPACE';
-export const OBJECTS_ALLOCATED_NOT_FREED_KEY = 'OBJECTS';
-export const OBJECTS_ALLOCATED_KEY = 'ALLOC_OBJECTS';
-export const PERF_SAMPLES_KEY = 'PERF_SAMPLES';
+interface ViewingOption {
+  option: FlamegraphStateViewingOption;
+  name: string;
+}
 
-export const DEFAULT_VIEWING_OPTION = SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY;
+export function viewingOptions(profileType: ProfileType): Array<ViewingOption> {
+  switch (profileType) {
+    case ProfileType.PERF_SAMPLE:
+      return [{
+        option: FlamegraphStateViewingOption.PERF_SAMPLES_KEY,
+        name: 'Samples',
+      }];
+    case ProfileType.JAVA_HEAP_GRAPH:
+      return [
+        {
+          option:
+              FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          name: 'Size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          name: 'Objects',
+        },
+      ];
+    case ProfileType.HEAP_PROFILE:
+      return [
+        {
+          option:
+              FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          name: 'Unreleased size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          name: 'Unreleased count',
+        },
+        {
+          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          name: 'Total size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          name: 'Total count',
+        },
+      ];
+    case ProfileType.NATIVE_HEAP_PROFILE:
+      return [
+        {
+          option:
+              FlamegraphStateViewingOption.SPACE_MEMORY_ALLOCATED_NOT_FREED_KEY,
+          name: 'Unreleased malloc size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_NOT_FREED_KEY,
+          name: 'Unreleased malloc count',
+        },
+        {
+          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          name: 'Total malloc size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          name: 'Total malloc count',
+        },
+      ];
+    case ProfileType.JAVA_HEAP_SAMPLES:
+      return [
+        {
+          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          name: 'Total allocation size',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          name: 'Total allocation count',
+        },
+      ];
+    case ProfileType.MIXED_HEAP_PROFILE:
+      return [
+        {
+          option: FlamegraphStateViewingOption.ALLOC_SPACE_MEMORY_ALLOCATED_KEY,
+          name: 'Total allocation size (malloc + java)',
+        },
+        {
+          option: FlamegraphStateViewingOption.OBJECTS_ALLOCATED_KEY,
+          name: 'Total allocation count (malloc + java)',
+        },
+      ];
+    default:
+      const exhaustiveCheck: never = profileType;
+      throw new Error(`Unhandled case: ${exhaustiveCheck}`);
+  }
+}
+
+export function defaultViewingOption(profileType: ProfileType):
+    FlamegraphStateViewingOption {
+  return viewingOptions(profileType)[0].option;
+}
 
 export function expandCallsites(
     data: CallsiteInfo[], clickedCallsiteIndex: number): CallsiteInfo[] {

@@ -1,0 +1,145 @@
+android_startup {
+  startup {
+    startup_id: 1
+    package_name: "com.google.android.calendar"
+    process_name: "com.google.android.calendar"
+    zygote_new_process: true
+    to_first_frame {
+      dur_ns: 108000000000
+      main_thread_by_task_state {
+        running_dur_ns: 25000000000
+        runnable_dur_ns: 5000000000
+        uninterruptible_sleep_dur_ns: 0
+        interruptible_sleep_dur_ns: 0
+        uninterruptible_io_sleep_dur_ns: 0
+        uninterruptible_non_io_sleep_dur_ns: 0
+      }
+      other_processes_spawned_count: 0
+      time_activity_manager {
+        dur_ns: 8000000000
+        dur_ms: 8000.0
+      }
+      time_bind_application {
+        dur_ns: 2000000000
+        dur_ms: 2000.0
+      }
+      time_activity_start {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
+      time_activity_resume {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
+      time_before_start_process {
+        dur_ns: 18000000000
+        dur_ms: 18000.0
+      }
+      time_during_start_process {
+        dur_ns: 35000000000
+        dur_ms: 35000.0
+      }
+      dur_ms: 108000.0
+      to_bind_application {
+        dur_ns: 83000000000
+        dur_ms: 83000.0
+      }
+      time_inflate {
+        dur_ns: 2000000000
+        dur_ms: 2000.0
+      }
+      time_get_resources {
+        dur_ns: 1000000000
+        dur_ms: 1000.0
+      }
+      mcycles_by_core_type {
+        unknown: 103
+      }
+      time_to_running_state {
+        dur_ns: 78000000000
+        dur_ms: 78000.0
+      }
+    }
+    activity_hosting_process_count: 1
+    process {
+      name: "com.google.android.calendar"
+      uid: 10001
+      package {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      packages_for_uid {
+        package_name: "com.google.android.calendar"
+        apk_version_code: 123
+        debuggable: false
+      }
+      pid: 3
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
+      method: "performCreate"
+      ts_method_start: 188000000000
+    }
+    activities {
+      name: "com.google.android.calendar.MainActivity"
+      method: "performResume"
+      ts_method_start: 193000000000
+    }
+    optimization_status {
+      odex_status: "up-to-date"
+      compilation_filter: "speed"
+      compilation_reason: "install-dm"
+      location: "/system/framework/oat/arm/com.google.android.calendar.odex"
+      summary: "com.google.android.calendar.odex: up-to-date/speed/install-dm"
+    }
+    optimization_status {
+      odex_status: "io-error-no-oat"
+      compilation_filter: "run-from-apk"
+      compilation_reason: "unknown"
+      location: "error"
+      summary: "error: io-error-no-oat/run-from-apk/unknown"
+    }
+    event_timestamps {
+      intent_received: 102000000000
+      first_frame: 210000000000
+    }
+    system_state {
+      dex2oat_running: false
+      installd_running: false
+      broadcast_dispatched_count: 0
+      broadcast_received_count: 0
+      most_active_non_launch_processes: "init"
+      most_active_non_launch_processes: "system_server"
+      installd_dur_ns: 0
+      dex2oat_dur_ns: 0
+    }
+    slow_start_reason: "No baseline or cloud profiles"
+    slow_start_reason: "Optimized artifacts missing, run from apk"
+    slow_start_reason: "Time spent in bindApplication"
+    slow_start_reason: "Time spent in view inflation"
+    slow_start_reason: "Time spent in ResourcesManager#getResources"
+    slow_start_reason_detailed {
+      reason: "No baseline or cloud profiles"
+      details: " target FALSE actual TRUE [ longest_chunk: start_s 154.0 dur_ms 1000.0 thread_id -1 thread_name com.google.android.calendar ] [ extra_info:  slice_name location=/system/framework/oat/arm/com.google.android.calendar.odex status=up-to-date filter=speed reason=install-dm ]"
+    }
+    slow_start_reason_detailed {
+      reason: "Optimized artifacts missing, run from apk"
+    }
+    slow_start_reason_detailed {
+      reason: "Time spent in bindApplication"
+    }
+    slow_start_reason_detailed {
+      reason: "Time spent in view inflation"
+    }
+    slow_start_reason_detailed {
+      reason: "Time spent in ResourcesManager#getResources"
+      details: " target 130ms actual 1000.0ms [ longest_chunk: start_s 138.0 dur_ms 1000.0 thread_id 3 thread_name com.google.android.calendar ]"
+    }
+    slow_start_reason_detailed {
+      reason: "Potential CPU contention with another process"
+      details: " target 100ms actual 5000.0ms most_active_process_for_launch init [ longest_chunk: start_s 155.0 dur_ms 5000.0 thread_id 3 thread_name com.google.android.calendar ] [ extra_info:  runnable_dur_ms 5000.0 R_sum_dur_ms 5000.0 R+(Preempted)_sum_dur 0 ]"
+    }
+    startup_type: "cold"
+  }
+}

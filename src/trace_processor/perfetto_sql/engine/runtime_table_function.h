@@ -36,10 +36,9 @@ class RuntimeTableFunction final
   // because |RuntimeTableFunction| is owned by Sqlite while |State| is owned by
   // PerfettoSqlEngine.
   struct State {
-    std::string prototype_str;
     SqlSource sql_defn_str;
 
-    Prototype prototype;
+    FunctionPrototype prototype;
     std::vector<sql_argument::ArgumentDefinition> return_values;
 
     std::optional<SqliteEngine::PreparedStatement> reusable_stmt;

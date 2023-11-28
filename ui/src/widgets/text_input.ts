@@ -14,25 +14,15 @@
 
 import m from 'mithril';
 
-import {classNames} from '../base/classnames';
-
-export interface TextInputAttrs {
-  [htmlAttrs: string]: any;
-  extraClasses?: string|string[];
-}
+import {HTMLInputAttrs} from './common';
 
 // For now, this component is just a simple wrapper around a plain old input
 // element, which does no more than specify a class. However, in the future we
 // might want to add more features such as an optional icon or button (e.g. a
 // clear button), at which point the benefit of having this as a component would
 // become more apparent.
-export class TextInput implements m.ClassComponent<TextInputAttrs> {
-  view({attrs}: m.CVnode<TextInputAttrs>) {
-    const {extraClasses = '', ...htmlAttrs} = attrs;
-    const classes = classNames(extraClasses);
-    return m('input.pf-text-input', {
-      class: classes,
-      ...htmlAttrs,
-    });
+export class TextInput implements m.ClassComponent<HTMLInputAttrs> {
+  view({attrs}: m.CVnode<HTMLInputAttrs>) {
+    return m('input.pf-text-input', attrs);
   }
 }

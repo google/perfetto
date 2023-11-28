@@ -52,7 +52,7 @@ GROUP BY 1, 2, 3
 ORDER BY 1, 2, 3;
 
 DROP VIEW IF EXISTS java_heap_histogram_output;
-CREATE VIEW java_heap_histogram_output AS
+CREATE PERFETTO VIEW java_heap_histogram_output AS
 WITH
 -- Group by to build the repeated field by upid, ts
 heap_obj_histogram_count_protos AS (

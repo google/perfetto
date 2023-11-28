@@ -19,27 +19,46 @@ INCLUDE PERFETTO MODULE common.slices;
 -- `thread_slice` and `process_slice`, this view contains all slices,
 -- with thread- and process-related columns set to NULL if the slice
 -- is not associated with a thread or a process.
---
--- @column id                 Alias for `slice.id`.
--- @column type               Alias for `slice.type`.
--- @column ts                 Alias for `slice.ts`.
--- @column dur                Alias for `slice.dur`.
--- @column category           Alias for `slice.category`.
--- @column name               Alias for `slice.name`.
--- @column track_id           Alias for `slice.track_id`.
--- @column track_name         Alias for `track.name`.
--- @column thread_name        Alias for `thread.name`.
--- @column utid               Alias for `thread.utid`.
--- @column tid                Alias for `thread.tid`
--- @column process_name       Alias for `process.name`.
--- @column upid               Alias for `process.upid`.
--- @column pid                Alias for `process.pid`.
--- @column depth              Alias for `slice.depth`.
--- @column parent_id          Alias for `slice.parent_id`.
--- @column arg_set_id         Alias for `slice.arg_set_id`.
--- @column thread_ts          Alias for `slice.thread_ts`.
--- @column thread_dur         Alias for `slice.thread_dur`.
-CREATE VIEW experimental_slice_with_thread_and_process_info AS
+CREATE PERFETTO VIEW experimental_slice_with_thread_and_process_info(
+  -- Alias for `slice.id`.
+  id INT,
+  -- Alias for `slice.type`.
+  type STRING,
+  -- Alias for `slice.ts`.
+  ts INT,
+  -- Alias for `slice.dur`.
+  dur INT,
+  -- Alias for `slice.category`.
+  category STRING,
+  -- Alias for `slice.name`.
+  name STRING,
+  -- Alias for `slice.track_id`.
+  track_id INT,
+  -- Alias for `track.name`.
+  track_name STRING,
+  -- Alias for `thread.name`.
+  thread_name STRING,
+  -- Alias for `thread.utid`.
+  utid INT,
+  -- Alias for `thread.tid`
+  tid INT,
+  -- Alias for `process.name`.
+  process_name STRING,
+  -- Alias for `process.upid`.
+  upid INT,
+  -- Alias for `process.pid`.
+  pid INT,
+  -- Alias for `slice.depth`.
+  depth INT,
+  -- Alias for `slice.parent_id`.
+  parent_id INT,
+  -- Alias for `slice.arg_set_id`.
+  arg_set_id INT,
+  -- Alias for `slice.thread_ts`.
+  thread_ts INT,
+  -- Alias for `slice.thread_dur`.
+  thread_dur INT
+) AS
 SELECT
   slice.id,
   slice.type,

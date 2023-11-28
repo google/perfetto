@@ -28,7 +28,7 @@ SELECT AndroidStartupMetric_Slice(
 -- should not be used. Instead, one of the helper functions below which wrap
 -- this view should be used.
 DROP VIEW IF EXISTS thread_slices_for_all_launches;
-CREATE VIEW thread_slices_for_all_launches AS
+CREATE PERFETTO VIEW thread_slices_for_all_launches AS
 SELECT * FROM android_thread_slices_for_all_startups;
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto,

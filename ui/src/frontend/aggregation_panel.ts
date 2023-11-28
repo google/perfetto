@@ -14,17 +14,18 @@
 
 import m from 'mithril';
 
-import {Duration} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   AggregateData,
   Column,
   ThreadStateExtra,
 } from '../common/aggregation_data';
-import {colorForState, textColorForState} from '../common/colorizer';
+import {colorForState} from '../common/colorizer';
 import {translateState} from '../common/thread_state';
 
 import {globals} from './globals';
+import {DurationWidget} from './widgets/duration';
+
 export interface AggregationPanelAttrs {
   data: AggregateData;
   kind: string;
@@ -112,7 +113,8 @@ export class AggregationPanel implements
     if (selection === null || selection.kind !== 'AREA') return undefined;
     const selectedArea = globals.state.areas[selection.areaId];
     const duration = selectedArea.end - selectedArea.start;
-    return m('.time-range', `Selected range: ${Duration.humanise(duration)}`);
+    return m(
+        '.time-range', 'Selected range: ', m(DurationWidget, {dur: duration}));
   }
 
   // Thread state aggregation panel only
@@ -120,15 +122,14 @@ export class AggregationPanel implements
     if (data === undefined) return undefined;
     const states = [];
     for (let i = 0; i < data.states.length; i++) {
-      const color = colorForState(data.states[i]);
-      const textColor = textColorForState(data.states[i]);
+      const colorScheme = colorForState(data.states[i]);
       const width = data.values[i] / data.totalMs * 100;
       states.push(
           m('.state',
             {
               style: {
-                background: `hsl(${color.h},${color.s}%,${color.l}%)`,
-                color: `${textColor}`,
+                background: colorScheme.base.cssString,
+                color: colorScheme.textBase.cssString,
                 width: `${width}%`,
               },
             },

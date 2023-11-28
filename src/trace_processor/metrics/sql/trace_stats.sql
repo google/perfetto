@@ -15,7 +15,7 @@
 --
 
 DROP VIEW IF EXISTS trace_stats_output;
-CREATE VIEW trace_stats_output AS
+CREATE PERFETTO VIEW trace_stats_output AS
 SELECT TraceAnalysisStats(
   'stat', (
     SELECT RepeatedField(TraceAnalysisStats_Stat(

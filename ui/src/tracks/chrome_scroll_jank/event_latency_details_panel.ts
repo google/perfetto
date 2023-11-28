@@ -15,7 +15,6 @@
 import m from 'mithril';
 
 import {exists} from '../../base/utils';
-import {NUM} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
 import {
   BottomTab,
@@ -29,6 +28,7 @@ import {renderArguments} from '../../frontend/slice_args';
 import {renderDetails} from '../../frontend/slice_details';
 import {getSlice, SliceDetails, sliceRef} from '../../frontend/sql/slice';
 import {asSliceSqlId} from '../../frontend/sql_types';
+import {NUM} from '../../trace_processor/query_result';
 import {DetailsShell} from '../../widgets/details_shell';
 import {GridLayout, GridLayoutColumn} from '../../widgets/grid_layout';
 import {Section} from '../../widgets/section';

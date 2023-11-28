@@ -19,9 +19,11 @@
 #include <memory>
 #include <optional>
 #include <utility>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_utils.h"
+#include "perfetto/public/compiler.h"
 #include "src/trace_processor/sqlite/db_sqlite_table.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/scoped_db.h"
@@ -78,7 +80,15 @@ std::optional<uint32_t> GetErrorOffsetDb(sqlite3* db) {
 SqliteEngine::SqliteEngine() {
   sqlite3* db = nullptr;
   EnsureSqliteInitialized();
-  PERFETTO_CHECK(sqlite3_open(":memory:", &db) == SQLITE_OK);
+
+  // Ensure that we open the database with mutexes disabled: this is because
+  // trace processor as a whole cannot be used from multiple threads so there is
+  // no point paying the (potentially significant) cost of mutexes at the SQLite
+  // level.
+  static constexpr int kSqliteOpenFlags =
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_NOMUTEX;
+  PERFETTO_CHECK(sqlite3_open_v2(":memory:", &db, kSqliteOpenFlags, nullptr) ==
+                 SQLITE_OK);
   InitializeSqlite(db);
   db_.reset(std::move(db));
 }
@@ -104,7 +114,9 @@ SqliteEngine::~SqliteEngine() {
   }
   for (const auto& drop : drop_stmts) {
     int ret = sqlite3_exec(db(), drop.c_str(), nullptr, nullptr, nullptr);
-    PERFETTO_CHECK(ret == SQLITE_OK);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to execute statement: '%s'", drop.c_str());
+    }
   }
 
   // It is important to unregister any functions that have been registered with
@@ -114,7 +126,9 @@ SqliteEngine::~SqliteEngine() {
     int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
                                          it.key().second, SQLITE_UTF8, nullptr,
                                          nullptr, nullptr, nullptr, nullptr);
-    PERFETTO_CHECK(ret == SQLITE_OK);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
+    }
   }
   fn_ctx_.Clear();
 
@@ -127,7 +141,16 @@ SqliteEngine::~SqliteEngine() {
   saved_tables_.Clear();
 
   // The above operations should have cleared all the tables.
-  PERFETTO_CHECK(sqlite_tables_.size() == 0);
+  if (PERFETTO_UNLIKELY(sqlite_tables_.size() != 0)) {
+    std::vector<std::string> tables;
+    for (auto it = sqlite_tables_.GetIterator(); it; ++it) {
+      tables.push_back(it.key());
+    }
+    std::string joined = base::Join(tables, ",");
+    PERFETTO_FATAL(
+        "SqliteTable instances still exist: count='%zu', tables='[%s]'",
+        sqlite_tables_.size(), joined.c_str());
+  }
 }
 
 SqliteEngine::PreparedStatement SqliteEngine::PrepareStatement(SqlSource sql) {
@@ -166,6 +189,17 @@ base::Status SqliteEngine::RegisterFunction(const char* name,
     return base::ErrStatus("Unable to register function with name %s", name);
   }
   *fn_ctx_.Insert(std::make_pair(name, argc), ctx).first = ctx;
+  return base::OkStatus();
+}
+
+base::Status SqliteEngine::UnregisterFunction(const char* name, int argc) {
+  int ret = sqlite3_create_function_v2(db_.get(), name, static_cast<int>(argc),
+                                       SQLITE_UTF8, nullptr, nullptr, nullptr,
+                                       nullptr, nullptr);
+  if (ret != SQLITE_OK) {
+    return base::ErrStatus("Unable to unregister function with name %s", name);
+  }
+  fn_ctx_.Erase({name, argc});
   return base::OkStatus();
 }
 

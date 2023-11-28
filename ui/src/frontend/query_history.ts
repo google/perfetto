@@ -32,18 +32,20 @@ const QUERY_HISTORY_KEY = 'queryHistory';
 
 export interface QueryHistoryComponentAttrs {
   runQuery: (query: string) => void;
+  setQuery: (query: string) => void;
 }
 
 export class QueryHistoryComponent implements
     m.ClassComponent<QueryHistoryComponentAttrs> {
   view({attrs}: m.CVnode<QueryHistoryComponentAttrs>): m.Child {
     const runQuery = attrs.runQuery;
+    const setQuery = attrs.setQuery;
     const unstarred: HistoryItemComponentAttrs[] = [];
     const starred: HistoryItemComponentAttrs[] = [];
     for (let i = queryHistoryStorage.data.length - 1; i >= 0; i--) {
       const entry = queryHistoryStorage.data[i];
       const arr = entry.starred ? starred : unstarred;
-      arr.push({index: i, entry, runQuery});
+      arr.push({index: i, entry, runQuery, setQuery});
     }
     return m(
         '.query-history',
@@ -58,6 +60,7 @@ export interface HistoryItemComponentAttrs {
   index: number;
   entry: QueryHistoryEntry;
   runQuery: (query: string) => void;
+  setQuery: (query: string) => void;
 }
 
 export class HistoryItemComponent implements
@@ -78,6 +81,11 @@ export class HistoryItemComponent implements
               },
               m(Icon, {icon: Icons.Star, filled: vnode.attrs.entry.starred}),
               ),
+          m('button',
+            {
+              onclick: () => vnode.attrs.setQuery(query),
+            },
+            m(Icon, {icon: 'edit'})),
           m('button',
             {
               onclick: () => vnode.attrs.runQuery(query),

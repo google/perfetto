@@ -17,14 +17,15 @@ import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {duration, Span, time} from '../base/time';
-import {EngineProxy} from '../common/engine';
 import {PxSpan, TimeScale} from '../frontend/time_scale';
-import {NewTrackArgs, SliceRect} from '../frontend/track';
-import {TrackButtonAttrs} from '../frontend/track_panel';
+import {NewTrackArgs} from '../frontend/track';
+import {SliceRect} from '../public';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {BasicAsyncTrack} from './basic_async_track';
 
-export {EngineProxy} from '../common/engine';
+export {Store} from '../frontend/store';
+export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
   LONG_NULL,
@@ -32,8 +33,7 @@ export {
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../common/query_result';
-export {Store} from '../frontend/store';
+} from '../trace_processor/query_result';
 
 // This is an adapter to convert old style controller based tracks to new style
 // tracks.
@@ -44,12 +44,12 @@ export class TrackWithControllerAdapter<Config, Data> extends
   private isSetup = false;
 
   constructor(
-      engine: EngineProxy, trackInstanceId: string, config: Config,
+      engine: EngineProxy, trackKey: string, config: Config,
       Track: TrackAdapterClass<Config, Data>,
       Controller: TrackControllerAdapterClass<Config, Data>) {
     super();
     const args: NewTrackArgs = {
-      trackId: trackInstanceId,
+      trackKey,
       engine,
     };
     this.track = new Track(args);
@@ -76,12 +76,8 @@ export class TrackWithControllerAdapter<Config, Data> extends
     return this.track.getHeight();
   }
 
-  getTrackShellButtons(): m.Vnode<TrackButtonAttrs, {}>[] {
+  getTrackShellButtons(): m.Children {
     return this.track.getTrackShellButtons();
-  }
-
-  getContextMenu(): m.Vnode<any, {}>|null {
-    return this.track.getContextMenu();
   }
 
   onMouseMove(position: {x: number; y: number;}): void {
@@ -119,7 +115,7 @@ export class TrackWithControllerAdapter<Config, Data> extends
 export abstract class TrackAdapter<Config, Data> {
   private _config?: Config;
   private dataSource?: () => Data | undefined;
-  protected id: string;
+  protected trackKey: string;
 
   get config(): Config {
     return assertExists(this._config);
@@ -139,7 +135,7 @@ export abstract class TrackAdapter<Config, Data> {
   }
 
   constructor(args: NewTrackArgs) {
-    this.id = args.trackId;
+    this.trackKey = args.trackKey;
   }
 
   abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
@@ -155,12 +151,8 @@ export abstract class TrackAdapter<Config, Data> {
     return 40;
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
+  getTrackShellButtons(): m.Children {
     return [];
-  }
-
-  getContextMenu(): m.Vnode<any>|null {
-    return null;
   }
 
   onMouseMove(_position: {x: number, y: number}) {}

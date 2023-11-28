@@ -28,20 +28,24 @@
 namespace perfetto {
 namespace trace_processor {
 
-struct Prototype {
+struct FunctionPrototype {
   std::string function_name;
   std::vector<sql_argument::ArgumentDefinition> arguments;
 
-  bool operator==(const Prototype& other) const {
+  std::string ToString() const;
+
+  bool operator==(const FunctionPrototype& other) const {
     return function_name == other.function_name && arguments == other.arguments;
   }
-  bool operator!=(const Prototype& other) const { return !(*this == other); }
+  bool operator!=(const FunctionPrototype& other) const {
+    return !(*this == other);
+  }
 };
 
 base::Status ParseFunctionName(base::StringView raw,
                                base::StringView& function_name);
 
-base::Status ParsePrototype(base::StringView raw, Prototype& out);
+base::Status ParsePrototype(base::StringView raw, FunctionPrototype& out);
 
 base::Status SqliteRetToStatus(sqlite3* db,
                                const std::string& function_name,

@@ -29,7 +29,12 @@ import {
 } from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {setTimestampFormat, TimestampFormat} from '../common/timestamp_format';
+import {
+  DurationPrecision,
+  setDurationPrecision,
+  setTimestampFormat,
+  TimestampFormat,
+} from '../common/timestamp_format';
 import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
@@ -42,7 +47,6 @@ import {globals} from './globals';
 import {toggleHelp} from './help_modal';
 import {fullscreenModalContainer} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
-import {runQueryInNewTab} from './query_result_tab';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
 import {Sidebar} from './sidebar';
@@ -188,7 +192,7 @@ export class App implements m.ClassComponent {
   private cmds: Command[] = [
     {
       id: 'perfetto.SetTimestampFormat',
-      name: 'Set timestamp format',
+      name: 'Set timestamp and duration format',
       callback:
           async () => {
             const options: PromptOption[] = [
@@ -201,11 +205,34 @@ export class App implements m.ClassComponent {
                 displayName: 'Raw (with locale-specific formatting)',
               },
             ];
-            const promptText = 'Select timecode format...';
+            const promptText = 'Select format...';
 
             try {
               const result = await this.prompt(promptText, options);
               setTimestampFormat(result as TimestampFormat);
+              raf.scheduleFullRedraw();
+            } catch {
+              // Prompt was probably cancelled - do nothing.
+            }
+          },
+    },
+    {
+      id: 'perfetto.SetDurationPrecision',
+      name: 'Set duration precision',
+      callback:
+          async () => {
+            const options: PromptOption[] = [
+              {key: DurationPrecision.Full, displayName: 'Full'},
+              {
+                key: DurationPrecision.HumanReadable,
+                displayName: 'Human readable',
+              },
+            ];
+            const promptText = 'Select duration precision mode...';
+
+            try {
+              const result = await this.prompt(promptText, options);
+              setDurationPrecision(result as DurationPrecision);
               raf.scheduleFullRedraw();
             } catch {
               // Prompt was probably cancelled - do nothing.
@@ -336,14 +363,14 @@ export class App implements m.ClassComponent {
                                      .find(({uri}) => uri === selectedUri);
               if (firstTrack) {
                 console.log(firstTrack);
-                verticalScrollToTrack(firstTrack.id, true);
+                verticalScrollToTrack(firstTrack.key, true);
                 const traceTime = globals.stateTraceTimeTP();
                 globals.makeSelection(
                     Actions.selectArea({
                       area: {
                         start: traceTime.start,
                         end: traceTime.end,
-                        tracks: [firstTrack.id],
+                        tracks: [firstTrack.key],
                       },
                     }),
                 );
@@ -381,12 +408,10 @@ export class App implements m.ClassComponent {
     if (msgTTL > 0 || engineIsBusy) {
       setTimeout(() => raf.scheduleFullRedraw(), msgTTL * 1000);
       return m(
-          `.omnibox.message-mode`,
-          m(`input[placeholder=${
-                globals.state.status.msg}][readonly][disabled][ref=omnibox]`,
-            {
-              value: '',
-            }));
+          `.omnibox.message-mode`, m(`input[readonly][disabled][ref=omnibox]`, {
+            value: '',
+            placeholder: globals.state.status.msg,
+          }));
     }
 
     if (this.omniboxMode === OmniboxMode.Command) {
@@ -532,7 +557,7 @@ export class App implements m.ClassComponent {
         raf.scheduleFullRedraw();
       },
       onSubmit: (value, alt) => {
-        runQueryInNewTab(
+        globals.openQuery(
             undoCommonChatAppReplacements(value),
             alt ? 'Pinned query' : 'Omnibox query',
             alt ? undefined : 'omnibox_query');
@@ -555,7 +580,7 @@ export class App implements m.ClassComponent {
 
     return m(Omnibox, {
       value: globals.state.omniboxState.omnibox,
-      placeholder: 'Search...',
+      placeholder: 'Search or type \'>\' for commands or \':\' for SQL mode',
       inputRef: App.OMNIBOX_INPUT_REF,
       onInput: (value, prev) => {
         if (prev === '') {

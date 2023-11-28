@@ -14,26 +14,22 @@
 
 import m from 'mithril';
 
-import {classNames} from '../base/classnames';
+import {HTMLAttrs} from './common';
 
-export interface IconAttrs {
+export interface IconAttrs extends HTMLAttrs {
   // The material icon name.
   icon: string;
   // Whether to show the filled version of the icon.
   // Defaults to false.
   filled?: boolean;
-  // List of space separated class names forwarded to the icon.
-  className?: string;
-  [htmlAttrs: string]: any;
 }
 
 export class Icon implements m.ClassComponent<IconAttrs> {
   view({attrs}: m.Vnode<IconAttrs>): m.Child {
-    const {icon, filled, className, ...htmlAttrs} = attrs;
-    const classes = classNames(className);
+    const {icon, filled, ...htmlAttrs} = attrs;
     return m(
         filled ? 'i.material-icons-filled' : 'i.material-icons',
-        {class: classes, ...htmlAttrs},
+        htmlAttrs,
         icon);
   }
 }

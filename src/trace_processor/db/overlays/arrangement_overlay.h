@@ -48,6 +48,8 @@ class ArrangementOverlay : public StorageOverlay {
 
   CostEstimatePerRow EstimateCostPerRow(OverlayOp) const override;
 
+  void Serialize(OverlayProto*) const override;
+
  private:
   const std::vector<uint32_t>* arrangement_;
 };

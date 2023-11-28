@@ -50,17 +50,21 @@
 namespace perfetto {
 namespace base {
 
-// Do not add new usages of kPageSize, consider using GetSysPageSize() below.
-// TODO(primiano): over time the semantic of kPageSize became too ambiguous.
-// Strictly speaking, this constant is incorrect on some new devices where the
-// page size can be 16K (e.g., crbug.com/1116576). Unfortunately too much code
-// ended up depending on kPageSize for purposes that are not strictly related
-// with the kernel's mm subsystem.
-constexpr size_t kPageSize = 4096;
+namespace internal {
+extern std::atomic<uint32_t> g_cached_page_size;
+uint32_t GetSysPageSizeSlowpath();
+}  // namespace internal
 
 // Returns the system's page size. Use this when dealing with mmap, madvise and
 // similar mm-related syscalls.
-uint32_t GetSysPageSize();
+// This function might be called in hot paths. Avoid calling getpagesize() all
+// the times, in many implementations getpagesize() calls sysconf() which is
+// not cheap.
+inline uint32_t GetSysPageSize() {
+  const uint32_t page_size =
+      internal::g_cached_page_size.load(std::memory_order_relaxed);
+  return page_size != 0 ? page_size : internal::GetSysPageSizeSlowpath();
+}
 
 template <typename T, size_t TSize>
 constexpr size_t ArraySize(const T (&)[TSize]) {
@@ -85,10 +89,16 @@ constexpr T AssumeLittleEndian(T value) {
 }
 
 // Round up |size| to a multiple of |alignment| (must be a power of two).
+inline constexpr size_t AlignUp(size_t size, size_t alignment) {
+  return (size + alignment - 1) & ~(alignment - 1);
+}
+
+// TODO(primiano): clean this up and move all existing usages to the constexpr
+// version above.
 template <size_t alignment>
 constexpr size_t AlignUp(size_t size) {
   static_assert((alignment & (alignment - 1)) == 0, "alignment must be a pow2");
-  return (size + alignment - 1) & ~(alignment - 1);
+  return AlignUp(size, alignment);
 }
 
 inline bool IsAgain(int err) {

@@ -15,13 +15,18 @@
 --
 
 -- Events when CPU entered hypervisor.
---
--- @column slice_id       Id of the corresponding slice in slices table.
--- @column cpu            CPU that entered hypervisor.
--- @column ts             Timestamp when CPU entered hypervisor (in nanoseconds).
--- @column dur            How much time CPU spent in hypervisor (in nanoseconds).
--- @column reason         Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
-CREATE VIEW pkvm_hypervisor_events AS
+CREATE PERFETTO VIEW pkvm_hypervisor_events(
+  -- Id of the corresponding slice in slices table.
+  slice_id INT,
+  -- CPU that entered hypervisor.
+  cpu INT,
+  -- Timestamp when CPU entered hypervisor (in nanoseconds).
+  ts INT,
+  -- How much time CPU spent in hypervisor (in nanoseconds).
+  dur INT,
+  -- Reason for entering hypervisor (e.g. host_hcall, host_mem_abort), or NULL if unknown.
+  reason STRING
+) AS
 SELECT
   slices.id as slice_id,
   cpu_track.cpu as cpu,

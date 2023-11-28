@@ -12,6 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {v4 as uuidv4} from 'uuid';
+
+import {Disposable, DisposableCallback} from '../../base/disposable';
 import {Actions} from '../../common/actions';
 import {
   generateSqlWithInternalLayout,
@@ -28,6 +31,10 @@ import {
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {Plugin, PluginContext, PluginDescriptor} from '../../public';
+
+export interface CustomSqlImportConfig {
+  modules: string[];
+}
 
 export interface CustomSqlTableDefConfig {
   // Table name
@@ -46,57 +53,83 @@ export interface CustomSqlDetailsPanelConfig {
 
 export abstract class CustomSqlTableSliceTrack<
     T extends NamedSliceTrackTypes> extends NamedSliceTrack<T> {
+  protected readonly tableName;
+
   constructor(args: NewTrackArgs) {
     super(args);
+    this.tableName =
+        `customsqltableslicetrack_${uuidv4().split('-').join('_')}`;
   }
 
   abstract getSqlDataSource(): CustomSqlTableDefConfig;
 
   // Override by subclasses.
-  abstract getDetailsPanel(): CustomSqlDetailsPanelConfig;
+  abstract getDetailsPanel(args:
+                               OnSliceClickArgs<NamedSliceTrackTypes['slice']>):
+      CustomSqlDetailsPanelConfig;
 
-  async initSqlTable(tableName: string) {
+  getSqlImports(): CustomSqlImportConfig {
+    return {
+      modules: [] as string[],
+    };
+  }
+
+  async onInit(): Promise<Disposable> {
+    await this.loadImports();
     const config = this.getSqlDataSource();
     let columns = ['*'];
     if (config.columns !== undefined) {
       columns = config.columns;
     }
 
-    const sql = `CREATE VIEW ${tableName} AS ` + generateSqlWithInternalLayout({
-                  columns: columns,
-                  sourceTable: config.sqlTableName,
-                  ts: 'ts',
-                  dur: 'dur',
-                  whereClause: config.whereClause,
-                });
-
+    const sql =
+        `CREATE VIEW ${this.tableName} AS ` + generateSqlWithInternalLayout({
+          columns: columns,
+          sourceTable: config.sqlTableName,
+          ts: 'ts',
+          dur: 'dur',
+          whereClause: config.whereClause,
+        });
     await this.engine.query(sql);
+    return DisposableCallback.from(() => {
+      this.engine.query(`DROP VIEW ${this.tableName}`);
+    });
+  }
+
+  getSqlSource(): string {
+    return `SELECT * FROM ${this.tableName}`;
   }
 
   isSelectionHandled(selection: Selection) {
     if (selection.kind !== 'GENERIC_SLICE') {
       return false;
     }
-    return selection.trackId === this.trackId;
+    return selection.trackKey === this.trackKey;
   }
 
   onSliceClick(args: OnSliceClickArgs<NamedSliceTrackTypes['slice']>) {
-    if (this.getDetailsPanel() === undefined) {
+    if (this.getDetailsPanel(args) === undefined) {
       return;
     }
 
-    const detailsPanelConfig = this.getDetailsPanel();
+    const detailsPanelConfig = this.getDetailsPanel(args);
     globals.makeSelection(Actions.selectGenericSlice({
       id: args.slice.id,
       sqlTableName: this.tableName,
       start: args.slice.ts,
       duration: args.slice.dur,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       detailsPanelConfig: {
         kind: detailsPanelConfig.kind,
         config: detailsPanelConfig.config,
       },
     }));
+  }
+
+  async loadImports() {
+    for (const importModule of this.getSqlImports().modules) {
+      await this.engine.query(`INCLUDE PERFETTO MODULE ${importModule};`);
+    }
   }
 }
 

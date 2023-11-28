@@ -19,7 +19,6 @@ import {assertExists} from '../base/logging';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {RegistryError} from '../common/registry';
 import {
   getContainingTrackId,
   TrackGroupState,
@@ -31,7 +30,6 @@ import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {renderChips, TrackContent} from './track_panel';
-import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -53,25 +51,25 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   private tryLoadTrack() {
-    const trackId = this.trackGroupId;
+    const groupId = this.trackGroupId;
     const trackState = this.summaryTrackState;
 
-    const {id, uri} = trackState;
+    const {key, uri, params} = trackState;
 
     const ctx: TrackContext = {
-      trackInstanceId: id,
+      trackKey: key,
       mountStore: <T>(migrate: Migrate<T>) => {
         const {store, state} = globals;
-        const migratedState = migrate(state.trackGroups[trackId].state);
+        const migratedState = migrate(state.trackGroups[groupId].state);
         store.edit((draft) => {
-          draft.trackGroups[trackId].state = migratedState;
+          draft.trackGroups[groupId].state = migratedState;
         });
-        return store.createProxy<T>(['trackGroups', trackId, 'state']);
+        return store.createProxy<T>(['trackGroups', groupId, 'state']);
       },
+      params,
     };
 
-    this.summaryTrack =
-        uri ? pluginManager.createTrack(uri, ctx) : loadTrack(trackState, id);
+    this.summaryTrack = pluginManager.createTrack(uri, ctx);
   }
 
   get trackGroupState(): TrackGroupState {
@@ -98,8 +96,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     let highlightClass = '';
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults.trackIds[searchIndex];
-      const parentTrackId = getContainingTrackId(globals.state, trackId);
+      const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
+      const parentTrackId = getContainingTrackId(globals.state, trackKey);
       if (parentTrackId === attrs.trackGroupId) {
         highlightClass = 'flash';
       }
@@ -303,26 +301,4 @@ export class TrackGroupPanel extends Panel<Attrs> {
 
 function StripPathFromExecutable(path: string) {
   return path.split('/').slice(-1)[0];
-}
-
-function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
-  const engine = globals.engines.get(trackState.engineId);
-  if (engine === undefined) {
-    return undefined;
-  }
-
-  try {
-    const trackCreator = trackRegistry.get(trackState.kind);
-    return trackCreator.create({
-      trackId,
-      engine:
-          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
-    });
-  } catch (e) {
-    if (e instanceof RegistryError) {
-      return undefined;
-    } else {
-      throw e;
-    }
-  }
 }

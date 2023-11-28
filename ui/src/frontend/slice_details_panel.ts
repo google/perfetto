@@ -15,10 +15,11 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
 import {translateState} from '../common/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 import {Anchor} from '../widgets/anchor';
 import {DetailsShell} from '../widgets/details_shell';
-import {DurationWidget} from '../widgets/duration';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
@@ -27,6 +28,7 @@ import {Tree, TreeNode} from '../widgets/tree';
 import {globals, SliceDetails, ThreadDesc} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
+import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
 export class SliceDetailsPanel extends SlicePanel {
@@ -204,21 +206,23 @@ export class SliceDetailsPanel extends SlicePanel {
       return;
     }
 
-    let trackId: string|number|undefined;
+    let trackKey: string|number|undefined;
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.kind === 'ThreadStateTrack' &&
-          (track.config as {utid: number}).utid === threadInfo.utid) {
-        trackId = track.id;
+      const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+      // TODO(stevegolton): Handle v2.
+      if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+          trackDesc.utid === threadInfo.utid) {
+        trackKey = track.key;
       }
     }
 
-    if (trackId && sliceInfo.threadStateId) {
+    if (trackKey && sliceInfo.threadStateId) {
       globals.makeSelection(Actions.selectThreadState({
         id: sliceInfo.threadStateId,
-        trackId: trackId.toString(),
+        trackKey: trackKey.toString(),
       }));
 
-      scrollToTrackAndTs(trackId, sliceInfo.ts, true);
+      scrollToTrackAndTs(trackKey, sliceInfo.ts, true);
     }
   }
 

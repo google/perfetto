@@ -14,14 +14,13 @@
 
 import m from 'mithril';
 
-import {Duration, time} from '../base/time';
+import {Time, time} from '../base/time';
 import {runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
-import {addDebugTrack} from '../tracks/debug/slice_track';
+import {addDebugSliceTrack} from '../tracks/debug/slice_track';
 import {Anchor} from '../widgets/anchor';
 import {Button} from '../widgets/button';
 import {DetailsShell} from '../widgets/details_shell';
-import {DurationWidget} from '../widgets/duration';
 import {GridLayout} from '../widgets/grid_layout';
 import {Section} from '../widgets/section';
 import {SqlRef} from '../widgets/sql_ref';
@@ -42,6 +41,7 @@ import {
   ThreadState,
   ThreadStateRef,
 } from './thread_state';
+import {DurationWidget, renderDuration} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
 
 interface ThreadStateTabConfig {
@@ -252,7 +252,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
     ];
 
     const nameForNextOrPrev = (state: ThreadState) =>
-        `${state.state} for ${Duration.humanise(state.dur)}`;
+        `${state.state} for ${renderDuration(state.dur)}`;
     return [m(
         Tree,
         this.relatedStates.waker && m(TreeNode, {
@@ -278,21 +278,21 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
               {
                 left: 'Woken threads',
               },
-              this.relatedStates.wakee.map(
-                  (state) => m(TreeNode, ({
-                                 left: m(Timestamp, {
-                                   ts: state.ts,
-                                   display: `Start+${
-                                       Duration.humanise(state.ts - startTs)}`,
-                                 }),
-                                 right: renderRef(
-                                     state, getFullThreadName(state.thread)),
+              this.relatedStates.wakee.map((state) => m(TreeNode, ({
+                  left: m(Timestamp, {
+                    ts: state.ts,
+                    display: [
+                      'Start+',
+                      m(DurationWidget, {dur: Time.sub(state.ts, startTs)}),
+                    ],
+                  }),
+                  right: renderRef(state, getFullThreadName(state.thread)),
                   })))),
       ), m(Button,
            {
           label: 'Critical path lite',
           onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
-              .then(() => addDebugTrack(
+              .then(() => addDebugSliceTrack(
               this.engine,
                   {
                     sqlSource:
@@ -309,7 +309,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                       experimental_thread_executing_span_critical_path(
                         ${this.state?.thread?.utid},
                         trace_bounds.start_ts,
-                        trace_bounds.end_ts) cr,
+                        trace_bounds.end_ts - trace_bounds.start_ts) cr,
                       trace_bounds
                     JOIN thread USING(utid)
                     JOIN process USING(upid)
@@ -324,7 +324,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
            {
           label: 'Critical path',
           onclick: () => runQuery(`INCLUDE PERFETTO MODULE experimental.thread_executing_span;`, this.engine)
-              .then(() => addDebugTrack(
+              .then(() => addDebugSliceTrack(
               this.engine,
                   {
                     sqlSource:
@@ -334,7 +334,7 @@ export class ThreadStateTab extends BottomTab<ThreadStateTabConfig> {
                         experimental_thread_executing_span_critical_path_stack(
                           ${this.state?.thread?.utid},
                           trace_bounds.start_ts,
-                          trace_bounds.end_ts) cr,
+                          trace_bounds.end_ts - trace_bounds.start_ts) cr,
                         trace_bounds WHERE name IS NOT NULL
                   `,
                   columns: sliceColumnNames,

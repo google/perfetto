@@ -301,10 +301,14 @@ bool PerfettoDsImplRegister(struct PerfettoDsImpl* ds_impl,
                             PERFETTO_ATOMIC(bool) * *enabled_ptr,
                             const void* descriptor,
                             size_t descriptor_size) {
+  std::unique_ptr<PerfettoDsImpl> data_source_type(ds_impl);
+
   perfetto::DataSourceDescriptor dsd;
   dsd.ParseFromArray(descriptor, descriptor_size);
 
-  std::unique_ptr<PerfettoDsImpl> data_source_type(ds_impl);
+  if (!dsd.has_no_flush() && data_source_type->on_flush_cb == nullptr) {
+    dsd.set_no_flush(true);
+  }
 
   auto factory = [ds_impl]() {
     return std::unique_ptr<perfetto::DataSourceBase>(
@@ -345,6 +349,10 @@ void PerfettoDsImplUpdateDescriptor(struct PerfettoDsImpl* ds_impl,
                                     size_t descriptor_size) {
   perfetto::DataSourceDescriptor dsd;
   dsd.ParseFromArray(descriptor, descriptor_size);
+
+  if (!dsd.has_no_flush() && ds_impl->on_flush_cb == nullptr) {
+    dsd.set_no_flush(true);
+  }
 
   ds_impl->cpp_type.UpdateDescriptor(dsd);
 }

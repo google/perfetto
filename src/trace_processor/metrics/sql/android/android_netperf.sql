@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP VIEW IF EXISTS rx_packets;
-CREATE VIEW rx_packets AS
+CREATE PERFETTO VIEW rx_packets AS
 SELECT
   ts,
   REPLACE(name, " Received KB", "") AS dev,
@@ -27,7 +27,7 @@ WHERE name GLOB "* Received KB"
 ORDER BY ts DESC;
 
 DROP VIEW IF EXISTS gro_rx_packet_count;
-CREATE VIEW gro_rx_packet_count AS
+CREATE PERFETTO VIEW gro_rx_packet_count AS
 SELECT
   s.name AS dev,
   COUNT(1) AS cnt
@@ -38,7 +38,7 @@ WHERE t.name GLOB "Napi Gro Cpu *"
 GROUP BY s.name;
 
 DROP VIEW IF EXISTS tx_packets;
-CREATE VIEW tx_packets AS
+CREATE PERFETTO VIEW tx_packets AS
 SELECT
   ts,
   REPLACE(name, " Transmitted KB", "") AS dev,
@@ -51,7 +51,7 @@ WHERE name GLOB "* Transmitted KB"
 ORDER BY ts DESC;
 
 DROP VIEW IF EXISTS net_devices;
-CREATE VIEW net_devices AS
+CREATE PERFETTO VIEW net_devices AS
 SELECT DISTINCT dev
 FROM tx_packets
 UNION
@@ -59,7 +59,7 @@ SELECT DISTINCT dev
 FROM rx_packets;
 
 DROP VIEW IF EXISTS tcp_retransmitted_count;
-CREATE VIEW tcp_retransmitted_count AS
+CREATE PERFETTO VIEW tcp_retransmitted_count AS
 SELECT
   COUNT(1) AS cnt
 FROM slice s
@@ -69,7 +69,7 @@ WHERE
   t.name = "TCP Retransmit Skb";
 
 DROP VIEW IF EXISTS kfree_skb_count;
-CREATE VIEW kfree_skb_count AS
+CREATE PERFETTO VIEW kfree_skb_count AS
 SELECT
   MAX(value) AS cnt
 FROM counter c
@@ -79,7 +79,7 @@ WHERE
   t.name = "Kfree Skb IP Prot";
 
 DROP VIEW IF EXISTS device_per_core_ingress_traffic;
-CREATE VIEW device_per_core_ingress_traffic AS
+CREATE PERFETTO VIEW device_per_core_ingress_traffic AS
 SELECT
   dev,
   AndroidNetworkMetric_CorePacketStatistic(
@@ -97,7 +97,7 @@ FROM rx_packets
 GROUP BY dev, cpu;
 
 DROP VIEW IF EXISTS device_per_core_egress_traffic;
-CREATE VIEW device_per_core_egress_traffic AS
+CREATE PERFETTO VIEW device_per_core_egress_traffic AS
 SELECT
   dev,
   AndroidNetworkMetric_CorePacketStatistic(
@@ -115,7 +115,7 @@ FROM tx_packets
 GROUP BY dev, cpu;
 
 DROP VIEW IF EXISTS device_total_ingress_traffic;
-CREATE VIEW device_total_ingress_traffic AS
+CREATE PERFETTO VIEW device_total_ingress_traffic AS
 SELECT
   dev,
   MIN(ts) AS start_ts,
@@ -127,7 +127,7 @@ FROM rx_packets
 GROUP BY dev;
 
 DROP VIEW IF EXISTS device_total_egress_traffic;
-CREATE VIEW device_total_egress_traffic AS
+CREATE PERFETTO VIEW device_total_egress_traffic AS
 SELECT
   dev,
   MIN(ts) AS start_ts,
@@ -139,7 +139,7 @@ FROM tx_packets
 GROUP BY dev;
 
 DROP VIEW IF EXISTS device_traffic_statistic;
-CREATE VIEW device_traffic_statistic AS
+CREATE PERFETTO VIEW device_traffic_statistic AS
 SELECT
   AndroidNetworkMetric_NetDevice(
     'name', net_devices.dev,
@@ -199,7 +199,7 @@ FROM net_devices
 ORDER BY dev;
 
 DROP VIEW IF EXISTS net_rx_actions;
-CREATE VIEW net_rx_actions AS
+CREATE PERFETTO VIEW net_rx_actions AS
 SELECT
   s.ts,
   s.dur,
@@ -210,7 +210,7 @@ LEFT JOIN track t
 WHERE s.name = "NET_RX";
 
 DROP VIEW IF EXISTS net_tx_actions;
-CREATE VIEW net_tx_actions AS
+CREATE PERFETTO VIEW net_tx_actions AS
 SELECT
   s.ts,
   s.dur,
@@ -221,7 +221,7 @@ LEFT JOIN track t
 WHERE s.name = "NET_TX";
 
 DROP VIEW IF EXISTS ipi_actions;
-CREATE VIEW ipi_actions AS
+CREATE PERFETTO VIEW ipi_actions AS
 SELECT
   s.ts,
   s.dur,
@@ -232,7 +232,7 @@ LEFT JOIN track t
 WHERE s.name = "IRQ (IPI)";
 
 DROP VIEW IF EXISTS cpu_freq_view;
-CREATE VIEW cpu_freq_view AS
+CREATE PERFETTO VIEW cpu_freq_view AS
 SELECT
   cpu,
   ts,
@@ -252,7 +252,7 @@ CREATE VIRTUAL TABLE cpu_freq_net_tx_action_per_core
 USING SPAN_LEFT_JOIN(net_tx_actions PARTITIONED cpu, cpu_freq_view PARTITIONED cpu);
 
 DROP VIEW IF EXISTS total_net_rx_action_statistic;
-CREATE VIEW total_net_rx_action_statistic AS
+CREATE PERFETTO VIEW total_net_rx_action_statistic AS
 SELECT
   COUNT(1) AS times,
   SUM(dur) AS runtime,
@@ -261,7 +261,7 @@ SELECT
 FROM net_rx_actions;
 
 DROP VIEW IF EXISTS total_net_tx_action_statistic;
-CREATE VIEW total_net_tx_action_statistic AS
+CREATE PERFETTO VIEW total_net_tx_action_statistic AS
 SELECT
   COUNT(1) AS times,
   SUM(dur) AS runtime,
@@ -269,7 +269,7 @@ SELECT
 FROM net_tx_actions;
 
 DROP VIEW IF EXISTS total_ipi_action_statistic;
-CREATE VIEW total_ipi_action_statistic AS
+CREATE PERFETTO VIEW total_ipi_action_statistic AS
 SELECT
   COUNT(1) AS times,
   SUM(dur) AS runtime,
@@ -277,19 +277,19 @@ SELECT
 FROM ipi_actions;
 
 DROP VIEW IF EXISTS activated_cores_net_rx;
-CREATE VIEW activated_cores_net_rx AS
+CREATE PERFETTO VIEW activated_cores_net_rx AS
 SELECT DISTINCT
   cpu
 FROM net_rx_actions;
 
 DROP VIEW IF EXISTS activated_cores_net_tx;
-CREATE VIEW activated_cores_net_tx AS
+CREATE PERFETTO VIEW activated_cores_net_tx AS
 SELECT DISTINCT
   cpu
 FROM net_tx_actions;
 
 DROP VIEW IF EXISTS per_core_net_rx_action_statistic;
-CREATE VIEW per_core_net_rx_action_statistic AS
+CREATE PERFETTO VIEW per_core_net_rx_action_statistic AS
 SELECT
   AndroidNetworkMetric_CoreNetRxActionStatistic(
     'id', cpu,
@@ -304,7 +304,7 @@ SELECT
 FROM activated_cores_net_rx AS ac;
 
 DROP VIEW IF EXISTS per_core_net_tx_action_statistic;
-CREATE VIEW per_core_net_tx_action_statistic AS
+CREATE PERFETTO VIEW per_core_net_tx_action_statistic AS
 SELECT
   AndroidNetworkMetric_CoreNetTxActionStatistic(
     'id', cpu,
@@ -319,7 +319,7 @@ SELECT
 FROM activated_cores_net_tx AS ac;
 
 DROP VIEW IF EXISTS android_netperf_output;
-CREATE VIEW android_netperf_output AS
+CREATE PERFETTO VIEW android_netperf_output AS
 SELECT AndroidNetworkMetric(
     'net_devices', (
       SELECT

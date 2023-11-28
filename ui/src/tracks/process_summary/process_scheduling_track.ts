@@ -19,12 +19,8 @@ import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {calcCachedBucketSize} from '../../common/cache_utils';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
+import {Color} from '../../common/color';
 import {colorForThread} from '../../common/colorizer';
-import {
-  LONG,
-  NUM,
-  QueryResult,
-} from '../../common/query_result';
 import {
   TrackAdapter,
   TrackControllerAdapter,
@@ -33,6 +29,11 @@ import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {NewTrackArgs} from '../../frontend/track';
+import {
+  LONG,
+  NUM,
+  QueryResult,
+} from '../../trace_processor/query_result';
 
 export const PROCESS_SCHEDULING_TRACK_KIND = 'ProcessSchedulingTrack';
 
@@ -250,20 +251,18 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
       const isHovering = globals.state.hoveredUtid !== -1;
       const isThreadHovered = globals.state.hoveredUtid === utid;
       const isProcessHovered = globals.state.hoveredPid === pid;
-      const color = colorForThread(threadInfo);
+      const colorScheme = colorForThread(threadInfo);
+      let color: Color;
       if (isHovering && !isThreadHovered) {
         if (!isProcessHovered) {
-          color.l = 90;
-          color.s = 0;
+          color = colorScheme.disabled;
         } else {
-          color.l = Math.min(color.l + 30, 80);
-          color.s -= 20;
+          color = colorScheme.variant;
         }
       } else {
-        color.l = Math.min(color.l + 10, 60);
-        color.s -= 20;
+        color = colorScheme.base;
       }
-      ctx.fillStyle = `hsl(${color.h}, ${color.s}%, ${color.l}%)`;
+      ctx.fillStyle = color.cssString;
       const y = MARGIN_TOP + cpuTrackHeight * cpu + cpu;
       ctx.fillRect(rectStart, y, rectEnd - rectStart, cpuTrackHeight);
     }

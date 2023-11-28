@@ -15,14 +15,20 @@
 --
 
 -- List of all ANRs that occurred in the trace (one row per ANR).
---
--- @column process_name  Name of the process that triggered the ANR.
--- @column pid           PID of the process that triggered the ANR.
--- @column upid          UPID of the process that triggered the ANR.
--- @column error_id      UUID of the ANR (generated on the platform).
--- @column ts            Timestamp of the ANR.
--- @column subject       Subject line of the ANR.
-CREATE VIEW android_anrs AS
+CREATE PERFETTO VIEW android_anrs(
+  -- Name of the process that triggered the ANR.
+  process_name STRING,
+  -- PID of the process that triggered the ANR.
+  pid INT,
+  -- UPID of the process that triggered the ANR.
+  upid INT,
+  -- UUID of the ANR (generated on the platform).
+  error_id STRING,
+  -- Timestamp of the ANR.
+  ts INT,
+  -- Subject line of the ANR.
+  subject STRING
+) AS
 -- Process and PID that ANRed.
 WITH anr AS (
   SELECT

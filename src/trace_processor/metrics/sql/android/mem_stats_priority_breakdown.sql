@@ -43,7 +43,7 @@ GROUP BY 1, 2
 ORDER BY 1, 2;
 
 DROP VIEW IF EXISTS {{table_name}}_by_priority_stats_proto;
-CREATE VIEW {{table_name}}_by_priority_stats_proto AS
+CREATE PERFETTO VIEW {{table_name}}_by_priority_stats_proto AS
 SELECT
   process_name,
   priority,

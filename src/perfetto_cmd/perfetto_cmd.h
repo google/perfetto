@@ -153,6 +153,7 @@ class PerfettoCmd : public Consumer {
   bool redetach_once_attached_ = false;
   bool query_service_ = false;
   bool query_service_output_raw_ = false;
+  bool query_service_long_ = false;
   bool bugreport_ = false;
   bool background_ = false;
   bool background_wait_ = false;

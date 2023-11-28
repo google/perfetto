@@ -312,7 +312,7 @@ void SystemProbesParser::ParseSysStats(int64_t ts, ConstBytes blob) {
     track = context_->track_tracker->InternCpuCounterTrack(
         cpu_times_user_nice_ns_id_, ct.cpu_id());
     context_->event_tracker->PushCounter(
-        ts, static_cast<double>(ct.user_ice_ns()), track);
+        ts, static_cast<double>(ct.user_nice_ns()), track);
 
     track = context_->track_tracker->InternCpuCounterTrack(
         cpu_times_system_mode_ns_id_, ct.cpu_id());
@@ -601,6 +601,12 @@ void SystemProbesParser::ParseSystemInfo(ConstBytes blob) {
                           Variadic::String(release_id));
     metadata->SetMetadata(metadata::system_machine,
                           Variadic::String(machine_id));
+  }
+
+  if (packet.has_timezone_off_mins()) {
+    context_->metadata_tracker->SetMetadata(
+        metadata::timezone_off_mins,
+        Variadic::Integer(packet.timezone_off_mins()));
   }
 
   if (packet.has_android_build_fingerprint()) {

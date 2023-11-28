@@ -80,18 +80,18 @@ function selectCurrentSearchResult() {
   const searchIndex = globals.state.searchIndex;
   const source = globals.currentSearchResults.sources[searchIndex];
   const currentId = globals.currentSearchResults.sliceIds[searchIndex];
-  const trackId = globals.currentSearchResults.trackIds[searchIndex];
+  const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
 
   if (currentId === undefined) return;
 
   if (source === 'cpu') {
     globals.makeSelection(
-        Actions.selectSlice({id: currentId, trackId, scroll: true}),
+        Actions.selectSlice({id: currentId, trackKey, scroll: true}),
         {clearSearch: false},
     );
   } else if (source === 'log') {
     globals.makeSelection(
-        Actions.selectLog({id: currentId, trackId, scroll: true}),
+        Actions.selectLog({id: currentId, trackKey, scroll: true}),
         {clearSearch: false},
     );
   } else {
@@ -99,7 +99,7 @@ function selectCurrentSearchResult() {
     // When we include annotations we need to pass the correct table.
     globals.makeSelection(
         Actions.selectChromeSlice(
-            {id: currentId, trackId, table: 'slice', scroll: true}),
+            {id: currentId, trackKey, table: 'slice', scroll: true}),
         {clearSearch: false},
     );
   }

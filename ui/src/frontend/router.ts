@@ -233,7 +233,9 @@ export class Router {
     // and foo[bar] is not set at all. Here we need the second case to
     // avoid making the URL ugly.
     for (const key of Object.keys(args)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((args as any)[key] === undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (args as any)[key];
       }
     }
@@ -260,7 +262,9 @@ export class Router {
     // and foo[bar] is not set at all. Here we need the second case to
     // avoid making the URL ugly.
     for (const key of Object.keys(args)) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       if ((args as any)[key] === undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         delete (args as any)[key];
       }
     }

@@ -13,10 +13,11 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
+INCLUDE PERFETTO MODULE android.startup.internal_startup_events;
 
-INSERT INTO internal_all_startups
+CREATE PERFETTO TABLE internal_startups_maxsdk28 AS
 SELECT
-  "maxsdk28",
+  "maxsdk28" as sdk,
   ROW_NUMBER() OVER(ORDER BY ts) AS startup_id,
   le.ts,
   le.ts_end AS ts_end,

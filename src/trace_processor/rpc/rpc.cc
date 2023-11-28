@@ -131,23 +131,29 @@ namespace {
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
     ProtoEnum categories) {
-  switch (categories) {
-    case ProtoEnum::QUERY_TIMELINE:
-      return TraceProcessor::MetatraceCategories::QUERY_TIMELINE;
-    case ProtoEnum::QUERY_DETAILED:
-      return TraceProcessor::MetatraceCategories::QUERY_DETAILED;
-    case ProtoEnum::FUNCTION_CALL:
-      return TraceProcessor::MetatraceCategories::FUNCTION_CALL;
-    case ProtoEnum::DB:
-      return TraceProcessor::MetatraceCategories::DB;
-    case ProtoEnum::API_TIMELINE:
-      return TraceProcessor::MetatraceCategories::API_TIMELINE;
-    case ProtoEnum::ALL:
-      return TraceProcessor::MetatraceCategories::ALL;
-    case ProtoEnum::NONE:
-      return TraceProcessor::MetatraceCategories::NONE;
+  TraceProcessor::MetatraceCategories result =
+      TraceProcessor::MetatraceCategories::NONE;
+  if (categories & ProtoEnum::QUERY_TIMELINE) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::QUERY_TIMELINE);
   }
-  return TraceProcessor::MetatraceCategories::NONE;
+  if (categories & ProtoEnum::QUERY_DETAILED) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::QUERY_DETAILED);
+  }
+  if (categories & ProtoEnum::FUNCTION_CALL) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::FUNCTION_CALL);
+  }
+  if (categories & ProtoEnum::DB) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::DB);
+  }
+  if (categories & ProtoEnum::API_TIMELINE) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::API_TIMELINE);
+  }
+  return result;
 }
 
 }  // namespace

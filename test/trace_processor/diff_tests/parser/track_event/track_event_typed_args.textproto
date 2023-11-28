@@ -1,0 +1,210 @@
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 0
+  incremental_state_cleared: true
+  track_descriptor {
+    uuid: 1
+    thread {
+      pid: 5
+      tid: 1
+      thread_name: "t1"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 1000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name1"
+    type: 3
+    chrome_user_event {
+      action: "NewTab"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 2000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name2"
+    type: 3
+    chrome_legacy_ipc {
+      message_class: 1
+      message_line: 10
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 3000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name3"
+    type: 3
+    chrome_keyed_service {
+      name: "MediaRouter"
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 4000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name4"
+    type: 3
+    chrome_latency_info {
+      trace_id: 7
+      component_info {
+        component_type: 3
+        time_us: 1201
+      }
+      component_info {
+        time_us: 928310
+      }
+      is_coalesced: true
+    }
+    [perfetto.protos.TestExtension.string_extension_for_testing]:
+        "an extension string!"
+    [perfetto.protos.TestExtension.string_extension_for_testing2]:
+        "a second extension string!"
+    [perfetto.protos.TestExtension.int_extension_for_testing]: 42
+    [perfetto.protos.TestExtension.int_extension_for_testing]: 1337
+    [perfetto.protos.TestExtension.omitted_extension_for_testing]:
+        "should be absent from result"
+    [perfetto.protos.TestExtension.nested_message_extension_for_testing] {
+      child_field_for_testing: "nesting test"
+      debug_annotations {
+        name: "arg1"
+        string_value: "value"
+      }
+      debug_annotations {
+        name: "arg2"
+        dict_entries {
+          name: "key"
+          string_value: "value"
+        }
+      }
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5000
+  extension_descriptor {
+    extension_set {
+      file {
+        package: "perfetto.protos"
+        name: "test_track_event_extensions.proto"
+        message_type {
+          extension {
+            name: "string_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9900
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
+          }
+          extension {
+            name: "int_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9901
+            type: TYPE_INT32
+            label: LABEL_REPEATED
+          }
+          extension {
+            name: "nested_message_extension_for_testing"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9903
+            type: TYPE_MESSAGE
+            label: LABEL_OPTIONAL
+            type_name: ".perfetto.protos.TestExtensionChild"
+          }
+        }
+        message_type {
+          name: "TestExtensionChild"
+          field {
+            name: "child_field_for_testing"
+            number: 1
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
+          }
+          field {
+            name: "debug_annotations"
+            number: 99
+            type: TYPE_MESSAGE
+            label: LABEL_REPEATED
+            type_name: ".perfetto.protos.DebugAnnotation"
+          }
+        }
+      }
+    }
+  }
+}
+# Test that a field specified in a second descriptor for the same proto file is
+# also detected. This emulates the case of multiple instances of the same app
+# (e.g. Chrome Beta + Chrome Canary) both emitting a descriptor.
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 5001
+  extension_descriptor {
+    extension_set {
+      file {
+        package: "perfetto.protos"
+        name: "test_track_event_extensions.proto"
+        message_type {
+          extension {
+            name: "string_extension_for_testing2"
+            extendee: ".perfetto.protos.TrackEvent"
+            number: 9905
+            type: TYPE_STRING
+            label: LABEL_OPTIONAL
+          }
+        }
+      }
+    }
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 6000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name5"
+    type: 3
+    [perfetto.protos.ChromeTrackEvent.chrome_app_state]: APP_STATE_FOREGROUND
+  }
+}
+packet {
+  trusted_packet_sequence_id: 1
+  timestamp: 7000
+  track_event {
+    track_uuid: 1
+    categories: "cat"
+    name: "name6"
+    type: 3
+    source_location_iid: 1
+    [perfetto.protos.ChromeTrackEvent.chrome_memory_pressure_notification] {
+      creation_location_iid: 2
+    }
+  }
+  interned_data: {
+    source_locations: {
+      iid: 1
+      file_name: "source.cc"
+      function_name: "SourceFunction"
+    }
+    source_locations: {
+      iid: 2
+      file_name: "another_source.cc"
+      function_name: "AnotherSourceFunction"
+      line_number: 1337
+    }
+  }
+}

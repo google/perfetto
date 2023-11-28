@@ -29,7 +29,6 @@ import {
   ConversionJobName,
   ConversionJobStatus,
 } from '../common/conversion_jobs';
-import {Engine} from '../common/engine';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
@@ -47,11 +46,13 @@ import {
 import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
+import {Engine} from '../trace_processor/engine';
 
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
 import {FrontendLocalState} from './frontend_local_state';
 import {Router} from './router';
+import {horizontalScrollToTs} from './scroll_helper';
 import {ServiceWorkerController} from './service_worker_controller';
 import {SliceSqlId} from './sql_types';
 import {createStore, Store} from './store';
@@ -123,6 +124,9 @@ export interface Flow {
   begin: FlowPoint;
   end: FlowPoint;
   dur: duration;
+
+  // Whether this flow connects a slice with its descendant.
+  flowToDescendant: boolean;
 
   category?: string;
   name?: string;
@@ -230,6 +234,8 @@ export interface MakeSelectionOpts {
   clearSearch?: boolean;
 }
 
+type OpenQueryHandler = (query: string, title: string, tag?: string) => void;
+
 /**
  * Global accessors for state/dispatch in the frontend.
  */
@@ -275,6 +281,7 @@ class Globals {
   private _cmdManager?: CommandManager = undefined;
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
+  private _openQueryHandler?: OpenQueryHandler;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
@@ -283,7 +290,7 @@ class Globals {
     sliceIds: new Float64Array(0),
     tsStarts: new BigInt64Array(0),
     utids: new Float64Array(0),
-    trackIds: [],
+    trackKeys: [],
     sources: [],
     totalResults: 0,
   };
@@ -307,9 +314,6 @@ class Globals {
     setPerfHooks(
         () => this.state.perfDebug,
         () => this.dispatch(Actions.togglePerfDebug({})));
-
-    raf.beforeRedraw = () => this.frontendLocalState.clearVisibleTracks();
-    raf.afterRedraw = () => this.frontendLocalState.sendVisibleTracks();
 
     this._serviceWorkerController = new ServiceWorkerController();
     this._testing =
@@ -663,7 +667,7 @@ class Globals {
       sliceIds: new Float64Array(0),
       tsStarts: new BigInt64Array(0),
       utids: new Float64Array(0),
-      trackIds: [],
+      trackKeys: [],
       sources: [],
       totalResults: 0,
     };
@@ -838,6 +842,26 @@ class Globals {
     }
 
     return {start, end};
+  }
+
+  // The implementation of the query results tab is not part of the core so we
+  // decouple globals from the implementation using this registration interface.
+  // Once we move the implementation to a plugin, this decoupling will be
+  // simpler as we just need to call a command with a well-known ID, and a
+  // plugin will provide the implementation.
+  registerOpenQueryHandler(cb: OpenQueryHandler) {
+    this._openQueryHandler = cb;
+  }
+
+  // Runs a query and displays results in a new tab.
+  // Queries will override previously opened queries with the same tag.
+  // If the tag is omitted, the results will always open in a new tab.
+  openQuery(query: string, title: string, tag?: string) {
+    assertExists(this._openQueryHandler)(query, title, tag);
+  }
+
+  panToTimestamp(ts: time): void {
+    horizontalScrollToTs(ts);
   }
 }
 

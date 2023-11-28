@@ -45,7 +45,6 @@ if (enable_perfetto_platform_services) {
 }
 
 if (enable_perfetto_trace_processor && enable_perfetto_trace_processor_sqlite) {
-  all_targets += [ "src/bigtrace" ]
   all_targets += [ "src/trace_processor:trace_processor_shell" ]
 }
 
@@ -316,7 +315,20 @@ if (build_with_chromium) {
       ]
     }
   }
-  component("libtrace_processor") {
+
+  # TODO(altimin): this is a temp workaround around very strange link failures
+  # on win-dbg-ng buildbot.
+  if (!is_win) {
+    libtrace_processor_target_type = "source_set"
+  } else {
+    libtrace_processor_target_type = "component"
+  }
+
+  # In Chromium, we want to ensure that we don't link dynamically against sqlite
+  # (as Chromium also uses a more restricted version of sqlite which is actually
+  # shipped to the users).
+  # source_set helps us to achieve that.
+  target(libtrace_processor_target_type, "libtrace_processor") {
     public_configs = [ "gn:public_config" ]
     deps = [ "src/trace_processor:lib" ]
     configs -= [ "//build/config/compiler:chromium_code" ]

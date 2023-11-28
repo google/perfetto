@@ -109,7 +109,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
   base::StringView name = value.isMember("name")
                               ? base::StringView(value["name"].asCString())
                               : base::StringView();
-  StringId name_id = name.empty() ? kNullStringId : storage->InternString(name);
+  StringId name_id = name.empty() ? storage->InternString("[No name]")
+                                  : storage->InternString(name);
 
   auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
     if (value.isMember("args")) {

@@ -18,13 +18,11 @@ import m from 'mithril';
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {duration, Span, time} from '../base/time';
-import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
-import {RegistryError} from '../common/registry';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Migrate, Track, TrackContext} from '../public';
+import {Migrate, SliceRect, Track, TrackContext} from '../public';
 
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -32,8 +30,6 @@ import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
 import {PxSpan, TimeScale} from './time_scale';
-import {SliceRect} from './track';
-import {trackRegistry} from './track_registry';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -79,24 +75,12 @@ class TrackChip implements m.ClassComponent<TrackChipAttrs> {
   }
 }
 
-export function renderChips({uri, config}: TrackState) {
+export function renderChips({uri}: TrackState) {
   const tagElements: m.Children = [];
-  if (exists(uri)) {
-    const trackInfo = pluginManager.resolveTrackInfo(uri);
-    const tags = trackInfo?.tags;
-    tags?.metric && tagElements.push(m(TrackChip, {text: 'metric'}));
-    tags?.debuggable && tagElements.push(m(TrackChip, {text: 'debuggable'}));
-  } else {
-    if (config && typeof config === 'object') {
-      if ('namespace' in config) {
-        tagElements.push(m(TrackChip, {text: 'metric'}));
-      }
-      if ('isDebuggable' in config && config.isDebuggable) {
-        tagElements.push(m(TrackChip, {text: 'debuggable'}));
-      }
-    }
-  }
-
+  const trackInfo = pluginManager.resolveTrackInfo(uri);
+  const tags = trackInfo?.tags;
+  tags?.metric && tagElements.push(m(TrackChip, {text: 'metric'}));
+  tags?.debuggable && tagElements.push(m(TrackChip, {text: 'debuggable'}));
   return tagElements;
 }
 
@@ -121,8 +105,8 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     let highlightClass = '';
     const searchIndex = globals.state.searchIndex;
     if (searchIndex !== -1) {
-      const trackId = globals.currentSearchResults.trackIds[searchIndex];
-      if (trackId === attrs.trackState.id) {
+      const trackKey = globals.currentSearchResults.trackKeys[searchIndex];
+      if (trackKey === attrs.trackState.key) {
         highlightClass = 'flash';
       }
     }
@@ -152,16 +136,15 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
             ),
         m('.track-buttons',
           attrs.track.getTrackShellButtons(),
-          attrs.track.getContextMenu(),
           m(TrackButton, {
             action: () => {
               globals.dispatch(
-                  Actions.toggleTrackPinned({trackId: attrs.trackState.id}));
+                  Actions.toggleTrackPinned({trackKey: attrs.trackState.key}));
             },
             i: Icons.Pin,
-            filledIcon: isPinned(attrs.trackState.id),
-            tooltip: isPinned(attrs.trackState.id) ? 'Unpin' : 'Pin to top',
-            showButton: isPinned(attrs.trackState.id),
+            filledIcon: isPinned(attrs.trackState.key),
+            tooltip: isPinned(attrs.trackState.key) ? 'Unpin' : 'Pin to top',
+            showButton: isPinned(attrs.trackState.key),
             fullHeight: true,
           }),
           globals.state.currentSelection !== null &&
@@ -169,12 +152,12 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
               m(TrackButton, {
                 action: (e: MouseEvent) => {
                   globals.dispatch(Actions.toggleTrackSelection(
-                      {id: attrs.trackState.id, isTrackGroup: false}));
+                      {id: attrs.trackState.key, isTrackGroup: false}));
                   e.stopPropagation();
                 },
-                i: isSelected(attrs.trackState.id) ? Icons.Checkbox :
-                                                     Icons.BlankCheckbox,
-                tooltip: isSelected(attrs.trackState.id) ?
+                i: isSelected(attrs.trackState.key) ? Icons.Checkbox :
+                                                      Icons.BlankCheckbox,
+                tooltip: isSelected(attrs.trackState.key) ?
                     'Remove track' :
                     'Add track to selection',
                 showButton: true,
@@ -187,7 +170,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     if (dataTransfer === null) return;
     this.dragging = true;
     raf.scheduleFullRedraw();
-    dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
+    dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.key}`);
     dataTransfer.setDragImage(new Image(), 0, 0);
   }
 
@@ -226,7 +209,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     if (dataTransfer === null) return;
     raf.scheduleFullRedraw();
     const srcId = dataTransfer.getData('perfetto/track');
-    const dstId = this.attrs!.trackState.id;
+    const dstId = this.attrs!.trackState.key;
     globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
     this.dropping = undefined;
   }
@@ -305,7 +288,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
           style: {
             height: `${Math.max(18, attrs.track.getHeight())}px`,
           },
-          id: 'track_' + attrs.trackState.id,
+          id: 'track_' + attrs.trackState.key,
         },
         [
           m(TrackShell, {track: attrs.track, trackState: attrs.trackState}),
@@ -314,9 +297,9 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   }
 
   oncreate({attrs}: m.CVnode<TrackComponentAttrs>) {
-    if (globals.frontendLocalState.scrollToTrackId === attrs.trackState.id) {
-      verticalScrollToTrack(attrs.trackState.id);
-      globals.frontendLocalState.scrollToTrackId = undefined;
+    if (globals.frontendLocalState.scrollToTrackKey === attrs.trackState.key) {
+      verticalScrollToTrack(attrs.trackState.key);
+      globals.frontendLocalState.scrollToTrackKey = undefined;
     }
   }
 }
@@ -348,7 +331,7 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 }
 
 interface TrackPanelAttrs {
-  id: string;
+  trackKey: string;
   selectable: boolean;
 }
 
@@ -360,29 +343,29 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   private trackState: TrackState|undefined;
 
   private tryLoadTrack(vnode: m.CVnode<TrackPanelAttrs>) {
-    const trackId = vnode.attrs.id;
-    const trackState = globals.state.tracks[trackId];
+    const trackKey = vnode.attrs.trackKey;
+    const trackState = globals.state.tracks[trackKey];
 
     if (!trackState) return;
 
-    const {id, uri} = trackState;
+    const {uri, params} = trackState;
 
     const trackCtx: TrackContext = {
-      trackInstanceId: id,
+      trackKey,
       mountStore: <T>(migrate: Migrate<T>) => {
         const {store, state} = globals;
-        const migratedState = migrate(state.tracks[trackId].state);
+        const migratedState = migrate(state.tracks[trackKey].state);
         globals.store.edit((draft) => {
-          draft.tracks[trackId].state = migratedState;
+          draft.tracks[trackKey].state = migratedState;
         });
-        return store.createProxy<T>(['tracks', trackId, 'state']);
+        return store.createProxy<T>(['tracks', trackKey, 'state']);
       },
+      params,
     };
 
-    this.track = uri ? pluginManager.createTrack(uri, trackCtx) :
-                       loadTrack(trackState, id);
+    this.track = pluginManager.createTrack(uri, trackCtx);
 
-    this.track?.onCreate();
+    this.track?.onCreate(trackCtx);
     this.trackState = trackState;
   }
 
@@ -425,7 +408,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
     const selectedArea = globals.state.areas[selection.areaId];
     const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(trackState.id)) {
+    if (selectedArea.tracks.includes(trackState.key)) {
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
           visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
@@ -517,27 +500,5 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
     return this.track.getSliceRect(
         visibleTimeScale, visibleWindow, windowSpan, tStart, tDur, depth);
-  }
-}
-
-function loadTrack(trackState: TrackState, trackId: string): Track|undefined {
-  const engine = globals.engines.get(trackState.engineId);
-  if (engine === undefined) {
-    return undefined;
-  }
-
-  try {
-    const trackCreator = trackRegistry.get(trackState.kind);
-    return trackCreator.create({
-      trackId,
-      engine:
-          engine.getProxy(`Track; kind: ${trackState.kind}; id: ${trackId}`),
-    });
-  } catch (e) {
-    if (e instanceof RegistryError) {
-      return undefined;
-    } else {
-      throw e;
-    }
   }
 }

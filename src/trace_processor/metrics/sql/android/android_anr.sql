@@ -16,7 +16,7 @@
 INCLUDE PERFETTO MODULE android.anrs;
 
 DROP VIEW IF EXISTS android_anr_output;
-CREATE VIEW android_anr_output AS
+CREATE PERFETTO VIEW android_anr_output AS
 SELECT
   AndroidAnrMetric(
     'anr', (

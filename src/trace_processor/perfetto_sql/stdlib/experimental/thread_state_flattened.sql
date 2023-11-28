@@ -19,57 +19,57 @@ INCLUDE PERFETTO MODULE experimental.flat_slices;
 CREATE VIRTUAL TABLE internal_experimental_span_joined_thread USING
   SPAN_JOIN(experimental_slice_flattened PARTITIONED utid, thread_state PARTITIONED utid);
 
--- Get the thread state breakdown of a flattened slice from it's slice id.
--- This table pivoted and summed for better visualization and aggragation.
+-- Get the thread state breakdown of a flattened slice from its slice id.
+-- This table pivoted and summed for better visualization and aggregation.
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting. For more information, read the description
 -- of experimental_slice_flattened.
---
--- @arg slice_id LONG         Id of the slice of interest.
---
--- @column ts                 Id of a slice.
--- @column dur                Name of the slice
--- @column utid               Time (ns) spent in Uninterruptible Sleep (non-IO)
--- @column depth              Time (ns) spent in Uninterruptible Sleep (IO)
--- @column name               Time (ns) spent in Runnable
--- @column slice_id           Time (ns) spent in Sleeping
--- @column track_id           Time (ns) spent in Stopped
--- @column cpu                Time (ns) spent in Exit (Zombie)
--- @column state              Time (ns) spent in Task Dead
--- @column io_wait            Time (ns) spent in Wake Kill
--- @column blocked_function   Time (ns) spent in Waking
--- @column waker_utid         Time (ns) spent in Parked
--- @column irq_context        Time (ns) spent in No Load
 CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state(
-  slice_id LONG, utid LONG)
+  -- Id of the slice of interest.
+  slice_id LONG,
+  -- Utid.
+  utid LONG)
 RETURNS
   TABLE(
+    -- Timestamp.
     ts LONG,
+    -- Duration.
     dur LONG,
+    -- Utid.
     utid LONG,
+    -- Depth.
     depth LONG,
+    -- Name.
     name STRING,
+    -- Slice id.
     slice_id LONG,
+    -- Track id.
     track_id LONG,
+    -- CPU.
     cpu INT,
+    -- State.
     state STRING,
+    -- IO wait.
     io_wait INT,
+    -- Thread state's blocked_function.
     blocked_function STRING,
+    -- Thread state's waker utid.
     waker_utid LONG,
-    irq_context LONG)
-AS
+    -- Thread state's IRQ context.
+    irq_context LONG
+) AS
 WITH
-  interesting_slice AS (
-    SELECT ts, dur, slice.track_id AS track_id
-    FROM slice
-    JOIN thread_track
-      ON slice.track_id = thread_track.id
-    JOIN thread
-      USING (utid)
-    WHERE
-      (($slice_id IS NOT NULL AND slice.id = $slice_id) OR ($slice_id IS NULL))
-      AND (($utid IS NOT NULL AND utid = $utid) OR ($utid IS NULL))
-  )
+interesting_slice AS (
+  SELECT ts, dur, slice.track_id AS track_id
+  FROM slice
+  JOIN thread_track
+    ON slice.track_id = thread_track.id
+  JOIN thread
+    USING (utid)
+  WHERE
+    (($slice_id IS NOT NULL AND slice.id = $slice_id) OR ($slice_id IS NULL))
+    AND (($utid IS NOT NULL AND utid = $utid) OR ($utid IS NULL))
+)
 SELECT
   ts,
   dur,
@@ -95,81 +95,80 @@ WHERE
 -- The concept of a "flat slice" is to take the data in the slice table and
 -- remove all notion of nesting. For more information, read the description
 -- of experimental_slice_flattened.
---
--- @arg slice_id LONG                  Id of the slice of interest.
---
--- @column slice_id                    Id of a slice.
--- @column slice_name                  Name of the slice
--- @column Uninterruptible_Sleep_nonIO Time (ns) spent in Uninterruptible Sleep (non-IO)
--- @column Uninterruptible_Sleep_IO    Time (ns) spent in Uninterruptible Sleep (IO)
--- @column Runnable                    Time (ns) spent in Runnable
--- @column Sleeping                    Time (ns) spent in Sleeping
--- @column Stopped                     Time (ns) spent in Stopped
--- @column Traced                      Time (ns) spent in Traced
--- @column Exit_Dead                   Time (ns) spent in Exit (Dead)
--- @column Exit_Zombie                 Time (ns) spent in Exit (Zombie)
--- @column Task_Dead                   Time (ns) spent in Task Dead
--- @column Wake_Kill                   Time (ns) spent in Wake Kill
--- @column Waking                      Time (ns) spent in Waking
--- @column Parked                      Time (ns) spent in Parked
--- @column No_Load                     Time (ns) spent in No Load
--- @column Runnable_Preempted          Time (ns) spent in Runnable (Preempted)
--- @column Running                     Time (ns) spent in Running
--- @column Idle                        Time (ns) spent in Idle
--- @column dur                         Total duration of the slice
--- @column depth                       Depth of the slice in Perfetto
 CREATE PERFETTO FUNCTION experimental_get_flattened_thread_state_aggregated(
-  slice_id LONG, utid LONG)
-RETURNS
-  TABLE(
-    slice_id LONG,
-    slice_name STRING,
-    Uninterruptible_Sleep_nonIO LONG,
-    Uninterruptible_Sleep_IO LONG,
-    Runnable LONG,
-    Sleeping LONG,
-    Stopped LONG,
-    Traced LONG,
-    Exit_Dead LONG,
-    Exit_Zombie LONG,
-    Task_Dead LONG,
-    Wake_Kill LONG,
-    Waking LONG,
-    Parked LONG,
-    No_Load LONG,
-    Runnable_Preempted LONG,
-    Running LONG,
-    Idle LONG,
-    dur LONG,
-    depth LONG)
+  -- Slice id.
+  slice_id LONG,
+  -- Utid.
+  utid LONG)
+RETURNS TABLE(
+  -- Id of a slice.
+  slice_id LONG,
+  -- Name of the slice.
+  slice_name STRING,
+  -- Time (ns) spent in Uninterruptible Sleep (non-IO)
+  Uninterruptible_Sleep_nonIO LONG,
+  -- Time (ns) spent in Uninterruptible Sleep (IO)
+  Uninterruptible_Sleep_IO LONG,
+  -- Time (ns) spent in Runnable
+  Runnable LONG,
+  -- Time (ns) spent in Sleeping
+  Sleeping LONG,
+  -- Time (ns) spent in Stopped
+  Stopped LONG,
+  -- Time (ns) spent in Traced
+  Traced LONG,
+  -- Time (ns) spent in Exit (Dead)
+  Exit_Dead LONG,
+  -- Time (ns) spent in Exit (Zombie)
+  Exit_Zombie LONG,
+  -- Time (ns) spent in Task Dead
+  Task_Dead LONG,
+  -- Time (ns) spent in Wake Kill
+  Wake_Kill LONG,
+  -- Time (ns) spent in Waking
+  Waking LONG,
+  -- Time (ns) spent in Parked
+  Parked LONG,
+  -- Time (ns) spent in No Load
+  No_Load LONG,
+  -- Time (ns) spent in Runnable (Preempted)
+  Runnable_Preempted LONG,
+  -- Time (ns) spent in Running
+  Running LONG,
+  -- Time (ns) spent in Idle
+  Idle LONG,
+  -- Total duration of the slice
+  dur LONG,
+  -- Depth of the slice in Perfetto
+  depth LONG)
 AS
 WITH
-  final_table AS (
-    SELECT *
-    FROM experimental_get_flattened_thread_state($slice_id, $utid)
-  )
+final_table AS (
+  SELECT *
+  FROM experimental_get_flattened_thread_state($slice_id, $utid)
+)
 SELECT
-  fs.slice_id,
-  fs.name AS slice_name,
-  SUM(CASE WHEN fs.state = 'D' AND io_wait = 0 THEN fs.dur END)
-    Uninterruptible_Sleep_nonIO,
-  SUM(CASE WHEN fs.state = 'D' AND io_wait = 1 THEN fs.dur END)
-    Uninterruptible_Sleep_IO,
-  SUM(CASE WHEN fs.state = 'R' THEN fs.dur END) Runnable,
-  SUM(CASE WHEN fs.state = 'S' THEN fs.dur END) Sleeping,
-  SUM(CASE WHEN fs.state = 'T' THEN fs.dur END) Stopped,
-  SUM(CASE WHEN fs.state = 't' THEN fs.dur END) Traced,
-  SUM(CASE WHEN fs.state = 'X' THEN fs.dur END) Exit_Dead,
-  SUM(CASE WHEN fs.state = 'Z' THEN fs.dur END) Exit_Zombie,
-  SUM(CASE WHEN fs.state = 'x' THEN fs.dur END) Task_Dead,
-  SUM(CASE WHEN fs.state = 'K' THEN fs.dur END) Wake_Kill,
-  SUM(CASE WHEN fs.state = 'W' THEN fs.dur END) Waking,
-  SUM(CASE WHEN fs.state = 'P' THEN fs.dur END) Parked,
-  SUM(CASE WHEN fs.state = 'N' THEN fs.dur END) No_Load,
-  SUM(CASE WHEN fs.state = 'R+' THEN fs.dur END) Runnable_Preempted,
-  SUM(CASE WHEN fs.state = 'Running' THEN fs.dur END) Running,
-  SUM(CASE WHEN fs.state = 'I' THEN fs.dur END) Idle,
-  SUM(fs.dur) dur,
-  fs.depth
+fs.slice_id,
+fs.name AS slice_name,
+SUM(CASE WHEN fs.state = 'D' AND io_wait = 0 THEN fs.dur END)
+  Uninterruptible_Sleep_nonIO,
+SUM(CASE WHEN fs.state = 'D' AND io_wait = 1 THEN fs.dur END)
+  Uninterruptible_Sleep_IO,
+SUM(CASE WHEN fs.state = 'R' THEN fs.dur END) Runnable,
+SUM(CASE WHEN fs.state = 'S' THEN fs.dur END) Sleeping,
+SUM(CASE WHEN fs.state = 'T' THEN fs.dur END) Stopped,
+SUM(CASE WHEN fs.state = 't' THEN fs.dur END) Traced,
+SUM(CASE WHEN fs.state = 'X' THEN fs.dur END) Exit_Dead,
+SUM(CASE WHEN fs.state = 'Z' THEN fs.dur END) Exit_Zombie,
+SUM(CASE WHEN fs.state = 'x' THEN fs.dur END) Task_Dead,
+SUM(CASE WHEN fs.state = 'K' THEN fs.dur END) Wake_Kill,
+SUM(CASE WHEN fs.state = 'W' THEN fs.dur END) Waking,
+SUM(CASE WHEN fs.state = 'P' THEN fs.dur END) Parked,
+SUM(CASE WHEN fs.state = 'N' THEN fs.dur END) No_Load,
+SUM(CASE WHEN fs.state = 'R+' THEN fs.dur END) Runnable_Preempted,
+SUM(CASE WHEN fs.state = 'Running' THEN fs.dur END) Running,
+SUM(CASE WHEN fs.state = 'I' THEN fs.dur END) Idle,
+SUM(fs.dur) dur,
+fs.depth
 FROM final_table fs
 GROUP BY fs.slice_id;

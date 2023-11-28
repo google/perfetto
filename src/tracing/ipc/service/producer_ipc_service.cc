@@ -22,6 +22,7 @@
 #include "perfetto/base/task_runner.h"
 #include "perfetto/ext/ipc/host.h"
 #include "perfetto/ext/ipc/service.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/core/data_source_config.h"
@@ -115,9 +116,11 @@ void ProducerIPCService::InitializeConnection(
 #endif
   }
 
+  // Copy the data fields to be emitted to trace packets into ClientIdentity.
+  ClientIdentity client_identity(client_info.uid(), client_info.pid());
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
-      producer.get(), client_info.uid(), client_info.pid(), req.producer_name(),
+      producer.get(), client_identity, req.producer_name(),
       req.shared_memory_size_hint_bytes(),
       /*in_process=*/false, smb_scraping_mode,
       req.shared_memory_page_size_hint_bytes(), std::move(shmem),

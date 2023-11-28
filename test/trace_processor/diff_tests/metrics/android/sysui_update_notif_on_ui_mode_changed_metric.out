@@ -1,0 +1,20 @@
+sysui_update_notif_on_ui_mode_changed_metric {
+  all_slices_performance {
+    name: "updateNotifOnUiModeChanged"
+    cnt: 2
+    avg_dur_ms: 35
+    max_dur_ms: 40
+    avg_dur_ns: 35000002
+    max_dur_ns: 40000003
+  }
+  slice {
+  name: "updateNotifOnUiModeChanged"
+  dur_ms: 30
+  dur_ns: 30000002
+  }
+  slice {
+  name: "updateNotifOnUiModeChanged"
+  dur_ms: 40
+  dur_ns: 40000003
+  }
+}

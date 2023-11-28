@@ -18,7 +18,7 @@
 SELECT RUN_METRIC('android/android_camera.sql');
 
 DROP VIEW IF EXISTS android_camera_unagg_output;
-CREATE VIEW android_camera_unagg_output AS
+CREATE PERFETTO VIEW android_camera_unagg_output AS
 SELECT
   AndroidCameraUnaggregatedMetric(
     'gc_rss_and_dma', (

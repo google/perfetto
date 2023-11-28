@@ -23,6 +23,10 @@ export interface EditorAttrs {
   // Initial state for the editor.
   initialText?: string;
 
+  // Changing generation is used to force resetting of the editor state
+  // to the current value of initialText.
+  generation?: number;
+
   // Callback for the Ctrl/Cmd + Enter key binding.
   onExecute?: (text: string) => void;
 
@@ -32,6 +36,7 @@ export interface EditorAttrs {
 
 export class Editor implements m.ClassComponent<EditorAttrs> {
   private editorView?: EditorView;
+  private generation?: number;
 
   oncreate({dom, attrs}: m.CVnodeDOM<EditorAttrs>) {
     const keymaps = [indentWithTab];
@@ -69,6 +74,8 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
       };
     }
 
+    this.generation = attrs.generation;
+
     this.editorView = new EditorView({
       doc: attrs.initialText ?? '',
       extensions: [
@@ -81,6 +88,17 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
     });
   }
 
+  onupdate({attrs}: m.CVnodeDOM<EditorAttrs>): void {
+    const {initialText, generation} = attrs;
+    const editorView = this.editorView;
+    if (editorView && this.generation !== generation) {
+      const state = editorView.state;
+      editorView.dispatch(state.update(
+          {changes: {from: 0, to: state.doc.length, insert: initialText}}));
+      this.generation = generation;
+    }
+  }
+
   onremove(): void {
     if (this.editorView) {
       this.editorView.destroy();
@@ -89,8 +107,6 @@ export class Editor implements m.ClassComponent<EditorAttrs> {
   }
 
   view({}: m.Vnode<EditorAttrs, this>): void|m.Children {
-    return m(
-        '.pf-editor',
-    );
+    return m('.pf-editor');
   }
 }

@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Disposable, NullDisposable} from '../base/disposable';
 import {assertExists} from '../base/logging';
+import {clamp, floatEqual} from '../base/math_utils';
 import {
   duration,
   Span,
@@ -25,22 +27,19 @@ import {
   drawIncompleteSlice,
   drawTrackHoverTooltip,
 } from '../common/canvas_utils';
-import {
-  colorCompare,
-  UNEXPECTED_PINK_COLOR,
-} from '../common/colorizer';
-import {LONG, NUM} from '../common/query_result';
+import {colorCompare} from '../common/color';
+import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {Slice, SliceRect} from '../public';
+import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
-import {cachedHsluvToHex} from './hsluv_cache';
-import {Slice} from './slice';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {PxSpan, TimeScale} from './time_scale';
-import {NewTrackArgs, SliceRect, TrackBase} from './track';
+import {NewTrackArgs, TrackBase} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
 // The common class that underpins all tracks drawing slices.
@@ -52,7 +51,7 @@ export const SLICE_FLAGS_INSTANT = 2;
 const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const CHEVRON_WIDTH_PX = 10;
-const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK_COLOR;
+const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
 
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
@@ -143,16 +142,18 @@ export const filterVisibleSlicesForTesting = filterVisibleSlices;
 //   slices at depth 0..N.
 // If you need temporally overlapping slices, look at AsyncSliceTrack, which
 // merges several tracks into one visual track.
-export const BASE_SLICE_ROW = {
-  id: NUM,       // The slice ID, for selection / lookups.
+export const BASE_ROW = {
+  id: NUM,     // The slice ID, for selection / lookups.
+  ts: LONG,    // Start time in nanoseconds.
+  dur: LONG,   // Duration in nanoseconds. -1 = incomplete, 0 = instant.
+  depth: NUM,  // Vertical depth.
+
+  // These are computed by the base class:
   tsq: LONG,     // Quantized |ts|. This class owns the quantization logic.
   tsqEnd: LONG,  // Quantized |ts+dur|. The end bucket.
-  ts: LONG,      // Start time in nanoseconds.
-  dur: LONG,     // Duration in nanoseconds. -1 = incomplete, 0 = instant.
-  depth: NUM,    // Vertical depth.
 };
 
-export type BaseSliceRow = typeof BASE_SLICE_ROW;
+export type BaseRow = typeof BASE_ROW;
 
 // These properties change @ 60FPS and shouldn't be touched by the subclass.
 // since the Impl doesn't see every frame attempting to reason on them in a
@@ -173,13 +174,11 @@ type CastInternal<S extends Slice> = S&SliceInternal;
 // Derived classes can extend this interface to override these types if needed.
 export interface BaseSliceTrackTypes {
   slice: Slice;
-  row: BaseSliceRow;
-  config: {};
+  row: BaseRow;
 }
 
-export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
-                                                   BaseSliceTrackTypes> extends
-    TrackBase<T['config']> {
+export abstract class BaseSliceTrack<
+    T extends BaseSliceTrackTypes = BaseSliceTrackTypes> extends TrackBase {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
 
   // This is the over-skirted cached bounds:
@@ -203,7 +202,6 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // than just remembering it when we see it.
   private selectedSlice?: CastInternal<T['slice']>;
 
-  protected readonly tableName: string;
   private maxDurNs: duration = 0n;
 
   private sqlState: 'UNINITIALIZED'|'INITIALIZING'|'QUERY_PENDING'|
@@ -227,13 +225,32 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   // TODO(hjd): Replace once we have cancellable query sequences.
   private isDestroyed = false;
 
+  // Cleanup hook for onInit.
+  private initState?: Disposable;
+
   // Extension points.
   // Each extension point should take a dedicated argument type (e.g.,
   // OnSliceOverArgs {slice?: T['slice']}) so it makes future extensions
   // non-API-breaking (e.g. if we want to add the X position).
-  abstract initSqlTable(_tableName: string): Promise<void>;
+
+  // onInit hook lets you do asynchronous set up e.g. creating a table
+  // etc. We guarantee that this will be resolved before doing any
+  // queries using the result of getSqlSource(). All persistent
+  // state in trace_processor should be cleaned up when dispose is
+  // called on the returned hook. In the common case of where
+  // the data for this track is d
+  async onInit(): Promise<Disposable> {
+    return new NullDisposable();
+  }
+
+  // This should be an SQL expression returning all the columns listed
+  // metioned by getRowSpec() exluding tsq and tsqEnd.
+  // For example you might return an SQL expression of the form:
+  // `select id, ts, dur, 0 as depth from foo where bar = 'baz'`
+  abstract getSqlSource(): string;
+
   getRowSpec(): T['row'] {
-    return BASE_SLICE_ROW;
+    return BASE_ROW;
   }
   onSliceOver(_args: OnSliceOverArgs<T['slice']>): void {}
   onSliceOut(_args: OnSliceOutArgs<T['slice']>): void {}
@@ -256,16 +273,11 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
   constructor(args: NewTrackArgs) {
     super(args);
-    this.frontendOnly = true;  // Disable auto checkerboarding.
-    // TODO(hjd): Handle pinned tracks, which current cause a crash
-    // since the tableName we generate is the same for both.
-    this.tableName = `track_${this.trackId}`.replace(/[^a-zA-Z0-9_]+/g, '_');
-
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).
     const allCols = Object.keys(this.getRowSpec());
-    const baseCols = Object.keys(BASE_SLICE_ROW);
+    const baseCols = Object.keys(BASE_ROW);
     this.extraSqlColumns = allCols.filter((key) => !baseCols.includes(key));
   }
 
@@ -403,12 +415,15 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
     // Second pass: fill slices by color.
     const vizSlicesByColor = vizSlices.slice();
-    vizSlicesByColor.sort((a, b) => colorCompare(a.color, b.color));
+    vizSlicesByColor.sort(
+        (a, b) => colorCompare(a.colorScheme.base, b.colorScheme.base));
     let lastColor = undefined;
     for (const slice of vizSlicesByColor) {
-      if (slice.color !== lastColor) {
-        lastColor = slice.color;
-        ctx.fillStyle = slice.color.c;
+      const color = slice.isHighlighted ? slice.colorScheme.variant.cssString :
+                                          slice.colorScheme.base.cssString;
+      if (color !== lastColor) {
+        lastColor = color;
+        ctx.fillStyle = color;
       }
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
       if (slice.flags & SLICE_FLAGS_INSTANT) {
@@ -422,8 +437,37 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       }
     }
 
+    // Pass 2.5: Draw fillRatio light section.
+    ctx.fillStyle = `#FFFFFF50`;
+    for (const slice of vizSlicesByColor) {
+      // Can't draw fill ratio on incomplete or instant slices.
+      if (slice.flags & (SLICE_FLAGS_INCOMPLETE | SLICE_FLAGS_INSTANT)) {
+        continue;
+      }
+
+      // Clamp fillRatio between 0.0 -> 1.0
+      const fillRatio = clamp(slice.fillRatio, 0, 1);
+
+      // Don't draw anything if the fill ratio is 1.0ish
+      if (floatEqual(fillRatio, 1)) {
+        continue;
+      }
+
+      // Work out the width of the light section
+      const sliceDrawWidth = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
+      const lightSectionDrawWidth = sliceDrawWidth * (1 - fillRatio);
+
+      // Don't draw anything if the light section is smaller than 1 px
+      if (lightSectionDrawWidth < 1) {
+        continue;
+      }
+
+      const y = padding + slice.depth * (sliceHeight + rowSpacing);
+      const x = slice.x + (sliceDrawWidth - lightSectionDrawWidth);
+      ctx.fillRect(x, y, lightSectionDrawWidth, sliceHeight);
+    }
+
     // Third pass, draw the titles (e.g., process name for sched slices).
-    ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = this.getTitleFont();
     ctx.textBaseline = 'middle';
@@ -433,6 +477,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         continue;
       }
 
+      // Change the title color dynamically depending on contrast.
+      const textColor = slice.isHighlighted ? slice.colorScheme.textVariant :
+                                              slice.colorScheme.textBase;
+      ctx.fillStyle = textColor.cssString;
       const title = cropText(slice.title, charWidth, slice.w);
       const rectXCenter = slice.x + slice.w / 2;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
@@ -464,9 +512,9 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
 
       // Draw a thicker border around the selected slice (or chevron).
       const slice = discoveredSelection;
-      const color = slice.color;
+      const color = slice.colorScheme;
       const y = padding + slice.depth * (sliceHeight + rowSpacing);
-      ctx.strokeStyle = cachedHsluvToHex(color.h, 100, 10);
+      ctx.strokeStyle = color.base.setHSL({s: 100, l: 10}).cssString;
       ctx.beginPath();
       const THICKNESS = 3;
       ctx.lineWidth = THICKNESS;
@@ -508,7 +556,10 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   onDestroy() {
     super.onDestroy();
     this.isDestroyed = true;
-    this.engine.query(`DROP VIEW IF EXISTS ${this.tableName}`);
+    if (this.initState) {
+      this.initState.dispose();
+      this.initState = undefined;
+    }
   }
 
   // This method figures out if the visible window is outside the bounds of
@@ -523,14 +574,14 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       if (this.isDestroyed) {
         return;
       }
-      await this.initSqlTable(this.tableName);
+      this.initState = await this.onInit();
 
       if (this.isDestroyed) {
         return;
       }
       const queryRes = await this.engine.query(`select
           ifnull(max(dur), 0) as maxDur, count(1) as rowCount
-          from ${this.tableName}`);
+          from (${this.getSqlSource()})`);
       const row = queryRes.firstRow({maxDur: LONG, rowCount: NUM});
       this.maxDurNs = row.maxDur;
 
@@ -563,7 +614,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
             id,
             ${this.depthColumn()}
             ${extraCols ? ',' + extraCols : ''}
-          from ${this.tableName}
+          from (${this.getSqlSource()})
           where dur = -1;
         `);
         const incomplete =
@@ -650,7 +701,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
         id,
         ${this.depthColumn()}
         ${extraCols ? ',' + extraCols : ''}
-      FROM ${this.tableName} ${constraint}
+      FROM (${this.getSqlSource()}) ${constraint}
     `);
 
     // Here convert each row to a Slice. We do what we can do
@@ -715,12 +766,13 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
       depth: row.depth,
       title: '',
       subTitle: '',
+      fillRatio: 1,
 
       // The derived class doesn't need to initialize these. They are
       // rewritten on every renderCanvas() call. We just need to initialize
       // them to something.
-      baseColor: DEFAULT_SLICE_COLOR,
-      color: DEFAULT_SLICE_COLOR,
+      colorScheme: DEFAULT_SLICE_COLOR,
+      isHighlighted: false,
     };
   }
 
@@ -879,16 +931,7 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
     for (const slice of slices) {
       const isHovering = globals.state.highlightedSliceId === slice.id ||
           (this.hoveredSlice && this.hoveredSlice.title === slice.title);
-      if (isHovering) {
-        slice.color = {
-          c: slice.baseColor.c,
-          h: slice.baseColor.h,
-          s: slice.baseColor.s,
-          l: 30,
-        };
-      } else {
-        slice.color = slice.baseColor;
-      }
+      slice.isHighlighted = !!isHovering;
     }
   }
 
@@ -898,11 +941,26 @@ export abstract class BaseSliceTrack<T extends BaseSliceTrackTypes =
   }
 
   getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
-    // TODO(hjd): Implement this as part of updating flow events.
-    return undefined;
+      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
+      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
+      |undefined {
+    this.updateSliceAndTrackHeight();
+
+    const pxEnd = windowSpan.end;
+    const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
+    const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
+
+    const visible = visibleWindow.intersects(tStart, tEnd);
+
+    const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
+
+    return {
+      left,
+      width: Math.max(right - left, 1),
+      top: this.sliceLayout.padding + depth * (totalSliceHeight),
+      height: this.computedSliceHeight,
+      visible,
+    };
   }
 }
 

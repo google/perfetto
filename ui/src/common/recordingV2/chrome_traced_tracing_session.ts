@@ -33,7 +33,7 @@ import {
   IBufferStats,
   ISlice,
   TraceConfig,
-} from '../../core/protos';
+} from '../../protos';
 
 import {RecordingError} from './recording_error_handling';
 import {

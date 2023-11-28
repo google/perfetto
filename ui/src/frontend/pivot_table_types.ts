@@ -13,8 +13,8 @@
 // limitations under the License.
 
 import {EqualsBuilder} from '../common/comparator_builder';
-import {ColumnType} from '../common/query_result';
 import {SortDirection} from '../common/state';
+import {ColumnType} from '../trace_processor/query_result';
 
 // Node in the hierarchical pivot tree. Only leaf nodes contain data from the
 // query result.

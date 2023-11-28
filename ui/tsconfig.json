@@ -4,6 +4,7 @@
   "exclude": [
     "./node_modules/",
     "./src/service_worker/",
+    "./src/bigtrace/",
     "./src/gen/",
     "./out"
   ],

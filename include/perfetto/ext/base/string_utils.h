@@ -130,6 +130,11 @@ std::string ReplaceAll(std::string str,
                        const std::string& to_replace,
                        const std::string& replacement);
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+bool WideToUTF8(const std::wstring& source, std::string& output);
+bool UTF8ToWide(const std::string& source, std::wstring& output);
+#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
 // A BSD-style strlcpy without the return value.
 // Copies at most |dst_size|-1 characters. Unlike strncpy, it always \0
 // terminates |dst|, as long as |dst_size| is not 0.

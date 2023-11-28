@@ -12,22 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
-import {
-  getColorForSlice,
-} from '../../common/colorizer';
-import {Engine} from '../../common/engine';
-import {
-  generateSqlWithInternalLayout,
-} from '../../common/internal_layout_utils';
-import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
-import {PrimaryTrackSortKey} from '../../public';
+import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {NewTrackArgs} from '../../frontend/track';
+import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
@@ -36,30 +24,30 @@ import {
 
 import {EventLatencySliceDetailsPanel} from './event_latency_details_panel';
 import {
+  SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
   ScrollJankTracks as DecideTracksResult,
 } from './index';
-import {DEEP_RED_COLOR, RED_COLOR} from './jank_colors';
+import {JANK_COLOR} from './jank_colors';
 
-const JANKY_LATENCY_NAME = 'Janky EventLatency';
+export const JANKY_LATENCY_NAME = 'Janky EventLatency';
 
 export interface EventLatencyTrackTypes extends NamedSliceTrackTypes {
   config: {baseTable: string;}
 }
 
+const CHROME_EVENT_LATENCY_TRACK_KIND =
+    'org.chromium.ScrollJank.event_latencies';
+
 export class EventLatencyTrack extends
     CustomSqlTableSliceTrack<EventLatencyTrackTypes> {
-  static readonly kind = 'org.chromium.ScrollJank.event_latencies';
+  static readonly kind = CHROME_EVENT_LATENCY_TRACK_KIND;
 
-  static create(args: NewTrackArgs): TrackBase {
-    return new EventLatencyTrack(args);
-  }
-
-  constructor(args: NewTrackArgs) {
+  constructor(args: NewTrackArgs, private baseTable: string) {
     super(args);
     ScrollJankPluginState.getInstance().registerTrack({
       kind: EventLatencyTrack.kind,
-      trackId: this.trackId,
+      trackKey: this.trackKey,
       tableName: this.tableName,
       detailsPanelConfig: this.getDetailsPanel(),
     });
@@ -70,11 +58,8 @@ export class EventLatencyTrack extends
     ScrollJankPluginState.getInstance().unregisterTrack(EventLatencyTrack.kind);
   }
 
-  async initSqlTable(tableName: string) {
-    const sql =
-        `CREATE VIEW ${tableName} AS SELECT * FROM ${this.config.baseTable}`;
-
-    await this.engine.query(sql);
+  getSqlSource(): string {
+    return `SELECT * FROM ${this.baseTable}`;
   }
 
   getDetailsPanel(): CustomSqlDetailsPanelConfig {
@@ -86,8 +71,17 @@ export class EventLatencyTrack extends
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      sqlTableName: this.config.baseTable,
+      sqlTableName: this.baseTable,
     };
+  }
+
+  rowToSlice(row: NamedRow): Slice {
+    const baseSlice = super.rowToSlice(row);
+    if (baseSlice.title === JANKY_LATENCY_NAME) {
+      return {...baseSlice, colorScheme: JANK_COLOR};
+    } else {
+      return baseSlice;
+    }
   }
 
   onUpdatedSlices(slices: EventLatencyTrackTypes['slice'][]) {
@@ -99,16 +93,7 @@ export class EventLatencyTrack extends
 
       const highlighted = globals.state.highlightedSliceId === slice.id;
       const hasFocus = highlighted || isSelected;
-
-      if (slice.title === JANKY_LATENCY_NAME) {
-        if (hasFocus) {
-          slice.baseColor = DEEP_RED_COLOR;
-        } else {
-          slice.baseColor = RED_COLOR;
-        }
-      } else {
-        slice.baseColor = getColorForSlice(slice.title, hasFocus);
-      }
+      slice.isHighlighted = !!hasFocus;
     }
     super.onUpdatedSlices(slices);
   }
@@ -117,84 +102,16 @@ export class EventLatencyTrack extends
   // this behavior should be customized to show jank-related data.
 }
 
-export async function addLatencyTracks(engine: Engine):
-    Promise<DecideTracksResult> {
+export async function addLatencyTracks(): Promise<DecideTracksResult> {
   const result: DecideTracksResult = {
     tracksToAdd: [],
   };
 
-  const subTableSql = generateSqlWithInternalLayout({
-    columns: ['id', 'ts', 'dur', 'track_id', 'name'],
-    sourceTable: 'slice',
-    ts: 'ts',
-    dur: 'dur',
-    whereClause: `
-      EXTRACT_ARG(arg_set_id, 'event_latency.event_type') IN (
-        'FIRST_GESTURE_SCROLL_UPDATE',
-        'GESTURE_SCROLL_UPDATE',
-        'INERTIAL_GESTURE_SCROLL_UPDATE')
-      AND HAS_DESCENDANT_SLICE_WITH_NAME(
-        id,
-        'SubmitCompositorFrameToPresentationCompositorFrame')`,
-  });
-
-  // Table name must be unique - it cannot include '-' characters or begin with
-  // a numeric value.
-  const baseTable =
-      `table_${uuidv4().split('-').join('_')}_janky_event_latencies_v3`;
-  const tableDefSql = `CREATE TABLE ${baseTable} AS
-      WITH event_latencies AS (
-        ${subTableSql}
-      ), latency_stages AS (
-      SELECT
-        d.id,
-        d.ts,
-        d.dur,
-        d.track_id,
-        d.name,
-        d.depth,
-        min(a.id) AS parent_id
-      FROM slice s
-        JOIN descendant_slice(s.id) d
-        JOIN ancestor_slice(d.id) a
-      WHERE s.id IN (SELECT id FROM event_latencies)
-      GROUP BY d.id, d.ts, d.dur, d.track_id, d.name, d.parent_id, d.depth)
-    SELECT
-      id,
-      ts,
-      dur,
-      CASE
-        WHEN id IN (
-          SELECT id FROM chrome_janky_event_latencies_v3)
-        THEN '${JANKY_LATENCY_NAME}'
-        ELSE name
-      END
-      AS name,
-      depth * 3 AS depth
-    FROM event_latencies
-    UNION ALL
-    SELECT
-      ls.id,
-      ls.ts,
-      ls.dur,
-      ls.name,
-      depth + (
-        (SELECT depth FROM event_latencies
-        WHERE id = ls.parent_id LIMIT 1) * 3) AS depth
-    FROM latency_stages ls;`;
-
-  await engine.query(
-      `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
-  await engine.query(tableDefSql);
-
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: EventLatencyTrack.kind,
+    uri: 'perfetto.ChromeScrollJank#eventLatency',
     trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
     name: 'Chrome Scroll Input Latencies',
-    config: {baseTable: baseTable},
-    trackGroup: SCROLLING_TRACK_GROUP,
+    trackGroup: SCROLL_JANK_GROUP_ID,
   });
 
   return result;

@@ -44,13 +44,26 @@ WINDOW win AS (ORDER BY maxfreq);
 -- are 'big' (high power & high performance). This functions attempts
 -- to map a given CPU index onto the relevant descriptor. For
 -- homogeneous systems this returns NULL.
---
--- @arg cpu_index INT   Index of the CPU whose size we will guess.
--- @ret STRING          A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
-CREATE PERFETTO FUNCTION guess_cpu_size(cpu_index INT)
+CREATE PERFETTO FUNCTION guess_cpu_size(
+  -- Index of the CPU whose size we will guess.
+  cpu_index INT)
+-- A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
 RETURNS STRING AS
 SELECT
   IIF((SELECT COUNT(DISTINCT n) FROM internal_ranked_cpus) >= 2, size, null) as size
 FROM internal_ranked_cpus
 LEFT JOIN internal_cpu_sizes USING(n)
 WHERE cpu = $cpu_index;
+
+
+-- A list of CPUs with their sizes.
+CREATE PERFETTO TABLE cpus(
+  -- Index of the CPU.
+  cpu_index INT,
+  -- A descriptive size ('little', 'mid', 'big', etc) or NULL if we have insufficient information.
+  size STRING
+) AS
+SELECT
+  cpu as cpu_index,
+  guess_cpu_size(cpu) AS size
+FROM internal_ranked_cpus;

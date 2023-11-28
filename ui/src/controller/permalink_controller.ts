@@ -195,7 +195,7 @@ export class PermalinkController extends Controller<'main'> {
     }
     const text = await response.text();
     const stateHash = await toSha256(text);
-    const state = deserializeStateObject(text);
+    const state = deserializeStateObject<State>(text);
     if (stateHash !== id) {
       // Old permalinks incorrectly dropped some digits from the
       // hexdigest of the SHA256. We don't want to invalidate those

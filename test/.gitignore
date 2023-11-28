@@ -8,3 +8,8 @@
 !/data/ui-screenshots
 /data/ui-screenshots/*
 !/data/ui-screenshots/*.sha256
+
+!/data/chrome
+/data/chrome/*
+!/data/chrome/*.sha256
+!/data/chrome/README.md

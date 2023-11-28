@@ -34,6 +34,7 @@ using Statement = PerfettoSqlParser::Statement;
 using SqliteSql = PerfettoSqlParser::SqliteSql;
 using CreateFn = PerfettoSqlParser::CreateFunction;
 using CreateTable = PerfettoSqlParser::CreateTable;
+using CreateView = PerfettoSqlParser::CreateView;
 using Include = PerfettoSqlParser::Include;
 using CreateMacro = PerfettoSqlParser::CreateMacro;
 
@@ -95,23 +96,47 @@ TEST_F(PerfettoSqlParserTest, IgnoreOnlySpace) {
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalar) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto function foo() returns INT as select 1");
-  ASSERT_THAT(*Parse(res),
-              testing::ElementsAre(CreateFn{
-                  false, "foo()", "INT", FindSubstr(res, "select 1"), false}));
+  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
+                               false, FunctionPrototype{"foo", {}}, "INT",
+                               FindSubstr(res, "select 1"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "create perfetto function bar(x INT, y LONG) returns STRING as "
       "select 'foo'");
-  ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false, "bar(x INT, y LONG)", "STRING",
-                               FindSubstr(res, "select 'foo'"), false}));
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(
+                  CreateFn{false,
+                           FunctionPrototype{
+                               "bar",
+                               {
+                                   {"$x", sql_argument::Type::kInt},
+                                   {"$y", sql_argument::Type::kLong},
+                               },
+                           },
+                           "STRING", FindSubstr(res, "select 'foo'"), false}));
 
   res = SqlSource::FromExecuteQuery(
       "CREATE perfetto FuNcTiOn bar(x INT, y LONG) returnS STRING As "
       "select 'foo'");
+  ASSERT_THAT(*Parse(res),
+              testing::ElementsAre(
+                  CreateFn{false,
+                           FunctionPrototype{
+                               "bar",
+                               {
+                                   {"$x", sql_argument::Type::kInt},
+                                   {"$y", sql_argument::Type::kLong},
+                               },
+                           },
+                           "STRING", FindSubstr(res, "select 'foo'"), false}));
+}
+
+TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoFunctionScalar) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create or replace perfetto function foo() returns INT as select 1");
   ASSERT_THAT(*Parse(res), testing::ElementsAre(CreateFn{
-                               false, "bar(x INT, y LONG)", "STRING",
-                               FindSubstr(res, "select 'foo'"), false}));
+                               true, FunctionPrototype{"foo", {}}, "INT",
+                               FindSubstr(res, "select 1"), false}));
 }
 
 TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionScalarError) {
@@ -133,7 +158,8 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoFunctionAndOther) {
       "create perfetto function foo() returns INT as select 1; select foo()");
   PerfettoSqlParser parser(res, macros_);
   ASSERT_TRUE(parser.Next());
-  CreateFn fn{false, "foo()", "INT", FindSubstr(res, "select 1"), false};
+  CreateFn fn{false, FunctionPrototype{"foo", {}}, "INT",
+              FindSubstr(res, "select 1"), false};
   ASSERT_EQ(parser.statement(), Statement{fn});
   ASSERT_EQ(
       parser.statement_sql().sql(),
@@ -184,6 +210,19 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacro) {
   ASSERT_FALSE(parser.Next());
 }
 
+TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoMacro) {
+  auto res = SqlSource::FromExecuteQuery(
+      "create or replace perfetto macro foo() returns Expr as 1");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(CreateMacro{true,
+                                                      FindSubstr(res, "foo"),
+                                                      {},
+                                                      FindSubstr(res, "Expr"),
+                                                      FindSubstr(res, "1")}));
+  ASSERT_FALSE(parser.Next());
+}
+
 TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   auto res = SqlSource::FromExecuteQuery(
       "create perfetto macro foo() returns sql1 as random sql snippet; "
@@ -200,6 +239,126 @@ TEST_F(PerfettoSqlParserTest, CreatePerfettoMacroAndOther) {
   ASSERT_TRUE(parser.Next());
   ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
   ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoTable) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(CreateTable{
+                false, "foo", FindSubstr(res, "SELECT 42 AS bar"), {}}));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoTable) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO TABLE foo AS SELECT 42 AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(CreateTable{
+                true, "foo", FindSubstr(res, "SELECT 42 AS bar"), {}}));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoTableWithSchema) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo(bar INT) AS SELECT 42 AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(CreateTable{
+                                    false,
+                                    "foo",
+                                    FindSubstr(res, "SELECT 42 AS bar"),
+                                    {{"$bar", sql_argument::Type::kInt}},
+                                }));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoTableAndOther) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO TABLE foo AS SELECT 42 AS bar; select 1");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(CreateTable{
+                false, "foo", FindSubstr(res, "SELECT 42 AS bar"), {}}));
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
+  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoView) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateView{
+          false,
+          "foo",
+          SqlSource::FromExecuteQuery("SELECT 42 AS bar"),
+          SqlSource::FromExecuteQuery("CREATE VIEW foo AS SELECT 42 AS bar"),
+          {}}));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreateOrReplacePerfettoView) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE OR REPLACE PERFETTO VIEW foo AS SELECT 42 AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateView{
+          true,
+          "foo",
+          SqlSource::FromExecuteQuery("SELECT 42 AS bar"),
+          SqlSource::FromExecuteQuery("CREATE VIEW foo AS SELECT 42 AS bar"),
+          {}}));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoViewAndOther) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO VIEW foo AS SELECT 42 AS bar; select 1");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(
+      parser.statement(),
+      Statement(CreateView{
+          false,
+          "foo",
+          SqlSource::FromExecuteQuery("SELECT 42 AS bar"),
+          SqlSource::FromExecuteQuery("CREATE VIEW foo AS SELECT 42 AS bar"),
+          {}}));
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(), Statement(SqliteSql{}));
+  ASSERT_EQ(parser.statement_sql(), FindSubstr(res, "select 1"));
+  ASSERT_FALSE(parser.Next());
+}
+
+TEST_F(PerfettoSqlParserTest, CreatePerfettoViewWithSchema) {
+  auto res = SqlSource::FromExecuteQuery(
+      "CREATE PERFETTO VIEW foo(foo STRING, bar INT) AS SELECT 'a' as foo, 42 "
+      "AS bar");
+  PerfettoSqlParser parser(res, macros_);
+  ASSERT_TRUE(parser.Next());
+  ASSERT_EQ(parser.statement(),
+            Statement(CreateView{
+                false,
+                "foo",
+                SqlSource::FromExecuteQuery("SELECT 'a' as foo, 42 AS bar"),
+                SqlSource::FromExecuteQuery(
+                    "CREATE VIEW foo AS SELECT 'a' as foo, 42 AS bar"),
+                {{"$foo", sql_argument::Type::kString},
+                 {"$bar", sql_argument::Type::kInt}},
+            }));
   ASSERT_FALSE(parser.Next());
 }
 

@@ -13,16 +13,16 @@
 // limitations under the License.
 
 import {Span, Time} from '../base/time';
-import {Engine} from '../common/engine';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {LONG, NUM, STR, STR_NULL} from '../common/query_result';
 import {FtraceFilterState, Pagination} from '../common/state';
 import {FtraceEvent, globals} from '../frontend/globals';
 import {publishFtracePanelData} from '../frontend/publish';
 import {ratelimit} from '../frontend/rate_limiters';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM, STR, STR_NULL} from '../trace_processor/query_result';
 
 import {Controller} from './controller';
 

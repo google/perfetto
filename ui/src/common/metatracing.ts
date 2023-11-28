@@ -12,14 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {featureFlags} from '../core/feature_flags';
 import {
   MetatraceCategories,
   PerfettoMetatrace,
   Trace,
   TracePacket,
-} from '../core/protos';
-
-import {featureFlags} from './feature_flags';
+} from '../protos';
 
 const METATRACING_BUFFER_SIZE = 100000;
 
