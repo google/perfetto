@@ -190,13 +190,24 @@ EXPECTED_FRAME_TIMELINE_SLICE_TABLE = Table(
     ],
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
-        doc='''''',
+        doc='''
+        This table contains information on the expected timeline of either
+        a display frame or a surface frame.
+        ''',
         group='Slice',
         columns={
-            'display_frame_token': '''''',
-            'surface_frame_token': '''''',
-            'upid': '''''',
-            'layer_name': ''''''
+            'display_frame_token':
+                'Display frame token (vsync id).',
+            'surface_frame_token':
+                '''
+                Surface frame token (vsync id), null if this is a display frame.
+                ''',
+            'upid':
+                '''
+                Unique process id of the app that generates the surface frame.
+                ''',
+            'layer_name':
+                'Layer name if this is a surface frame.',
         }))
 
 ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
@@ -212,24 +223,48 @@ ACTUAL_FRAME_TIMELINE_SLICE_TABLE = Table(
         C('on_time_finish', CppInt32()),
         C('gpu_composition', CppInt32()),
         C('jank_type', CppString()),
+        C('jank_severity_type', CppString()),
         C('prediction_type', CppString()),
         C('jank_tag', CppString()),
     ],
     parent=SLICE_TABLE,
     tabledoc=TableDoc(
-        doc='''''',
+        doc='''
+        This table contains information on the actual timeline and additional
+        analysis related to the performance of either a display frame or a
+        surface frame.
+        ''',
         group='Slice',
         columns={
-            'display_frame_token': '''''',
-            'surface_frame_token': '''''',
-            'upid': '''''',
-            'layer_name': '''''',
-            'present_type': '''''',
-            'on_time_finish': '''''',
-            'gpu_composition': '''''',
-            'jank_type': '''''',
-            'prediction_type': '''''',
-            'jank_tag': ''''''
+            'display_frame_token':
+                'Display frame token (vsync id).',
+            'surface_frame_token':
+                '''
+                Surface frame token (vsync id), null if this is a display frame.
+                ''',
+            'upid':
+                '''
+                Unique process id of the app that generates the surface frame.
+                ''',
+            'layer_name':
+                'Layer name if this is a surface frame.',
+            'present_type':
+                'Frame\'s present type (eg. on time / early / late).',
+            'on_time_finish':
+                'Whether the frame finishes on time.',
+            'gpu_composition':
+                'Whether the frame used gpu composition.',
+            'jank_type':
+                '''
+                Specify the jank types for this frame if there's jank, or
+                none if no jank occured.
+                ''',
+            'jank_severity_type':
+                'Severity of the jank: none if no jank.',
+            'prediction_type':
+                'Frame\'s prediction type (eg. valid / expired).',
+            'jank_tag':
+                'Jank tag based on jank type, used for slice visualization.'
         }))
 
 EXPERIMENTAL_FLAT_SLICE_TABLE = Table(

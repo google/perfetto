@@ -45,6 +45,14 @@ message FrameTimelineEvent {
     JANK_DROPPED = 1024;
   };
 
+  // Specifies the severity of a jank.
+  enum JankSeverityType {
+    SEVERITY_UNKNOWN = 0;
+    SEVERITY_NONE = 1;
+    SEVERITY_PARTIAL = 2;
+    SEVERITY_FULL = 3;
+  }
+
   // Specifies how a frame was presented on screen w.r.t. timing.
   // Can be different for SurfaceFrame and DisplayFrame.
   enum PresentType {
@@ -121,6 +129,7 @@ message FrameTimelineEvent {
     optional int32 jank_type = 9;
     optional PredictionType prediction_type = 10;
     optional bool is_buffer = 11;
+    optional JankSeverityType jank_severity_type = 12;
   };
 
   // Indicates the start of expected timeline slice for DisplayFrames.
@@ -166,6 +175,7 @@ message FrameTimelineEvent {
     // frame.
     optional int32 jank_type = 7;
     optional PredictionType prediction_type = 8;
+    optional JankSeverityType jank_severity_type = 9;
   };
 
   // FrameEnd just sends the cookie to indicate that the corresponding
