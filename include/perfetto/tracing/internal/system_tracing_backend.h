@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_TRACING_INTERNAL_SYSTEM_TRACING_BACKEND_H_
 
 #include "perfetto/base/export.h"
+#include "perfetto/tracing/default_socket.h"
 #include "perfetto/tracing/tracing_backend.h"
 
 namespace perfetto {
