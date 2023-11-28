@@ -22,6 +22,7 @@ perfetto_proto_library("@TYPE@") {
   deps = [
     "../common:@TYPE@",
     "android:@TYPE@",
+    "etw:@TYPE@",
     "ftrace:@TYPE@",
     "gpu:@TYPE@",
     "inode_file:@TYPE@",
