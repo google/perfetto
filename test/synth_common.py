@@ -763,11 +763,19 @@ class Trace(object):
       event.pid = pid
       event.layer_name = layer_name
 
-  def add_actual_surface_frame_start_event(self, ts, cookie, token,
-                                           display_frame_token, pid, layer_name,
-                                           present_type, on_time_finish,
-                                           gpu_composition, jank_type,
-                                           prediction_type):
+  def add_actual_surface_frame_start_event(self,
+                                           ts,
+                                           cookie,
+                                           token,
+                                           display_frame_token,
+                                           pid,
+                                           layer_name,
+                                           present_type,
+                                           on_time_finish,
+                                           gpu_composition,
+                                           jank_type,
+                                           prediction_type,
+                                           jank_severity_type=None):
     packet = self.add_packet()
     packet.timestamp = ts
     event = packet.frame_timeline_event.actual_surface_frame_start
@@ -781,6 +789,12 @@ class Trace(object):
       event.on_time_finish = on_time_finish
       event.gpu_composition = gpu_composition
       event.jank_type = jank_type
+      # jank severity type is not available on every trace.
+      # When not set, default to none if no jank; otherwise default to unknown
+      if jank_severity_type is None:
+        event.jank_severity_type = 1 if event.jank_type == 1 else 0
+      else:
+        event.jank_severity_type = jank_severity_type
       event.prediction_type = prediction_type
 
   def add_frame_end_event(self, ts, cookie):
