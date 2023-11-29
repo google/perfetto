@@ -25,6 +25,7 @@ import {
 } from '../../frontend/named_slice_track';
 import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
+  NUM,
   Plugin,
   PluginContext,
   PluginContextTrace,
@@ -41,17 +42,20 @@ import {
 } from '../custom_sql_table_slices';
 
 import {PageLoadDetailsPanel} from './page_load_details_panel';
+import {StartupDetailsPanel} from './startup_details_panel';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
     'org.chromium.CriticalUserInteraction.track';
 
 export const CRITICAL_USER_INTERACTIONS_ROW = {
   ...NAMED_ROW,
+  scopedId: NUM,
   type: STR,
 };
 export type CriticalUserInteractionRow = typeof CRITICAL_USER_INTERACTIONS_ROW;
 
 export interface CriticalUserInteractionSlice extends Slice {
+  scopedId: number;
   type: string;
 }
 
@@ -64,6 +68,7 @@ export interface CriticalUserInteractionSliceTrackTypes extends
 enum CriticalUserInteractionType {
   UNKNOWN = 'Unknown',
   PAGE_LOAD = 'chrome_page_loads',
+  STARTUP = 'chrome_startups',
 }
 
 function convertToCriticalUserInteractionType(cujType: string):
@@ -71,6 +76,8 @@ function convertToCriticalUserInteractionType(cujType: string):
   switch (cujType) {
     case CriticalUserInteractionType.PAGE_LOAD:
       return CriticalUserInteractionType.PAGE_LOAD;
+    case CriticalUserInteractionType.STARTUP:
+      return CriticalUserInteractionType.STARTUP;
     default:
       return CriticalUserInteractionType.UNKNOWN;
   }
@@ -86,7 +93,17 @@ export class CriticalUserInteractionTrack extends
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      columns: ['scoped_id AS id', 'name', 'ts', 'dur', 'type'],
+      columns: [
+        // The scoped_id is not a unique identifier within the table; generate
+        // a unique id from type and scoped_id on the fly to use for slice
+        // selection.
+        'hash(type, scoped_id) AS id',
+        'scoped_id AS scopedId',
+        'name',
+        'ts',
+        'dur',
+        'type',
+      ],
       sqlTableName: 'chrome_interactions',
     };
   }
@@ -112,10 +129,35 @@ export class CriticalUserInteractionTrack extends
           },
         };
         break;
+      case CriticalUserInteractionType.STARTUP:
+        detailsPanel = {
+          kind: StartupDetailsPanel.kind,
+          config: {
+            sqlTableName: this.tableName,
+            title: 'Chrome Startup',
+          },
+        };
+        break;
       default:
         break;
     }
     return detailsPanel;
+  }
+
+  onSliceClick(
+      args: OnSliceClickArgs<CriticalUserInteractionSliceTrackTypes['slice']>) {
+    const detailsPanelConfig = this.getDetailsPanel(args);
+    globals.makeSelection(Actions.selectGenericSlice({
+      id: args.slice.scopedId,
+      sqlTableName: this.tableName,
+      start: args.slice.ts,
+      duration: args.slice.dur,
+      trackKey: this.trackKey,
+      detailsPanelConfig: {
+        kind: detailsPanelConfig.kind,
+        config: detailsPanelConfig.config,
+      },
+    }));
   }
 
   getSqlImports(): CustomSqlImportConfig {
@@ -131,8 +173,9 @@ export class CriticalUserInteractionTrack extends
   rowToSlice(row: CriticalUserInteractionSliceTrackTypes['row']):
       CriticalUserInteractionSliceTrackTypes['slice'] {
     const baseSlice = super.rowToSlice(row);
+    const scopedId = row.scopedId;
     const type = row.type;
-    return {...baseSlice, type};
+    return {...baseSlice, scopedId, type};
   }
 }
 
