@@ -13,8 +13,8 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-SELECT ts, dur, process.pid AS pid, display_frame_token, surface_frame_token, layer_name,
-  present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag
+SELECT ts, dur, process.pid, display_frame_token, surface_frame_token, layer_name,
+  present_type, on_time_finish, gpu_composition, jank_type, prediction_type, jank_tag, jank_severity_type
 FROM
   (SELECT t.*, process_track.name AS track_name FROM
     process_track LEFT JOIN actual_frame_timeline_slice t
