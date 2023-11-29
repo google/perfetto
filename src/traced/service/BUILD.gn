@@ -34,7 +34,10 @@ executable("traced") {
 # Contains all the implementation but not the main() entry point. This target
 # is shared both by the executable and tests.
 source_set("service") {
-  public_deps = [ "../../../include/perfetto/ext/traced" ]
+  public_deps = [
+    "../../../include/perfetto/ext/traced",
+    "../../../include/perfetto/tracing",
+  ]
   deps = [
     "../../../gn:default_deps",
     "../../../protos/perfetto/config/android:zero",
