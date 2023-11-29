@@ -16,7 +16,7 @@ import {hex} from 'color-convert';
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
-import {TrackState} from '../common/state';
+import {TrackGroupState, TrackState} from '../common/state';
 import {TPTime} from '../common/time';
 
 import {TRACK_SHELL_WIDTH, getCssStr} from './css_constants';
@@ -167,7 +167,7 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     e.stopPropagation();
     globals.rafScheduler.scheduleFullRedraw();
     dataTransfer.effectAllowed = 'move';
-    dataTransfer.setData('perfetto/track', `${this.attrs!.trackState.id}`);
+    dataTransfer.setData('perfetto/track/' + this.attrs!.trackState.id, `${this.attrs!.trackState.id}`);
     dataTransfer.setDragImage(new Image(), 0, 0);
   }
 
@@ -181,17 +181,30 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     if (!(e.target instanceof HTMLElement)) return;
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
-    if (!dataTransfer.types.includes('perfetto/track')) return;
+    const dataType = dataTransfer.types.find((dataType)=>{
+      return dataType.startsWith('perfetto/track/');
+    });
+    if (!dataType) return;
+    const trackLikeId = dataType.split('/').pop();
+    if (!trackLikeId) return;
     e.stopPropagation();
     dataTransfer.dropEffect = 'move';
     e.preventDefault();
 
-    // Apply some hysteresis to the drop logic so that the lightened border
-    // changes only when we get close enough to the border.
-    if (e.offsetY < e.target.scrollHeight / 3) {
-      this.dropping = 'before';
-    } else if (e.offsetY > e.target.scrollHeight / 3 * 2) {
-      this.dropping = 'after';
+    // Test if id has same parent as current
+    // If not do not set this.dropping
+    const trackLike : TrackState | TrackGroupState =
+      globals.state.trackGroups[trackLikeId] ??
+        globals.state.tracks[trackLikeId];
+    if (('trackGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.trackGroup) ||
+    'parentGroup' in trackLike && this.attrs!.trackState.trackGroup === trackLike.parentGroup) {
+      // Apply some hysteresis to the drop logic so that the lightened border
+      // changes only when we get close enough to the border.
+      if (e.offsetY < e.target.scrollHeight / 3) {
+        this.dropping = 'before';
+      } else if (e.offsetY > e.target.scrollHeight / 3 * 2) {
+        this.dropping = 'after';
+      }
     }
     globals.rafScheduler.scheduleFullRedraw();
   }
@@ -206,7 +219,12 @@ class TrackShell implements m.ClassComponent<TrackShellAttrs> {
     const dataTransfer = e.dataTransfer;
     if (dataTransfer === null) return;
     globals.rafScheduler.scheduleFullRedraw();
-    const srcId = dataTransfer.getData('perfetto/track');
+    const dataType = dataTransfer.types.find((dataType)=>{
+      return dataType.startsWith('perfetto/track/');
+    });
+    if (!dataType) return;
+    const srcId = dataType.split('/').pop();
+    if (!srcId) return;
     const dstId = this.attrs!.trackState.id;
     globals.dispatch(Actions.moveTrack({srcId, op: this.dropping, dstId}));
     this.dropping = undefined;
