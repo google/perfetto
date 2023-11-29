@@ -66,6 +66,7 @@ class FrameTimelineEventParser {
   std::map<int64_t, TrackSetId> cookie_track_set_id_map_;
   std::array<StringId, 6> present_type_ids_;
   std::array<StringId, 4> prediction_type_ids_;
+  std::array<StringId, 4> jank_severity_type_ids_;
   StringId expected_timeline_track_name_;
   StringId actual_timeline_track_name_;
 
@@ -75,6 +76,7 @@ class FrameTimelineEventParser {
   StringId on_time_finish_id_;
   StringId gpu_composition_id_;
   StringId jank_type_id_;
+  StringId jank_severity_type_id_;
   StringId layer_name_id_;
   StringId prediction_type_id_;
   StringId is_buffer_id_;
