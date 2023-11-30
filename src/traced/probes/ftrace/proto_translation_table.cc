@@ -124,7 +124,7 @@ bool MergeFieldInfo(const FtraceEvent::Field& ftrace_field,
 
   if (!InferFtraceType(ftrace_field.type_and_name, ftrace_field.size,
                        ftrace_field.is_signed, &field->ftrace_type)) {
-    PERFETTO_FATAL(
+    PERFETTO_DFATAL(
         "Failed to infer ftrace field type for \"%s.%s\" (type:\"%s\" "
         "size:%d "
         "signed:%d)",
