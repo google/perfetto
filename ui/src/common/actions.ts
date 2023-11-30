@@ -734,17 +734,10 @@ export const StateActions = {
   toggleTrackPinned(state: StateDraft, args: {trackId: string}): void {
     const id = args.trackId;
     const isPinned = state.pinnedTracks.includes(id);
-    const trackGroup = assertExists(state.tracks[id]).trackGroup;
 
     if (isPinned) {
       state.pinnedTracks.splice(state.pinnedTracks.indexOf(id), 1);
-      if (trackGroup === SCROLLING_TRACK_GROUP) {
-        state.scrollingTracks.unshift(id);
-      }
     } else {
-      if (trackGroup === SCROLLING_TRACK_GROUP) {
-        state.scrollingTracks.splice(state.scrollingTracks.indexOf(id), 1);
-      }
       state.pinnedTracks.push(id);
     }
   },
