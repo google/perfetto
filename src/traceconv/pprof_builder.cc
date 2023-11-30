@@ -559,7 +559,7 @@ class GProfileBuilder {
   bool WriteMappings(trace_processor::TraceProcessor* tp,
                      const std::set<int64_t>& seen_mappings) {
     Iterator mapping_it = tp->ExecuteQuery(
-        "SELECT id, exact_offset, start, end, name "
+        "SELECT id, exact_offset, start, end, name, build_id "
         "FROM stack_profile_mapping;");
     size_t mappings_no = 0;
     while (mapping_it.Next()) {
@@ -569,10 +569,10 @@ class GProfileBuilder {
       ++mappings_no;
       auto interned_filename = ToStringTableId(
           interner_->InternString(mapping_it.Get(4).AsString()));
+      auto interned_build_id = ToStringTableId(
+          interner_->InternString(mapping_it.Get(5).AsString()));
       auto* gmapping = result_->add_mapping();
       gmapping->set_id(ToPprofId(id));
-      // Do not set the build_id here to avoid downstream services
-      // trying to symbolize (e.g. b/141735056)
       gmapping->set_file_offset(
           static_cast<uint64_t>(mapping_it.Get(1).AsLong()));
       gmapping->set_memory_start(
@@ -580,6 +580,7 @@ class GProfileBuilder {
       gmapping->set_memory_limit(
           static_cast<uint64_t>(mapping_it.Get(3).AsLong()));
       gmapping->set_filename(interned_filename);
+      gmapping->set_build_id(interned_build_id);
     }
     if (!mapping_it.Status().ok()) {
       PERFETTO_DFATAL_OR_ELOG("Invalid mapping iterator: %s",
