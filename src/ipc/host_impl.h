@@ -67,14 +67,19 @@ class HostImpl : public Host, public base::UnixSocket::EventListener {
     BufferedFrameDeserializer frame_deserializer;
     base::ScopedFile received_fd;
     std::function<bool(int)> send_fd_cb_fuchsia;
-    // Peer identity set using IPCFrame sent by the client. These 2 fields
+    // Peer identity set using IPCFrame sent by the client. These 3 fields
     // should be used only for non-AF_UNIX connections AF_UNIX connections
     // should only rely on the peer identity obtained from the socket.
     uid_t uid_override = base::kInvalidUid;
     pid_t pid_override = base::kInvalidPid;
 
+    // |machine_id| is mapped from machine_id_hint (or socket hostname if
+    // |the client doesn't support machine_id_hint).
+    base::MachineID machine_id = base::kDefaultMachineID;
+
     pid_t GetLinuxPeerPid() const;
     uid_t GetPosixPeerUid() const;
+    base::MachineID GetMachineID() const { return machine_id; }
   };
   struct ExposedService {
     ExposedService(ServiceID, const std::string&, std::unique_ptr<Service>);

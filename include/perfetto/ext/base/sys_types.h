@@ -21,6 +21,7 @@
 // missing on Windows.
 
 #include <sys/types.h>
+#include <cstdint>
 
 #include "perfetto/base/build_config.h"
 
@@ -42,6 +43,11 @@ using ssize_t = long;
 
 namespace perfetto {
 namespace base {
+
+// The machine ID used in the tracing core.
+using MachineID = uint32_t;
+// The default value reserved for the host trace.
+constexpr MachineID kDefaultMachineID = 0;
 
 constexpr uid_t kInvalidUid = static_cast<uid_t>(-1);
 constexpr pid_t kInvalidPid = static_cast<pid_t>(-1);
