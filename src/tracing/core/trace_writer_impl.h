@@ -77,6 +77,13 @@ class TraceWriterImpl : public TraceWriter,
   protozero::ContiguousMemoryRange GetNewBuffer() override;
   uint8_t* AnnotatePatch(uint8_t*) override;
 
+  // Writes the size of the current fragment into the chunk.
+  //
+  // The size of nested messages inside TracePacket is written by
+  // by the user, but the size of the TracePacket fragments is written by
+  // TraceWriterImpl.
+  void FinalizeFragmentIfRequired();
+
   // Finalizes |spare_packet_|, if there's one.
   void FinalizeSparePacketIfAny();
 
@@ -154,9 +161,16 @@ class TraceWriterImpl : public TraceWriter,
   // least once since the last attempt.
   bool retry_new_chunk_after_packet_ = false;
 
-  // Points to the size field of the last packet we wrote to the current chunk.
-  // If the chunk was already returned, this is reset to |nullptr|.
-  uint8_t* last_packet_size_field_ = nullptr;
+  // Points to the size field of the still open fragment we're writing to the
+  // current chunk. If the chunk was already returned, this is reset to
+  // |nullptr|. If the fragment is finalized, this is reset to |nullptr|.
+  //
+  // Note: for nested messages the field is tracked somewhere else
+  // (protozero::Message::size_field_ or PerfettoPbMsg::size_field). For the
+  // root message, protozero::Message::size_field_ is nullptr and this is used
+  // instead. This is because at the root level we deal with fragments, not
+  // logical messages.
+  uint8_t* cur_fragment_size_field_ = nullptr;
 
   // When a packet is fragmented across different chunks, the |size_field| of
   // the outstanding nested protobuf messages is redirected onto Patch entries

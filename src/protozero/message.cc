@@ -127,7 +127,9 @@ uint32_t Message::Finalize() {
     EndNestedMessage();
 
   // Write the length of the nested message a posteriori, using a leading-zero
-  // redundant varint encoding.
+  // redundant varint encoding. This can be nullptr for the root message, among
+  // many reasons, because the TraceWriterImpl delegate is keeping track of the
+  // root fragment size independently.
   if (size_field_) {
     PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);

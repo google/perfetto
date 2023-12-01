@@ -74,7 +74,9 @@ class PERFETTO_EXPORT_COMPONENT Message {
   // length == proto_utils::kMessageLengthFieldSize) is backfilled with the size
   // of this message (minus |size_already_written| below). This is the mechanism
   // used by messages to backfill their corresponding size field in the parent
-  // message.
+  // message. In most cases this is only used for nested messages and the
+  // ScatteredStreamWriter::Delegate (e.g. TraceWriterImpl), takes case of the
+  // outer message.
   uint8_t* size_field() const { return size_field_; }
   void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
 
