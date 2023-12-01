@@ -117,7 +117,8 @@ void ProducerIPCService::InitializeConnection(
   }
 
   // Copy the data fields to be emitted to trace packets into ClientIdentity.
-  ClientIdentity client_identity(client_info.uid(), client_info.pid());
+  ClientIdentity client_identity(client_info.uid(), client_info.pid(),
+                                 client_info.machine_id());
   // ConnectProducer will call OnConnect() on the next task.
   producer->service_endpoint = core_service_->ConnectProducer(
       producer.get(), client_identity, req.producer_name(),
