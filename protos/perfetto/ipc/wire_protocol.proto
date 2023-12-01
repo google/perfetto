@@ -72,8 +72,16 @@ message IPCFrame {
   // endpoont of the connection. for AF_UNIX sockets, this is ignored and traced
   // uses instead the SO_PEERCRED.
   message SetPeerIdentity {
+    // The UID and PID of the producer process.
     optional int32 pid = 1;
     optional int32 uid = 2;
+
+    // The hint for the tracing service to infer the machine ID. This field
+    // should satisfy the requriement that different machines should have
+    // different values. In practice, this filed contains the Linux kernel
+    // boot_id, or a hash of kernel bootup timestamp and uname(2) if boot_id
+    // isn't available.
+    optional string machine_id_hint = 3;
   }
 
   // The client is expected to send requests with monotonically increasing

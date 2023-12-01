@@ -181,6 +181,26 @@ TEST(PacketStreamValidatorTest, SimplePacketWithNegativeOnePid) {
   EXPECT_FALSE(PacketStreamValidator::Validate(seq));
 }
 
+TEST(PacketStreamValidatorTest, SimplePacketWithMachineID) {
+  protos::gen::TracePacket proto;
+  proto.set_machine_id(123);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
+TEST(PacketStreamValidatorTest, SimplePacketWithZeroMachineID) {
+  protos::gen::TracePacket proto;
+  proto.set_machine_id(0);
+  std::string ser_buf = proto.SerializeAsString();
+
+  Slices seq;
+  seq.emplace_back(&ser_buf[0], ser_buf.size());
+  EXPECT_FALSE(PacketStreamValidator::Validate(seq));
+}
+
 TEST(PacketStreamValidatorTest, ComplexPacketWithPid) {
   protos::gen::TracePacket proto;
   proto.mutable_for_testing()->set_str("string field");

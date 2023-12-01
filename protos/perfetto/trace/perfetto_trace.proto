@@ -13388,7 +13388,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 96.
+// Next id: 99.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -13616,6 +13616,11 @@ message TracePacket {
   // being present for a particular sequence does not necessarily imply data
   // loss.
   optional bool first_packet_on_sequence = 87;
+
+  // The machine ID for identifying trace packets in a multi-machine tracing
+  // session. Is emitted by the tracing service for producers running on a
+  // remote host (e.g. a VM guest). For more context: go/crosetto-vm-tracing.
+  optional uint32 machine_id = 98;
 }
 
 // End of protos/perfetto/trace/trace_packet.proto

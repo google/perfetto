@@ -18,6 +18,7 @@
 #define INCLUDE_PERFETTO_EXT_IPC_CLIENT_INFO_H_
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/sys_types.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/ipc/basic_types.h"
 
@@ -28,12 +29,16 @@ namespace ipc {
 class ClientInfo {
  public:
   ClientInfo() = default;
-  ClientInfo(ClientID client_id, uid_t uid, pid_t pid)
-      : client_id_(client_id), uid_(uid), pid_(pid) {}
+  ClientInfo(ClientID client_id,
+             uid_t uid,
+             pid_t pid,
+             base::MachineID machine_id)
+      : client_id_(client_id), uid_(uid), pid_(pid), machine_id_(machine_id) {}
 
   bool operator==(const ClientInfo& other) const {
-    return std::tie(client_id_, uid_, pid_) ==
-           std::tie(other.client_id_, other.uid_, other.pid_);
+    return std::tie(client_id_, uid_, pid_, machine_id_) ==
+           std::tie(other.client_id_, other.uid_, other.pid_,
+                    other.machine_id_);
   }
   bool operator!=(const ClientInfo& other) const { return !(*this == other); }
 
@@ -54,12 +59,16 @@ class ClientInfo {
   // Posix process ID. Comes from the kernel and can be trusted.
   int32_t pid() const { return pid_; }
 
+  // An integral ID that identifies the machine the client is on.
+  base::MachineID machine_id() const { return machine_id_; }
+
  private:
   ClientID client_id_ = 0;
   // The following fields are emitted to trace packets and should be kept in
   // sync with perfetto::ClientIdentity.
   uid_t uid_ = kInvalidUid;
   pid_t pid_ = base::kInvalidPid;
+  base::MachineID machine_id_ = base::kDefaultMachineID;
 };
 
 }  // namespace ipc
