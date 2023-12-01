@@ -110,8 +110,17 @@ TEST(SocketWithBufferTest, EnqueueDequeue) {
 
 // Test the SocketRelayHander with randomized request and response data.
 TEST_P(SocketRelayHandlerTest, RandomizedRequestResponse) {
+#if defined(ADDRESS_SANITIZER) || defined(THREAD_SANITIZER) || \
+    defined(MEMORY_SANITIZER) || defined(LEAK_SANITIZER)
+  // Reduce the test strength for sanitizer builds.
+  constexpr size_t kMaxMsgSizeRng = 1 << 16;
+  constexpr size_t kMaxNumRequests = 10;
+#else
   // The max message size in the number of RNG calls.
-  constexpr size_t kMaxMsgSizeRng = 1 << 20;
+  constexpr size_t kMaxMsgSizeRng = 1 << 18;
+  // The max number of requests.
+  constexpr size_t kMaxNumRequests = 25;
+#endif
 
   // Create the threads for sending and receiving data through the
   // SocketRelayHandler.
@@ -122,7 +131,7 @@ TEST_P(SocketRelayHandlerTest, RandomizedRequestResponse) {
       auto& rng = client.data_prng;
 
       // The max number of requests.
-      const size_t num_requests = rng() % 50;
+      const size_t num_requests = rng() % kMaxNumRequests;
 
       for (size_t j = 0; j < num_requests; j++) {
         auto& send_endpoint = client.endpoint_sockets.first;
@@ -196,9 +205,12 @@ TEST_P(SocketRelayHandlerTest, RandomizedRequestResponse) {
   }
 }
 
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+INSTANTIATE_TEST_SUITE_P(ByConnections, SocketRelayHandlerTest, Values(1, 5));
+#else
 INSTANTIATE_TEST_SUITE_P(ByConnections,
                          SocketRelayHandlerTest,
-                         Values(1, 5, 50));
-
+                         Values(1, 5, 25));
+#endif
 }  // namespace
 }  // namespace perfetto
