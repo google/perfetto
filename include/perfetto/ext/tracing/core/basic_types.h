@@ -98,6 +98,10 @@ constexpr uint32_t kDefaultFlushTimeoutMs = 5000;
 constexpr TracingSessionID kBugreportSessionId =
     static_cast<TracingSessionID>(-1);
 
+// The ID of a machine in a multi-machine tracing session.
+using MachineID = base::MachineID;
+constexpr MachineID kDefaultMachineID = base::kDefaultMachineID;
+
 }  // namespace perfetto
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACING_CORE_BASIC_TYPES_H_

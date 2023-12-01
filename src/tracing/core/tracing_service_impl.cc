@@ -2329,8 +2329,8 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
       PERFETTO_DCHECK(sequence_properties.producer_id_trusted != 0);
       PERFETTO_DCHECK(sequence_properties.writer_id != 0);
       PERFETTO_DCHECK(sequence_properties.client_identity_trusted.has_uid());
-      // Not checking sequence_properties.producer_pid_trusted: it is
-      // base::kInvalidPid if the platform doesn't support it.
+      // Not checking sequence_properties.client_identity_trusted.has_pid():
+      // it is false if the platform doesn't support it.
 
       PERFETTO_DCHECK(packet.size() > 0);
       if (!PacketStreamValidator::Validate(packet.slices())) {
@@ -2356,12 +2356,16 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
           static_cast<int32_t>(client_identity_trusted.uid()));
       trusted_packet->set_trusted_packet_sequence_id(
           tracing_session->GetPacketSequenceID(
+              client_identity_trusted.machine_id(),
               sequence_properties.producer_id_trusted,
               sequence_properties.writer_id));
       if (client_identity_trusted.has_pid()) {
         // Not supported on all platforms.
         trusted_packet->set_trusted_pid(
             static_cast<int32_t>(client_identity_trusted.pid()));
+      }
+      if (client_identity_trusted.has_non_default_machine_id()) {
+        trusted_packet->set_machine_id(client_identity_trusted.machine_id());
       }
       if (previous_packet_dropped)
         trusted_packet->set_previous_packet_dropped(previous_packet_dropped);
@@ -3430,7 +3434,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
         }
       }
       auto* wri_stats = trace_stats.add_writer_stats();
-      wri_stats->set_sequence_id(tracing_session->GetPacketSequenceID(p, w));
+      wri_stats->set_sequence_id(
+          tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
       for (size_t i = 0; i < hist.num_buckets(); ++i) {
         wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
         wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
