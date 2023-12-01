@@ -5451,6 +5451,7 @@ message ReadyThreadEtwEvent {
 
 message EtwTraceEvent {
   optional uint64 timestamp = 1;
+  optional uint32 cpu = 4;
 
   oneof event {
     CSwitchEtwEvent c_switch = 2;
