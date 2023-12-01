@@ -25,6 +25,7 @@
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/protozero/proto_decoder.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "perfetto/public/compiler.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/importers/common/event_tracker.h"
@@ -86,6 +87,21 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
 
   // Any compressed packets should have been handled by the tokenizer.
   PERFETTO_CHECK(!decoder.has_compressed_packets());
+
+  // When the trace packet is emitted from a remote machine: parse the packet
+  // using a different ProtoTraceReader instance. The packet will be parsed
+  // in the context of the remote machine.
+  if (PERFETTO_UNLIKELY(decoder.has_machine_id())) {
+    if (!context_->machine_id()) {
+      // Default context: switch to another reader instance to parse the packet.
+      PERFETTO_DCHECK(context_->multi_machine_trace_manager);
+      auto* reader = context_->multi_machine_trace_manager->GetOrCreateReader(
+          decoder.machine_id());
+      return reader->ParsePacket(std::move(packet));
+    }
+  }
+  // Assert that the packet is parsed using the right instance of reader.
+  PERFETTO_DCHECK(decoder.has_machine_id() == !!context_->machine_id());
 
   const uint32_t seq_id = decoder.trusted_packet_sequence_id();
   auto* state = GetIncrementalStateForPacketSequence(seq_id);
@@ -240,7 +256,7 @@ util::Status ProtoTraceReader::ParsePacket(TraceBlobView packet) {
   // Use parent data and length because we want to parse this again
   // later to get the exact type of the packet.
   context_->sorter->PushTracePacket(timestamp, state->current_generation(),
-                                    std::move(packet));
+                                    std::move(packet), context_->machine_id());
 
   return util::OkStatus();
 }

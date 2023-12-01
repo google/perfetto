@@ -59,6 +59,7 @@ class PerfSampleTracker;
 class MachineTracker;
 class MappingTracker;
 class MetadataTracker;
+class MultiMachineTraceManager;
 class PacketAnalyzer;
 class ProtoImporterModule;
 class TrackEventModule;
@@ -77,6 +78,13 @@ using MachineId = tables::MachineTable::Id;
 
 class TraceProcessorContext {
  public:
+  struct InitArgs {
+    Config config;
+    std::shared_ptr<TraceStorage> storage;
+    uint32_t raw_machine_id = 0;
+  };
+  explicit TraceProcessorContext(const InitArgs&);
+  // The default constructor is used in testing.
   TraceProcessorContext();
   ~TraceProcessorContext();
 
@@ -85,10 +93,14 @@ class TraceProcessorContext {
 
   Config config;
 
-  std::unique_ptr<TraceStorage> storage;
+  // |storage| is shared among multiple contexts in multi-machine tracing.
+  std::shared_ptr<TraceStorage> storage;
 
   std::unique_ptr<ChunkedTraceReader> chunk_reader;
-  std::unique_ptr<TraceSorter> sorter;
+
+  // The sorter is used to sort trace data by timestamp and is shared among
+  // multiple machines.
+  std::shared_ptr<TraceSorter> sorter;
 
   // Keep the global tracker before the args tracker as we access the global
   // tracker in the destructor of the args tracker. Also keep it before other
@@ -178,6 +190,9 @@ class TraceProcessorContext {
   TraceType trace_type = kUnknownTraceType;
 
   std::optional<MachineId> machine_id() const;
+
+  // Manages the contexts for reading trace data emitted from remote machines.
+  std::unique_ptr<MultiMachineTraceManager> multi_machine_trace_manager;
 };
 
 }  // namespace trace_processor
