@@ -59,7 +59,6 @@ void Message::Reset(ScatteredStreamWriter* stream_writer, MessageArena* arena) {
   arena_ = arena;
   size_ = 0;
   size_field_ = nullptr;
-  size_already_written_ = 0;
   nested_message_ = nullptr;
   message_state_ = MessageState::kNotFinalized;
 #if PERFETTO_DCHECK_IS_ON()
@@ -133,7 +132,6 @@ uint32_t Message::Finalize() {
   if (size_field_) {
     PERFETTO_DCHECK(!is_finalized());
     PERFETTO_DCHECK(size_ < proto_utils::kMaxMessageLength);
-    PERFETTO_DCHECK(size_ >= size_already_written_);
     //
     // Normally the size of a protozero message is written with 4 bytes just
     // before the contents of the message itself:
@@ -159,8 +157,7 @@ uint32_t Message::Finalize() {
     // this by verifying that the size field is immediately before the message
     // in memory and is fully contained by the current chunk.
     //
-    if (PERFETTO_LIKELY(size_already_written_ == 0 &&
-                        size_ <= proto_utils::kMaxOneByteMessageLength &&
+    if (PERFETTO_LIKELY(size_ <= proto_utils::kMaxOneByteMessageLength &&
                         size_field_ ==
                             stream_writer_->write_ptr() - size_ -
                                 proto_utils::kMessageLengthFieldSize &&
@@ -170,8 +167,7 @@ uint32_t Message::Finalize() {
       *size_field_ = static_cast<uint8_t>(size_);
       message_state_ = MessageState::kFinalizedWithCompaction;
     } else {
-      proto_utils::WriteRedundantVarInt(size_ - size_already_written_,
-                                        size_field_);
+      proto_utils::WriteRedundantVarInt(size_, size_field_);
       message_state_ = MessageState::kFinalized;
     }
     size_field_ = nullptr;
