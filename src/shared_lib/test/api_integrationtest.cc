@@ -1062,7 +1062,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlCategory) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1108,7 +1107,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategory) {
               PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn2"));
   PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT(""),
               PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn1"));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1200,7 +1198,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1322,7 +1319,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"), PERFETTO_TE_NO_INTERN());
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1354,7 +1350,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDbgArg) {
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_ARG_UINT64("arg_name", 42));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1423,7 +1418,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNamedTrack) {
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_NAMED_TRACK("MyTrack", 1, 2));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   uint64_t kExpectedUuid = PerfettoTeNamedTrackUuid("MyTrack", 1, 2);
 
@@ -1469,7 +1463,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
   PERFETTO_TE(cat1, PERFETTO_TE_COUNTER(),
               PERFETTO_TE_REGISTERED_TRACK(&my_counter_track),
               PERFETTO_TE_INT_COUNTER(42));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   PerfettoTeRegisteredTrackUnregister(&my_counter_track);
 
