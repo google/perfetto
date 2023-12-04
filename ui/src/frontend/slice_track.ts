@@ -14,17 +14,17 @@
 
 import {duration, Span, Time, time} from '../base/time';
 import {Actions} from '../common/actions';
-import {BasicAsyncTrack} from '../common/basic_async_track';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
 import {getColorForSlice} from '../common/colorizer';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {TrackData} from '../common/track_data';
+import {TrackHelperLEGACY} from '../common/track_helper';
 import {SliceRect} from '../public';
 
+import {CROP_INCOMPLETE_SLICE_FLAG} from './base_slice_track';
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PxSpan, TimeScale} from './time_scale';
-import {CROP_INCOMPLETE_SLICE_FLAG} from './base_slice_track';
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 const SLICE_HEIGHT = 18;
@@ -53,7 +53,9 @@ export interface SliceData extends TrackData {
 // tracks before they are ported to v2.
 // Slice tracks should extend this class and implement the abstract methods,
 // notably onBoundsChange().
-export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
+// Note: This class is deprecated and should not be used for new tracks. Use
+// |BaseSliceTrack| instead.
+export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
   constructor(
       private maxDepth: number, protected trackKey: string,
       private tableName: string, private namespace?: string) {
@@ -189,8 +191,13 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
       }
 
       if (isIncomplete && rect.width > SLICE_HEIGHT / 4) {
-        drawIncompleteSlice(ctx, rect.left, rect.top, rect.width,
-            SLICE_HEIGHT, !CROP_INCOMPLETE_SLICE_FLAG.get());
+        drawIncompleteSlice(
+            ctx,
+            rect.left,
+            rect.top,
+            rect.width,
+            SLICE_HEIGHT,
+            !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else if (
           data.cpuTimeRatio !== undefined && data.cpuTimeRatio[i] < 1 - 1e-9) {
         // We draw two rectangles, representing the ratio between wall time and
@@ -281,12 +288,14 @@ export abstract class SliceTrackBase extends BasicAsyncTrack<SliceData> {
     }
   }
 
-  getEndTimeIfInComplete(start: time) : time {
+  getEndTimeIfInComplete(start: time): time {
     const {visibleTimeScale, visibleWindowTime} = globals.frontendLocalState;
 
     let end = visibleWindowTime.end.toTime('ceil');
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
-      const widthTime = visibleTimeScale.pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX).toTime();
+      const widthTime =
+          visibleTimeScale.pxDeltaToDuration(INCOMPLETE_SLICE_WIDTH_PX)
+              .toTime();
       end = Time.add(start, widthTime);
     }
 

@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Duration, duration, time} from '../../base/time';
-import {SliceData, SliceTrackBase} from '../../frontend/slice_track_base';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
 import {EngineProxy} from '../../public';
 import {
   LONG,
@@ -23,7 +23,7 @@ import {
   STR,
 } from '../../trace_processor/query_result';
 
-export class ExpectedFramesTrack extends SliceTrackBase {
+export class ExpectedFramesTrack extends SliceTrackLEGACY {
   private maxDur = Duration.ZERO;
 
   constructor(
