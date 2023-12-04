@@ -93,6 +93,14 @@ bool GetBatteryCounterHidl(BatteryCounter counter, int64_t* value) {
             *value = hal_value;
           });
       break;
+
+    case BatteryCounter::kVoltage:
+      g_svc.hidl->getHealthInfo(
+          [&res, value](Result hal_res, const auto& hal_health_info) {
+            res = hal_res;
+            *value = hal_health_info.legacy.batteryVoltage;
+          });
+      break;
   }  // switch(counter)
 
   if (ret.isDeadObject())
@@ -123,6 +131,12 @@ bool GetBatteryCounterAidl(BatteryCounter counter, int64_t* value) {
 
     case BatteryCounter::kCurrentAvg:
       status = g_svc.aidl->getCurrentAverageMicroamps(&value32);
+      break;
+
+    case BatteryCounter::kVoltage:
+      ::aidl::android::hardware::health::HealthInfo health_info;
+      status = g_svc.aidl->getHealthInfo(&health_info);
+      value32 = health_info.batteryVoltageMillivolts;
       break;
   }  // switch(counter)
 

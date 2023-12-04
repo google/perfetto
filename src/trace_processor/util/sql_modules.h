@@ -22,6 +22,7 @@
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/string_splitter.h"
 #include "perfetto/ext/base/string_view.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -31,14 +32,14 @@ using NameToModule =
     base::FlatHashMap<std::string,
                       std::vector<std::pair<std::string, std::string>>>;
 
-// Map from import key to sql file. Import key is the string used in IMPORT
+// Map from include key to sql file. Include key is the string used in INCLUDE
 // function.
 struct RegisteredModule {
   struct ModuleFile {
     std::string sql;
-    bool imported;
+    bool included;
   };
-  base::FlatHashMap<std::string, ModuleFile> import_key_to_file;
+  base::FlatHashMap<std::string, ModuleFile> include_key_to_file;
 };
 
 inline std::string ReplaceSlashWithDot(std::string str) {
@@ -50,7 +51,7 @@ inline std::string ReplaceSlashWithDot(std::string str) {
   return str;
 }
 
-inline std::string GetImportKey(std::string path) {
+inline std::string GetIncludeKey(std::string path) {
   base::StringView path_view(path);
   auto path_no_extension = path_view.substr(0, path_view.rfind('.'));
   return ReplaceSlashWithDot(path_no_extension.ToStdString());

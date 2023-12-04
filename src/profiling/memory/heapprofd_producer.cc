@@ -765,7 +765,8 @@ void HeapprofdProducer::DumpAll() {
 
 void HeapprofdProducer::Flush(FlushRequestID flush_id,
                               const DataSourceInstanceID* ids,
-                              size_t num_ids) {
+                              size_t num_ids,
+                              FlushFlags) {
   size_t& flush_in_progress = flushes_in_progress_[flush_id];
   PERFETTO_DCHECK(flush_in_progress == 0);
   flush_in_progress = num_ids;

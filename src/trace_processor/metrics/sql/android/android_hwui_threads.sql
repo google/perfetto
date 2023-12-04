@@ -16,7 +16,7 @@
 
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_main_thread;
-CREATE VIEW {{table_name_prefix}}_main_thread AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_main_thread AS
 SELECT
   process.name AS process_name,
   thread.utid
@@ -26,7 +26,7 @@ JOIN process USING (upid)
 WHERE thread.is_main_thread;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_render_thread;
-CREATE VIEW {{table_name_prefix}}_render_thread AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_render_thread AS
 SELECT
   process.name AS process_name,
   thread.utid
@@ -36,7 +36,7 @@ JOIN process USING (upid)
 WHERE thread.name = 'RenderThread';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_thread;
-CREATE VIEW {{table_name_prefix}}_gpu_completion_thread AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_gpu_completion_thread AS
 SELECT
   process.name AS process_name,
   thread.utid
@@ -46,7 +46,7 @@ JOIN process USING (upid)
 WHERE thread.name = 'GPU completion';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_hwc_release_thread;
-CREATE VIEW {{table_name_prefix}}_hwc_release_thread AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_hwc_release_thread AS
 SELECT
   process.name AS process_name,
   thread.utid
@@ -56,7 +56,7 @@ JOIN process USING (upid)
 WHERE thread.name = 'HWC release';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_main_thread_slices;
-CREATE TABLE {{table_name_prefix}}_main_thread_slices AS
+CREATE PERFETTO TABLE {{table_name_prefix}}_main_thread_slices AS
 SELECT
   process_name,
   thread.utid,
@@ -68,7 +68,7 @@ JOIN {{table_name_prefix}}_main_thread thread USING (utid)
 WHERE dur > 0;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_do_frame_slices;
-CREATE VIEW {{table_name_prefix}}_do_frame_slices AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_do_frame_slices AS
 SELECT
   *,
   CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) AS vsync
@@ -76,7 +76,7 @@ FROM {{table_name_prefix}}_main_thread_slices
 WHERE name GLOB 'Choreographer#doFrame*';
 
 DROP TABLE IF EXISTS {{table_name_prefix}}_render_thread_slices;
-CREATE TABLE {{table_name_prefix}}_render_thread_slices AS
+CREATE PERFETTO TABLE {{table_name_prefix}}_render_thread_slices AS
 SELECT
   process_name,
   thread.utid,
@@ -88,7 +88,7 @@ JOIN {{table_name_prefix}}_render_thread thread USING (utid)
 WHERE dur > 0;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_draw_frame_slices;
-CREATE VIEW {{table_name_prefix}}_draw_frame_slices AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_draw_frame_slices AS
 SELECT
   *,
   CAST(STR_SPLIT(name, ' ', 1) AS INTEGER) AS vsync
@@ -96,7 +96,7 @@ FROM {{table_name_prefix}}_render_thread_slices
 WHERE name GLOB 'DrawFrame*';
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_gpu_completion_slices;
-CREATE VIEW {{table_name_prefix}}_gpu_completion_slices AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_gpu_completion_slices AS
 SELECT
   process_name,
   thread.utid,
@@ -111,7 +111,7 @@ WHERE slice.name GLOB 'waiting for GPU completion *'
   AND dur > 0;
 
 DROP VIEW IF EXISTS {{table_name_prefix}}_hwc_release_slices;
-CREATE VIEW {{table_name_prefix}}_hwc_release_slices AS
+CREATE PERFETTO VIEW {{table_name_prefix}}_hwc_release_slices AS
 SELECT
   process_name,
   thread.utid,

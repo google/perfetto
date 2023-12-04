@@ -84,6 +84,8 @@ message DisplayProto {
   optional RectProto layer_stack_space_rect = 5;
   optional TransformProto transform = 6;
   optional bool is_virtual = 7;
+  optional double dpi_x = 8;
+  optional double dpi_y = 9;
 }
 
 // Must match definition in the IComposerClient HAL
@@ -128,9 +130,9 @@ message LayerProto {
   optional PositionProto requested_position = 12;
   // The layer's size.
   optional SizeProto size = 13;
-  // The layer's crop in it's own bounds.
+  // The layer's crop in its own bounds.
   optional RectProto crop = 14;
-  // The layer's crop in it's parent's bounds.
+  // The layer's crop in its parent's bounds.
   optional RectProto final_crop = 15 [deprecated = true];
   optional bool is_opaque = 16;
   optional bool invalidate = 17;

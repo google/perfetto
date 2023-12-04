@@ -94,6 +94,11 @@ def perfetto_go_proto_library(**kwargs):
 def perfetto_py_proto_library(**kwargs):
     _rule_override("py_proto_library", **kwargs)
 
+# Unlike the other rules, this is an noop by default because Bazel does not
+# support Javascript/Typescript proto libraries.
+def perfetto_jspb_proto_library(**kwargs):
+    _rule_override("jspb_proto_library", **kwargs)
+
 # +----------------------------------------------------------------------------+
 # | Misc rules.                                                                |
 # +----------------------------------------------------------------------------+

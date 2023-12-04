@@ -61,6 +61,32 @@ static inline uint8_t* PerfettoPbWriteVarInt(uint64_t value, uint8_t* dst) {
   return dst;
 }
 
+// Encodes `value` as a fixed32 (little endian) into `*dst`.
+//
+// `dst` must point into a buffer with at least 4 bytes of space.
+static inline uint8_t* PerfettoPbWriteFixed32(uint32_t value, uint8_t* buf) {
+  buf[0] = PERFETTO_STATIC_CAST(uint8_t, value);
+  buf[1] = PERFETTO_STATIC_CAST(uint8_t, value >> 8);
+  buf[2] = PERFETTO_STATIC_CAST(uint8_t, value >> 16);
+  buf[3] = PERFETTO_STATIC_CAST(uint8_t, value >> 24);
+  return buf + 4;
+}
+
+// Encodes `value` as a fixed32 (little endian) into `*dst`.
+//
+// `dst` must point into a buffer with at least 8 bytes of space.
+static inline uint8_t* PerfettoPbWriteFixed64(uint64_t value, uint8_t* buf) {
+  buf[0] = PERFETTO_STATIC_CAST(uint8_t, value);
+  buf[1] = PERFETTO_STATIC_CAST(uint8_t, value >> 8);
+  buf[2] = PERFETTO_STATIC_CAST(uint8_t, value >> 16);
+  buf[3] = PERFETTO_STATIC_CAST(uint8_t, value >> 24);
+  buf[4] = PERFETTO_STATIC_CAST(uint8_t, value >> 32);
+  buf[5] = PERFETTO_STATIC_CAST(uint8_t, value >> 40);
+  buf[6] = PERFETTO_STATIC_CAST(uint8_t, value >> 48);
+  buf[7] = PERFETTO_STATIC_CAST(uint8_t, value >> 56);
+  return buf + 8;
+}
+
 // Parses a VarInt from the encoded buffer [start, end). |end| is STL-style and
 // points one byte past the end of buffer.
 // The parsed int value is stored in the output arg |value|. Returns a pointer
@@ -121,6 +147,18 @@ static inline uint64_t PerfettoPbZigZagEncode64(int64_t value) {
 
   return (PERFETTO_STATIC_CAST(uint64_t, value) << 1) ^
          PERFETTO_STATIC_CAST(uint64_t, value >> 63);
+}
+
+static inline int32_t PerfettoPbZigZagDecode32(uint32_t value) {
+  uint32_t mask =
+      PERFETTO_STATIC_CAST(uint32_t, -PERFETTO_STATIC_CAST(int32_t, value & 1));
+  return PERFETTO_STATIC_CAST(int32_t, ((value >> 1) ^ mask));
+}
+
+static inline int64_t PerfettoPbZigZagDecode64(uint64_t value) {
+  uint64_t mask =
+      PERFETTO_STATIC_CAST(uint64_t, -PERFETTO_STATIC_CAST(int64_t, value & 1));
+  return PERFETTO_STATIC_CAST(int64_t, ((value >> 1) ^ mask));
 }
 
 #endif  // INCLUDE_PERFETTO_PUBLIC_PB_UTILS_H_

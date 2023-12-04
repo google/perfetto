@@ -22,6 +22,7 @@
 #include <atomic>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -108,25 +109,19 @@ class TraceProcessorImpl : public TraceProcessor,
   friend class IteratorImpl;
 
   template <typename Table>
-  void RegisterDbTable(const Table& table) {
-    engine_.RegisterTable(table, Table::Name());
+  void RegisterStaticTable(const Table& table) {
+    engine_->RegisterStaticTable(table, Table::Name());
   }
-
-  void RegisterTableFunction(std::unique_ptr<TableFunction> fn) {
-    engine_.RegisterTableFunction(std::move(fn));
-  }
-
-  template <typename View>
-  void RegisterView(const View& view);
 
   bool IsRootMetricField(const std::string& metric_name);
 
-  PerfettoSqlEngine engine_;
+  void InitPerfettoSqlEngine();
+
+  const Config config_;
+  std::unique_ptr<PerfettoSqlEngine> engine_;
 
   DescriptorPool pool_;
 
-  // Map from module name to module contents. Used for IMPORT function.
-  base::FlatHashMap<std::string, sql_modules::RegisteredModule> sql_modules_;
   std::vector<metrics::SqlMetricFile> sql_metrics_;
   std::unordered_map<std::string, std::string> proto_field_to_sql_metric_path_;
 

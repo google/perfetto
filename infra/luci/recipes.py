@@ -12,7 +12,6 @@
 # evaluates to re-exec'ing this script in unbuffered mode.
 # pylint: disable=pointless-string-statement
 ''''exec python3 -u -- "$0" ${1+"$@"} # '''
-# vi: syntax=python
 """Bootstrap script to clone and forward to the recipe engine tool.
 
 *******************
@@ -29,16 +28,14 @@ import errno
 import json
 import logging
 import os
+import shutil
 import subprocess
 import sys
 
-from collections import namedtuple
-from io import open  # pylint: disable=redefined-builtin
+import urllib.parse as urlparse
 
-try:
-  import urllib.parse as urlparse
-except ImportError:
-  import urlparse
+from collections import namedtuple
+
 
 # The dependency entry for the recipe_engine in the client repo's recipes.cfg
 #
@@ -52,8 +49,8 @@ EngineDep = namedtuple('EngineDep', 'url revision branch')
 class MalformedRecipesCfg(Exception):
 
   def __init__(self, msg, path):
-    full_message = 'malformed recipes.cfg: %s: %r' % (msg, path)
-    super(MalformedRecipesCfg, self).__init__(full_message)
+    full_message = f'malformed recipes.cfg: {msg}: {path!r}'
+    super().__init__(full_message)
 
 
 def parse(repo_root, recipes_cfg_path):
@@ -70,27 +67,23 @@ def parse(repo_root, recipes_cfg_path):
     recipes_path (str) - native path to where the recipes live inside of the
       current repo (i.e. the folder containing `recipes/` and/or
       `recipe_modules`)
-    py3_only (bool) - True if this repo has been marked as ONLY supporting
-      python3.
   """
-  with open(recipes_cfg_path, 'r') as fh:
-    pb = json.load(fh)
-  py3_only = pb.get('py3_only', False)
+  with open(recipes_cfg_path, 'r', encoding='utf-8') as file:
+    recipes_cfg = json.load(file)
 
   try:
-    if pb['api_version'] != 2:
-      raise MalformedRecipesCfg('unknown version %d' % pb['api_version'],
-                                recipes_cfg_path)
+    if (version := recipes_cfg['api_version']) != 2:
+      raise MalformedRecipesCfg(f'unknown version {version}', recipes_cfg_path)
 
     # If we're running ./recipes.py from the recipe_engine repo itself, then
     # return None to signal that there's no EngineDep.
-    repo_name = pb.get('repo_name')
+    repo_name = recipes_cfg.get('repo_name')
     if not repo_name:
-      repo_name = pb['project_id']
+      repo_name = recipes_cfg['project_id']
     if repo_name == 'recipe_engine':
-      return None, pb.get('recipes_path', ''), py3_only
+      return None, recipes_cfg.get('recipes_path', '')
 
-    engine = pb['deps']['recipe_engine']
+    engine = recipes_cfg['deps']['recipe_engine']
 
     if 'url' not in engine:
       raise MalformedRecipesCfg(
@@ -99,7 +92,7 @@ def parse(repo_root, recipes_cfg_path):
 
     engine.setdefault('revision', '')
     engine.setdefault('branch', 'refs/heads/main')
-    recipes_path = pb.get('recipes_path', '')
+    recipes_path = recipes_cfg.get('recipes_path', '')
 
     # TODO(iannucci): only support absolute refs
     if not engine['branch'].startswith('refs/'):
@@ -107,9 +100,9 @@ def parse(repo_root, recipes_cfg_path):
 
     recipes_path = os.path.join(repo_root,
                                 recipes_path.replace('/', os.path.sep))
-    return EngineDep(**engine), recipes_path, py3_only
+    return EngineDep(**engine), recipes_path
   except KeyError as ex:
-    raise MalformedRecipesCfg(str(ex), recipes_cfg_path)
+    raise MalformedRecipesCfg(str(ex), recipes_cfg_path) from ex
 
 
 IS_WIN = sys.platform.startswith(('win', 'cygwin'))
@@ -122,15 +115,6 @@ REQUIRED_BINARIES = {GIT, CIPD}
 
 def _is_executable(path):
   return os.path.isfile(path) and os.access(path, os.X_OK)
-
-
-# TODO: Use shutil.which once we switch to Python3.
-def _is_on_path(basename):
-  for path in os.environ['PATH'].split(os.pathsep):
-    full_path = os.path.join(path, basename)
-    if _is_executable(full_path):
-      return True
-  return False
 
 
 def _subprocess_call(argv, **kwargs):
@@ -156,27 +140,27 @@ def parse_args(argv):
     * an override for the recipe engine in the form of `-O recipe_engine=/path`
     * the --package option.
   """
-  PREFIX = 'recipe_engine='
+  override_prefix = 'recipe_engine='
 
-  p = argparse.ArgumentParser(add_help=False)
-  p.add_argument('-O', '--project-override', action='append')
-  p.add_argument('--package', type=os.path.abspath)
-  args, _ = p.parse_known_args(argv)
+  parser = argparse.ArgumentParser(add_help=False)
+  parser.add_argument('-O', '--project-override', action='append')
+  parser.add_argument('--package', type=os.path.abspath)
+  args, _ = parser.parse_known_args(argv)
   for override in args.project_override or ():
-    if override.startswith(PREFIX):
-      return override[len(PREFIX):], args.package
+    if override.startswith(override_prefix):
+      return override[len(override_prefix):], args.package
   return None, args.package
 
 
 def checkout_engine(engine_path, repo_root, recipes_cfg_path):
   """Checks out the recipe_engine repo pinned in recipes.cfg.
 
-  Returns the path to the recipe engine repo and the py3_only boolean.
+  Returns the path to the recipe engine repo.
   """
-  dep, recipes_path, py3_only = parse(repo_root, recipes_cfg_path)
+  dep, recipes_path = parse(repo_root, recipes_cfg_path)
   if dep is None:
     # we're running from the engine repo already!
-    return os.path.join(repo_root, recipes_path), py3_only
+    return os.path.join(repo_root, recipes_path)
 
   url = dep.url
 
@@ -190,20 +174,18 @@ def checkout_engine(engine_path, repo_root, recipes_cfg_path):
     # Ensure that we have the recipe engine cloned.
     engine_path = os.path.join(recipes_path, '.recipe_deps', 'recipe_engine')
 
-    with open(os.devnull, 'w') as NUL:
-      # Note: this logic mirrors the logic in recipe_engine/fetch.py
-      _git_check_call(['init', engine_path], stdout=NUL)
+    # Note: this logic mirrors the logic in recipe_engine/fetch.py
+    _git_check_call(['init', engine_path], stdout=subprocess.DEVNULL)
 
-      try:
-        _git_check_call(['rev-parse', '--verify',
-                         '%s^{commit}' % revision],
-                        cwd=engine_path,
-                        stdout=NUL,
-                        stderr=NUL)
-      except subprocess.CalledProcessError:
-        _git_check_call(['fetch', '--quiet', url, branch],
-                        cwd=engine_path,
-                        stdout=NUL)
+    try:
+      _git_check_call(['rev-parse', '--verify', f'{revision}^{{commit}}'],
+                      cwd=engine_path,
+                      stdout=subprocess.DEVNULL,
+                      stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError:
+      _git_check_call(['fetch', '--quiet', url, branch],
+                      cwd=engine_path,
+                      stdout=subprocess.DEVNULL)
 
     try:
       _git_check_call(['diff', '--quiet', revision], cwd=engine_path)
@@ -213,21 +195,21 @@ def checkout_engine(engine_path, repo_root, recipes_cfg_path):
         os.remove(index_lock)
       except OSError as exc:
         if exc.errno != errno.ENOENT:
-          logging.warn('failed to remove %r, reset will fail: %s', index_lock,
-                       exc)
+          logging.warning('failed to remove %r, reset will fail: %s',
+                          index_lock, exc)
       _git_check_call(['reset', '-q', '--hard', revision], cwd=engine_path)
 
     # If the engine has refactored/moved modules we need to clean all .pyc files
     # or things will get squirrely.
     _git_check_call(['clean', '-qxf'], cwd=engine_path)
 
-  return engine_path, py3_only
+  return engine_path
 
 
 def main():
   for required_binary in REQUIRED_BINARIES:
-    if not _is_on_path(required_binary):
-      return 'Required binary is not found on PATH: %s' % required_binary
+    if not shutil.which(required_binary):
+      return f'Required binary is not found on PATH: {required_binary}'
 
   if '--verbose' in sys.argv:
     logging.getLogger().setLevel(logging.INFO)
@@ -247,16 +229,31 @@ def main():
     repo_root = os.path.abspath(repo_root).decode()
     recipes_cfg_path = os.path.join(repo_root, 'infra', 'config', 'recipes.cfg')
     args = ['--package', recipes_cfg_path] + args
-  engine_path, py3_only = checkout_engine(engine_override, repo_root,
-                                          recipes_cfg_path)
+  engine_path = checkout_engine(engine_override, repo_root, recipes_cfg_path)
 
-  using_py3 = py3_only or os.getenv('RECIPES_USE_PY3') == 'true'
-  vpython = ('vpython' + ('3' if using_py3 else '') + _BAT)
-  if not _is_on_path(vpython):
-    return 'Required binary is not found on PATH: %s' % vpython
+  vpython = 'vpython3' + _BAT
+  if not shutil.which(vpython):
+    return f'Required binary is not found on PATH: {vpython}'
+
+  # We unset PYTHONPATH here in case the user has conflicting environmental
+  # things we don't want them to leak through into the recipe_engine which
+  # manages its environment entirely via vpython.
+  #
+  # NOTE: os.unsetenv unhelpfully doesn't exist on all platforms until python3.9
+  # so we have to use the cutesy `pop` formulation below until then...
+  os.environ.pop("PYTHONPATH", None)
+
+  spec = '.vpython3'
+  debugger = os.environ.get('RECIPE_DEBUGGER', '')
+  if debugger.startswith('pycharm'):
+    spec = '.pycharm.vpython3'
+  elif debugger.startswith('vscode'):
+    spec = '.vscode.vpython3'
 
   argv = ([
       vpython,
+      '-vpython-spec',
+      os.path.join(engine_path, spec),
       '-u',
       os.path.join(engine_path, 'recipe_engine', 'main.py'),
   ] + args)
@@ -264,13 +261,14 @@ def main():
   if IS_WIN:
     # No real 'exec' on windows; set these signals to ignore so that they
     # propagate to our children but we still wait for the child process to quit.
-    import signal
-    signal.signal(signal.SIGBREAK, signal.SIG_IGN)
+    import signal  # pylint: disable=import-outside-toplevel
+    signal.signal(signal.SIGBREAK, signal.SIG_IGN)  # pylint: disable=no-member
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     signal.signal(signal.SIGTERM, signal.SIG_IGN)
     return _subprocess_call(argv)
-  else:
-    os.execvp(argv[0], argv)
+
+  os.execvp(argv[0], argv)
+  return -1  # should never occur
 
 
 if __name__ == '__main__':

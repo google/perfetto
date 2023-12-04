@@ -19,7 +19,7 @@ import webapp2
 import base64
 
 BASE = 'https://android.googlesource.com/platform/external/perfetto.git/' \
-       '+/master/%s?format=TEXT'
+       '+/main/%s?format=TEXT'
 
 RESOURCES = {
     'tracebox': 'tools/tracebox',

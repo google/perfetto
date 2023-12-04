@@ -158,9 +158,9 @@ FakeChunk& FakeChunk::PadTo(size_t chunk_size) {
 }
 
 size_t FakeChunk::CopyIntoTraceBuffer(bool chunk_complete) {
-  trace_buffer_->CopyChunkUntrusted(producer_id, uid, pid, writer_id, chunk_id,
-                                    num_packets, flags, chunk_complete,
-                                    data.data(), data.size());
+  trace_buffer_->CopyChunkUntrusted(producer_id, ClientIdentity(uid, pid),
+                                    writer_id, chunk_id, num_packets, flags,
+                                    chunk_complete, data.data(), data.size());
   return data.size() + TraceBuffer::InlineChunkHeaderSize;
 }
 

@@ -33,7 +33,7 @@ cd upstream/
 git rev-parse HEAD
 
 # Install only NodeJS, gn and ninja no need to install the other toolchains.
-tools/install-build-deps --ui --filter=nodejs --filter=gn --filter=ninja
+tools/install-build-deps --ui --filter=nodejs --filter=gn --filter=ninja --filter=pnpm
 
 # The deploy script takes care of building by invoking ./build internally.
 infra/perfetto.dev/deploy

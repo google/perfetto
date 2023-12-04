@@ -56,6 +56,11 @@ class ClockConverter {
     return TimeToStr(*real_ts);
   }
 
+  // Converts trace time to REAL clock time.
+  base::StatusOr<Timestamp> ToRealtime(Timestamp ts) {
+    return FromTraceTime(kRealClock, ts);
+  }
+
   // Converts trace time to MONO clock time.
   base::StatusOr<Timestamp> ToMonotonic(Timestamp ts) {
     return FromTraceTime(kMonoClock, ts);

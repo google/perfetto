@@ -20,206 +20,186 @@ ROOT_DIR = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(os.path.join(ROOT_DIR))
 
-from python.generators.stdlib_docs.parse import parse_file_to_dict
-
-DESC = """--
--- First line.
--- Second line."""
-
-COLS_STR = """--
--- @column slice_id           Id of slice.
--- @column slice_name         Name of slice."""
-
-COLS_SQL_STR = "slice_id INT, slice_name STRING"
-
-ARGS_STR = """--
--- @arg utid INT              Utid of thread.
--- @arg name STRING           String name."""
-
-ARGS_SQL_STR = "utid INT, name STRING"
-
-RET_STR = """--
--- @ret BOOL                  Exists."""
-
-RET_SQL_STR = "BOOL"
-
-SQL_STR = "SELECT * FROM slice"
+from python.generators.sql_processing.docs_parse import Arg, parse_file
 
 
 class TestStdlib(unittest.TestCase):
 
   def test_valid_table(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
-{COLS_STR}
+-- First line.
+-- Second line.
+-- @column slice_id           Id of slice.
+-- @column slice_name         Name of slice.
 CREATE TABLE foo_table AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, dict)
+    self.assertListEqual(res.errors, [])
 
-    table = res['imports'][0]
-    self.assertEqual(table['name'], 'foo_table')
-    self.assertEqual(table['desc'], 'First line. Second line.')
-    self.assertEqual(table['type'], 'TABLE')
-    self.assertEqual(table['cols'], {
-        'slice_id': 'Id of slice.',
-        'slice_name': 'Name of slice.'
-    })
+    table = res.table_views[0]
+    self.assertEqual(table.name, 'foo_table')
+    self.assertEqual(table.desc, 'First line. Second line.')
+    self.assertEqual(table.type, 'TABLE')
+    self.assertEqual(
+        table.cols, {
+            'slice_id': Arg(None, 'Id of slice.'),
+            'slice_name': Arg(None, 'Name of slice.'),
+        })
 
   def test_valid_function(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
-{ARGS_STR}
-{RET_STR}
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+-- First line.
+-- Second line.
+-- @arg utid INT              Utid of thread.
+-- @arg name STRING           String name.
+CREATE PERFETTO FUNCTION foo_fn(utid INT, name STRING)
+-- Exists.
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, dict)
+    self.assertListEqual(res.errors, [])
 
-    fn = res['functions'][0]
-    self.assertEqual(fn['name'], 'FOO_FN')
-    self.assertEqual(fn['desc'], 'First line. Second line.')
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'First line. Second line.')
     self.assertEqual(
-        fn['args'], {
-            'utid': {
-                'type': 'INT',
-                'desc': 'Utid of thread.',
-            },
-            'name': {
-                'type': 'STRING',
-                'desc': 'String name.',
-            },
+        fn.args, {
+            'utid': Arg('INT', 'Utid of thread.'),
+            'name': Arg('STRING', 'String name.'),
         })
-    self.assertEqual(fn['return_type'], 'BOOL')
-    self.assertEqual(fn['return_desc'], 'Exists.')
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Exists.')
 
-  def test_valid_view_function(self):
-    res = parse_file_to_dict(
+  def test_valid_table_function(self):
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
-{ARGS_STR}
-{COLS_STR}
-SELECT CREATE_VIEW_FUNCTION(
-  'FOO_VIEW_FN({ARGS_SQL_STR})',
-  '{COLS_SQL_STR}',
-  '{SQL_STR}'
-);
+-- Table comment.
+-- @arg utid INT              Utid of thread.
+-- @arg name STRING           String name.
+-- @column slice_id           Id of slice.
+-- @column slice_name         Name of slice.
+CREATE PERFETTO FUNCTION foo_view_fn(utid INT, name STRING)
+RETURNS TABLE(slice_id INT, slice_name STRING)
+AS SELECT 1;
     '''.strip())
-    assert isinstance(res, dict)
+    self.assertListEqual(res.errors, [])
 
-    fn = res['view_functions'][0]
-    self.assertEqual(fn['name'], 'FOO_VIEW_FN')
-    self.assertEqual(fn['desc'], 'First line. Second line.')
+    fn = res.table_functions[0]
+    self.assertEqual(fn.name, 'foo_view_fn')
+    self.assertEqual(fn.desc, 'Table comment.')
     self.assertEqual(
-        fn['args'], {
-            'utid': {
-                'type': 'INT',
-                'desc': 'Utid of thread.',
-            },
-            'name': {
-                'type': 'STRING',
-                'desc': 'String name.',
-            },
+        fn.args, {
+            'utid': Arg('INT', 'Utid of thread.'),
+            'name': Arg('STRING', 'String name.'),
         })
-    self.assertEqual(fn['cols'], {
-        'slice_id': 'Id of slice.',
-        'slice_name': 'Name of slice.'
-    })
+    self.assertEqual(
+        fn.cols, {
+            'slice_id': Arg('INT', 'Id of slice.'),
+            'slice_name': Arg('STRING', 'Name of slice.'),
+        })
 
   def test_missing_module_name(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
-{COLS_STR}
+-- Comment
+-- @column slice_id           Id of slice.
 CREATE TABLE bar_table AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting an error: function prefix (bar) not matching module name (foo).
+    self.assertEqual(len(res.errors), 1)
 
   def test_common_does_not_include_module_name(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'common/bar.sql', f'''
-{DESC}
-{COLS_STR}
+-- Comment.
+-- @column slice_id           Id of slice.
 CREATE TABLE common_table AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting an error: functions in common/ should not have a module prefix.
+    self.assertEqual(len(res.errors), 1)
 
   def test_cols_typo(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
+-- Comment.
 --
 -- @column slice_id2          Foo.
 -- @column slice_name         Bar.
 CREATE TABLE bar_table AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting an error: column slice_id2 not found in the table.
+    self.assertEqual(len(res.errors), 1)
 
   def test_cols_no_desc(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
+-- Comment.
 --
 -- @column slice_id
 -- @column slice_name         Bar.
 CREATE TABLE bar_table AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting an error: column slice_id is missing a description.
+    self.assertEqual(len(res.errors), 1)
 
   def test_args_typo(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
+-- Comment.
 --
--- @arg utid2 INT              Uint.
+-- @arg utid2 INT             Uint.
 -- @arg name STRING           String name.
-{RET_STR}
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+CREATE PERFETTO FUNCTION foo_fn(utid INT, name STRING)
+-- Exists.
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting 2 errors:
+    # - arg utid2 not found in the function (should be utid);
+    # - utid not documented.
+    self.assertEqual(len(res.errors), 2)
 
   def test_args_no_desc(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
+-- Comment.
 --
 -- @arg utid INT
 -- @arg name STRING           String name.
-{RET_STR}
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+CREATE PERFETTO FUNCTION foo_fn(utid INT, name STRING)
+-- Exists.
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting 2 errors:
+    # - arg utid is missing a description;
+    # - arg utid is not documented.
+    self.assertEqual(len(res.errors), 2)
 
   def test_ret_no_desc(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
-{ARGS_STR}
+-- Comment
+CREATE PERFETTO FUNCTION foo_fn()
 --
--- @ret BOOL
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT TRUE;
     '''.strip())
-    assert isinstance(res, list)
+    # Expecting an error: return value is missing a description.
+    self.assertEqual(len(res.errors), 1)
 
   def test_multiline_desc(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
 -- This
 -- is
@@ -230,22 +210,21 @@ AS
 -- long
 --
 -- description.
-{ARGS_STR}
-{RET_STR}
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+CREATE PERFETTO FUNCTION foo_fn()
+-- Exists.
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, dict)
+    self.assertListEqual(res.errors, [])
 
-    fn = res['functions'][0]
-    self.assertEqual(fn['desc'], 'This is a very long description.')
+    fn = res.functions[0]
+    self.assertEqual(fn.desc, 'This is a very long description.')
 
   def test_multiline_arg_desc(self):
-    res = parse_file_to_dict(
+    res = parse_file(
         'foo/bar.sql', f'''
-{DESC}
+-- Comment.
 --
 -- @arg utid INT              Uint
 -- spread
@@ -254,24 +233,248 @@ AS
 -- @arg name STRING            String name
 --                             which spans across multiple lines
 -- inconsistently.
-{RET_STR}
-CREATE PERFETTO FUNCTION FOO_FN({ARGS_SQL_STR})
-RETURNS {RET_SQL_STR}
+CREATE PERFETTO FUNCTION foo_fn(utid INT, name STRING)
+-- Exists.
+RETURNS BOOL
 AS
-{SQL_STR};
+SELECT 1;
     '''.strip())
-    assert isinstance(res, dict)
 
-    fn = res['functions'][0]
+    fn = res.functions[0]
     self.assertEqual(
-        fn['args'], {
-            'utid': {
-                'type': 'INT',
-                'desc': 'Uint spread across lines.',
-            },
-            'name': {
-                'type': 'STRING',
-                'desc': 'String name which spans across multiple lines '
-                        'inconsistently.',
-            },
+        fn.args, {
+            'utid':
+                Arg('INT', 'Uint spread across lines.'),
+            'name':
+                Arg(
+                    'STRING', 'String name which spans across multiple lines '
+                    'inconsistently.'),
         })
+
+  def test_function_name_style(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function comment.
+CREATE PERFETTO FUNCTION foo_SnakeCase()
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: function name should be using hacker_style.
+    self.assertEqual(len(res.errors), 1)
+
+  def test_table_with_schema(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Table comment.
+CREATE PERFETTO TABLE foo_table(
+    -- Id of slice.
+    id INT
+) AS
+SELECT 1 as id;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    table = res.table_views[0]
+    self.assertEqual(table.name, 'foo_table')
+    self.assertEqual(table.desc, 'Table comment.')
+    self.assertEqual(table.type, 'TABLE')
+    self.assertEqual(table.cols, {
+        'id': Arg('INT', 'Id of slice.'),
+    })
+
+  def test_perfetto_view_with_schema(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- View comment.
+CREATE PERFETTO VIEW foo_table(
+    -- Foo.
+    foo INT,
+    -- Bar.
+    bar STRING
+) AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    table = res.table_views[0]
+    self.assertEqual(table.name, 'foo_table')
+    self.assertEqual(table.desc, 'View comment.')
+    self.assertEqual(table.type, 'VIEW')
+    self.assertEqual(table.cols, {
+        'foo': Arg('INT', 'Foo.'),
+        'bar': Arg('STRING', 'Bar.'),
+    })
+
+  def test_function_with_new_style_docs(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Utid of thread.
+    utid INT,
+    -- String name.
+    name STRING)
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(
+        fn.args, {
+            'utid': Arg('INT', 'Utid of thread.'),
+            'name': Arg('STRING', 'String name.'),
+        })
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Exists.')
+
+  def test_function_returns_table_with_new_style_docs(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Utid of thread.
+    utid INT)
+-- Impl comment.
+RETURNS TABLE(
+    -- Count.
+    count INT
+)
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.table_functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'utid': Arg('INT', 'Utid of thread.'),
+    })
+    self.assertEqual(fn.cols, {
+        'count': Arg('INT', 'Count.'),
+    })
+
+  def test_function_with_new_style_docs_multiline_comment(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Multi
+    -- line
+    --
+    -- comment.
+    arg INT)
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'arg': Arg('INT', 'Multi line  comment.'),
+    })
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Exists.')
+
+  def test_function_with_multiline_return_comment(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Arg
+    arg INT)
+-- Multi
+-- line
+-- return
+-- comment.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'arg': Arg('INT', 'Arg'),
+    })
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Multi line return comment.')
+
+  def test_create_or_replace_table_banned(self):
+    res = parse_file(
+        'common/bar.sql', f'''
+-- Table.
+CREATE OR REPLACE PERFETTO TABLE foo(
+    -- Column.
+    x INT
+)
+AS
+SELECT 1;
+
+    '''.strip())
+    # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
+    self.assertEqual(len(res.errors), 1)
+
+  def test_create_or_replace_view_banned(self):
+    res = parse_file(
+        'common/bar.sql', f'''
+-- Table.
+CREATE OR REPLACE PERFETTO VIEW foo(
+    -- Column.
+    x INT
+)
+AS
+SELECT 1;
+
+    '''.strip())
+    # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
+    self.assertEqual(len(res.errors), 1)
+
+  def test_create_or_replace_function_banned(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE OR REPLACE PERFETTO FUNCTION foo_fn()
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: CREATE OR REPLACE is not allowed in stdlib.
+    self.assertEqual(len(res.errors), 1)
+
+  def test_function_with_new_style_docs_with_parenthesis(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Function foo.
+CREATE PERFETTO FUNCTION foo_fn(
+    -- Utid of thread (important).
+    utid INT)
+-- Exists.
+RETURNS BOOL
+AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.functions[0]
+    self.assertEqual(fn.name, 'foo_fn')
+    self.assertEqual(fn.desc, 'Function foo.')
+    self.assertEqual(fn.args, {
+        'utid': Arg('INT', 'Utid of thread (important).'),
+    })
+    self.assertEqual(fn.return_type, 'BOOL')
+    self.assertEqual(fn.return_desc, 'Exists.')

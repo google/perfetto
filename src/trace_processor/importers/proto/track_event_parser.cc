@@ -21,6 +21,7 @@
 #include <string>
 
 #include "perfetto/base/logging.h"
+#include "perfetto/ext/base/base64.h"
 #include "perfetto/ext/base/string_writer.h"
 #include "perfetto/trace_processor/status.h"
 #include "src/trace_processor/importers/common/args_tracker.h"
@@ -121,6 +122,10 @@ class TrackEventArgsParser : public util::ProtoToArgsParser::Delegate {
     inserter_.AddArg(storage_.InternString(base::StringView(key.flat_key)),
                      storage_.InternString(base::StringView(key.key)),
                      Variadic::Boolean(value));
+  }
+  void AddBytes(const Key& key, const protozero::ConstBytes& value) final {
+    std::string b64_data = base::Base64Encode(value.data, value.size);
+    AddString(key, b64_data);
   }
   bool AddJson(const Key& key, const protozero::ConstChars& value) final {
     auto json_value = json::ParseJsonString(value);

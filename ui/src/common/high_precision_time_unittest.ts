@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time, time} from '../base/time';
+
 import {
   HighPrecisionTime as HPTime,
-  HighPrecisionTimeSpan as HPTimeSpan,
+  HighPrecisionTimeSpan as HPTimeInterval,
 } from './high_precision_time';
-import {TPTime} from './time';
 
 // Quick 'n' dirty function to convert a string to a HPtime
 // Used to make tests more readable
@@ -41,8 +42,8 @@ function mkTime(time: string): HPTime {
   }
 }
 
-function mkSpan(t1: string, t2: string): HPTimeSpan {
-  return new HPTimeSpan(mkTime(t1), mkTime(t2));
+function mkSpan(t1: string, t2: string): HPTimeInterval {
+  return new HPTimeInterval(mkTime(t1), mkTime(t2));
 }
 
 describe('Time', () => {
@@ -69,21 +70,21 @@ describe('Time', () => {
   });
 
   it('should store timestamps without losing precision', () => {
-    let time = HPTime.fromTPTime(123n as TPTime);
-    expect(time.toTPTime()).toBe(123n as TPTime);
+    let time = HPTime.fromTime(123n as time);
+    expect(time.toTime()).toBe(123n as time);
 
-    time = HPTime.fromTPTime(1152921504606846976n as TPTime);
-    expect(time.toTPTime()).toBe(1152921504606846976n as TPTime);
+    time = HPTime.fromTime(1152921504606846976n as time);
+    expect(time.toTime()).toBe(1152921504606846976n as time);
   });
 
   it('should store and manipulate timestamps without losing precision', () => {
-    let time = HPTime.fromTPTime(123n as TPTime);
-    time = time.addTPTime(456n);
-    expect(time.toTPTime()).toBe(579n);
+    let time = HPTime.fromTime(123n as time);
+    time = time.addTime(Time.fromRaw(456n));
+    expect(time.toTime()).toBe(579n);
 
-    time = HPTime.fromTPTime(2315700508990407843n as TPTime);
-    time = time.addTPTime(2315718101717517451n as TPTime);
-    expect(time.toTPTime()).toBe(4631418610707925294n);
+    time = HPTime.fromTime(2315700508990407843n as time);
+    time = time.addTime(2315718101717517451n as time);
+    expect(time.toTime()).toBe(4631418610707925294n);
   });
 
   it('should add time', () => {
@@ -183,12 +184,12 @@ describe('Time', () => {
   });
 
   it('should convert to timestamps', () => {
-    expect(new HPTime(1n, .2).toTPTime('round')).toBe(1n);
-    expect(new HPTime(1n, .5).toTPTime('round')).toBe(2n);
-    expect(new HPTime(1n, .2).toTPTime('floor')).toBe(1n);
-    expect(new HPTime(1n, .5).toTPTime('floor')).toBe(1n);
-    expect(new HPTime(1n, .2).toTPTime('ceil')).toBe(2n);
-    expect(new HPTime(1n, .5).toTPTime('ceil')).toBe(2n);
+    expect(new HPTime(1n, .2).toTime('round')).toBe(1n);
+    expect(new HPTime(1n, .5).toTime('round')).toBe(2n);
+    expect(new HPTime(1n, .2).toTime('floor')).toBe(1n);
+    expect(new HPTime(1n, .5).toTime('floor')).toBe(1n);
+    expect(new HPTime(1n, .2).toTime('ceil')).toBe(2n);
+    expect(new HPTime(1n, .5).toTime('ceil')).toBe(2n);
   });
 
   it('should divide', () => {
@@ -254,20 +255,21 @@ describe('Time', () => {
 
 describe('HighPrecisionTimeSpan', () => {
   it('can be constructed from HP time', () => {
-    const span = new HPTimeSpan(mkTime('10'), mkTime('20'));
+    const span = new HPTimeInterval(mkTime('10'), mkTime('20'));
     expect(span.start).toEqual(mkTime('10'));
     expect(span.end).toEqual(mkTime('20'));
   });
 
   it('can be constructed from integer time', () => {
-    const span = new HPTimeSpan(10n, 20n);
+    const span = new HPTimeInterval(Time.fromRaw(10n), Time.fromRaw(20n));
     expect(span.start).toEqual(mkTime('10'));
     expect(span.end).toEqual(mkTime('20'));
   });
 
   it('throws when start is later than end', () => {
-    expect(() => new HPTimeSpan(mkTime('0.1'), mkTime('0'))).toThrow();
-    expect(() => new HPTimeSpan(mkTime('1124.0001'), mkTime('1124'))).toThrow();
+    expect(() => new HPTimeInterval(mkTime('0.1'), mkTime('0'))).toThrow();
+    expect(() => new HPTimeInterval(mkTime('1124.0001'), mkTime('1124')))
+        .toThrow();
   });
 
   it('can calc duration', () => {
@@ -316,12 +318,12 @@ describe('HighPrecisionTimeSpan', () => {
   it('checks if span intersects another span', () => {
     const x = mkSpan('10', '20');
 
-    expect(x.intersectsSpan(mkSpan('0', '10'))).toBeFalsy();
-    expect(x.intersectsSpan(mkSpan('5', '15'))).toBeTruthy();
-    expect(x.intersectsSpan(mkSpan('12', '18'))).toBeTruthy();
-    expect(x.intersectsSpan(mkSpan('15', '25'))).toBeTruthy();
-    expect(x.intersectsSpan(mkSpan('20', '30'))).toBeFalsy();
-    expect(x.intersectsSpan(mkSpan('5', '25'))).toBeTruthy();
+    expect(x.intersectsInterval(mkSpan('0', '10'))).toBeFalsy();
+    expect(x.intersectsInterval(mkSpan('5', '15'))).toBeTruthy();
+    expect(x.intersectsInterval(mkSpan('12', '18'))).toBeTruthy();
+    expect(x.intersectsInterval(mkSpan('15', '25'))).toBeTruthy();
+    expect(x.intersectsInterval(mkSpan('20', '30'))).toBeFalsy();
+    expect(x.intersectsInterval(mkSpan('5', '25'))).toBeTruthy();
   });
 
   it('checks intersection', () => {

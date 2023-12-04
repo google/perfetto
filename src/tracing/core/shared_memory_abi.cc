@@ -73,16 +73,19 @@ SharedMemoryABI::SharedMemoryABI() = default;
 
 SharedMemoryABI::SharedMemoryABI(uint8_t* start,
                                  size_t size,
-                                 size_t page_size) {
-  Initialize(start, size, page_size);
+                                 size_t page_size,
+                                 ShmemMode mode) {
+  Initialize(start, size, page_size, mode);
 }
 
 void SharedMemoryABI::Initialize(uint8_t* start,
                                  size_t size,
-                                 size_t page_size) {
+                                 size_t page_size,
+                                 ShmemMode mode) {
   start_ = start;
   size_ = size;
   page_size_ = page_size;
+  use_shmem_emulation_ = mode == ShmemMode::kShmemEmulation;
   num_pages_ = size / page_size;
   chunk_sizes_ = InitChunkSizes(page_size);
   static_assert(sizeof(PageHeader) == 8, "PageHeader size");
@@ -243,18 +246,21 @@ size_t SharedMemoryABI::ReleaseChunk(Chunk chunk,
     // could crash us by putting the chunk in an invalid state. This should
     // gracefully fail. Keep a CHECK until then.
     PERFETTO_CHECK(chunk.size() == page_chunk_size);
-    const uint32_t chunk_state =
-        ((layout >> (chunk_idx * kChunkShift)) & kChunkMask);
+    const uint32_t chunk_state = GetChunkStateFromLayout(layout, chunk_idx);
 
     // Verify that the chunk is still in a state that allows the transition to
     // |desired_chunk_state|. The only allowed transitions are:
     // 1. kChunkBeingWritten -> kChunkComplete (Producer).
     // 2. kChunkBeingRead -> kChunkFree (Service).
+    // Or in the emulation mode, the allowed transitions are:
+    // 1. kChunkBeingWritten -> kChunkComplete (Producer).
+    // 2. kChunkComplete -> kChunkFree (Producer).
     ChunkState expected_chunk_state;
     if (desired_chunk_state == kChunkComplete) {
       expected_chunk_state = kChunkBeingWritten;
     } else {
-      expected_chunk_state = kChunkBeingRead;
+      expected_chunk_state =
+          use_shmem_emulation_ ? kChunkComplete : kChunkBeingRead;
     }
 
     // TODO(primiano): should not be a CHECK (same rationale of comment above).

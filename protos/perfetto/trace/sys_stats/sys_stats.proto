@@ -45,7 +45,7 @@ message SysStats {
     optional uint64 user_ns = 2;
 
     // Time spent in user mode (low prio).
-    optional uint64 user_ice_ns = 3;
+    optional uint64 user_nice_ns = 3;
 
     // Time spent in system mode.
     optional uint64 system_mode_ns = 4;

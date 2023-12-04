@@ -18,10 +18,12 @@
 
 #include <ctype.h>
 #include <sqlite3.h>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
 #include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -426,13 +428,14 @@ int GetSqliteToken(const unsigned char* z, SqliteTokenType* tokenType) {
 
 }  // namespace
 
-SqliteTokenizer::SqliteTokenizer(const char* sql) : ptr_(sql) {}
+SqliteTokenizer::SqliteTokenizer(SqlSource sql) : source_(std::move(sql)) {}
 
 SqliteTokenizer::Token SqliteTokenizer::Next() {
   Token token;
-  const char* start = ptr_;
-  int n = GetSqliteToken(unsigned_ptr(), &token.token_type);
-  ptr_ += n;
+  const char* start = source_.sql().data() + offset_;
+  int n = GetSqliteToken(reinterpret_cast<const unsigned char*>(start),
+                         &token.token_type);
+  offset_ += static_cast<uint32_t>(n);
   token.str = std::string_view(start, static_cast<uint32_t>(n));
   return token;
 }
@@ -442,6 +445,62 @@ SqliteTokenizer::Token SqliteTokenizer::NextNonWhitespace() {
   for (t = Next(); t.token_type == SqliteTokenType::TK_SPACE; t = Next()) {
   }
   return t;
+}
+
+SqliteTokenizer::Token SqliteTokenizer::NextTerminal() {
+  Token tok = Next();
+  while (!tok.IsTerminal()) {
+    tok = Next();
+  }
+  return tok;
+}
+
+SqlSource SqliteTokenizer::Substr(const Token& start, const Token& end) const {
+  uint32_t offset =
+      static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
+  uint32_t len = static_cast<uint32_t>(end.str.data() - start.str.data());
+  return source_.Substr(offset, len);
+}
+
+SqlSource SqliteTokenizer::SubstrToken(const Token& token) const {
+  uint32_t offset =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  uint32_t len = static_cast<uint32_t>(token.str.size());
+  return source_.Substr(offset, len);
+}
+
+std::string SqliteTokenizer::AsTraceback(const Token& token) const {
+  PERFETTO_CHECK(source_.sql().c_str() <= token.str.data());
+  PERFETTO_CHECK(token.str.data() <=
+                 source_.sql().c_str() + source_.sql().size());
+  uint32_t offset =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  return source_.AsTraceback(offset);
+}
+
+void SqliteTokenizer::Rewrite(SqlSource::Rewriter& rewriter,
+                              const Token& start,
+                              const Token& end,
+                              SqlSource rewrite,
+                              EndToken end_token) const {
+  uint32_t s_off =
+      static_cast<uint32_t>(start.str.data() - source_.sql().c_str());
+  uint32_t e_off =
+      static_cast<uint32_t>(end.str.data() - source_.sql().c_str());
+  uint32_t e_diff = end_token == EndToken::kInclusive
+                        ? static_cast<uint32_t>(end.str.size())
+                        : 0;
+  rewriter.Rewrite(s_off, e_off + e_diff, std::move(rewrite));
+}
+
+void SqliteTokenizer::RewriteToken(SqlSource::Rewriter& rewriter,
+                                   const Token& token,
+                                   SqlSource rewrite) const {
+  uint32_t s_off =
+      static_cast<uint32_t>(token.str.data() - source_.sql().c_str());
+  uint32_t e_off = static_cast<uint32_t>(token.str.data() + token.str.size() -
+                                         source_.sql().c_str());
+  rewriter.Rewrite(s_off, e_off, std::move(rewrite));
 }
 
 }  // namespace trace_processor

@@ -28,6 +28,10 @@ namespace shlib {
 // thread.
 void ResetDataSourceTls();
 
+// Resets the shared library thread local state for track event on the current
+// thread.
+void ResetTrackEventTls();
+
 // Destroys a registered data source. This only works after ResetForTesting().
 void DsImplDestroy(PerfettoDsImpl*);
 

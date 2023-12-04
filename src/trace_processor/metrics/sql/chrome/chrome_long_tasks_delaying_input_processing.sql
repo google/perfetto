@@ -35,7 +35,7 @@ SELECT RUN_METRIC(
 -- Needed for calculating chrome input to browser intervals.
 -- Input IPCs are not necessarily always long tasks, hence a new slice name.
 DROP TABLE IF EXISTS chrome_input_to_browser_intervals_long_tasks;
-CREATE TABLE chrome_input_to_browser_intervals_long_tasks
+CREATE PERFETTO TABLE chrome_input_to_browser_intervals_long_tasks
 AS
 SELECT
   (SELECT ts FROM slice WHERE id = window_start_id) AS window_start_ts,

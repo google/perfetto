@@ -59,6 +59,7 @@ default_targets = [
     '//protos/perfetto/trace:perfetto_trace_protos',
     '//src/android_internal:libperfetto_android_internal',
     '//src/base:perfetto_base_default_platform',
+    '//src/shared_lib:libperfetto_c',
     '//src/perfetto_cmd:perfetto',
     '//src/perfetto_cmd:trigger_perfetto',
     '//src/profiling/memory:heapprofd_client',
@@ -102,6 +103,7 @@ target_host_supported = [
     '//:libperfetto',
     '//:libperfetto_client_experimental',
     '//protos/perfetto/trace:perfetto_trace_protos',
+    '//src/shared_lib:libperfetto_c',
     '//src/trace_processor:demangle',
     '//src/trace_processor:trace_processor_shell',
     '//src/traced/probes:traced_probes',
@@ -109,6 +111,10 @@ target_host_supported = [
 ]
 
 target_vendor_available = [
+    '//:libperfetto_client_experimental',
+]
+
+target_product_available = [
     '//:libperfetto_client_experimental',
 ]
 
@@ -179,7 +185,6 @@ define_allowlist = r'^(GOOGLE_PROTO.*)|(ZLIB_.*)|(USE_MMAP)$'
 
 # The directory where the generated perfetto_build_flags.h will be copied into.
 buildflags_dir = 'include/perfetto/base/build_configs/android_tree'
-
 
 def enumerate_data_deps():
   with open(os.path.join(ROOT_DIR, 'tools', 'test_data.txt')) as f:
@@ -255,12 +260,16 @@ additional_args = {
     ],
     'libperfetto_client_experimental': [
         ('apex_available', {
-            '//apex_available:platform', 'com.android.art',
-            'com.android.art.debug', 'com.android.tethering'
+            '//apex_available:platform', '//apex_available:anyapex'
         }),
         ('min_sdk_version', '30'),
         ('shared_libs', {'liblog'}),
         ('export_include_dirs', {'include', buildflags_dir}),
+    ],
+    'libperfetto_c': [
+        ('min_sdk_version', '30'),
+        ('export_include_dirs', {'include'}),
+        ('cflags', {'-DPERFETTO_SHLIB_SDK_IMPLEMENTATION'}),
     ],
     'perfetto_trace_protos': [
         ('apex_available', {
@@ -326,7 +335,7 @@ def enable_libunwind(module):
 
 def enable_sqlite(module):
   if module.type == 'cc_binary_host':
-    module.static_libs.add('libsqlite')
+    module.static_libs.add('libsqlite_static_noicu')
     module.static_libs.add('sqlite_ext_percentile')
   elif module.host_supported:
     # Copy what the sqlite3 command line tool does.
@@ -335,7 +344,7 @@ def enable_sqlite(module):
     module.android.shared_libs.add('liblog')
     module.android.shared_libs.add('libutils')
     module.android.static_libs.add('sqlite_ext_percentile')
-    module.host.static_libs.add('libsqlite')
+    module.host.static_libs.add('libsqlite_static_noicu')
     module.host.static_libs.add('sqlite_ext_percentile')
   else:
     module.shared_libs.add('libsqlite')
@@ -503,6 +512,7 @@ class Module(object):
     self.cmd: Optional[str] = None
     self.host_supported = False
     self.vendor_available = False
+    self.product_available = False
     self.init_rc = set()
     self.out = set()
     self.export_include_dirs = set()
@@ -552,6 +562,8 @@ class Module(object):
       self._output_field(output, 'host_supported')
     if self.vendor_available:
       self._output_field(output, 'vendor_available')
+    if self.product_available:
+      self._output_field(output, 'product_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -701,8 +713,11 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   cmd = ['mkdir -p %s &&' % cpp_out_dir, '$(location aprotoc)']
   cmd += ['--proto_path=%s' % tree_path]
 
+  tool_files = set()
   if buildtools_protobuf_src in target.proto_paths:
     cmd += ['--proto_path=%s' % android_protobuf_src]
+    # Add `google/protobuf/descriptor.proto` to implicit deps
+    tool_files.add(':libprotobuf-internal-descriptor-proto')
 
   # Descriptor targets only generate a single target.
   if target.proto_plugin == 'descriptor':
@@ -721,6 +736,12 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
     # add them to srcs.
     descriptor_module.srcs.update(
         gn_utils.label_to_path(src) for src in target.sources)
+    # Add the tool_files to srcs so that they get copied if this action is
+    # sandboxed in Soong.
+    # Add to `srcs` instead of `tool_files` (the latter will require a
+    # --proto_path that depends on Soong's sandbox implementation.)
+    descriptor_module.srcs.update(
+        src for src in tool_files)
     for dep in target.transitive_proto_deps():
       current_target = gn.get_target(dep.name)
       descriptor_module.srcs.update(
@@ -733,11 +754,31 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   # generated files needs to declare two different types of dependencies --
   # source files in 'srcs' and headers in 'generated_headers' -- and it's not
   # valid to generate .h files from a source dependency and vice versa.
+  #
+  # We create an additional filegroup for .proto
+  # The .proto filegroup will be added to `tool_files` of rdeps so that the
+  # genrules can be sandboxed.
+
+  tool_files = set()
+  for proto_dep in target.proto_deps().union(target.transitive_proto_deps()):
+    tool_files.add(":" + label_to_module_name(proto_dep.name))
+
+  filegroup_module = Module('filegroup', target_module_name, target.name)
+  filegroup_module.srcs.update(
+      gn_utils.label_to_path(src) for src in target.sources)
+  blueprint.add_module(filegroup_module)
+
   source_module_name = target_module_name + '_gen'
   source_module = Module('genrule', source_module_name, target.name)
-  blueprint.add_module(source_module)
+  # Add the "root" .proto filegroup to srcs
+  source_module.srcs = set([':' + target_module_name])
+  # Add the tool_files to srcs so that they get copied if this action is
+  # sandboxed in Soong.
+  # Add to `srcs` instead of `tool_files` (the latter will require a
+  # --proto_path that depends on Soong's sandbox implementation.)
   source_module.srcs.update(
-      gn_utils.label_to_path(src) for src in target.sources)
+      src for src in tool_files)
+  blueprint.add_module(source_module)
 
   header_module = Module('genrule', source_module_name + '_headers',
                          target.name)
@@ -782,19 +823,20 @@ def create_proto_modules(blueprint: Blueprint, gn: GnParser,
   else:
     raise Error('Unsupported proto plugin: %s' % target.proto_plugin)
 
-  cmd += ['$(in)']
+  cmd += ['$(locations :%s)' % target_module_name]
   source_module.cmd = ' '.join(cmd)
   header_module.cmd = source_module.cmd
   source_module.tools = tools
   header_module.tools = tools
 
+
   for sfx in suffixes:
     source_module.out.update('%s/%s' %
                              (tree_path, src.replace('.proto', '.%s.cc' % sfx))
-                             for src in source_module.srcs)
+                             for src in filegroup_module.srcs)
     header_module.out.update('%s/%s' %
                              (tree_path, src.replace('.proto', '.%s.h' % sfx))
-                             for src in header_module.srcs)
+                             for src in filegroup_module.srcs)
   return source_module
 
 
@@ -859,6 +901,12 @@ def create_amalgamated_sql_module(blueprint: Blueprint, gn: GnParser,
   module.out.update(target.outputs)
 
   for dep in target.transitive_deps:
+    # Use globs for the chrome stdlib so the file does not need to be
+    # regenerated in autoroll CLs.
+    if dep.name.startswith(
+          '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql'):
+      module.srcs.add('src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql')
+      continue
     module.srcs.update(
         [gn_utils.label_to_path(src) for src in gn.get_target(dep.name).inputs])
   blueprint.add_module(module)
@@ -990,8 +1038,12 @@ def create_modules_from_target(blueprint: Blueprint, gn: GnParser,
   blueprint.add_module(module)
   module.host_supported = (name_without_toolchain in target_host_supported)
   module.vendor_available = (name_without_toolchain in target_vendor_available)
+  module.product_available = (name_without_toolchain in target_product_available)
   module.init_rc.update(target_initrc.get(target.name, []))
-  module.srcs.update(
+  if target.type != 'proto_library':
+    # proto_library embeds a "root" filegroup in its srcs.
+    # Skip to prevent adding dups
+    module.srcs.update(
       gn_utils.label_to_path(src)
       for src in target.sources
       if is_supported_source_file(src))

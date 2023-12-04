@@ -31,6 +31,19 @@ PERFETTO_SDK_EXPORT void PerfettoProducerSystemInit(void);
 // Initializes the global in-process perfetto producer.
 PERFETTO_SDK_EXPORT void PerfettoProducerInProcessInit(void);
 
+// Informs the tracing services to activate any of these triggers if any tracing
+// session was waiting for them.
+//
+// `trigger_names` is an array of `const char*` (zero terminated strings). The
+// last pointer in the array must be NULL.
+//
+// Sends the trigger signal to all the initialized backends that are currently
+// connected and that connect in the next `ttl_ms` milliseconds (but
+// returns immediately anyway).
+PERFETTO_SDK_EXPORT void PerfettoProducerActivateTriggers(
+    const char* trigger_names[],
+    uint32_t ttl_ms);
+
 #ifdef __cplusplus
 }
 #endif

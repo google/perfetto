@@ -15,23 +15,42 @@
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search} from '../../base/binary_search';
 import {assertFalse} from '../../base/logging';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../../common/query_result';
 import {translateState} from '../../common/thread_state';
-import {TPDuration, TPTime} from '../../common/time';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {getTrackName} from '../../public/utils';
+import {
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR_NULL,
+} from '../../trace_processor/query_result';
 
+import {
+  ThreadStateTrack as ThreadStateTrackV2,
+} from './thread_state_v2';
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
+export const THREAD_STATE_TRACK_V2_KIND = 'ThreadStateTrackV2';
 
-export interface Data extends TrackData {
+interface Data extends TrackData {
   strings: string[];
   ids: Float64Array;
   starts: BigInt64Array;
@@ -40,14 +59,12 @@ export interface Data extends TrackData {
   state: Uint16Array;  // Index into |strings|.
 }
 
-export interface Config {
+interface Config {
   utid: number;
 }
 
-class ThreadStateTrackController extends TrackController<Config, Data> {
-  static readonly kind = THREAD_STATE_TRACK_KIND;
-
-  private maxDurNs: TPDuration = 0n;
+class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
+  private maxDurNs: duration = 0n;
 
   async onSetup() {
     await this.query(`
@@ -70,7 +87,7 @@ class ThreadStateTrackController extends TrackController<Config, Data> {
     this.maxDurNs = queryRes.firstRow({maxDur: LONG}).maxDur;
   }
 
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     const query = `
       select
@@ -162,8 +179,7 @@ const MARGIN_TOP = 3;
 const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
-class ThreadStateTrack extends Track<Config, Data> {
-  static readonly kind = THREAD_STATE_TRACK_KIND;
+class ThreadStateTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): ThreadStateTrack {
     return new ThreadStateTrack(args);
   }
@@ -196,8 +212,8 @@ class ThreadStateTrack extends Track<Config, Data> {
         this.getHeight(),
         windowSpan.start,
         windowSpan.end,
-        timeScale.tpTimeToPx(data.start),
-        timeScale.tpTimeToPx(data.end),
+        timeScale.timeToPx(data.start),
+        timeScale.timeToPx(data.end),
     );
 
     ctx.textAlign = 'center';
@@ -212,8 +228,8 @@ class ThreadStateTrack extends Track<Config, Data> {
       // we get a more accurate representation of the trace and prevent weird
       // artifacts when zooming.
       // See b/201793731 for an example of why we do this.
-      const tStart = data.starts[i];
-      const tEnd = data.ends[i];
+      const tStart = Time.fromRaw(data.starts[i]);
+      const tEnd = Time.fromRaw(data.ends[i]);
       const state = data.strings[data.state[i]];
       if (!visibleTimeSpan.intersects(tStart, tEnd)) {
         continue;
@@ -221,8 +237,8 @@ class ThreadStateTrack extends Track<Config, Data> {
 
       // Don't display a slice for Task Dead.
       if (state === 'x') continue;
-      const rectStart = timeScale.tpTimeToPx(tStart);
-      const rectEnd = timeScale.tpTimeToPx(tEnd);
+      const rectStart = timeScale.timeToPx(tStart);
+      const rectEnd = timeScale.timeToPx(tEnd);
       const rectWidth = rectEnd - rectStart;
 
       const currentSelection = globals.state.currentSelection;
@@ -230,31 +246,24 @@ class ThreadStateTrack extends Track<Config, Data> {
           currentSelection.kind === 'THREAD_STATE' &&
           currentSelection.id === data.ids[i];
 
-      const color = colorForState(state);
-
-      let colorStr = `hsl(${color.h},${color.s}%,${color.l}%)`;
-      if (color.a) {
-        colorStr = `hsla(${color.h},${color.s}%,${color.l}%, ${color.a})`;
-      }
-      ctx.fillStyle = colorStr;
-
+      const colorScheme = colorForState(state);
+      ctx.fillStyle = colorScheme.base.cssString;
       ctx.fillRect(rectStart, MARGIN_TOP, rectWidth, RECT_HEIGHT);
 
       // Don't render text when we have less than 10px to play with.
       if (rectWidth < 10 || state === 'Sleeping') continue;
       const title = cropText(state, charWidth, rectWidth);
       const rectXCenter = rectStart + rectWidth / 2;
-      ctx.fillStyle = color.l > 80 ? '#404040' : '#fff';
+      ctx.fillStyle = colorScheme.textBase.cssString;
       ctx.fillText(title, rectXCenter, MARGIN_TOP + RECT_HEIGHT / 2 + 3);
 
       if (isSelected) {
         drawRectOnSelected = () => {
           const rectStart =
-              Math.max(0 - EXCESS_WIDTH, timeScale.tpTimeToPx(tStart));
-          const rectEnd = Math.min(
-              windowSpan.end + EXCESS_WIDTH, timeScale.tpTimeToPx(tEnd));
-          const color = colorForState(state);
-          ctx.strokeStyle = `hsl(${color.h},${color.s}%,${color.l * 0.7}%)`;
+              Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
+          const rectEnd =
+              Math.min(windowSpan.end + EXCESS_WIDTH, timeScale.timeToPx(tEnd));
+          ctx.strokeStyle = colorScheme.base.cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
           ctx.strokeRect(
@@ -274,21 +283,84 @@ class ThreadStateTrack extends Track<Config, Data> {
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const index = search(data.starts, time.toTPTime());
+    const index = search(data.starts, time.toTime());
     if (index === -1) return false;
     const id = data.ids[index];
     globals.makeSelection(
-        Actions.selectThreadState({id, trackId: this.trackState.id}));
+        Actions.selectThreadState({id, trackKey: this.trackKey}));
     return true;
   }
 }
 
-function activate(ctx: PluginContext) {
-  ctx.registerTrack(ThreadStateTrack);
-  ctx.registerTrackController(ThreadStateTrackController);
+
+class ThreadState implements Plugin {
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      select
+        utid,
+        upid,
+        tid,
+        pid,
+        thread.name as threadName
+      from
+        thread_state
+        left join thread using(utid)
+        left join process using(upid)
+      where utid != 0
+      group by utid`);
+
+    const it = result.iter({
+      utid: NUM,
+      upid: NUM_NULL,
+      tid: NUM_NULL,
+      pid: NUM_NULL,
+      threadName: STR_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const utid = it.utid;
+      const upid = it.upid;
+      const tid = it.tid;
+      const threadName = it.threadName;
+      const displayName =
+          getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
+
+      ctx.registerStaticTrack({
+        uri: `perfetto.ThreadState#${upid}.${utid}`,
+        displayName,
+        kind: THREAD_STATE_TRACK_KIND,
+        utid: utid,
+        track: ({trackKey}) => {
+          return new TrackWithControllerAdapter<Config, Data>(
+              ctx.engine,
+              trackKey,
+              {utid},
+              ThreadStateTrack,
+              ThreadStateTrackController);
+        },
+      });
+
+      ctx.registerStaticTrack({
+        uri: `perfetto.ThreadState#${utid}.v2`,
+        displayName,
+        kind: THREAD_STATE_TRACK_V2_KIND,
+        utid,
+        track: ({trackKey}) => {
+          return new ThreadStateTrackV2(
+              {
+                engine: ctx.engine,
+                trackKey,
+              },
+              utid);
+        },
+      });
+    }
+  }
 }
 
-export const plugin = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.ThreadState',
-  activate,
+  plugin: ThreadState,
 };

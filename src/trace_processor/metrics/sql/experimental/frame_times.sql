@@ -14,13 +14,13 @@
 -- limitations under the License.
 
 DROP VIEW IF EXISTS InteractionEvents;
-CREATE VIEW InteractionEvents AS
+CREATE PERFETTO VIEW InteractionEvents AS
 SELECT
   ts, dur, ts AS ts_ir, dur AS dur_ir
 FROM slice WHERE name GLOB 'Interaction.*';
 
 DROP VIEW IF EXISTS GestureLegacyEvents;
-CREATE VIEW GestureLegacyEvents AS
+CREATE PERFETTO VIEW GestureLegacyEvents AS
 SELECT
   ts,
   EXTRACT_ARG(arg_set_id, 'legacy_event.phase') AS phase
@@ -29,7 +29,7 @@ WHERE EXTRACT_ARG(arg_set_id, 'legacy_event.name') = 'SyntheticGestureController
 
 -- Convert pairs of 'S' and 'F' events into slices with ts and dur.
 DROP VIEW IF EXISTS GestureEvents;
-CREATE VIEW GestureEvents AS
+CREATE PERFETTO VIEW GestureEvents AS
 SELECT
   ts, dur, ts AS ts_ge, dur AS dur_ge
 FROM (
@@ -51,7 +51,7 @@ USING SPAN_LEFT_JOIN(InteractionEvents, GestureEvents);
 -- 2) Else, interaction's range.
 
 DROP VIEW IF EXISTS InterestingSegments;
-CREATE VIEW InterestingSegments AS
+CREATE PERFETTO VIEW InterestingSegments AS
 SELECT  -- 1) Gestures overlapping interactions.
   ts_ge AS ts,
   dur_ge AS dur
@@ -104,7 +104,7 @@ WHERE name = 'Display::FrameDisplayed'
 GROUP BY ts;
 
 DROP VIEW IF EXISTS FrameSegments;
-CREATE VIEW FrameSegments AS
+CREATE PERFETTO VIEW FrameSegments AS
 SELECT
   ts,
   LEAD(ts) OVER wnd - ts AS dur,
@@ -119,7 +119,7 @@ CREATE VIRTUAL TABLE FrameSegmentsJoinInterestingSegments USING
 SPAN_JOIN(FrameSegments, InterestingSegments);
 
 DROP VIEW IF EXISTS FrameTimes;
-CREATE VIEW FrameTimes AS
+CREATE PERFETTO VIEW FrameTimes AS
 SELECT dur / 1e6 AS dur_ms, exp
 FROM FrameSegmentsJoinInterestingSegments
 WHERE ts = ts_fs AND dur = dur_fs;
@@ -128,12 +128,12 @@ WHERE ts = ts_fs AND dur = dur_fs;
 -- Determine frame rate
 
 DROP VIEW IF EXISTS RefreshPeriodAndroid;
-CREATE VIEW RefreshPeriodAndroid AS
+CREATE PERFETTO VIEW RefreshPeriodAndroid AS
 -- Not implemented yet.
 SELECT NULL AS interval_ms;
 
 DROP VIEW IF EXISTS RefreshPeriodNonAndroid;
-CREATE VIEW RefreshPeriodNonAndroid AS
+CREATE PERFETTO VIEW RefreshPeriodNonAndroid AS
 SELECT EXTRACT_ARG(arg_set_id, 'debug.args.interval_us') / 1e3 AS interval_ms
 FROM slice
 JOIN thread_track ON (slice.track_id = thread_track.id)
@@ -142,11 +142,11 @@ WHERE thread.name = 'Compositor' AND slice.name = 'Scheduler::BeginFrame'
 LIMIT 1;
 
 DROP VIEW IF EXISTS RefreshPeriodDefault;
-CREATE VIEW RefreshPeriodDefault AS
+CREATE PERFETTO VIEW RefreshPeriodDefault AS
 SELECT 1000.0 / 60 AS interval_ms;
 
 DROP TABLE IF EXISTS RefreshPeriod;
-CREATE TABLE RefreshPeriod AS
+CREATE PERFETTO TABLE RefreshPeriod AS
 SELECT COALESCE(
   (SELECT interval_ms FROM RefreshPeriodAndroid),
   (SELECT interval_ms FROM RefreshPeriodNonAndroid),
@@ -157,7 +157,7 @@ SELECT COALESCE(
 -- Compute average FPS
 
 DROP VIEW IF EXISTS ValidFrameTimes;
-CREATE VIEW ValidFrameTimes AS
+CREATE PERFETTO VIEW ValidFrameTimes AS
 SELECT
   dur_ms / (SELECT interval_ms FROM RefreshPeriod) AS length,
   exp
@@ -165,7 +165,7 @@ FROM FrameTimes
 WHERE dur_ms / (SELECT interval_ms FROM RefreshPeriod) >= 0.5;
 
 DROP VIEW IF EXISTS AvgSurfaceFps;
-CREATE VIEW AvgSurfaceFps AS
+CREATE PERFETTO VIEW AvgSurfaceFps AS
 SELECT
   exp,
   1e3 * COUNT(*) / (SELECT SUM(dur_ms) FROM FrameTimes WHERE exp = valid.exp) AS fps
@@ -173,7 +173,7 @@ FROM ValidFrameTimes valid
 GROUP BY exp;
 
 DROP VIEW IF EXISTS frame_times_output;
-CREATE VIEW frame_times_output AS
+CREATE PERFETTO VIEW frame_times_output AS
 SELECT FrameTimes(
   'frame_time', (SELECT RepeatedField(dur_ms) FROM FrameTimes WHERE NOT exp),
   'exp_frame_time', (SELECT RepeatedField(dur_ms) FROM FrameTimes WHERE exp),

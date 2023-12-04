@@ -18,7 +18,7 @@
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_EXPERIMENTAL_FLAMEGRAPH_H_
 
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/flamegraph_construction_algorithms.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
 namespace perfetto {
@@ -26,7 +26,7 @@ namespace trace_processor {
 
 class TraceProcessorContext;
 
-class ExperimentalFlamegraph : public TableFunction {
+class ExperimentalFlamegraph : public StaticTableFunction {
  public:
   enum class ProfileType { kGraph, kHeapProfile, kPerf };
 

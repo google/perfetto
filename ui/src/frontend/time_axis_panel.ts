@@ -15,14 +15,11 @@
 import m from 'mithril';
 
 import {
-  Timecode,
-  TimestampFormat,
-  timestampFormat,
-  timestampOffset,
-  toDomainTime,
-  TPTime,
-  tpTimeToSeconds,
-} from '../common/time';
+  Time,
+  time,
+  toISODateOnly,
+} from '../base/time';
+import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -45,11 +42,22 @@ export class TimeAxisPanel extends Panel {
     ctx.textAlign = 'left';
     ctx.font = '11px Roboto Condensed';
 
-    const offset = timestampOffset();
-    // If our timecode domain has an offset, print this offset
-    if (offset != 0n) {
-      const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
-      ctx.fillText('+', 6 + width + 2, 10, 6);
+    const offset = globals.timestampOffset();
+    switch (timestampFormat()) {
+      case TimestampFormat.Raw:
+      case TimestampFormat.RawLocale:
+        break;
+      case TimestampFormat.Seconds:
+      case TimestampFormat.Timecode:
+        const width = renderTimestamp(ctx, offset, 6, 10, MIN_PX_PER_STEP);
+        ctx.fillText('+', 6 + width + 2, 10, 6);
+        break;
+      case TimestampFormat.UTC:
+        const offsetDate =
+            Time.toDate(globals.utcOffset, globals.realtimeOffset);
+        const dateStr = toISODateOnly(offsetDate);
+        ctx.fillText(`UTC ${dateStr}`, 6, 10);
+        break;
     }
 
     ctx.save();
@@ -63,13 +71,12 @@ export class TimeAxisPanel extends Panel {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
 
-      const offset = timestampOffset();
       const tickGen = new TickGenerator(span, maxMajorTicks, offset);
       for (const {type, time} of tickGen) {
         if (type === TickType.MAJOR) {
-          const position = Math.floor(map.tpTimeToPx(time));
+          const position = Math.floor(map.timeToPx(time));
           ctx.fillRect(position, 0, 1, size.height);
-          const domainTime = toDomainTime(time);
+          const domainTime = globals.toDomainTime(time);
           renderTimestamp(ctx, domainTime, position + 5, 10, MIN_PX_PER_STEP);
         }
       }
@@ -81,13 +88,14 @@ export class TimeAxisPanel extends Panel {
 
 function renderTimestamp(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
 ) {
   const fmt = timestampFormat();
   switch (fmt) {
+    case TimestampFormat.UTC:
     case TimestampFormat.Timecode:
       return renderTimecode(ctx, time, x, y, minWidth);
     case TimestampFormat.Raw:
@@ -95,8 +103,7 @@ function renderTimestamp(
     case TimestampFormat.RawLocale:
       return renderRawTimestamp(ctx, time.toLocaleString(), x, y, minWidth);
     case TimestampFormat.Seconds:
-      return renderRawTimestamp(
-          ctx, tpTimeToSeconds(time).toString() + ' s', x, y, minWidth);
+      return renderRawTimestamp(ctx, Time.formatSeconds(time), x, y, minWidth);
     default:
       const z: never = fmt;
       throw new Error(`Invalid timestamp ${z}`);
@@ -122,12 +129,12 @@ function renderRawTimestamp(
 // Returns the resultant width of the timecode.
 function renderTimecode(
     ctx: CanvasRenderingContext2D,
-    time: TPTime,
+    time: time,
     x: number,
     y: number,
     minWidth: number,
     ): number {
-  const timecode = new Timecode(time);
+  const timecode = Time.toTimecode(time);
   ctx.font = '11px Roboto Condensed';
 
   const {dhhmmss} = timecode;

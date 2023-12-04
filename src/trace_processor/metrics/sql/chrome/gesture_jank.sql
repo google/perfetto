@@ -30,14 +30,14 @@
 -- Note: In traces without the "Java" category there will be no VSync
 --       TraceEvents and this table will be empty.
 
-SELECT RUN_METRIC('chrome/jank_utilities.sql');
-SELECT RUN_METRIC('chrome/vsync_intervals.sql');
+INCLUDE PERFETTO MODULE chrome.scroll_jank.utils;
+INCLUDE PERFETTO MODULE chrome.vsync_intervals;
 
 -- Get all the "begin" and "end" events. We take their IDs to group them
 -- together into gestures later and the timestamp and duration to compute the
 -- duration of the gesture.
 DROP VIEW IF EXISTS {{prefix}}_begin_and_end;
-CREATE VIEW {{prefix}}_begin_and_end AS
+CREATE PERFETTO VIEW {{prefix}}_begin_and_end AS
 SELECT
   slice.name,
   slice.id,
@@ -63,7 +63,7 @@ ORDER BY ts;
 -- TraceEvent we just fall back on assuming its 60 FPS (this is the 1.6e+7 in
 -- the COALESCE which corresponds to 16 ms or 60 FPS).
 DROP VIEW IF EXISTS joined_{{prefix}}_begin_and_end;
-CREATE VIEW joined_{{prefix}}_begin_and_end AS
+CREATE PERFETTO VIEW joined_{{prefix}}_begin_and_end AS
 SELECT
   begin.id AS begin_id,
   begin.ts AS begin_ts,
@@ -75,7 +75,7 @@ SELECT
   end.ts AS end_ts,
   end.ts + end.dur AS end_ts_and_dur,
   end.trace_id AS end_trace_id,
-  CalculateAvgVsyncInterval(begin.ts, end.ts) AS avg_vsync_interval
+  chrome_calculate_avg_vsync_interval(begin.ts, end.ts) AS avg_vsync_interval
 FROM {{prefix}}_begin_and_end begin JOIN {{prefix}}_begin_and_end end ON
     begin.trace_id < end.trace_id
     AND begin.name = 'InputLatency::{{gesture_start}}'
@@ -97,7 +97,7 @@ ORDER BY begin.ts;
 -- Prepare all gesture updates that were not coalesced to be joined with their
 -- respective scrolls to calculate jank
 DROP VIEW IF EXISTS gesture_update;
-CREATE VIEW gesture_update AS
+CREATE PERFETTO VIEW gesture_update AS
 SELECT
   EXTRACT_ARG(arg_set_id, "chrome_latency_info.trace_id") AS trace_id,
   EXTRACT_ARG(arg_set_id, 'chrome_latency_info.{{id_field}}')
@@ -130,7 +130,7 @@ WHERE
 -- and can't reasonably determine what it should be. We have separate tracking
 -- to ensure this only happens at the end of the trace where its expected.
 DROP VIEW IF EXISTS {{id_field}}_update;
-CREATE VIEW {{id_field}}_update AS
+CREATE PERFETTO VIEW {{id_field}}_update AS
 SELECT
   begin_id,
   begin_ts,
@@ -201,15 +201,15 @@ ORDER BY {{id_field}} ASC, ts ASC;
 -- rate more than 1 FPS (and therefore VSync interval less than a second), this
 -- ratio should increase with increments more than minimal value in numerator
 -- (1ns) divided by maximum value in denominator, giving 1e-9.
--- Note: Logic is inside the IsJankyFrame function found in jank_utilities.sql.
+-- Note: Logic is inside the is_janky_frame function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank_maybe_null_prev_and_next;
-CREATE VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
+CREATE PERFETTO VIEW {{prefix}}_jank_maybe_null_prev_and_next AS
 SELECT
   *,
-  IsJankyFrame({{id_field}}, prev_{{id_field}},
+  internal_is_janky_frame({{id_field}}, prev_{{id_field}},
     prev_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, prev_gesture_frames_exact) AS prev_jank,
-  IsJankyFrame({{id_field}}, next_{{id_field}},
+  internal_is_janky_frame({{id_field}}, next_{{id_field}},
     next_ts, begin_ts, maybe_gesture_end,
     gesture_frames_exact, next_gesture_frames_exact) AS next_jank
 FROM {{prefix}}_jank_maybe_null_prev_and_next_without_precompute
@@ -218,29 +218,29 @@ ORDER BY {{id_field}} ASC, ts ASC;
 -- This just uses prev_jank and next_jank to see if each "update" event is a
 -- jank.
 --
--- JankBudget is the time in ns that we need to reduce the current
+-- jank_budget is the time in ns that we need to reduce the current
 -- gesture (|id|) for this frame not to be considered janky (i.e., how much
--- faster for IsJankyFrame() to have not returned true).
+-- faster for is_janky_frame() to have not returned true).
 --
--- For JankBudget we use the frames_exact of current, previous and next to find
+-- For jank_budget we use the frames_exact of current, previous and next to find
 -- the jank budget in exact frame count. We then multiply by avg_vsync_internal
 -- to get the jank budget time.
--- Note: Logic is inside the JankBudget function found in jank_utilities.sql.
+-- Note: Logic is inside the jank_budget function found in jank_utilities.sql.
 DROP VIEW IF EXISTS {{prefix}}_jank;
-CREATE VIEW {{prefix}}_jank AS
+CREATE PERFETTO VIEW {{prefix}}_jank AS
 SELECT
   id AS slice_id,
   (next_jank IS NOT NULL AND next_jank)
   OR (prev_jank IS NOT NULL AND prev_jank)
   AS jank,
-  JankBudget(gesture_frames_exact, prev_gesture_frames_exact,
+  internal_jank_budget(gesture_frames_exact, prev_gesture_frames_exact,
     next_gesture_frames_exact) * avg_vsync_interval AS jank_budget,
   *
 FROM {{prefix}}_jank_maybe_null_prev_and_next
 ORDER BY {{id_field}} ASC, ts ASC;
 
 DROP VIEW IF EXISTS {{prefix}}_jank_output;
-CREATE VIEW {{prefix}}_jank_output AS
+CREATE PERFETTO VIEW {{prefix}}_jank_output AS
 SELECT
   {{proto_name}}(
     '{{prefix}}_jank_percentage', (

@@ -23,8 +23,10 @@
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/ext/tracing/core/trace_writer.h"
+#include "perfetto/ext/tracing/core/tracing_service.h"
 #include "src/base/test/gtest_test_suite.h"
 #include "src/base/test/test_task_runner.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 #include "src/tracing/core/patch_list.h"
 #include "src/tracing/test/aligned_buffer_test.h"
 #include "src/tracing/test/mock_producer_endpoint.h"
@@ -42,6 +44,8 @@ using testing::Mock;
 using testing::NiceMock;
 using testing::UnorderedElementsAreArray;
 
+using ShmemMode = SharedMemoryABI::ShmemMode;
+
 class SharedMemoryArbiterImplTest : public AlignedBufferTest {
  public:
   void SetUp() override {
@@ -49,9 +53,9 @@ class SharedMemoryArbiterImplTest : public AlignedBufferTest {
         SharedMemoryArbiterImpl::default_page_layout_for_testing();
     AlignedBufferTest::SetUp();
     task_runner_.reset(new base::TestTaskRunner());
-    arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                               &mock_producer_endpoint_,
-                                               task_runner_.get()));
+    arbiter_.reset(new SharedMemoryArbiterImpl(
+        buf(), buf_size(), ShmemMode::kDefault, page_size(),
+        &mock_producer_endpoint_, task_runner_.get()));
   }
 
   bool IsArbiterFullyBound() { return arbiter_->fully_bound_; }
@@ -207,6 +211,63 @@ TEST_P(SharedMemoryArbiterImplTest, BatchCommits) {
   arbiter_->FlushPendingCommitDataRequests();
 }
 
+TEST_P(SharedMemoryArbiterImplTest, UseShmemEmulation) {
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kShmemEmulation, page_size(),
+      &mock_producer_endpoint_, task_runner_.get()));
+
+  SharedMemoryArbiterImpl::set_default_layout_for_testing(
+      SharedMemoryABI::PageLayout::kPageDiv1);
+
+  size_t page_idx;
+  size_t chunk_idx;
+  auto* abi = arbiter_->shmem_abi_for_testing();
+
+  // Test returning a completed chunk.
+  SharedMemoryABI::Chunk chunk =
+      arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  std::tie(page_idx, chunk_idx) = abi->GetPageAndChunkIndex(chunk);
+  ASSERT_TRUE(chunk.is_valid());
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _)).Times(1);
+  PatchList ignored;
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 0, &ignored);
+  task_runner_->RunUntilIdle();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+  // When running in the emulation mode, the chunk is freed when the
+  // CommitDataRequest is flushed.
+  ASSERT_EQ(
+      SharedMemoryABI::kChunkFree,
+      arbiter_->shmem_abi_for_testing()->GetChunkState(page_idx, chunk_idx));
+
+  // Direct patching is supported in the emulation mode.
+  arbiter_->SetDirectSMBPatchingSupportedByService();
+  ASSERT_TRUE(arbiter_->EnableDirectSMBPatching());
+
+  chunk = arbiter_->GetNewChunk({}, BufferExhaustedPolicy::kDefault);
+  std::tie(page_idx, chunk_idx) = abi->GetPageAndChunkIndex(chunk);
+  ASSERT_TRUE(chunk.is_valid());
+  EXPECT_CALL(mock_producer_endpoint_, CommitData(_, _))
+      .WillOnce(Invoke([&](const CommitDataRequest& req,
+                           MockProducerEndpoint::CommitDataCallback) {
+        ASSERT_EQ(1, req.chunks_to_move_size());
+
+        ASSERT_EQ(page_idx, req.chunks_to_move()[0].page());
+        ASSERT_EQ(chunk_idx, req.chunks_to_move()[0].chunk());
+        ASSERT_EQ(1u, req.chunks_to_move()[0].target_buffer());
+
+        // The request should contain chunk data.
+        ASSERT_TRUE(req.chunks_to_move()[0].has_data());
+      }));
+  chunk.SetFlag(SharedMemoryABI::ChunkHeader::kChunkNeedsPatching);
+  arbiter_->ReturnCompletedChunk(std::move(chunk), 1, &ignored);
+  task_runner_->RunUntilIdle();
+  ASSERT_TRUE(Mock::VerifyAndClearExpectations(&mock_producer_endpoint_));
+  // A chunk is freed after being flushed.
+  ASSERT_EQ(
+      SharedMemoryABI::kChunkFree,
+      arbiter_->shmem_abi_for_testing()->GetChunkState(page_idx, chunk_idx));
+}
+
 // Check that we can actually create up to kMaxWriterID TraceWriter(s).
 TEST_P(SharedMemoryArbiterImplTest, WriterIDsAllocation) {
   auto checkpoint = task_runner_->CreateCheckpoint("last_unregistered");
@@ -306,8 +367,8 @@ TEST_P(SharedMemoryArbiterImplTest, CreateUnboundAndBind) {
   auto checkpoint_flush = task_runner_->CreateCheckpoint("flush_completed");
 
   // Create an unbound arbiter and bind immediately.
-  arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                             nullptr, nullptr));
+  arbiter_.reset(new SharedMemoryArbiterImpl(
+      buf(), buf_size(), ShmemMode::kDefault, page_size(), nullptr, nullptr));
   arbiter_->BindToProducerEndpoint(&mock_producer_endpoint_,
                                    task_runner_.get());
   EXPECT_TRUE(IsArbiterFullyBound());
@@ -338,8 +399,9 @@ class SharedMemoryArbiterImplStartupTracingTest
  public:
   void SetupArbiter(InitialBindingState initial_state) {
     if (initial_state == InitialBindingState::kUnbound) {
-      arbiter_.reset(new SharedMemoryArbiterImpl(buf(), buf_size(), page_size(),
-                                                 nullptr, nullptr));
+      arbiter_.reset(
+          new SharedMemoryArbiterImpl(buf(), buf_size(), ShmemMode::kDefault,
+                                      page_size(), nullptr, nullptr));
       EXPECT_FALSE(IsArbiterFullyBound());
     } else {
       // A bound arbiter is already set up by the base class.

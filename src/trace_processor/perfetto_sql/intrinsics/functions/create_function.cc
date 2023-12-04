@@ -72,9 +72,13 @@ base::Status CreateFunction::Run(PerfettoSqlEngine* engine,
   std::string prototype_str = extract_string(prototype_value).ToStdString();
   std::string return_type_str = extract_string(return_type_value).ToStdString();
   std::string sql_defn_str = extract_string(sql_defn_value).ToStdString();
-  return engine->RegisterSqlFunction(
-      prototype_str, return_type_str,
-      SqlSource::FromFunction(std::move(sql_defn_str), prototype_str));
+
+  FunctionPrototype prototype;
+  RETURN_IF_ERROR(ParsePrototype(base::StringView(prototype_str), prototype));
+
+  return engine->RegisterRuntimeFunction(
+      false, prototype, return_type_str,
+      SqlSource::FromTraceProcessorImplementation(std::move(sql_defn_str)));
 }
 
 base::Status ExperimentalMemoize::Run(PerfettoSqlEngine* engine,

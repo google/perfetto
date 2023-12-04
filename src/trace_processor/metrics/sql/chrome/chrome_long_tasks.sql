@@ -17,45 +17,53 @@
 --          active development and the values & meaning might change without
 --          notice.
 
-SELECT IMPORT("chrome.tasks");
+INCLUDE PERFETTO MODULE chrome.tasks;
 
 -- Extract mojo information for the long-task-tracking scenario for specific
 -- names. For example, LongTaskTracker slices may have associated IPC
 -- metadata, or InterestingTask slices for input may have associated IPC to
 -- determine whether the task is fling/etc.
-SELECT CREATE_VIEW_FUNCTION(
-  'SELECT_LONG_TASK_SLICES(name STRING)',
-  'interface_name STRING, ipc_hash INT, message_type STRING, id INT, task_name STRING',
-  '
-    WITH slices_with_mojo_data AS (
-      SELECT
-          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.mojo_interface_tag") AS interface_name,
-          EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.ipc_hash") AS ipc_hash,
-          CASE
-            WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
-            ELSE "message"
-          END AS message_type,
-          id
-      FROM slice
-      WHERE
-        category GLOB "*scheduler.long_tasks*"
-        AND name = $name
-    )
-    SELECT
-      *,
-      printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
-    FROM slices_with_mojo_data;
-  '
-);
+CREATE OR REPLACE PERFETTO FUNCTION select_long_task_slices(name STRING)
+RETURNS TABLE(
+  interface_name STRING,
+  ipc_hash INT,
+  message_type STRING,
+  id INT,
+  task_name STRING)
+AS
+WITH slices_with_mojo_data AS (
+  SELECT
+      EXTRACT_ARG(
+        arg_set_id,
+        "chrome_mojo_event_info.mojo_interface_tag"
+      ) AS interface_name,
+      EXTRACT_ARG(
+        arg_set_id,
+        "chrome_mojo_event_info.ipc_hash"
+      ) AS ipc_hash,
+      CASE
+        WHEN EXTRACT_ARG(arg_set_id, "chrome_mojo_event_info.is_reply") THEN "reply"
+        ELSE "message"
+      END AS message_type,
+      id
+  FROM slice
+  WHERE
+    category GLOB "*scheduler.long_tasks*"
+    AND name = $name
+)
+SELECT
+  *,
+  printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
+FROM slices_with_mojo_data;
 
-CREATE PERFETTO FUNCTION IS_LONG_CHOREOGRAPHER_TASK(dur LONG)
+CREATE PERFETTO FUNCTION is_long_choreographer_task(dur LONG)
 RETURNS BOOL AS
 SELECT $dur >= 4 * 1e6;
 
 -- Note that not all slices will be mojo slices; filter on interface_name IS
 -- NOT NULL for mojo slices specifically.
 DROP TABLE IF EXISTS long_tasks_extracted_slices;
-CREATE TABLE long_tasks_extracted_slices AS
+CREATE PERFETTO TABLE long_tasks_extracted_slices AS
 SELECT * FROM SELECT_LONG_TASK_SLICES(/*name*/'LongTaskTracker');
 
 -- Create |long_tasks_internal_tbl| table, which gathers all of the
@@ -64,7 +72,7 @@ SELECT * FROM SELECT_LONG_TASK_SLICES(/*name*/'LongTaskTracker');
 -- have nested descendants, LongTaskTracker slices will store all of
 -- the relevant information within the single slice.
 DROP TABLE IF EXISTS long_tasks_internal_tbl;
-CREATE TABLE long_tasks_internal_tbl AS
+CREATE PERFETTO TABLE long_tasks_internal_tbl AS
 WITH
   raw_extracted_values AS (
     SELECT
@@ -72,7 +80,7 @@ WITH
       mojo.interface_name,
       mojo.ipc_hash,
       mojo.message_type,
-      INTERNAL_GET_POSTED_FROM(s.arg_set_id) as posted_from
+      internal_get_posted_from(s.arg_set_id) as posted_from
     FROM long_tasks_extracted_slices mojo
     JOIN slice s ON mojo.id = s.id
   )
@@ -82,7 +90,7 @@ SELECT
     WHEN interface_name IS NOT NULL
       THEN printf('%s %s (hash=%d)', interface_name, message_type, ipc_hash)
     ELSE
-      INTERNAL_FORMAT_SCHEDULER_TASK_NAME(posted_from)
+      internal_format_scheduler_task_name(posted_from)
     END AS full_name,
   interface_name IS NOT NULL AS is_mojo
 FROM raw_extracted_values;
@@ -92,7 +100,7 @@ FROM raw_extracted_values;
 -- chrome_slices_with_java_views_internal, differing only in how a
 -- descendent is calculated.
 DROP VIEW IF EXISTS long_task_slices_with_java_views;
-CREATE VIEW long_task_slices_with_java_views AS
+CREATE PERFETTO VIEW long_task_slices_with_java_views AS
 WITH
   -- Select UI thread BeginMainFrames frames.
   root_slices AS (
@@ -101,7 +109,7 @@ WITH
     UNION ALL
     SELECT id, "Choreographer" as kind, ts, dur, name
     FROM slice
-    WHERE IS_LONG_CHOREOGRAPHER_TASK(dur)
+    WHERE is_long_choreographer_task(dur)
       AND name GLOB "Looper.dispatch: android.view.Choreographer$FrameHandler*"
   ),
   -- Intermediate step to allow us to sort java view names.
@@ -123,12 +131,12 @@ LEFT JOIN root_slice_and_java_view_not_grouped s2
 GROUP BY s1.id;
 
 DROP VIEW IF EXISTS chrome_long_tasks_internal;
-CREATE VIEW chrome_long_tasks_internal AS
+CREATE PERFETTO VIEW chrome_long_tasks_internal AS
 WITH -- Generate full names for tasks with java views.
   java_views_tasks AS (
     SELECT
       printf('%s(java_views=%s)', kind, java_views) as full_name,
-      INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+      internal_get_java_views_task_type(kind) AS task_type,
       id
     FROM long_task_slices_with_java_views
     WHERE kind = "SingleThreadProxy::BeginMainFrame"
@@ -146,12 +154,12 @@ WITH -- Generate full names for tasks with java views.
       -- NOTE: unless Navigation category is enabled and recorded on the same
       -- track as the LongTaskTracker slice, frame type will always be unknown.
       printf('%s (%s)',
-        INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name),
-        IFNULL(INTERNAL_EXTRACT_FRAME_TYPE(id), 'unknown frame type')) AS full_name,
+        internal_human_readable_navigation_task_name(full_name),
+        IFNULL(internal_extract_frame_type(id), 'unknown frame type')) AS full_name,
       'navigation_task' AS task_type,
       id
     FROM scheduler_tasks_with_mojo
-    WHERE INTERNAL_HUMAN_READABLE_NAVIGATION_TASK_NAME(full_name) IS NOT NULL
+    WHERE internal_human_readable_navigation_task_name(full_name) IS NOT NULL
   )
 SELECT
   COALESCE(s4.full_name, s3.full_name, s2.full_name, s1.full_name) AS full_name,
@@ -166,13 +174,13 @@ UNION ALL
 -- LongTaskTracker slice, so join them separately.
 SELECT
   printf('%s(java_views=%s)', kind, java_views) as full_name,
-  INTERNAL_GET_JAVA_VIEWS_TASK_TYPE(kind) AS task_type,
+  internal_get_java_views_task_type(kind) AS task_type,
   id
 FROM long_task_slices_with_java_views
 WHERE kind = "Choreographer";
 
 DROP VIEW IF EXISTS chrome_long_tasks;
-CREATE VIEW chrome_long_tasks AS
+CREATE PERFETTO VIEW chrome_long_tasks AS
 SELECT
   full_name,
   task_type,

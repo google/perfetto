@@ -17,7 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_CONNECTED_FLOW_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_INTRINSICS_TABLE_FUNCTIONS_CONNECTED_FLOW_H_
 
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/tables_py.h"
 #include "src/trace_processor/storage/trace_storage.h"
 
@@ -33,7 +33,7 @@ class TraceProcessorContext;
 // - DIRECTLY_CONNECTED_FLOW
 // - PRECEDING_FLOW
 // - FOLLOWING_FLOW
-class ConnectedFlow : public TableFunction {
+class ConnectedFlow : public StaticTableFunction {
  public:
   enum class Mode {
     // Directly connected slices through the same flow ID given by the trace

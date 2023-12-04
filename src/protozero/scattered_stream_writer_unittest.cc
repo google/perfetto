@@ -107,5 +107,27 @@ TEST(ScatteredStreamWriterTest, ScatteredWrites) {
   EXPECT_EQ(0x52u, other_buffer[3]);
 }
 
+TEST(ScatteredStreamWriterTest, Rewind) {
+  FakeScatteredBuffer delegate(kChunkSize);
+  ScatteredStreamWriter ssw(&delegate);
+  const uint8_t kTestBytes[] = {0x01, 0x02, 0x03, 0x04};
+
+  ssw.WriteBytes(kTestBytes, sizeof(kTestBytes));
+  EXPECT_EQ("0102030400000000", delegate.GetChunkAsString(0));
+  EXPECT_EQ(ssw.write_ptr(), ssw.cur_range().begin + 4u);
+
+  ssw.Rewind(3, 1);
+  EXPECT_EQ(ssw.write_ptr(), ssw.cur_range().begin + 3u);
+  EXPECT_EQ("0203040400000000", delegate.GetChunkAsString(0));
+
+  ssw.Rewind(1, 2);
+  EXPECT_EQ(ssw.write_ptr(), ssw.cur_range().begin + 1u);
+  EXPECT_EQ("0403040400000000", delegate.GetChunkAsString(0));
+
+  ssw.Rewind(1, 0);
+  EXPECT_EQ(ssw.write_ptr(), ssw.cur_range().begin + 1u);
+  EXPECT_EQ("0403040400000000", delegate.GetChunkAsString(0));
+}
+
 }  // namespace
 }  // namespace protozero

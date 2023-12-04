@@ -31,6 +31,7 @@
 #include "perfetto/ext/base/thread_annotations.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/slice.h"
 #include "perfetto/ext/tracing/core/trace_stats.h"
 #include "src/tracing/core/histogram.h"
@@ -159,9 +160,11 @@ class TraceBuffer {
   // Identifiers that are constant for a packet sequence.
   struct PacketSequenceProperties {
     ProducerID producer_id_trusted;
-    uid_t producer_uid_trusted;
-    pid_t producer_pid_trusted;
+    ClientIdentity client_identity_trusted;
     WriterID writer_id;
+
+    uid_t producer_uid_trusted() const { return client_identity_trusted.uid(); }
+    pid_t producer_pid_trusted() const { return client_identity_trusted.pid(); }
   };
 
   // Holds the "used chunk" stats for each <Producer, Writer> tuple.
@@ -204,8 +207,8 @@ class TraceBuffer {
   //
   // TODO(eseckler): Pass in a PacketStreamProperties instead of individual IDs.
   void CopyChunkUntrusted(ProducerID producer_id_trusted,
-                          uid_t producer_uid_trusted,
-                          pid_t producer_pid_trusted,
+                          const ClientIdentity& client_identity_trusted,
+
                           WriterID writer_id,
                           ChunkID chunk_id,
                           uint16_t num_fragments,
@@ -213,6 +216,7 @@ class TraceBuffer {
                           bool chunk_complete,
                           const uint8_t* src,
                           size_t size);
+
   // Applies a batch of |patches| to the given chunk, if the given chunk is
   // still in the buffer. Does nothing if the given ChunkID is gone.
   // Returns true if the chunk has been found and patched, false otherwise.
@@ -281,9 +285,13 @@ class TraceBuffer {
   // TraceBuffer will CHECK().
   std::unique_ptr<TraceBuffer> CloneReadOnly() const;
 
+  void set_read_only() { read_only_ = true; }
   const WriterStatsMap& writer_stats() const { return writer_stats_; }
   const TraceStats::BufferStats& stats() const { return stats_; }
   size_t size() const { return size_; }
+  size_t used_size() const { return used_size_; }
+  OverwritePolicy overwrite_policy() const { return overwrite_policy_; }
+  bool has_data() const { return has_data_; }
 
  private:
   friend class TraceBufferTest;
@@ -334,6 +342,8 @@ class TraceBuffer {
     uint16_t size;
 
     uint8_t flags : 6;  // See SharedMemoryABI::ChunkHeader::flags.
+    static constexpr size_t kFlagsBitMask = (1 << 6) - 1;
+
     uint8_t is_padding : 1;
     uint8_t unused_flag : 1;
 
@@ -407,11 +417,9 @@ class TraceBuffer {
               uint16_t _num_fragments,
               bool complete,
               uint8_t _flags,
-              uid_t _trusted_uid,
-              pid_t _trusted_pid)
+              const ClientIdentity& client_identity)
         : record_off{_record_off},
-          trusted_uid{_trusted_uid},
-          trusted_pid(_trusted_pid),
+          client_identity_trusted(client_identity),
           flags{_flags},
           num_fragments{_num_fragments} {
       if (complete)
@@ -443,9 +451,7 @@ class TraceBuffer {
     }
 
     const uint32_t record_off;  // Offset of ChunkRecord within |data_|.
-    const uid_t trusted_uid;    // uid of the producer.
-    const pid_t trusted_pid;    // pid of the producer.
-
+    const ClientIdentity client_identity_trusted;
     // Flags set by TraceBuffer to track the state of the chunk in the index.
     uint8_t index_flags = 0;
 
@@ -609,9 +615,14 @@ class TraceBuffer {
   ChunkRecord* GetChunkRecordAt(uint8_t* ptr) {
     DcheckIsAlignedAndWithinBounds(ptr);
     // We may be accessing a new (empty) record.
-    data_.EnsureCommitted(
-        static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
+    EnsureCommitted(static_cast<size_t>(ptr + sizeof(ChunkRecord) - begin()));
     return reinterpret_cast<ChunkRecord*>(ptr);
+  }
+
+  void EnsureCommitted(size_t size) {
+    PERFETTO_DCHECK(size <= size_);
+    data_.EnsureCommitted(size);
+    used_size_ = std::max(used_size_, size);
   }
 
   void DiscardWrite();
@@ -635,7 +646,7 @@ class TraceBuffer {
     DcheckIsAlignedAndWithinBounds(wptr);
 
     // We may be writing to this area for the first time.
-    data_.EnsureCommitted(static_cast<size_t>(wptr + record.size - begin()));
+    EnsureCommitted(static_cast<size_t>(wptr + record.size - begin()));
 
     // Deliberately not a *D*CHECK.
     PERFETTO_CHECK(wptr + sizeof(record) + size <= end());
@@ -672,6 +683,12 @@ class TraceBuffer {
 
   base::PagedMemory data_;
   size_t size_ = 0;            // Size in bytes of |data_|.
+
+  // High watermark. The number of bytes (<= |size_|) written into the buffer
+  // before the first wraparound. This increases as data is written into the
+  // buffer and then saturates at |size_|. Used for CloneReadOnly().
+  size_t used_size_ = 0;
+
   size_t max_chunk_size_ = 0;  // Max size in bytes allowed for a chunk.
   uint8_t* wptr_ = nullptr;    // Write pointer.
 
@@ -708,6 +725,11 @@ class TraceBuffer {
 
   // Per-{Producer, Writer} statistics.
   WriterStatsMap writer_stats_;
+
+  // Set to true upon the very first call to CopyChunkUntrusted() and never
+  // cleared. This is used to tell if the buffer has never been used since its
+  // creation (which in turn is used to optimize `clear_before_clone`).
+  bool has_data_ = false;
 
 #if PERFETTO_DCHECK_IS_ON()
   bool changed_since_last_read_ = false;

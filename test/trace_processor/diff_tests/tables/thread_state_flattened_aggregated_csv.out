@@ -1,0 +1,55 @@
+"slice_id","slice_name","Uninterruptible_Sleep_nonIO","Uninterruptible_Sleep_IO","Runnable","Sleeping","Stopped","Traced","Exit_Dead","Exit_Zombie","Task_Dead","Wake_Kill","Waking","Parked","No_Load","Runnable_Preempted","Running","Idle","dur","depth"
+11155,"android.view.Choreographer$FrameHandler: android.view.Choreographer$FrameDisplayEventReceiver","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",15728,"[NULL]",15728,0
+11156,"Choreographer#doFrame 10831","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",31280,"[NULL]",31280,1
+11158,"animation","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",74845,"[NULL]",74845,2
+11159,"ShadeListBuilder.buildList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",239109,"[NULL]",239109,3
+11160,"ShadeListBuilder.filterNotifs","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",11966,"[NULL]",11966,4
+11161,"ShadeListBuilder.groupNotifs","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",3080,"[NULL]",3080,4
+11162,"ShadeListBuilder.pruneIncompleteGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",25794,"[NULL]",25794,4
+11163,"ShadeListBuilder.dispatchOnBeforeTransformGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",31921,"[NULL]",31921,4
+11164,"ShadeListBuilder.promoteNotifs","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",2000,"[NULL]",2000,4
+11165,"ShadeListBuilder.pruneIncompleteGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",2867,"[NULL]",2867,4
+11166,"ShadeListBuilder.dispatchOnBeforeSort","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",2397,"[NULL]",2397,4
+11167,"ShadeListBuilder.assignSections","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",2257,"[NULL]",2257,4
+11168,"ShadeListBuilder.notifySectionEntriesUpdated","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",201950,"[NULL]",201950,4
+11171,"Choreographer#scheduleVsyncLocked","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",11216,"[NULL]",11216,5
+11172,"AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppClient","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",24872,"[NULL]",24872,6
+11175,"ShadeListBuilder.sortListAndGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",23215,"[NULL]",23215,4
+11177,"ShadeListBuilder.dispatchOnBeforeFinalizeFilter","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",102928,"[NULL]",102928,4
+11180,"ShadeListBuilder.filterNotifs","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",3361,"[NULL]",3361,4
+11181,"ShadeListBuilder.pruneIncompleteGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",4862,"[NULL]",4862,4
+11182,"ShadeListBuilder.logChanges","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",8882,"[NULL]",8882,4
+11183,"ShadeListBuilder.freeEmptyGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",17089,"[NULL]",17089,4
+11184,"ShadeListBuilder.cleanupPluggables","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",33465,"[NULL]",33465,4
+11185,"ShadeListBuilder.dispatchOnBeforeRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",214867,"[NULL]",214867,4
+11186,"ShadeListBuilder.onRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",24558,"[NULL]",24558,4
+11187,"RenderStageManager.onRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",60009,"[NULL]",60009,5
+11188,"ShadeViewManager.onRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",29508,"[NULL]",29508,6
+11189,"NodeSpecBuilder.buildNodeSpec","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",57434,"[NULL]",57434,7
+11190,"ShadeViewDiffer.applySpec","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",284569,2382651,"[NULL]",2667220,7
+11191,"Defining Lcom/android/systemui/statusbar/notification/collection/render/ShadeViewDifferLogger$logDetachingChild$2;","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",108424,"[NULL]",108424,8
+11192,"binder transaction","[NULL]","[NULL]",25131,311364,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",33158,"[NULL]",369653,8
+11195,"Defining Lcom/android/systemui/statusbar/notification/row/wrapper/NotificationTemplateViewWrapper$2$$ExternalSyntheticLambda0;","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",82320,"[NULL]",82320,8
+11203,"NSSLC.updateShowEmptyShadeView","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",87035,"[NULL]",87035,8
+11206,"RenderStageManager.dispatchOnAfterRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",49003,"[NULL]",49003,6
+11207,"NotifLiveDataStore.setActiveNotifList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",105577,"[NULL]",105577,7
+11208,"NotifLiveData(hasActiveNotifs).dispatchToSyncObservers","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",57076,"[NULL]",57076,8
+11209,"StackCoordinator.onAfterRenderList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",69084,"[NULL]",69084,7
+11210,"NSSLC.updateFooter","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",685660,"[NULL]",685660,8
+11211,"NSSLC.updateShowEmptyShadeView","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",248061,"[NULL]",248061,8
+11212,"NotificationIconAreaController.updateNotificationIcons","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",768503,"[NULL]",768503,8
+11214,"Defining Lcom/android/systemui/statusbar/phone/NotificationIconContainer$$ExternalSyntheticLambda0;","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",74629,"[NULL]",74629,9
+11219,"RenderStageManager.dispatchOnAfterRenderGroups","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",20355,"[NULL]",20355,6
+11220,"RenderStageManager.dispatchOnAfterRenderEntries","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",3565,"[NULL]",3565,6
+11221,"ShadeListBuilder.logEndBuildList","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",40367,81151,"[NULL]",121518,4
+11223,"traversal","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",688007,"[NULL]",688007,2
+11224,"measure","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",11410,"[NULL]",11410,3
+11225,"NotificationShadeWindowView#onMeasure","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",470142,"[NULL]",470142,4
+11226,"NotificationStackScrollLayout#onMeasure","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",141670,"[NULL]",141670,5
+11227,"NotificationStackScrollLayout#onMeasure","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",12506,"[NULL]",12506,5
+11228,"layout","[NULL]","[NULL]",6177,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",2622099,"[NULL]",2628276,3
+11241,"measure","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",402484,"[NULL]",402484,3
+11242,"layout","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",317593,"[NULL]",317593,3
+11243,"draw","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",26905,"[NULL]",26905,3
+11244,"Record View#draw()","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",172280,"[NULL]",172280,4
+11245,"postAndWait","[NULL]","[NULL]",25748,147072,"[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]","[NULL]",31682,"[NULL]",204502,4

@@ -16,14 +16,14 @@
 
 -- View of Power Rail counters with ts converted from ns to ms.
 DROP VIEW IF EXISTS power_rails_counters;
-CREATE VIEW power_rails_counters AS
+CREATE PERFETTO VIEW power_rails_counters AS
 SELECT value, ts / 1000000 AS ts, name
 FROM counter c
 JOIN counter_track t ON c.track_id = t.id
 WHERE name GLOB 'power.*';
 
 DROP VIEW IF EXISTS avg_used_powers;
-CREATE VIEW avg_used_powers AS
+CREATE PERFETTO VIEW avg_used_powers AS
 SELECT
   name,
   avg_used_power,
@@ -51,7 +51,7 @@ FROM (
 ) WHERE avg_used_power IS NOT NULL;
 
 DROP VIEW IF EXISTS power_rails_view;
-CREATE VIEW power_rails_view AS
+CREATE PERFETTO VIEW power_rails_view AS
 WITH RECURSIVE name AS (SELECT DISTINCT name FROM power_rails_counters)
 SELECT
   name,
@@ -72,7 +72,7 @@ GROUP BY name
 ORDER BY ts ASC;
 
 DROP VIEW IF EXISTS android_powrails_output;
-CREATE VIEW android_powrails_output AS
+CREATE PERFETTO VIEW android_powrails_output AS
 SELECT AndroidPowerRails(
   'power_rails', (
     SELECT RepeatedField(power_rails_proto)

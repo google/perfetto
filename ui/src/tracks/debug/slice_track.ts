@@ -13,21 +13,23 @@
 // limitations under the License.
 
 import m from 'mithril';
+import {v4 as uuidv4} from 'uuid';
 
-import {Actions, DEBUG_SLICE_TRACK_KIND} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
+import {Disposable} from '../../base/disposable';
+import {Actions} from '../../common/actions';
+import {SCROLLING_TRACK_GROUP} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {
-  NamedSliceTrackTypes,
-} from '../../frontend/named_slice_track';
-import {NewTrackArgs} from '../../frontend/track';
-import {TrackButton, TrackButtonAttrs} from '../../frontend/track_panel';
+import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
+import {TrackButton} from '../../frontend/track_panel';
+import {PrimaryTrackSortKey, TrackContext} from '../../public';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
 
+import {DEBUG_SLICE_TRACK_URI} from '.';
 import {ARG_PREFIX} from './add_debug_track_menu';
 import {DebugSliceDetailsTab} from './details_tab';
 
@@ -43,24 +45,25 @@ export interface DebugTrackV2Config {
   columns: SliceColumns;
 }
 
-interface DebugTrackV2Types extends NamedSliceTrackTypes {
-  config: DebugTrackV2Config;
-}
+export class DebugTrackV2 extends
+    CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
+  private config: DebugTrackV2Config;
 
-export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
-  static readonly kind = DEBUG_SLICE_TRACK_KIND;
+  constructor(engine: EngineProxy, ctx: TrackContext) {
+    super({
+      engine,
+      trackKey: ctx.trackKey,
+    });
 
-  static create(args: NewTrackArgs) {
-    return new DebugTrackV2(args);
-  }
-
-  constructor(args: NewTrackArgs) {
-    super(args);
+    // TODO(stevegolton): Validate params before type asserting.
+    // TODO(stevegolton): Avoid just pushing this config up for some base
+    // class to use. Be more explicit.
+    this.config = ctx.params as DebugTrackV2Config;
   }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
-      sqlTableName: this.config.sqlTableName,
+      sqlTableName: this.config!.sqlTableName,
     };
   }
 
@@ -68,45 +71,67 @@ export class DebugTrackV2 extends CustomSqlTableSliceTrack<DebugTrackV2Types> {
     return {
       kind: DebugSliceDetailsTab.kind,
       config: {
-        sqlTableName: this.config.sqlTableName,
+        sqlTableName: this.config!.sqlTableName,
         title: 'Debug Slice',
       },
     };
   }
 
-  async initSqlTable(tableName: string): Promise<void> {
-    super.initSqlTable(tableName);
+  async onInit(): Promise<Disposable> {
+    return super.onInit();
   }
 
-  getTrackShellButtons(): Array<m.Vnode<TrackButtonAttrs>> {
-    return [m(TrackButton, {
+  getTrackShellButtons(): m.Children {
+    return m(TrackButton, {
       action: () => {
-        globals.dispatch(Actions.removeDebugTrack({trackId: this.trackId}));
+        globals.dispatch(Actions.removeTracks({trackKeys: [this.trackKey]}));
       },
       i: 'close',
       tooltip: 'Close',
       showButton: true,
-    })];
+    });
   }
 }
 
 let debugTrackCount = 0;
 
-export async function addDebugTrack(
+export interface SqlDataSource {
+  // SQL source selecting the necessary data.
+  sqlSource: string;
+
+  // Optional: Rename columns from the query result.
+  // If omitted, original column names from the query are used instead.
+  // The caller is responsible for ensuring that the number of items in this
+  // list matches the number of columns returned by sqlSource.
+  columns?: string[];
+}
+
+export async function addDebugSliceTrack(
     engine: EngineProxy,
-    sqlViewName: string,
+    data: SqlDataSource,
     trackName: string,
     sliceColumns: SliceColumns,
     argColumns: string[]) {
-  // QueryResultTab has successfully created a view corresponding to |uuid|.
-  // To prepare displaying it as a track, we materialize it and compute depths.
+  // To prepare displaying the provided data as a track, materialize it and
+  // compute depths.
   const debugTrackId = ++debugTrackCount;
-  const sqlTableName = `materialized_${debugTrackId}_${sqlViewName}`;
+  const sqlTableName = `__debug_slice_${debugTrackId}`;
+
+  // If the view has clashing names (e.g. "name" coming from joining two
+  // different tables, we will see names like "name_1", "name_2", but they won't
+  // be addressable from the SQL. So we explicitly name them through a list of
+  // columns passed to CTE.
+  const dataColumns =
+      data.columns !== undefined ? `(${data.columns.join(', ')})` : '';
+
   // TODO(altimin): Support removing this table when the track is closed.
   const dur = sliceColumns.dur === '0' ? 0 : sliceColumns.dur;
   await engine.query(`
       create table ${sqlTableName} as
-      with prepared_data as (
+      with data${dataColumns} as (
+        ${data.sqlSource}
+      ),
+      prepared_data as (
         select
           row_number() over () as id,
           ${sliceColumns.ts} as ts,
@@ -114,19 +139,26 @@ export async function addDebugTrack(
           printf('%s', ${sliceColumns.name}) as name
           ${argColumns.length > 0 ? ',' : ''}
           ${argColumns.map((c) => `${c} as ${ARG_PREFIX}${c}`).join(',\n')}
-        from ${sqlViewName}
+        from data
       )
       select
         *
       from prepared_data
       order by ts;`);
 
-  globals.dispatch(Actions.addDebugTrack({
-    engineId: engine.engineId,
-    name: trackName.trim() || `Debug Track ${debugTrackId}`,
-    config: {
-      sqlTableName,
-      columns: sliceColumns,
-    },
-  }));
+  const trackKey = uuidv4();
+  globals.dispatchMultiple([
+    Actions.addTrack({
+      key: trackKey,
+      name: trackName.trim() || `Debug Track ${debugTrackId}`,
+      uri: DEBUG_SLICE_TRACK_URI,
+      trackSortKey: PrimaryTrackSortKey.DEBUG_TRACK,
+      trackGroup: SCROLLING_TRACK_GROUP,
+      params: {
+        sqlTableName,
+        columns: sliceColumns,
+      },
+    }),
+    Actions.toggleTrackPinned({trackKey}),
+  ]);
 }

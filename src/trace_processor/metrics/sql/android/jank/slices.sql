@@ -14,7 +14,7 @@
 -- limitations under the License.
 
 DROP VIEW IF EXISTS android_jank_cuj_slice;
-CREATE VIEW android_jank_cuj_slice AS
+CREATE PERFETTO VIEW android_jank_cuj_slice AS
 SELECT
   cuj_id,
   process.upid,
@@ -35,7 +35,7 @@ JOIN slice
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_main_thread_slice;
-CREATE TABLE android_jank_cuj_main_thread_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_main_thread_slice AS
 SELECT
   cuj_id,
   upid,
@@ -54,7 +54,7 @@ JOIN slice
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_render_thread_slice;
-CREATE TABLE android_jank_cuj_render_thread_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_render_thread_slice AS
 SELECT
   cuj_id,
   upid,
@@ -73,7 +73,7 @@ JOIN slice
 WHERE slice.dur > 0;
 
 DROP VIEW IF EXISTS android_jank_cuj_sf_slice;
-CREATE VIEW android_jank_cuj_sf_slice AS
+CREATE PERFETTO VIEW android_jank_cuj_sf_slice AS
 SELECT
   cuj_id,
   upid,
@@ -94,7 +94,7 @@ JOIN slice
 WHERE slice.dur > 0;
 
 DROP TABLE IF EXISTS android_jank_cuj_sf_main_thread_slice;
-CREATE TABLE android_jank_cuj_sf_main_thread_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_main_thread_slice AS
 SELECT
   cuj_id,
   upid,
@@ -116,7 +116,7 @@ WHERE slice.dur > 0;
 -- client composition. Instead of taking all slices during CUJ, we look at each frame explicitly
 -- and only take slices that are within RenderEngine frame boundaries.
 DROP TABLE IF EXISTS android_jank_cuj_sf_render_engine_slice;
-CREATE TABLE android_jank_cuj_sf_render_engine_slice AS
+CREATE PERFETTO TABLE android_jank_cuj_sf_render_engine_slice AS
 SELECT
   cuj_id,
   upid,

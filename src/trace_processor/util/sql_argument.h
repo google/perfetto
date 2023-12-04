@@ -101,6 +101,9 @@ SqlValue::Type TypeToSqlValueType(sql_argument::Type type);
 base::Status ParseArgumentDefinitions(const std::string& args,
                                       std::vector<ArgumentDefinition>& out);
 
+// Serialises the given argument list into a string.
+std::string SerializeArguments(const std::vector<ArgumentDefinition>& args);
+
 }  // namespace sql_argument
 }  // namespace trace_processor
 }  // namespace perfetto

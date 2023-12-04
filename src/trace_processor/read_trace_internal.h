@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_READ_TRACE_INTERNAL_H_
 #define SRC_TRACE_PROCESSOR_READ_TRACE_INTERNAL_H_
 
+#include <cstdint>
 #include <functional>
 #include <vector>
 

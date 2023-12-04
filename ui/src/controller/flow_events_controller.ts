@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Engine} from '../common/engine';
-import {featureFlags} from '../common/feature_flags';
-import {LONG, NUM, STR_NULL} from '../common/query_result';
+import {Time} from '../base/time';
+import {pluginManager} from '../common/plugins';
 import {Area} from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {Flow, globals} from '../frontend/globals';
 import {publishConnectedFlows, publishSelectedFlows} from '../frontend/publish';
-import {asSliceSqlId, asTPTimestamp} from '../frontend/sql_types';
-import {
-  ACTUAL_FRAMES_SLICE_TRACK_KIND,
-  Config as ActualConfig,
-} from '../tracks/actual_frames';
-import {
-  Config as SliceConfig,
-  SLICE_TRACK_KIND,
-} from '../tracks/chrome_slices';
+import {asSliceSqlId} from '../frontend/sql_types';
+import {Engine} from '../trace_processor/engine';
+import {LONG, NUM, STR_NULL} from '../trace_processor/query_result';
+import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
+import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {Controller} from './controller';
 
@@ -104,6 +100,7 @@ export class FlowEventsController extends Controller<'main'> {
       name: STR_NULL,
       category: STR_NULL,
       id: NUM,
+      flowToDescendant: NUM,
     });
 
     const nullToStr = (s: null|string): string => {
@@ -129,8 +126,8 @@ export class FlowEventsController extends Controller<'main'> {
         sliceName: nullToStr(it.beginSliceName),
         sliceChromeCustomName: nullToUndefined(it.beginSliceChromeCustomName),
         sliceCategory: nullToStr(it.beginSliceCategory),
-        sliceStartTs: asTPTimestamp(it.beginSliceStartTs),
-        sliceEndTs: asTPTimestamp(it.beginSliceEndTs),
+        sliceStartTs: Time.fromRaw(it.beginSliceStartTs),
+        sliceEndTs: Time.fromRaw(it.beginSliceEndTs),
         depth: it.beginDepth,
         threadName: nullToStr(it.beginThreadName),
         processName: nullToStr(it.beginProcessName),
@@ -142,8 +139,8 @@ export class FlowEventsController extends Controller<'main'> {
         sliceName: nullToStr(it.endSliceName),
         sliceChromeCustomName: nullToUndefined(it.endSliceChromeCustomName),
         sliceCategory: nullToStr(it.endSliceCategory),
-        sliceStartTs: asTPTimestamp(it.endSliceStartTs),
-        sliceEndTs: asTPTimestamp(it.endSliceEndTs),
+        sliceStartTs: Time.fromRaw(it.endSliceStartTs),
+        sliceEndTs: Time.fromRaw(it.endSliceEndTs),
         depth: it.endDepth,
         threadName: nullToStr(it.endThreadName),
         processName: nullToStr(it.endProcessName),
@@ -159,6 +156,7 @@ export class FlowEventsController extends Controller<'main'> {
         dur: it.endSliceStartTs - it.beginSliceEndTs,
         category,
         name,
+        flowToDescendant: !!it.flowToDescendant,
       });
     }
 
@@ -204,7 +202,7 @@ export class FlowEventsController extends Controller<'main'> {
     const uiTrackIdToInfo = new Map<string, null|Info>();
     const trackIdToInfo = new Map<number, null|Info>();
 
-    const trackIdToUiTrackId = globals.state.uiTrackIdByTraceTrackId;
+    const trackIdToUiTrackId = globals.state.trackKeyByTrackId;
     const tracks = globals.state.tracks;
 
     const getInfo = (trackId: number): null|Info => {
@@ -235,7 +233,8 @@ export class FlowEventsController extends Controller<'main'> {
       // anything if there is only one TP track in this async track. In
       // that case experimental_slice_layout is just an expensive way
       // to find out depth === layout_depth.
-      const trackIds = track.config.trackIds;
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      const trackIds = trackInfo?.trackIds;
       if (trackIds === undefined || trackIds.length <= 1) {
         uiTrackIdToInfo.set(uiTrackId, null);
         trackIdToInfo.set(trackId, null);
@@ -346,7 +345,8 @@ export class FlowEventsController extends Controller<'main'> {
       (process_in.name || ' ' || process_in.pid) as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
-      f.id as id
+      f.id as id,
+      slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from ${connectedFlows} f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id
@@ -377,19 +377,16 @@ export class FlowEventsController extends Controller<'main'> {
 
     for (const uiTrackId of area.tracks) {
       const track = globals.state.tracks[uiTrackId];
-      if (track === undefined) {
-        continue;
-      }
-      if (track.kind === SLICE_TRACK_KIND) {
-        trackIds.push((track.config as SliceConfig).trackId);
-      } else if (track.kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
-        const actualConfig = track.config as ActualConfig;
-        for (const trackId of actualConfig.trackIds) {
-          trackIds.push(trackId);
-        }
-      } else if (track.config.trackIds !== undefined) {
-        for (const trackId of track.config.trackIds) {
-          trackIds.push(trackId);
+      if (track?.uri !== undefined) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        const kind = trackInfo?.kind;
+        if (kind === SLICE_TRACK_KIND ||
+            kind === ACTUAL_FRAMES_SLICE_TRACK_KIND) {
+          if (trackInfo?.trackIds) {
+            for (const trackId of trackInfo.trackIds) {
+              trackIds.push(trackId);
+            }
+          }
         }
       }
     }
@@ -423,7 +420,8 @@ export class FlowEventsController extends Controller<'main'> {
       NULL as endProcessName,
       extract_arg(f.arg_set_id, 'cat') as category,
       extract_arg(f.arg_set_id, 'name') as name,
-      f.id as id
+      f.id as id,
+      slice_is_ancestor(t1.slice_id, t2.slice_id) as flowToDescendant
     from flow f
     join slice t1 on f.slice_out = t1.slice_id
     join slice t2 on f.slice_in = t2.slice_id

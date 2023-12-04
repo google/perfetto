@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {ColumnType} from '../common/query_result';
+import {isString} from './object_utils';
 
 export type ComparisonFn<X> = (a: X, b: X) => number;
 
@@ -39,7 +39,7 @@ export function withDirection<T>(
   };
 }
 
-export type SortableValue = ColumnType|undefined;
+export type SortableValue = string|number|bigint|null|Uint8Array|undefined;
 
 function columnTypeKind(a: SortableValue): number {
   if (a === undefined) {
@@ -51,7 +51,7 @@ function columnTypeKind(a: SortableValue): number {
   if (typeof a === 'number') {
     return 2;
   }
-  if (typeof a === 'string') {
+  if (isString(a)) {
     return 3;
   }
   // a instanceof Uint8Array
@@ -68,7 +68,7 @@ export function compareUniversal(a: SortableValue, b: SortableValue): number {
   if (typeof a === 'number' && typeof b === 'number') {
     return a - b;
   }
-  if (typeof a === 'string' && typeof b === 'string') {
+  if (isString(a) && isString(b)) {
     return a.localeCompare(b);
   }
   if (a instanceof Uint8Array && b instanceof Uint8Array) {

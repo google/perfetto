@@ -199,11 +199,13 @@ TEST(LocalBinaryIndexerTest, NOMSAN_Symlinks) {
   tmp.AddFile("real/dir1/elf2", CreateElfWithBuildId("BBBBBBBBBBBBBBBBBBBB"));
   tmp.AddFile("real/dir1/elf3", CreateElfWithBuildId("CCCCCCCCCCCCCCCCCCCC"));
   tmp.AddDir("sym");
-  symlink(tmp.AbsolutePath("real/elf1").c_str(),
-          tmp.AbsolutePath("sym/elf1").c_str());
+  EXPECT_EQ(symlink(tmp.AbsolutePath("real/elf1").c_str(),
+                    tmp.AbsolutePath("sym/elf1").c_str()),
+            0);
   tmp.TrackFile("sym/elf1");
-  symlink(tmp.AbsolutePath("real/dir1").c_str(),
-          tmp.AbsolutePath("sym/dir1").c_str());
+  EXPECT_EQ(symlink(tmp.AbsolutePath("real/dir1").c_str(),
+                    tmp.AbsolutePath("sym/dir1").c_str()),
+            0);
   tmp.TrackFile("sym/dir1");
 
   LocalBinaryIndexer indexer({tmp.AbsolutePath("sym")});
@@ -235,8 +237,9 @@ TEST(LocalBinaryIndexerTest, NOMSAN_RecursiveSymlinks) {
   tmp.AddDir("main");
   tmp.AddFile("main/elf1", CreateElfWithBuildId("AAAAAAAAAAAAAAAAAAAA"));
   tmp.AddDir("main/dir1");
-  symlink(tmp.AbsolutePath("main").c_str(),
-          tmp.AbsolutePath("main/dir1/sym").c_str());
+  EXPECT_EQ(symlink(tmp.AbsolutePath("main").c_str(),
+                    tmp.AbsolutePath("main/dir1/sym").c_str()),
+            0);
   tmp.TrackFile("main/dir1/sym");
 
   LocalBinaryIndexer indexer({tmp.AbsolutePath("main")});

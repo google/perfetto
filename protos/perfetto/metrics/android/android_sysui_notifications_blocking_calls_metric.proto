@@ -19,7 +19,6 @@ syntax = "proto2";
 package perfetto.protos;
 
 import "protos/perfetto/metrics/android/android_blocking_call.proto";
-import "protos/perfetto/metrics/android/process_metadata.proto";
 
 // Blocking calls inside System UI Notifications. Shows count and total duration for each.
 message AndroidSysUINotificationsBlockingCallsMetric {

@@ -129,8 +129,9 @@ void ConsumerIPCService::Flush(const protos::gen::FlushRequest& req,
     if (weak_this)
       weak_this->OnFlushCallback(success, std::move(it));
   };
-  GetConsumerForCurrentRequest()->service_endpoint->Flush(req.timeout_ms(),
-                                                          std::move(callback));
+  FlushFlags flags(req.flags());
+  GetConsumerForCurrentRequest()->service_endpoint->Flush(
+      req.timeout_ms(), std::move(callback), flags);
 }
 
 // Called by the IPC layer.

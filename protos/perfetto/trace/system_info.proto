@@ -44,4 +44,8 @@ message SystemInfo {
 
   // Kernel page size - sysconf(_SC_PAGESIZE).
   optional uint32 page_size = 6;
+
+  // The timezone offset from UTC, as per strftime("%z"), in minutes.
+  // Introduced in v38 / Android V.
+  optional int32 timezone_off_mins = 7;
 }

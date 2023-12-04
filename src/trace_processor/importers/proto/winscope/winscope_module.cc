@@ -23,11 +23,14 @@ using perfetto::protos::pbzero::TracePacket;
 
 WinscopeModule::WinscopeModule(TraceProcessorContext* context)
     : surfaceflinger_layers_parser_(context),
-      surfaceflinger_transactions_parser_(context) {
+      surfaceflinger_transactions_parser_(context),
+      shell_transitions_parser_(context) {
   RegisterForField(TracePacket::kSurfaceflingerLayersSnapshotFieldNumber,
                    context);
   RegisterForField(TracePacket::kSurfaceflingerTransactionsFieldNumber,
                    context);
+  RegisterForField(TracePacket::kShellTransitionFieldNumber, context);
+  RegisterForField(TracePacket::kShellHandlerMappingsFieldNumber, context);
 }
 
 void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
@@ -42,6 +45,13 @@ void WinscopeModule::ParseTracePacketData(const TracePacket::Decoder& decoder,
     case TracePacket::kSurfaceflingerTransactionsFieldNumber:
       surfaceflinger_transactions_parser_.Parse(
           timestamp, decoder.surfaceflinger_transactions());
+      return;
+    case TracePacket::kShellTransitionFieldNumber:
+      shell_transitions_parser_.ParseTransition(decoder.shell_transition());
+      return;
+    case TracePacket::kShellHandlerMappingsFieldNumber:
+      shell_transitions_parser_.ParseHandlerMappings(
+          decoder.shell_handler_mappings());
       return;
   }
 }

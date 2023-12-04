@@ -1,4 +1,4 @@
-# Trace Processor
+# Trace Processor (C++)
 
 _The Trace Processor is a C++ library
 ([/src/trace_processor](/src/trace_processor)) that ingests traces encoded in a
@@ -509,24 +509,6 @@ TIP: To see how to add to add a new metric to trace processor, see the checklist
 The metrics subsystem is a significant part of trace processor and thus is
 documented on its own [page](/docs/analysis/metrics.md).
 
-## Annotations
-
-TIP: To see how to add to add a new annotation to trace processor, see the
-checklist [here](/docs/contributing/common-tasks.md#new-annotation).
-
-Annotations attach a human-readable description to a slice in the trace. This
-can include information like the source of a slice, why a slice is important and
-links to documentation where the viewer can learn more about the slice.
-In essence, descriptions act as if an expert was telling the user what the slice
-means.
-
-For example, consider the `inflate` slice which occurs during view inflation in
-Android. We can add the following description and link:
-
-**Description**: Constructing a View hierarchy from pre-processed XML via
-LayoutInflater#layout. This includes constructing all of the View objects in the
-hierarchy, and applying styled attributes.
-
 ## Creating derived events
 
 TIP: To see how to add to add a new annotation to trace processor, see the
@@ -557,204 +539,9 @@ creates the exact `launching` slice we want to display in the UI.
 The other benefit of aligning the two is that changes in metrics are
 automatically kept in sync with what the user sees in the UI.
 
-## Alerts
-
-Alerts are used to draw the attention of the user to interesting parts of the
-trace; this are usually warnings or errors about anomalies which occurred in the
-trace.
-
-Currently, alerts are not implemented in the trace processor but the API to
-create derived events was designed with them in mind. We plan on adding another
-column `alert_type` (name to be finalized) to the annotations table which can
-have the value `warning`, `error` or `null`. Depending on this value, the
-Perfetto UI will flag these events to the user.
-
-NOTE: we do not plan on supporting case where alerts need to be added to
-      existing events. Instead, new events should be created using annotations
-      and alerts added on these instead; this is because the trace processor
-      storage is monotonic-append-only.
-
 ## Python API
-
-The trace processor Python API is built on the existing HTTP interface of `trace processor`
-and is available as part of the standalone build. The API allows you to load in traces and
-query tables and run metrics without requiring the `trace_processor` binary to be
-downloaded or installed.
-
-### Setup
-```
-pip install perfetto
-```
-NOTE: The API is only compatible with Python3.
-
-```python
-from perfetto.trace_processor import TraceProcessor
-# Initialise TraceProcessor with a trace file
-tp = TraceProcessor(trace='trace.perfetto-trace')
-```
-
-NOTE: The TraceProcessor can be initialized in a combination of ways including:
-      <br> - An address at which there exists a running instance of `trace_processor` with a
-      loaded trace (e.g.`TraceProcessor(addr='localhost:9001')`)
-      <br> - An address at which there exists a running instance of `trace_processor` and
-      needs a trace to be loaded in
-      (e.g. `TraceProcessor(trace='trace.perfetto-trace', addr='localhost:9001')`)
-      <br> - A path to a `trace_processor` binary and the trace to be loaded in
-      (e.g. `TraceProcessor(trace='trace.perfetto-trace', config=TraceProcessorConfig(bin_path='./trace_processor'))`)
-
-
-### API
-
-The `trace_processor.api` module contains the `TraceProcessor` class which provides various
-functions that can be called on the loaded trace. For more information on how to use
-these functions, see this [`example`](/python/example.py).
-
-#### Query
-The query() function takes an SQL query as input and returns an iterator through the rows
-of the result.
-
-```python
-from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(trace='trace.perfetto-trace')
-
-qr_it = tp.query('SELECT ts, dur, name FROM slice')
-for row in qr_it:
-  print(row.ts, row.dur, row.name)
-```
-**Output**
-```
-261187017446933 358594 eglSwapBuffersWithDamageKHR
-261187017518340 357 onMessageReceived
-261187020825163 9948 queueBuffer
-261187021345235 642 bufferLoad
-261187121345235 153 query
-...
-```
-The QueryResultIterator can also be converted to a Pandas DataFrame, although this
-requires you to have both the `NumPy` and `Pandas` modules installed.
-```python
-from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(trace='trace.perfetto-trace')
-
-qr_it = tp.query('SELECT ts, dur, name FROM slice')
-qr_df = qr_it.as_pandas_dataframe()
-print(qr_df.to_string())
-```
-**Output**
-```
-ts                   dur                  name
--------------------- -------------------- ---------------------------
-     261187017446933               358594 eglSwapBuffersWithDamageKHR
-     261187017518340                  357 onMessageReceived
-     261187020825163                 9948 queueBuffer
-     261187021345235                  642 bufferLoad
-     261187121345235                  153 query
-     ...
-```
-Furthermore, you can use the query result in a Pandas DataFrame format to easily
-make visualisations from the trace data.
-```python
-from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(trace='trace.perfetto-trace')
-
-qr_it = tp.query('SELECT ts, value FROM counter WHERE track_id=50')
-qr_df = qr_it.as_pandas_dataframe()
-qr_df = qr_df.replace(np.nan,0)
-qr_df = qr_df.set_index('ts')['value'].plot()
-```
-**Output**
-
-![Graph made frpm the query results](/docs/images/example_pd_graph.png)
-
-
-#### Metric
-The metric() function takes in a list of trace metrics and returns the results as a Protobuf.
-
-```python
-from perfetto.trace_processor import TraceProcessor
-tp = TraceProcessor(trace='trace.perfetto-trace')
-
-ad_cpu_metrics = tp.metric(['android_cpu'])
-print(ad_cpu_metrics)
-```
-**Output**
-```
-metrics {
-  android_cpu {
-    process_info {
-      name: "/system/bin/init"
-      threads {
-        name: "init"
-        core {
-          id: 1
-          metrics {
-            mcycles: 1
-            runtime_ns: 570365
-            min_freq_khz: 1900800
-            max_freq_khz: 1900800
-            avg_freq_khz: 1902017
-          }
-        }
-        core {
-          id: 3
-          metrics {
-            mcycles: 0
-            runtime_ns: 366406
-            min_freq_khz: 1900800
-            max_freq_khz: 1900800
-            avg_freq_khz: 1902908
-          }
-        }
-        ...
-      }
-      ...
-    }
-    process_info {
-      name: "/system/bin/logd"
-      threads {
-        name: "logd.writer"
-        core {
-          id: 0
-          metrics {
-            mcycles: 8
-            runtime_ns: 33842357
-            min_freq_khz: 595200
-            max_freq_khz: 1900800
-            avg_freq_khz: 1891825
-          }
-        }
-        core {
-          id: 1
-          metrics {
-            mcycles: 9
-            runtime_ns: 36019300
-            min_freq_khz: 1171200
-            max_freq_khz: 1900800
-            avg_freq_khz: 1887969
-          }
-        }
-        ...
-      }
-      ...
-    }
-    ...
-  }
-}
-```
-
-### HTTP
-The `trace_processor.http` module contains the `TraceProcessorHttp` class which
-provides methods to make HTTP requests to an address at which there already
-exists a running instance of `trace_processor` with a trace loaded in. All
-results are returned in Protobuf format
-(see [`trace_processor_proto`](/protos/perfetto/trace_processor/trace_processor.proto)).
-Some functions include:
-* `execute_query()` - Takes in an SQL query and returns a `QueryResult` Protobuf
-  message
-* `compute_metric()` - Takes in a list of trace metrics and returns a
-  `ComputeMetricResult` Protobuf message
-* `status()` - Returns a `StatusResult` Protobuf message
-
+The trace processor's C++ library is also exposed through Python. This
+is documented on a [separate page](/docs/analysis/trace-processor-python.md).
 
 ## Testing
 
@@ -813,53 +600,46 @@ to do this is to run `tools/ninja -C <out directory>` both initially and on
 every change to trace processor code or builtin metrics.
 
 #### Choosing where to add diff tests
-Choosing a folder with a diff tests often can be confusing
-as a test can fall into more than one category. This section is a guide
-to decide which folder to choose.
+`diff_tests/` folder contains four directories corresponding to different
+areas of trace processor.
+1. __stdlib__: Tests focusing on testing Perfetto Standard Library, both
+   prelude and the regular modules. The subdirectories in this folder
+   should generally correspond to directories in `perfetto_sql/stdlib`.
+2. __parser__: Tests focusing on ensuring that different trace files are
+   parsed correctly and the corresponding built-in tables are populated.
+3. __metrics__: Tests focusing on testing metrics located in
+   `trace_processor/metrics/sql`. This organisation is mostly historical
+   and code (and corresponding tests) is expected to move to `stdlib` over time.
+4. __syntax__: Tests focusing on testing the core syntax of PerfettoSQL
+   (i.e. `CREATE PERFETTO TABLE` or `CREATE PERFETTO FUNCTION`).
 
-Broadly, there are two categories which all folders fall into:
-1. __"Area" folders__ which encompass a "vertical" area of interest
-   e.g. startup/ contains Android app startup related tests or chrome/
-   contains all Chrome related tests.
-2. __"Feature" folders__ which encompass a particular feature of
-   trace processor e.g. process_tracking/ tests the lifetime tracking of
-   processes, span_join/ tests the span join operator.
+__Scenario__: A new stdlib module `foo/bar.sql` is being added.
 
-"Area" folders should be preferred for adding tests unless the test is
-applicable to more than one "area"; in this case, one of "feature" folders
-can be used instead.
-
-Here are some common scenarios in which new tests may be added and
-answers on where to add the test:
+_Answer_: Add the test to the `stdlib/foo/bar_tests.py` file.
 
 __Scenario__: A new event is being parsed, the focus of the test is to ensure
-the event is being parsed correctly and the event is focused on a single
-vertical "Area".
+the event is being parsed correctly.
 
-_Answer_: Add the test in one of the "Area" folders.
-
-__Scenario__: A new event is being parsed and the focus of the test is to ensure
-the event is being parsed correctly and the event is applicable to more than one
-vertical "Area".
-
-_Answer_: Add the test to the parsing/ folder.
+_Answer_: Add the test in one of the `parser` subdirectories. Prefer adding a
+test to an existing related directory (i.e. `sched`, `power`) if one exists.
 
 __Scenario__: A new metric is being added and the focus of the test is to
 ensure the metric is being correctly computed.
 
-_Answer_: Add the test in one of the "Area" folders.
+_Answer_: Add the test in one of the `metrics` subdirectories. Prefer adding a
+test to an existing related directory if one exists. Also consider adding the
+code in question to stdlib.
 
 __Scenario__: A new dynamic table is being added and the focus of the test is to
 ensure the dynamic table is being correctly computed...
 
-_Answer_: Add the test to the dynamic/ folder
+_Answer_: Add the test to the `stdlib/dynamic_tables` folder
 
 __Scenario__: The interals of trace processor are being modified and the test
 is to ensure the trace processor is correctly filtering/sorting important
 built-in tables.
 
-_Answer_: Add the test to the tables/ folder.
-
+_Answer_: Add the test to the `parser/core_tables` folder.
 
 ## Appendix: table inheritance
 

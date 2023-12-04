@@ -14,42 +14,62 @@
  * limitations under the License.
  */
 
-#include <condition_variable>
-#include <mutex>
 #include <thread>
 
 #include "perfetto/public/abi/data_source_abi.h"
+#include "perfetto/public/abi/heap_buffer.h"
 #include "perfetto/public/abi/pb_decoder_abi.h"
+#include "perfetto/public/abi/tracing_session_abi.h"
+#include "perfetto/public/abi/track_event_abi.h"
 #include "perfetto/public/data_source.h"
 #include "perfetto/public/pb_decoder.h"
 #include "perfetto/public/producer.h"
+#include "perfetto/public/protos/config/trace_config.pzc.h"
+#include "perfetto/public/protos/trace/interned_data/interned_data.pzc.h"
 #include "perfetto/public/protos/trace/test_event.pzc.h"
 #include "perfetto/public/protos/trace/trace.pzc.h"
 #include "perfetto/public/protos/trace/trace_packet.pzc.h"
+#include "perfetto/public/protos/trace/track_event/debug_annotation.pzc.h"
+#include "perfetto/public/protos/trace/track_event/track_descriptor.pzc.h"
+#include "perfetto/public/protos/trace/track_event/track_event.pzc.h"
+#include "perfetto/public/protos/trace/trigger.pzc.h"
+#include "perfetto/public/te_category_macros.h"
+#include "perfetto/public/te_macros.h"
+#include "perfetto/public/track_event.h"
 
 #include "test/gtest_and_gmock.h"
 
 #include "src/shared_lib/reset_for_testing.h"
+#include "src/shared_lib/test/protos/test_messages.pzc.h"
 #include "src/shared_lib/test/utils.h"
 
 // Tests for the perfetto shared library.
 
 namespace {
 
+using ::perfetto::shlib::test_utils::AllFieldsWithId;
+using ::perfetto::shlib::test_utils::DoubleField;
 using ::perfetto::shlib::test_utils::FieldView;
+using ::perfetto::shlib::test_utils::Fixed32Field;
+using ::perfetto::shlib::test_utils::Fixed64Field;
+using ::perfetto::shlib::test_utils::FloatField;
 using ::perfetto::shlib::test_utils::IdFieldView;
 using ::perfetto::shlib::test_utils::MsgField;
 using ::perfetto::shlib::test_utils::PbField;
 using ::perfetto::shlib::test_utils::StringField;
 using ::perfetto::shlib::test_utils::TracingSession;
+using ::perfetto::shlib::test_utils::VarIntField;
 using ::perfetto::shlib::test_utils::WaitableEvent;
 using ::testing::_;
+using ::testing::AllOf;
 using ::testing::DoAll;
 using ::testing::ElementsAre;
 using ::testing::InSequence;
 using ::testing::NiceMock;
+using ::testing::ResultOf;
 using ::testing::Return;
 using ::testing::SaveArg;
+using ::testing::UnorderedElementsAre;
 
 constexpr char kDataSourceName1[] = "dev.perfetto.example_data_source";
 struct PerfettoDs data_source_1 = PERFETTO_DS_INIT();
@@ -57,6 +77,10 @@ struct PerfettoDs data_source_1 = PERFETTO_DS_INIT();
 constexpr char kDataSourceName2[] = "dev.perfetto.example_data_source2";
 struct PerfettoDs data_source_2 = PERFETTO_DS_INIT();
 void* const kDataSource2UserArg = reinterpret_cast<void*>(0x555);
+
+#define TEST_CATEGORIES(C) \
+  C(cat1, "cat1", "") C(cat2, "cat2", "") C(cat3, "cat3", "")
+PERFETTO_TE_CATEGORIES_DEFINE(TEST_CATEGORIES)
 
 class MockDs2Callbacks : testing::Mock {
  public:
@@ -66,13 +90,15 @@ class MockDs2Callbacks : testing::Mock {
                PerfettoDsInstanceIndex inst_id,
                void* ds_config,
                size_t ds_config_size,
-               void* user_arg));
+               void* user_arg,
+               struct PerfettoDsOnSetupArgs* args));
   MOCK_METHOD(void,
               OnStart,
               (struct PerfettoDsImpl*,
                PerfettoDsInstanceIndex inst_id,
                void* user_arg,
-               void* inst_ctx));
+               void* inst_ctx,
+               struct PerfettoDsOnStartArgs* args));
   MOCK_METHOD(void,
               OnStop,
               (struct PerfettoDsImpl*,
@@ -80,6 +106,9 @@ class MockDs2Callbacks : testing::Mock {
                void* user_arg,
                void* inst_ctx,
                struct PerfettoDsOnStopArgs* args));
+  MOCK_METHOD(void,
+              OnDestroy,
+              (struct PerfettoDsImpl*, void* user_arg, void* inst_ctx));
   MOCK_METHOD(void,
               OnFlush,
               (struct PerfettoDsImpl*,
@@ -181,14 +210,356 @@ TEST(SharedLibProtobufTest, PerfettoPbDecoderIteratorExample) {
   EXPECT_EQ(n_payload_single_int, 1u);
 }
 
+class SharedLibProtozeroSerializationTest : public testing::Test {
+ protected:
+  SharedLibProtozeroSerializationTest() {
+    hb = PerfettoHeapBufferCreate(&writer.writer);
+  }
+
+  std::vector<uint8_t> GetData() {
+    std::vector<uint8_t> data;
+    size_t size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+    data.resize(size);
+    PerfettoHeapBufferCopyInto(hb, &writer.writer, data.data(), data.size());
+    return data;
+  }
+
+  ~SharedLibProtozeroSerializationTest() {
+    PerfettoHeapBufferDestroy(hb, &writer.writer);
+  }
+
+  template <typename T>
+  static std::vector<T> ParsePackedVarInt(const std::string& data) {
+    std::vector<T> ret;
+    const uint8_t* read_ptr = reinterpret_cast<const uint8_t*>(data.data());
+    const uint8_t* const end = read_ptr + data.size();
+    while (read_ptr != end) {
+      uint64_t val;
+      const uint8_t* new_read_ptr = PerfettoPbParseVarInt(read_ptr, end, &val);
+      if (new_read_ptr == read_ptr) {
+        ADD_FAILURE();
+        return ret;
+      }
+      read_ptr = new_read_ptr;
+      ret.push_back(static_cast<T>(val));
+    }
+    return ret;
+  }
+
+  template <typename T>
+  static std::vector<T> ParsePackedFixed(const std::string& data) {
+    std::vector<T> ret;
+    if (data.size() % sizeof(T)) {
+      ADD_FAILURE();
+      return ret;
+    }
+    const uint8_t* read_ptr = reinterpret_cast<const uint8_t*>(data.data());
+    const uint8_t* end = read_ptr + data.size();
+    while (read_ptr < end) {
+      ret.push_back(*reinterpret_cast<const T*>(read_ptr));
+      read_ptr += sizeof(T);
+    }
+    return ret;
+  }
+
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb;
+};
+
+TEST_F(SharedLibProtozeroSerializationTest, SimpleFieldsNoNesting) {
+  struct protozero_test_protos_EveryField msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  protozero_test_protos_EveryField_set_field_int32(&msg, -1);
+  protozero_test_protos_EveryField_set_field_int64(&msg, -333123456789ll);
+  protozero_test_protos_EveryField_set_field_uint32(&msg, 600);
+  protozero_test_protos_EveryField_set_field_uint64(&msg, 333123456789ll);
+  protozero_test_protos_EveryField_set_field_sint32(&msg, -5);
+  protozero_test_protos_EveryField_set_field_sint64(&msg, -9000);
+  protozero_test_protos_EveryField_set_field_fixed32(&msg, 12345);
+  protozero_test_protos_EveryField_set_field_fixed64(&msg, 444123450000ll);
+  protozero_test_protos_EveryField_set_field_sfixed32(&msg, -69999);
+  protozero_test_protos_EveryField_set_field_sfixed64(&msg, -200);
+  protozero_test_protos_EveryField_set_field_float(&msg, 3.14f);
+  protozero_test_protos_EveryField_set_field_double(&msg, 0.5555);
+  protozero_test_protos_EveryField_set_field_bool(&msg, true);
+  protozero_test_protos_EveryField_set_small_enum(&msg,
+                                                  protozero_test_protos_TO_BE);
+  protozero_test_protos_EveryField_set_signed_enum(
+      &msg, protozero_test_protos_NEGATIVE);
+  protozero_test_protos_EveryField_set_big_enum(&msg,
+                                                protozero_test_protos_BEGIN);
+  protozero_test_protos_EveryField_set_cstr_field_string(&msg, "FizzBuzz");
+  protozero_test_protos_EveryField_set_field_bytes(&msg, "\x11\x00\xBE\xEF", 4);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 1);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, -1);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 100);
+  protozero_test_protos_EveryField_set_repeated_int32(&msg, 2000000);
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(protozero_test_protos_EveryField_field_int32_field_number,
+                  VarIntField(static_cast<uint64_t>(-1))),
+          PbField(protozero_test_protos_EveryField_field_int64_field_number,
+                  VarIntField(static_cast<uint64_t>(INT64_C(-333123456789)))),
+          PbField(protozero_test_protos_EveryField_field_uint32_field_number,
+                  VarIntField(600)),
+          PbField(protozero_test_protos_EveryField_field_uint64_field_number,
+                  VarIntField(UINT64_C(333123456789))),
+          PbField(protozero_test_protos_EveryField_field_sint32_field_number,
+                  VarIntField(ResultOf(
+                      [](uint64_t val) {
+                        return PerfettoPbZigZagDecode32(
+                            static_cast<uint32_t>(val));
+                      },
+                      -5))),
+          PbField(protozero_test_protos_EveryField_field_sint64_field_number,
+                  VarIntField(ResultOf(PerfettoPbZigZagDecode64, -9000))),
+          PbField(protozero_test_protos_EveryField_field_fixed32_field_number,
+                  Fixed32Field(12345)),
+          PbField(protozero_test_protos_EveryField_field_fixed64_field_number,
+                  Fixed64Field(UINT64_C(444123450000))),
+          PbField(protozero_test_protos_EveryField_field_sfixed32_field_number,
+                  Fixed32Field(static_cast<uint32_t>(-69999))),
+          PbField(protozero_test_protos_EveryField_field_sfixed64_field_number,
+                  Fixed64Field(static_cast<uint64_t>(-200))),
+          PbField(protozero_test_protos_EveryField_field_float_field_number,
+                  FloatField(3.14f)),
+          PbField(protozero_test_protos_EveryField_field_double_field_number,
+                  DoubleField(0.5555)),
+          PbField(protozero_test_protos_EveryField_field_bool_field_number,
+                  VarIntField(true)),
+          PbField(protozero_test_protos_EveryField_small_enum_field_number,
+                  VarIntField(protozero_test_protos_TO_BE)),
+          PbField(protozero_test_protos_EveryField_signed_enum_field_number,
+                  VarIntField(protozero_test_protos_NEGATIVE)),
+          PbField(protozero_test_protos_EveryField_big_enum_field_number,
+                  VarIntField(protozero_test_protos_BEGIN)),
+          PbField(protozero_test_protos_EveryField_field_string_field_number,
+                  StringField("FizzBuzz")),
+          PbField(protozero_test_protos_EveryField_field_bytes_field_number,
+                  StringField(std::string_view("\x11\x00\xBE\xEF", 4))),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(1)),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(static_cast<uint64_t>(-1))),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(100)),
+          PbField(protozero_test_protos_EveryField_repeated_int32_field_number,
+                  VarIntField(2000000))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, NestedMessages) {
+  struct protozero_test_protos_NestedA msg_a;
+  PerfettoPbMsgInit(&msg_a.msg, &writer);
+
+  {
+    struct protozero_test_protos_NestedA_NestedB msg_b;
+    protozero_test_protos_NestedA_begin_repeated_a(&msg_a, &msg_b);
+    {
+      struct protozero_test_protos_NestedA_NestedB_NestedC msg_c;
+      protozero_test_protos_NestedA_NestedB_begin_value_b(&msg_b, &msg_c);
+      protozero_test_protos_NestedA_NestedB_NestedC_set_value_c(&msg_c, 321);
+      protozero_test_protos_NestedA_NestedB_end_value_b(&msg_b, &msg_c);
+    }
+    protozero_test_protos_NestedA_end_repeated_a(&msg_a, &msg_b);
+  }
+  {
+    struct protozero_test_protos_NestedA_NestedB msg_b;
+    protozero_test_protos_NestedA_begin_repeated_a(&msg_a, &msg_b);
+    protozero_test_protos_NestedA_end_repeated_a(&msg_a, &msg_b);
+  }
+  {
+    struct protozero_test_protos_NestedA_NestedB_NestedC msg_c;
+    protozero_test_protos_NestedA_begin_super_nested(&msg_a, &msg_c);
+    protozero_test_protos_NestedA_NestedB_NestedC_set_value_c(&msg_c, 1000);
+    protozero_test_protos_NestedA_end_super_nested(&msg_a, &msg_c);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_NestedA_repeated_a_field_number,
+              MsgField(ElementsAre(PbField(
+                  protozero_test_protos_NestedA_NestedB_value_b_field_number,
+                  MsgField(ElementsAre(PbField(
+                      protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
+                      VarIntField(321)))))))),
+          PbField(protozero_test_protos_NestedA_repeated_a_field_number,
+                  MsgField(ElementsAre())),
+          PbField(
+              protozero_test_protos_NestedA_super_nested_field_number,
+              MsgField(ElementsAre(PbField(
+                  protozero_test_protos_NestedA_NestedB_NestedC_value_c_field_number,
+                  VarIntField(1000)))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgVarInt) {
+  struct protozero_test_protos_PackedRepeatedFields msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  {
+    PerfettoPbPackedMsgInt32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int32(&msg, &f);
+    PerfettoPbPackedMsgInt32Append(&f, 42);
+    PerfettoPbPackedMsgInt32Append(&f, 255);
+    PerfettoPbPackedMsgInt32Append(&f, -1);
+    protozero_test_protos_PackedRepeatedFields_end_field_int32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgInt64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_int64(&msg, &f);
+    PerfettoPbPackedMsgInt64Append(&f, INT64_C(3000000000));
+    PerfettoPbPackedMsgInt64Append(&f, INT64_C(-3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_int64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgUint32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_uint32(&msg, &f);
+    PerfettoPbPackedMsgUint32Append(&f, 42);
+    PerfettoPbPackedMsgUint32Append(&f, UINT32_C(3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_uint32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgUint64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_uint64(&msg, &f);
+    PerfettoPbPackedMsgUint64Append(&f, 42);
+    PerfettoPbPackedMsgUint64Append(&f, UINT64_C(5000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_uint64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgInt32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_signed_enum(&msg, &f);
+    PerfettoPbPackedMsgInt32Append(&f, protozero_test_protos_POSITIVE);
+    PerfettoPbPackedMsgInt32Append(&f, protozero_test_protos_NEGATIVE);
+    protozero_test_protos_PackedRepeatedFields_end_signed_enum(&msg, &f);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_int32_field_number,
+              StringField(ResultOf(ParsePackedVarInt<int32_t>,
+                                   ElementsAre(42, 255, -1)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_int64_field_number,
+              StringField(ResultOf(
+                  ParsePackedVarInt<int64_t>,
+                  ElementsAre(INT64_C(3000000000), INT64_C(-3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_uint32_field_number,
+              StringField(ResultOf(ParsePackedVarInt<uint32_t>,
+                                   ElementsAre(42, UINT32_C(3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_uint64_field_number,
+              StringField(ResultOf(ParsePackedVarInt<uint64_t>,
+                                   ElementsAre(42, UINT64_C(5000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_signed_enum_field_number,
+              StringField(
+                  ResultOf(ParsePackedVarInt<int32_t>,
+                           ElementsAre(protozero_test_protos_POSITIVE,
+                                       protozero_test_protos_NEGATIVE))))));
+}
+
+TEST_F(SharedLibProtozeroSerializationTest, PackedRepeatedMsgFixed) {
+  struct protozero_test_protos_PackedRepeatedFields msg;
+  PerfettoPbMsgInit(&msg.msg, &writer);
+
+  {
+    PerfettoPbPackedMsgFixed32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed32(&msg, &f);
+    PerfettoPbPackedMsgFixed32Append(&f, 42);
+    PerfettoPbPackedMsgFixed32Append(&f, UINT32_C(3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgFixed64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_fixed64(&msg, &f);
+    PerfettoPbPackedMsgFixed64Append(&f, 42);
+    PerfettoPbPackedMsgFixed64Append(&f, UINT64_C(5000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_fixed64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgSfixed32 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_sfixed32(&msg, &f);
+    PerfettoPbPackedMsgSfixed32Append(&f, 42);
+    PerfettoPbPackedMsgSfixed32Append(&f, 255);
+    PerfettoPbPackedMsgSfixed32Append(&f, -1);
+    protozero_test_protos_PackedRepeatedFields_end_field_sfixed32(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgSfixed64 f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_sfixed64(&msg, &f);
+    PerfettoPbPackedMsgSfixed64Append(&f, INT64_C(3000000000));
+    PerfettoPbPackedMsgSfixed64Append(&f, INT64_C(-3000000000));
+    protozero_test_protos_PackedRepeatedFields_end_field_sfixed64(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgFloat f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_float(&msg, &f);
+    PerfettoPbPackedMsgFloatAppend(&f, 3.14f);
+    PerfettoPbPackedMsgFloatAppend(&f, 42.1f);
+    protozero_test_protos_PackedRepeatedFields_end_field_float(&msg, &f);
+  }
+
+  {
+    PerfettoPbPackedMsgDouble f;
+    protozero_test_protos_PackedRepeatedFields_begin_field_double(&msg, &f);
+    PerfettoPbPackedMsgDoubleAppend(&f, 3.14);
+    PerfettoPbPackedMsgDoubleAppend(&f, 42.1);
+    protozero_test_protos_PackedRepeatedFields_end_field_double(&msg, &f);
+  }
+
+  EXPECT_THAT(
+      FieldView(GetData()),
+      ElementsAre(
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_fixed32_field_number,
+              StringField(ResultOf(ParsePackedFixed<uint32_t>,
+                                   ElementsAre(42, UINT32_C(3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_fixed64_field_number,
+              StringField(ResultOf(ParsePackedFixed<uint64_t>,
+                                   ElementsAre(42, UINT64_C(5000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_sfixed32_field_number,
+              StringField(ResultOf(ParsePackedFixed<int32_t>,
+                                   ElementsAre(42, 255, -1)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_sfixed64_field_number,
+              StringField(ResultOf(
+                  ParsePackedFixed<int64_t>,
+                  ElementsAre(INT64_C(3000000000), INT64_C(-3000000000))))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_float_field_number,
+              StringField(ResultOf(ParsePackedFixed<float>,
+                                   ElementsAre(3.14f, 42.1f)))),
+          PbField(
+              protozero_test_protos_PackedRepeatedFields_field_double_field_number,
+              StringField(ResultOf(ParsePackedFixed<double>,
+                                   ElementsAre(3.14, 42.1))))));
+}
+
 class SharedLibDataSourceTest : public testing::Test {
  protected:
   void SetUp() override {
-    struct PerfettoProducerInitArgs args = {0};
+    struct PerfettoProducerInitArgs args = PERFETTO_PRODUCER_INIT_ARGS_INIT();
     args.backends = PERFETTO_BACKEND_IN_PROCESS;
     PerfettoProducerInit(args);
     PerfettoDsRegister(&data_source_1, kDataSourceName1,
-                       PerfettoDsNoCallbacks());
+                       PerfettoDsParamsDefault());
     RegisterDataSource2();
   }
 
@@ -208,36 +579,44 @@ class SharedLibDataSourceTest : public testing::Test {
   };
 
   void RegisterDataSource2() {
-    static struct PerfettoDsCallbacks callbacks = {};
-    callbacks.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* ds_config,
-                               size_t ds_config_size, void* user_arg) -> void* {
+    struct PerfettoDsParams params = PerfettoDsParamsDefault();
+    params.on_setup_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* ds_config,
+                            size_t ds_config_size, void* user_arg,
+                            struct PerfettoDsOnSetupArgs* args) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnSetup(ds_impl, inst_id, ds_config,
-                                          ds_config_size, thiz->ds2_user_arg_);
+                                          ds_config_size, thiz->ds2_user_arg_,
+                                          args);
     };
-    callbacks.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
-                               PerfettoDsInstanceIndex inst_id, void* user_arg,
-                               void* inst_ctx) -> void {
+    params.on_start_cb = [](struct PerfettoDsImpl* ds_impl,
+                            PerfettoDsInstanceIndex inst_id, void* user_arg,
+                            void* inst_ctx,
+                            struct PerfettoDsOnStartArgs* args) -> void {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
       return thiz->ds2_callbacks_.OnStart(ds_impl, inst_id, thiz->ds2_user_arg_,
-                                          inst_ctx);
+                                          inst_ctx, args);
     };
-    callbacks.on_stop_cb =
-        [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
-           void* user_arg, void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
-          auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
-          return thiz->ds2_callbacks_.OnStop(
-              ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
-        };
-    callbacks.on_flush_cb =
+    params.on_stop_cb = [](struct PerfettoDsImpl* ds_impl,
+                           PerfettoDsInstanceIndex inst_id, void* user_arg,
+                           void* inst_ctx, struct PerfettoDsOnStopArgs* args) {
+      auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+      return thiz->ds2_callbacks_.OnStop(ds_impl, inst_id, thiz->ds2_user_arg_,
+                                         inst_ctx, args);
+    };
+    params.on_destroy_cb = [](struct PerfettoDsImpl* ds_impl, void* user_arg,
+                              void* inst_ctx) -> void {
+      auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
+      thiz->ds2_callbacks_.OnDestroy(ds_impl, thiz->ds2_user_arg_, inst_ctx);
+    };
+    params.on_flush_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            void* user_arg, void* inst_ctx, struct PerfettoDsOnFlushArgs* args) {
           auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
           return thiz->ds2_callbacks_.OnFlush(
               ds_impl, inst_id, thiz->ds2_user_arg_, inst_ctx, args);
         };
-    callbacks.on_create_tls_cb =
+    params.on_create_tls_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -247,12 +626,12 @@ class SharedLibDataSourceTest : public testing::Test {
                                                        thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_tls_cb = [](void* ptr) {
+    params.on_delete_tls_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteTls(state->actual);
       delete state;
     };
-    callbacks.on_create_incr_cb =
+    params.on_create_incr_cb =
         [](struct PerfettoDsImpl* ds_impl, PerfettoDsInstanceIndex inst_id,
            struct PerfettoDsTracerImpl* tracer, void* user_arg) -> void* {
       auto* thiz = static_cast<SharedLibDataSourceTest*>(user_arg);
@@ -262,13 +641,13 @@ class SharedLibDataSourceTest : public testing::Test {
           ds_impl, inst_id, tracer, thiz->ds2_user_arg_);
       return state;
     };
-    callbacks.on_delete_incr_cb = [](void* ptr) {
+    params.on_delete_incr_cb = [](void* ptr) {
       auto* state = static_cast<Ds2CustomState*>(ptr);
       state->thiz->ds2_callbacks_.OnDeleteIncr(state->actual);
       delete state;
     };
-    callbacks.user_arg = this;
-    PerfettoDsRegister(&data_source_2, kDataSourceName2, callbacks);
+    params.user_arg = this;
+    PerfettoDsRegister(&data_source_2, kDataSourceName2, params);
   }
 
   void* Ds2ActualCustomState(void* ptr) {
@@ -438,9 +817,10 @@ TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   void* const kInstancePtr = reinterpret_cast<void*>(0x44);
   testing::InSequence seq;
   PerfettoDsInstanceIndex setup_inst, start_inst, stop_inst;
-  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg))
+  EXPECT_CALL(ds2_callbacks_, OnSetup(_, _, _, _, kDataSource2UserArg, _))
       .WillOnce(DoAll(SaveArg<1>(&setup_inst), Return(kInstancePtr)));
-  EXPECT_CALL(ds2_callbacks_, OnStart(_, _, kDataSource2UserArg, kInstancePtr))
+  EXPECT_CALL(ds2_callbacks_,
+              OnStart(_, _, kDataSource2UserArg, kInstancePtr, _))
       .WillOnce(SaveArg<1>(&start_inst));
 
   TracingSession tracing_session =
@@ -449,6 +829,7 @@ TEST_F(SharedLibDataSourceTest, LifetimeCallbacks) {
   EXPECT_CALL(ds2_callbacks_,
               OnStop(_, _, kDataSource2UserArg, kInstancePtr, _))
       .WillOnce(SaveArg<1>(&stop_inst));
+  EXPECT_CALL(ds2_callbacks_, OnDestroy(_, kDataSource2UserArg, kInstancePtr));
 
   tracing_session.StopBlocking();
 
@@ -556,6 +937,591 @@ TEST_F(SharedLibDataSourceTest, IncrementalState) {
   TracingSession tracing_session_1 =
       TracingSession::Builder().set_data_source_name(kDataSourceName1).Build();
   PERFETTO_DS_TRACE(data_source_1, ctx) {}
+}
+
+class SharedLibProducerTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    struct PerfettoProducerInitArgs args = {0};
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+  }
+
+  void TearDown() override { perfetto::shlib::ResetForTesting(); }
+};
+
+TEST_F(SharedLibProducerTest, ActivateTriggers) {
+  struct PerfettoPbMsgWriter writer;
+  struct PerfettoHeapBuffer* hb = PerfettoHeapBufferCreate(&writer.writer);
+
+  struct perfetto_protos_TraceConfig cfg;
+  PerfettoPbMsgInit(&cfg.msg, &writer);
+  {
+    struct perfetto_protos_TraceConfig_BufferConfig buffers;
+    perfetto_protos_TraceConfig_begin_buffers(&cfg, &buffers);
+    perfetto_protos_TraceConfig_BufferConfig_set_size_kb(&buffers, 1024);
+    perfetto_protos_TraceConfig_end_buffers(&cfg, &buffers);
+  }
+  {
+    struct perfetto_protos_TraceConfig_TriggerConfig trigger_config;
+    perfetto_protos_TraceConfig_begin_trigger_config(&cfg, &trigger_config);
+    perfetto_protos_TraceConfig_TriggerConfig_set_trigger_mode(
+        &trigger_config,
+        perfetto_protos_TraceConfig_TriggerConfig_STOP_TRACING);
+    perfetto_protos_TraceConfig_TriggerConfig_set_trigger_timeout_ms(
+        &trigger_config, 5000);
+    {
+      struct perfetto_protos_TraceConfig_TriggerConfig_Trigger trigger;
+      perfetto_protos_TraceConfig_TriggerConfig_begin_triggers(&trigger_config,
+                                                               &trigger);
+      perfetto_protos_TraceConfig_TriggerConfig_Trigger_set_cstr_name(
+          &trigger, "trigger1");
+      perfetto_protos_TraceConfig_TriggerConfig_end_triggers(&trigger_config,
+                                                             &trigger);
+    }
+    perfetto_protos_TraceConfig_end_trigger_config(&cfg, &trigger_config);
+  }
+  size_t cfg_size = PerfettoStreamWriterGetWrittenSize(&writer.writer);
+  std::unique_ptr<uint8_t[]> ser(new uint8_t[cfg_size]);
+  PerfettoHeapBufferCopyInto(hb, &writer.writer, ser.get(), cfg_size);
+  PerfettoHeapBufferDestroy(hb, &writer.writer);
+
+  struct PerfettoTracingSessionImpl* ts =
+      PerfettoTracingSessionCreate(PERFETTO_BACKEND_IN_PROCESS);
+
+  PerfettoTracingSessionSetup(ts, ser.get(), cfg_size);
+
+  PerfettoTracingSessionStartBlocking(ts);
+  TracingSession tracing_session = TracingSession::Adopt(ts);
+
+  const char* triggers[3];
+  triggers[0] = "trigger0";
+  triggers[1] = "trigger1";
+  triggers[2] = nullptr;
+  PerfettoProducerActivateTriggers(triggers, 10000);
+
+  tracing_session.WaitForStopped();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(FieldView(data),
+              Contains(PbField(
+                  perfetto_protos_Trace_packet_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TracePacket_trigger_field_number,
+                      MsgField(Contains(PbField(
+                          perfetto_protos_Trigger_trigger_name_field_number,
+                          StringField("trigger1"))))))))));
+}
+
+class SharedLibTrackEventTest : public testing::Test {
+ protected:
+  void SetUp() override {
+    struct PerfettoProducerInitArgs args = {0};
+    args.backends = PERFETTO_BACKEND_IN_PROCESS;
+    PerfettoProducerInit(args);
+    PerfettoTeInit();
+    PERFETTO_TE_REGISTER_CATEGORIES(TEST_CATEGORIES);
+  }
+
+  void TearDown() override {
+    PERFETTO_TE_UNREGISTER_CATEGORIES(TEST_CATEGORIES);
+    perfetto::shlib::ResetForTesting();
+  }
+};
+
+TEST_F(SharedLibTrackEventTest, TrackEventFastpathOtherDsCatDisabled) {
+  TracingSession tracing_session =
+      TracingSession::Builder()
+          .set_data_source_name("other_nonexisting_datasource")
+          .Build();
+  EXPECT_FALSE(std::atomic_load(cat1.enabled));
+  EXPECT_FALSE(std::atomic_load(cat2.enabled));
+  EXPECT_FALSE(std::atomic_load(cat3.enabled));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventFastpathEmptyConfigEnableAllCats) {
+  ASSERT_FALSE(std::atomic_load(cat1.enabled));
+  ASSERT_FALSE(std::atomic_load(cat2.enabled));
+  ASSERT_FALSE(std::atomic_load(cat3.enabled));
+
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  EXPECT_TRUE(std::atomic_load(cat1.enabled));
+  EXPECT_TRUE(std::atomic_load(cat2.enabled));
+  EXPECT_TRUE(std::atomic_load(cat3.enabled));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventFastpathOneCatEnabled) {
+  ASSERT_FALSE(std::atomic_load(cat1.enabled));
+  ASSERT_FALSE(std::atomic_load(cat2.enabled));
+  ASSERT_FALSE(std::atomic_load(cat3.enabled));
+
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  EXPECT_TRUE(std::atomic_load(cat1.enabled));
+  EXPECT_FALSE(std::atomic_load(cat2.enabled));
+  EXPECT_FALSE(std::atomic_load(cat3.enabled));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlCategory) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    IdFieldView cat_iid_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_category_iids_field_number);
+    ASSERT_THAT(cat_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t cat_iid = cat_iid_fields.front().value.integer64;
+    EXPECT_THAT(
+        trace_field,
+        AllFieldsWithId(
+            perfetto_protos_TracePacket_interned_data_field_number,
+            ElementsAre(AllFieldsWithId(
+                perfetto_protos_InternedData_event_categories_field_number,
+                ElementsAre(MsgField(UnorderedElementsAre(
+                    PbField(perfetto_protos_EventCategory_iid_field_number,
+                            VarIntField(cat_iid)),
+                    PbField(perfetto_protos_EventCategory_name_field_number,
+                            StringField("cat1")))))))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategory) {
+  TracingSession tracing_session = TracingSession::Builder()
+                                       .set_data_source_name("track_event")
+                                       .add_enabled_category("dyn1")
+                                       .add_enabled_category("cat1")
+                                       .add_disabled_category("*")
+                                       .Build();
+
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT(""),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn2"));
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT(""),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn1"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    EXPECT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_categories_field_number,
+                    ElementsAre(StringField("dyn1")))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategoryMultipleSessions) {
+  TracingSession tracing_session1 = TracingSession::Builder()
+                                        .set_data_source_name("track_event")
+                                        .add_enabled_category("cat1")
+                                        .add_enabled_category("dyn1")
+                                        .add_disabled_category("dyn2")
+                                        .add_disabled_category("*")
+                                        .Build();
+
+  TracingSession tracing_session2 = TracingSession::Builder()
+                                        .set_data_source_name("track_event")
+                                        .add_enabled_category("cat1")
+                                        .add_enabled_category("dyn2")
+                                        .add_disabled_category("dyn1")
+                                        .add_disabled_category("*")
+                                        .Build();
+
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY,
+              PERFETTO_TE_INSTANT("interned_string"),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn1"));
+  PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY,
+              PERFETTO_TE_INSTANT("interned_string"),
+              PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn2"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session1.StopBlocking();
+  std::vector<uint8_t> data1 = tracing_session1.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data1),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(AllOf(
+              Contains(PbField(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TrackEvent_categories_field_number,
+                      StringField("dyn1")))))),
+              Contains(PbField(
+                  perfetto_protos_TracePacket_interned_data_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_InternedData_event_names_field_number,
+                      MsgField(Contains(
+                          PbField(perfetto_protos_EventName_name_field_number,
+                                  StringField("interned_string"))))))))))))));
+  tracing_session2.StopBlocking();
+  std::vector<uint8_t> data2 = tracing_session2.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data2),
+      Contains(PbField(
+          perfetto_protos_Trace_packet_field_number,
+          MsgField(AllOf(
+              Contains(PbField(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_TrackEvent_categories_field_number,
+                      StringField("dyn2")))))),
+              Contains(PbField(
+                  perfetto_protos_TracePacket_interned_data_field_number,
+                  MsgField(Contains(PbField(
+                      perfetto_protos_InternedData_event_names_field_number,
+                      MsgField(Contains(
+                          PbField(perfetto_protos_EventName_name_field_number,
+                                  StringField("interned_string"))))))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_INSTANT)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    EXPECT_THAT(trace_field,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_interned_data_field_number,
+                    ElementsAre(AllFieldsWithId(
+                        perfetto_protos_InternedData_event_names_field_number,
+                        ElementsAre(MsgField(UnorderedElementsAre(
+                            PbField(perfetto_protos_EventName_iid_field_number,
+                                    VarIntField(name_iid)),
+                            PbField(perfetto_protos_EventName_name_field_number,
+                                    StringField("event")))))))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  if (PERFETTO_UNLIKELY(PERFETTO_ATOMIC_LOAD_EXPLICIT(
+          cat1.enabled, PERFETTO_MEMORY_ORDER_RELAXED))) {
+    struct PerfettoTeTimestamp timestamp = PerfettoTeGetTimestamp();
+    int32_t type = PERFETTO_TE_TYPE_INSTANT;
+    const char* name = "event";
+    for (struct PerfettoTeLlIterator ctx =
+             PerfettoTeLlBeginSlowPath(&cat1, timestamp);
+         ctx.impl.ds.tracer != nullptr;
+         PerfettoTeLlNext(&cat1, timestamp, &ctx)) {
+      uint64_t name_iid;
+      {
+        struct PerfettoDsRootTracePacket trace_packet;
+        PerfettoTeLlPacketBegin(&ctx, &trace_packet);
+        PerfettoTeLlWriteTimestamp(&trace_packet.msg, &timestamp);
+        perfetto_protos_TracePacket_set_sequence_flags(
+            &trace_packet.msg,
+            perfetto_protos_TracePacket_SEQ_NEEDS_INCREMENTAL_STATE);
+        {
+          struct PerfettoTeLlInternContext intern_ctx;
+          PerfettoTeLlInternContextInit(&intern_ctx, ctx.impl.incr,
+                                        &trace_packet.msg);
+          PerfettoTeLlInternRegisteredCat(&intern_ctx, &cat1);
+          name_iid = PerfettoTeLlInternEventName(&intern_ctx, name);
+          PerfettoTeLlInternContextDestroy(&intern_ctx);
+        }
+        {
+          struct perfetto_protos_TrackEvent te_msg;
+          perfetto_protos_TracePacket_begin_track_event(&trace_packet.msg,
+                                                        &te_msg);
+          perfetto_protos_TrackEvent_set_type(
+              &te_msg, static_cast<enum perfetto_protos_TrackEvent_Type>(type));
+          PerfettoTeLlWriteRegisteredCat(&te_msg, &cat1);
+          PerfettoTeLlWriteInternedEventName(&te_msg, name_iid);
+          perfetto_protos_TracePacket_end_track_event(&trace_packet.msg,
+                                                      &te_msg);
+        }
+        PerfettoTeLlPacketEnd(&ctx, &trace_packet);
+      }
+    }
+  }
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_INSTANT)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    EXPECT_THAT(trace_field,
+                AllFieldsWithId(
+                    perfetto_protos_TracePacket_interned_data_field_number,
+                    ElementsAre(AllFieldsWithId(
+                        perfetto_protos_InternedData_event_names_field_number,
+                        ElementsAre(MsgField(UnorderedElementsAre(
+                            PbField(perfetto_protos_EventName_iid_field_number,
+                                    VarIntField(name_iid)),
+                            PbField(perfetto_protos_EventName_name_field_number,
+                                    StringField("event")))))))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"), PERFETTO_TE_NO_INTERN());
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    ASSERT_THAT(
+        track_event,
+        ElementsAre(AllOf(
+            AllFieldsWithId(perfetto_protos_TrackEvent_type_field_number,
+                            ElementsAre(VarIntField(
+                                perfetto_protos_TrackEvent_TYPE_INSTANT))),
+            AllFieldsWithId(perfetto_protos_TrackEvent_name_field_number,
+                            ElementsAre(StringField("event"))))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlDbgArg) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
+              PERFETTO_TE_ARG_UINT64("arg_name", 42));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  bool found = false;
+  for (struct PerfettoPbDecoderField trace_field : FieldView(data)) {
+    ASSERT_THAT(trace_field, PbField(perfetto_protos_Trace_packet_field_number,
+                                     MsgField(_)));
+    IdFieldView track_event(
+        trace_field, perfetto_protos_TracePacket_track_event_field_number);
+    if (track_event.size() == 0) {
+      continue;
+    }
+    found = true;
+    ASSERT_THAT(track_event,
+                ElementsAre(AllFieldsWithId(
+                    perfetto_protos_TrackEvent_type_field_number,
+                    ElementsAre(VarIntField(
+                        perfetto_protos_TrackEvent_TYPE_INSTANT)))));
+    IdFieldView name_iid_fields(
+        track_event.front(), perfetto_protos_TrackEvent_name_iid_field_number);
+    ASSERT_THAT(name_iid_fields, ElementsAre(VarIntField(_)));
+    uint64_t name_iid = name_iid_fields.front().value.integer64;
+    IdFieldView debug_annot_fields(
+        track_event.front(),
+        perfetto_protos_TrackEvent_debug_annotations_field_number);
+    ASSERT_THAT(
+        debug_annot_fields,
+        ElementsAre(MsgField(UnorderedElementsAre(
+            PbField(perfetto_protos_DebugAnnotation_name_iid_field_number,
+                    VarIntField(_)),
+            PbField(perfetto_protos_DebugAnnotation_uint_value_field_number,
+                    VarIntField(42))))));
+    uint64_t arg_name_iid =
+        IdFieldView(debug_annot_fields.front(),
+                    perfetto_protos_DebugAnnotation_name_iid_field_number)
+            .front()
+            .value.integer64;
+    EXPECT_THAT(
+        trace_field,
+        AllFieldsWithId(
+            perfetto_protos_TracePacket_interned_data_field_number,
+            ElementsAre(AllOf(
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_event_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(perfetto_protos_EventName_iid_field_number,
+                                VarIntField(name_iid)),
+                        PbField(perfetto_protos_EventName_name_field_number,
+                                StringField("event")))))),
+                AllFieldsWithId(
+                    perfetto_protos_InternedData_debug_annotation_names_field_number,
+                    ElementsAre(MsgField(UnorderedElementsAre(
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_iid_field_number,
+                            VarIntField(arg_name_iid)),
+                        PbField(
+                            perfetto_protos_DebugAnnotationName_name_field_number,
+                            StringField("arg_name"))))))))));
+  }
+  EXPECT_TRUE(found);
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlNamedTrack) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
+              PERFETTO_TE_NAMED_TRACK("MyTrack", 1, 2));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  uint64_t kExpectedUuid = PerfettoTeNamedTrackUuid("MyTrack", 1, 2);
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_descriptor_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_TrackDescriptor_uuid_field_number,
+                              VarIntField(kExpectedUuid)),
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("MyTrack")),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_parent_uuid_field_number,
+                          VarIntField(2)))))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_INSTANT))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_track_uuid_field_number,
+                          ElementsAre(VarIntField(kExpectedUuid))))))))));
+}
+
+TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
+  TracingSession tracing_session =
+      TracingSession::Builder().set_data_source_name("track_event").Build();
+
+  PerfettoTeRegisteredTrack my_counter_track;
+  PerfettoTeCounterTrackRegister(&my_counter_track, "MyCounter",
+                                 PerfettoTeProcessTrackUuid());
+
+  PERFETTO_TE(cat1, PERFETTO_TE_COUNTER(),
+              PERFETTO_TE_REGISTERED_TRACK(&my_counter_track),
+              PERFETTO_TE_INT_COUNTER(42));
+  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
+
+  PerfettoTeRegisteredTrackUnregister(&my_counter_track);
+
+  uint64_t kExpectedUuid =
+      PerfettoTeCounterTrackUuid("MyCounter", PerfettoTeProcessTrackUuid());
+
+  tracing_session.StopBlocking();
+  std::vector<uint8_t> data = tracing_session.ReadBlocking();
+  EXPECT_THAT(
+      FieldView(data),
+      AllOf(
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_descriptor_field_number,
+                  ElementsAre(MsgField(UnorderedElementsAre(
+                      PbField(perfetto_protos_TrackDescriptor_uuid_field_number,
+                              VarIntField(kExpectedUuid)),
+                      PbField(perfetto_protos_TrackDescriptor_name_field_number,
+                              StringField("MyCounter")),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_parent_uuid_field_number,
+                          VarIntField(PerfettoTeProcessTrackUuid())),
+                      PbField(
+                          perfetto_protos_TrackDescriptor_counter_field_number,
+                          MsgField(_)))))))),
+          Contains(PbField(
+              perfetto_protos_Trace_packet_field_number,
+              AllFieldsWithId(
+                  perfetto_protos_TracePacket_track_event_field_number,
+                  ElementsAre(AllOf(
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_type_field_number,
+                          ElementsAre(VarIntField(
+                              perfetto_protos_TrackEvent_TYPE_COUNTER))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_counter_value_field_number,
+                          ElementsAre(VarIntField(42))),
+                      AllFieldsWithId(
+                          perfetto_protos_TrackEvent_track_uuid_field_number,
+                          ElementsAre(VarIntField(kExpectedUuid))))))))));
 }
 
 }  // namespace

@@ -38,8 +38,8 @@
 #include "src/trace_processor/storage/trace_storage.h"
 #include "src/trace_processor/types/softirq_action.h"
 #include "src/trace_processor/types/tcp_state.h"
-
 #include "protos/perfetto/common/gpu_counter_descriptor.pbzero.h"
+#include "protos/perfetto/trace/ftrace/android_fs.pbzero.h"
 #include "protos/perfetto/trace/ftrace/binder.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cma.pbzero.h"
 #include "protos/perfetto/trace/ftrace/cpuhp.pbzero.h"
@@ -66,6 +66,7 @@
 #include "protos/perfetto/trace/ftrace/oom.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
 #include "protos/perfetto/trace/ftrace/raw_syscalls.pbzero.h"
+#include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/scm.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sde.pbzero.h"
@@ -216,8 +217,7 @@ std::string GetUfsCmdString(uint32_t ufsopcode, uint32_t gid) {
   }
   return buffer;
 }
-}  // namespace
-
+} // namespace
 FtraceParser::FtraceParser(TraceProcessorContext* context)
     : context_(context),
       rss_stat_tracker_(context),
@@ -314,7 +314,15 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       cma_nr_test_fail_id_(context_->storage->InternString("cma_nr_test_fail")),
       syscall_ret_id_(context->storage->InternString("ret")),
       syscall_args_id_(context->storage->InternString("args")),
-      replica_slice_id_(context->storage->InternString("replica_slice")) {
+      replica_slice_id_(context->storage->InternString("replica_slice")),
+      file_path_id_(context_->storage->InternString("file_path")),
+      offset_id_start_(context_->storage->InternString("offset_start")),
+      offset_id_end_(context_->storage->InternString("offset_end")),
+      bytes_read_id_start_(context_->storage->InternString("bytes_read_start")),
+      bytes_read_id_end_(context_->storage->InternString("bytes_read_end")),
+      android_fs_category_id_(context_->storage->InternString("android_fs")),
+      android_fs_data_read_id_(
+          context_->storage->InternString("android_fs_data_read")) {
   // Build the lookup table for the strings inside ftrace events (e.g. the
   // name of ftrace event fields and the names of their args).
   for (size_t i = 0; i < GetDescriptorsSize(); i++) {
@@ -687,6 +695,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseBinderTransactionReceived(ts, pid, fld_bytes);
         break;
       }
+      case FtraceEvent::kBinderCommandFieldNumber: {
+        ParseBinderCommand(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kBinderReturnFieldNumber: {
+        ParseBinderReturn(ts, pid, fld_bytes);
+        break;
+      }
       case FtraceEvent::kBinderTransactionAllocBufFieldNumber: {
         ParseBinderTransactionAllocBuf(ts, pid, fld_bytes);
         break;
@@ -797,6 +813,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kG2dTracingMarkWriteFieldNumber: {
         ParseG2dTracingMarkWrite(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kSamsungTracingMarkWriteFieldNumber: {
+        ParseSamsungTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
       case FtraceEvent::kDpuTracingMarkWriteFieldNumber: {
@@ -1034,7 +1054,14 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
         ParseMdssTracingMarkWrite(ts, pid, fld_bytes);
         break;
       }
-
+      case FtraceEvent::kAndroidFsDatareadEndFieldNumber: {
+        ParseAndroidFsDatareadEnd(ts, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kAndroidFsDatareadStartFieldNumber: {
+        ParseAndroidFsDatareadStart(ts, pid, fld_bytes);
+        break;
+      }
       default:
         break;
     }
@@ -1373,6 +1400,22 @@ void FtraceParser::ParseSdeTracingMarkWrite(int64_t timestamp,
   SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
       timestamp, pid, static_cast<char>(evt.trace_type()), evt.trace_begin(),
       evt.trace_name(), tgid, evt.value());
+}
+
+void FtraceParser::ParseSamsungTracingMarkWrite(int64_t timestamp,
+                                                uint32_t pid,
+                                                ConstBytes blob) {
+  protos::pbzero::SamsungTracingMarkWriteFtraceEvent::Decoder evt(blob.data,
+                                                                  blob.size);
+  if (!evt.has_trace_type()) {
+    context_->storage->IncrementStats(stats::systrace_parse_failure);
+    return;
+  }
+
+  uint32_t tgid = static_cast<uint32_t>(evt.pid());
+  SystraceParser::GetOrCreate(context_)->ParseKernelTracingMarkWrite(
+      timestamp, pid, static_cast<char>(evt.trace_type()),
+      false /*trace_begin*/, evt.trace_name(), tgid, evt.value());
 }
 
 void FtraceParser::ParseDpuTracingMarkWrite(int64_t timestamp,
@@ -1741,6 +1784,12 @@ void FtraceParser::ParseTaskNewTask(int64_t timestamp,
     // This is a plain-old fork() or equivalent.
     proc_tracker->StartNewProcess(timestamp, source_tid, new_tid, new_comm,
                                   ThreadNamePriority::kFtrace);
+
+    auto source_utid = proc_tracker->GetOrCreateThread(source_tid);
+    auto new_utid = proc_tracker->GetOrCreateThread(new_tid);
+
+    ThreadStateTracker::GetOrCreate(context_)->PushNewTaskEvent(
+        timestamp, new_utid, source_utid);
     return;
   }
 
@@ -1790,6 +1839,22 @@ void FtraceParser::ParseBinderTransactionReceived(int64_t timestamp,
   int32_t transaction_id = static_cast<int32_t>(evt.debug_id());
   BinderTracker::GetOrCreate(context_)->TransactionReceived(timestamp, pid,
                                                             transaction_id);
+}
+
+void FtraceParser::ParseBinderCommand(int64_t timestamp,
+                                      uint32_t pid,
+                                      ConstBytes blob) {
+  protos::pbzero::BinderCommandFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->CommandToKernel(timestamp, pid,
+                                                        evt.cmd());
+}
+
+void FtraceParser::ParseBinderReturn(int64_t timestamp,
+                                     uint32_t pid,
+                                     ConstBytes blob) {
+  protos::pbzero::BinderReturnFtraceEvent::Decoder evt(blob.data, blob.size);
+  BinderTracker::GetOrCreate(context_)->ReturnFromKernel(timestamp, pid,
+                                                         evt.cmd());
 }
 
 void FtraceParser::ParseBinderTransactionAllocBuf(int64_t timestamp,
@@ -3039,6 +3104,62 @@ void FtraceParser::ParseFuncgraphExit(
   UniqueTid utid = context_->process_tracker->GetOrCreateThread(pid);
   TrackId track = context_->track_tracker->InternThreadTrack(utid);
   context_->slice_tracker->End(timestamp, track, kNullStringId, name_id);
+}
+
+/** Parses android_fs_dataread_start event.*/
+void FtraceParser::ParseAndroidFsDatareadStart(int64_t ts,
+                                               uint32_t pid,
+                                               ConstBytes data) {
+  protos::pbzero::AndroidFsDatareadStartFtraceEvent::Decoder
+      android_fs_read_begin(data);
+  base::StringView file_path(android_fs_read_begin.pathbuf());
+  std::pair<uint64_t, int64_t> key(android_fs_read_begin.ino(),
+                                   android_fs_read_begin.offset());
+  inode_offset_thread_map_.Insert(key, pid);
+  // Create a new Track object for the event.
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      android_fs_category_id_);
+  TrackId track_id = context_->async_track_set_tracker->Begin(async_track, pid);
+  StringId string_id = context_->storage->InternString(file_path);
+  auto args_inserter = [this, &android_fs_read_begin,
+                        &string_id](ArgsTracker::BoundInserter* inserter) {
+    inserter->AddArg(file_path_id_, Variadic::String(string_id));
+    inserter->AddArg(offset_id_start_,
+                     Variadic::Integer(android_fs_read_begin.offset()));
+    inserter->AddArg(bytes_read_id_start_,
+                     Variadic::Integer(android_fs_read_begin.bytes()));
+  };
+  context_->slice_tracker->Begin(ts, track_id, kNullStringId,
+                                 android_fs_data_read_id_, args_inserter);
+}
+
+/** Parses android_fs_dataread_end event.*/
+void FtraceParser::ParseAndroidFsDatareadEnd(int64_t ts, ConstBytes data) {
+  protos::pbzero::AndroidFsDatareadEndFtraceEvent::Decoder android_fs_read_end(
+      data);
+  std::pair<uint64_t, int64_t> key(android_fs_read_end.ino(),
+                                   android_fs_read_end.offset());
+  // Find the corresponding (inode, offset) pair in the map.
+  auto it = inode_offset_thread_map_.Find(key);
+  if (!it) {
+    return;
+  }
+  uint32_t start_event_tid = *it;
+  auto async_track = context_->async_track_set_tracker->InternGlobalTrackSet(
+      android_fs_category_id_);
+  TrackId track_id =
+      context_->async_track_set_tracker->End(async_track, start_event_tid);
+  auto args_inserter =
+      [this, &android_fs_read_end](ArgsTracker::BoundInserter* inserter) {
+        inserter->AddArg(offset_id_end_,
+                         Variadic::Integer(android_fs_read_end.offset()));
+        inserter->AddArg(bytes_read_id_end_,
+                         Variadic::Integer(android_fs_read_end.bytes()));
+      };
+  context_->slice_tracker->End(ts, track_id, kNullStringId, kNullStringId,
+                               args_inserter);
+  // Erase the entry from the map.
+  inode_offset_thread_map_.Erase(key);
 }
 
 StringId FtraceParser::InternedKernelSymbolOrFallback(

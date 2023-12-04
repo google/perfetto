@@ -75,6 +75,10 @@ message EveryField {
   }
   optional NestedEnum nested_enum = 600;
 
+  repeated string repeated_string = 700;
+  repeated fixed64 repeated_fixed64 = 701;
+  repeated sfixed32 repeated_sfixed32 = 702;
+
   repeated int32 repeated_int32 = 999;
 }
 

@@ -67,7 +67,8 @@ void SurfaceFlingerLayersParser::ParseLayer(
   auto layerId =
       context_->storage->mutable_surfaceflinger_layer_table()->Insert(layer).id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(layerId);
+  ArgsTracker tracker(context_);
+  auto inserter = tracker.AddArgsTo(layerId);
   WinscopeArgsParser writer(inserter, *context_->storage.get());
   base::Status status = args_parser_.ParseMessage(
       blob, kLayerProtoName, nullptr /* parse all fields */, writer);

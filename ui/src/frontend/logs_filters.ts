@@ -15,11 +15,11 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {Button} from '../widgets/button';
+import {Select} from '../widgets/select';
+import {TextInput} from '../widgets/text_input';
 
 import {globals} from './globals';
-import {Button} from './widgets/button';
-import {Select} from './widgets/select';
-import {TextInput} from './widgets/text_input';
 
 export const LOG_PRIORITIES =
     ['-', '-', 'Verbose', 'Debug', 'Info', 'Warn', 'Error', 'Fatal'];
@@ -56,7 +56,7 @@ class LogPriorityWidget implements m.ClassComponent<LogPriorityWidgetAttrs> {
     return m(
         Select,
         {
-          onchange: (e: InputEvent) => {
+          onchange: (e: Event) => {
             const selectionValue = (e.target as HTMLSelectElement).value;
             attrs.onSelect(Number(selectionValue));
           },
@@ -125,12 +125,6 @@ class LogTextWidget implements m.ClassComponent {
     return m(
         TextInput, {
           placeholder: 'Search logs...',
-          onkeydown: (e: KeyboardEvent) => {
-            // This is to avoid zooming on 'w'(and other unexpected effects
-            // of key presses in this input field).
-            e.stopPropagation();
-          },
-
           onkeyup: (e: KeyboardEvent) => {
             // We want to use the value of the input field after it has been
             // updated with the latest key (onkeyup).

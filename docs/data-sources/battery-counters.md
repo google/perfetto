@@ -32,7 +32,7 @@ Android [IHealth HAL][health-hal].
 For more details on HW specs and resolution see
 [Measuring Device Power](https://source.android.com/devices/tech/power/device).
 
-[health-hal]: https://cs.android.com/android/platform/superproject/+/master:hardware/interfaces/health/2.0/IHealth.hal?q=IHealth
+[health-hal]: https://cs.android.com/android/platform/superproject/+/main:hardware/interfaces/health/2.0/IHealth.hal?q=IHealth
 
 #### Measuring charge while plugged on USB
 
@@ -96,6 +96,7 @@ data_sources: {
             battery_counters: BATTERY_COUNTER_CAPACITY_PERCENT
             battery_counters: BATTERY_COUNTER_CHARGE
             battery_counters: BATTERY_COUNTER_CURRENT
+            battery_counters: BATTERY_COUNTER_VOLTAGE
         }
     }
 }
@@ -130,9 +131,9 @@ manufacturer. At the platform level this data is obtained polling the
 Android [IPowerStats HAL][power-hal].
 
 Googlers: See [go/power-rails-internal-doc](http://go/power-rails-internal-doc)
-for instructions on how to change the refault rail selection on Pixel devices.
+for instructions on how to change the default rail selection on Pixel devices.
 
-[power-hal]: https://cs.android.com/android/platform/superproject/+/master:hardware/interfaces/power/stats/1.0/IPowerStats.hal
+[power-hal]: https://cs.android.com/android/platform/superproject/+/main:hardware/interfaces/power/stats/1.0/IPowerStats.hal
 
 Simplified block diagram:
 

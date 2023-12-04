@@ -46,8 +46,7 @@
 -- @column upid               Alias for `process.upid`.
 -- @column pid                Alias for `process.pid`.
 -- @column process_name       Alias for `process.name`.
-CREATE TABLE experimental_slice_flattened
-AS
+CREATE TABLE experimental_slice_flattened AS
 -- The algorithm proceeds as follows:
 -- 1. Find the start and end timestamps of all slices.
 -- 2. Iterate the generated timestamps within a stack in chronoligical order.
@@ -89,7 +88,13 @@ WITH
       events.track_id
     FROM events
   )
-SELECT * FROM data WHERE depth != -1;
+SELECT data.slice_id, data.ts, data.dur, data.depth,
+ data.name, data.track_id, thread.utid, thread.tid, thread.name as thread_name,
+ process.upid, process.pid, process.name as process_name
+ FROM data JOIN thread_track ON data.track_id = thread_track.id
+JOIN thread USING(utid)
+JOIN process USING(upid)
+WHERE depth != -1;
 
 CREATE
   INDEX experimental_slice_flattened_id_idx

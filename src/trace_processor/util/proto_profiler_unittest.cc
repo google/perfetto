@@ -57,9 +57,9 @@ TEST(ProtoProfiler, TestMessage) {
     got.emplace_back(path, *sample);
   }
   std::vector<Item> expected{
-      {{"NestedA"}, 15},
-      {{"NestedA", "#repeated_a", "NestedB"}, 5},
-      {{"NestedA", "#repeated_a", "NestedB"}, 5},
+      {{"NestedA"}, 6},
+      {{"NestedA", "#repeated_a", "NestedB"}, 2},
+      {{"NestedA", "#repeated_a", "NestedB"}, 2},
       {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC"}, 1},
       {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC"}, 1},
       {{"NestedA", "#repeated_a", "NestedB", "#value_b", "NestedC", "#value_c",

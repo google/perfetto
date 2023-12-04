@@ -27,8 +27,10 @@ namespace shlib {
 void ResetForTesting() {
   auto* muxer = static_cast<internal::TracingMuxerImpl*>(
       internal::TracingMuxerImpl::instance_);
-  muxer->AppendResetForTestingCallback(
-      [] { perfetto::shlib::ResetDataSourceTls(); });
+  muxer->AppendResetForTestingCallback([] {
+    perfetto::shlib::ResetDataSourceTls();
+    perfetto::shlib::ResetTrackEventTls();
+  });
   perfetto::Tracing::ResetForTesting();
 }
 
@@ -45,4 +47,13 @@ void PerfettoProducerSystemInit() {
   perfetto::TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   perfetto::Tracing::Initialize(args);
+}
+
+void PerfettoProducerActivateTriggers(const char* trigger_names[],
+                                      uint32_t ttl_ms) {
+  std::vector<std::string> triggers;
+  for (size_t i = 0; trigger_names[i] != nullptr; i++) {
+    triggers.push_back(trigger_names[i]);
+  }
+  perfetto::Tracing::ActivateTriggers(triggers, ttl_ms);
 }

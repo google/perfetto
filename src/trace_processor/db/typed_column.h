@@ -110,6 +110,9 @@ class TypedColumn : public Column {
   Constraint ge(sql_value_type v) const { return ge_value(ToSqlValue(v)); }
   Constraint le(sql_value_type v) const { return le_value(ToSqlValue(v)); }
   Constraint glob(sql_value_type v) const { return glob_value(ToSqlValue(v)); }
+  Constraint regex(sql_value_type v) const {
+    return regex_value(ToSqlValue(v));
+  }
 
   // Implements equality between two items of type |T|.
   static constexpr bool Equals(T a, T b) { return TH::Equals(a, b); }

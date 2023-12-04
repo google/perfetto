@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../../common/engine';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   LONG_NULL,
   NUM,
   NUM_NULL,
   STR,
   STR_NULL,
-} from '../../common/query_result';
+} from '../../trace_processor/query_result';
 import {
   ArgSetId,
   ArgsId,
@@ -52,7 +52,8 @@ export async function getArgs(
       value_type as valueType,
       display_value as displayValue
     FROM args
-    WHERE arg_set_id = ${argSetId}`);
+    WHERE arg_set_id = ${argSetId}
+    ORDER BY key`);
   const it = query.iter({
     id: NUM,
     type: STR,

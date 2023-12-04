@@ -120,6 +120,7 @@ inline const char* ProtoSchemaToString(ProtoSchemaType v) {
 // Maximum message size supported: 256 MiB (4 x 7-bit due to varint encoding).
 constexpr size_t kMessageLengthFieldSize = 4;
 constexpr size_t kMaxMessageLength = (1u << (kMessageLengthFieldSize * 7)) - 1;
+constexpr size_t kMaxOneByteMessageLength = (1 << 7) - 1;
 
 // Field tag is encoded as 32-bit varint (5 bytes at most).
 // Largest value of simple (not length-delimited) field is 64-bit varint

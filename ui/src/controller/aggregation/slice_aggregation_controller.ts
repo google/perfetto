@@ -13,47 +13,40 @@
 // limitations under the License.
 
 import {ColumnDef} from '../../common/aggregation_data';
-import {Engine} from '../../common/engine';
+import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
 import {globals} from '../../frontend/globals';
-import {
-  ASYNC_SLICE_TRACK_KIND,
-  Config as AsyncSliceConfig,
-} from '../../tracks/async_slices';
-import {
-  Config as SliceConfig,
-  SLICE_TRACK_KIND,
-} from '../../tracks/chrome_slices';
+import {Engine} from '../../trace_processor/engine';
+import {ASYNC_SLICE_TRACK_KIND} from '../../tracks/async_slices';
+import {SLICE_TRACK_KIND} from '../../tracks/chrome_slices';
 
 import {AggregationController} from './aggregation_controller';
 
-export function getSelectedTrackIds(area: Area): number[] {
-  const selectedTrackIds = [];
-  for (const trackId of area.tracks) {
-    const track = globals.state.tracks[trackId];
+export function getSelectedTrackKeys(area: Area): number[] {
+  const selectedTrackKeys: number[] = [];
+  for (const trackKey of area.tracks) {
+    const track = globals.state.tracks[trackKey];
     // Track will be undefined for track groups.
-    if (track !== undefined) {
-      if (track.kind === SLICE_TRACK_KIND) {
-        selectedTrackIds.push((track.config as SliceConfig).trackId);
+    if (track?.uri !== undefined) {
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      if (trackInfo?.kind === SLICE_TRACK_KIND) {
+        trackInfo.trackIds && selectedTrackKeys.push(...trackInfo.trackIds);
       }
-      if (track.kind === ASYNC_SLICE_TRACK_KIND) {
-        const config = track.config as AsyncSliceConfig;
-        for (const id of config.trackIds) {
-          selectedTrackIds.push(id);
-        }
+      if (trackInfo?.kind === ASYNC_SLICE_TRACK_KIND) {
+        trackInfo.trackIds && selectedTrackKeys.push(...trackInfo.trackIds);
       }
     }
   }
-  return selectedTrackIds;
+  return selectedTrackKeys;
 }
 
 export class SliceAggregationController extends AggregationController {
   async createAggregateView(engine: Engine, area: Area) {
     await engine.query(`drop view if exists ${this.kind};`);
 
-    const selectedTrackIds = getSelectedTrackIds(area);
+    const selectedTrackKeys = getSelectedTrackKeys(area);
 
-    if (selectedTrackIds.length === 0) return false;
+    if (selectedTrackKeys.length === 0) return false;
 
     const query = `create view ${this.kind} as
         SELECT
@@ -62,7 +55,7 @@ export class SliceAggregationController extends AggregationController {
         sum(dur)/count(1) as avg_dur,
         count(1) as occurrences
         FROM slices
-        WHERE track_id IN (${selectedTrackIds}) AND
+        WHERE track_id IN (${selectedTrackKeys}) AND
         ts + dur > ${area.start} AND
         ts < ${area.end} group by name`;
 

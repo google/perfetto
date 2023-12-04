@@ -404,7 +404,7 @@ SpanJoinOperatorTable::Cursor::~Cursor() = default;
 base::Status SpanJoinOperatorTable::Cursor::Filter(const QueryConstraints& qc,
                                                    sqlite3_value** argv,
                                                    FilterHistory) {
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SPAN_JOIN_XFILTER");
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED, "SPAN_JOIN_XFILTER");
 
   bool t1_partitioned_mixed =
       t1_.definition()->IsPartitioned() &&
@@ -732,10 +732,10 @@ util::Status SpanJoinOperatorTable::Query::NextSliceState() {
 
 util::Status SpanJoinOperatorTable::Query::Rewind() {
   auto res = engine_->sqlite_engine()->PrepareStatement(
-      SqlSource::FromSpanJoin(sql_query_, table_->name()));
+      SqlSource::FromTraceProcessorImplementation(sql_query_));
   cursor_eof_ = false;
   RETURN_IF_ERROR(res.status());
-  stmt_ = std::move(res.value());
+  stmt_ = std::move(res);
 
   RETURN_IF_ERROR(CursorNext());
 
@@ -802,6 +802,7 @@ std::string SpanJoinOperatorTable::Query::CreateSqlQuery(
 
 void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
                                                       size_t index) {
+  const auto kSqliteTransient = reinterpret_cast<sqlite3_destructor_type>(-1);
   if (state_ != State::kReal) {
     sqlite3_result_null(context);
     return;
@@ -820,10 +821,13 @@ void SpanJoinOperatorTable::Query::ReportSqliteResult(sqlite3_context* context,
       // TODO(lalitm): note for future optimizations: if we knew the addresses
       // of the string intern pool, we could check if the string returned here
       // comes from the pool, and pass it as non-transient.
-      const auto kSqliteTransient =
-          reinterpret_cast<sqlite3_destructor_type>(-1);
       auto ptr = reinterpret_cast<const char*>(sqlite3_column_text(stmt, idx));
       sqlite3_result_text(context, ptr, -1, kSqliteTransient);
+      break;
+    }
+    case SQLITE_BLOB: {
+      sqlite3_result_blob(context, sqlite3_column_blob(stmt, idx),
+                          sqlite3_column_bytes(stmt, idx), kSqliteTransient);
       break;
     }
   }

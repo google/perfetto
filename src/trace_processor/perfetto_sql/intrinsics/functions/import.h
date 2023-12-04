@@ -33,7 +33,6 @@ namespace trace_processor {
 struct Import : public SqlFunction {
   struct Context {
     PerfettoSqlEngine* engine;
-    base::FlatHashMap<std::string, sql_modules::RegisteredModule>* modules;
   };
 
   static constexpr bool kVoidReturn = true;

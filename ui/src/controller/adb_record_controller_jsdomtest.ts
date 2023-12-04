@@ -15,7 +15,7 @@
 import {dingus} from 'dingusjs';
 
 import {utf8Encode} from '../base/string_utils';
-import {perfetto} from '../gen/protos';
+import {EnableTracingRequest, TraceConfig} from '../protos';
 
 import {AdbStream, MockAdb, MockAdbStream} from './adb_interfaces';
 import {AdbConsumerPort} from './adb_shell_controller';
@@ -33,10 +33,10 @@ const adbMock = new MockAdb();
 const adbController = new AdbConsumerPort(adbMock, mainCallback);
 const mockIntArray = new Uint8Array();
 
-const enableTracingRequest = new perfetto.protos.EnableTracingRequest();
-enableTracingRequest.traceConfig = new perfetto.protos.TraceConfig();
+const enableTracingRequest = new EnableTracingRequest();
+enableTracingRequest.traceConfig = new TraceConfig();
 const enableTracingRequestProto =
-    perfetto.protos.EnableTracingRequest.encode(enableTracingRequest).finish();
+    EnableTracingRequest.encode(enableTracingRequest).finish();
 
 
 test('handleCommand', async () => {

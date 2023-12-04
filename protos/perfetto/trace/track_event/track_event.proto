@@ -33,6 +33,7 @@ import "protos/perfetto/trace/track_event/chrome_mojo_event_info.proto";
 import "protos/perfetto/trace/track_event/chrome_renderer_scheduler_state.proto";
 import "protos/perfetto/trace/track_event/chrome_user_event.proto";
 import "protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto";
+import "protos/perfetto/trace/track_event/screenshot.proto";
 import "protos/perfetto/trace/track_event/source_location.proto";
 
 package perfetto.protos;
@@ -102,7 +103,7 @@ package perfetto.protos;
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 50.
+// Next reserved id: 13 (up to 15). Next id: 51.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -255,6 +256,7 @@ message TrackEvent {
   optional ChromeContentSettingsEventInfo chrome_content_settings_event_info =
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
+  optional Screenshot screenshot = 50;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
@@ -280,8 +282,13 @@ message TrackEvent {
   // Contact perfetto-dev@googlegroups.com if you are interested in a subrange
   // for your project.
 
+  // Extension range reserved for chromium:
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+  extensions 1000 to 1999;
+  // Extension range reserved for https://b.corp.google.com/issues/301227627.
+  extensions 2000 to 2000;
   // Extension range for future use.
-  extensions 1000 to 9899;
+  extensions 2001 to 9899;
   // Reserved for Perfetto unit and integration tests.
   extensions 9900 to 10000;
 

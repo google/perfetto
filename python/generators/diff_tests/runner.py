@@ -149,6 +149,7 @@ class TestCaseRunner:
   trace_processor_path: str
   trace_descriptor_path: str
   colors: ColorFormatter
+  override_sql_module_paths: List[str]
 
   def __output_to_text_proto(self, actual: str, out: BinaryProto) -> str:
     """Deserializes a binary proto and returns its text representation.
@@ -207,6 +208,8 @@ class TestCaseRunner:
         tmp_perf_file.name,
         trace_path,
     ]
+    for sql_module_path in self.override_sql_module_paths:
+      cmd += ['--override-sql-module', sql_module_path]
     tp = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -267,6 +270,8 @@ class TestCaseRunner:
         tmp_perf_file.name,
         trace_path,
     ]
+    for sql_module_path in self.override_sql_module_paths:
+      cmd += ['--override-sql-module', sql_module_path]
     tp = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -381,11 +386,9 @@ class TestCaseRunner:
 
   # Run a TestCase.
   def execute(self, extension_descriptor_paths: List[str],
-              metrics_descriptor: str, keep_input: bool,
+              metrics_descriptor_paths: List[str], keep_input: bool,
               rebase: bool) -> Tuple[str, str, TestResult]:
-    if metrics_descriptor:
-      metrics_descriptor_paths = [metrics_descriptor]
-    else:
+    if not metrics_descriptor_paths:
       out_path = os.path.dirname(self.trace_processor_path)
       metrics_protos_path = os.path.join(out_path, 'gen', 'protos', 'perfetto',
                                          'metrics')
@@ -416,8 +419,9 @@ class DiffTestsRunner:
   test_runners: List[TestCaseRunner]
 
   def __init__(self, name_filter: str, trace_processor_path: str,
-               trace_descriptor: str, no_colors: bool):
-    self.tests = read_all_tests(name_filter, ROOT_DIR)
+               trace_descriptor: str, no_colors: bool,
+               override_sql_module_paths: List[str], test_dir: str):
+    self.tests = read_all_tests(name_filter, test_dir)
     self.trace_processor_path = trace_processor_path
 
     out_path = os.path.dirname(self.trace_processor_path)
@@ -428,26 +432,21 @@ class DiffTestsRunner:
     for test in self.tests:
       self.test_runners.append(
           TestCaseRunner(test, self.trace_processor_path,
-                         self.trace_descriptor_path, color_formatter))
+                         self.trace_descriptor_path, color_formatter,
+                         override_sql_module_paths))
 
-  def run_all_tests(self, metrics_descriptor: str, keep_input: bool,
-                    rebase: bool) -> TestResults:
+  def run_all_tests(self, metrics_descriptor_paths: List[str],
+                    chrome_extensions: str, test_extensions: str,
+                    keep_input: bool, rebase: bool) -> TestResults:
     perf_results = []
     failures = []
     rebased = []
     test_run_start = datetime.datetime.now()
 
-    out_path = os.path.dirname(self.trace_processor_path)
-    chrome_extensions = os.path.join(out_path, 'gen', 'protos', 'third_party',
-                                     'chromium',
-                                     'chrome_track_event.descriptor')
-    test_extensions = os.path.join(out_path, 'gen', 'protos', 'perfetto',
-                                   'trace', 'test_extensions.descriptor')
-
     with concurrent.futures.ProcessPoolExecutor() as e:
       fut = [
           e.submit(test.execute, [chrome_extensions, test_extensions],
-                   metrics_descriptor, keep_input, rebase)
+                   metrics_descriptor_paths, keep_input, rebase)
           for test in self.test_runners
       ]
       for res in concurrent.futures.as_completed(fut):

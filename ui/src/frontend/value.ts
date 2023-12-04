@@ -14,8 +14,9 @@
 
 import m from 'mithril';
 
+import {Tree, TreeNode} from '../widgets/tree';
+
 import {PopupMenuButton, PopupMenuItem} from './popup_menu';
-import {Tree, TreeNode} from './widgets/tree';
 
 // This file implements a component for rendering JSON-like values (with
 // customisation options like context menu and action buttons).

@@ -12,10 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
+
 import {CacheKey, TrackCache} from './track_cache';
 
 test('cacheKeys', () => {
-  const k = CacheKey.create(201n, 302n, 123);
+  const k = CacheKey.create(Time.fromRaw(201n), Time.fromRaw(302n), 123);
   const n = k.normalize();
   const n2 = n.normalize();
   expect(k.isNormalized()).toEqual(false);
@@ -29,13 +31,20 @@ test('cacheKeys', () => {
 });
 
 test('cache', () => {
-  const key1 = (CacheKey.create(1000n, 1100n, 100)).normalize();
-  const key2 = (CacheKey.create(2000n, 2100n, 100)).normalize();
-  const key3 = (CacheKey.create(3000n, 3100n, 100)).normalize();
-  const key4 = (CacheKey.create(4000n, 4100n, 100)).normalize();
-  const key5 = (CacheKey.create(5000n, 5100n, 100)).normalize();
-  const key6 = (CacheKey.create(6000n, 6100n, 100)).normalize();
-  const key7 = (CacheKey.create(7000n, 7100n, 100)).normalize();
+  const key1 = (CacheKey.create(Time.fromRaw(1000n), Time.fromRaw(1100n), 100))
+                   .normalize();
+  const key2 = (CacheKey.create(Time.fromRaw(2000n), Time.fromRaw(2100n), 100))
+                   .normalize();
+  const key3 = (CacheKey.create(Time.fromRaw(3000n), Time.fromRaw(3100n), 100))
+                   .normalize();
+  const key4 = (CacheKey.create(Time.fromRaw(4000n), Time.fromRaw(4100n), 100))
+                   .normalize();
+  const key5 = (CacheKey.create(Time.fromRaw(5000n), Time.fromRaw(5100n), 100))
+                   .normalize();
+  const key6 = (CacheKey.create(Time.fromRaw(6000n), Time.fromRaw(6100n), 100))
+                   .normalize();
+  const key7 = (CacheKey.create(Time.fromRaw(7000n), Time.fromRaw(7100n), 100))
+                   .normalize();
   const cache = new TrackCache<string>(5);
 
   cache.insert(key1, 'v1');

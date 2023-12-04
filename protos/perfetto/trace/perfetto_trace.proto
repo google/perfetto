@@ -198,6 +198,15 @@ message DataSourceDescriptor {
   // contents, and knows how to stop referring to the already-emitted data.
   optional bool handles_incremental_state_clear = 4;
 
+  // If true, indicates that the data source does nothing upon Flush. This
+  // allows the service to reduce the flush-related IPC traffic and better deal
+  // with frozen producers (see go/perfetto-frozen). This is usually the case
+  // for data sources like 'track_event' that don't have access to the various
+  // thread task runners to post a flush task and rely purely on server-side
+  // scraping.
+  // Introduced in v39 / Android V.
+  optional bool no_flush = 9;
+
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
 
@@ -404,6 +413,73 @@ message AndroidPolledStateConfig {
 
 // End of protos/perfetto/config/android/android_polled_state_config.proto
 
+// Begin of protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto
+
+// Data source that controls the system properties used to guard initialization
+// of track_event producers (i.e. Skia) in apps using HWUI, and certain
+// processes like SurfaceFlinger.
+//
+// This data source only tells Skia to initialized the Perfetto SDK and start
+// routing data to the Track Event system instead of ATrace. For those events
+// to actually show up in a trace, the track_event data source must be used as
+// well. The Perfetto SDK cannot be de-initialized, so some long-lived apps and
+// processes may need to be restarted for Skia to revert to using ATrace if
+// Track Events are no longer desired.
+//
+// In addition to switching Skia to use Perfetto's track_event data source,
+// this "guard" also controls Skia's "broad tracing", which removes Skia's
+// internal tracing constraints and allows the track_event config to specify
+// which categories should be traced. Filtering to the "skia.always" category
+// *tag* in a track_event config can be used to re-enable the standard
+// constraints typically used with ATrace.
+//
+// Data source name: android.sdk_sysprop_guard
+// Introduced in Android 14 (U) QPR1.
+// Next id: 4
+message AndroidSdkSyspropGuardConfig {
+  // If true, configures SurfaceFlinger to initialize Skia's Perfetto
+  // integration with the track_event data source in RenderEngine.
+  // If false or omitted, the simpler ATrace fallback is used.
+  //
+  // NOTE: once enabled, Skia will only revert to ATrace if SurfaceFlinger is
+  // restarted.
+  //
+  // Specifically this sets the following system properties:
+  //   - debug.tracing.ctl.renderengine.skia_tracing_enabled
+  //   - debug.tracing.ctl.renderengine.skia_use_perfetto_track_events
+  //
+  // Does not affect actual track_event data *collection*, which must be
+  // configured seperately.
+  optional bool surfaceflinger_skia_track_events = 1;
+
+  // If true, configures HWUI apps to initialize Skia's Perfetto integration
+  // with the track_event data source. hwui_package_name_filter
+  // can be used to control which apps are affected.
+  // If false or omitted, the simpler ATrace fallback is used.
+  //
+  // NOTE: once enabled, Skia will only revert to ATrace if the app is
+  // restarted.
+  //
+  // ATTENTION: affects ALL HWUI APPS if hwui_package_name_filter is not set!
+  // If filtering is NOT set, this controls these GLOBAL system properties:
+  //   - debug.tracing.ctl.hwui.skia_tracing_enabled
+  //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events
+  // If filtering IS set, this controls these APP-SPECIFIC system properties,
+  // for each package listed in the filter:
+  //   - debug.tracing.ctl.hwui.skia_tracing_enabled.<package.name>
+  //   - debug.tracing.ctl.hwui.skia_use_perfetto_track_events.<package.name>
+  //
+  // Does not affect actual track_event data *collection*, which must be
+  // configured seperately.
+  optional bool hwui_skia_track_events = 2;
+
+  // If non-empty, hwui_skia_track_events applies to only the packages listed.
+  // Otherwise, hwui_skia_track_events applies globally to all HWUI apps.
+  repeated string hwui_package_name_filter = 3;
+}
+
+// End of protos/perfetto/config/android/android_sdk_sysprop_guard_config.proto
+
 // Begin of protos/perfetto/config/android/android_system_property_config.proto
 
 // Data source that polls for system properties.
@@ -483,11 +559,16 @@ message SurfaceFlingerLayersConfig {
 
     // Generate layers snapshots from the transactions kept in the
     // SurfaceFlinger's internal ring buffer.
-    // The layers snapshots generation occurs when this data source is stopped.
+    // The layers snapshots generation occurs when this data source is flushed.
     MODE_GENERATED = 2;
 
     // Trace a single layers snapshot.
     MODE_DUMP = 3;
+
+    // Default mode (applied by SurfaceFlinger if no mode is specified).
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
+    // is taken.
+    MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
 
@@ -507,6 +588,29 @@ message SurfaceFlingerLayersConfig {
 }
 
 // End of protos/perfetto/config/android/surfaceflinger_layers_config.proto
+
+// Begin of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
+
+// Custom configuration for the "android.surfaceflinger.transactions" data
+// source.
+message SurfaceFlingerTransactionsConfig {
+  enum Mode {
+    MODE_UNSPECIFIED = 0;
+
+    // Default mode (applied by SurfaceFlinger if no mode is specified).
+    // SurfaceFlinger writes its internal ring buffer of transactions every time
+    // the data source is flushed. The ring buffer contains the SurfaceFlinger's
+    // initial state and the latest transactions.
+    MODE_CONTINUOUS = 1;
+
+    // SurfaceFlinger writes the initial state and then each incoming
+    // transaction until the data source is stopped.
+    MODE_ACTIVE = 2;
+  }
+  optional Mode mode = 1;
+}
+
+// End of protos/perfetto/config/android/surfaceflinger_transactions_config.proto
 
 // Begin of protos/perfetto/config/chrome/chrome_config.proto
 
@@ -806,7 +910,7 @@ message InterceptorConfig {
   // Matches the name given to RegisterInterceptor().
   optional string name = 1;
 
-  optional ConsoleConfig console_config = 100 [lazy = true];
+  optional ConsoleConfig console_config = 100;
 }
 
 // End of protos/perfetto/config/interceptor_config.proto
@@ -828,6 +932,9 @@ message AndroidPowerConfig {
 
     // Avg current.
     BATTERY_COUNTER_CURRENT_AVG = 4;
+
+    // Instantaneous voltage.
+    BATTERY_COUNTER_VOLTAGE = 5;
   }
   optional uint32 battery_poll_ms = 1;
   repeated BatteryCounters battery_counters = 2;
@@ -2595,7 +2702,7 @@ message TrackEventConfig {
 // Begin of protos/perfetto/config/data_source_config.proto
 
 // The configuration that is passed to each data source when starting tracing.
-// Next id: 123
+// Next id: 125
 message DataSourceConfig {
   enum SessionInitiator {
     SESSION_INITIATOR_UNSPECIFIED = 0;
@@ -2722,6 +2829,15 @@ message DataSourceConfig {
   optional SurfaceFlingerLayersConfig surfaceflinger_layers_config = 121
       [lazy = true];
 
+  // Data source name: android.surfaceflinger.transactions
+  optional SurfaceFlingerTransactionsConfig surfaceflinger_transactions_config =
+      123 [lazy = true];
+
+  // Data source name: android.sdk_sysprop_guard
+  // Introduced in Android 14 (U) QPR1.
+  optional AndroidSdkSyspropGuardConfig android_sdk_sysprop_guard_config = 124
+      [lazy = true];
+
   // This is a fallback mechanism to send a free-form text config to the
   // producer. In theory this should never be needed. All the code that
   // is part of the platform (i.e. traced service) is supposed to *not* truncate
@@ -2773,6 +2889,21 @@ message TraceConfig {
       DISCARD = 2;
     }
     optional FillPolicy fill_policy = 4;
+
+    // When true the buffer is moved (rather than copied) onto the cloned
+    // session, and an empty buffer of the same size is allocated in the source
+    // tracing session. This feature will likely get deprecated in the future.
+    // It been introduced mainly to support the surfaceflinger snapshot dump
+    // for bugreports, where SF can dumps O(400MB) into the bugreport trace. In
+    // that case we don't want to retain another in-memory copy of the buffer.
+    optional bool transfer_on_clone = 5;
+
+    // Used in conjuction with transfer_on_clone. When true the buffer is
+    // cleared before issuing the Flush(reason=kTraceClone). This is to ensure
+    // that if the data source took too long to write the data in a previous
+    // clone-related flush, we don't end up with a mixture of leftovers from
+    // the previous write and new data.
+    optional bool clear_before_clone = 6;
   }
   repeated BufferConfig buffers = 1;
 
@@ -2859,7 +2990,7 @@ message TraceConfig {
   // long (e.g. 24h) traces, where suspend can inflate them to weeks of
   // wall-time, making them more likely to hit device reboots (and hence loss).
   // This option also changes consistently the semantic of
-  // TrigerConfig.stop_delay_ms.
+  // TriggerConfig.stop_delay_ms.
   optional bool prefer_suspend_clock_for_duration = 36;
 
   // This is set when --dropbox is passed to the Perfetto command line client
@@ -3020,6 +3151,13 @@ message TraceConfig {
       // consumer.
       STOP_TRACING = 2;
 
+      // 3 was taken by CLONE_SNAPSHOT but that has been moved to 4.
+      // The early implementation of CLONE_SNAPSHOT had various bugs
+      // (b/290798988, b/290799105) and made it into Android U. The number
+      // change is to make sure nobody rolls out a config that hits the broken
+      // behaviour.
+      reserved 3;
+
       // When this mode is chosen, this causes a snapshot of the current tracing
       // session to be created after |stop_delay_ms| while the current tracing
       // session continues undisturbed (% an extra flush). This mode can be
@@ -3031,10 +3169,10 @@ message TraceConfig {
       // consumer is supposed to call CloneSession() itself after the event.
       // Use use_clone_snapshot_if_available=true when targeting older versions
       // of perfetto.
-      CLONE_SNAPSHOT = 3;
+      CLONE_SNAPSHOT = 4;
 
-      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android U+
-      // (14+) / Perfetto v34+. A bug in older versions of the tracing service
+      // NOTE: CLONE_SNAPSHOT should be used only when we targeting Android V+
+      // (15+) / Perfetto v38+. A bug in older versions of the tracing service
       // might cause indefinitely long tracing sessions (see b/274931668).
     }
     optional TriggerMode trigger_mode = 1;
@@ -3047,7 +3185,11 @@ message TraceConfig {
     // versions of Android and fall back to STOP_TRACING on older versions where
     // CLONE_SNAPSHOT did not exist.
     // When using this flag, trigger_mode must be set to STOP_TRACING.
-    optional bool use_clone_snapshot_if_available = 4;
+    optional bool use_clone_snapshot_if_available = 5;
+
+    // DEPRECATED, was use_clone_snapshot_if_available in U. See the comment
+    // around CLONE_SNAPSHOT.
+    reserved 4;
 
     message Trigger {
       // The producer must specify this name to activate the trigger.
@@ -4077,6 +4219,12 @@ message NetworkPacketEvent {
 
   // The remote udp/tcp port of the packet.
   optional uint32 remote_port = 9;
+
+  // The 1-byte ICMP type identifier.
+  optional uint32 icmp_type = 10;
+
+  // The 1-byte ICMP code identifier.
+  optional uint32 icmp_code = 11;
 }
 
 // NetworkPacketBundle bundles one or more packets sharing the same attributes.
@@ -4135,6 +4283,104 @@ message PackagesList {
 }
 
 // End of protos/perfetto/trace/android/packages_list.proto
+
+// Begin of protos/perfetto/trace/android/shell_transition.proto
+
+// ShellTransition messages record information about the shell transitions in
+// the system. This is used to track the animations that are created and execute
+// through the shell transition system.
+message ShellTransition {
+  // The unique identifier of the transition.
+  optional int32 id = 1;
+
+  // The time the transition was created on the WM side
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 create_time_ns = 2;
+  // The time the transition was sent from the WM side to shell
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 send_time_ns = 3;
+  // The time the transition was dispatched by shell to execute
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 dispatch_time_ns = 4;
+  // If the transition merge was accepted by the transition handler, this
+  // contains the time the transition was merged into transition with id
+  // `merge_target`.
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 merge_time_ns = 5;
+  // The time shell proposed the transition should be merged to the transition
+  // handler into transition with id `merge_target`.
+  // (using SystemClock.elapsedRealtimeNanos()).
+  optional int64 merge_request_time_ns = 6;
+  // If the transition was aborted on the shell side, this is the time that
+  // occured.
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 shell_abort_time_ns = 7;
+  // If the transition was aborted on the wm side, this is the time that
+  // occured.
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 wm_abort_time_ns = 8;
+  // The time WM considers the transition to be complete.
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 finish_time_ns = 9;
+
+  // The id of the transaction that WM proposed to use as the starting
+  // transaction. It contains all the layer changes required to setup the
+  // transition and should be executed right at the start of the transition
+  // by the transition handler.
+  optional uint64 start_transaction_id = 10;
+  // The if of the transaction that WM proposed to use as the finish
+  // transaction. It contains all the layer changes required to set the final
+  // state of the transition.
+  optional uint64 finish_transaction_id = 11;
+
+  // The id of the handler that executed the transition. A HandlerMappings
+  // message in the trace will contain the mapping of id to a string
+  // representation of the handler.
+  optional int32 handler = 12;
+  // The transition type of this transition (e.g. TO_FRONT, OPEN, CLOSE).
+  optional int32 type = 13;
+
+  // The list of targets that are part of this transition.
+  repeated Target targets = 14;
+  // The id of the transition we have requested to merge or have merged this
+  // transition into.
+  optional int32 merge_target = 15;
+
+  // The flags set on this transition.
+  optional int32 flags = 16;
+  // The time the starting window was removed. Tracked because this can
+  // happen after the transition finishes, but the app may not yet be visible
+  // until the starting window is removed. So in a sense the transition is not
+  // finished until the starting window is removed. (b/284302118)
+  // (using SystemClock.elapsedRealtimeNanos())
+  optional int64 starting_window_remove_time_ns = 17;
+
+  // Contains the information about the windows targeted in a transition.
+  message Target {
+    // The transition mode of this target (e.g. TO_FRONT, CLOSE...)
+    optional int32 mode = 1;
+    // The layer id of this target.
+    optional int32 layer_id = 2;
+    // The window id of this target.
+    optional int32 window_id = 3;
+    // The flags set on this target.
+    optional int32 flags = 4;
+  }
+}
+
+// Contains mappings from handler ids to string representation of the handlers.
+message ShellHandlerMappings {
+  repeated ShellHandlerMapping mapping = 1;
+}
+
+message ShellHandlerMapping {
+  // The id of the handler used in the ShellTransition message.
+  optional int32 id = 1;
+  // A human readable and meaningful string representation of the handler.
+  optional string name = 2;
+}
+
+// End of protos/perfetto/trace/android/shell_transition.proto
 
 // Begin of protos/perfetto/trace/android/surfaceflinger_common.proto
 
@@ -4280,6 +4526,8 @@ message DisplayProto {
   optional RectProto layer_stack_space_rect = 5;
   optional TransformProto transform = 6;
   optional bool is_virtual = 7;
+  optional double dpi_x = 8;
+  optional double dpi_y = 9;
 }
 
 // Must match definition in the IComposerClient HAL
@@ -4324,9 +4572,9 @@ message LayerProto {
   optional PositionProto requested_position = 12;
   // The layer's size.
   optional SizeProto size = 13;
-  // The layer's crop in it's own bounds.
+  // The layer's crop in its own bounds.
   optional RectProto crop = 14;
-  // The layer's crop in it's parent's bounds.
+  // The layer's crop in its parent's bounds.
   optional RectProto final_crop = 15 [deprecated = true];
   optional bool is_opaque = 16;
   optional bool invalidate = 17;
@@ -5028,6 +5276,167 @@ message ClockSnapshot {
 
 // End of protos/perfetto/trace/clock_snapshot.proto
 
+// Begin of protos/perfetto/trace/etw/etw.proto
+
+// Proto definition based on the Thread_v2 CSwitch class definition
+// See: https://learn.microsoft.com/en-us/windows/win32/etw/cswitch
+message CSwitchEtwEvent {
+  // New thread ID after the switch.
+  optional uint32 new_thread_id = 1;
+
+  // Previous thread ID.
+  optional uint32 old_thread_id = 2;
+
+  // Thread priority of the new thread.
+  optional sint32 new_thread_priority = 3;
+
+  // Thread priority of the previous thread.
+  optional sint32 old_thread_priority = 4;
+
+  // The index of the C-state that was last used by the processor. A value of 0
+  // represents the lightest idle state with higher values representing deeper
+  // C-states.
+  optional uint32 previous_c_state = 5;
+
+  // Wait reason for the previous thread. The ordering is important as based on
+  // the OldThreadWaitReason definition from the link above. The following are
+  // the possible values:
+  enum OldThreadWaitReason {
+    EXECUTIVE = 0;
+    FREE_PAGE = 1;
+    PAGE_IN = 2;
+    POOL_ALLOCATION = 3;
+    DELAY_EXECUTION = 4;
+    SUSPEND = 5;
+    USER_REQUEST = 6;
+    WR_EXECUTIVE = 7;
+    WR_FREE_PAGE = 8;
+    WR_PAGE_IN = 9;
+    WR_POOL_ALLOCATION = 10;
+    WR_DELAY_EXECUTION = 11;
+    WR_SUSPENDED = 12;
+    WR_USER_REQUEST = 13;
+    WR_EVENT_PAIR = 14;
+    WR_QUEUE = 15;
+    WR_LPC_RECEIVER = 16;
+    WR_LPC_REPLY = 17;
+    WR_VIRTUAL_MEMORY = 18;
+    WR_PAGE_OUT = 19;
+    WR_RENDEZ_VOUS = 20;
+    WR_KEYED_EVENT = 21;
+    WR_TERMINATED = 22;
+    WR_PROCESS_IN_SWAP = 23;
+    WR_CPU_RATE_CONTROL = 24;
+    WR_CALLOUT_STACK = 25;
+    WR_KERNEL = 26;
+    WR_RESOURCE = 27;
+    WR_PUSH_LOCK = 28;
+    WR_MUTEX = 29;
+    WR_QUANTUM_END = 30;
+    WR_DISPATCH_INT = 31;
+    WR_PREEMPTED = 32;
+    WR_YIELD_EXECUTION = 33;
+    WR_FAST_MUTEX = 34;
+    WR_GUARD_MUTEX = 35;
+    WR_RUNDOWN = 36;
+    MAXIMUM_WAIT_REASON = 37;
+  }
+
+  optional OldThreadWaitReason old_thread_wait_reason = 6;
+
+  // Wait mode for the previous thread. The ordering is important as based on
+  // the OldThreadWaitMode definition from the link above. The following are the
+  // possible values:
+  enum OldThreadWaitMode {
+    KERNEL_MODE = 0;
+    USER_MODE = 1;
+  }
+
+  optional OldThreadWaitMode old_thread_wait_mode = 7;
+
+  // State of the previous thread. The ordering is important as based on the
+  // OldThreadState definition from the link above. The following are the
+  // possible state values:
+  enum OldThreadState {
+    INITIALIZED = 0;
+    READY = 1;
+    RUNNING = 2;
+    STANDBY = 3;
+    TERMINATED = 4;
+    WAITING = 5;
+    TRANSITION = 6;
+    DEFERRED_READY = 7;
+  }
+
+  optional OldThreadState old_thread_state = 8;
+
+  // Ideal wait time of the previous thread.
+  optional sint32 old_thread_wait_ideal_processor = 9;
+
+  // Wait time for the new thread.
+  optional uint32 new_thread_wait_time = 10;
+}
+
+// Proto definition based on the Thread_v2 CSwitch class definition
+// See: https://learn.microsoft.com/en-us/windows/win32/etw/readythread
+message ReadyThreadEtwEvent {
+  // The thread identifier of the thread being readied for execution.
+  optional uint32 t_thread_id = 1;
+
+  // The reason for the priority boost. The ordering is important as based on
+  // the AdjustReason definition from the link above.
+  enum AdjustReason {
+    IGNORE_THE_INCREMENT = 0;
+    // Apply the increment, which will decay incrementally at the end of each
+    // quantum.
+    APPLY_INCREMENT = 1;
+    // Apply the increment as a boost that will decay in its entirety at quantum
+    // (typically for priority donation).
+    APPLY_INCREMENT_BOOST = 2;
+  }
+
+  optional AdjustReason adjust_reason = 2;
+
+  //  The value by which the priority is being adjusted.
+  optional sint32 adjust_increment = 3;
+
+  enum TraceFlag {
+    TRACE_FLAG_UNSPECIFIED = 0;
+    // The thread has been readied from DPC (deferred procedure call).
+    THREAD_READIED = 0x1;
+    // The kernel stack is currently swapped out.
+    KERNEL_STACK_SWAPPED_OUT = 0x2;
+    // The process address space is swapped out.
+    PROCESS_ADDRESS_SWAPPED_OUT = 0x4;
+  }
+
+  optional TraceFlag flag = 4;
+}
+// End of protos/perfetto/trace/etw/etw.proto
+
+// Begin of protos/perfetto/trace/etw/etw_event.proto
+
+message EtwTraceEvent {
+  optional uint64 timestamp = 1;
+
+  oneof event {
+    CSwitchEtwEvent c_switch = 2;
+    ReadyThreadEtwEvent ready_thread = 3;
+  }
+}
+// End of protos/perfetto/trace/etw/etw_event.proto
+
+// Begin of protos/perfetto/trace/etw/etw_event_bundle.proto
+
+// The result of tracing one or more etw event uses per-processor buffers where
+// an in-use buffer is assigned to each processor at all times. Therefore,
+// collecting multiple events they should already be synchronized.
+message EtwTraceEventBundle {
+  optional uint32 cpu = 1;
+  repeated EtwTraceEvent event = 2;
+}
+// End of protos/perfetto/trace/etw/etw_event_bundle.proto
+
 // Begin of protos/perfetto/common/descriptor.proto
 
 // The protocol compiler can output a FileDescriptorSet containing the .proto
@@ -5093,6 +5502,34 @@ message DescriptorProto {
   repeated string reserved_name = 10;
 }
 
+// A message representing a option the parser does not recognize. This only
+// appears in options protos created by the compiler::Parser class.
+// DescriptorPool resolves these when building Descriptor objects. Therefore,
+// options protos in descriptor objects (e.g. returned by Descriptor::options(),
+// or produced by Descriptor::CopyTo()) will never have UninterpretedOptions
+// in them.
+message UninterpretedOption {
+  // The name of the uninterpreted option.  Each string represents a segment in
+  // a dot-separated name.  is_extension is true iff a segment represents an
+  // extension (denoted with parentheses in options specs in .proto files).
+  // E.g.,{ ["foo", false], ["bar.baz", true], ["moo", false] } represents
+  // "foo.(bar.baz).moo".
+  message NamePart {
+    optional string name_part = 1;
+    optional bool is_extension = 2;
+  }
+  repeated NamePart name = 2;
+
+  // The value of the uninterpreted option, in whatever type the tokenizer
+  // identified it as during parsing. Exactly one of these should be set.
+  optional string identifier_value = 3;
+  optional uint64 positive_int_value = 4;
+  optional int64 negative_int_value = 5;
+  optional double double_value = 6;
+  optional bytes string_value = 7;
+  optional string aggregate_value = 8;
+}
+
 message FieldOptions {
   // The packed option can be enabled for repeated primitive fields to enable
   // a more efficient representation on the wire. Rather than repeatedly
@@ -5100,6 +5537,9 @@ message FieldOptions {
   // a single length-delimited blob. In proto3, only explicit setting it to
   // false will avoid using packed encoding.
   optional bool packed = 2;
+
+  // The parser stores options it doesn't recognize here. See above.
+  repeated UninterpretedOption uninterpreted_option = 999;
 }
 
 // Describes a field within a message.
@@ -5344,6 +5784,12 @@ message BinderTransactionAllocBufFtraceEvent {
   optional int32 debug_id = 2;
   optional uint64 offsets_size = 3;
   optional uint64 extra_buffers_size = 4;
+}
+message BinderCommandFtraceEvent {
+  optional uint32 cmd = 1;
+}
+message BinderReturnFtraceEvent {
+  optional uint32 cmd = 1;
 }
 
 // End of protos/perfetto/trace/ftrace/binder.proto
@@ -7889,6 +8335,18 @@ message RegulatorSetVoltageCompleteFtraceEvent {
 
 // End of protos/perfetto/trace/ftrace/regulator.proto
 
+// Begin of protos/perfetto/trace/ftrace/samsung.proto
+
+message SamsungTracingMarkWriteFtraceEvent {
+  optional int32 pid = 1;
+  optional string trace_name = 2;
+  optional uint32 trace_begin = 3;
+  optional uint32 trace_type = 4;
+  optional int32 value = 5;
+}
+
+// End of protos/perfetto/trace/ftrace/samsung.proto
+
 // Begin of protos/perfetto/trace/ftrace/sched.proto
 
 message SchedSwitchFtraceEvent {
@@ -9056,6 +9514,9 @@ message FtraceEvent {
     SuspendResumeMinimalFtraceEvent suspend_resume_minimal = 481;
     MaliMaliCSFINTERRUPTSTARTFtraceEvent mali_mali_CSF_INTERRUPT_START = 482;
     MaliMaliCSFINTERRUPTENDFtraceEvent mali_mali_CSF_INTERRUPT_END = 483;
+    SamsungTracingMarkWriteFtraceEvent samsung_tracing_mark_write = 484;
+    BinderCommandFtraceEvent binder_command = 485;
+    BinderReturnFtraceEvent binder_return = 486;
   }
 }
 
@@ -10477,7 +10938,6 @@ enum ChromeRAILMode {
   RAIL_MODE_LOAD = 4;
 }
 
-// Next id: 2
 message ChromeRendererSchedulerState {
   optional ChromeRAILMode rail_mode = 1;
 
@@ -10513,6 +10973,14 @@ message ChromeWindowHandleEventInfo {
 }
 
 // End of protos/perfetto/trace/track_event/chrome_window_handle_event_info.proto
+
+// Begin of protos/perfetto/trace/track_event/screenshot.proto
+
+message Screenshot {
+  optional bytes jpg_image = 1;
+}
+
+// End of protos/perfetto/trace/track_event/screenshot.proto
 
 // Begin of protos/perfetto/trace/track_event/task_execution.proto
 
@@ -10591,7 +11059,7 @@ message TaskExecution {
 // their default track association) can be emitted as part of a
 // TrackEventDefaults message.
 //
-// Next reserved id: 13 (up to 15). Next id: 50.
+// Next reserved id: 13 (up to 15). Next id: 51.
 message TrackEvent {
   // Names of categories of the event. In the client library, categories are a
   // way to turn groups of individual events on or off.
@@ -10744,6 +11212,7 @@ message TrackEvent {
   optional ChromeContentSettingsEventInfo chrome_content_settings_event_info =
       43;
   optional ChromeActiveProcesses chrome_active_processes = 49;
+  optional Screenshot screenshot = 50;
 
   // This field is used only if the source location represents the function that
   // executes during this event.
@@ -10769,8 +11238,13 @@ message TrackEvent {
   // Contact perfetto-dev@googlegroups.com if you are interested in a subrange
   // for your project.
 
+  // Extension range reserved for chromium:
+  // https://source.chromium.org/chromium/chromium/src/+/main:base/tracing/protos/chrome_track_event.proto
+  extensions 1000 to 1999;
+  // Extension range reserved for https://b.corp.google.com/issues/301227627.
+  extensions 2000 to 2000;
   // Extension range for future use.
-  extensions 1000 to 9899;
+  extensions 2001 to 9899;
   // Reserved for Perfetto unit and integration tests.
   extensions 9900 to 10000;
 
@@ -12130,7 +12604,7 @@ message SysStats {
     optional uint64 user_ns = 2;
 
     // Time spent in user mode (low prio).
-    optional uint64 user_ice_ns = 3;
+    optional uint64 user_nice_ns = 3;
 
     // Time spent in system mode.
     optional uint64 system_mode_ns = 4;
@@ -12248,6 +12722,10 @@ message SystemInfo {
 
   // Kernel page size - sysconf(_SC_PAGESIZE).
   optional uint32 page_size = 6;
+
+  // The timezone offset from UTC, as per strftime("%z"), in minutes.
+  // Introduced in v38 / Android V.
+  optional int32 timezone_off_mins = 7;
 }
 
 // End of protos/perfetto/trace/system_info.proto
@@ -12511,6 +12989,7 @@ message ChromeProcessDescriptor {
     PROCESS_SERVICE_RECORDING = 38;
     PROCESS_SERVICE_SHAPEDETECTION = 39;
     PROCESS_RENDERER_EXTENSION = 40;
+    PROCESS_SERVICE_MEDIA_FOUNDATION = 41;
   }
   optional ProcessType process_type = 1;
   optional int32 process_priority = 2;
@@ -12876,7 +13355,7 @@ message UiState {
 // See the [Buffers and Dataflow](/docs/concepts/buffers.md) doc for details.
 //
 // Next reserved id: 14 (up to 15).
-// Next id: 95.
+// Next id: 96.
 message TracePacket {
   // The timestamp of the TracePacket.
   // By default this timestamps refers to the trace clock (CLOCK_BOOTTIME on
@@ -12995,6 +13474,11 @@ message TracePacket {
     // Winscope traces
     LayersSnapshotProto surfaceflinger_layers_snapshot = 93;
     TransactionTraceEntry surfaceflinger_transactions = 94;
+    ShellTransition shell_transition = 96;
+    ShellHandlerMappings shell_handler_mappings = 97;
+
+    // Events from the Windows etw infrastructure.
+    EtwTraceEventBundle etw_events = 95;
 
     // This field is only used for testing.
     // In previous versions of this proto this field had the id 268435455
@@ -13093,7 +13577,7 @@ message TracePacket {
   // 1. There are no prior events for the sequence because of data loss, e.g.
   //    due to ring buffer wrapping.
   // 2. There are no prior events for the sequence because it didn't start
-  //    before this packet (= there's definitely no preceeding data loss).
+  //    before this packet (= there's definitely no preceding data loss).
   //
   // Given that older SDK versions do not support this flag, this flag not
   // being present for a particular sequence does not necessarily imply data

@@ -13,6 +13,7 @@
 // limitations under the License.
 
 
+import {isString} from '../../base/object_utils';
 import {base64Encode} from '../../base/string_utils';
 import {RecordConfig} from '../../controller/record_config_types';
 import {
@@ -29,14 +30,21 @@ import {
   MeminfoCounters,
   NativeContinuousDumpConfig,
   NetworkPacketTraceConfig,
+  PerfEventConfig,
+  PerfEvents,
   ProcessStatsConfig,
   SysStatsConfig,
   TraceConfig,
   TrackEventConfig,
   VmstatCounters,
-} from '../protos';
+} from '../../protos';
 
 import {TargetInfo} from './recording_interfaces_v2';
+
+import PerfClock = PerfEvents.PerfClock;
+import Timebase = PerfEvents.Timebase;
+import CallstackSampling = PerfEventConfig.CallstackSampling;
+import Scope = PerfEventConfig.Scope;
 
 export interface ConfigProtoEncoded {
   configProtoText?: string;
@@ -254,6 +262,7 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.meminfoPeriodMs = uiCfg.meminfoPeriodMs;
     sysStatsCfg.meminfoCounters = uiCfg.meminfoCounters.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return MeminfoCounters[name as any as number] as any as number;
     });
   }
@@ -262,6 +271,7 @@ export function genTraceConfig(
     if (sysStatsCfg === undefined) sysStatsCfg = new SysStatsConfig();
     sysStatsCfg.vmstatPeriodMs = uiCfg.vmstatPeriodMs;
     sysStatsCfg.vmstatCounters = uiCfg.vmstatCounters.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return VmstatCounters[name as any as number] as any as number;
     });
   }
@@ -358,6 +368,7 @@ export function genTraceConfig(
     ds.config.name = 'android.log';
     ds.config.androidLogConfig = new AndroidLogConfig();
     ds.config.androidLogConfig.logIds = uiCfg.androidLogBuffers.map((name) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return AndroidLogId[name as any as number] as any as number;
     });
 
@@ -457,6 +468,38 @@ export function genTraceConfig(
     chromeCategories.add('netlog');
     chromeCategories.add('navigation');
     chromeCategories.add('browser');
+  }
+
+  // linux.perf stack sampling
+  if (uiCfg.tracePerf) {
+    const ds = new TraceConfig.DataSource();
+    ds.config = new DataSourceConfig();
+    ds.config.name = 'linux.perf';
+
+    const perfEventConfig = new PerfEventConfig();
+    perfEventConfig.timebase = new Timebase();
+    perfEventConfig.timebase.frequency = uiCfg.timebaseFrequency;
+    // TODO: The timestampClock needs to be changed to MONOTONIC once we start
+    // offering a choice of counter to record on through the recording UI, as
+    // not all clocks are compatible with hardware counters).
+    perfEventConfig.timebase.timestampClock = PerfClock.PERF_CLOCK_BOOTTIME;
+
+    const callstackSampling = new CallstackSampling();
+    if (uiCfg.targetCmdLine.length > 0) {
+      const scope = new Scope();
+      for (const cmdLine of uiCfg.targetCmdLine) {
+        if (cmdLine == '') {
+          continue;
+        }
+        scope.targetCmdline?.push(cmdLine.trim());
+      }
+      callstackSampling.scope = scope;
+    }
+
+    perfEventConfig.callstackSampling = callstackSampling;
+
+    ds.config.perfEventConfig = perfEventConfig;
+    protoCfg.dataSources.push(ds);
   }
 
   if (chromeCategories.size !== 0) {
@@ -659,7 +702,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
     return value.startsWith('MEMINFO_') || value.startsWith('VMSTAT_') ||
         value.startsWith('STAT_') || value.startsWith('LID_') ||
         value.startsWith('BATTERY_COUNTER_') || value === 'DISCARD' ||
-        value === 'RING_BUFFER';
+        value === 'RING_BUFFER' || value.startsWith('PERF_CLOCK_');
   }
   // Since javascript doesn't have 64 bit numbers when converting protos to
   // json the proto library encodes them as strings. This is lossy since
@@ -673,6 +716,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
       'samplingIntervalBytes',
       'shmemSizeBytes',
       'pid',
+      'frequency',
     ].includes(key);
   }
   function* message(msg: {}, indent: number): IterableIterator<string> {
@@ -681,7 +725,7 @@ function toPbtxt(configBuffer: Uint8Array): string {
       const isNested = typeof value === 'object' && !isRepeated;
       for (const entry of (isRepeated ? value as Array<{}>: [value])) {
         yield ' '.repeat(indent) + `${snakeCase(key)}${isNested ? '' : ':'} `;
-        if (typeof entry === 'string') {
+        if (isString(entry)) {
           if (isEnum(entry) || is64BitNumber(key)) {
             yield entry;
           } else {

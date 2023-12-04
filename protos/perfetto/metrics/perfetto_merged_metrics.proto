@@ -13,6 +13,55 @@ package perfetto.protos;
 
 option go_package = "github.com/google/perfetto/perfetto_proto";
 
+// Begin of protos/perfetto/metrics/android/ad_services_metric.proto
+
+// Next: 2
+message AdServicesUiMetric {
+  optional double latency = 1;
+}
+
+// Next: 2
+message AdServicesAdIdMetric {
+  optional double latency = 1;
+}
+
+// Next: 2
+message AdServicesAppSetIdMetric {
+  optional double latency = 1;
+}
+
+// Next: 4
+message AdServicesMetric {
+  repeated AdServicesUiMetric ui_metric = 1;
+  repeated AdServicesAdIdMetric ad_id_metric = 2;
+  repeated AdServicesAppSetIdMetric app_set_id_metric = 3;
+}
+// End of protos/perfetto/metrics/android/ad_services_metric.proto
+
+// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
+
+// Blocking call on the main thread.
+message AndroidBlockingCall {
+    // Name of the blocking call
+    optional string name = 1;
+    // Number of times it happened within the CUJ
+    optional int64 cnt = 2;
+    // Total duration within the CUJ
+    optional int64 total_dur_ms = 3;
+    // Maximal duration within the CUJ
+    optional int64 max_dur_ms = 4;
+    // Minimal duration within the CUJ
+    optional int64 min_dur_ms = 5;
+    // Total duration within the CUJ in nanoseconds
+    optional int64 total_dur_ns = 6;
+    // Maximal duration within the CUJ in nanoseconds
+    optional int64 max_dur_ns = 7;
+    // Minimal duration within the CUJ in nanoseconds
+    optional int64 min_dur_ns = 8;
+}
+
+// End of protos/perfetto/metrics/android/android_blocking_call.proto
+
 // Begin of protos/perfetto/metrics/android/process_metadata.proto
 
 message AndroidProcessMetadata {
@@ -50,29 +99,6 @@ message AndroidProcessMetadata {
 
 // End of protos/perfetto/metrics/android/process_metadata.proto
 
-// Begin of protos/perfetto/metrics/android/android_blocking_call.proto
-
-// Blocking call on the main thread.
-message AndroidBlockingCall {
-    // Name of the blocking call
-    optional string name = 1;
-    // Number of times it happened within the CUJ
-    optional int64 cnt = 2;
-    // Total duration within the CUJ
-    optional int64 total_dur_ms = 3;
-    // Maximal duration within the CUJ
-    optional int64 max_dur_ms = 4;
-    // Minimal duration within the CUJ
-    optional int64 min_dur_ms = 5;
-    // Total duration within the CUJ in nanoseconds
-    optional int64 total_dur_ns = 6;
-    // Maximal duration within the CUJ in nanoseconds
-    optional int64 max_dur_ns = 7;
-    // Minimal duration within the CUJ in nanoseconds
-    optional int64 min_dur_ns = 8;
-}
-// End of protos/perfetto/metrics/android/android_blocking_call.proto
-
 // Begin of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
 
 // Blocking calls inside Android CUJs. Shows count and total duration for each.
@@ -103,6 +129,29 @@ message AndroidBlockingCallsCujMetric {
 }
 
 // End of protos/perfetto/metrics/android/android_blocking_calls_cuj_metric.proto
+
+// Begin of protos/perfetto/metrics/android/android_boot.proto
+
+// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP state
+message ProcessStateDurations {
+  optional int64 total_dur = 2;
+  optional int64 uninterruptible_sleep_dur = 3;
+}
+
+message AndroidBootMetric {
+  optional ProcessStateDurations system_server_durations = 1;
+  optional ProcessStateDurations systemui_durations = 2;
+  optional ProcessStateDurations launcher_durations = 3;
+  optional ProcessStateDurations gms_durations = 4;
+  // Launcher related boot metrics
+  message LauncherBreakdown {
+    //  reports cold start time of NexusLauncher
+    optional int64 cold_start_dur = 1;
+  }
+  optional LauncherBreakdown launcher_breakdown = 5;
+}
+
+// End of protos/perfetto/metrics/android/android_boot.proto
 
 // Begin of protos/perfetto/metrics/android/android_frame_timeline_metric.proto
 
@@ -190,6 +239,31 @@ message AndroidTrustyWorkqueues {}
 
 // End of protos/perfetto/metrics/android/android_trusty_workqueues.proto
 
+// Begin of protos/perfetto/metrics/android/anr_metric.proto
+
+ message AndroidAnrMetric {
+  repeated Anr anr = 1;
+
+  // Next id: 12
+  message Anr {
+    // UUID that identifies the ANR.
+    optional string error_id = 1;
+
+    // Name of the process that ANRed.
+    optional string process_name = 2;
+
+    // PID of the ANRing process.
+    optional int32 pid = 3;
+
+    // ANR subject line.
+    optional string subject = 4;
+
+    // Timestamp of the ANR in the trace.
+    optional int64 ts = 5;
+  }
+}
+// End of protos/perfetto/metrics/android/anr_metric.proto
+
 // Begin of protos/perfetto/metrics/android/batt_metric.proto
 
 message AndroidBatteryMetric {
@@ -251,9 +325,11 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
+  // Next field id: 22
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
+    optional bool is_sync = 21;
     // Client
     // Removed: was binder_txn_id
     reserved 2;
@@ -262,6 +338,7 @@ message AndroidBinderMetric {
     optional bool is_main_thread = 5;
     optional int64 client_ts = 6;
     optional int64 client_dur = 7;
+    optional int64 client_oom_score = 19;
     // Server
     // Removed: was binder_reply_id
     reserved 8;
@@ -269,6 +346,7 @@ message AndroidBinderMetric {
     optional string server_thread = 10;
     optional int64 server_ts = 11;
     optional int64 server_dur = 12;
+    optional int64 server_oom_score = 20;
     // Aggregations
     repeated ThreadStateBreakdown thread_states = 13;
     repeated BlockedFunctionBreakdown blocked_functions = 14;
@@ -332,7 +410,11 @@ message AndroidCameraMetric {
 message AndroidCameraUnaggregatedMetric {
   message Value {
     optional int64 ts = 1;
-    optional double value = 2;
+    optional double gca_rss_val = 2;
+    optional double hal_rss_val = 3;
+    optional double cameraserver_rss_val = 4;
+    optional double dma_val = 5;
+    optional double value = 6;
   }
 
   // Timeseries for the sum of DMA and RSS across GCA, cameraserver
@@ -401,6 +483,7 @@ message AndroidCpuMetric {
   // Next id: 8
   message Process {
     optional string name = 1;
+    optional AndroidProcessMetadata process = 8;
     optional Metrics metrics = 4;
 
     // Breakdowns of above metrics.
@@ -415,6 +498,62 @@ message AndroidCpuMetric {
 }
 
 // End of protos/perfetto/metrics/android/cpu_metric.proto
+
+// Begin of protos/perfetto/metrics/android/codec_metrics.proto
+
+// These metrices collects various function and thread
+// usage within androd's codec framework. This can give an
+// idea about performance and cpu usage when using codec
+// framework
+message AndroidCodecMetrics {
+
+  // profile details in messages
+  message Detail {
+    // function thread
+    optional string thread_name = 1;
+    // total time
+    optional int64 total_cpu_ns = 2;
+    // CPU time ( time 'Running' on cpu)
+    optional int64 running_cpu_ns = 3;
+  }
+
+  // These are traces and could indicate framework queue latency
+  // buffer-packing, buffer-preprocess, buffer post-process
+  // latency etc. These metrics are monitored to track quality.
+  // Same message can come from different
+  // processes.
+  message CodecFunction {
+    // codec string
+    optional string codec_string = 1;
+    // process_name
+    optional string process_name = 2;
+    // details
+    optional Detail detail = 3;
+  }
+
+  // This message can indicate overall cpu
+  // utilization of codec framework threads.
+  message CpuUsage {
+    // name of process using codec framework
+    optional string process_name = 1;
+    // name of the codec thread
+    optional string thread_name = 2;
+    // was thread_cpu_us
+    reserved 3;
+    // total cpu usage of the codec thread
+    optional int64 thread_cpu_ns = 6;
+    // can be number of codec framework thread
+    optional uint32 num_threads = 4;
+    // core type data info used by codec thread
+    repeated AndroidCpuMetric.CoreTypeData core_data = 5;
+  }
+
+  repeated CpuUsage cpu_usage = 1;
+  repeated CodecFunction codec_function = 2;
+
+}
+
+// End of protos/perfetto/metrics/android/codec_metrics.proto
 
 // Begin of protos/perfetto/metrics/android/display_metrics.proto
 
@@ -834,6 +973,59 @@ message AndroidHwuiMetric {
 
 // End of protos/perfetto/metrics/android/hwui_metric.proto
 
+// Begin of protos/perfetto/metrics/android/io_metric.proto
+
+// Measure Android IO stats in a trace.
+// Note: This is an aggregated metric, for unaggregated metrics look at AndroidIoUnaggregated
+// in io_unagg_metric.proto.
+message AndroidIo {
+  // Next id: 3
+  // Stats for Counters in an f2fs file system.
+  // Counters are available for various operations.
+  message F2fsCounterStats {
+    optional string name = 1;
+    optional double max = 2;
+    optional double sum = 3;
+    optional double min = 5;
+    optional int64 dur = 6;
+    optional int64 count = 7;
+    optional double avg = 8;
+  }
+  // Aggregated stats for write operations in an f2fs file system.
+  message F2fsWriteStats {
+    optional int64 total_write_count = 1;
+    optional int64 distinct_processes = 2;
+    optional int64 total_bytes_written = 3;
+    optional int64 distinct_device_count = 4;
+    optional int64 distict_inode_count = 5;
+    optional int64 distinct_thread_count = 6;
+  }
+  repeated F2fsCounterStats f2fs_counter_stats = 1;
+  repeated F2fsWriteStats f2fs_write_stats = 2;
+}
+
+// End of protos/perfetto/metrics/android/io_metric.proto
+
+// Begin of protos/perfetto/metrics/android/io_unagg_metric.proto
+
+// IO metrics on Android in unaggregated form.
+// Note: this generates a lot of data so should not be requested unless it
+// is clear that this data is necessary.
+message AndroidIoUnaggregated {
+    // Next id: 2
+    message F2fsWriteUnaggreagatedStat {
+      optional uint32 tid = 1;
+      optional string thread_name = 2;
+      optional uint32 pid = 3;
+      optional string process_name = 4;
+      optional int64 ino = 5;
+      optional int64 dev = 6;
+    }
+    // F2fs write stats which are grouped by thread and inode.
+    repeated F2fsWriteUnaggreagatedStat f2fs_write_unaggregated_stats = 1;
+}
+// End of protos/perfetto/metrics/android/io_unagg_metric.proto
+
 // Begin of protos/perfetto/metrics/android/ion_metric.proto
 
 // ion memory stats on Android.
@@ -1238,15 +1430,35 @@ message AndroidMemoryUnaggregatedMetric {
 
 // End of protos/perfetto/metrics/android/mem_unagg_metric.proto
 
+// Begin of protos/perfetto/metrics/android/monitor_contention_agg_metric.proto
+
+ // This metric provides aggregated information about monitor contention graph
+ // in a trace
+message AndroidMonitorContentionAggMetric {
+  // Next id: 2
+  // Stats for Monitor contention aggregated by process.
+  message ProcessAggregation {
+    optional string name = 1;
+    optional int64 total_contention_count = 2;
+    optional int64 total_contention_dur = 3;
+    optional int64 main_thread_contention_count = 4;
+    optional int64 main_thread_contention_dur = 5;
+  }
+  repeated ProcessAggregation process_aggregation = 1;
+}
+
+// End of protos/perfetto/metrics/android/monitor_contention_agg_metric.proto
+
 // Begin of protos/perfetto/metrics/android/monitor_contention_metric.proto
 
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
-  // Next field id: 24
+  // Next field id: 25
   message Node {
     // Global context
     optional int64 node_parent_id = 1;
+    optional int64 node_child_id = 24;
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;
@@ -1659,7 +1871,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 35.
+  // Next id: 36.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -1697,6 +1909,9 @@ message AndroidStartupMetric {
 
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
+
+    // The duration from launch to first running state thread of startup process.
+    optional Slice time_to_running_state = 35;
 
     optional Slice to_post_fork = 18;
     optional Slice to_activity_thread_main = 19;
@@ -1767,13 +1982,13 @@ message AndroidStartupMetric {
     optional string destination_thread = 3;
     optional string destination_process = 4;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string flags = 5;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string code = 6;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional int64 data_size = 7;
   }
 
@@ -1837,7 +2052,13 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 21
+  // Contains detailed information for slow startup causes.
+  message SlowStartReasonDetailed {
+    optional string reason = 1;
+    optional string details = 2;
+  }
+
+  // Next id: 22
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -1907,6 +2128,9 @@ message AndroidStartupMetric {
     // A list of identified potential causes for slow startup.
     // Optional.
     repeated string slow_start_reason = 17;
+
+    // Same as slow_start_reason, but with more detailed information.
+    repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
 
     reserved 10;
   }
@@ -1986,6 +2210,69 @@ message AndroidSurfaceflingerMetric {
 
 // End of protos/perfetto/metrics/android/surfaceflinger.proto
 
+// Begin of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Statistical performance data row for a set of slices
+message SysUiSlicePerformanceStatisticalData {
+  // Name of the Slice
+  optional string name = 1;
+  // Number of times it happened within the CUJ
+  optional int64 cnt = 2;
+  // Average duration within the CUJ
+  optional int64 avg_dur_ms = 3;
+  // Maximal duration within the CUJ
+  optional int64 max_dur_ms = 4;
+  // Average duration within the CUJ in nanoseconds
+  optional int64 avg_dur_ns = 6;
+  // Maximal duration within the CUJ in nanoseconds
+  optional int64 max_dur_ns = 7;
+}
+// End of protos/perfetto/metrics/android/sysui_slice_performance_statistical_data.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiNotifShadeListBuilderMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  optional SysUiSlicePerformanceStatisticalData slices_with_inflation_performance = 2;
+  optional SysUiSlicePerformanceStatisticalData slices_with_modification_performance = 3;
+
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 4;
+}
+// End of protos/perfetto/metrics/android/sysui_notif_shade_list_builder_metric.proto
+
+// Begin of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
+
+// System UI Notifications ShadeListBuilder.buildList slices.
+// Shows count, average duration, and max duration for each.
+message SysuiUpdateNotifOnUiModeChangedMetric {
+  optional SysUiSlicePerformanceStatisticalData all_slices_performance = 1;
+  // Data row for a single slice
+  message SliceDuration {
+    // Name of the Slice
+    optional string name = 1;
+
+    // Duration in ms
+    optional int64 dur_ms = 2;
+
+    // Duration in ns
+    optional int64 dur_ns = 3;
+  }
+  repeated SliceDuration slice = 2;
+}
+// End of protos/perfetto/metrics/android/sysui_update_notif_on_ui_mode_changed_metric.proto
+
 // Begin of protos/perfetto/metrics/android/task_names.proto
 
 message AndroidTaskNames {
@@ -2003,6 +2290,12 @@ message AndroidTaskNames {
 
     // Packages matching the process uid.
     repeated string uid_package_name = 5;
+
+    // Removed, was short_lived_tasks.
+    reserved 6;
+
+    // Removed, was long_lived_tasks.
+    reserved 7;
   }
 
   repeated Process process = 1;
@@ -2061,6 +2354,7 @@ message TraceMetadata {
   optional string unique_session_name = 8;
   optional string trace_config_pbtxt = 9;
   optional int64 sched_duration_ns = 10;
+  optional int64 tracing_started_ns = 11;
 }
 
 // Stats counters for the trace.
@@ -2093,7 +2387,7 @@ message TraceAnalysisStats {
 
 // Root message for all Perfetto-based metrics.
 //
-// Next id: 52
+// Next id: 61
 message TraceMetrics {
   reserved 4, 10, 13, 14, 16, 19;
 
@@ -2232,6 +2526,31 @@ message TraceMetrics {
 
   optional AndroidSysUINotificationsBlockingCallsMetric android_sysui_notifications_blocking_calls_metric = 51;
 
+  // Metrics to track codec framework.
+  optional AndroidCodecMetrics codec_metrics = 52;
+
+  // Metric to track Android IO.
+  optional AndroidIo android_io = 53;
+
+  // IO metrics on Android in unaggregated form.
+  // Note: this generates a lot of data so should not be requested unless it
+  // is clear that this data is necessary.
+  optional AndroidIoUnaggregated android_io_unagg = 54;
+
+  // Metrics for App Not Responding (ANR) errors.
+  optional AndroidAnrMetric android_anr = 55;
+
+  // Aggregated Android Monitor Contention metrics
+  optional AndroidMonitorContentionAggMetric android_monitor_contention_agg = 56;
+
+  optional AndroidBootMetric android_boot = 57;
+
+  // Metric for AdServices module.
+  optional AdServicesMetric ad_services_metric = 58;
+
+  optional SysuiNotifShadeListBuilderMetric sysui_notif_shade_list_builder_metric = 59;
+
+  optional SysuiUpdateNotifOnUiModeChangedMetric sysui_update_notif_on_ui_mode_changed_metric = 60;
   // Demo extensions.
   extensions 450 to 499;
 

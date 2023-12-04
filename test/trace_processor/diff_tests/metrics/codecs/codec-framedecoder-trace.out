@@ -1,0 +1,91 @@
+codec_metrics {
+  cpu_usage {
+    process_name: "/system/bin/mediaserver"
+    thread_name: "CodecLooper"
+    thread_cpu_ns: 40782760
+    num_threads: 1
+    core_data {
+      type: "bigger"
+      metrics {
+        mcycles: 14
+        runtime_ns: 6151247
+        min_freq_khz: 1996800
+        max_freq_khz: 2400000
+        avg_freq_khz: 2399000
+      }
+    }
+    core_data {
+      type: "little"
+      metrics {
+        mcycles: 60
+        runtime_ns: 34631513
+        min_freq_khz: 1804800
+        max_freq_khz: 1804800
+        avg_freq_khz: 1804000
+      }
+    }
+  }
+  codec_function {
+    codec_string: "C2PooledBlockPool::fetchLinearBlock"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "CodecLooper"
+      total_cpu_ns: 6505730
+      running_cpu_ns: 6224689
+    }
+  }
+  codec_function {
+    codec_string: "C2PooledBlockPool::fetchLinearBlock"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "HwBinder:1465_4"
+      total_cpu_ns: 805417
+      running_cpu_ns: 805417
+    }
+  }
+  codec_function {
+    codec_string: "CCodecBufferChannel::onWorkDone(c2.android.hevc.decoder#264"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "CodecLooper"
+      total_cpu_ns: 34476253
+      running_cpu_ns: 19314740
+    }
+  }
+  codec_function {
+    codec_string: "CCodecBufferChannel::queue(c2.android.hevc.decoder#264"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "ALooper"
+      total_cpu_ns: 6599844
+      running_cpu_ns: 2656718
+    }
+  }
+  codec_function {
+    codec_string: "FrameDecoder::ColorConverter"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "binder:1465_4"
+      total_cpu_ns: 18414272
+      running_cpu_ns: 10807813
+    }
+  }
+  codec_function {
+    codec_string: "FrameDecoder::ExtractFrame"
+    process_name: "/system/bin/mediaserver"
+    detail {
+      thread_name: "binder:1465_4"
+      total_cpu_ns: 226664606
+      running_cpu_ns: 17917404
+    }
+  }
+  codec_function {
+    codec_string: "FrameDecoderBenchmark#frameDecoderBenchmarkTest"
+    process_name: "android.platform.test.scenario"
+    detail {
+      thread_name: "roidJUnitRunner"
+      total_cpu_ns: -1
+      running_cpu_ns: -1
+    }
+  }
+}

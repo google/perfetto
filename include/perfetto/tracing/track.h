@@ -329,6 +329,7 @@ class PERFETTO_EXPORT_COMPONENT TrackRegistry {
 
   static void InitializeInstance();
   static void ResetForTesting();
+  static uint64_t ComputeProcessUuid();
   static TrackRegistry* Get() { return instance_; }
 
   void EraseTrack(Track);

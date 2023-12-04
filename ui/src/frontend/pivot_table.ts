@@ -20,7 +20,6 @@ import {sqliteString} from '../base/string_utils';
 import {Actions} from '../common/actions';
 import {DropDirection} from '../common/dragndrop_logic';
 import {COUNT_AGGREGATION} from '../common/empty_state';
-import {ColumnType} from '../common/query_result';
 import {
   Area,
   PivotTableAreaState,
@@ -28,10 +27,10 @@ import {
   SortDirection,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
+import {ColumnType} from '../trace_processor/query_result';
 
 import {addTab} from './bottom_tab';
 import {globals} from './globals';
-import {Panel} from './panel';
 import {
   aggregationIndex,
   areaFilters,
@@ -51,7 +50,7 @@ import {ReorderableCell, ReorderableCellGroup} from './reorderable_cells';
 import {SqlTableTab} from './sql_table/tab';
 import {SqlTables} from './sql_table/well_known_tables';
 import {AttributeModalHolder} from './tables/attribute_modal_holder';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 
 interface PathItem {
   tree: PivotTree;
@@ -107,9 +106,8 @@ export function markFirst(index: number) {
   return '';
 }
 
-export class PivotTable extends Panel<PivotTableAttrs> {
+export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   constructor() {
-    super();
     this.attributeModalHolder = new AttributeModalHolder((arg) => {
       globals.dispatch(Actions.setPivotTablePivotSelected({
         column: {kind: 'argument', argument: arg},
@@ -126,8 +124,6 @@ export class PivotTable extends Panel<PivotTableAttrs> {
   get constrainToArea() {
     return globals.state.nonSerializableState.pivotTable.constrainToArea;
   }
-
-  renderCanvas(): void {}
 
   renderDrillDownCell(area: Area, filters: DrillFilter[]) {
     return m(
@@ -198,7 +194,7 @@ export class PivotTable extends Panel<PivotTableAttrs> {
     if (column.kind === 'regular' &&
         (column.column === 'dur' || column.column === 'thread_dur')) {
       if (typeof value === 'bigint') {
-        return m(Duration, {dur: value});
+        return m(DurationWidget, {dur: value});
       }
     }
     return `${value}`;

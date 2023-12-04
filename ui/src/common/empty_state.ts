@@ -12,7 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {createEmptyRecordConfig} from '../controller/record_config_types';
+import {featureFlags} from '../core/feature_flags';
 import {
   Aggregation,
 } from '../frontend/pivot_table_types';
@@ -22,7 +24,6 @@ import {
 } from '../frontend/record_config';
 import {SqlTables} from '../frontend/sql_table/well_known_tables';
 
-import {featureFlags} from './feature_flags';
 import {
   defaultTraceTime,
   NonSerializableState,
@@ -92,19 +93,16 @@ export function createEmptyState(): State {
     newEngineMode: 'USE_HTTP_RPC_IF_AVAILABLE',
     traceTime: {...defaultTraceTime},
     tracks: {},
-    uiTrackIdByTraceTrackId: {},
+    trackKeyByTrackId: {},
     utidToThreadSortKey: {},
     aggregatePreferences: {},
     trackGroups: {},
-    visibleTracks: [],
     pinnedTracks: [],
     scrollingTracks: [],
     areas: {},
     queries: {},
-    metrics: {},
     permalink: {},
     notes: {},
-    visualisedArgs: [],
 
     recordConfig: AUTOLOAD_STARTED_CONFIG_FLAG.get() ?
         autosaveConfigStore.get() :
@@ -148,8 +146,8 @@ export function createEmptyState(): State {
     sidebarVisible: true,
     hoveredUtid: -1,
     hoveredPid: -1,
-    hoverCursorTimestamp: -1n,
-    hoveredNoteTimestamp: -1n,
+    hoverCursorTimestamp: Time.INVALID,
+    hoveredNoteTimestamp: Time.INVALID,
     highlightedSliceId: -1,
     focusedFlowIdLeft: -1,
     focusedFlowIdRight: -1,

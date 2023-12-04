@@ -18,6 +18,8 @@ from python.generators.trace_processor_table.public import Table
 from python.generators.trace_processor_table.public import TableDoc
 from python.generators.trace_processor_table.public import CppTableId
 from python.generators.trace_processor_table.public import CppUint32
+from python.generators.trace_processor_table.public import CppInt64
+from python.generators.trace_processor_table.public import CppOptional
 
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
 
@@ -28,15 +30,25 @@ FLOW_TABLE = Table(
     columns=[
         C('slice_out', CppTableId(SLICE_TABLE)),
         C('slice_in', CppTableId(SLICE_TABLE)),
+        C('trace_id', CppOptional(CppInt64())),
         C('arg_set_id', CppUint32()),
     ],
     tabledoc=TableDoc(
         doc='''''',
         group='Misc',
         columns={
-            'arg_set_id': '''''',
-            'slice_out': '''''',
-            'slice_in': ''''''
+            'slice_out':
+                '''Id of the slice that this flow flows out of.''',
+            'slice_in':
+                '''If of the slice that this flow flows into.''',
+            'arg_set_id':
+                '''''',
+            'trace_id':
+                ('''Ids (raw values passed from the trace) of flows '''
+                 '''originating, passing through, or ending at this event. '''
+                 '''They are global within a trace. NULL if flow was '''
+                 '''"implicitly created", e.g came from Trace Processor '''
+                 '''inferring a link between binder transaction slices.'''),
         }))
 
 # Keep this list sorted.

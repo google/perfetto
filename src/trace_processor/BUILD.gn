@@ -165,6 +165,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "importers/json:full",
       "importers/json:minimal",
       "importers/ninja",
+      "importers/perf",
       "importers/proto:full",
       "importers/proto:minimal",
       "importers/systrace:full",
@@ -181,7 +182,9 @@ if (enable_perfetto_trace_processor_sqlite) {
       "types",
       "util",
       "util:gzip",
+      "util:protozero_to_json",
       "util:protozero_to_text",
+      "util:regex",
       "util:stdlib",
       "views",
     ]
@@ -212,12 +215,9 @@ if (enable_perfetto_trace_processor_sqlite) {
     if (enable_perfetto_trace_processor_httpd) {
       deps += [ "rpc:httpd" ]
     }
-    sources = [
-      "trace_processor_shell.cc",
-      "util/proto_to_json.cc",
-      "util/proto_to_json.h",
-    ]
-    if (perfetto_build_standalone && !is_perfetto_build_generator) {
+    sources = [ "trace_processor_shell.cc" ]
+    if ((perfetto_build_standalone || build_with_chromium) &&
+        !is_perfetto_build_generator) {
       data_deps = [
         # The diff testing framework depends on these descriptors.
         "../../protos/perfetto/metrics:descriptor",
@@ -276,6 +276,7 @@ perfetto_unittest_source_set("unittests") {
     "importers/ftrace:unittests",
     "importers/fuchsia:unittests",
     "importers/memory_tracker:unittests",
+    "importers/perf:unittests",
     "importers/proto:unittests",
     "importers/syscalls:unittests",
     "importers/systrace:unittests",

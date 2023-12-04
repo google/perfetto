@@ -46,6 +46,10 @@ Stream<typename P::PollT> MakeStream(Args... args) {
 // version of Iterator<T>. Long-running compute/IO operations which return
 // multiple values can be represented with a Stream<T>.
 //
+// Note: Streams *must* be polled on the same thread on which they were
+// created. The |SpawnResultStreams| can be used to move of the results of
+// Streams between threads in a safe manner.
+//
 // Refer to the class documentation for Future<T> as most of the features and
 // implementation of Future<T> also apply to Stream<T>.
 template <typename T>
@@ -129,7 +133,9 @@ Stream<T> StreamOf(T first, Ts... rest) {
 // Creates a Stream<T> which returns the value of |future| before completing.
 template <typename T>
 Stream<T> StreamFromFuture(Future<T> future) {
-  return StreamOf(std::move(future)).MapFuture([](Future<T> value) { return value; });
+  return StreamOf(std::move(future)).MapFuture([](Future<T> value) {
+    return value;
+  });
 }
 
 // Creates a stream which returns no elements but calls |fn| in the destructor
@@ -173,8 +179,7 @@ inline std::unique_ptr<Collector<T, T>> ToFutureCheckedCollector() {
 // containing all the successful results from the stream. If any element is an
 // error, short-circuits the stream with the error.
 template <typename T>
-inline std::unique_ptr<
-    Collector<StatusOr<T>, StatusOr<std::vector<T>>>>
+inline std::unique_ptr<Collector<StatusOr<T>, StatusOr<std::vector<T>>>>
 StatusOrVectorCollector() {
   return std::make_unique<StatusOrVectorCollectorImpl<T>>();
 }

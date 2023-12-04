@@ -108,6 +108,8 @@ class GeneratorJob {
   void SetOption(const std::string& name, const std::string& value) {
     if (name == "wrapper_namespace") {
       wrapper_namespace_ = value;
+    } else if (name == "sdk") {
+      sdk_mode_ = (value == "true" || value == "1");
     } else {
       Abort(std::string() + "Unknown plugin option '" + name + "'.");
     }
@@ -468,27 +470,37 @@ class GeneratorJob {
         "#ifndef $guard$\n"
         "#define $guard$\n\n"
         "#include <stddef.h>\n"
-        "#include <stdint.h>\n\n"
-        "#include \"perfetto/protozero/field_writer.h\"\n"
-        "#include \"perfetto/protozero/message.h\"\n"
-        "#include \"perfetto/protozero/packed_repeated_fields.h\"\n"
-        "#include \"perfetto/protozero/proto_decoder.h\"\n"
-        "#include \"perfetto/protozero/proto_utils.h\"\n",
+        "#include <stdint.h>\n\n",
         "greeting", greeting, "guard", guard);
 
-    // Print includes for public imports.
-    for (const FileDescriptor* dependency : public_imports_) {
-      // Dependency name could contain slashes but importing from upper-level
-      // directories is not possible anyway since build system processes each
-      // proto file individually. Hence proto lookup path is always equal to the
-      // directory where particular proto file is located and protoc does not
-      // allow reference to upper directory (aka ..) in import path.
-      //
-      // Laconically said:
-      // - source_->name() may never have slashes,
-      // - dependency->name() may have slashes but always refers to inner path.
-      stub_h_->Print("#include \"$name$.h\"\n", "name",
-                     ProtoStubName(dependency));
+    if (sdk_mode_) {
+      stub_h_->Print("#include \"perfetto.h\"\n");
+    } else {
+      stub_h_->Print(
+          "#include \"perfetto/protozero/field_writer.h\"\n"
+          "#include \"perfetto/protozero/message.h\"\n"
+          "#include \"perfetto/protozero/packed_repeated_fields.h\"\n"
+          "#include \"perfetto/protozero/proto_decoder.h\"\n"
+          "#include \"perfetto/protozero/proto_utils.h\"\n");
+    }
+
+    // Print includes for public imports. In sdk mode, all imports are assumed
+    // to be part of the sdk.
+    if (!sdk_mode_) {
+      for (const FileDescriptor* dependency : public_imports_) {
+        // Dependency name could contain slashes but importing from upper-level
+        // directories is not possible anyway since build system processes each
+        // proto file individually. Hence proto lookup path is always equal to
+        // the directory where particular proto file is located and protoc does
+        // not allow reference to upper directory (aka ..) in import path.
+        //
+        // Laconically said:
+        // - source_->name() may never have slashes,
+        // - dependency->name() may have slashes but always refers to inner
+        // path.
+        stub_h_->Print("#include \"$name$.h\"\n", "name",
+                       ProtoStubName(dependency));
+      }
     }
     stub_h_->Print("\n");
 
@@ -1002,6 +1014,9 @@ static constexpr $field_metadata_type$ $field_metadata_var${};
   std::vector<const Descriptor*> messages_;
   std::vector<const EnumDescriptor*> enums_;
   std::map<std::string, std::vector<const FieldDescriptor*>> extensions_;
+
+  // Generate headers that can be used with the Perfetto SDK.
+  bool sdk_mode_ = false;
 
   // The custom *Comp comparators are to ensure determinism of the generator.
   std::set<const FileDescriptor*, FileDescriptorComp> public_imports_;

@@ -18,6 +18,8 @@
 #include <bitset>
 #include <sstream>
 #include "perfetto/base/status.h"
+#include "perfetto/ext/base/string_utils.h"
+#include "perfetto/trace_processor/basic_types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -136,6 +138,8 @@ base::Status GetColumnsForTable(sqlite3* db,
                base::CaseInsensitiveEqual(raw_type, "BOOLEAN") ||
                base::CaseInsensitiveEqual(raw_type, "INTEGER")) {
       type = SqlValue::Type::kLong;
+    } else if (base::CaseInsensitiveEqual(raw_type, "BLOB")) {
+      type = SqlValue::Type::kBytes;
     } else if (!*raw_type) {
       PERFETTO_DLOG("Unknown column type for %s %s", raw_table_name.c_str(),
                     name);

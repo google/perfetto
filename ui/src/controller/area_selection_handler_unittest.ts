@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {Time} from '../base/time';
 import {createEmptyState} from '../common/empty_state';
 import {AreaById} from '../common/state';
 import {globals} from '../frontend/globals';
@@ -25,7 +26,8 @@ beforeAll(() => {
 
 test('validAreaAfterUndefinedArea', () => {
   const areaId = '0';
-  const latestArea: AreaById = {start: 0n, end: 1n, tracks: [], id: areaId};
+  const latestArea: AreaById =
+      {start: Time.fromRaw(0n), end: Time.fromRaw(1n), tracks: [], id: areaId};
   globals.store.edit((draft) => {
     draft.currentSelection = {kind: 'AREA', areaId: areaId};
     draft.areas[areaId] = latestArea;
@@ -40,8 +42,12 @@ test('validAreaAfterUndefinedArea', () => {
 
 test('UndefinedAreaAfterValidArea', () => {
   const previousAreaId = '0';
-  const previous:
-      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
+  const previous: AreaById = {
+    start: Time.fromRaw(0n),
+    end: Time.fromRaw(1n),
+    tracks: [],
+    id: previousAreaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {
       kind: 'AREA',
@@ -83,8 +89,12 @@ test('UndefinedAreaAfterUndefinedArea', () => {
 
 test('validAreaAfterValidArea', () => {
   const previousAreaId = '0';
-  const previous:
-      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
+  const previous: AreaById = {
+    start: Time.fromRaw(0n),
+    end: Time.fromRaw(1n),
+    tracks: [],
+    id: previousAreaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {
       kind: 'AREA',
@@ -96,7 +106,12 @@ test('validAreaAfterValidArea', () => {
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '1';
-  const current: AreaById = {start: 1n, end: 2n, tracks: [], id: currentAreaId};
+  const current: AreaById = {
+    start: Time.fromRaw(1n),
+    end: Time.fromRaw(2n),
+    tracks: [],
+    id: currentAreaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {
       kind: 'AREA',
@@ -112,8 +127,12 @@ test('validAreaAfterValidArea', () => {
 
 test('sameAreaSelected', () => {
   const previousAreaId = '0';
-  const previous:
-      AreaById = {start: 0n, end: 1n, tracks: [], id: previousAreaId};
+  const previous: AreaById = {
+    start: Time.fromRaw(0n),
+    end: Time.fromRaw(1n),
+    tracks: [],
+    id: previousAreaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {
       kind: 'AREA',
@@ -125,7 +144,12 @@ test('sameAreaSelected', () => {
   areaSelectionHandler.getAreaChange();
 
   const currentAreaId = '0';
-  const current: AreaById = {start: 0n, end: 1n, tracks: [], id: currentAreaId};
+  const current: AreaById = {
+    start: Time.fromRaw(0n),
+    end: Time.fromRaw(1n),
+    tracks: [],
+    id: currentAreaId,
+  };
   globals.store.edit((draft) => {
     draft.currentSelection = {
       kind: 'AREA',
@@ -147,7 +171,12 @@ test('NonAreaSelectionAfterUndefinedArea', () => {
   areaSelectionHandler.getAreaChange();
 
   globals.store.edit((draft) => {
-    draft.currentSelection = {kind: 'COUNTER', leftTs: 0n, rightTs: 0n, id: 1};
+    draft.currentSelection = {
+      kind: 'COUNTER',
+      leftTs: Time.fromRaw(0n),
+      rightTs: Time.fromRaw(0n),
+      id: 1,
+    };
   });
   const [hasAreaChanged, selectedArea] = areaSelectionHandler.getAreaChange();
 

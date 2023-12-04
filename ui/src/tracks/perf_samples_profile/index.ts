@@ -13,17 +13,26 @@
 // limitations under the License.
 
 import {searchSegment} from '../../base/binary_search';
+import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {LONG} from '../../common/query_result';
 import {ProfileType} from '../../common/state';
-import {TPDuration, TPTime} from '../../common/time';
+import {
+  TrackAdapter,
+  TrackControllerAdapter,
+  TrackWithControllerAdapter,
+} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
-import {TrackController} from '../../controller/track_controller';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs, Track} from '../../frontend/track';
-import {PluginContext} from '../../public';
+import {NewTrackArgs} from '../../frontend/track';
+import {
+  Plugin,
+  PluginContext,
+  PluginContextTrace,
+  PluginDescriptor,
+} from '../../public';
+import {LONG, NUM} from '../../trace_processor/query_result';
 
 export const PERF_SAMPLES_PROFILE_TRACK_KIND = 'PerfSamplesProfileTrack';
 
@@ -35,9 +44,9 @@ export interface Config {
   upid: number;
 }
 
-class PerfSamplesProfileTrackController extends TrackController<Config, Data> {
-  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
-  async onBoundsChange(start: TPTime, end: TPTime, resolution: TPDuration):
+class PerfSamplesProfileTrackController extends
+    TrackControllerAdapter<Config, Data> {
+  async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
     if (this.config.upid === undefined) {
       return {
@@ -77,15 +86,14 @@ const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
 const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
-class PerfSamplesProfileTrack extends Track<Config, Data> {
-  static readonly kind = PERF_SAMPLES_PROFILE_TRACK_KIND;
+class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   static create(args: NewTrackArgs): PerfSamplesProfileTrack {
     return new PerfSamplesProfileTrack(args);
   }
 
   private centerY = this.getHeight() / 2;
   private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
-  private hoveredTs: TPTime|undefined = undefined;
+  private hoveredTs: time|undefined = undefined;
 
   constructor(args: NewTrackArgs) {
     super(args);
@@ -104,7 +112,7 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
     if (data === undefined) return;
 
     for (let i = 0; i < data.tsStarts.length; i++) {
-      const centerX = data.tsStarts[i];
+      const centerX = Time.fromRaw(data.tsStarts[i]);
       const selection = globals.state.currentSelection;
       const isHovered = this.hoveredTs === centerX;
       const isSelected = selection !== null &&
@@ -113,7 +121,7 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       const strokeWidth = isSelected ? 3 : 0;
       this.drawMarker(
           ctx,
-          visibleTimeScale.tpTimeToPx(centerX),
+          visibleTimeScale.timeToPx(centerX),
           this.centerY,
           isHovered,
           strokeWidth);
@@ -144,10 +152,11 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
     if (data === undefined) return;
     const {visibleTimeScale} = globals.frontendLocalState;
     const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index =
         this.findTimestampIndex(left, visibleTimeScale, data, x, y, right);
-    this.hoveredTs = index === -1 ? undefined : data.tsStarts[index];
+    this.hoveredTs =
+        index === -1 ? undefined : Time.fromRaw(data.tsStarts[index]);
   }
 
   onMouseOut() {
@@ -160,13 +169,13 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
     const {visibleTimeScale} = globals.frontendLocalState;
 
     const time = visibleTimeScale.pxToHpTime(x);
-    const [left, right] = searchSegment(data.tsStarts, time.toTPTime());
+    const [left, right] = searchSegment(data.tsStarts, time.toTime());
 
     const index =
         this.findTimestampIndex(left, visibleTimeScale, data, x, y, right);
 
     if (index !== -1) {
-      const ts = data.tsStarts[index];
+      const ts = Time.fromRaw(data.tsStarts[index]);
       globals.makeSelection(Actions.selectPerfSamples({
         id: index,
         upid: this.config.upid,
@@ -185,13 +194,15 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
       right: number): number {
     let index = -1;
     if (left !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[left]);
+      const start = Time.fromRaw(data.tsStarts[left]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = left;
       }
     }
     if (right !== -1) {
-      const centerX = timeScale.tpTimeToPx(data.tsStarts[right]);
+      const start = Time.fromRaw(data.tsStarts[right]);
+      const centerX = timeScale.timeToPx(start);
       if (this.isInMarker(x, y, centerX)) {
         index = right;
       }
@@ -205,12 +216,37 @@ class PerfSamplesProfileTrack extends Track<Config, Data> {
   }
 }
 
-export function activate(ctx: PluginContext) {
-  ctx.registerTrackController(PerfSamplesProfileTrackController);
-  ctx.registerTrack(PerfSamplesProfileTrack);
+class PerfSamplesProfilePlugin implements Plugin {
+  onActivate(_ctx: PluginContext): void {}
+
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    const result = await ctx.engine.query(`
+      select distinct upid, pid
+      from perf_sample join thread using (utid) join process using (upid)
+      where callsite_id is not null
+  `);
+    for (const it = result.iter({upid: NUM, pid: NUM}); it.valid(); it.next()) {
+      const upid = it.upid;
+      const pid = it.pid;
+      ctx.registerStaticTrack({
+        uri: `perfetto.PerfSamplesProfile#${upid}`,
+        displayName: `Callstacks ${pid}`,
+        kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
+        upid,
+        track: ({trackKey}) => {
+          return new TrackWithControllerAdapter(
+              ctx.engine,
+              trackKey,
+              {upid},
+              PerfSamplesProfileTrack,
+              PerfSamplesProfileTrackController);
+        },
+      });
+    }
+  }
 }
 
-export const plugin = {
+export const plugin: PluginDescriptor = {
   pluginId: 'perfetto.PerfSamplesProfile',
-  activate,
+  plugin: PerfSamplesProfilePlugin,
 };

@@ -25,7 +25,7 @@ SELECT RUN_METRIC('chrome/chrome_processes.sql');
 
 -- CPU time slices for Chrome threads.
 DROP VIEW IF EXISTS chrome_cpu_slices;
-CREATE VIEW chrome_cpu_slices AS
+CREATE PERFETTO VIEW chrome_cpu_slices AS
 SELECT counters.id AS counter_id,
   track_id,
   ts,
@@ -59,7 +59,7 @@ CREATE VIRTUAL TABLE {{input}}_cpu_time USING SPAN_JOIN(
 -- cpu time slices don't always line up with the category slices. However the
 -- CPU slices are small enough this makes very little difference.
 DROP VIEW IF EXISTS {{output}};
-CREATE VIEW {{output}} AS
+CREATE PERFETTO VIEW {{output}} AS
 SELECT s.id,
   s.ts,
   s.dur,

@@ -61,8 +61,8 @@ std::unique_ptr<ProducerEndpoint> SystemProducerTracingBackend::ConnectProducer(
 #else
     shm = PosixSharedMemory::Create(shmem_size_hint);
 #endif
-    arbiter = SharedMemoryArbiter::CreateUnboundInstance(shm.get(),
-                                                         shmem_page_size_hint);
+    arbiter = SharedMemoryArbiter::CreateUnboundInstance(
+        shm.get(), shmem_page_size_hint, SharedMemoryABI::ShmemMode::kDefault);
   }
 
   auto endpoint = ProducerIPCClient::Connect(

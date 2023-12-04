@@ -45,8 +45,8 @@ class PERFETTO_EXPORT_COMPONENT Iterator {
   explicit Iterator(std::unique_ptr<IteratorImpl>);
   ~Iterator();
 
-  Iterator(Iterator&) noexcept = delete;
-  Iterator& operator=(Iterator&) = delete;
+  Iterator(const Iterator&) = delete;
+  Iterator& operator=(const Iterator&) = delete;
 
   Iterator(Iterator&&) noexcept;
   Iterator& operator=(Iterator&&) noexcept;

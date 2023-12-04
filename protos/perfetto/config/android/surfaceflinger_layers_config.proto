@@ -29,11 +29,16 @@ message SurfaceFlingerLayersConfig {
 
     // Generate layers snapshots from the transactions kept in the
     // SurfaceFlinger's internal ring buffer.
-    // The layers snapshots generation occurs when this data source is stopped.
+    // The layers snapshots generation occurs when this data source is flushed.
     MODE_GENERATED = 2;
 
     // Trace a single layers snapshot.
     MODE_DUMP = 3;
+
+    // Default mode (applied by SurfaceFlinger if no mode is specified).
+    // Same as MODE_GENERATED, but triggers the layers snapshots generation only when a bugreport
+    // is taken.
+    MODE_GENERATED_BUGREPORT_ONLY = 4;
   }
   optional Mode mode = 1;
 

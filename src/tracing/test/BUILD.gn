@@ -41,7 +41,6 @@ perfetto_unittest_source_set("test_support") {
     "aligned_buffer_test.h",
     "fake_packet.cc",
     "fake_packet.h",
-    "test_shared_memory.cc",
     "test_shared_memory.h",
     "traced_value_test_support.cc",
   ]

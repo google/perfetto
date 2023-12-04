@@ -14,6 +14,7 @@
 
 export class BigintMath {
   static INT64_MAX: bigint = (2n ** 63n) - 1n;
+  static INT64_MIN: bigint = -(2n ** 63n);
 
   // Returns the smallest integral power of 2 that is not smaller than n.
   // If n is less than or equal to 0, returns 1.

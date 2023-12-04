@@ -47,7 +47,10 @@ class TriggerProducer : public Producer {
   void SetupDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
   void StartDataSource(DataSourceInstanceID, const DataSourceConfig&) override;
   void StopDataSource(DataSourceInstanceID) override;
-  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
+  void Flush(FlushRequestID,
+             const DataSourceInstanceID*,
+             size_t,
+             FlushFlags) override;
   void ClearIncrementalState(const DataSourceInstanceID* data_source_ids,
                              size_t num_data_sources) override;
 

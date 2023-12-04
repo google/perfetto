@@ -46,7 +46,7 @@ Our team is looking into a migration path for Android, in light of the newly
 introduced [Tracing SDK](/docs/instrumentation/tracing-sdk.md). At the moment
 the advice is to keep using the existing ATrace API on Android.
 
-[libcutils]: https://cs.android.com/android/platform/superproject/+/master:system/core/libcutils/include/cutils/trace.h?q=f:trace%20libcutils
+[libcutils]: https://cs.android.com/android/platform/superproject/+/main:system/core/libcutils/include/cutils/trace.h?q=f:trace%20libcutils
 
 ## UI
 

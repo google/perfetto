@@ -14,15 +14,21 @@
 
 @import "theme";
 
+// If we're in a popup menu, remove the padding
+.pf-popup-menu.pf-popup {
+  .pf-popup-content {
+    padding: 0;
+  }
+}
+
 .pf-menu {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 5px 0;
+  margin: 4px 0;
 
   .pf-menu-item {
     font-family: $pf-font;
-    font-size: 14px;
     user-select: none;
     text-align: left;
     padding: 5px 10px;
@@ -32,7 +38,6 @@
 
     background: $pf-minimal-background;
     color: $pf-minimal-foreground;
-    transition: background $pf-anim-timing;
 
     & > .material-icons {
       font-size: inherit;

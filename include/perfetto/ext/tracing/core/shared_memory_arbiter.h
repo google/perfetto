@@ -25,6 +25,7 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/tracing_service.h"
 #include "perfetto/tracing/buffer_exhausted_policy.h"
 
@@ -41,6 +42,8 @@ class TraceWriter;
 // from the SharedMemory it receives from the Service-side.
 class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
  public:
+  using ShmemMode = SharedMemoryABI::ShmemMode;
+
   virtual ~SharedMemoryArbiter();
 
   // Creates a new TraceWriter and assigns it a new WriterID. The WriterID is
@@ -182,6 +185,7 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   static std::unique_ptr<SharedMemoryArbiter> CreateInstance(
       SharedMemory*,
       size_t page_size,
+      ShmemMode,
       TracingService::ProducerEndpoint*,
       base::TaskRunner*);
 
@@ -202,9 +206,8 @@ class PERFETTO_EXPORT_COMPONENT SharedMemoryArbiter {
   //
   // Implemented in src/core/shared_memory_arbiter_impl.cc. See CreateInstance()
   // for comments about the arguments.
-  static std::unique_ptr<SharedMemoryArbiter> CreateUnboundInstance(
-      SharedMemory*,
-      size_t page_size);
+  static std::unique_ptr<SharedMemoryArbiter>
+  CreateUnboundInstance(SharedMemory*, size_t page_size, ShmemMode mode);
 };
 
 }  // namespace perfetto

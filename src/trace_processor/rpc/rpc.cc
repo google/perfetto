@@ -24,11 +24,11 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/base/version.h"
+#include "perfetto/ext/trace_processor/rpc/query_result_serializer.h"
 #include "perfetto/protozero/scattered_heap_buffer.h"
 #include "perfetto/protozero/scattered_stream_writer.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "src/protozero/proto_ring_buffer.h"
-#include "src/trace_processor/rpc/query_result_serializer.h"
 #include "src/trace_processor/tp_metatrace.h"
 
 #include "protos/perfetto/trace_processor/trace_processor.pbzero.h"
@@ -131,21 +131,29 @@ namespace {
 using ProtoEnum = protos::pbzero::MetatraceCategories;
 TraceProcessor::MetatraceCategories MetatraceCategoriesToPublicEnum(
     ProtoEnum categories) {
-  switch (categories) {
-    case ProtoEnum::TOPLEVEL:
-      return TraceProcessor::MetatraceCategories::TOPLEVEL;
-    case ProtoEnum::QUERY:
-      return TraceProcessor::MetatraceCategories::QUERY;
-    case ProtoEnum::FUNCTION:
-      return TraceProcessor::MetatraceCategories::FUNCTION;
-    case ProtoEnum::DB:
-      return TraceProcessor::MetatraceCategories::DB;
-    case ProtoEnum::ALL:
-      return TraceProcessor::MetatraceCategories::ALL;
-    case ProtoEnum::NONE:
-      return TraceProcessor::MetatraceCategories::NONE;
+  TraceProcessor::MetatraceCategories result =
+      TraceProcessor::MetatraceCategories::NONE;
+  if (categories & ProtoEnum::QUERY_TIMELINE) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::QUERY_TIMELINE);
   }
-  return TraceProcessor::MetatraceCategories::NONE;
+  if (categories & ProtoEnum::QUERY_DETAILED) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::QUERY_DETAILED);
+  }
+  if (categories & ProtoEnum::FUNCTION_CALL) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::FUNCTION_CALL);
+  }
+  if (categories & ProtoEnum::DB) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::DB);
+  }
+  if (categories & ProtoEnum::API_TIMELINE) {
+    result = static_cast<TraceProcessor::MetatraceCategories>(
+        result | TraceProcessor::MetatraceCategories::API_TIMELINE);
+  }
+  return result;
 }
 
 }  // namespace
@@ -288,7 +296,7 @@ void Rpc::ParseRpcRequest(const uint8_t* data, size_t len) {
 
 util::Status Rpc::Parse(const uint8_t* data, size_t len) {
   PERFETTO_TP_TRACE(
-      metatrace::Category::TOPLEVEL, "RPC_PARSE",
+      metatrace::Category::API_TIMELINE, "RPC_PARSE",
       [&](metatrace::Record* r) { r->AddArg("length", std::to_string(len)); });
   if (eof_) {
     // Reset the trace processor state if another trace has been previously
@@ -310,7 +318,8 @@ util::Status Rpc::Parse(const uint8_t* data, size_t len) {
 }
 
 void Rpc::NotifyEndOfFile() {
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_NOTIFY_END_OF_FILE");
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE,
+                    "RPC_NOTIFY_END_OF_FILE");
 
   trace_processor_->NotifyEndOfFile();
   eof_ = true;
@@ -372,7 +381,7 @@ Iterator Rpc::QueryInternal(const uint8_t* args, size_t len) {
   protos::pbzero::QueryArgs::Decoder query(args, len);
   std::string sql = query.sql_query().ToStdString();
   PERFETTO_DLOG("[RPC] Query < %s", sql.c_str());
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_QUERY",
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_QUERY",
                     [&](metatrace::Record* r) {
                       r->AddArg("SQL", sql);
                       if (query.has_tag()) {
@@ -402,7 +411,7 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
     metric_names.emplace_back(it->as_std_string());
   }
 
-  PERFETTO_TP_TRACE(metatrace::Category::TOPLEVEL, "RPC_COMPUTE_METRIC",
+  PERFETTO_TP_TRACE(metatrace::Category::API_TIMELINE, "RPC_COMPUTE_METRIC",
                     [&](metatrace::Record* r) {
                       for (const auto& metric : metric_names) {
                         r->AddArg("Metric", metric);
@@ -432,6 +441,18 @@ void Rpc::ComputeMetricInternal(const uint8_t* data,
           &metrics_string);
       if (status.ok()) {
         result->set_metrics_as_prototext(metrics_string);
+      } else {
+        result->set_error(status.message());
+      }
+      break;
+    }
+    case protos::pbzero::ComputeMetricArgs::JSON: {
+      std::string metrics_string;
+      util::Status status = trace_processor_->ComputeMetricText(
+          metric_names, TraceProcessor::MetricResultFormat::kJson,
+          &metrics_string);
+      if (status.ok()) {
+        result->set_metrics_as_json(metrics_string);
       } else {
         result->set_error(status.message());
       }

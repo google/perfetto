@@ -20,8 +20,6 @@
 #include "perfetto/tracing/event_context.h"
 #include "perfetto/tracing/track.h"
 
-#include <functional>
-
 namespace perfetto {
 
 // A helper to add |flow_id| as a non-terminating flow id to TRACE_EVENT
@@ -31,8 +29,7 @@ class Flow {
   // |flow_id| which is local within a given process (e.g. atomic counter xor'ed
   // with feature-specific value). This value is xor'ed with Perfetto's internal
   // process track id to attempt to ensure that it's globally-unique.
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  ProcessScoped(uint64_t flow_id) {
+  static PERFETTO_ALWAYS_INLINE inline Flow ProcessScoped(uint64_t flow_id) {
     return Global(flow_id ^ Track::process_uuid);
   }
 
@@ -42,25 +39,23 @@ class Flow {
   // Please ensure that you emit a trace event with the flow id of
   // perfetto::TerminatingFlow::FromPointer(this) from the destructor of the
   // object to avoid accidental conflicts.
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  FromPointer(void* ptr) {
+  static PERFETTO_ALWAYS_INLINE inline Flow FromPointer(void* ptr) {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 
   // Add the |flow_id|. The caller is responsible for ensuring that it's
   // globally-unique (e.g. by generating a random value). This should be used
   // only for flow events which cross the process boundary (e.g. IPCs).
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  Global(uint64_t flow_id) {
-    return [flow_id](perfetto::EventContext& ctx) {
-      ctx.event()->add_flow_ids(flow_id);
-    };
+  static PERFETTO_ALWAYS_INLINE inline Flow Global(uint64_t flow_id) {
+    return Flow(flow_id);
   }
 
   // TODO(altimin): Remove once converting a single usage in Chromium.
   explicit constexpr Flow(uint64_t flow_id) : flow_id_(flow_id) {}
 
-  void operator()(EventContext& ctx) { ctx.event()->add_flow_ids(flow_id_); }
+  void operator()(EventContext& ctx) const {
+    ctx.event()->add_flow_ids(flow_id_);
+  }
 
  private:
   uint64_t flow_id_;
@@ -71,24 +66,30 @@ class Flow {
 class TerminatingFlow {
  public:
   // See `Flow::ProcessScoped(uint64_t)`.
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  ProcessScoped(uint64_t flow_id) {
+  static PERFETTO_ALWAYS_INLINE inline TerminatingFlow ProcessScoped(
+      uint64_t flow_id) {
     return Global(flow_id ^ Track::process_uuid);
   }
 
   // See `Flow::FromPointer(void*)`.
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  FromPointer(void* ptr) {
+  static PERFETTO_ALWAYS_INLINE inline TerminatingFlow FromPointer(void* ptr) {
     return ProcessScoped(reinterpret_cast<uintptr_t>(ptr));
   }
 
   // See `Flow::Global(uint64_t)`.
-  static PERFETTO_ALWAYS_INLINE inline std::function<void(EventContext&)>
-  Global(uint64_t flow_id) {
-    return [flow_id](perfetto::EventContext& ctx) {
-      ctx.event()->add_terminating_flow_ids(flow_id);
-    };
+  static PERFETTO_ALWAYS_INLINE inline TerminatingFlow Global(
+      uint64_t flow_id) {
+    TerminatingFlow tf;
+    tf.flow_id_ = flow_id;
+    return tf;
   }
+
+  void operator()(EventContext& ctx) const {
+    ctx.event()->add_terminating_flow_ids(flow_id_);
+  }
+
+ private:
+  uint64_t flow_id_;
 };
 
 }  // namespace perfetto

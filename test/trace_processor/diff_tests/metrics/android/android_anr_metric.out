@@ -1,0 +1,20 @@
+android_anr {
+    anr {
+        process_name: "com.google.android.app1"
+        pid: 11167
+        ts: 1000
+        subject: "Test ANR subject 1"
+        error_id: "da24554c-452a-4ae1-b74a-fb898f6e0982"
+    }
+    anr {
+        process_name: "com.google.android.app2"
+        ts: 2000
+        subject: "Test ANR subject 2"
+        error_id: "8612fece-c2f1-4aeb-9d45-8e6d9d0201cf"
+    }
+    anr {
+        process_name: "com.google.android.app3"
+        ts: 3000
+        error_id: "c25916a0-a8f0-41f3-87df-319e06471a0f"
+    }
+}

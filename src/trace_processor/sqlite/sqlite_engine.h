@@ -58,8 +58,8 @@ class SqliteEngine {
     bool Step();
     bool IsDone() const;
 
+    const char* original_sql() const;
     const char* sql() const;
-    const char* expanded_sql();
 
     const base::Status& status() const { return status_; }
     sqlite3_stmt* sqlite_stmt() const { return stmt_.get(); }
@@ -70,16 +70,16 @@ class SqliteEngine {
     explicit PreparedStatement(ScopedStmt, SqlSource);
 
     ScopedStmt stmt_;
-    SqlSource sql_source_;
     ScopedSqliteString expanded_sql_;
-    base::Status status_;
+    SqlSource sql_source_;
+    base::Status status_ = base::OkStatus();
   };
 
   SqliteEngine();
   ~SqliteEngine();
 
   // Prepares a SQLite statement for the given SQL.
-  base::StatusOr<PreparedStatement> PrepareStatement(SqlSource);
+  PreparedStatement PrepareStatement(SqlSource);
 
   // Registers a C++ function to be runnable from SQL.
   base::Status RegisterFunction(const char* name,
@@ -88,6 +88,9 @@ class SqliteEngine {
                                 void* ctx,
                                 FnCtxDestructor* ctx_destructor,
                                 bool deterministic);
+
+  // Unregisters a C++ function from SQL.
+  base::Status UnregisterFunction(const char* name, int argc);
 
   // Registers a SQLite virtual table module with the given name.
   template <typename Vtab, typename Context>

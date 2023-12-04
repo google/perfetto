@@ -15,10 +15,10 @@
 import m from 'mithril';
 
 import {assertExists} from '../base/logging';
-import {RECORDING_V2_FLAG} from '../common/feature_flags';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
 import {TraceUrlSource} from '../common/state';
 import {saveTrace} from '../common/upload_utils';
+import {RECORDING_V2_FLAG} from '../core/feature_flags';
 
 import {globals} from './globals';
 import {showModal} from './modal';

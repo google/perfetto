@@ -19,7 +19,7 @@ syntax = "proto2";
 package perfetto.protos;
 
 // This is a manual import of ShellSubscription:
-// https://cs.android.com/android/platform/superproject/+/master:packages/modules/StatsD/statsd/src/shell/shell_config.proto?q=f:statsD%2Fstatsd%20f:shell_config.proto
+// https://cs.android.com/android/platform/superproject/+/main:packages/modules/StatsD/statsd/src/shell/shell_config.proto?q=f:statsD%2Fstatsd%20f:shell_config.proto
 // and its transitive dependencies.
 
 message StatsdShellSubscription {

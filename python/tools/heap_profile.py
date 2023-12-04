@@ -491,7 +491,7 @@ def main(argv):
     if binary_path is None:
       binary_path = product_out_symbols
     elif product_out_symbols is not None:
-      binary_path += ":" + product_out_symbols
+      binary_path += os.pathsep + product_out_symbols
 
   trace_file = os.path.join(profile_target, 'raw-trace')
   concat_files = [trace_file]

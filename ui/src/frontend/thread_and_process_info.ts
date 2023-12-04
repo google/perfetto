@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {EngineProxy} from '../common/engine';
-import {NUM, NUM_NULL, STR, STR_NULL} from '../common/query_result';
+import {EngineProxy} from '../trace_processor/engine';
+import {NUM, NUM_NULL, STR, STR_NULL} from '../trace_processor/query_result';
+
 import {Upid, Utid} from './sql_types';
 import {fromNumNull} from './sql_utils';
 

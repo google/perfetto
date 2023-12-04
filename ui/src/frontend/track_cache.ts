@@ -13,9 +13,8 @@
 // limitations under the License.
 
 import {BigintMath} from '../base/bigint_math';
-
 import {assertTrue} from '../base/logging';
-import {TPDuration, TPTime} from '../common/time';
+import {duration, time, Time} from '../base/time';
 
 export const BUCKETS_PER_PIXEL = 2;
 
@@ -56,21 +55,19 @@ export const BUCKETS_PER_PIXEL = 2;
 // non-normal window at a higher resolution. Normalization is used to
 // avoid re-fetching data on tiny zooms/moves/resizes.
 export class CacheKey {
-  readonly start: TPTime;
-  readonly end: TPTime;
-  readonly bucketSize: TPDuration;
+  readonly start: time;
+  readonly end: time;
+  readonly bucketSize: duration;
   readonly windowSizePx: number;
 
-  static create(startNs: TPTime, endNs: TPTime, windowSizePx: number):
-      CacheKey {
+  static create(startNs: time, endNs: time, windowSizePx: number): CacheKey {
     const bucketNs = (endNs - startNs) /
         BigInt(Math.round(windowSizePx * BUCKETS_PER_PIXEL));
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 
   private constructor(
-      startNs: TPTime, endNs: TPTime, bucketNs: TPDuration,
-      windowSizePx: number) {
+      startNs: time, endNs: time, bucketNs: duration, windowSizePx: number) {
     this.start = startNs;
     this.end = endNs;
     this.bucketSize = bucketNs;
@@ -78,7 +75,7 @@ export class CacheKey {
   }
 
   static zero(): CacheKey {
-    return new CacheKey(0n, 0n, 0n, 100);
+    return new CacheKey(Time.ZERO, Time.ZERO, 0n, 100);
   }
 
   get normalizedBucketNs(): bigint {
@@ -94,8 +91,8 @@ export class CacheKey {
     const windowSizePx = this.normalizedWindowSizePx;
     const bucketNs = this.normalizedBucketNs;
     const windowNs = BigInt(windowSizePx * BUCKETS_PER_PIXEL) * bucketNs;
-    const startNs = BigintMath.quantFloor(this.start, windowNs);
-    const endNs = BigintMath.quantCeil(this.end, windowNs);
+    const startNs = Time.quantFloor(this.start, windowNs);
+    const endNs = Time.quantCeil(this.end, windowNs);
     return new CacheKey(startNs, endNs, bucketNs, windowSizePx);
   }
 

@@ -76,7 +76,6 @@ public_targets = [
 # exported publicly.
 default_targets = [
     '//src/base:perfetto_base_default_platform',
-    '//src/cloud_trace_processor:cloud_trace_processor',
     '//src/ipc:perfetto_ipc',
     '//src/ipc/protoc_plugin:ipc_plugin',
     '//src/protozero:protozero',
@@ -84,14 +83,9 @@ default_targets = [
     '//src/protozero/protoc_plugin:protozero_plugin',
     '//src/tools/proto_filter:proto_filter',
     '//src/tools/proto_merger:proto_merger',
+    '//src/trace_processor/rpc:trace_processor_rpc',
     '//test:client_api_example',
 ] + public_targets
-
-# Proto targets are required by internal build rules but don't need to be
-# exported publicly.
-proto_default_targets = [
-  '//protos/perfetto/cloud_trace_processor:lite'
-]
 
 # Proto target groups which will be made public.
 proto_groups = {
@@ -117,6 +111,10 @@ proto_groups = {
     'chrome_metrics': {
         'sources': ['//protos/perfetto/metrics/chrome:source_set',],
         'visibility': ALLOWLIST_PUBLIC_VISIBILITY,
+    },
+    'trace_processor': {
+        'sources': ['//protos/perfetto/trace_processor:source_set',],
+        'visibility': [],
     },
 }
 
@@ -166,6 +164,13 @@ external_python_deps: Dict[str, List[str]] = {
     '//gn:pandas_py': ['PERFETTO_CONFIG.deps.pandas_py'],
     '//gn:protobuf_py': ['PERFETTO_CONFIG.deps.protobuf_py'],
     '//gn:tp_vendor_py': ['PERFETTO_CONFIG.deps.tp_vendor_py'],
+}
+
+# Additional arguments
+target_overrides = {
+  '//src/trace_processor/perfetto_sql/stdlib/chrome:chrome_sql': {
+    'srcs': 'glob(["src/trace_processor/perfetto_sql/stdlib/chrome/**/*.sql"])'
+  }
 }
 
 
@@ -315,7 +320,7 @@ class BazelLabel(object):
     self.name = name
     self.type = type
     self.visibility: Union[List[str], str] = []
-    self.srcs = []
+    self.srcs: Union[List[str], str] = []
     self.hdrs = []
     self.data = []
     self.deps = []
@@ -355,7 +360,7 @@ class BazelLabel(object):
         continue
       res += '    %s = ' % k
       if isinstance(v, basestring):
-        if v.startswith('PERFETTO_CONFIG.'):
+        if v.startswith('PERFETTO_CONFIG.') or v.startswith('glob'):
           res += '%s,\n' % v
         else:
           res += '"%s",\n' % v
@@ -516,29 +521,32 @@ def gen_proto_group_target(gn: GnParser, name: str, desc: Dict[str, Any]):
       ':' + get_bazel_proto_sources_label(name)
       for name in sorted(list(deps_set))
   ]
-  sources_label.visibility = desc['visibility']
   sources_label.comment = f'''[{', '.join(desc['sources'])}]'''
 
   cc_label = BazelLabel(name + '_cc_proto', 'perfetto_cc_proto_library')
   cc_label.deps = [':' + sources_label.name]
-  cc_label.visibility = desc['visibility']
   cc_label.comment = sources_label.comment
 
   java_label = BazelLabel(name + '_java_proto', 'perfetto_java_proto_library')
   java_label.deps = [':' + sources_label.name]
-  java_label.visibility = desc['visibility']
   java_label.comment = sources_label.comment
 
   lite_name = name + '_java_proto_lite'
   java_lite_label = BazelLabel(lite_name, 'perfetto_java_lite_proto_library')
   java_lite_label.deps = [':' + sources_label.name]
-  java_lite_label.visibility = desc['visibility']
   java_lite_label.comment = sources_label.comment
 
   py_label = BazelLabel(name + '_py_pb2', 'perfetto_py_proto_library')
   py_label.deps = [':' + sources_label.name]
-  py_label.visibility = desc['visibility']
   py_label.comment = sources_label.comment
+
+  visibility = desc['visibility']
+  if visibility:
+    sources_label.visibility = visibility
+    cc_label.visibility = visibility
+    java_label.visibility = visibility
+    java_lite_label.visibility = visibility
+    py_label.visibility = visibility
 
   return [sources_label, cc_label, java_label, java_lite_label, py_label]
 
@@ -596,7 +604,7 @@ def gen_cc_tp_tables(target: GnParser.Target):
   return [label]
 
 
-def gen_target(gn_target: GnParser.Target):
+def gen_target_helper(gn_target: GnParser.Target):
   if gn_target.type == 'proto_library':
     return [gen_proto_label(gn_target)]
   elif gn_target.type == 'action':
@@ -693,6 +701,16 @@ def gen_target(gn_target: GnParser.Target):
   return [label]
 
 
+def gen_target(gn_target: GnParser.Target):
+  targets = gen_target_helper(gn_target)
+  if gn_target.name not in target_overrides:
+    return targets
+  for target in targets:
+    for key, add_val in target_overrides[gn_target.name].items():
+      setattr(target, key, add_val)
+  return targets
+
+
 def gen_target_str(gn_target):
   return ''.join(str(x) for x in gen_target(gn_target))
 
@@ -741,6 +759,7 @@ load(
     "perfetto_py_binary",
     "perfetto_py_library",
     "perfetto_py_proto_library",
+    "perfetto_jspb_proto_library",
 )
 
 package(default_visibility = [PERFETTO_CONFIG.root + ":__subpackages__"])
@@ -793,10 +812,6 @@ exports_files(["NOTICE"])
     if plugin is None or plugin == 'source_set' or plugin == 'descriptor':
       continue
     gn.get_target(re.sub('(lite|zero|cpp|ipc)$', 'source_set', target.name))
-
-  # Discover all the default proto targets so it will be generated next.
-  for target in sorted(proto_default_targets):
-    gn.get_target(target)
 
   # Generate targets for the transitive set of proto targets.
   labels = [

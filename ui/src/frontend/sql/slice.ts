@@ -15,29 +15,27 @@
 import m from 'mithril';
 
 import {BigintMath} from '../../base/bigint_math';
+import {Icons} from '../../base/semantic_icons';
+import {duration, Time, time} from '../../base/time';
 import {exists} from '../../base/utils';
 import {Actions} from '../../common/actions';
-import {EngineProxy} from '../../common/engine';
+import {EngineProxy} from '../../trace_processor/engine';
 import {
   LONG,
   LONG_NULL,
   NUM,
   STR,
   STR_NULL,
-} from '../../common/query_result';
-import {TPDuration, TPTime} from '../../common/time';
-import {Anchor} from '../anchor';
+} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
 import {globals} from '../globals';
 import {focusHorizontalRange, verticalScrollToTrack} from '../scroll_helper';
-import {Icons} from '../semantic_icons';
 import {
   asArgSetId,
   asSliceSqlId,
-  asTPTimestamp,
   asUpid,
   asUtid,
   SliceSqlId,
-  TPTimestamp,
   Upid,
   Utid,
 } from '../sql_types';
@@ -54,14 +52,14 @@ import {Arg, getArgs} from './args';
 export interface SliceDetails {
   id: SliceSqlId;
   name: string;
-  ts: TPTimestamp;
+  ts: time;
   absTime?: string;
-  dur: TPDuration;
-  sqlTrackId: number;
+  dur: duration;
+  trackId: number;
   thread?: ThreadInfo;
   process?: ProcessInfo;
-  threadTs?: TPTime;
-  threadDur?: TPDuration;
+  threadTs?: time;
+  threadDur?: duration;
   category?: string;
   args?: Arg[];
 }
@@ -150,13 +148,13 @@ async function getSliceFromConstraints(
     result.push({
       id: asSliceSqlId(it.id),
       name: it.name,
-      ts: asTPTimestamp(it.ts),
+      ts: Time.fromRaw(it.ts),
       dur: it.dur,
-      sqlTrackId: it.trackId,
+      trackId: it.trackId,
       thread,
       process,
       threadDur: it.threadDur ?? undefined,
-      threadTs: exists(it.threadTs) ? it.threadTs : undefined,
+      threadTs: exists(it.threadTs) ? Time.fromRaw(it.threadTs) : undefined,
       category: it.category ?? undefined,
       args: await getArgs(engine, asArgSetId(it.argSetId)),
       absTime: it.absTime ?? undefined,
@@ -182,8 +180,8 @@ export async function getSlice(
 interface SliceRefAttrs {
   readonly id: SliceSqlId;
   readonly name: string;
-  readonly ts: TPTimestamp;
-  readonly dur: TPDuration;
+  readonly ts: time;
+  readonly dur: duration;
   readonly sqlTrackId: number;
 
   // Whether clicking on the reference should change the current tab
@@ -200,17 +198,18 @@ export class SliceRef implements m.ClassComponent<SliceRefAttrs> {
         {
           icon: Icons.UpdateSelection,
           onclick: () => {
-            const uiTrackId =
-                globals.state.uiTrackIdByTraceTrackId[vnode.attrs.sqlTrackId];
-            if (uiTrackId === undefined) return;
-            verticalScrollToTrack(uiTrackId, true);
+            const trackKey =
+                globals.state.trackKeyByTrackId[vnode.attrs.sqlTrackId];
+            if (trackKey === undefined) return;
+            verticalScrollToTrack(trackKey, true);
             // Clamp duration to 1 - i.e. for instant events
             const dur = BigintMath.max(1n, vnode.attrs.dur);
-            focusHorizontalRange(vnode.attrs.ts, vnode.attrs.ts + dur);
+            focusHorizontalRange(
+                vnode.attrs.ts, Time.fromRaw(vnode.attrs.ts + dur));
             globals.makeSelection(
                 Actions.selectChromeSlice(
-                    {id: vnode.attrs.id, trackId: uiTrackId, table: 'slice'}),
-                switchTab ? 'current_selection' : null);
+                    {id: vnode.attrs.id, trackKey, table: 'slice'}),
+                {tab: switchTab ? 'current_selection' : null});
           },
         },
         vnode.attrs.name);
@@ -223,6 +222,6 @@ export function sliceRef(slice: SliceDetails, name?: string): m.Child {
     name: name ?? slice.name,
     ts: slice.ts,
     dur: slice.dur,
-    sqlTrackId: slice.sqlTrackId,
+    sqlTrackId: slice.trackId,
   });
 }

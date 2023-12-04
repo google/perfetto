@@ -33,6 +33,8 @@ source_set("core") {
     "histogram.h",
     "id_allocator.cc",
     "id_allocator.h",
+    "in_process_shared_memory.cc",
+    "in_process_shared_memory.h",
     "null_trace_writer.cc",
     "null_trace_writer.h",
     "patch_list.h",

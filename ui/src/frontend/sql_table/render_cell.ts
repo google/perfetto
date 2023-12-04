@@ -14,17 +14,19 @@
 
 import m from 'mithril';
 
+import {copyToClipboard} from '../../base/clipboard';
+import {isString} from '../../base/object_utils';
+import {Icons} from '../../base/semantic_icons';
 import {sqliteString} from '../../base/string_utils';
-import {Row, SqlValue} from '../../common/query_result';
-import {formatDuration, TPTime} from '../../common/time';
-import {Anchor} from '../anchor';
-import {copyToClipboard} from '../clipboard';
-import {Icons} from '../semantic_icons';
+import {Duration, Time} from '../../base/time';
+import {Row, SqlValue} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
+import {Err} from '../../widgets/error';
+import {MenuItem, PopupMenu2} from '../../widgets/menu';
 import {SliceRef} from '../sql/slice';
-import {asSliceSqlId, asTPTimestamp} from '../sql_types';
+import {asSliceSqlId} from '../sql_types';
 import {sqlValueToString} from '../sql_utils';
-import {Err} from '../widgets/error';
-import {MenuItem, PopupMenu2} from '../widgets/menu';
+import {DurationWidget} from '../widgets/duration';
 import {Timestamp} from '../widgets/timestamp';
 
 import {Column} from './column';
@@ -52,7 +54,7 @@ function getStandardFilters(
       filterOptionMenuItem('is not null', `${c.expression} is not null`, state),
     ];
   }
-  if (typeof value === 'string') {
+  if (isString(value)) {
     return [
       filterOptionMenuItem(
           'equals to', `${c.expression} = ${sqliteString(value)}`, state),
@@ -83,23 +85,8 @@ function displayValue(value: SqlValue): m.Child {
   return sqlValueToString(value);
 }
 
-function displayDuration(value: TPTime): string;
-function displayDuration(value: SqlValue): m.Children;
-function displayDuration(value: SqlValue): m.Children {
-  if (typeof value !== 'bigint') return displayValue(value);
-  return formatDuration(value);
-}
-
 function display(column: Column, row: Row): m.Children {
   const value = row[column.alias];
-
-  // Handle all cases when we have non-trivial formatting.
-  switch (column.display?.type) {
-    case 'duration':
-    case 'thread_duration':
-      return displayDuration(value);
-  }
-
   return displayValue(value);
 }
 
@@ -118,14 +105,7 @@ function getContextMenuItems(
   const result: m.Child[] = [];
   const value = row[column.alias];
 
-  if ((column.display?.type === 'duration' ||
-       column.display?.type === 'thread_duration') &&
-      typeof value === 'bigint') {
-    result.push(copyMenuItem('Copy raw duration', `${value}`));
-    result.push(
-        copyMenuItem('Copy formatted duration', displayDuration(value)));
-  }
-  if (typeof value === 'string') {
+  if (isString(value)) {
     result.push(copyMenuItem('Copy', value));
   }
 
@@ -159,7 +139,20 @@ function renderTimestampColumn(
   }
 
   return m(Timestamp, {
-    ts: asTPTimestamp(value),
+    ts: Time.fromRaw(value),
+    extraMenuItems: getContextMenuItems(column, row, state),
+  });
+}
+
+function renderDurationColumn(
+    column: Column, row: Row, state: SqlTableState): m.Children {
+  const value = row[column.alias];
+  if (typeof value !== 'bigint') {
+    return renderStandardColumn(column, row, state);
+  }
+
+  return m(DurationWidget, {
+    dur: Duration.fromRaw(value),
     extraMenuItems: getContextMenuItems(column, row, state),
   });
 }
@@ -195,7 +188,7 @@ function renderSliceIdColumn(
   return m(SliceRef, {
     id: asSliceSqlId(Number(id)),
     name: `${id}`,
-    ts: asTPTimestamp(ts as bigint),
+    ts: Time.fromRaw(ts),
     dur: dur,
     sqlTrackId: Number(trackId),
     switchToCurrentSelectionTab: false,
@@ -204,11 +197,17 @@ function renderSliceIdColumn(
 
 export function renderCell(
     column: Column, row: Row, state: SqlTableState): m.Children {
-  if (column.display && column.display.type === 'slice_id') {
-    return renderSliceIdColumn(
-        {alias: column.alias, display: column.display}, row);
-  } else if (column.display && column.display.type === 'timestamp') {
-    return renderTimestampColumn(column, row, state);
+  if (column.display) {
+    switch (column.display?.type) {
+      case 'slice_id':
+        return renderSliceIdColumn(
+            {alias: column.alias, display: column.display}, row);
+      case 'timestamp':
+        return renderTimestampColumn(column, row, state);
+      case 'duration':
+      case 'thread_duration':
+        return renderDurationColumn(column, row, state);
+    }
   }
   return renderStandardColumn(column, row, state);
 }

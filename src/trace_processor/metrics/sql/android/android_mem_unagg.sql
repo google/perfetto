@@ -29,7 +29,7 @@ SELECT RUN_METRIC('android/process_unagg_mem_view.sql',
   'table_name', 'anon_and_swap');
 
 DROP VIEW IF EXISTS process_unagg_metrics_view;
-CREATE VIEW process_unagg_metrics_view AS
+CREATE PERFETTO VIEW process_unagg_metrics_view AS
 SELECT
   AndroidMemoryUnaggregatedMetric_ProcessValues(
     'process_name', process.name,
@@ -54,7 +54,7 @@ WHERE
   process.name IS NOT NULL;
 
 DROP VIEW IF EXISTS android_mem_unagg_output;
-CREATE VIEW android_mem_unagg_output AS
+CREATE PERFETTO VIEW android_mem_unagg_output AS
 SELECT
   AndroidMemoryUnaggregatedMetric(
     'process_values',

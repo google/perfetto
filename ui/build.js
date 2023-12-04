@@ -82,6 +82,7 @@ const cfg = {
   watch: false,
   verbose: false,
   debug: false,
+  bigtrace: false,
   startHttpServer: false,
   httpServerListenHost: '127.0.0.1',
   httpServerListenPort: 10000,
@@ -108,14 +109,15 @@ const cfg = {
   outGenDir: '',
   outDistDir: '',
   outExtDir: '',
+  outBigtraceDistDir: '',
 };
 
 const RULES = [
   {r: /ui\/src\/assets\/index.html/, f: copyIndexHtml},
+  {r: /ui\/src\/assets\/bigtrace.html/, f: copyBigtraceHtml},
   {r: /ui\/src\/assets\/((.*)[.]png)/, f: copyAssets},
   {r: /buildtools\/typefaces\/(.+[.]woff2)/, f: copyAssets},
   {r: /buildtools\/catapult_trace_viewer\/(.+(js|html))/, f: copyAssets},
-  {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/assets\/.+[.]scss/, f: compileScss},
   {r: /ui\/src\/chrome_extension\/.*/, f: copyExtensionAssets},
   {
@@ -146,6 +148,7 @@ async function main() {
   parser.add_argument('--run-unittests', '-t', {action: 'store_true'});
   parser.add_argument('--run-integrationtests', '-T', {action: 'store_true'});
   parser.add_argument('--debug', '-d', {action: 'store_true'});
+  parser.add_argument('--bigtrace', {action: 'store_true'});
   parser.add_argument('--interactive', '-i', {action: 'store_true'});
   parser.add_argument('--rebaseline', '-r', {action: 'store_true'});
   parser.add_argument('--no-depscheck', {action: 'store_true'});
@@ -171,8 +174,12 @@ async function main() {
   cfg.watch = !!args.watch;
   cfg.verbose = !!args.verbose;
   cfg.debug = !!args.debug;
+  cfg.bigtrace = !!args.bigtrace;
   cfg.startHttpServer = args.serve;
   cfg.noOverrideGnArgs = !!args.no_override_gn_args;
+  if (args.bigtrace) {
+    cfg.outBigtraceDistDir = ensureDir(pjoin(cfg.outDistDir, 'bigtrace'));
+  }
   if (args.serve_host) {
     cfg.httpServerListenHost = args.serve_host;
   }
@@ -242,10 +249,16 @@ async function main() {
     genVersion();
     transpileTsProject('ui');
     transpileTsProject('ui/src/service_worker');
+    if (cfg.bigtrace) {
+      transpileTsProject('ui/src/bigtrace');
+    }
 
     if (cfg.watch) {
       transpileTsProject('ui', {watch: cfg.watch});
       transpileTsProject('ui/src/service_worker', {watch: cfg.watch});
+      if (cfg.bigtrace) {
+        transpileTsProject('ui/src/bigtrace', {watch: cfg.watch});
+      }
     }
 
     bundleJs('rollup.config.js');
@@ -311,23 +324,30 @@ function runTests(cfgFile) {
   }
 }
 
-function copyIndexHtml(src) {
-  const indexHtml = () => {
-    let html = fs.readFileSync(src).toString();
-    // First copy the index.html as-is into the dist/v1.2.3/ directory. This is
-    // only used for archival purporses, so one can open
-    // ui.perfetto.dev/v1.2.3/ to skip the auto-update and channel logic.
-    fs.writeFileSync(pjoin(cfg.outDistDir, 'index.html'), html);
+function cpHtml(src, filename) {
+  let html = fs.readFileSync(src).toString();
+  // First copy the html as-is into the dist/v1.2.3/ directory. This is
+  // only used for archival purporses, so one can open
+  // ui.perfetto.dev/v1.2.3/ to skip the auto-update and channel logic.
+  fs.writeFileSync(pjoin(cfg.outDistDir, filename), html);
 
-    // Then copy it into the dist/ root by patching the version code.
-    // TODO(primiano): in next CLs, this script should take a
-    // --release_map=xxx.json argument, to populate this with multiple channels.
-    const versionMap = JSON.stringify({'stable': cfg.version});
-    const bodyRegex = /data-perfetto_version='[^']*'/;
-    html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
-    fs.writeFileSync(pjoin(cfg.outDistRootDir, 'index.html'), html);
-  };
-  addTask(indexHtml);
+  // Then copy it into the dist/ root by patching the version code.
+  // TODO(primiano): in next CLs, this script should take a
+  // --release_map=xxx.json argument, to populate this with multiple channels.
+  const versionMap = JSON.stringify({'stable': cfg.version});
+  const bodyRegex = /data-perfetto_version='[^']*'/;
+  html = html.replace(bodyRegex, `data-perfetto_version='${versionMap}'`);
+  fs.writeFileSync(pjoin(cfg.outDistRootDir, filename), html);
+}
+
+function copyIndexHtml(src) {
+  addTask(cpHtml, [src, 'index.html']);
+}
+
+function copyBigtraceHtml(src) {
+  if (cfg.bigtrace) {
+    addTask(cpHtml, [src, 'bigtrace.html']);
+  }
 }
 
 function copyAssets(src, dst) {
@@ -349,6 +369,9 @@ function compileScss() {
     args.unshift('--quiet');
   }
   addTask(execModule, ['sass', args, {noErrCheck}]);
+  if (cfg.bigtrace) {
+    addTask(cp, [dst, pjoin(cfg.outBigtraceDistDir, 'perfetto.css')]);
+  }
 }
 
 function compileProtos() {
@@ -486,6 +509,9 @@ function transpileTsProject(project, options) {
 function bundleJs(cfgName) {
   const rcfg = pjoin(ROOT_DIR, 'ui/config', cfgName);
   const args = ['-c', rcfg, '--no-indent'];
+  if (cfg.bigtrace) {
+    args.push('--environment', 'ENABLE_BIGTRACE:true');
+  }
   args.push(...(cfg.verbose ? [] : ['--silent']));
   if (cfg.watch) {
     // --waitForBundleInput is sadly quite busted so it is required ts

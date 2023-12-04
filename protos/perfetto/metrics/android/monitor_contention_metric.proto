@@ -21,10 +21,11 @@ package perfetto.protos;
 // This metric provides information about the monitor contention graph in a
 // trace
 message AndroidMonitorContentionMetric {
-  // Next field id: 24
+  // Next field id: 25
   message Node {
     // Global context
     optional int64 node_parent_id = 1;
+    optional int64 node_child_id = 24;
     optional int64 node_id = 2;
     optional int64 ts = 3;
     optional int64 dur = 4;

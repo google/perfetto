@@ -18,7 +18,7 @@
 -- |package_name| and |version_code| can be NULL.
 
 DROP VIEW IF EXISTS chrome_args_class_names_per_version;
-CREATE VIEW chrome_args_class_names_per_version AS
+CREATE PERFETTO VIEW chrome_args_class_names_per_version AS
 WITH class_info AS (
   SELECT
     package_list.package_name AS package_name,
@@ -47,7 +47,7 @@ SELECT
 FROM class_info;
 
 DROP VIEW IF EXISTS chrome_args_class_names_output;
-CREATE VIEW chrome_args_class_names_output
+CREATE PERFETTO VIEW chrome_args_class_names_output
 AS
 SELECT
   ChromeArgsClassNames(

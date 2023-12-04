@@ -105,6 +105,22 @@ static inline void PerfettoPbMsgAppendVarInt(struct PerfettoPbMsg* msg,
                            PERFETTO_STATIC_CAST(size_t, buf_end - buf));
 }
 
+static inline void PerfettoPbMsgAppendFixed64(struct PerfettoPbMsg* msg,
+                                              uint64_t value) {
+  uint8_t buf[8];
+  PerfettoPbWriteFixed64(value, buf);
+
+  PerfettoPbMsgAppendBytes(msg, buf, 8);
+}
+
+static inline void PerfettoPbMsgAppendFixed32(struct PerfettoPbMsg* msg,
+                                              uint32_t value) {
+  uint8_t buf[4];
+  PerfettoPbWriteFixed32(value, buf);
+
+  PerfettoPbMsgAppendBytes(msg, buf, 4);
+}
+
 static inline void PerfettoPbMsgAppendType0Field(struct PerfettoPbMsg* msg,
                                                  int32_t field_id,
                                                  uint64_t value) {
@@ -141,11 +157,7 @@ static inline void PerfettoPbMsgAppendFixed32Field(struct PerfettoPbMsg* msg,
   uint8_t buf[PERFETTO_PB_VARINT_MAX_SIZE_32 + 4];
   buf_end = PerfettoPbWriteVarInt(
       PerfettoPbMakeTag(field_id, PERFETTO_PB_WIRE_TYPE_FIXED32), buf);
-  buf_end[0] = PERFETTO_STATIC_CAST(uint8_t, value);
-  buf_end[1] = PERFETTO_STATIC_CAST(uint8_t, value >> 8);
-  buf_end[2] = PERFETTO_STATIC_CAST(uint8_t, value >> 16);
-  buf_end[3] = PERFETTO_STATIC_CAST(uint8_t, value >> 24);
-  buf_end += 4;
+  buf_end = PerfettoPbWriteFixed32(value, buf_end);
 
   PerfettoPbMsgAppendBytes(msg, buf,
                            PERFETTO_STATIC_CAST(size_t, buf_end - buf));
@@ -166,15 +178,7 @@ static inline void PerfettoPbMsgAppendFixed64Field(struct PerfettoPbMsg* msg,
   uint8_t buf[PERFETTO_PB_VARINT_MAX_SIZE_32 + 8];
   buf_end = PerfettoPbWriteVarInt(
       PerfettoPbMakeTag(field_id, PERFETTO_PB_WIRE_TYPE_FIXED64), buf);
-  buf_end[0] = PERFETTO_STATIC_CAST(uint8_t, value);
-  buf_end[1] = PERFETTO_STATIC_CAST(uint8_t, value >> 8);
-  buf_end[2] = PERFETTO_STATIC_CAST(uint8_t, value >> 16);
-  buf_end[3] = PERFETTO_STATIC_CAST(uint8_t, value >> 24);
-  buf_end[4] = PERFETTO_STATIC_CAST(uint8_t, value >> 32);
-  buf_end[5] = PERFETTO_STATIC_CAST(uint8_t, value >> 40);
-  buf_end[6] = PERFETTO_STATIC_CAST(uint8_t, value >> 48);
-  buf_end[7] = PERFETTO_STATIC_CAST(uint8_t, value >> 56);
-  buf_end += 8;
+  buf_end = PerfettoPbWriteFixed64(value, buf_end);
 
   PerfettoPbMsgAppendBytes(msg, buf,
                            PERFETTO_STATIC_CAST(size_t, buf_end - buf));

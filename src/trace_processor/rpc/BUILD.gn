@@ -24,7 +24,6 @@ assert(enable_perfetto_trace_processor)
 source_set("rpc") {
   sources = [
     "query_result_serializer.cc",
-    "query_result_serializer.h",
     "rpc.cc",
     "rpc.h",
   ]
@@ -39,6 +38,16 @@ source_set("rpc") {
     "../../protozero",
     "../../protozero:proto_ring_buffer",
   ]
+  public_deps = [
+    "../../../include/perfetto/ext/trace_processor/rpc:query_result_serializer",
+  ]
+}
+
+# Static library target for RPC code. Needed for BigTrace in Google3.
+if (is_perfetto_build_generator) {
+  static_library("trace_processor_rpc") {
+    public_deps = [ ":rpc" ]
+  }
 }
 
 perfetto_unittest_source_set("unittests") {

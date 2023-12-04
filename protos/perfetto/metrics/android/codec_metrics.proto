@@ -1,0 +1,73 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+import "protos/perfetto/metrics/android/cpu_metric.proto";
+
+// These metrices collects various function and thread
+// usage within androd's codec framework. This can give an
+// idea about performance and cpu usage when using codec
+// framework
+message AndroidCodecMetrics {
+
+  // profile details in messages
+  message Detail {
+    // function thread
+    optional string thread_name = 1;
+    // total time
+    optional int64 total_cpu_ns = 2;
+    // CPU time ( time 'Running' on cpu)
+    optional int64 running_cpu_ns = 3;
+  }
+
+  // These are traces and could indicate framework queue latency
+  // buffer-packing, buffer-preprocess, buffer post-process
+  // latency etc. These metrics are monitored to track quality.
+  // Same message can come from different
+  // processes.
+  message CodecFunction {
+    // codec string
+    optional string codec_string = 1;
+    // process_name
+    optional string process_name = 2;
+    // details
+    optional Detail detail = 3;
+  }
+
+  // This message can indicate overall cpu
+  // utilization of codec framework threads.
+  message CpuUsage {
+    // name of process using codec framework
+    optional string process_name = 1;
+    // name of the codec thread
+    optional string thread_name = 2;
+    // was thread_cpu_us
+    reserved 3;
+    // total cpu usage of the codec thread
+    optional int64 thread_cpu_ns = 6;
+    // can be number of codec framework thread
+    optional uint32 num_threads = 4;
+    // core type data info used by codec thread
+    repeated AndroidCpuMetric.CoreTypeData core_data = 5;
+  }
+
+  repeated CpuUsage cpu_usage = 1;
+  repeated CodecFunction codec_function = 2;
+
+}

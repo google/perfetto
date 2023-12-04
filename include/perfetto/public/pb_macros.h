@@ -17,9 +17,10 @@
 #ifndef INCLUDE_PERFETTO_PUBLIC_PB_MACROS_H_
 #define INCLUDE_PERFETTO_PUBLIC_PB_MACROS_H_
 
-#include "perfetto/public/compiler.h"  // IWYU pragma: export
-#include "perfetto/public/pb_msg.h"    // IWYU pragma: export
-#include "perfetto/public/pb_utils.h"  // IWYU pragma: export
+#include "perfetto/public/compiler.h"   // IWYU pragma: export
+#include "perfetto/public/pb_msg.h"     // IWYU pragma: export
+#include "perfetto/public/pb_packed.h"  // IWYU pragma: export
+#include "perfetto/public/pb_utils.h"   // IWYU pragma: export
 
 // This header contains macros that define types and accessors for protobuf
 // messages.
@@ -173,6 +174,24 @@
     PerfettoPbMsgEndNested(&msg->msg);                             \
   }
 
+#define PERFETTO_I_PB_FIELD_PACKED(PROTO, C_TYPE, NAME, NUM)                  \
+  static inline void PERFETTO_I_PB_SETTER_NAME(PROTO, NAME)(                  \
+      struct PROTO * msg, const void* data, size_t len) {                     \
+    PerfettoPbMsgAppendType2Field(                                            \
+        &msg->msg, NUM, PERFETTO_STATIC_CAST(const uint8_t*, data), len);     \
+  }                                                                           \
+  static inline void PERFETTO_I_PB_SETTER_BEGIN_NAME(PROTO, NAME)(            \
+      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {      \
+    struct PerfettoPbMsg* nested_msg =                                        \
+        PERFETTO_REINTERPRET_CAST(struct PerfettoPbMsg*, nested);             \
+    PerfettoPbMsgBeginNested(&msg->msg, nested_msg, NUM);                     \
+  }                                                                           \
+  static inline void PERFETTO_I_PB_SETTER_END_NAME(PROTO, NAME)(              \
+      struct PROTO * msg, struct PerfettoPbPackedMsg##C_TYPE * nested) {      \
+    (void)nested;                                                             \
+    PerfettoPbMsgEndNested(&msg->msg);                                        \
+  }                                                                           \
+
 #define PERFETTO_I_PB_NUM_FIELD(PROTO, NAME, NUM) \
   enum { PERFETTO_I_PB_NUM_FIELD_NAME(PROTO, NAME) = NUM }
 
@@ -218,8 +237,8 @@
 //     `PROTO_end_NAME(struct PROTO*, struct CTYPE* nested)` that allows to
 //     begin and end a nested submessage. `*nested` doesn't need to be
 //     initialized.
-//   * `STRING`: for bytes, string and repeated packed field types. `CTYPE`
-//     should be `const char *`. Generates multiple accessors:
+//   * `STRING`: for bytes and string field types. `CTYPE` should be
+//     `const char *`. Generates multiple accessors:
 //      * PROTO_set_cstr_NAME(struct PROTO*, const char*): Sets the value of the
 //        field by copying from a null terminated string.
 //      * PROTO_set_NAME(struct PROTO*, const void*, size_t): Sets the value of
@@ -229,6 +248,17 @@
 //        PROTO_end_NAME(struct PROTO*, struct PerfettoPbMsg* nested):
 //        Begins (and ends) a nested submessage to allow users to generate part
 //        of the length delimited buffer piece by piece.
+//   * `PACKED`: for packed repeated field types. `CTYPE` should be
+//     one of `PerfettoPbPacked*`. Generates multiple accessors:
+//      * PROTO_set_NAME(struct PROTO*, const void*, size_t): Sets the value of
+//        the field by copying from a buffer at an address with the specified
+//        size.
+//      * PROTO_begin_NAME(struct PROTO*, struct PerfettoPbPackedMsgCTYPE*
+//        nested) and
+//        PROTO_end_NAME(struct PROTO*, struct PerfettoPbPackedMsgCTYPE*
+//        nested): Begins (and ends) a packed helper nested submessage (of the
+//        right type) to allow users to push repeated entries one by one
+//        directly into the stream writer buffer.
 #define PERFETTO_PB_FIELD(PROTO, TYPE, C_TYPE, NAME, NUM) \
   PERFETTO_I_PB_FIELD_##TYPE(PROTO, C_TYPE, NAME, NUM)    \
       PERFETTO_I_PB_NUM_FIELD(PROTO, NAME, NUM)

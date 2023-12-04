@@ -22,7 +22,7 @@ import {
   record,
   runValidator,
   ValidatedType,
-} from './validators';
+} from '../base/validators';
 
 const recordModes = ['STOP_WHEN_FULL', 'RING_BUFFER', 'LONG_TRACE'] as const;
 export const recordConfigValidator = record({
@@ -105,6 +105,11 @@ export const recordConfigValidator = record({
   navigationAndLoading: bool(),
 
   symbolizeKsyms: bool(),
+
+  // Enabling stack sampling
+  tracePerf: bool(),
+  timebaseFrequency: num(100),
+  targetCmdLine: arrayOf(str()),
 });
 export const namedRecordConfigValidator = record(
     {title: requiredStr, key: requiredStr, config: recordConfigValidator});

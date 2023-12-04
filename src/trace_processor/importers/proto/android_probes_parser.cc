@@ -59,6 +59,7 @@ AndroidProbesParser::AndroidProbesParser(TraceProcessorContext* context)
       batt_current_id_(context->storage->InternString("batt.current_ua")),
       batt_current_avg_id_(
           context->storage->InternString("batt.current.avg_ua")),
+      batt_voltage_id_(context->storage->InternString("batt.voltage_uv")),
       screen_state_id_(context->storage->InternString("ScreenState")),
       device_state_id_(context->storage->InternString("DeviceStateChanged")),
       battery_status_id_(context->storage->InternString("BatteryStatus")),
@@ -71,6 +72,7 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
   StringId batt_capacity_id = batt_capacity_id_;
   StringId batt_current_id = batt_current_id_;
   StringId batt_current_avg_id = batt_current_avg_id_;
+  StringId batt_voltage_id = batt_voltage_id_;
   if (evt.has_name()) {
     std::string batt_name = evt.name().ToStdString();
     batt_charge_id = context_->storage->InternString(base::StringView(
@@ -81,6 +83,8 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         std::string("batt.").append(batt_name).append(".current_ua")));
     batt_current_avg_id = context_->storage->InternString(base::StringView(
         std::string("batt.").append(batt_name).append(".current.avg_ua")));
+    batt_voltage_id = context_->storage->InternString(base::StringView(
+        std::string("batt.").append(batt_name).append(".voltage_uv")));
   }
   if (evt.has_charge_counter_uah()) {
     TrackId track = context_->track_tracker->InternGlobalCounterTrack(
@@ -116,6 +120,12 @@ void AndroidProbesParser::ParseBatteryCounters(int64_t ts, ConstBytes blob) {
         TrackTracker::Group::kPower, batt_current_avg_id);
     context_->event_tracker->PushCounter(
         ts, static_cast<double>(evt.current_avg_ua()), track);
+  }
+  if (evt.has_voltage_uv()) {
+    TrackId track = context_->track_tracker->InternGlobalCounterTrack(
+        TrackTracker::Group::kPower, batt_voltage_id);
+    context_->event_tracker->PushCounter(
+        ts, static_cast<double>(evt.voltage_uv()), track);
   }
 }
 

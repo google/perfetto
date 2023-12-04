@@ -32,7 +32,7 @@ There are a few main types of track events:
 - **Flows**, which are used to connect related slices that span different
     tracks together. For example, if an image file is first loaded from
     the network and then decoded on a thread pool, a flow event can be used to
-    highlight its path through the system. (Not fully implemented yet).
+    highlight its path through the system.
 
 The [Perfetto UI](https://ui.perfetto.dev) has built in support for track
 events, which provides a useful way to quickly visualize the internal

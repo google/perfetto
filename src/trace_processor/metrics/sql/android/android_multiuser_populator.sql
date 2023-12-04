@@ -15,11 +15,11 @@
 --
 
 -- Create the base tables and views containing the launch spans.
-SELECT IMPORT ('android.startup.startups');
+INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Collect the important timestamps for Multiuser events.
 DROP VIEW IF EXISTS multiuser_events;
-CREATE VIEW multiuser_events AS
+CREATE PERFETTO VIEW multiuser_events AS
 SELECT
   {{start_event}}_time_ns AS event_start_time_ns,
   {{end_event}}_time_ns AS event_end_time_ns
@@ -51,7 +51,7 @@ FROM
 
 -- Calculation of the duration of the Multiuser event of interest.
 DROP VIEW IF EXISTS multiuser_timing;
-CREATE VIEW multiuser_timing AS
+CREATE PERFETTO VIEW multiuser_timing AS
 SELECT
   CAST((event_end_time_ns - event_start_time_ns) / 1e6 + 0.5 AS INT) AS duration_ms
 FROM
@@ -62,12 +62,12 @@ FROM
 
 -- Get all the scheduling slices.
 DROP VIEW IF EXISTS sp_sched;
-CREATE VIEW sp_sched AS
+CREATE PERFETTO VIEW sp_sched AS
 SELECT ts, dur, cpu, utid
 FROM sched;
 -- Get all the cpu frequency slices.
 DROP VIEW IF EXISTS sp_frequency;
-CREATE VIEW sp_frequency AS
+CREATE PERFETTO VIEW sp_frequency AS
 SELECT
   ts,
   lead(ts) OVER (PARTITION BY track_id ORDER BY ts) - ts AS dur,
@@ -82,7 +82,7 @@ USING SPAN_JOIN(sp_sched PARTITIONED cpu, sp_frequency PARTITIONED cpu);
 
 -- Calculate the CPU cycles spent per process during the duration.
 DROP VIEW IF EXISTS cpu_usage_all;
-CREATE VIEW cpu_usage_all AS
+CREATE PERFETTO VIEW cpu_usage_all AS
 SELECT
   process.uid / 100000 AS user_id,
   process.name AS process_name,
@@ -100,7 +100,7 @@ ORDER BY cpu_kcycles DESC;
 
 -- Get the data from cpu_usage_all, but also with the percentage.
 DROP VIEW IF EXISTS cpu_usage;
-CREATE VIEW cpu_usage AS
+CREATE PERFETTO VIEW cpu_usage AS
 SELECT
   user_id,
   process_name,
@@ -114,7 +114,7 @@ ORDER BY cpu_mcycles DESC LIMIT 25;
 
 -- Record the output for populating the proto.
 DROP VIEW IF EXISTS {{output_table_name}};
-CREATE VIEW {{output_table_name}} AS
+CREATE PERFETTO VIEW {{output_table_name}} AS
 SELECT AndroidMultiuserMetric_EventData(
   'duration_ms', (
     SELECT duration_ms

@@ -23,7 +23,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-TEST(Ancestor, SliceTableNullConstraint) {
+TEST(Descendant, SliceTableNullConstraint) {
   // Insert a row to make sure that we are not returning an empty table just
   // because the source is empty.
   TraceStorage storage;
@@ -41,7 +41,7 @@ TEST(Ancestor, SliceTableNullConstraint) {
   ASSERT_EQ(res->row_count(), 0u);
 }
 
-TEST(Ancestor, SliceByStackTableNullConstraint) {
+TEST(Descendant, SliceByStackTableNullConstraint) {
   // Insert a row to make sure that we are not returning an empty table just
   // because the source is empty.
   TraceStorage storage;

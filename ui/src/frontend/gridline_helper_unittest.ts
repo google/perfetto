@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TPTimeSpan} from '../common/time';
+import {Time, TimeSpan} from '../base/time';
 
 import {getPattern, TickGenerator, TickType} from './gridline_helper';
 
@@ -33,7 +33,8 @@ test('gridline helper to have sensible step sizes', () => {
 
 describe('TickGenerator', () => {
   it('can generate ticks with span starting at origin', () => {
-    const tickGen = new TickGenerator(new TPTimeSpan(0n, 10n), 1);
+    const tickGen =
+        new TickGenerator(new TimeSpan(Time.fromRaw(0n), Time.fromRaw(10n)), 1);
     const expected = [
       {type: TickType.MAJOR, time: 0n},
       {type: TickType.MINOR, time: 1n},
@@ -48,11 +49,11 @@ describe('TickGenerator', () => {
     ];
     const actual = Array.from(tickGen!);
     expect(actual).toStrictEqual(expected);
-    expect(tickGen!.digits).toEqual(8);
   });
 
   it('can generate ticks when span has an offset', () => {
-    const tickGen = new TickGenerator(new TPTimeSpan(10n, 20n), 1);
+    const tickGen = new TickGenerator(
+        new TimeSpan(Time.fromRaw(10n), Time.fromRaw(20n)), 1);
     const expected = [
       {type: TickType.MAJOR, time: 10n},
       {type: TickType.MINOR, time: 11n},
@@ -67,12 +68,11 @@ describe('TickGenerator', () => {
     ];
     const actual = Array.from(tickGen!);
     expect(actual).toStrictEqual(expected);
-    expect(tickGen!.digits).toEqual(8);
   });
 
   it('can generate ticks when span is large', () => {
-    const tickGen =
-        new TickGenerator(new TPTimeSpan(1000000000n, 2000000000n), 1);
+    const tickGen = new TickGenerator(
+        new TimeSpan(Time.fromRaw(1000000000n), Time.fromRaw(2000000000n)), 1);
     const expected = [
       {type: TickType.MAJOR, time: 1000000000n},
       {type: TickType.MINOR, time: 1100000000n},
@@ -87,18 +87,17 @@ describe('TickGenerator', () => {
     ];
     const actual = Array.from(tickGen!);
     expect(actual).toStrictEqual(expected);
-    expect(tickGen!.digits).toEqual(0);
   });
 
   it('throws an error when timespan duration is 0', () => {
     expect(() => {
-      new TickGenerator(new TPTimeSpan(0n, 0n), 1);
+      new TickGenerator(TimeSpan.ZERO, 1);
     }).toThrow(Error);
   });
 
   it('throws an error when max ticks is 0', () => {
     expect(() => {
-      new TickGenerator(new TPTimeSpan(0n, 1n), 0);
+      new TickGenerator(new TimeSpan(Time.fromRaw(0n), Time.fromRaw(1n)), 0);
     }).toThrow(Error);
   });
 });

@@ -134,7 +134,7 @@ def check_new_cls(handler):
   date_limit = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
   url = 'https://%s/a/changes/' % GERRIT_HOST
   url += '?o=CURRENT_REVISION&o=DETAILED_ACCOUNTS&o=LABELS&n=200'
-  url += '&q=branch:master+project:%s' % GERRIT_PROJECT
+  url += '&q=branch:main+project:%s' % GERRIT_PROJECT
   url += '+is:open+after:%s' % date_limit
   resp = req('GET', url, gerrit=True)
   for change in (change for change in resp if 'revisions' in change):
@@ -339,10 +339,10 @@ def comment_and_vote_cl(handler):
         for (job_id, status) in failed_jobs.iteritems()
     ])
   if passed_jobs:
-    msg += 'PASS:\n'
+    msg += '#\nPASS:\n'
     msg += ''.join(['- %s/%s\n' % (log_url, job_id) for job_id in passed_jobs])
   if ui_links:
-    msg += 'Artifacts:\n' + ''.join('- %s\n' % link for link in ui_links)
+    msg += '\nArtifacts:\n' + ''.join('- %s\n' % link for link in ui_links)
   msg += 'CI page for this CL:\n'
   msg += '- https://ci.perfetto.dev/#!/cls/%s\n' % cl_and_ps.split('-')[0]
   body = {'labels': {}, 'message': msg}
@@ -359,8 +359,8 @@ def queue_postsubmit_jobs(handler):
   '''Creates the jobs entries in the DB for the given branch or revision
 
   Can be called in two modes:
-    1. ?branch=master: Will retrieve the SHA1 of master and call the one below.
-    2. ?branch=master&rev=deadbeef1234: queues jobs for the given revision.
+    1. ?branch=main: Will retrieve the SHA1 of main and call the one below.
+    2. ?branch=main&rev=deadbeef1234: queues jobs for the given revision.
   '''
   prj = urllib.quote(GERRIT_PROJECT, '')
   branch = handler.request.get('branch')

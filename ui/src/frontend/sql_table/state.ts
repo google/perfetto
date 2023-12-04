@@ -14,10 +14,11 @@
 
 import {arrayEquals} from '../../base/array_utils';
 import {SortDirection} from '../../base/comparison_utils';
+import {isString} from '../../base/object_utils';
 import {sqliteString} from '../../base/string_utils';
-import {EngineProxy} from '../../common/engine';
-import {NUM, Row} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
+import {NUM, Row} from '../../trace_processor/query_result';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
@@ -27,6 +28,8 @@ import {
 import {
   Column,
   columnFromSqlTableColumn,
+  formatSqlProjection,
+  SqlProjection,
   sqlProjectionsForColumn,
 } from './column';
 import {SqlTableDescription, startsHidden} from './table_description';
@@ -107,15 +110,21 @@ export class SqlTableState {
     this.reload();
   }
 
-  // Compute the actual columns to fetch.
-  private getSQLProjections(): string[] {
-    const result = new Set<string>();
+  // Compute the actual columns to fetch. Some columns can appear multiple times
+  // (e.g. we might need "ts" to be able to show it, as well as a dependency for
+  // "slice_id" to be able to jump to it, so this function will deduplicate
+  // projections by alias.
+  private getSQLProjections(): SqlProjection[] {
+    const projections = [];
+    const aliases = new Set<string>();
     for (const column of this.columns) {
       for (const p of sqlProjectionsForColumn(column)) {
-        result.add(p);
+        if (aliases.has(p.alias)) continue;
+        aliases.add(p.alias);
+        projections.push(p);
       }
     }
-    return Array.from(result);
+    return projections;
   }
 
   getQueryConstraints(): SQLConstraints {
@@ -126,7 +135,7 @@ export class SqlTableState {
     };
     let cteId = 0;
     for (const filter of this.filters) {
-      if (typeof filter === 'string') {
+      if (isString(filter)) {
         result.filters!.push(filter);
       } else {
         const cteName = `arg_sets_${cteId++}`;
@@ -146,7 +155,7 @@ export class SqlTableState {
   private getSQLImports() {
     const tableImports = this.table.imports || [];
     return [...tableImports, ...this.additionalImports]
-        .map((i) => `SELECT IMPORT("${i}");`)
+        .map((i) => `INCLUDE PERFETTO MODULE ${i};`)
         .join('\n');
   }
 
@@ -163,21 +172,35 @@ export class SqlTableState {
     `;
   }
 
-  getNonPaginatedSQLQuery(): string {
+  buildSqlSelectStatement(): {
+    selectStatement: string,
+    columns: string[],
+  } {
+    const projections = this.getSQLProjections();
     const orderBy = this.orderBy.map((c) => ({
                                        fieldName: c.column.alias,
                                        direction: c.direction,
                                      }));
     const constraints = this.getQueryConstraints();
     constraints.orderBy = orderBy;
+    const statement = `
+      ${constraintsToQueryPrefix(constraints)}
+      SELECT
+        ${projections.map(formatSqlProjection).join(',\n')}
+      FROM ${this.table.name}
+      ${constraintsToQuerySuffix(constraints)}
+    `;
+    return {
+      selectStatement: statement,
+      columns: projections.map((p) => p.alias),
+    };
+  }
+
+  getNonPaginatedSQLQuery(): string {
     return `
       ${this.getSQLImports()}
 
-      ${constraintsToQueryPrefix(constraints)}
-      SELECT
-        ${this.getSQLProjections().join(',\n')}
-      FROM ${this.table.name}
-      ${constraintsToQuerySuffix(constraints)}
+      ${this.buildSqlSelectStatement().selectStatement}
     `;
   }
 
@@ -251,9 +274,11 @@ export class SqlTableState {
     if ((params?.offset ?? 'reset') === 'reset') {
       this.offset = 0;
     }
-    const updateRowCount = !arrayEquals(this.rowCount?.filters, this.filters);
+
+    const newFilters = this.rowCount?.filters;
+    const filtersMatch = newFilters && arrayEquals(newFilters, this.filters);
     this.data = undefined;
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = undefined;
     }
 
@@ -261,7 +286,7 @@ export class SqlTableState {
     // before the data is loaded.
     setTimeout(() => raf.scheduleFullRedraw(), 50);
 
-    if (updateRowCount) {
+    if (!filtersMatch) {
       this.rowCount = await this.loadRowCount();
     }
     this.data = await this.loadData();

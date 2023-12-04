@@ -39,6 +39,7 @@
 #include "protos/perfetto/trace/ftrace/irq.pbzero.h"
 #include "protos/perfetto/trace/ftrace/mdss.pbzero.h"
 #include "protos/perfetto/trace/ftrace/power.pbzero.h"
+#include "protos/perfetto/trace/ftrace/samsung.pbzero.h"
 #include "protos/perfetto/trace/ftrace/sched.pbzero.h"
 #include "protos/perfetto/trace/ftrace/workqueue.pbzero.h"
 
@@ -468,6 +469,20 @@ void ArgsSerializer::SerializeArgs() {
     WriteValueForField(TMW::kPidFieldNumber, DVW());
     writer_->AppendString("|");
     WriteValueForField(TMW::kNameFieldNumber, DVW());
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kValueFieldNumber, DVW());
+    return;
+  } else if (event_name_ == "samsung_tracing_mark_write") {
+    using TMW = protos::pbzero::SamsungTracingMarkWriteFtraceEvent;
+    WriteValueForField(
+        TMW::kTraceTypeFieldNumber, [this](const Variadic& value) {
+          PERFETTO_DCHECK(value.type == Variadic::Type::kUint);
+          writer_->AppendChar(static_cast<char>(value.uint_value));
+        });
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kPidFieldNumber, DVW());
+    writer_->AppendString("|");
+    WriteValueForField(TMW::kTraceNameFieldNumber, DVW());
     writer_->AppendString("|");
     WriteValueForField(TMW::kValueFieldNumber, DVW());
     return;

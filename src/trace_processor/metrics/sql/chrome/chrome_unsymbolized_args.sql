@@ -19,7 +19,7 @@ SELECT RUN_METRIC('android/unsymbolized_frames.sql');
 
 DROP VIEW IF EXISTS chrome_unsymbolized_args_view;
 
-CREATE VIEW chrome_unsymbolized_args_view AS
+CREATE PERFETTO VIEW chrome_unsymbolized_args_view AS
 SELECT ChromeUnsymbolizedArgs_Arg(
     'module', spm.name,
     'build_id', spm.build_id,
@@ -51,7 +51,7 @@ WHERE spm.build_id != '';
 
 DROP VIEW IF EXISTS chrome_unsymbolized_args_output;
 
-CREATE VIEW chrome_unsymbolized_args_output AS
+CREATE PERFETTO VIEW chrome_unsymbolized_args_output AS
 SELECT ChromeUnsymbolizedArgs(
     'args',
     (SELECT RepeatedField(arg_proto) FROM chrome_unsymbolized_args_view)

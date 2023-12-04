@@ -41,7 +41,8 @@ void SurfaceFlingerTransactionsParser::Parse(int64_t timestamp,
                    ->Insert(row)
                    .id;
 
-  auto inserter = context_->args_tracker->AddArgsTo(rowId);
+  ArgsTracker tracker(context_);
+  auto inserter = tracker.AddArgsTo(rowId);
   WinscopeArgsParser writer(inserter, *context_->storage.get());
   base::Status status =
       args_parser_.ParseMessage(blob, kTransactionTraceEntryProtoName,

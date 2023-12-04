@@ -184,8 +184,8 @@ bool SqliteTable::ReadConstraints(int idxNum, const char* idxStr, int argc) {
     cache_hit = false;
   }
 
-  PERFETTO_TP_TRACE(metatrace::Category::QUERY, "SQLITE_TABLE_READ_CONSTRAINTS",
-                    [&](metatrace::Record* r) {
+  PERFETTO_TP_TRACE(metatrace::Category::QUERY_DETAILED,
+                    "SQLITE_TABLE_READ_CONSTRAINTS", [&](metatrace::Record* r) {
                       r->AddArg("cache_hit", std::to_string(cache_hit));
                       r->AddArg("name", name_);
                       WriteQueryConstraintsToMetatrace(r, qc_cache_, schema_);
@@ -412,7 +412,7 @@ int TypedSqliteTableBase::xBestIndex(sqlite3_vtab* t, sqlite3_index_info* idx) {
   }
 
   PERFETTO_TP_TRACE(
-      metatrace::Category::QUERY, "SQLITE_TABLE_BEST_INDEX",
+      metatrace::Category::QUERY_TIMELINE, "SQLITE_TABLE_BEST_INDEX",
       [&](metatrace::Record* r) {
         r->AddArg("name", table->name());
         WriteQueryConstraintsToMetatrace(r, qc, table->schema());

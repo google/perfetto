@@ -29,7 +29,7 @@ export ANDROID_SERIAL=SER123456
 Download `cpu_profile` (if you don't have a Perfetto checkout):
 
 ```bash
-curl -LO https://raw.githubusercontent.com/google/perfetto/master/tools/cpu_profile
+curl -LO https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile
 chmod +x cpu_profile
 ```
 
@@ -94,7 +94,7 @@ set ANDROID_SERIAL=SER123456
 ```
 
 Download the
-[`cpu_profile`](https://raw.githubusercontent.com/google/perfetto/master/tools/cpu_profile)
+[`cpu_profile`](https://raw.githubusercontent.com/google/perfetto/main/tools/cpu_profile)
 script. Then, start profiling. For example, to profile the processes
 `com.android.foo` and `com.android.bar`, use:
 

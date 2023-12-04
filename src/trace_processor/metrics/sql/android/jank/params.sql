@@ -12,7 +12,7 @@ VALUES
 
 -- Matches each CUJ with the right set of parameters.
 DROP TABLE IF EXISTS android_jank_cuj_param;
-CREATE TABLE android_jank_cuj_param AS
+CREATE PERFETTO TABLE android_jank_cuj_param AS
 SELECT cuj_id, main_thread_override
 FROM android_jank_cuj
 LEFT JOIN android_jank_cuj_param_set ON cuj_name GLOB cuj_name_glob;

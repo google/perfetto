@@ -46,6 +46,8 @@ class SelectorOverlay : public StorageOverlay {
 
   CostEstimatePerRow EstimateCostPerRow(OverlayOp) const override;
 
+  void Serialize(OverlayProto*) const override;
+
  private:
   const BitVector* selected_;
 };

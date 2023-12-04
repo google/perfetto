@@ -12,27 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-export interface Command {
-  id: string;
-  name: string;
-  callback: (...args: any[]) => void;
-}
+import {Disposable} from '../base/disposable';
+import {FuzzyFinder, FuzzySegment} from '../base/fuzzy';
+import {Command} from '../public';
 
 export interface CommandSource {
   commands(): Command[];
 }
 
-export class CommandManager {
-  private commandSources: CommandSource[] = [];
+export interface CommandWithMatchInfo extends Command {
+  segments: FuzzySegment[];
+}
 
-  registerCommandSource(cs: CommandSource) {
-    this.commandSources.push(cs);
+export class CommandManager {
+  private commandSources = new Set<CommandSource>();
+
+  registerCommandSource(cs: CommandSource): Disposable {
+    this.commandSources.add(cs);
+    return {
+      dispose: () => {
+        this.commandSources.delete(cs);
+      },
+    };
   }
 
   get commands(): Command[] {
-    return this.commandSources.flatMap((source) => source.commands());
+    const sourcesArray = Array.from(this.commandSources);
+    return sourcesArray.flatMap((source) => source.commands());
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   runCommand(id: string, ...args: any[]): void {
     const cmd = this.commands.find((cmd) => cmd.id === id);
     if (cmd) {
@@ -42,11 +51,13 @@ export class CommandManager {
     }
   }
 
-  // TODO(stevegolton): Improve filter algo.
-  fuzzyFilterCommands(searchTerm: string): Command[] {
-    const searchTermLower = searchTerm.toLowerCase();
-    return this.commands.filter(({name}) => {
-      return name.toLowerCase().includes(searchTermLower);
+  // Returns a list of commands that match the search term, along with a list
+  // of segments which describe which parts of the command name match and
+  // which don't.
+  fuzzyFilterCommands(searchTerm: string): CommandWithMatchInfo[] {
+    const finder = new FuzzyFinder(this.commands, ({name}) => name);
+    return finder.find(searchTerm).map((result) => {
+      return {segments: result.segments, ...result.item};
     });
   }
 }

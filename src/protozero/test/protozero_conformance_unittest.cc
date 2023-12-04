@@ -108,7 +108,7 @@ TEST(ProtoZeroConformanceTest, NestedMessages) {
   msg_c->set_value_c(1000);
 
   std::string serialized = msg_a.SerializeAsString();
-  EXPECT_EQ(serialized.size(), 26u);
+  EXPECT_EQ(serialized.size(), 14u);
 
   pbgold::NestedA gold_msg_a;
   gold_msg_a.ParseFromString(serialized);

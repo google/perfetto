@@ -19,7 +19,9 @@
 
 #include "perfetto/base/export.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/tracing/core/flush_flags.h"
 #include "perfetto/tracing/core/forward_decls.h"
+
 namespace perfetto {
 
 class SharedMemory;
@@ -106,7 +108,8 @@ class PERFETTO_EXPORT_COMPONENT Producer {
   // flushes < N have also been committed.
   virtual void Flush(FlushRequestID,
                      const DataSourceInstanceID* data_source_ids,
-                     size_t num_data_sources) = 0;
+                     size_t num_data_sources,
+                     FlushFlags) = 0;
 
   // Called by the service to instruct the given data sources to stop referring
   // to any trace contents emitted so far. The intent is that after processing

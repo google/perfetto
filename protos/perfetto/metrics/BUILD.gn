@@ -25,7 +25,10 @@ perfetto_proto_library("@TYPE@") {
 }
 
 perfetto_proto_library("custom_options_@TYPE@") {
-  proto_generators = [ "source_set" ]
+  proto_generators = [
+    "lite",
+    "source_set",
+  ]
   sources = [ "custom_options.proto" ]
   import_dirs = [ "${perfetto_protobuf_src_dir}" ]
 }

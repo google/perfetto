@@ -51,6 +51,15 @@ message DataSourceDescriptor {
   // contents, and knows how to stop referring to the already-emitted data.
   optional bool handles_incremental_state_clear = 4;
 
+  // If true, indicates that the data source does nothing upon Flush. This
+  // allows the service to reduce the flush-related IPC traffic and better deal
+  // with frozen producers (see go/perfetto-frozen). This is usually the case
+  // for data sources like 'track_event' that don't have access to the various
+  // thread task runners to post a flush task and rely purely on server-side
+  // scraping.
+  // Introduced in v39 / Android V.
+  optional bool no_flush = 9;
+
   // Optional specification about available GPU counters.
   optional GpuCounterDescriptor gpu_counter_descriptor = 5 [lazy = true];
 

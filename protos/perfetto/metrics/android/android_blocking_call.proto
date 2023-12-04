@@ -18,8 +18,6 @@ syntax = "proto2";
 
 package perfetto.protos;
 
-import "protos/perfetto/metrics/android/process_metadata.proto";
-
 // Blocking call on the main thread.
 message AndroidBlockingCall {
     // Name of the blocking call

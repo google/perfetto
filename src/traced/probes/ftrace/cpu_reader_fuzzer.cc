@@ -31,15 +31,9 @@
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
 
 namespace perfetto {
-namespace {
-
-uint8_t g_page[base::kPageSize];
-
-}  // namespace
 
 using perfetto::protos::pbzero::FtraceEventBundle;
 
-void FuzzCpuReaderParsePage(const uint8_t* data, size_t size);
 void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size);
 
 // TODO(rsavitski): make the fuzzer generate multi-page payloads.
@@ -50,28 +44,32 @@ void FuzzCpuReaderProcessPagesForDataSource(const uint8_t* data, size_t size) {
         "Could not read table. "
         "This fuzzer must be run in the root directory.");
   }
-  memset(g_page, 0, base::kPageSize);
-  memcpy(g_page, data, std::min(base::kPageSize, size));
+
+  static uint8_t* g_page = new uint8_t[base::GetSysPageSize()];
+  memset(g_page, 0, base::GetSysPageSize());
+  memcpy(g_page, data, std::min(size_t(base::GetSysPageSize()), size));
 
   FtraceMetadata metadata{};
-  FtraceDataSourceConfig ds_config{EventFilter{},
-                                   EventFilter{},
+  FtraceDataSourceConfig ds_config{/*event_filter=*/EventFilter{},
+                                   /*syscall_filter=*/EventFilter{},
                                    DisabledCompactSchedConfigForTesting(),
-                                   std::nullopt,
-                                   {},
-                                   {},
+                                   /*print_filter=*/std::nullopt,
+                                   /*atrace_apps=*/{},
+                                   /*atrace_categories=*/{},
                                    /*symbolize_ksyms=*/false,
                                    /*preserve_ftrace_buffer=*/false,
-                                   {}};
+                                   /*syscalls_returning_fd=*/{}};
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("sched", "sched_switch")));
   ds_config.event_filter.AddEnabledEvent(
       table->EventToFtraceId(GroupAndName("ftrace", "print")));
 
   NullTraceWriter null_writer;
+  auto compact_sched_buf = std::make_unique<CompactSchedBuffer>();
   CpuReader::ProcessPagesForDataSource(
       &null_writer, &metadata, /*cpu=*/0, &ds_config, g_page, /*pages_read=*/1,
-      table, /*symbolizer*/ nullptr, /*ftrace_clock_snapshot=*/nullptr,
+      compact_sched_buf.get(), table, /*symbolizer*/ nullptr,
+      /*ftrace_clock_snapshot=*/nullptr,
       protos::pbzero::FTRACE_CLOCK_UNSPECIFIED);
 }
 

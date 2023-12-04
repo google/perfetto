@@ -48,7 +48,7 @@ def compute_breakdown(tp: TraceProcessor,
   """)
 
   tp.query("""
-    SELECT IMPORT('android.slices');
+    INCLUDE PERFETTO MODULE android.slices;
     CREATE VIEW modded_names AS
     SELECT
       slice.id,
@@ -180,7 +180,7 @@ def compute_breakdown_for_startup(tp: TraceProcessor,
   # name.
   filter = "WHERE package = '{}'".format(package_name) if package_name else ''
   launches = tp.query(f'''
-    SELECT IMPORT('android.startup.startups');
+    INCLUDE PERFETTO MODULE android.startup.startups;
 
     SELECT ts, ts_end, dur
     FROM android_startups

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {lookupPath} from './object_utils';
+import {lookupPath, shallowEquals} from './object_utils';
 
 test('lookupPath', () => {
   const nested = {baz: 'qux'};
@@ -28,4 +28,22 @@ test('lookupPath', () => {
   expect(lookupPath(value, ['foo'])).toStrictEqual({bar: [1, 2, 3]});
   expect(lookupPath(value, [])).toBe(value);
   expect(lookupPath(value, ['baz'])).toBe(nested);
+});
+
+test('shallowEquals', () => {
+  const one = 1;
+  const foo = 'Foo!';
+  const nestedFoo = {
+    foo,
+  };
+  const nestedFooDupe = {
+    foo,
+  };
+
+  expect(shallowEquals({}, {})).toBe(true);
+  expect(shallowEquals({one}, {})).toBe(false);
+  expect(shallowEquals({}, {one})).toBe(false);
+  expect(shallowEquals({one}, {one})).toBe(true);
+  expect(shallowEquals({nestedFoo}, {nestedFoo})).toBe(true);
+  expect(shallowEquals({nestedFoo}, {nestedFooDupe})).toBe(false);
 });

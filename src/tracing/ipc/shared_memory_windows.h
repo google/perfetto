@@ -21,6 +21,8 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
+#include <string>
+
 #include "perfetto/base/build_config.h"
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
@@ -39,10 +41,15 @@ class SharedMemoryWindows : public SharedMemory {
   };
 
   // Create a brand new SHM region.
-  static std::unique_ptr<SharedMemoryWindows> Create(size_t size);
+  enum Flags { kNone = 0, kInheritableHandles };
+  static std::unique_ptr<SharedMemoryWindows> Create(
+      size_t size, Flags flags=Flags::kNone);
   static std::unique_ptr<SharedMemoryWindows> Attach(const std::string& key);
+  static std::unique_ptr<SharedMemoryWindows> AttachToHandleWithKey(
+      base::ScopedPlatformHandle fd, const std::string& key);
   ~SharedMemoryWindows() override;
   const std::string& key() const { return key_; }
+  const base::ScopedPlatformHandle& handle() const { return handle_; }
 
   // SharedMemory implementation.
   void* start() const override { return start_; }

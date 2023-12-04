@@ -156,7 +156,7 @@ class Field {
                   uint8_t type,
                   uint64_t int_value,
                   uint32_t size) {
-    id_ = id;
+    id_ = id & kMaxId;
     type_ = type;
     int_value_ = int_value;
     size_ = size;

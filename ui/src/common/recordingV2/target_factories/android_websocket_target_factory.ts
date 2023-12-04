@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {RECORDING_V2_FLAG} from '../../feature_flags';
+import {RECORDING_V2_FLAG} from '../../../core/feature_flags';
 import {
   OnTargetChangeCallback,
   RecordingTargetV2,
@@ -27,7 +27,7 @@ import {AndroidWebsocketTarget} from '../targets/android_websocket_target';
 
 export const ANDROID_WEBSOCKET_TARGET_FACTORY = 'AndroidWebsocketTargetFactory';
 
-// https://cs.android.com/android/platform/superproject/+/master:packages/
+// https://cs.android.com/android/platform/superproject/+/main:packages/
 // modules/adb/SERVICES.TXT;l=135
 const PREFIX_LENGTH = 4;
 

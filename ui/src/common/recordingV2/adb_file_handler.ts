@@ -25,7 +25,7 @@ import {
   BINARY_PUSH_UNKNOWN_RESPONSE,
 } from './recording_utils';
 
-// https://cs.android.com/android/platform/superproject/+/master:packages/
+// https://cs.android.com/android/platform/superproject/+/main:packages/
 // modules/adb/file_sync_protocol.h;l=144
 const MAX_SYNC_SEND_CHUNK_SIZE = 64 * 1024;
 
@@ -38,7 +38,7 @@ const FILE_PERMISSIONS = 2 ** 15 + 0o644;
 const textDecoder = new _TextDecoder();
 
 // For details about the protocol, see:
-// https://cs.android.com/android/platform/superproject/+/master:packages/modules/adb/SYNC.TXT
+// https://cs.android.com/android/platform/superproject/+/main:packages/modules/adb/SYNC.TXT
 export class AdbFileHandler {
   private sentByteCount = 0;
   private isPushOngoing: boolean = false;

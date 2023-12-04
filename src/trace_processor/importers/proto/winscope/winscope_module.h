@@ -21,6 +21,7 @@
 #include "perfetto/base/build_config.h"
 #include "src/trace_processor/importers/common/parser_types.h"
 #include "src/trace_processor/importers/proto/proto_importer_module.h"
+#include "src/trace_processor/importers/proto/winscope/shell_transitions_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_layers_parser.h"
 #include "src/trace_processor/importers/proto/winscope/surfaceflinger_transactions_parser.h"
 
@@ -41,6 +42,7 @@ class WinscopeModule : public ProtoImporterModule {
  private:
   SurfaceFlingerLayersParser surfaceflinger_layers_parser_;
   SurfaceFlingerTransactionsParser surfaceflinger_transactions_parser_;
+  ShellTransitionsParser shell_transitions_parser_;
 };
 
 }  // namespace trace_processor

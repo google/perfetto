@@ -50,12 +50,18 @@ function main() {
   // Check that deps are current before starting.
   const installBuildDeps = pjoin(ROOT_DIR, 'tools/install-build-deps');
 
-  // --filter=nodejs --filter=gn --filter=ninja is to match what
+  // --filter=nodejs --filter=pnpm --filter=gn --filter=ninja is to match what
   // cloud_build_entrypoint.sh passes to install-build-deps. It doesn't bother
   // installing the full toolchains because, unlike the Perfetto UI, it doesn't
   // need Wasm.
-  const depsArgs = ['--check-only=/dev/null', '--ui', '--filter=nodejs',
-                    '--filter=gn', '--filter=ninja'];
+  const depsArgs = [
+    '--check-only=/dev/null',
+    '--ui',
+    '--filter=nodejs',
+    '--filter=pnpm',
+    '--filter=gn',
+    '--filter=ninja'
+  ];
   exec(installBuildDeps, depsArgs);
 
   ninjaBuild();

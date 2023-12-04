@@ -20,7 +20,7 @@ SELECT RUN_METRIC('android/process_mem.sql');
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS android_lmk_reason_output;
-CREATE VIEW android_lmk_reason_output AS
+CREATE PERFETTO VIEW android_lmk_reason_output AS
 WITH
 total_ion_name AS (
   SELECT

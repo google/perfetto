@@ -92,7 +92,7 @@ source_set("client_api_without_backends") {
     "../../include/perfetto/tracing/core",
     "../../protos/perfetto/common:zero",
     "../../protos/perfetto/config:cpp",
-    "../../protos/perfetto/config/interceptors:zero",
+    "../../protos/perfetto/config/interceptors:cpp",
     "../../protos/perfetto/config/track_event:cpp",
     "../base",
     "core",
@@ -225,6 +225,7 @@ source_set("in_process_backend") {
     "../../gn:default_deps",
     "../../include/perfetto/tracing/core",
     "../base",
+    "core",
     "core:service",
   ]
   sources = [ "internal/in_process_tracing_backend.cc" ]

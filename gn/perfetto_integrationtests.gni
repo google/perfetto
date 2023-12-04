@@ -49,3 +49,7 @@ if (enable_perfetto_trace_processor && perfetto_build_standalone &&
   perfetto_integrationtests_targets +=
       [ "src/trace_processor:integrationtests" ]
 }
+
+if (enable_perfetto_traced_relay) {
+  perfetto_integrationtests_targets += [ "src/traced_relay:integrationtests" ]
+}

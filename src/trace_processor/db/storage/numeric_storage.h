@@ -22,18 +22,17 @@
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
+
+namespace protos::pbzero {
+class SerializedColumn_Storage;
+}
+
 namespace trace_processor {
 namespace storage {
 
 // Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
-class NumericStorage final : public Storage {
+class NumericStorageBase : public Storage {
  public:
-  NumericStorage(const void* data,
-                 uint32_t size,
-                 ColumnType type,
-                 bool is_sorted = false)
-      : type_(type), data_(data), size_(size), is_sorted_(is_sorted) {}
-
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;
@@ -48,15 +47,26 @@ class NumericStorage final : public Storage {
 
   void Sort(uint32_t* rows, uint32_t rows_size) const override;
 
-  uint32_t size() const override { return size_; }
+  void Serialize(StorageProto*) const override;
+
+  inline uint32_t size() const override { return size_; }
+
+ protected:
+  NumericStorageBase(const void* data,
+                     uint32_t size,
+                     ColumnType type,
+                     bool is_sorted = false)
+      : size_(size), data_(data), type_(type), is_sorted_(is_sorted) {}
 
  private:
-  BitVector LinearSearch(FilterOp op, SqlValue val, RowMap::Range) const;
+  BitVector LinearSearchInternal(FilterOp op,
+                                 SqlValue val,
+                                 RowMap::Range) const;
 
-  BitVector IndexSearch(FilterOp op,
-                        SqlValue value,
-                        uint32_t* indices,
-                        uint32_t indices_count) const;
+  BitVector IndexSearchInternal(FilterOp op,
+                                SqlValue value,
+                                uint32_t* indices,
+                                uint32_t indices_count) const;
 
   RowMap::Range BinarySearchIntrinsic(FilterOp op,
                                       SqlValue val,
@@ -66,10 +76,30 @@ class NumericStorage final : public Storage {
                                       SqlValue val,
                                       uint32_t* indices,
                                       uint32_t indices_count) const;
-  const ColumnType type_ = ColumnType::kDummy;
-  const void* data_ = nullptr;
+
   const uint32_t size_ = 0;
+  const void* data_ = nullptr;
+  const ColumnType type_ = ColumnType::kDummy;
   const bool is_sorted_ = false;
+};
+
+// Storage for all numeric type data (i.e. doubles, int32, int64, uint32).
+template <typename T>
+class NumericStorage : public NumericStorageBase {
+ public:
+  NumericStorage(const std::vector<T>* vec,
+                 ColumnType type,
+                 bool is_sorted = false)
+      : NumericStorageBase(vec->data(),
+                           static_cast<uint32_t>(vec->size()),
+                           type,
+                           is_sorted),
+        vector_(vec) {}
+
+ private:
+  // TODO(b/307482437): After the migration vectors should be owned by storage,
+  // so change from pointer to value.
+  const std::vector<T>* vector_;
 };
 
 }  // namespace storage

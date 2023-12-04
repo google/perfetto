@@ -28,7 +28,7 @@ from perfetto.trace_uri_resolver.path import PathUriResolver
 from perfetto.trace_uri_resolver.registry import ResolverRegistry
 
 # URL to download script to run trace_processor
-SHELL_URL = 'http://get.perfetto.dev/trace_processor'
+SHELL_URL = 'https://get.perfetto.dev/trace_processor'
 
 
 class PlatformDelegate:

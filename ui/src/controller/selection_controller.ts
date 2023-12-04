@@ -13,32 +13,31 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {Time, time} from '../base/time';
 import {Args, ArgValue} from '../common/arg_types';
-import {Engine} from '../common/engine';
-import {
-  LONG,
-  NUM,
-  NUM_NULL,
-  STR,
-  STR_NULL,
-} from '../common/query_result';
+import {pluginManager} from '../common/plugins';
 import {ChromeSliceSelection} from '../common/state';
 import {
-  tpDurationFromSql,
-  TPTime,
-  tpTimeFromSql,
-} from '../common/time';
-import {
   CounterDetails,
+  globals,
   SliceDetails,
   ThreadStateDetails,
 } from '../frontend/globals';
-import {globals} from '../frontend/globals';
 import {
   publishCounterDetails,
   publishSliceDetails,
   publishThreadStateDetails,
 } from '../frontend/publish';
+import {Engine} from '../trace_processor/engine';
+import {
+  durationFromSql,
+  LONG,
+  NUM,
+  NUM_NULL,
+  STR,
+  STR_NULL,
+  timeFromSql,
+} from '../trace_processor/query_result';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 
 import {Controller} from './controller';
@@ -184,10 +183,10 @@ export class SelectionController extends Controller<'main'> {
         case 'id':
           break;
         case 'ts':
-          ts = tpTimeFromSql(v);
+          ts = timeFromSql(v);
           break;
         case 'thread_ts':
-          threadTs = tpTimeFromSql(v);
+          threadTs = timeFromSql(v);
           break;
         case 'absTime':
           if (v) absTime = `${v}`;
@@ -196,10 +195,10 @@ export class SelectionController extends Controller<'main'> {
           name = `${v}`;
           break;
         case 'dur':
-          dur = tpDurationFromSql(v);
+          dur = durationFromSql(v);
           break;
         case 'thread_dur':
-          threadDur = tpDurationFromSql(v);
+          threadDur = durationFromSql(v);
           break;
         case 'category':
         case 'cat':
@@ -305,18 +304,23 @@ export class SelectionController extends Controller<'main'> {
     const trackIdQuery = `select track_id as trackId from slice
     where slice_id = ${sliceId}`;
     const result = await this.args.engine.query(trackIdQuery);
-    const trackIdTp = result.firstRow({trackId: NUM}).trackId;
+    const trackId = result.firstRow({trackId: NUM}).trackId;
     // TODO(hjd): If we had a consistent mapping from TP track_id
     // UI track id for slice tracks this would be unnecessary.
-    let trackId = '';
+    let trackKey = '';
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.kind === SLICE_TRACK_KIND &&
-          (track.config as {trackId: number}).trackId === Number(trackIdTp)) {
-        trackId = track.id;
-        break;
+      if (track.uri) {
+        const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+        if (trackInfo?.kind === SLICE_TRACK_KIND) {
+          const trackIds = trackInfo?.trackIds;
+          if (trackIds && trackIds.length > 0 && trackIds[0] === trackId) {
+            trackKey = track.key;
+            break;
+          }
+        }
       }
     }
-    return trackId;
+    return trackKey;
   }
 
   // TODO(altimin): We currently rely on the ThreadStateDetails for supporting
@@ -339,7 +343,7 @@ export class SelectionController extends Controller<'main'> {
         dur: LONG,
       });
       const selected: ThreadStateDetails = {
-        ts: row.ts,
+        ts: Time.fromRaw(row.ts),
         dur: row.dur,
       };
       publishThreadStateDetails(selected);
@@ -370,7 +374,7 @@ export class SelectionController extends Controller<'main'> {
         cpu: NUM,
         threadStateId: NUM_NULL,
       });
-      const ts = row.ts;
+      const ts = Time.fromRaw(row.ts);
       const dur = row.dur;
       const priority = row.priority;
       const endState = row.endState;
@@ -399,7 +403,7 @@ export class SelectionController extends Controller<'main'> {
     }
   }
 
-  async counterDetails(ts: TPTime, rightTs: TPTime, id: number):
+  async counterDetails(ts: time, rightTs: time, id: number):
       Promise<CounterDetails> {
     const counter = await this.args.engine.query(
         `SELECT value, track_id as trackId FROM counter WHERE id = ${id}`);
@@ -419,12 +423,12 @@ export class SelectionController extends Controller<'main'> {
     const endTs = rightTs !== -1n ? rightTs : globals.state.traceTime.end;
     const delta = value - previousValue;
     const duration = endTs - ts;
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-    const name = uiTrackId ? globals.state.tracks[uiTrackId].name : undefined;
+    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    const name = trackKey ? globals.state.tracks[trackKey].name : undefined;
     return {startTime: ts, value, delta, duration, name};
   }
 
-  async schedulingDetails(ts: TPTime, utid: number) {
+  async schedulingDetails(ts: time, utid: number) {
     // Find the ts of the first wakeup before the current slice.
     const wakeResult = await this.args.engine.query(`
       select ts, waker_utid as wakerUtid

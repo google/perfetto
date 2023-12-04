@@ -15,14 +15,14 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {runValidator} from '../base/validators';
 import {Actions} from '../common/actions';
 import {ConversionJobStatus} from '../common/conversion_jobs';
 import {
   createEmptyNonSerializableState,
   createEmptyState,
 } from '../common/empty_state';
-import {EngineConfig, ObjectById, State} from '../common/state';
-import {STATE_VERSION} from '../common/state';
+import {EngineConfig, ObjectById, State, STATE_VERSION} from '../common/state';
 import {
   BUCKET_NAME,
   buggyToSha256,
@@ -37,7 +37,6 @@ import {Router} from '../frontend/router';
 
 import {Controller} from './controller';
 import {RecordConfig, recordConfigValidator} from './record_config_types';
-import {runValidator} from './validators';
 
 interface MultiEngineState {
   currentEngineId?: string;
@@ -196,7 +195,7 @@ export class PermalinkController extends Controller<'main'> {
     }
     const text = await response.text();
     const stateHash = await toSha256(text);
-    const state = deserializeStateObject(text);
+    const state = deserializeStateObject<State>(text);
     if (stateHash !== id) {
       // Old permalinks incorrectly dropped some digits from the
       // hexdigest of the SHA256. We don't want to invalidate those

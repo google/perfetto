@@ -13,13 +13,7 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
-import {
-  Span,
-  timestampOffset,
-  TPDuration,
-  tpDurationToSeconds,
-  TPTime,
-} from '../common/time';
+import {duration, Span, time, Time} from '../base/time';
 
 import {TRACK_BORDER_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
@@ -95,7 +89,7 @@ const patterns: [bigint, string][] = [
 ];
 
 // Returns the optimal step size and pattern of ticks within the step.
-export function getPattern(minPatternSize: bigint): [TPDuration, string] {
+export function getPattern(minPatternSize: bigint): [duration, string] {
   for (const [size, pattern] of patterns) {
     if (size >= minPatternSize) {
       return [size, pattern];
@@ -122,25 +116,6 @@ function tickPatternToArray(pattern: string): TickType[] {
   });
 }
 
-// Get the number of decimal places we would have to print a time to for a given
-// min step size. For example, if we know the min step size is 0.1 and all
-// values are going to be aligned to integral multiples of 0.1, there's no
-// point printing these values with more than 1 decimal place.
-// Note: It's assumed that stepSize only has one significant figure.
-// E.g. 0.3 and 0.00002 are fine, but 0.123 will be treated as if it were 0.1.
-// Some examples: (seconds -> decimal places)
-//  1.0 -> 0
-//  0.5 -> 1
-//  0.009 -> 3
-//  0.00007 -> 5
-//  30000 -> 0
-//  0.30000000000000004 -> 1
-export function guessDecimalPlaces(stepSize: TPDuration): number {
-  const stepSizeSeconds = tpDurationToSeconds(stepSize);
-  const decimalPlaces = -Math.floor(Math.log10(stepSizeSeconds));
-  return Math.max(0, decimalPlaces);
-}
-
 export enum TickType {
   MAJOR,
   MEDIUM,
@@ -149,7 +124,7 @@ export enum TickType {
 
 export interface Tick {
   type: TickType;
-  time: TPTime;
+  time: time;
 }
 
 export const MIN_PX_PER_STEP = 120;
@@ -157,19 +132,16 @@ export function getMaxMajorTicks(width: number) {
   return Math.max(1, Math.floor(width / MIN_PX_PER_STEP));
 }
 
-function roundDownNearest(time: TPTime, stepSize: TPDuration): TPTime {
-  return stepSize * (time / stepSize);
-}
-
 // An iterable which generates a series of ticks for a given timescale.
 export class TickGenerator implements Iterable<Tick> {
   private _tickPattern: TickType[];
-  private _patternSize: TPDuration;
-  private _timeSpan: Span<TPTime>;
-  private _offset: TPTime;
+  private _patternSize: duration;
+  private _timeSpan: Span<time, duration>;
+  private _offset: time;
 
   constructor(
-      timeSpan: Span<TPTime>, maxMajorTicks: number, offset: TPTime = 0n) {
+      timeSpan: Span<time, duration>, maxMajorTicks: number,
+      offset: time = Time.ZERO) {
     assertTrue(timeSpan.duration > 0n, 'timeSpan.duration cannot be lte 0');
     assertTrue(maxMajorTicks > 0, 'maxMajorTicks cannot be lte 0');
 
@@ -188,21 +160,18 @@ export class TickGenerator implements Iterable<Tick> {
   // iterator for it.
   * [Symbol.iterator](): Generator<Tick> {
     const stepSize = this._patternSize / BigInt(this._tickPattern.length);
-    const start = roundDownNearest(this._timeSpan.start, this._patternSize);
+    const start = Time.quantFloor(this._timeSpan.start, this._patternSize);
     const end = this._timeSpan.end;
     let patternIndex = 0;
 
-    for (let time = start; time < end; time += stepSize, patternIndex++) {
+    for (let time = start; time < end;
+         time = Time.add(time, stepSize), patternIndex++) {
       if (time >= this._timeSpan.start) {
         patternIndex = patternIndex % this._tickPattern.length;
         const type = this._tickPattern[patternIndex];
-        yield {type, time: time + this._offset};
+        yield {type, time: Time.add(time, this._offset)};
       }
     }
-  }
-
-  get digits(): number {
-    return guessDecimalPlaces(this._patternSize);
   }
 }
 
@@ -223,9 +192,9 @@ export function drawGridLines(
   if (width > TRACK_SHELL_WIDTH && span.duration > 0n) {
     const maxMajorTicks = getMaxMajorTicks(width - TRACK_SHELL_WIDTH);
     const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, width);
-    const offset = timestampOffset();
+    const offset = globals.timestampOffset();
     for (const {type, time} of new TickGenerator(span, maxMajorTicks, offset)) {
-      const px = Math.floor(map.tpTimeToPx(time));
+      const px = Math.floor(map.timeToPx(time));
       if (type === TickType.MAJOR) {
         ctx.beginPath();
         ctx.moveTo(px + 0.5, 0);

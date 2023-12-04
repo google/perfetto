@@ -99,6 +99,8 @@ TEST_F(BinderTrackerTest, RequestReply) {
   ASSERT_EQ(flow.row_count(), 1u);
   ASSERT_EQ(flow.slice_out()[0], slice.id()[0]);
   ASSERT_EQ(flow.slice_in()[0], slice.id()[1]);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
 }
 
 TEST_F(BinderTrackerTest, Oneway) {
@@ -137,6 +139,201 @@ TEST_F(BinderTrackerTest, Oneway) {
   ASSERT_EQ(flow.row_count(), 1u);
   ASSERT_EQ(flow.slice_out()[0], slice.id()[0]);
   ASSERT_EQ(flow.slice_in()[0], slice.id()[1]);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, RequestReplyWithCommands) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+  constexpr int32_t kReplyTransactionId = 5678;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, 0, kNullStringId);
+  binder_tracker->TransactionReceived(ts++, kRcvTid, kTransactionId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION);
+  binder_tracker->CommandToKernel(ts++, kRcvTid, BinderTracker::kBC_REPLY);
+  binder_tracker->Transaction(ts++, kRcvTid, kReplyTransactionId, 99, kSndTid,
+                              kSndTid, true, 0, kNullStringId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->TransactionReceived(ts++, kSndTid, kReplyTransactionId);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid, BinderTracker::kBR_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 2u);
+  EXPECT_NE(slice.dur()[0], -1);
+  EXPECT_NE(slice.dur()[1], -1);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterBcTransaction) {
+  constexpr uint32_t kSndTid = 5;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_DEAD_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  EXPECT_EQ(slice.row_count(), 0u);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterSendTxn) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, 0, kNullStringId);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 1u);
+  EXPECT_NE(slice.dur()[0], -1);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailBeforeReplyTxn) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, 0, kNullStringId);
+  binder_tracker->TransactionReceived(ts++, kRcvTid, kTransactionId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION);
+  binder_tracker->CommandToKernel(ts++, kRcvTid, BinderTracker::kBC_REPLY);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 2u);
+  EXPECT_NE(slice.dur()[0], -1);
+  EXPECT_NE(slice.dur()[1], -1);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, RequestReplyWithCommandsFailAfterReplyTxn) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+  constexpr int32_t kReplyTransactionId = 5678;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, 0, kNullStringId);
+  binder_tracker->TransactionReceived(ts++, kRcvTid, kTransactionId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION);
+  binder_tracker->CommandToKernel(ts++, kRcvTid, BinderTracker::kBC_REPLY);
+  binder_tracker->Transaction(ts++, kRcvTid, kReplyTransactionId, 99, kSndTid,
+                              kSndTid, true, 0, kNullStringId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 2u);
+  EXPECT_NE(slice.dur()[0], -1);
+  EXPECT_NE(slice.dur()[1], -1);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, OneWayWithCommands) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, kOneWay, kNullStringId);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_TRANSACTION_COMPLETE);
+  binder_tracker->TransactionReceived(ts++, kRcvTid, kTransactionId);
+  binder_tracker->ReturnFromKernel(ts++, kRcvTid,
+                                   BinderTracker::kBR_TRANSACTION);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 2u);
+  EXPECT_EQ(slice.dur()[0], 0);
+  EXPECT_EQ(slice.dur()[1], 0);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, OneWayWithCommandsFailBeforeTxn) {
+  constexpr uint32_t kSndTid = 5;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  EXPECT_EQ(slice.row_count(), 0u);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
+}
+
+TEST_F(BinderTrackerTest, OneWayWithCommandsFailAfterTxn) {
+  constexpr uint32_t kSndTid = 5;
+  constexpr uint32_t kRcvTid = 10;
+
+  constexpr int32_t kTransactionId = 1234;
+
+  int64_t ts = 1;
+  binder_tracker->CommandToKernel(ts++, kSndTid,
+                                  BinderTracker::kBC_TRANSACTION);
+  binder_tracker->Transaction(ts++, kSndTid, kTransactionId, 9, kRcvTid,
+                              kRcvTid, false, kOneWay, kNullStringId);
+  binder_tracker->ReturnFromKernel(ts++, kSndTid,
+                                   BinderTracker::kBR_FAILED_REPLY);
+
+  const auto& slice = context.storage->slice_table();
+  ASSERT_EQ(slice.row_count(), 1u);
+  EXPECT_EQ(slice.dur()[0], 0);
+
+  EXPECT_TRUE(binder_tracker->utid_stacks_empty());
 }
 
 }  // namespace

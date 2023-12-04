@@ -293,7 +293,10 @@ void CompactSchedBuffer::WriteAndReset(
     if (waking_.size() > 0)
       waking_.Write(compact_out);
   }
+  Reset();
+}
 
+void CompactSchedBuffer::Reset() {
   interner_.Reset();
   switch_.Reset();
   waking_.Reset();

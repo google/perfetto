@@ -231,13 +231,12 @@ class SqliteTable : public sqlite3_vtab {
 
   // This name of the table. For tables created using CREATE VIRTUAL TABLE, this
   // will be the name of the table specified by the query. For automatically
-  // created tables, this will be the same as the module name passed to
-  // RegisterTable.
+  // created tables, this will be the same as the module name registered.
   std::string name_;
 
-  // The module name is the name passed to RegisterTable. This is differs from
-  // the table name (|name_|) where the table was created using CREATE VIRTUAL
-  // TABLE.
+  // The module name is the name that will be registered. This is
+  // differs from the table name (|name_|) where the table was created using
+  // CREATE VIRTUAL TABLE.
   std::string module_name_;
 
   Schema schema_;
@@ -357,8 +356,7 @@ class TypedSqliteTable : public TypedSqliteTableBase {
                      sqlite3_vtab** tab,
                      char** pzErr) {
     auto* xdesc = static_cast<ModuleArg*>(arg);
-    std::unique_ptr<SubTable> table(
-        new SubTable(xdb, std::move(xdesc->context)));
+    std::unique_ptr<SubTable> table(new SubTable(xdb, &*xdesc->context));
     SubTable* table_ptr = table.get();
     base::Status status = table->InitInternal(xdesc->engine, argc, argv);
     if (!status.ok()) {

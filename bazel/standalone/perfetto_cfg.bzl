@@ -128,6 +128,8 @@ PERFETTO_CONFIG = struct(
         py_proto_library = None,
 
         go_proto_library = None,
+
+        jspb_proto_library = None,
     ),
 
     # The default copts which we use to compile C++ code.

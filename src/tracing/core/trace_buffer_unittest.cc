@@ -23,9 +23,11 @@
 
 #include "perfetto/ext/base/utils.h"
 #include "perfetto/ext/tracing/core/basic_types.h"
+#include "perfetto/ext/tracing/core/client_identity.h"
 #include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "perfetto/ext/tracing/core/trace_packet.h"
 #include "perfetto/protozero/proto_utils.h"
+#include "src/base/test/vm_test_utils.h"
 #include "src/tracing/core/trace_buffer.h"
 #include "src/tracing/test/fake_packet.h"
 #include "test/gtest_and_gmock.h"
@@ -48,6 +50,22 @@ class TraceBufferTest : public testing::Test {
       SharedMemoryABI::ChunkHeader::kLastPacketContinuesOnNextChunk;
   static constexpr uint8_t kChunkNeedsPatching =
       SharedMemoryABI::ChunkHeader::kChunkNeedsPatching;
+
+  void TearDown() override {
+    // Test that the used_size() logic works and that all the data after that
+    // is zero-filled.
+    if (trace_buffer_) {
+      const size_t used_size = trace_buffer_->used_size();
+      ASSERT_LE(used_size, trace_buffer_->size());
+      trace_buffer_->EnsureCommitted(trace_buffer_->size());
+      bool zero_padded = true;
+      for (size_t i = used_size; i < trace_buffer_->size(); ++i) {
+        bool is_zero = static_cast<char*>(trace_buffer_->data_.Get())[i] == 0;
+        zero_padded = zero_padded && is_zero;
+      }
+      ASSERT_TRUE(zero_padded);
+    }
+  }
 
   FakeChunk CreateChunk(ProducerID p, WriterID w, ChunkID c) {
     return FakeChunk(trace_buffer_.get(), p, w, c);
@@ -144,6 +162,7 @@ class TraceBufferTest : public testing::Test {
     return keys;
   }
 
+  uint8_t* GetBufData(const TraceBuffer& buf) { return buf.begin(); }
   TraceBuffer* trace_buffer() { return trace_buffer_.get(); }
   size_t size_to_end() { return trace_buffer_->size_to_end(); }
 
@@ -793,24 +812,24 @@ TEST_F(TraceBufferTest, Fragments_PreserveUID) {
   TraceBuffer::PacketSequenceProperties sequence_properties;
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'a')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(
       ReadPacket(&sequence_properties),
       ElementsAre(FakePacketFragment(10, 'b'), FakePacketFragment(10, 'e')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'f')));
-  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(11u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'c')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(&sequence_properties),
               ElementsAre(FakePacketFragment(10, 'd')));
-  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted);
+  ASSERT_EQ(22u, sequence_properties.producer_uid_trusted());
 
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
@@ -993,9 +1012,9 @@ TEST_F(TraceBufferTest, Malicious_ZeroSizedChunk) {
 
   uint8_t valid_ptr = 0;
   trace_buffer()->CopyChunkUntrusted(
-      ProducerID(1), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-      1 /* num packets */, 0 /* flags */, true /* chunk_complete */, &valid_ptr,
-      sizeof(valid_ptr));
+      ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+      ChunkID(1), 1 /* num packets */, 0 /* flags */, true /* chunk_complete */,
+      &valid_ptr, sizeof(valid_ptr));
 
   CreateChunk(ProducerID(1), WriterID(1), ChunkID(2))
       .AddPacket(32, 'b')
@@ -1099,8 +1118,8 @@ TEST_F(TraceBufferTest, Malicious_VarintHeaderTooBig) {
   chunk.insert(chunk.end(), 128 - sizeof(ChunkRecord), 0xff);
   chunk.back() = 0x7f;
   trace_buffer()->CopyChunkUntrusted(
-      ProducerID(4), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-      1 /* num packets */, 0 /* flags*/, true /* chunk_complete */,
+      ProducerID(4), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+      ChunkID(1), 1 /* num packets */, 0 /* flags*/, true /* chunk_complete */,
       chunk.data(), chunk.size());
 
   // Add a valid chunk.
@@ -1125,9 +1144,9 @@ TEST_F(TraceBufferTest, Malicious_JumboVarint) {
   chunk.back() = 0x7f;
   for (int i = 0; i < 3; i++) {
     trace_buffer()->CopyChunkUntrusted(
-        ProducerID(1), uid_t(0), pid_t(0), WriterID(1), ChunkID(1),
-        1 /* num packets */, 0 /* flags */, true /* chunk_complete */,
-        chunk.data(), chunk.size());
+        ProducerID(1), ClientIdentity(uid_t(0), pid_t(0)), WriterID(1),
+        ChunkID(1), 1 /* num packets */, 0 /* flags */,
+        true /* chunk_complete */, chunk.data(), chunk.size());
   }
 
   trace_buffer()->BeginRead();
@@ -1854,6 +1873,8 @@ TEST_F(TraceBufferTest, Clone_NoFragments) {
                          .CopyIntoTraceBuffer());
     }
 
+    ASSERT_EQ(trace_buffer()->used_size(), 32u * kNumWriters);
+
     // Make some reads *before* cloning. This is to check that the behaviour of
     // CloneReadOnly() is not affected by reads made before cloning.
     // On every round (|num_pre_reads|), read a different number of packets.
@@ -1866,6 +1887,7 @@ TEST_F(TraceBufferTest, Clone_NoFragments) {
 
     // Now create a snapshot and make sure we always read all the packets.
     std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+    ASSERT_EQ(snap->used_size(), 32u * kNumWriters);
     snap->BeginRead();
     for (char i = 'A'; i < 'A' + kNumWriters; i++) {
       auto frags = ReadPacket(snap);
@@ -1927,6 +1949,71 @@ TEST_F(TraceBufferTest, Clone_WithPatches) {
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment("b00-YMCA", 8)));
   ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(100, 'c')));
   ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
+
+TEST_F(TraceBufferTest, Clone_Wrapping) {
+  ResetBuffer(4096);
+  const size_t kFrgSize = 1024 - 16;  // For perfect wrapping every 4 fragments.
+  for (WriterID i = 0; i < 6; i++) {
+    CreateChunk(ProducerID(1), WriterID(i), ChunkID(0))
+        .AddPacket(kFrgSize, static_cast<char>('a' + i))
+        .CopyIntoTraceBuffer();
+  }
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  ASSERT_EQ(snap->used_size(), snap->size());
+  snap->BeginRead();
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'c')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'd')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'e')));
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(kFrgSize, 'f')));
+  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
+
+TEST_F(TraceBufferTest, Clone_WrappingWithPadding) {
+  ResetBuffer(4096);
+  // First create one 2KB chunk, so the contents are [aaaaaaaa00000000].
+  CreateChunk(ProducerID(1), WriterID(0), ChunkID(0))
+      .AddPacket(2048, static_cast<char>('a'))
+      .CopyIntoTraceBuffer();
+
+  // Then write a 3KB chunk that fits in the buffer, but requires zero padding
+  // and restarting from the beginning, so the contents are [bbbbbbbbbbbb0000].
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(3192, static_cast<char>('b'))
+      .CopyIntoTraceBuffer();
+
+  ASSERT_EQ(trace_buffer()->used_size(), trace_buffer()->size());
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  ASSERT_EQ(snap->used_size(), snap->size());
+  snap->BeginRead();
+  ASSERT_THAT(ReadPacket(snap), ElementsAre(FakePacketFragment(3192, 'b')));
+  ASSERT_THAT(ReadPacket(snap), IsEmpty());
+}
+
+TEST_F(TraceBufferTest, Clone_CommitOnlyUsedSize) {
+  const size_t kPages = 32;
+  const size_t page_size = base::GetSysPageSize();
+  ResetBuffer(page_size * kPages);
+  CreateChunk(ProducerID(1), WriterID(0), ChunkID(0))
+      .AddPacket(1024, static_cast<char>('a'))
+      .CopyIntoTraceBuffer();
+
+  using base::vm_test_utils::IsMapped;
+  auto is_only_first_page_mapped = [&](const TraceBuffer& buf) {
+    bool first_mapped = IsMapped(GetBufData(buf), page_size);
+    bool rest_mapped = IsMapped(GetBufData(buf) + page_size, kPages - 1);
+    return first_mapped && !rest_mapped;
+  };
+
+  // If the test doesn't work as expected until here, there is no point checking
+  // that the same assumptions hold true on the cloned buffer. Various platforms
+  // can legitimately pre-fetch memory even if we don't page fault (also asan).
+  if (!is_only_first_page_mapped(*trace_buffer()))
+    GTEST_SKIP() << "VM commit detection not supported";
+
+  std::unique_ptr<TraceBuffer> snap = trace_buffer()->CloneReadOnly();
+  ASSERT_EQ(snap->used_size(), trace_buffer()->used_size());
+  ASSERT_TRUE(is_only_first_page_mapped(*snap));
 }
 
 }  // namespace perfetto

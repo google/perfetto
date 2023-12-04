@@ -23,28 +23,13 @@
 
 #include "perfetto/ext/base/paged_memory.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
+#include "src/tracing/core/in_process_shared_memory.h"
 
 namespace perfetto {
 
 // A dummy implementation of shared memory for single process unittests
 // (just a wrapper around malloc() that fits the SharedMemory API).
-class TestSharedMemory : public SharedMemory {
- public:
-  class Factory : public SharedMemory::Factory {
-   public:
-    ~Factory() override;
-    std::unique_ptr<SharedMemory> CreateSharedMemory(size_t size) override;
-  };
-
-  explicit TestSharedMemory(size_t size);
-  ~TestSharedMemory() override;
-
-  void* start() const override { return mem_.Get(); }
-  size_t size() const override { return size_; }
-
-  base::PagedMemory mem_;
-  size_t size_;
-};
+using TestSharedMemory = InProcessSharedMemory;
 
 }  // namespace perfetto
 

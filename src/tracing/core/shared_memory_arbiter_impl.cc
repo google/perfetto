@@ -25,6 +25,7 @@
 #include "perfetto/base/time.h"
 #include "perfetto/ext/tracing/core/commit_data_request.h"
 #include "perfetto/ext/tracing/core/shared_memory.h"
+#include "perfetto/ext/tracing/core/shared_memory_abi.h"
 #include "src/tracing/core/null_trace_writer.h"
 #include "src/tracing/core/trace_writer_impl.h"
 
@@ -56,31 +57,35 @@ SharedMemoryABI::PageLayout SharedMemoryArbiterImpl::default_page_layout =
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateInstance(
     SharedMemory* shared_memory,
     size_t page_size,
+    ShmemMode mode,
     TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner) {
-  return std::unique_ptr<SharedMemoryArbiterImpl>(
-      new SharedMemoryArbiterImpl(shared_memory->start(), shared_memory->size(),
-                                  page_size, producer_endpoint, task_runner));
+  return std::unique_ptr<SharedMemoryArbiterImpl>(new SharedMemoryArbiterImpl(
+      shared_memory->start(), shared_memory->size(), mode, page_size,
+      producer_endpoint, task_runner));
 }
 
 // static
 std::unique_ptr<SharedMemoryArbiter> SharedMemoryArbiter::CreateUnboundInstance(
     SharedMemory* shared_memory,
-    size_t page_size) {
+    size_t page_size,
+    ShmemMode mode) {
   return std::unique_ptr<SharedMemoryArbiterImpl>(new SharedMemoryArbiterImpl(
-      shared_memory->start(), shared_memory->size(), page_size,
+      shared_memory->start(), shared_memory->size(), mode, page_size,
       /*producer_endpoint=*/nullptr, /*task_runner=*/nullptr));
 }
 
 SharedMemoryArbiterImpl::SharedMemoryArbiterImpl(
     void* start,
     size_t size,
+    ShmemMode mode,
     size_t page_size,
     TracingService::ProducerEndpoint* producer_endpoint,
     base::TaskRunner* task_runner)
     : producer_endpoint_(producer_endpoint),
+      use_shmem_emulation_(mode == ShmemMode::kShmemEmulation),
       task_runner_(task_runner),
-      shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size),
+      shmem_abi_(reinterpret_cast<uint8_t*>(start), size, page_size, mode),
       active_writer_ids_(kMaxWriterID),
       fully_bound_(task_runner && producer_endpoint),
       was_always_bound_(fully_bound_),
@@ -269,12 +274,15 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
       }
     }
 
+    CommitDataRequest::ChunksToMove* ctm = nullptr;  // Set if chunk is valid.
     // If a valid chunk is specified, return it and attach it to the request.
     if (chunk.is_valid()) {
       PERFETTO_DCHECK(chunk.writer_id() == writer_id);
       uint8_t chunk_idx = chunk.chunk_idx();
       bytes_pending_commit_ += chunk.size();
       size_t page_idx;
+
+      ctm = commit_data_req_->add_chunks_to_move();
       // If the chunk needs patching, it should not be marked as complete yet,
       // because this would indicate to the service that the producer will not
       // be writing to it anymore, while the producer might still apply patches
@@ -299,8 +307,6 @@ void SharedMemoryArbiterImpl::UpdateCommitDataRequest(
 
       // DO NOT access |chunk| after this point, it has been std::move()-d
       // above.
-      CommitDataRequest::ChunksToMove* ctm =
-          commit_data_req_->add_chunks_to_move();
       ctm->set_page(static_cast<uint32_t>(page_idx));
       ctm->set_chunk(chunk_idx);
       ctm->set_target_buffer(target_buffer);
@@ -529,7 +535,7 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
       // Since we are about to notify the service of all batched chunks, it will
       // not be possible to apply any more patches to them and we need to move
       // them to kChunkComplete - otherwise the service won't look at them.
-      for (auto& ctm : commit_data_req_->chunks_to_move()) {
+      for (auto& ctm : *commit_data_req_->mutable_chunks_to_move()) {
         uint32_t layout = shmem_abi_.GetPageLayout(ctm.page());
         auto chunk_state =
             shmem_abi_.GetChunkStateFromLayout(layout, ctm.chunk());
@@ -537,12 +543,23 @@ void SharedMemoryArbiterImpl::FlushPendingCommitDataRequests(
         // patching is also the subset of chunks that are still being written
         // to. The rest of the chunks in |commit_data_req_| do not need patching
         // and have already been marked as complete.
-        if (chunk_state != SharedMemoryABI::kChunkBeingWritten)
-          continue;
+        if (chunk_state == SharedMemoryABI::kChunkBeingWritten) {
+          auto chunk =
+              shmem_abi_.GetChunkUnchecked(ctm.page(), layout, ctm.chunk());
+          shmem_abi_.ReleaseChunkAsComplete(std::move(chunk));
+        }
 
-        SharedMemoryABI::Chunk chunk =
-            shmem_abi_.GetChunkUnchecked(ctm.page(), layout, ctm.chunk());
-        shmem_abi_.ReleaseChunkAsComplete(std::move(chunk));
+        if (use_shmem_emulation_) {
+          // When running in the emulation mode:
+          // 1. serialize the chunk data to |ctm| as we won't modify the chunk
+          // anymore.
+          // 2. free the chunk as the service won't be able to do this.
+          auto chunk =
+              shmem_abi_.GetChunkUnchecked(ctm.page(), layout, ctm.chunk());
+          PERFETTO_CHECK(chunk.is_valid());
+          ctm.set_data(chunk.begin(), chunk.size());
+          shmem_abi_.ReleaseChunkAsFree(std::move(chunk));
+        }
       }
 
       req = std::move(commit_data_req_);

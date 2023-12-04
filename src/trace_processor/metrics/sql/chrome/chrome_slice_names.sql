@@ -16,7 +16,7 @@
 
 DROP VIEW IF EXISTS chrome_slice_names_output;
 
-CREATE VIEW chrome_slice_names_output AS
+CREATE PERFETTO VIEW chrome_slice_names_output AS
 SELECT ChromeSliceNames(
   'chrome_version_code', (
     SELECT RepeatedField(int_value)
@@ -27,6 +27,7 @@ SELECT ChromeSliceNames(
   'slice_name', (
     SELECT RepeatedField(DISTINCT(name))
     FROM slice
+    WHERE name IS NOT NULL
     ORDER BY name
   )
 );

@@ -80,7 +80,7 @@ struct ToMonotonic : public SqlFunction {
                           Destructors& destructors);
 };
 
-base::Status ToMonotonic::Run(ClockConverter* tracker,
+base::Status ToMonotonic::Run(ClockConverter* converter,
                               size_t argc,
                               sqlite3_value** argv,
                               SqlValue& out,
@@ -98,7 +98,7 @@ base::Status ToMonotonic::Run(ClockConverter* tracker,
   }
 
   int64_t ts = sqlite3_value_int64(argv[0]);
-  base::StatusOr<int64_t> monotonic = tracker->ToMonotonic(ts);
+  base::StatusOr<int64_t> monotonic = converter->ToMonotonic(ts);
 
   if (!monotonic.ok()) {
     // We are returning an OkStatus, because one bad timestamp shouldn't stop
@@ -107,6 +107,45 @@ base::Status ToMonotonic::Run(ClockConverter* tracker,
   }
 
   out = SqlValue::Long(*monotonic);
+  return base::OkStatus();
+}
+
+struct ToRealtime : public SqlFunction {
+  using Context = ClockConverter;
+  static base::Status Run(ClockConverter* tracker,
+                          size_t argc,
+                          sqlite3_value** argv,
+                          SqlValue& out,
+                          Destructors& destructors);
+};
+
+base::Status ToRealtime::Run(ClockConverter* converter,
+                             size_t argc,
+                             sqlite3_value** argv,
+                             SqlValue& out,
+                             Destructors&) {
+  if (argc != 1) {
+    return base::ErrStatus("TO_REALTIME: 1 arg required");
+  }
+
+  // If the timestamp is null, just return null as the result.
+  if (sqlite3_value_type(argv[0]) == SQLITE_NULL) {
+    return base::OkStatus();
+  }
+  if (sqlite3_value_type(argv[0]) != SQLITE_INTEGER) {
+    return base::ErrStatus("TO_REALTIME: first argument should be timestamp");
+  }
+
+  int64_t ts = sqlite3_value_int64(argv[0]);
+  base::StatusOr<int64_t> realtime = converter->ToRealtime(ts);
+
+  if (!realtime.ok()) {
+    // We are returning an OkStatus, because one bad timestamp shouldn't stop
+    // the query.
+    return base::OkStatus();
+  }
+
+  out = SqlValue::Long(*realtime);
   return base::OkStatus();
 }
 

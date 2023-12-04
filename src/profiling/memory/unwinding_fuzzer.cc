@@ -50,9 +50,14 @@ int FuzzUnwinding(const uint8_t* data, size_t size) {
                              base::OpenFile("/proc/self/mem", O_RDONLY));
 
   NopDelegate nop_delegate;
-  UnwindingWorker::ClientData client_data{
-      id, {}, std::move(metadata), {}, {}, {}, {},
-  };
+  UnwindingWorker::ClientData client_data{id,
+                                          /*sock=*/{},
+                                          std::move(metadata),
+                                          /*shmem=*/{},
+                                          /*client_config=*/{},
+                                          /*stream_allocations=*/false,
+                                          /*drain_bytes=*/0,
+                                          /*free_records=*/{}};
 
   AllocRecordArena arena;
   UnwindingWorker::HandleBuffer(nullptr, &arena, buf, &client_data, self_pid,

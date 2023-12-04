@@ -1,0 +1,38 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+syntax = "proto2";
+
+package perfetto.protos;
+
+// This metric computes how much time processes spend in UNINTERRUPTIBLE_SLEEP state
+message ProcessStateDurations {
+  optional int64 total_dur = 2;
+  optional int64 uninterruptible_sleep_dur = 3;
+}
+
+message AndroidBootMetric {
+  optional ProcessStateDurations system_server_durations = 1;
+  optional ProcessStateDurations systemui_durations = 2;
+  optional ProcessStateDurations launcher_durations = 3;
+  optional ProcessStateDurations gms_durations = 4;
+  // Launcher related boot metrics
+  message LauncherBreakdown {
+    //  reports cold start time of NexusLauncher
+    optional int64 cold_start_dur = 1;
+  }
+  optional LauncherBreakdown launcher_breakdown = 5;
+}

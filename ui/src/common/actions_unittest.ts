@@ -15,18 +15,19 @@
 import {produce} from 'immer';
 
 import {assertExists} from '../base/logging';
+import {Time} from '../base/time';
+import {PrimaryTrackSortKey} from '../public';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {HEAP_PROFILE_TRACK_KIND} from '../tracks/heap_profile';
 import {
   PROCESS_SCHEDULING_TRACK_KIND,
-} from '../tracks/process_scheduling';
+} from '../tracks/process_summary/process_scheduling_track';
 import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
 
 import {StateActions} from './actions';
 import {createEmptyState} from './empty_state';
 import {
   InThreadTrackSortKey,
-  PrimaryTrackSortKey,
   ProfileType,
   SCROLLING_TRACK_GROUP,
   State,
@@ -35,8 +36,8 @@ import {
 } from './state';
 
 function fakeTrack(state: State, args: {
-  id: string,
-  kind?: string,
+  key: string,
+  uri?: string,
   trackGroup?: string,
   trackSortKey?: TrackSortKey,
   name?: string,
@@ -44,15 +45,13 @@ function fakeTrack(state: State, args: {
 }): State {
   return produce(state, (draft) => {
     StateActions.addTrack(draft, {
-      id: args.id,
-      engineId: '0',
-      kind: args.kind || 'SOME_TRACK_KIND',
+      uri: args.uri || 'sometrack',
+      key: args.key,
       name: args.name || 'A track',
       trackSortKey: args.trackSortKey === undefined ?
           PrimaryTrackSortKey.ORDINARY_TRACK :
           args.trackSortKey,
       trackGroup: args.trackGroup || SCROLLING_TRACK_GROUP,
-      config: {tid: args.tid || '0'},
     });
   });
 }
@@ -63,20 +62,19 @@ function fakeTrackGroup(
     StateActions.addTrackGroup(draft, {
       name: 'A group',
       id: args.id,
-      engineId: '0',
       collapsed: false,
-      summaryTrackId: args.summaryTrackId,
+      summaryTrackKey: args.summaryTrackId,
     });
   });
 }
 
 function pinnedAndScrollingTracks(
     state: State,
-    ids: string[],
+    keys: string[],
     pinnedTracks: string[],
     scrollingTracks: string[]): State {
-  for (const id of ids) {
-    state = fakeTrack(state, {id});
+  for (const key of keys) {
+    state = fakeTrack(state, {key});
   }
   state = produce(state, (draft) => {
     draft.pinnedTracks = pinnedTracks;
@@ -88,22 +86,18 @@ function pinnedAndScrollingTracks(
 test('add scrolling tracks', () => {
   const once = produce(createEmptyState(), (draft) => {
     StateActions.addTrack(draft, {
-      engineId: '1',
-      kind: 'cpu',
+      uri: 'cpu',
       name: 'Cpu 1',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      config: {},
     });
   });
   const twice = produce(once, (draft) => {
     StateActions.addTrack(draft, {
-      engineId: '2',
-      kind: 'cpu',
+      uri: 'cpu',
       name: 'Cpu 2',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
       trackGroup: SCROLLING_TRACK_GROUP,
-      config: {},
     });
   });
 
@@ -113,27 +107,24 @@ test('add scrolling tracks', () => {
 
 test('add track to track group', () => {
   let state = createEmptyState();
-  state = fakeTrack(state, {id: 's'});
+  state = fakeTrack(state, {key: 's'});
 
   const afterGroup = produce(state, (draft) => {
     StateActions.addTrackGroup(draft, {
-      engineId: '1',
       name: 'A track group',
       id: '123-123-123',
-      summaryTrackId: 's',
+      summaryTrackKey: 's',
       collapsed: false,
     });
   });
 
   const afterTrackAdd = produce(afterGroup, (draft) => {
     StateActions.addTrack(draft, {
-      id: '1',
-      engineId: '1',
-      kind: 'slices',
+      key: '1',
+      uri: 'slices',
       name: 'renderer 1',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
       trackGroup: '123-123-123',
-      config: {},
     });
   });
 
@@ -144,18 +135,14 @@ test('add track to track group', () => {
 test('reorder tracks', () => {
   const once = produce(createEmptyState(), (draft) => {
     StateActions.addTrack(draft, {
-      engineId: '1',
-      kind: 'cpu',
+      uri: 'cpu',
       name: 'Cpu 1',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-      config: {},
     });
     StateActions.addTrack(draft, {
-      engineId: '2',
-      kind: 'cpu',
+      uri: 'cpu',
       name: 'Cpu 2',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-      config: {},
     });
   });
 
@@ -240,7 +227,7 @@ test('pin', () => {
 
   const after = produce(state, (draft) => {
     StateActions.toggleTrackPinned(draft, {
-      trackId: 'c',
+      trackKey: 'c',
     });
   });
   expect(after.pinnedTracks).toEqual(['a', 'c']);
@@ -253,7 +240,7 @@ test('unpin', () => {
 
   const after = produce(state, (draft) => {
     StateActions.toggleTrackPinned(draft, {
-      trackId: 'a',
+      trackKey: 'a',
     });
   });
   expect(after.pinnedTracks).toEqual(['b']);
@@ -284,11 +271,9 @@ test('open second trace from file', () => {
 
   const twice = produce(once, (draft) => {
     StateActions.addTrack(draft, {
-      engineId: '1',
-      kind: 'cpu',
+      uri: 'cpu',
       name: 'Cpu 1',
       trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-      config: {},
     });
   });
 
@@ -330,14 +315,14 @@ test('sortTracksByPriority', () => {
   let state = createEmptyState();
   state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
   state = fakeTrack(state, {
-    id: 'b',
-    kind: HEAP_PROFILE_TRACK_KIND,
+    key: 'b',
+    uri: HEAP_PROFILE_TRACK_KIND,
     trackSortKey: PrimaryTrackSortKey.HEAP_PROFILE_TRACK,
     trackGroup: 'g',
   });
   state = fakeTrack(state, {
-    id: 'a',
-    kind: PROCESS_SCHEDULING_TRACK_KIND,
+    key: 'a',
+    uri: PROCESS_SCHEDULING_TRACK_KIND,
     trackSortKey: PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK,
     trackGroup: 'g',
   });
@@ -355,35 +340,35 @@ test('sortTracksByPriorityAndKindAndName', () => {
   let state = createEmptyState();
   state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'b'});
   state = fakeTrack(state, {
-    id: 'a',
-    kind: PROCESS_SCHEDULING_TRACK_KIND,
+    key: 'a',
+    uri: PROCESS_SCHEDULING_TRACK_KIND,
     trackSortKey: PrimaryTrackSortKey.PROCESS_SCHEDULING_TRACK,
     trackGroup: 'g',
   });
   state = fakeTrack(state, {
-    id: 'b',
-    kind: SLICE_TRACK_KIND,
+    key: 'b',
+    uri: SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.MAIN_THREAD,
   });
   state = fakeTrack(state, {
-    id: 'c',
-    kind: SLICE_TRACK_KIND,
+    key: 'c',
+    uri: SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.RENDER_THREAD,
   });
   state = fakeTrack(state, {
-    id: 'd',
-    kind: SLICE_TRACK_KIND,
+    key: 'd',
+    uri: SLICE_TRACK_KIND,
     trackGroup: 'g',
     trackSortKey: PrimaryTrackSortKey.GPU_COMPLETION_THREAD,
   });
   state = fakeTrack(
-      state, {id: 'e', kind: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
+      state, {key: 'e', uri: HEAP_PROFILE_TRACK_KIND, trackGroup: 'g'});
   state = fakeTrack(
-      state, {id: 'f', kind: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T2'});
+      state, {key: 'f', uri: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T2'});
   state = fakeTrack(
-      state, {id: 'g', kind: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T10'});
+      state, {key: 'g', uri: SLICE_TRACK_KIND, trackGroup: 'g', name: 'T10'});
 
   const after = produce(state, (draft) => {
     StateActions.sortThreadTracks(draft, {});
@@ -402,8 +387,8 @@ test('sortTracksByTidThenName', () => {
   let state = createEmptyState();
   state = fakeTrackGroup(state, {id: 'g', summaryTrackId: 'a'});
   state = fakeTrack(state, {
-    id: 'a',
-    kind: SLICE_TRACK_KIND,
+    key: 'a',
+    uri: SLICE_TRACK_KIND,
     trackSortKey: {
       utid: 1,
       priority: InThreadTrackSortKey.ORDINARY,
@@ -413,8 +398,8 @@ test('sortTracksByTidThenName', () => {
     tid: '1',
   });
   state = fakeTrack(state, {
-    id: 'b',
-    kind: SLICE_TRACK_KIND,
+    key: 'b',
+    uri: SLICE_TRACK_KIND,
     trackSortKey: {
       utid: 2,
       priority: InThreadTrackSortKey.ORDINARY,
@@ -424,8 +409,8 @@ test('sortTracksByTidThenName', () => {
     tid: '2',
   });
   state = fakeTrack(state, {
-    id: 'c',
-    kind: THREAD_STATE_TRACK_KIND,
+    key: 'c',
+    uri: THREAD_STATE_TRACK_KIND,
     trackSortKey: {
       utid: 1,
       priority: InThreadTrackSortKey.ORDINARY,
@@ -449,8 +434,8 @@ test('perf samples open flamegraph', () => {
     StateActions.selectPerfSamples(draft, {
       id: 0,
       upid: 0,
-      leftTs: 0n,
-      rightTs: 0n,
+      leftTs: Time.fromRaw(0n),
+      rightTs: Time.fromRaw(0n),
       type: ProfileType.PERF_SAMPLE,
     });
   });
@@ -463,8 +448,12 @@ test('heap profile opens flamegraph', () => {
   const state = createEmptyState();
 
   const afterSelectingPerf = produce(state, (draft) => {
-    StateActions.selectHeapProfile(
-        draft, {id: 0, upid: 0, ts: 0n, type: ProfileType.JAVA_HEAP_GRAPH});
+    StateActions.selectHeapProfile(draft, {
+      id: 0,
+      upid: 0,
+      ts: Time.fromRaw(0n),
+      type: ProfileType.JAVA_HEAP_GRAPH,
+    });
   });
 
   expect(assertExists(afterSelectingPerf.currentFlamegraphState).type)

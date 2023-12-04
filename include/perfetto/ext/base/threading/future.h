@@ -58,6 +58,10 @@ Future<T> MakeFuture(Args... args) {
 //    cancelled. Note, that the implementation of the source future still needs
 //    to propogate cancellation across thread/socket/pipe boundary.
 //
+// Note: Futures *must* be polled on the same thread on which they were created.
+// The |SpawnResultFuture| can be used to move the results of Futures between
+// threads in a safe manner.
+//
 // Implementation note:
 // An important point to note is that Future<T> is a final class. Implementation
 // of Future<T>::Poll happens through an indirection layer by implementing the

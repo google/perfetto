@@ -82,6 +82,7 @@ void IndexSearchWithComparator(ValType val,
     builder.Append(comparator(*(data_ptr + *cur_idx), val));
   }
 }
+
 }  // namespace utils
 
 }  // namespace storage

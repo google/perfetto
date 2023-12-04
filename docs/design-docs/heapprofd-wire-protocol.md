@@ -6,7 +6,7 @@ _**Reviewers**: rsavitski, primiano_
 _**Last Updated**: 2019-02-11_
 
 ## Objective
-Restructure heapprofd to make use of the <code>[SharedRingBuffer](https://cs.android.com/android/platform/superproject/+/master:external/perfetto/src/profiling/memory/shared_ring_buffer.cc)</code>.
+Restructure heapprofd to make use of the <code>[SharedRingBuffer](https://cs.android.com/android/platform/superproject/+/main:external/perfetto/src/profiling/memory/shared_ring_buffer.cc)</code>.
 
 
 ## Overview

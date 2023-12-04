@@ -16,12 +16,14 @@
 
 -- Provides a list of broadcast names and processes they were sent to by the
 -- system_server process on U+ devices.
---
--- @column type          The name of the broadcast type which was sent.
--- @column process_name  The process name the broadcast was sent to.
--- @column queue_name    The name of the broacast queue the broadcast was
---                       dispatched from.
-CREATE VIEW experimental_android_broadcasts_minsdk_u AS
+CREATE PERFETTO VIEW experimental_android_broadcasts_minsdk_u(
+  -- The name of the broadcast type which was sent.
+  type STRING,
+  -- The process name the broadcast was sent to.
+  process_name STRING,
+  -- The name of the broacast queue the broadcast was dispatched from.
+  queue_name STRING
+) AS
 WITH
 broadcast_queues AS (
   SELECT process_track.id, process_track.name AS queue_name

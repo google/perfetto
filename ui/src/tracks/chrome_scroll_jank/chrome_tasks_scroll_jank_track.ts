@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {v4 as uuidv4} from 'uuid';
-
-import {Engine} from '../../common/engine';
-import {NUM} from '../../common/query_result';
 import {InThreadTrackSortKey} from '../../common/state';
 import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {runQueryInNewTab} from '../../frontend/query_result_tab';
-import {NewTrackArgs, Track} from '../../frontend/track';
+import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {Engine} from '../../trace_processor/engine';
+import {NUM} from '../../trace_processor/query_result';
 
-import {ScrollJankTracks as DecideTracksResult} from './index';
-import {ENABLE_CHROME_SCROLL_JANK_PLUGIN} from './index';
+import {
+  ENABLE_CHROME_SCROLL_JANK_PLUGIN,
+  ScrollJankTracks as DecideTracksResult,
+} from './index';
 
 interface ChromeTasksScrollJankTrackConfig {}
 
@@ -36,17 +35,18 @@ interface ChromeTasksScrollJankTrackTypes extends NamedSliceTrackTypes {
 export class ChromeTasksScrollJankTrack extends
     NamedSliceTrack<ChromeTasksScrollJankTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.BrowserUIThreadLongTasks';
-  static create(args: NewTrackArgs): Track {
+  static create(args: NewTrackArgs): TrackBase {
     return new ChromeTasksScrollJankTrack(args);
   }
 
-  async initSqlTable(tableName: string) {
-    await this.engine.query(`
-create view ${tableName} as
-select s2.ts, s2.dur, s2.id, 0 as depth, s1.full_name as name
+  constructor(args: NewTrackArgs) {
+    super(args);
+  }
+
+  getSqlSource(): string {
+    return `select s2.ts as ts, s2.dur as dur, s2.id as id, 0 as depth, s1.full_name as name
 from chrome_tasks_delaying_input_processing s1
-join slice s2 on s2.id=s1.slice_id
-    `);
+join slice s2 on s2.id=s1.slice_id`;
   }
 }
 export type GetTrackGroupUuidFn = (utid: number, upid: number|null) => string;
@@ -77,40 +77,14 @@ export async function decideTracks(
   }
 
   result.tracksToAdd.push({
-    id: uuidv4(),
-    engineId: engine.id,
-    kind: ChromeTasksScrollJankTrack.kind,
+    uri: 'perfetto.ChromeScrollJank',
     trackSortKey: {
       utid: it.utid,
       priority: InThreadTrackSortKey.ORDINARY,
     },
     name: 'Scroll Jank causes - long tasks',
-    config: {},
     trackGroup: getTrackGroupUuid(it.utid, it.upid),
   });
-
-  // Initialise the chrome_tasks_delaying_input_processing table. It will be
-  // used in the sql table above.
-  await engine.query(`
-select RUN_METRIC(
-   'chrome/chrome_tasks_delaying_input_processing.sql',
-   'duration_causing_jank_ms',
-   /* duration_causing_jank_ms = */ '8');`);
-
-  const query = `
-     select
-       s1.full_name,
-       s1.duration_ms,
-       s1.slice_id,
-       s1.thread_dur_ms,
-       s2.id,
-       s2.ts,
-       s2.dur,
-       s2.track_id
-     from chrome_tasks_delaying_input_processing s1
-     join slice s2 on s1.slice_id=s2.id
-     `;
-  runQueryInNewTab(query, 'Scroll Jank: long tasks');
 
   return result;
 }

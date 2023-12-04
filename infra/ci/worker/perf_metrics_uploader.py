@@ -124,7 +124,7 @@ def main():
 
   # Only upload Stackdriver metrics for post-submit runs.
   git_ref = job['env'].get('PERFETTO_TEST_GIT_REF')
-  if git_ref == 'refs/heads/master':
+  if git_ref == 'refs/heads/main':
     sd_metrics_chunks = create_stackdriver_metrics(ts, metrics)
     for sd_metrics in sd_metrics_chunks:
       req('POST', STACKDRIVER_API + '/timeSeries', body=sd_metrics)

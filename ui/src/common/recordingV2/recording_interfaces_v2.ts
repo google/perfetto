@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceConfig} from '../protos';
+import {TraceConfig} from '../../protos';
 
 // TargetFactory connects, disconnects and keeps track of targets.
 // There is one factory for AndroidWebusb, AndroidWebsocket, Chrome etc.

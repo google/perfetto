@@ -119,6 +119,17 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
                          std::forward<T>(value));
   }
 
+  // Read arbitrary user data that is associated with the thread-local per
+  // instance state of the track event. `key` must be non-null and unique
+  // per TrackEventTlsStateUserData subclass.
+  TrackEventTlsStateUserData* GetTlsUserData(const void* key);
+
+  // Set arbitrary user data that is associated with the thread-local per
+  // instance state of the track event. `key` must be non-null and unique
+  // per TrackEventTlsStateUserData subclass.
+  void SetTlsUserData(const void* key,
+                      std::unique_ptr<TrackEventTlsStateUserData> data);
+
  private:
   template <typename, size_t, typename, typename>
   friend class TrackEventInternedDataIndex;
@@ -129,7 +140,7 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
 
   EventContext(TracePacketHandle,
                internal::TrackEventIncrementalState*,
-               const internal::TrackEventTlsState*);
+               internal::TrackEventTlsState*);
   EventContext(const EventContext&) = delete;
 
   protos::pbzero::DebugAnnotation* AddDebugAnnotation(const char* name);
@@ -142,7 +153,7 @@ class PERFETTO_EXPORT_COMPONENT EventContext {
   // TODO(mohitms): Make it const-reference instead of pointer, once we
   // are certain that it cannot be nullptr. Once we switch to client library in
   // chrome, we can make that happen.
-  const internal::TrackEventTlsState* tls_state_ = nullptr;
+  internal::TrackEventTlsState* tls_state_ = nullptr;
   // TODO(kraskevich): Come up with a more precise name once we have more than
   // one usecase.
   // TODO(kraskevich): Remove once Chromium has fully switched to client lib.

@@ -47,7 +47,7 @@ message AndroidStartupMetric {
 
   // Timing information spanning the intent received by the
   // activity manager to the first frame drawn.
-  // Next id: 35.
+  // Next id: 36.
   message ToFirstFrame {
     // The duration between the intent received and first frame.
     optional int64 dur_ns = 1;
@@ -85,6 +85,9 @@ message AndroidStartupMetric {
 
     // The actual duration of the process start (based on the zygote slice).
     optional Slice time_during_start_process = 11;
+
+    // The duration from launch to first running state thread of startup process.
+    optional Slice time_to_running_state = 35;
 
     optional Slice to_post_fork = 18;
     optional Slice to_activity_thread_main = 19;
@@ -155,13 +158,13 @@ message AndroidStartupMetric {
     optional string destination_thread = 3;
     optional string destination_process = 4;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=15;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string flags = 5;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=14;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional string code = 6;
     // From
-    // https://cs.android.com/android/platform/superproject/+/master:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
+    // https://cs.android.com/android/platform/superproject/+/main:external/perfetto/protos/perfetto/trace/ftrace/binder.proto;l=37;drc=7b6a788162a30802f4c9d8d7a30a54e25edd30f1
     optional int64 data_size = 7;
   }
 
@@ -225,7 +228,13 @@ message AndroidStartupMetric {
     optional int64 dex2oat_dur_ns = 7;
   }
 
-  // Next id: 21
+  // Contains detailed information for slow startup causes.
+  message SlowStartReasonDetailed {
+    optional string reason = 1;
+    optional string details = 2;
+  }
+
+  // Next id: 22
   message Startup {
     // Random id uniquely identifying an app startup in this trace.
     optional uint32 startup_id = 1;
@@ -295,6 +304,9 @@ message AndroidStartupMetric {
     // A list of identified potential causes for slow startup.
     // Optional.
     repeated string slow_start_reason = 17;
+
+    // Same as slow_start_reason, but with more detailed information.
+    repeated SlowStartReasonDetailed slow_start_reason_detailed = 21;
 
     reserved 10;
   }

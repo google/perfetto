@@ -38,6 +38,7 @@ exec_node() {
   # run. That will pick whatever "npm" is in the PATH which might be strongly
   # different than ours in /buildtools.
   export PATH="$NODE_DIR/bin:$ROOT_DIR/tools:$PATH"
+  export NODE_OPTIONS="--max_old_space_size=8192 ${NODE_OPTIONS:-}"
   exec node "$@"
 }
 

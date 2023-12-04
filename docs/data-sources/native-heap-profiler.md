@@ -63,7 +63,7 @@ heap profiling can be enabled alongside any other tracing data sources.
 You can use the `tools/heap_profile` script. If you are having trouble
 make sure you are using the
 [latest version](
-https://raw.githubusercontent.com/google/perfetto/master/tools/heap_profile).
+https://raw.githubusercontent.com/google/perfetto/main/tools/heap_profile).
 
 You can target processes either by name (`-n com.example.myapp`) or by PID
 (`-p 1234`). In the first case, the heap profile will be initiated on both on
@@ -225,7 +225,7 @@ empty profile.
 On userdebug builds, all processes except for a small set of critical
 services can be profiled (to find the set of disallowed targets, look for
 `never_profile_heap` in [heapprofd.te](
-https://cs.android.com/android/platform/superproject/+/master:system/sepolicy/private/heapprofd.te?q=never_profile_heap).
+https://cs.android.com/android/platform/superproject/+/main:system/sepolicy/private/heapprofd.te?q=never_profile_heap).
 This restriction can be lifted by disabling SELinux by running
 `adb shell su root setenforce 0` or by passing `--disable-selinux` to the
 `heap_profile` script.

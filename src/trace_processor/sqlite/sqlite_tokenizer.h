@@ -19,6 +19,7 @@
 
 #include <optional>
 #include <string_view>
+#include "src/trace_processor/sqlite/sql_source.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -67,7 +68,7 @@ enum class SqliteTokenType : uint32_t {
 // https://www2.sqlite.org/hlr40000.html
 //
 // Usage of this class:
-// SqliteTokenizer tzr(my_sql_string.c_str());
+// SqliteTokenizer tzr(std::move(my_sql_source));
 // for (auto t = tzr.Next(); t.token_type != TK_SEMI; t = tzr.Next()) {
 //   // Handle t here
 // }
@@ -79,14 +80,25 @@ class SqliteTokenizer {
     std::string_view str;
 
     // The type of the token.
-    SqliteTokenType token_type;
+    SqliteTokenType token_type = SqliteTokenType::TK_ILLEGAL;
 
     bool operator==(const Token& o) const {
       return str == o.str && token_type == o.token_type;
     }
+
+    // Returns if the token is empty or semicolon.
+    bool IsTerminal() {
+      return token_type == SqliteTokenType::TK_SEMI || str.empty();
+    }
   };
 
-  explicit SqliteTokenizer(const char* sql);
+  enum class EndToken {
+    kExclusive,
+    kInclusive,
+  };
+
+  // Creates a tokenizer which tokenizes |sql|.
+  explicit SqliteTokenizer(SqlSource sql);
 
   // Returns the next SQL token.
   Token Next();
@@ -94,15 +106,58 @@ class SqliteTokenizer {
   // Returns the next SQL token which is not of type TK_SPACE.
   Token NextNonWhitespace();
 
-  // Returns the pointer to the start of the next token which will be returned.
-  const char* ptr() const { return ptr_; }
+  // Returns the next SQL token which is terminal.
+  Token NextTerminal();
 
- private:
-  const unsigned char* unsigned_ptr() const {
-    return reinterpret_cast<const unsigned char*>(ptr_);
+  // Returns an SqlSource containing all the tokens between |start| and |end|.
+  //
+  // Note: |start| and |end| must both have been previously returned by this
+  // tokenizer.
+  SqlSource Substr(const Token& start, const Token& end) const;
+
+  // Returns an SqlSource containing only the SQL backing |token|.
+  //
+  // Note: |token| must have been previously returned by this tokenizer.
+  SqlSource SubstrToken(const Token& token) const;
+
+  // Returns a traceback error message for the SqlSource backing this tokenizer
+  // pointing to |token|. See SqlSource::AsTraceback for more information about
+  // this method.
+  //
+  // Note: |token| must have been previously returned by this tokenizer.
+  std::string AsTraceback(const Token&) const;
+
+  // Replaces the SQL in |rewriter| between |start| and |end| with the contents
+  // of |rewrite|. If |end_token| == kInclusive, the end token is also included
+  // in the rewrite.
+  void Rewrite(SqlSource::Rewriter& rewriter,
+               const Token& start,
+               const Token& end,
+               SqlSource rewrite,
+               EndToken end_token = EndToken::kExclusive) const;
+
+  // Replaces the SQL in |rewriter| backing |token| with the contents of
+  // |rewrite|.
+  void RewriteToken(SqlSource::Rewriter&,
+                    const Token&,
+                    SqlSource rewrite) const;
+
+  // Resets this tokenizer to tokenize |source|. Any previous returned tokens
+  // are invalidated.
+  void Reset(SqlSource source) {
+    source_ = std::move(source);
+    offset_ = 0;
   }
 
-  const char* ptr_ = nullptr;
+ private:
+  SqliteTokenizer(const SqliteTokenizer&) = delete;
+  SqliteTokenizer& operator=(const SqliteTokenizer&) = delete;
+
+  SqliteTokenizer(SqliteTokenizer&&) = delete;
+  SqliteTokenizer& operator=(SqliteTokenizer&&) = delete;
+
+  SqlSource source_;
+  uint32_t offset_ = 0;
 };
 
 }  // namespace trace_processor

@@ -16,21 +16,22 @@
 import m from 'mithril';
 
 import {BigintMath} from '../base/bigint_math';
+import {copyToClipboard} from '../base/clipboard';
+import {isString} from '../base/object_utils';
+import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {QueryResponse} from '../common/queries';
-import {Row} from '../common/query_result';
-import {formatDurationShort, tpDurationFromNanos} from '../common/time';
+import {Row} from '../trace_processor/query_result';
+import {Anchor} from '../widgets/anchor';
+import {Button} from '../widgets/button';
+import {Callout} from '../widgets/callout';
+import {DetailsShell} from '../widgets/details_shell';
 
-import {Anchor} from './anchor';
-import {copyToClipboard, queryResponseToClipboard} from './clipboard';
+import {queryResponseToClipboard} from './clipboard';
 import {downloadData} from './download_utils';
 import {globals} from './globals';
-import {Panel} from './panel';
 import {Router} from './router';
 import {reveal} from './scroll_helper';
-import {Button} from './widgets/button';
-import {Callout} from './widgets/callout';
-import {DetailsShell} from './widgets/details_shell';
 
 interface QueryTableRowAttrs {
   row: Row;
@@ -57,7 +58,7 @@ function hasTrackId(row: Row): row is Row&{track_id: Numeric} {
 }
 
 function hasType(row: Row): row is Row&{type: string} {
-  return ('type' in row && typeof row.type === 'string');
+  return ('type' in row && isString(row.type));
 }
 
 function hasId(row: Row): row is Row&{id: Numeric} {
@@ -138,26 +139,26 @@ class QueryTableRow implements m.ClassComponent<QueryTableRowAttrs> {
 
   private highlightSlice(row: Row&Sliceish, nextTab?: string) {
     const trackId = Number(row.track_id);
-    const sliceStart = BigInt(row.ts);
+    const sliceStart = Time.fromRaw(BigInt(row.ts));
     // row.dur can be negative. Clamp to 1ns.
     const sliceDur = BigintMath.max(BigInt(row.dur), 1n);
-    const uiTrackId = globals.state.uiTrackIdByTraceTrackId[trackId];
-    if (uiTrackId !== undefined) {
-      reveal(uiTrackId, sliceStart, sliceStart + sliceDur, true);
+    const trackKey = globals.state.trackKeyByTrackId[trackId];
+    if (trackKey !== undefined) {
+      reveal(trackKey, sliceStart, Time.add(sliceStart, sliceDur), true);
       const sliceId = getSliceId(row);
       if (sliceId !== undefined) {
-        this.selectSlice(sliceId, uiTrackId, nextTab);
+        this.selectSlice(sliceId, trackKey, nextTab);
       }
     }
   }
 
-  private selectSlice(sliceId: number, uiTrackId: string, nextTab?: string) {
+  private selectSlice(sliceId: number, trackKey: string, nextTab?: string) {
     const action = Actions.selectChromeSlice({
       id: sliceId,
-      trackId: uiTrackId,
+      trackKey,
       table: 'slice',
     });
-    globals.makeSelection(action, nextTab);
+    globals.makeSelection(action, {tab: nextTab});
   }
 }
 
@@ -201,7 +202,7 @@ interface QueryTableAttrs {
   fillParent: boolean;
 }
 
-export class QueryTable extends Panel<QueryTableAttrs> {
+export class QueryTable implements m.ClassComponent<QueryTableAttrs> {
   view({attrs}: m.CVnode<QueryTableAttrs>) {
     const {
       resp,
@@ -228,10 +229,7 @@ export class QueryTable extends Panel<QueryTableAttrs> {
       return 'Query - running';
     }
     const result = resp.error ? 'error' : `${resp.rows.length} rows`;
-    const msToNs = 1e6;
-    const dur =
-        formatDurationShort(tpDurationFromNanos(resp.durationMs * msToNs));
-    return `Query result (${result}) - ${dur}`;
+    return `Query result (${result}) - ${resp.durationMs.toLocaleString()}ms`;
   }
 
   renderButtons(
@@ -277,6 +275,4 @@ export class QueryTable extends Panel<QueryTableAttrs> {
         m(QueryTableContent, {resp}),
     );
   }
-
-  renderCanvas() {}
 }

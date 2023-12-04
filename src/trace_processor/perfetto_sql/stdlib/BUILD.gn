@@ -23,7 +23,11 @@ perfetto_amalgamated_sql_header("stdlib") {
     "chrome:chrome_sql",
     "common",
     "experimental",
+    "intervals",
+    "linux",
     "pkvm",
+    "prelude",
+    "sched",
   ]
   generated_header = "stdlib.h"
   namespace = "stdlib"

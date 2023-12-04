@@ -172,7 +172,7 @@ chance of sampling an allocation at least once, given the sampling rate we’re
 using. This resolves the above issues.
 
 [algorithm]:
-  https://cs.android.com/android/platform/superproject/+/master:external/perfetto/src/profiling/memory/sampler.h
+  https://cs.android.com/android/platform/superproject/+/main:external/perfetto/src/profiling/memory/sampler.h
 [example visualization]: /docs/images/native-heap-prof.png
 [Android Heap Profiler]: /docs/design-docs/heapprofd-design
 [mean absolute percentage error]: https://en.wikipedia.org/wiki/Mean_absolute_percentage_error

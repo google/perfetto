@@ -51,5 +51,5 @@ SELECT
       CASE WHEN int_value <> 0 THEN 'true'
       ELSE 'false' END)
     WHEN 'json' THEN string_value
-  ELSE 'NULL' END AS display_value
+  ELSE NULL END AS display_value
 FROM internal_args;

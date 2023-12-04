@@ -134,7 +134,7 @@ full-copy of the DB.
 /ci
     # For post-submit jobs.
     /branches
-        /master-20190626000853
+        /main-20190626000853
         # ┃     ┗━ Committer-date of the HEAD of the branch.
         # ┗━ Branch name
         {
@@ -144,12 +144,12 @@ full-copy of the DB.
             time_committed: "2019-07-06T02:35:14Z"
             jobs:
             {
-                20190708153242--branches-master-20190626000853--android-...: 0
-                20190708153242--branches-master-20190626000853--linux-...:  0
+                20190708153242--branches-main-20190626000853--android-...: 0
+                20190708153242--branches-main-20190626000853--linux-...:  0
                 ...
             }
         }
-        /master-20190701235742 {...}
+        /main-20190701235742 {...}
 
     # For pre-submit jobs.
     /cls

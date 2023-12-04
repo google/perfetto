@@ -14,9 +14,9 @@
 -- limitations under the License.
 
 DROP TABLE IF EXISTS android_jank_cuj_counter;
-CREATE TABLE android_jank_cuj_counter AS
+CREATE PERFETTO TABLE android_jank_cuj_counter AS
 WITH cuj_counter_track AS (
-  SELECT
+  SELECT DISTINCT
     upid,
     track.id AS track_id,
     -- extract the CUJ name inside <>
@@ -36,7 +36,7 @@ SELECT
 FROM counter
 JOIN cuj_counter_track ON counter.track_id = cuj_counter_track.track_id;
 
-CREATE PERFETTO FUNCTION ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name STRING,
+CREATE PERFETTO FUNCTION android_jank_cuj_counter_value(cuj_name STRING,
                                                         counter_name STRING,
                                                         ts_min INT,
                                                         ts_max INT)
@@ -51,7 +51,7 @@ WHERE
 ORDER BY ts ASC LIMIT 1;
 
 DROP TABLE IF EXISTS cuj_marker_missed_callback;
-CREATE TABLE cuj_marker_missed_callback AS
+CREATE PERFETTO TABLE cuj_marker_missed_callback AS
 SELECT
   marker_track.name AS cuj_slice_name,
   marker.ts,
@@ -60,7 +60,7 @@ FROM slice marker
 JOIN track marker_track on  marker_track.id = marker.track_id
 WHERE marker.name GLOB '*FT#Missed*';
 
-CREATE PERFETTO FUNCTION ANDROID_MISSED_VSYNCS_FOR_CALLBACK(
+CREATE PERFETTO FUNCTION android_missed_vsyncs_for_callback(
   cuj_slice_name STRING,
   ts_min INT,
   ts_max INT,
@@ -77,7 +77,7 @@ ORDER BY ts ASC
 LIMIT 1;
 
 DROP TABLE IF EXISTS android_jank_cuj_counter_metrics;
-CREATE TABLE android_jank_cuj_counter_metrics AS
+CREATE PERFETTO TABLE android_jank_cuj_counter_metrics AS
 -- Order CUJs to get the ts of the next CUJ with the same name.
 -- This is to avoid selecting counters logged for the next CUJ in case multiple
 -- CUJs happened in a short succession.
@@ -103,13 +103,13 @@ SELECT
   cuj_name,
   upid,
   state,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'totalFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS total_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedAppFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_app_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
+  android_jank_cuj_counter_value(cuj_name, 'totalFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS total_frames,
+  android_jank_cuj_counter_value(cuj_name, 'missedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames,
+  android_jank_cuj_counter_value(cuj_name, 'missedAppFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_app_frames,
+  android_jank_cuj_counter_value(cuj_name, 'missedSfFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_sf_frames,
+  android_jank_cuj_counter_value(cuj_name, 'maxSuccessiveMissedFrames', ts_earliest_allowed_counter, ts_end_next_cuj) AS missed_frames_max_successive,
   -- convert ms to nanos to align with the unit for `dur` in the other tables
-  ANDROID_JANK_CUJ_COUNTER_VALUE(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
-  ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,
-  ANDROID_MISSED_VSYNCS_FOR_CALLBACK(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*HWUI*') AS hwui_callback_missed_frames
+  android_jank_cuj_counter_value(cuj_name, 'maxFrameTimeMillis', ts_earliest_allowed_counter, ts_end_next_cuj) * 1000000 AS frame_dur_max,
+  android_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*SF*') AS sf_callback_missed_frames,
+  android_missed_vsyncs_for_callback(cuj_slice_name, ts_earliest_allowed_counter, ts_end_next_cuj, '*HWUI*') AS hwui_callback_missed_frames
 FROM cujs_ordered cuj;

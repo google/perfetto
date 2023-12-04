@@ -66,6 +66,7 @@ message ChromeProcessDescriptor {
     PROCESS_SERVICE_RECORDING = 38;
     PROCESS_SERVICE_SHAPEDETECTION = 39;
     PROCESS_RENDERER_EXTENSION = 40;
+    PROCESS_SERVICE_MEDIA_FOUNDATION = 41;
   }
   optional ProcessType process_type = 1;
   optional int32 process_priority = 2;

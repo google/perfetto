@@ -214,6 +214,9 @@ AndroidPowerDataSource::AndroidPowerDataSource(
       case AndroidPowerConfig::BATTERY_COUNTER_CURRENT_AVG:
         hal_id = android_internal::BatteryCounter::kCurrentAvg;
         break;
+      case AndroidPowerConfig::BATTERY_COUNTER_VOLTAGE:
+        hal_id = android_internal::BatteryCounter::kVoltage;
+        break;
     }
     PERFETTO_CHECK(static_cast<size_t>(hal_id) < counters_enabled_.size());
     counters_enabled_.set(static_cast<size_t>(hal_id));
@@ -289,6 +292,10 @@ void AndroidPowerDataSource::WriteBatteryCounters() {
 
       case android_internal::BatteryCounter::kCurrentAvg:
         counters_proto->set_current_avg_ua(*value);
+        break;
+
+      case android_internal::BatteryCounter::kVoltage:
+        counters_proto->set_voltage_uv(*value);
         break;
     }
   }

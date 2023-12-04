@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 484> descriptors{{
+std::array<FtraceMessageDescriptor, 487> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5321,6 +5321,34 @@ std::array<FtraceMessageDescriptor, 484> descriptors{{
             {"kctx_tgid", ProtoSchemaType::kInt32},
             {"kctx_id", ProtoSchemaType::kUint32},
             {"info_val", ProtoSchemaType::kUint64},
+        },
+    },
+    {
+        "samsung_tracing_mark_write",
+        5,
+        {
+            {},
+            {"pid", ProtoSchemaType::kInt32},
+            {"trace_name", ProtoSchemaType::kString},
+            {"trace_begin", ProtoSchemaType::kUint32},
+            {"trace_type", ProtoSchemaType::kUint32},
+            {"value", ProtoSchemaType::kInt32},
+        },
+    },
+    {
+        "binder_command",
+        1,
+        {
+            {},
+            {"cmd", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "binder_return",
+        1,
+        {
+            {},
+            {"cmd", ProtoSchemaType::kUint32},
         },
     },
 }};

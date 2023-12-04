@@ -14,16 +14,16 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../../common/engine';
-import {STR} from '../../common/query_result';
 import {raf} from '../../core/raf_scheduler';
+import {EngineProxy} from '../../trace_processor/engine';
+import {STR} from '../../trace_processor/query_result';
+import {FilterableSelect} from '../../widgets/select';
+import {Spinner} from '../../widgets/spinner';
 import {
   constraintsToQueryPrefix,
   constraintsToQuerySuffix,
   SQLConstraints,
 } from '../sql_utils';
-import {FilterableSelect} from '../widgets/select';
-import {Spinner} from '../widgets/spinner';
 
 import {argColumn} from './column';
 import {ArgSetIdColumn} from './table_description';

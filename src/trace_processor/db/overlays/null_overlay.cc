@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/overlays/null_overlay.h"
 #include "perfetto/ext/base/flat_hash_map.h"
+#include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/overlays/types.h"
 
@@ -150,6 +151,11 @@ CostEstimatePerRow NullOverlay::EstimateCostPerRow(OverlayOp op) const {
   }
 
   return res;
+}
+
+void NullOverlay::Serialize(OverlayProto* message) const {
+  auto* bv_message = message->set_null_overlay()->set_bit_vector();
+  non_null_->Serialize(bv_message);
 }
 
 }  // namespace overlays

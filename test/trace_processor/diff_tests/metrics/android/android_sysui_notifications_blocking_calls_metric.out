@@ -1,0 +1,37 @@
+android_sysui_notifications_blocking_calls_metric {
+    blocking_calls {
+        name: "ExpNotRow#onMeasure(BigTextStyle)"
+        cnt: 1
+        total_dur_ns: 10000000
+        max_dur_ns: 10000000
+        min_dur_ns: 10000000
+    }
+    blocking_calls {
+        name: "ExpNotRow#onMeasure(MessagingStyle)"
+        cnt: 1
+        total_dur_ns: 10000000
+        max_dur_ns: 10000000
+        min_dur_ns: 10000000
+    }
+    blocking_calls {
+        name: "ImageFloatingTextView#onMeasure"
+        cnt: 1
+        total_dur_ns: 10000000
+        max_dur_ns: 10000000
+        min_dur_ns: 10000000
+    }
+    blocking_calls {
+        name: "NotificationShadeWindowView#onMeasure"
+        cnt: 1
+        total_dur_ns: 10000000
+        max_dur_ns: 10000000
+        min_dur_ns: 10000000
+    }
+    blocking_calls {
+        name: "NotificationStackScrollLayout#onMeasure"
+        cnt: 1
+        total_dur_ns: 10000000
+        max_dur_ns: 10000000
+        min_dur_ns: 10000000
+    }
+}

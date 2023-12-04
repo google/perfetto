@@ -14,25 +14,28 @@
 
 import m from 'mithril';
 
-import {Actions} from '../common/actions';
-import {EngineProxy} from '../common/engine';
-import {LONG, NUM, NUM_NULL, STR_NULL} from '../common/query_result';
-import {translateState} from '../common/thread_state';
+import {Icons} from '../base/semantic_icons';
 import {
-  TPDuration,
-  TPTime,
-} from '../common/time';
+  duration,
+  Time,
+  time,
+} from '../base/time';
+import {exists} from '../base/utils';
+import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
+import {translateState} from '../common/thread_state';
+import {EngineProxy} from '../trace_processor/engine';
+import {LONG, NUM, NUM_NULL, STR_NULL} from '../trace_processor/query_result';
+import {CPU_SLICE_TRACK_KIND} from '../tracks/cpu_slices';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {Anchor} from '../widgets/anchor';
 
-import {Anchor} from './anchor';
 import {globals} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
-import {Icons} from './semantic_icons';
 import {
-  asTPTimestamp,
   asUtid,
   SchedSqlId,
   ThreadStateSqlId,
-  TPTimestamp,
   Utid,
 } from './sql_types';
 import {
@@ -53,9 +56,9 @@ export interface ThreadState {
   // Id of the corresponding entry in the |sched| table.
   schedSqlId?: SchedSqlId;
   // Timestamp of the beginning of this thread state in nanoseconds.
-  ts: TPTimestamp;
+  ts: time;
   // Duration of this thread state in nanoseconds.
-  dur: TPDuration;
+  dur: duration;
   // CPU id if this thread state corresponds to a thread running on the CPU.
   cpu?: number;
   // Human-readable name of this thread state.
@@ -112,7 +115,7 @@ export async function getThreadStateFromConstraints(
     result.push({
       threadStateSqlId: it.threadStateSqlId as ThreadStateSqlId,
       schedSqlId: fromNumNull(it.schedSqlId) as (SchedSqlId | undefined),
-      ts: asTPTimestamp(it.ts),
+      ts: Time.fromRaw(it.ts),
       dur: it.dur,
       cpu: fromNumNull(it.cpu),
       state: translateState(it.state || undefined, ioWait),
@@ -139,25 +142,30 @@ export async function getThreadState(
   return result[0];
 }
 
-export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: TPTime) {
+export function goToSchedSlice(cpu: number, id: SchedSqlId, ts: time) {
   let trackId: string|undefined;
   for (const track of Object.values(globals.state.tracks)) {
-    if (track.kind === 'CpuSliceTrack' &&
-        (track.config as {cpu: number}).cpu === cpu) {
-      trackId = track.id;
+    if (exists(track?.uri)) {
+      const trackInfo = pluginManager.resolveTrackInfo(track.uri);
+      if (trackInfo?.kind === CPU_SLICE_TRACK_KIND) {
+        if (trackInfo?.cpu === cpu) {
+          trackId = track.key;
+          break;
+        }
+      }
     }
   }
   if (trackId === undefined) {
     return;
   }
-  globals.makeSelection(Actions.selectSlice({id, trackId}));
+  globals.makeSelection(Actions.selectSlice({id, trackKey: trackId}));
   scrollToTrackAndTs(trackId, ts);
 }
 
 interface ThreadStateRefAttrs {
   id: ThreadStateSqlId;
-  ts: TPTimestamp;
-  dur: TPDuration;
+  ts: time;
+  dur: duration;
   utid: Utid;
   // If not present, a placeholder name will be used.
   name?: string;
@@ -170,21 +178,23 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
         {
           icon: Icons.UpdateSelection,
           onclick: () => {
-            let trackId: string|number|undefined;
+            let trackKey: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {
-              if (track.kind === 'ThreadStateTrack' &&
-                  (track.config as {utid: number}).utid === vnode.attrs.utid) {
-                trackId = track.id;
+              const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+              // TODO(stevegolton): Handle v2.
+              if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+                  trackDesc.utid === vnode.attrs.utid) {
+                trackKey = track.key;
               }
             }
 
-            if (trackId) {
+            if (trackKey) {
               globals.makeSelection(Actions.selectThreadState({
                 id: vnode.attrs.id,
-                trackId: trackId.toString(),
+                trackKey: trackKey.toString(),
               }));
 
-              scrollToTrackAndTs(trackId, vnode.attrs.ts, true);
+              scrollToTrackAndTs(trackKey, vnode.attrs.ts, true);
             }
           },
         },

@@ -230,6 +230,9 @@ class CompactSchedBuffer {
   // internally.
   void WriteAndReset(protos::pbzero::FtraceEventBundle* bundle);
 
+  // Not normally needed: reinitialise the buffer from an unknown state.
+  void Reset();
+
  private:
   CommInterner interner_;
   CompactSchedSwitchBuffer switch_;

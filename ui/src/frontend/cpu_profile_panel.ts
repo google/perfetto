@@ -15,12 +15,13 @@
 import m from 'mithril';
 
 import {CallsiteInfo} from '../common/state';
+
 import {globals} from './globals';
-import {Panel} from './panel';
 
 interface CpuProfileDetailsPanelAttrs {}
 
-export class CpuProfileDetailsPanel extends Panel<CpuProfileDetailsPanelAttrs> {
+export class CpuProfileDetailsPanel implements
+    m.ClassComponent<CpuProfileDetailsPanelAttrs> {
   view() {
     const sampleDetails = globals.cpuProfileDetails;
     const header =
@@ -45,6 +46,4 @@ export class CpuProfileDetailsPanel extends Panel<CpuProfileDetailsPanelAttrs> {
 
     return result;
   }
-
-  renderCanvas() {}
 }

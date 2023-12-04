@@ -17,7 +17,7 @@
 SELECT RUN_METRIC('android/process_metadata.sql');
 
 DROP VIEW IF EXISTS android_task_names_output;
-CREATE VIEW android_task_names_output AS
+CREATE PERFETTO VIEW android_task_names_output AS
 WITH
 -- Process to thread name
 threads_by_upid AS (
@@ -31,9 +31,10 @@ threads_by_upid AS (
 upid_packages AS (
   SELECT
     upid,
-    RepeatedField(package_list.package_name) AS packages
+    RepeatedField(package_name) AS packages
   FROM process
-  JOIN package_list ON process.android_appid = package_list.uid
+  JOIN android_process_metadata USING (upid)
+  WHERE package_name IS NOT NULL
   GROUP BY 1
 )
 SELECT AndroidTaskNames(

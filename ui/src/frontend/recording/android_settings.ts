@@ -14,7 +14,7 @@
 
 import m from 'mithril';
 
-import {DataSourceDescriptor} from '../../common/protos';
+import {DataSourceDescriptor} from '../../protos';
 import {globals} from '../globals';
 import {
   Dropdown,
@@ -89,7 +89,7 @@ class AtraceAppsList implements m.ClassComponent {
           'com.android.phone\n' +
           'lmkd\n' +
           'com.android.nfc',
-      cssClass: '.atrace-apps-list',
+      cssClass: '.record-apps-list',
       set: (cfg, val) => cfg.atraceApps = val,
       get: (cfg) => cfg.atraceApps,
     } as TextareaAttrs);

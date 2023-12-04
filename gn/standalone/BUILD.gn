@@ -172,7 +172,10 @@ config("default") {
   libs = []
 
   if ((is_android || is_linux) && !is_wasm) {
-    ldflags += [ "-Wl,--build-id" ]
+    ldflags += [
+      "-Wl,--build-id",
+      "-Wl,-z,max-page-size=16384",
+    ]
   }
 
   if (is_clang || !is_win) {  # Clang or GCC, but not MSVC.
@@ -319,9 +322,11 @@ config("default") {
     include_dirs = win_msvc_inc_dirs  # Defined in msvc.gni.
   }
 
+  if (is_win) {
+    cflags += [ "/Zi" ]
+  }
   if (is_debug) {
     if (is_win) {
-      cflags += [ "/Z7" ]
       if (is_clang) {
         # Required to see symbols in windbg when building with clang-cl.exe.
         cflags += [ "-gcodeview-ghash" ]
@@ -394,7 +399,7 @@ config("default") {
   }
 }
 
-config("debug_symbols") {
+config("debug_noopt") {
   cflags = []
   if (is_win) {
     cflags = [ "/Od" ]

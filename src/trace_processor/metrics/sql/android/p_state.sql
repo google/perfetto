@@ -16,7 +16,7 @@
 SELECT RUN_METRIC("android/android_cpu_agg.sql");
 
 DROP VIEW IF EXISTS p_state_cpu_idle_counter;
-CREATE VIEW p_state_cpu_idle_counter AS
+CREATE PERFETTO VIEW p_state_cpu_idle_counter AS
 SELECT
   ts,
   ts - LAG(ts) OVER (
@@ -38,35 +38,32 @@ CREATE VIRTUAL TABLE p_state_sched_freq_idle USING span_join(
   p_state_cpu_idle_counter PARTITIONED cpu
 );
 
+CREATE OR REPLACE PERFETTO FUNCTION p_state_over_interval(
+  start_ns LONG, end_ns LONG)
+RETURNS TABLE(cpu INT, freq_khz INT, idle_value INT, dur_ns INT)
+AS
+WITH sched_freq_idle_windowed AS (
+  SELECT
+    freq_khz,
+    idle_value,
+    cpu,
+    IIF(ts + dur <= $end_ns, ts + dur, $end_ns) - IIF(ts >= $start_ns, ts, $start_ns) AS dur
+  FROM
+    p_state_sched_freq_idle
+  WHERE
+    ts + dur > $start_ns
+    AND ts < $end_ns
+)
 SELECT
-  CREATE_VIEW_FUNCTION(
-    'P_STATE_OVER_INTERVAL(start_ns LONG, end_ns LONG)',
-    'cpu INT, freq_khz INT, idle_value INT, dur_ns INT',
-    '
-    WITH sched_freq_idle_windowed AS (
-      SELECT
-        freq_khz,
-        idle_value,
-        cpu,
-        IIF(ts + dur <= $end_ns, ts + dur, $end_ns) - IIF(ts >= $start_ns, ts, $start_ns) AS dur
-      FROM
-        p_state_sched_freq_idle
-      WHERE
-        ts + dur > $start_ns
-        AND ts < $end_ns
-    )
-    SELECT
-      cast(cpu AS int) AS cpu,
-      cast(freq_khz AS int) AS freq_khz,
-      cast(idle_value AS int) AS idle_value,
-      cast(sum(dur) AS int) AS dur_ns
-    FROM
-      sched_freq_idle_windowed
-    WHERE
-      freq_khz > 0
-    GROUP BY
-      cpu,
-      freq_khz,
-      idle_value
-  '
-  );
+  cast(cpu AS int) AS cpu,
+  cast(freq_khz AS int) AS freq_khz,
+  cast(idle_value AS int) AS idle_value,
+  cast(sum(dur) AS int) AS dur_ns
+FROM
+  sched_freq_idle_windowed
+WHERE
+  freq_khz > 0
+GROUP BY
+  cpu,
+  freq_khz,
+  idle_value;

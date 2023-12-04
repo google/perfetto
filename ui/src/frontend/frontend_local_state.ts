@@ -13,20 +13,20 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {duration, Span, Time, time, TimeSpan} from '../base/time';
 import {Actions} from '../common/actions';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {HttpRpcState} from '../common/http_rpc_engine';
 import {
   Area,
   FrontendLocalState as FrontendState,
   Timestamped,
   VisibleState,
 } from '../common/state';
-import {Span, TPDuration, TPTime, TPTimeSpan} from '../common/time';
 import {raf} from '../core/raf_scheduler';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
@@ -69,7 +69,7 @@ function calculateScrollbarWidth() {
 // also applies a hard-coded minimum zoom level.
 export class TimeWindow {
   readonly hpTimeSpan = HighPrecisionTimeSpan.ZERO;
-  readonly timeSpan = TPTimeSpan.ZERO;
+  readonly timeSpan = TimeSpan.ZERO;
 
   private readonly MIN_DURATION_NS = 10;
 
@@ -95,9 +95,9 @@ export class TimeWindow {
 
     this.hpTimeSpan =
         new HighPrecisionTimeSpan(start, start.addNanos(durationNanos));
-    this.timeSpan = new TPTimeSpan(
-        this.hpTimeSpan.start.toTPTime('floor'),
-        this.hpTimeSpan.end.toTPTime('ceil'));
+    this.timeSpan = new TimeSpan(
+        this.hpTimeSpan.start.toTime('floor'),
+        this.hpTimeSpan.end.toTime('ceil'));
   }
 
   static fromHighPrecisionTimeSpan(span: Span<HighPrecisionTime>): TimeWindow {
@@ -138,11 +138,11 @@ export class TimeWindow {
         new PxSpan(startPx, endPx));
   }
 
-  get earliest(): TPTime {
+  get earliest(): time {
     return this.timeSpan.start;
   }
 
-  get latest(): TPTime {
+  get latest(): time {
     return this.timeSpan.end;
   }
 }
@@ -157,9 +157,7 @@ export class FrontendLocalState {
   private _windowSpan = PxSpan.ZERO;
   showPanningHint = false;
   showCookieConsent = false;
-  visibleTracks = new Set<string>();
-  prevVisibleTracks = new Set<string>();
-  scrollToTrackId?: string|number;
+  scrollToTrackKey?: string|number;
   httpRpcState: HttpRpcState = {connected: false};
   newVersionAvailable = false;
 
@@ -170,8 +168,8 @@ export class FrontendLocalState {
 
   private _visibleState: VisibleState = {
     lastUpdate: 0,
-    start: 0n,
-    end: BigInt(10e9),
+    start: Time.ZERO,
+    end: Time.fromSeconds(10),
     resolution: 1n,
   };
 
@@ -191,26 +189,6 @@ export class FrontendLocalState {
   setHttpRpcState(httpRpcState: HttpRpcState) {
     this.httpRpcState = httpRpcState;
     raf.scheduleFullRedraw();
-  }
-
-  addVisibleTrack(trackId: string) {
-    this.visibleTracks.add(trackId);
-  }
-
-  // Called when beginning a canvas redraw.
-  clearVisibleTracks() {
-    this.visibleTracks.clear();
-  }
-
-  // Called when the canvas redraw is complete.
-  sendVisibleTracks() {
-    if (this.prevVisibleTracks.size !== this.visibleTracks.size ||
-        ![...this.prevVisibleTracks].every(
-            (value) => this.visibleTracks.has(value))) {
-      globals.dispatch(
-          Actions.setVisibleTracks({tracks: Array.from(this.visibleTracks)}));
-      this.prevVisibleTracks = new Set(this.visibleTracks);
-    }
   }
 
   zoomVisibleWindow(ratio: number, centerPoint: number) {
@@ -240,21 +218,22 @@ export class FrontendLocalState {
     const visibleStateWasUpdated = previousVisibleState !== this._visibleState;
     if (visibleStateWasUpdated) {
       this.updateLocalTime(new HighPrecisionTimeSpan(
-          HighPrecisionTime.fromTPTime(this._visibleState.start),
-          HighPrecisionTime.fromTPTime(this._visibleState.end),
+          HighPrecisionTime.fromTime(this._visibleState.start),
+          HighPrecisionTime.fromTime(this._visibleState.end),
           ));
     }
   }
 
   // Set the highlight box to draw
   selectArea(
-      start: TPTime, end: TPTime,
+      start: time, end: time,
       tracks = this._selectedArea ? this._selectedArea.tracks : []) {
     assertTrue(
         end >= start,
         `Impossible select area: start [${start}] >= end [${end}]`);
     this.showPanningHint = true;
-    this._selectedArea = {start, end, tracks}, raf.scheduleFullRedraw();
+    this._selectedArea = {start, end, tracks};
+    raf.scheduleFullRedraw();
   }
 
   deselectArea() {
@@ -289,8 +268,8 @@ export class FrontendLocalState {
 
   private kickUpdateLocalState() {
     this._visibleState.lastUpdate = Date.now() / 1000;
-    this._visibleState.start = this.visibleWindowTime.start.toTPTime();
-    this._visibleState.end = this.visibleWindowTime.end.toTPTime();
+    this._visibleState.start = this.visibleWindowTime.start.toTime();
+    this._visibleState.end = this.visibleWindowTime.end.toTime();
     this._visibleState.resolution = globals.getCurResolution();
     this.ratelimitedUpdateVisible();
   }
@@ -334,7 +313,7 @@ export class FrontendLocalState {
   }
 
   // Get the bounds of the visible window as a time span
-  get visibleTimeSpan(): Span<TPTime, TPDuration> {
+  get visibleTimeSpan(): Span<time, duration> {
     return this.visibleWindow.timeSpan;
   }
 }

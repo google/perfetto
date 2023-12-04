@@ -18,7 +18,7 @@ SELECT RUN_METRIC('android/process_metadata.sql');
 SELECT RUN_METRIC('android/process_mem.sql');
 
 DROP VIEW IF EXISTS java_heap_stats_output;
-CREATE VIEW java_heap_stats_output AS
+CREATE PERFETTO VIEW java_heap_stats_output AS
 WITH
 -- Base view
 base_stat_counts AS (

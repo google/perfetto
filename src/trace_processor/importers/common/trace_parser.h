@@ -24,6 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 
 class PacketSequenceStateGeneration;
+class TraceBlobView;
 struct InlineSchedSwitch;
 class FuchsiaRecord;
 struct SystraceLine;
@@ -35,6 +36,7 @@ class TraceParser {
  public:
   virtual ~TraceParser();
 
+  virtual void ParseTraceBlobView(int64_t, TraceBlobView);
   virtual void ParseTracePacket(int64_t, TracePacketData);
   virtual void ParseJsonPacket(int64_t, std::string);
   virtual void ParseFuchsiaRecord(int64_t, FuchsiaRecord);

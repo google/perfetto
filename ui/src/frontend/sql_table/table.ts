@@ -14,14 +14,15 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../../common/engine';
-import {Row} from '../../common/query_result';
-import {Anchor} from '../anchor';
-import {Icons} from '../semantic_icons';
-import {BasicTable} from '../widgets/basic_table';
-import {Button} from '../widgets/button';
-import {MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
-import {Spinner} from '../widgets/spinner';
+import {isString} from '../../base/object_utils';
+import {Icons} from '../../base/semantic_icons';
+import {EngineProxy} from '../../trace_processor/engine';
+import {Row} from '../../trace_processor/query_result';
+import {Anchor} from '../../widgets/anchor';
+import {BasicTable} from '../../widgets/basic_table';
+import {Button} from '../../widgets/button';
+import {MenuDivider, MenuItem, PopupMenu2} from '../../widgets/menu';
+import {Spinner} from '../../widgets/spinner';
 
 import {ArgumentSelector} from './argument_selector';
 import {argColumn, Column, columnFromSqlTableColumn} from './column';
@@ -48,9 +49,8 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
   renderFilters(): m.Children {
     const filters: m.Child[] = [];
     for (const filter of this.state.getFilters()) {
-      const label = typeof filter === 'string' ?
-          filter :
-          `Arg(${filter.argName}) ${filter.op}`;
+      const label =
+          isString(filter) ? filter : `Arg(${filter.argName}) ${filter.op}`;
       filters.push(m(Button, {
         label,
         icon: 'close',

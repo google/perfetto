@@ -85,7 +85,8 @@ std::vector<protos::gen::TracePacket> ProfileRuntime(std::string app_name) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(40 * 1024);
-  trace_config.set_duration_ms(6000);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(20000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();
@@ -231,7 +232,8 @@ TEST(HeapprofdJavaCtsTest, DebuggableAppRuntimeByPid) {
 
   TraceConfig trace_config;
   trace_config.add_buffers()->set_size_kb(40 * 1024);
-  trace_config.set_duration_ms(6000);
+  trace_config.set_duration_ms(3000);
+  trace_config.set_data_source_stop_timeout_ms(20000);
   trace_config.set_unique_session_name(RandomSessionName().c_str());
 
   auto* ds_config = trace_config.add_data_sources()->mutable_config();

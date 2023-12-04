@@ -52,6 +52,8 @@ class Service {
     return base::ScopedFile();
   }
 
+  bool use_shmem_emulation() { return use_shmem_emulation_; }
+
  private:
   friend class HostImpl;
   ClientInfo client_info_;
@@ -66,6 +68,10 @@ class Service {
   // invocation per client that supplies an FD and the client needs to
   // wait for this one to return before calling another one.
   base::ScopedFile* received_fd_;
+
+  // Whether the socket needs to emulate shared memory buffer. Set by HostImpl
+  // when the service is exposed.
+  bool use_shmem_emulation_ = false;
 };
 
 }  // namespace ipc

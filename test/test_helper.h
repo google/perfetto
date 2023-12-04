@@ -131,6 +131,9 @@ class ServiceThread {
       svc_ = ServiceIPCHost::CreateInstance(runner_->get());
       auto producer_sockets = TokenizeProducerSockets(producer_socket_.c_str());
       for (const auto& producer_socket : producer_sockets) {
+        // In some cases the socket is a TCP or abstract unix.
+        if (!base::FileExists(producer_socket))
+          continue;
         if (remove(producer_socket.c_str()) == -1) {
           if (errno != ENOENT)
             PERFETTO_FATAL("Failed to remove %s", producer_socket_.c_str());
@@ -246,7 +249,8 @@ class FakeProducerThread {
     PosixSharedMemory::Factory factory;
 #endif
     shm_ = factory.CreateSharedMemory(1024 * 1024);
-    shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(shm_.get(), 4096);
+    shm_arbiter_ = SharedMemoryArbiter::CreateUnboundInstance(
+        shm_.get(), 4096, SharedMemoryABI::ShmemMode::kDefault);
   }
 
   void ProduceStartupEventBatch(const protos::gen::TestConfig& config,
@@ -313,7 +317,7 @@ class TestHelper : public Consumer {
   void StartTracing(const TraceConfig& config,
                     base::ScopedFile = base::ScopedFile());
   void DisableTracing();
-  void FlushAndWait(uint32_t timeout_ms);
+  void FlushAndWait(uint32_t timeout_ms, FlushFlags = FlushFlags());
   void ReadData(uint32_t read_count = 0);
   void FreeBuffers();
   void DetachConsumer(const std::string& key);
@@ -332,6 +336,7 @@ class TestHelper : public Consumer {
   void WaitForTracingDisabled(uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void WaitForReadData(uint32_t read_count = 0,
                        uint32_t timeout_ms = kDefaultTestTimeoutMs);
+  void WaitForAllDataSourceStarted(uint32_t timeout_ms = kDefaultTestTimeoutMs);
   void SyncAndWaitProducer(size_t idx = 0);
   TracingServiceState QueryServiceStateAndWait();
 
@@ -376,6 +381,7 @@ class TestHelper : public Consumer {
   int cur_consumer_num_ = 0;
   uint64_t trace_count_ = 0;
 
+  std::function<void()> on_all_ds_started_callback_;
   std::function<void()> on_connect_callback_;
   std::function<void()> on_packets_finished_callback_;
   std::function<void()> on_stop_tracing_callback_;

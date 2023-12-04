@@ -27,7 +27,7 @@ embedder and the IPC transport.
   - It doesn't open or create sockets (on Android the IPC sockets are passed by
     init, see [perfetto.rc](/perfetto.rc))
   - On Android it runs as nobody:nobody and is allowed to do very little
-    see [traced.te](https://android.googlesource.com/platform/system/sepolicy/+/master/private/traced.te).
+    see [traced.te](https://android.googlesource.com/platform/system/sepolicy/+/main/private/traced.te).
   - In Chromium it should run as a utility process.
 
 ## Consumers

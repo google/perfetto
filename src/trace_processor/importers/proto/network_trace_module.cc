@@ -63,8 +63,12 @@ NetworkTraceModule::NetworkTraceModule(TraceProcessorContext* context)
       net_arg_uid_(context->storage->InternString("socket_uid")),
       net_arg_local_port_(context->storage->InternString("local_port")),
       net_arg_remote_port_(context->storage->InternString("remote_port")),
+      net_arg_icmp_type_(context->storage->InternString("packet_icmp_type")),
+      net_arg_icmp_code_(context->storage->InternString("packet_icmp_code")),
       net_ipproto_tcp_(context->storage->InternString("IPPROTO_TCP")),
       net_ipproto_udp_(context->storage->InternString("IPPROTO_UDP")),
+      net_ipproto_icmp_(context->storage->InternString("IPPROTO_ICMP")),
+      net_ipproto_icmpv6_(context->storage->InternString("IPPROTO_ICMPV6")),
       packet_count_(context->storage->InternString("packet_count")) {
   RegisterForField(TracePacket::kNetworkPacketFieldNumber, context);
   RegisterForField(TracePacket::kNetworkPacketBundleFieldNumber, context);
@@ -184,13 +188,23 @@ void NetworkTraceModule::ParseGenericEvent(
   context_->slice_tracker->Scoped(
       ts, track_id, name_id, title_id, dur, [&](ArgsTracker::BoundInserter* i) {
         StringId ip_proto;
-        if (evt.ip_proto() == kIpprotoTcp) {
-          ip_proto = net_ipproto_tcp_;
-        } else if (evt.ip_proto() == kIpprotoUdp) {
-          ip_proto = net_ipproto_udp_;
-        } else {
-          base::StackString<32> proto("IPPROTO (%d)", evt.ip_proto());
-          ip_proto = context_->storage->InternString(proto.string_view());
+        switch (evt.ip_proto()) {
+          case kIpprotoTcp:
+            ip_proto = net_ipproto_tcp_;
+            break;
+          case kIpprotoUdp:
+            ip_proto = net_ipproto_udp_;
+            break;
+          case kIpprotoIcmp:
+            ip_proto = net_ipproto_icmp_;
+            break;
+          case kIpprotoIcmpv6:
+            ip_proto = net_ipproto_icmpv6_;
+            break;
+          default: {
+            base::StackString<32> proto("IPPROTO (%d)", evt.ip_proto());
+            ip_proto = context_->storage->InternString(proto.string_view());
+          }
         }
 
         i->AddArg(net_arg_ip_proto_, Variadic::String(ip_proto));
@@ -201,13 +215,25 @@ void NetworkTraceModule::ParseGenericEvent(
                   Variadic::String(
                       context_->storage->InternString(tag.string_view())));
 
-        base::StackString<12> flags = GetTcpFlagMask(evt.tcp_flags());
-        i->AddArg(net_arg_tcp_flags_,
-                  Variadic::String(
-                      context_->storage->InternString(flags.string_view())));
+        if (evt.has_tcp_flags()) {
+          base::StackString<12> flags = GetTcpFlagMask(evt.tcp_flags());
+          i->AddArg(net_arg_tcp_flags_,
+                    Variadic::String(
+                        context_->storage->InternString(flags.string_view())));
+        }
 
-        i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
-        i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
+        if (evt.has_local_port()) {
+          i->AddArg(net_arg_local_port_, Variadic::Integer(evt.local_port()));
+        }
+        if (evt.has_remote_port()) {
+          i->AddArg(net_arg_remote_port_, Variadic::Integer(evt.remote_port()));
+        }
+        if (evt.has_icmp_type()) {
+          i->AddArg(net_arg_icmp_type_, Variadic::Integer(evt.icmp_type()));
+        }
+        if (evt.has_icmp_code()) {
+          i->AddArg(net_arg_icmp_code_, Variadic::Integer(evt.icmp_code()));
+        }
         extra_args(i);
       });
 }

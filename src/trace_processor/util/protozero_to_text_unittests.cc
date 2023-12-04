@@ -232,7 +232,7 @@ TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntInt64) {
 
 TEST_F(ProtozeroToTextTestMessageTest, FieldVarIntSint64) {
   protozero::HeapBuffered<EveryField> msg;
-  msg->set_field_sint64(-3000000000);
+  msg->set_field_sint64(INT64_C(-3000000000));
 
   EXPECT_EQ(ProtozeroToText(pool_, ".protozero.test.protos.EveryField",
                             msg.SerializeAsArray(), kIncludeNewLines),

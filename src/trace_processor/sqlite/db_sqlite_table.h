@@ -17,42 +17,60 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_DB_SQLITE_TABLE_H_
 
+#include <memory>
 #include "perfetto/base/status.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/db/runtime_table.h"
 #include "src/trace_processor/db/table.h"
-#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
 #include "src/trace_processor/sqlite/query_cache.h"
 #include "src/trace_processor/sqlite/sqlite_table.h"
 
 namespace perfetto {
 namespace trace_processor {
 
-enum class DbSqliteTableComputation {
-  // Mode when the table is static (i.e. passed in at construction
-  // time).
-  kStatic,
-
-  // Mode when table is dynamically computed at filter time.
-  kDynamic,
-};
-
 struct DbSqliteTableContext {
+  enum class Computation {
+    // Table is statically defined.
+    kStatic,
+
+    // Table is defined as a function.
+    kTableFunction,
+
+    // Table is defined in runtime.
+    kRuntime
+  };
+  DbSqliteTableContext(QueryCache* query_cache, const Table* table);
+  DbSqliteTableContext(QueryCache* query_cache,
+                       std::function<RuntimeTable*(std::string)> get_table,
+                       std::function<void(std::string)> erase_table);
+  DbSqliteTableContext(QueryCache* query_cache,
+                       std::unique_ptr<StaticTableFunction> table);
+
   QueryCache* cache;
-  DbSqliteTableComputation computation;
+  Computation computation;
 
   // Only valid when computation == TableComputation::kStatic.
-  const Table* static_table;
+  const Table* static_table = nullptr;
 
-  // Only valid when computation == TableComputation::kDynamic.
-  std::unique_ptr<TableFunction> generator;
+  // Only valid when computation == TableComputation::kRuntime.
+  // Those functions implement the interactions with
+  // PerfettoSqlEngine::runtime_tables_ to get the |runtime_table_| and erase it
+  // from the map when |this| is destroyed.
+  std::function<RuntimeTable*(std::string)> get_runtime_table;
+  std::function<void(std::string)> erase_runtime_table;
+
+  // Only valid when computation == TableComputation::kTableFunction.
+  std::unique_ptr<StaticTableFunction> generator;
 };
 
 // Implements the SQLite table interface for db tables.
 class DbSqliteTable final
-    : public TypedSqliteTable<DbSqliteTable, DbSqliteTableContext> {
+    : public TypedSqliteTable<DbSqliteTable,
+                              std::unique_ptr<DbSqliteTableContext>> {
  public:
-  using TableComputation = DbSqliteTableComputation;
   using Context = DbSqliteTableContext;
+  using TableComputation = Context::Computation;
 
   class Cursor final : public SqliteTable::BaseCursor {
    public:
@@ -126,7 +144,7 @@ class DbSqliteTable final
     uint32_t rows;
   };
 
-  DbSqliteTable(sqlite3*, Context context);
+  DbSqliteTable(sqlite3*, Context* context);
   virtual ~DbSqliteTable() final;
 
   // Table implementation.
@@ -151,18 +169,11 @@ class DbSqliteTable final
                                 const QueryConstraints& qc);
 
  private:
-  QueryCache* cache_ = nullptr;
-
-  TableComputation computation_ = TableComputation::kStatic;
+  Context* context_ = nullptr;
 
   // Only valid after Init has completed.
   Table::Schema schema_;
-
-  // Only valid when computation_ == TableComputation::kStatic.
-  const Table* static_table_ = nullptr;
-
-  // Only valid when computation_ == TableComputation::kDynamic.
-  std::unique_ptr<TableFunction> generator_;
+  RuntimeTable* runtime_table_;
 };
 
 }  // namespace trace_processor

@@ -91,6 +91,14 @@ the page that does the window.open() before). It's quite common when testing
 this code to see a popup blocker the first time the new feature is used and
 then not see it again.
 
+This scheme will not work from a `file://` based URL.
+This is due to browser security context for `file://` URLs.
+
+The source website must not be served with the
+`Cross-Origin-Opener-Policy: same-origin` header.
+For example see
+[this issue](https://github.com/google/perfetto/issues/525#issuecomment-1625055986).
+
 ### Where does the posted trace go?
 
 The Perfetto UI is client-only and doesn't require any server-side interaction.
@@ -136,7 +144,31 @@ out there used OAuth2, that would still mean that Perfetto UI would have to know
 about all the possible OAuth2 scopes, one for each dashboard. This is not
 scalable.
 
+## Opening the trace at a specific event or time
+
+Using the browser query string allows for more control over the UI after
+the trace opens. For example this URL:
+
+```
+https://ui.perfetto.dev?visStart=261191575272856&visEnd=261191675272856
+```
+
+Will open the pushed trace at 261191575272856ns (~261192s) and the
+viewing window will be 261191675272856ns -261191575272856ns = 100ms wide.
+
+Supported parameters:
+- `ts`, `dur`, `pid`, `tid` Select and focus the slice matching these parameters. You don't have to provide all the parameters.
+- `visStart`/`visEnd` these values (in `ns` with the boottime clock) override the initial visible area of the trace.
+- `query` run the provided query on open.
+
+Try the following examples:
+- [visStart & visEnd](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&visStart=261191575272856&visEnd=261191675272856)
+- [ts & dur](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&ts=261192091615668&dur=16229012)
+- [query](https://ui.perfetto.dev/?url=https%3A%2F%2Fstorage.googleapis.com%2Fperfetto-misc%2Fexample_android_trace_15s&query=select%20'Hello%2C%20world!'%20as%20msg)
+
+You must take care to correctly escape strings where needed.
+
 ## Source links
 
 The source code that deals with the postMessage() in the Perfetto UI is
-[`post_message_handler.ts`](/ui/src/frontend/post_message_handler.ts)
+[`post_message_handler.ts`](/ui/src/frontend/post_message_handler.ts).

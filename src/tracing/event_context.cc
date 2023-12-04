@@ -25,7 +25,7 @@ namespace perfetto {
 EventContext::EventContext(
     EventContext::TracePacketHandle trace_packet,
     internal::TrackEventIncrementalState* incremental_state,
-    const internal::TrackEventTlsState* tls_state)
+    internal::TrackEventTlsState* tls_state)
     : trace_packet_(std::move(trace_packet)),
       event_(trace_packet_->set_track_event()),
       incremental_state_(incremental_state),
@@ -66,6 +66,24 @@ protos::pbzero::DebugAnnotation* EventContext::AddDebugAnnotation(
   auto annotation = event()->add_debug_annotations();
   annotation->set_name(name.value);
   return annotation;
+}
+
+TrackEventTlsStateUserData* EventContext::GetTlsUserData(const void* key) {
+  PERFETTO_CHECK(tls_state_);
+  PERFETTO_CHECK(key);
+  auto it = tls_state_->user_data.find(key);
+  if (it != tls_state_->user_data.end()) {
+    return it->second.get();
+  }
+  return nullptr;
+}
+
+void EventContext::SetTlsUserData(
+    const void* key,
+    std::unique_ptr<TrackEventTlsStateUserData> data) {
+  PERFETTO_CHECK(tls_state_);
+  PERFETTO_CHECK(key);
+  tls_state_->user_data[key] = std::move(data);
 }
 
 }  // namespace perfetto

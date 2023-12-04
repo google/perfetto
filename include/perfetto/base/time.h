@@ -20,6 +20,7 @@
 #include <time.h>
 
 #include <chrono>
+#include <optional>
 #include <string>
 
 #include "perfetto/base/build_config.h"
@@ -48,6 +49,7 @@ inline TimeNanos FromPosixTimespec(const struct timespec& ts) {
 }
 
 void SleepMicroseconds(unsigned interval_us);
+void InitializeTime();
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
@@ -65,14 +67,39 @@ inline TimeNanos GetBootTimeNs() {
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 
 inline TimeNanos GetWallTimeNs() {
-  auto init_time_factor = []() -> uint64_t {
+  auto init_timebase_info = []() -> mach_timebase_info_data_t {
     mach_timebase_info_data_t timebase_info;
     mach_timebase_info(&timebase_info);
-    return timebase_info.numer / timebase_info.denom;
+    return timebase_info;
   };
 
-  static uint64_t monotonic_timebase_factor = init_time_factor();
-  return TimeNanos(mach_absolute_time() * monotonic_timebase_factor);
+  static mach_timebase_info_data_t timebase_info = init_timebase_info();
+  uint64_t mach_time = mach_absolute_time();
+
+  // Take the fast path when the conversion is 1:1. The result will for sure fit
+  // into an int_64 because we're going from nanoseconds to microseconds.
+  if (timebase_info.numer == timebase_info.denom) {
+    return TimeNanos(mach_time);
+  }
+
+  // Nanoseconds is mach_time * timebase.numer // timebase.denom. Divide first
+  // to reduce the chance of overflow. Also stash the remainder right now,
+  // a likely byproduct of the division.
+  uint64_t nanoseconds = mach_time / timebase_info.denom;
+  const uint64_t mach_time_remainder = mach_time % timebase_info.denom;
+
+  // Now multiply, keeping an eye out for overflow.
+  PERFETTO_CHECK(!__builtin_umulll_overflow(nanoseconds, timebase_info.numer,
+                                            &nanoseconds));
+
+  // By dividing first we lose precision. Regain it by adding back the
+  // nanoseconds from the remainder, with an eye out for overflow.
+  uint64_t least_significant_nanoseconds =
+      (mach_time_remainder * timebase_info.numer) / timebase_info.denom;
+  PERFETTO_CHECK(!__builtin_uaddll_overflow(
+      nanoseconds, least_significant_nanoseconds, &nanoseconds));
+
+  return TimeNanos(nanoseconds);
 }
 
 inline TimeNanos GetWallTimeRawNs() {
@@ -84,6 +111,8 @@ inline TimeNanos GetBootTimeNs() {
   return GetWallTimeNs();
 }
 
+// Before MacOS 10.12 clock_gettime() was not implemented.
+#if __MAC_OS_X_VERSION_MIN_REQUIRED < 101200
 inline TimeNanos GetThreadCPUTimeNs() {
   mach_port_t this_thread = mach_thread_self();
   mach_msg_type_number_t count = THREAD_BASIC_INFO_COUNT;
@@ -102,6 +131,13 @@ inline TimeNanos GetThreadCPUTimeNs() {
                    info.system_time.seconds * 1000000000LL +
                    info.system_time.microseconds * 1000LL);
 }
+#else
+inline TimeNanos GetThreadCPUTimeNs() {
+  struct timespec ts = {};
+  PERFETTO_CHECK(clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0);
+  return FromPosixTimespec(ts);
+}
+#endif
 
 #elif PERFETTO_BUILDFLAG(PERFETTO_OS_WASM)
 
@@ -235,6 +271,8 @@ inline int64_t MkTime(int year, int month, int day, int h, int m, int s) {
   tms.tm_sec = s;
   return TimeGm(&tms);
 }
+
+std::optional<int32_t> GetTimezoneOffsetMins();
 
 }  // namespace base
 }  // namespace perfetto

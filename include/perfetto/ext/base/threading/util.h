@@ -38,10 +38,24 @@ namespace base {
 
 // Blocks the calling thread until |fd| is considered "readable". In Linux,
 // this corresponds to |POLLOUT| or |POLLHUP| being returned if |fd| is polled.
-inline void BlockUntilReadableFd(base::PlatformHandle fd) {
+// If |timeout_ms| is specified, waits that many ms before stopping.
+//
+// Returns true if the function returned because the fd was readable and false
+// otherwise.
+inline bool BlockUntilReadableFd(
+    base::PlatformHandle fd,
+    std::optional<uint32_t> timeout_ms = std::nullopt) {
+  bool is_readable = false;
   base::UnixTaskRunner runner;
-  runner.AddFileDescriptorWatch(fd, [&runner]() { runner.Quit(); });
+  runner.AddFileDescriptorWatch(fd, [&runner, &is_readable]() {
+    is_readable = true;
+    runner.Quit();
+  });
+  if (timeout_ms) {
+    runner.PostDelayedTask([&runner]() { runner.Quit(); }, *timeout_ms);
+  }
   runner.Run();
+  return is_readable;
 }
 
 // Creates a Stream<T> which returns all the data from |channel| and completes
@@ -106,24 +120,34 @@ Future<FVoid> WriteChannelFuture(Channel<T>* channel, T item) {
 // repeatedly. The returned stream only completes when |fn| returns
 // std::nullopt.
 //
+// Callers can optionally specify a |on_destroy| function which is executed when
+// the returned stream is destroyed. This is useful for informing the work
+// spawned on the thread pool that the result is no longer necessary.
+//
 // The intended usage of this function is to schedule CPU intensive work on a
 // background thread pool and receive regular "updates" on the progress by:
 // a) breaking the work into chunks
 // b) returning some indication of progress/partial results through |T|.
 template <typename T>
-Stream<T> RunOnThreadPool(ThreadPool* pool,
-                          std::function<std::optional<T>()> fn) {
+Stream<T> RunOnThreadPool(
+    ThreadPool* pool,
+    std::function<std::optional<T>()> fn,
+    std::function<void()> on_destroy = [] {}) {
   class RunOnPoolImpl : public StreamPollable<T> {
    public:
     explicit RunOnPoolImpl(ThreadPool* pool,
-                           std::function<std::optional<T>()> fn)
+                           std::function<std::optional<T>()> fn,
+                           std::function<void()> on_destroy)
         : pool_(pool),
           fn_(std::make_shared<std::function<std::optional<T>()>>(
               std::move(fn))),
+          on_destroy_(std::move(on_destroy)),
           channel_(new Channel<T>(1)),
           channel_stream_(ReadChannelStream(channel_.get())) {
       RunFn();
     }
+
+    ~RunOnPoolImpl() override { on_destroy_(); }
 
     StreamPollResult<T> PollNext(PollContext* ctx) override {
       ASSIGN_OR_RETURN_IF_PENDING_STREAM(res, channel_stream_.PollNext(ctx));
@@ -154,10 +178,11 @@ Stream<T> RunOnThreadPool(ThreadPool* pool,
 
     ThreadPool* pool_ = nullptr;
     std::shared_ptr<std::function<std::optional<T>()>> fn_;
+    std::function<void()> on_destroy_;
     std::shared_ptr<Channel<T>> channel_;
     base::Stream<T> channel_stream_;
   };
-  return MakeStream<RunOnPoolImpl>(pool, std::move(fn));
+  return MakeStream<RunOnPoolImpl>(pool, std::move(fn), std::move(on_destroy));
 }
 
 // Creates a Future<T> which yields the result of executing |fn| on |pool|. The

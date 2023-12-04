@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {TraceConfig} from './protos';
+import {TraceConfig} from '../protos';
 
 test('round trip config proto', () => {
   const input = TraceConfig.create({

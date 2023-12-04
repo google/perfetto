@@ -55,6 +55,12 @@ message NetworkPacketEvent {
 
   // The remote udp/tcp port of the packet.
   optional uint32 remote_port = 9;
+
+  // The 1-byte ICMP type identifier.
+  optional uint32 icmp_type = 10;
+
+  // The 1-byte ICMP code identifier.
+  optional uint32 icmp_code = 11;
 }
 
 // NetworkPacketBundle bundles one or more packets sharing the same attributes.

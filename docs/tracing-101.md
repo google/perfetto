@@ -70,7 +70,7 @@ usage, memory usage, network bandwidth, etc. Metrics are collected directly from
 the app or operating system while the program is running.
 
 After glimpsing the power of tracing, a natural question arises: why bother
-with high level metrics at all? Why not instead just use use tracing and
+with high level metrics at all? Why not instead just use tracing and
 compute metrics on resulting traces? In some settings, this may indeed be the
 right approach. In local and lab situations using **trace-based metrics**,
 where metrics are computed from traces instead of collecting them directly,
@@ -140,7 +140,7 @@ NOTE: Perfetto supports collecting, analyzing and visualizing both profiles
 and traces at the same time so you can have the best of both worlds!
 
 ## Perfetto
-Perfetto is a suite of tools for performance analysis of software. Its purpose
+Perfetto is a suite of tools for software performance analysis. Its purpose
 is to empower engineers to understand where resources are being used by their
 systems. It helps identify the changes they can make to improve performance
 and verify the impact of those changes.

@@ -13,22 +13,17 @@
 // limitations under the License.
 
 import {assertTrue} from '../base/logging';
+import {duration, Span, time} from '../base/time';
 import {
   HighPrecisionTime,
   HighPrecisionTimeSpan,
 } from '../common/high_precision_time';
-import {Span} from '../common/time';
-import {
-  TPDuration,
-  TPTime,
-} from '../common/time';
 
 export class TimeScale {
   private _start: HighPrecisionTime;
   private _durationNanos: number;
   readonly pxSpan: PxSpan;
   private _nanosPerPx = 0;
-  private _startSec: number;
 
   static fromHPTimeSpan(span: Span<HighPrecisionTime>, pxSpan: PxSpan) {
     return new TimeScale(span.start, span.duration.nanos, pxSpan);
@@ -43,7 +38,6 @@ export class TimeScale {
     } else {
       this._nanosPerPx = durationNanos / (pxSpan.delta);
     }
-    this._startSec = this._start.seconds;
   }
 
   get timeSpan(): Span<HighPrecisionTime> {
@@ -51,15 +45,10 @@ export class TimeScale {
     return new HighPrecisionTimeSpan(this._start, end);
   }
 
-  tpTimeToPx(ts: TPTime): number {
+  timeToPx(ts: time): number {
     // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
     const timeOffsetNanos = Number(ts - this._start.base) - this._start.offset;
     return this.pxSpan.start + timeOffsetNanos / this._nanosPerPx;
-  }
-
-  secondsToPx(seconds: number): number {
-    const timeOffset = (seconds - this._startSec) * 1e9;
-    return this.pxSpan.start + timeOffset / this._nanosPerPx;
   }
 
   hpTimeToPx(time: HighPrecisionTime): number {
@@ -74,7 +63,7 @@ export class TimeScale {
     return this._start.addNanos(offsetNanos);
   }
 
-  durationToPx(dur: TPDuration): number {
+  durationToPx(dur: duration): number {
     // WARNING: Number(bigint) can be surprisingly slow. Avoid in hotpath.
     return Number(dur) / this._nanosPerPx;
   }

@@ -16,6 +16,7 @@
 
 #include "src/protozero/test/fake_scattered_buffer.h"
 
+#include <iomanip>
 #include <sstream>
 #include <utility>
 

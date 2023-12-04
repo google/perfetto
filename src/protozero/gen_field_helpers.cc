@@ -98,6 +98,8 @@ std::string MessageSerializer::SerializeAsString() {
   return msg_.SerializeAsString();
 }
 
+template bool EqualsField<std::string>(const std::string&, const std::string&);
+
 }  // namespace gen_helpers
 }  // namespace internal
 }  // namespace protozero

@@ -15,20 +15,21 @@
 import m from 'mithril';
 
 import {Actions} from '../common/actions';
+import {pluginManager} from '../common/plugins';
 import {translateState} from '../common/thread_state';
+import {THREAD_STATE_TRACK_KIND} from '../tracks/thread_state';
+import {Anchor} from '../widgets/anchor';
+import {DetailsShell} from '../widgets/details_shell';
+import {GridLayout} from '../widgets/grid_layout';
+import {Section} from '../widgets/section';
+import {SqlRef} from '../widgets/sql_ref';
+import {Tree, TreeNode} from '../widgets/tree';
 
-import {Anchor} from './anchor';
 import {globals, SliceDetails, ThreadDesc} from './globals';
 import {scrollToTrackAndTs} from './scroll_helper';
 import {SlicePanel} from './slice_panel';
-import {asTPTimestamp} from './sql_types';
-import {DetailsShell} from './widgets/details_shell';
-import {Duration} from './widgets/duration';
-import {GridLayout} from './widgets/grid_layout';
-import {Section} from './widgets/section';
-import {SqlRef} from './widgets/sql_ref';
+import {DurationWidget} from './widgets/duration';
 import {Timestamp} from './widgets/timestamp';
-import {Tree, TreeNode} from './widgets/tree';
 
 export class SliceDetailsPanel extends SlicePanel {
   view() {
@@ -84,12 +85,11 @@ export class SliceDetailsPanel extends SlicePanel {
     if (!threadInfo) {
       return null;
     }
-    const ts = asTPTimestamp(sliceInfo.wakeupTs!);
     return m(
         '.slice-details-wakeup-text',
         m('',
           `Wakeup @ `,
-          m(Timestamp, {ts}),
+          m(Timestamp, {ts: sliceInfo.wakeupTs!}),
           ` on CPU ${sliceInfo.wakerCpu} by`),
         m('', `P: ${threadInfo.procName} [${threadInfo.pid}]`),
         m('', `T: ${threadInfo.threadName} [${threadInfo.tid}]`),
@@ -104,7 +104,7 @@ export class SliceDetailsPanel extends SlicePanel {
     const latency = sliceInfo.ts - sliceInfo.wakeupTs;
     return m(
         '.slice-details-latency-text',
-        m('', `Scheduling latency: `, m(Duration, {dur: latency})),
+        m('', `Scheduling latency: `, m(DurationWidget, {dur: latency})),
         m('.text-detail',
           `This is the interval from when the task became eligible to run
         (e.g. because of notifying a wait queue it was suspended on) to
@@ -165,7 +165,7 @@ export class SliceDetailsPanel extends SlicePanel {
         }),
         m(TreeNode, {
           left: 'Start time',
-          right: m(Timestamp, {ts: asTPTimestamp(sliceInfo.ts)}),
+          right: m(Timestamp, {ts: sliceInfo.ts}),
         }),
         m(TreeNode, {
           left: 'Duration',
@@ -206,21 +206,23 @@ export class SliceDetailsPanel extends SlicePanel {
       return;
     }
 
-    let trackId: string|number|undefined;
+    let trackKey: string|number|undefined;
     for (const track of Object.values(globals.state.tracks)) {
-      if (track.kind === 'ThreadStateTrack' &&
-          (track.config as {utid: number}).utid === threadInfo.utid) {
-        trackId = track.id;
+      const trackDesc = pluginManager.resolveTrackInfo(track.uri);
+      // TODO(stevegolton): Handle v2.
+      if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
+          trackDesc.utid === threadInfo.utid) {
+        trackKey = track.key;
       }
     }
 
-    if (trackId && sliceInfo.threadStateId) {
+    if (trackKey && sliceInfo.threadStateId) {
       globals.makeSelection(Actions.selectThreadState({
         id: sliceInfo.threadStateId,
-        trackId: trackId.toString(),
+        trackKey: trackKey.toString(),
       }));
 
-      scrollToTrackAndTs(trackId, sliceInfo.ts, true);
+      scrollToTrackAndTs(trackKey, sliceInfo.ts, true);
     }
   }
 

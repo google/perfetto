@@ -12,29 +12,82 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {PluginContext} from '../public';
+import {globals} from '../frontend/globals';
+import {Plugin} from '../public';
+import {Engine} from '../trace_processor/engine';
 
+import {createEmptyState} from './empty_state';
 import {PluginManager, PluginRegistry} from './plugins';
 
-test('can activate plugin', () => {
-  const registry = new PluginRegistry();
-  registry.register({
-    pluginId: 'foo',
-    activate: (_: PluginContext) => {},
-  });
-  const manager = new PluginManager(registry);
-  manager.activatePlugin('foo');
-  expect(manager.isActive('foo')).toBe(true);
-});
+class FakeEngine extends Engine {
+  id: string = 'TestEngine';
 
-test('can deactivate plugin', () => {
-  const registry = new PluginRegistry();
-  registry.register({
-    pluginId: 'foo',
-    activate: (_: PluginContext) => {},
+  rpcSendRequestBytes(_data: Uint8Array) {}
+}
+
+function makeMockPlugin(): Plugin {
+  return {
+    onActivate: jest.fn(),
+    onDeactivate: jest.fn(),
+    onTraceLoad: jest.fn(),
+    onTraceUnload: jest.fn(),
+  };
+}
+
+const engine = new FakeEngine();
+globals.initStore(createEmptyState());
+
+// We use `any` here to avoid checking possibly undefined types in tests.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let mockPlugin: any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let manager: any;
+
+describe('PluginManger', () => {
+  beforeEach(() => {
+    mockPlugin = makeMockPlugin();
+    const registry = new PluginRegistry();
+    registry.register({
+      pluginId: 'foo',
+      plugin: mockPlugin,
+    });
+    manager = new PluginManager(registry);
   });
-  const manager = new PluginManager(registry);
-  manager.activatePlugin('foo');
-  manager.deactivatePlugin('foo');
-  expect(manager.isActive('foo')).toBe(false);
+
+  it('can activate plugin', () => {
+    manager.activatePlugin('foo');
+
+    expect(manager.isActive('foo')).toBe(true);
+    expect(mockPlugin.onActivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('can deactivate plugin', () => {
+    manager.activatePlugin('foo');
+    manager.deactivatePlugin('foo');
+
+    expect(manager.isActive('foo')).toBe(false);
+    expect(mockPlugin.onDeactivate).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceLoad when trace is loaded', () => {
+    manager.activatePlugin('foo');
+    manager.onTraceLoad(engine);
+
+    expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceLoad when plugin activated while trace loaded', () => {
+    manager.onTraceLoad(engine);
+    manager.activatePlugin('foo');
+
+    expect(mockPlugin.onTraceLoad).toHaveBeenCalledTimes(1);
+  });
+
+  it('invokes onTraceUnload when plugin deactivated while trace loaded', () => {
+    manager.activatePlugin('foo');
+    manager.onTraceLoad(engine);
+    manager.deactivatePlugin('foo');
+
+    expect(mockPlugin.onTraceUnload).toHaveBeenCalledTimes(1);
+  });
 });

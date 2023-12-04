@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 #define SRC_TRACE_PROCESSOR_SQLITE_QUERY_CONSTRAINTS_H_
 
+#include <cstdint>
 #include <limits>
 #include <vector>
 

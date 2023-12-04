@@ -145,6 +145,17 @@ class MessageSerializer {
   HeapBuffered<Message> msg_;
 };
 
+// Wrapper about operator==() which reduces the binary size of generated protos.
+// This is needed because std::string's operator== is inlined aggressively (even
+// when optimizing for size). Having this layer of indirection with removes the
+// overhead.
+template <typename T>
+bool EqualsField(const T& a, const T& b) {
+  return a == b;
+}
+extern template bool EqualsField<std::string>(const std::string&,
+                                              const std::string&);
+
 }  // namespace gen_helpers
 }  // namespace internal
 }  // namespace protozero

@@ -12,220 +12,458 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Disposable} from 'src/base/disposable';
+import {v4 as uuidv4} from 'uuid';
 
+import {Disposable, Trash} from '../base/disposable';
+import {assertFalse} from '../base/logging';
+import {time} from '../base/time';
+import {globals} from '../frontend/globals';
 import {
-  TrackControllerFactory,
-  trackControllerRegistry,
-} from '../controller/track_controller';
-import {Store} from '../frontend/store';
-import {TrackCreator} from '../frontend/track';
-import {trackRegistry} from '../frontend/track_registry';
-import {
+  Command,
   EngineProxy,
+  MetricVisualisation,
+  Migrate,
+  Plugin,
+  PluginClass,
   PluginContext,
-  PluginInfo,
-  TrackInfo,
-  TrackProvider,
+  PluginContextTrace,
+  PluginDescriptor,
+  PrimaryTrackSortKey,
+  Store,
+  Track,
+  TrackContext,
+  TrackDescriptor,
+  TrackPredicate,
+  TrackRef,
 } from '../public';
+import {Engine} from '../trace_processor/engine';
 
-import {Command} from './commands';
-import {Engine} from './engine';
+import {Actions} from './actions';
 import {Registry} from './registry';
-import {State} from './state';
-
-// All trace plugins must implement this interface.
-export interface TracePlugin extends Disposable {
-  commands(): Command[];
-}
-
-// This interface defines what a plugin factory should look like.
-// This can be defined in the plugin class definition by defining a constructor
-// and the relevant static methods:
-// E.g.
-// class MyPlugin implements TracePlugin<MyState> {
-//   static migrate(initialState: unknown): MyState {...}
-//   constructor(store: Store<MyState>, engine: EngineProxy) {...}
-//   ... methods from the TracePlugin interface go here ...
-// }
-// ... which can then be passed around by class i.e. MyPlugin
-export interface TracePluginFactory<StateT> {
-  // Function to migrate the persistent state. Called before new().
-  migrate(initialState: unknown): StateT;
-
-  // Instantiate the plugin.
-  new(store: Store<StateT>, engine: EngineProxy): TracePlugin;
-}
-
-interface TracePluginContext {
-  plugin: TracePlugin;
-  store: Store<unknown>;
-}
+import {SCROLLING_TRACK_GROUP} from './state';
 
 // Every plugin gets its own PluginContext. This is how we keep track
 // what each plugin is doing and how we can blame issues on particular
 // plugins.
-export class PluginContextImpl implements PluginContext {
-  readonly pluginId: string;
-  private trackProviders: TrackProvider[];
-  private tracePluginFactory?: TracePluginFactory<any>;
-  private _tracePluginCtx?: TracePluginContext;
+// The PluginContext exists for the whole duration a plugin is active.
+export class PluginContextImpl implements PluginContext, Disposable {
+  private trash = new Trash();
+  private alive = true;
 
-  constructor(pluginId: string) {
-    this.pluginId = pluginId;
-    this.trackProviders = [];
+  readonly sidebar = {
+    hide() {
+      globals.dispatch(Actions.setSidebar({
+        visible: false,
+      }));
+    },
+    show() {
+      globals.dispatch(Actions.setSidebar({
+        visible: true,
+      }));
+    },
+    isVisible() {
+      return globals.state.sidebarVisible;
+    },
+  };
+
+  registerCommand(cmd: Command): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const {id} = cmd;
+    assertFalse(this.commandRegistry.has(id));
+    this.commandRegistry.set(id, cmd);
+
+    this.trash.add({
+      dispose: () => {
+        this.commandRegistry.delete(id);
+      },
+    });
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runCommand(id: string, ...args: any[]): any {
+    return globals.commandManager.runCommand(id, ...args);
+  };
+
+  get commands(): Command[] {
+    return globals.commandManager.commands;
   }
 
-  // ==================================================================
-  // The plugin facing API of PluginContext:
-  registerTrackController(track: TrackControllerFactory): void {
-    trackControllerRegistry.register(track);
+  constructor(
+      readonly pluginId: string,
+      private commandRegistry: Map<string, Command>) {}
+
+  dispose(): void {
+    this.trash.dispose();
+    this.alive = false;
+  }
+}
+
+// This TracePluginContext implementation provides the plugin access to trace
+// related resources, such as the engine and the store.
+// The TracePluginContext exists for the whole duration a plugin is active AND a
+// trace is loaded.
+class TracePluginContextImpl implements PluginContextTrace, Disposable {
+  private trash = new Trash();
+  private alive = true;
+
+  constructor(
+      private ctx: PluginContext, readonly engine: EngineProxy,
+      readonly trackRegistry: Map<string, TrackDescriptor>,
+      private defaultTracks: Set<TrackRef>,
+      private commandRegistry: Map<string, Command>) {
+    this.trash.add(engine);
   }
 
-  registerTrack(track: TrackCreator): void {
-    trackRegistry.register(track);
+  registerCommand(cmd: Command): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+
+    const {id} = cmd;
+    assertFalse(this.commandRegistry.has(id));
+    this.commandRegistry.set(id, cmd);
+
+    this.trash.add({
+      dispose: () => {
+        this.commandRegistry.delete(id);
+      },
+    });
   }
 
-  registerTrackProvider(provider: TrackProvider) {
-    this.trackProviders.push(provider);
+  registerTrack(trackDesc: TrackDescriptor): void {
+    // Silently ignore if context is dead.
+    if (!this.alive) return;
+    this.trackRegistry.set(trackDesc.uri, trackDesc);
+    this.trash.addCallback(() => this.trackRegistry.delete(trackDesc.uri));
   }
 
-  registerTracePluginFactory<T>(pluginFactory: TracePluginFactory<T>): void {
-    this.tracePluginFactory = pluginFactory;
-  }
-  // ==================================================================
-
-  // ==================================================================
-  // Internal facing API:
-  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
-    const proxy = engine.getProxy(this.pluginId);
-    return this.trackProviders.map((f) => f(proxy));
+  addDefaultTrack(track: TrackRef): void {
+    this.defaultTracks.add(track);
+    this.trash.addCallback(() => this.defaultTracks.delete(track));
   }
 
-  onTraceLoad(store: Store<State>, engine: Engine): void {
-    const TracePluginClass = this.tracePluginFactory;
-    if (TracePluginClass) {
-      // Make an engine proxy for this plugin.
-      const engineProxy = engine.getProxy(this.pluginId);
+  registerStaticTrack(track: TrackDescriptor&TrackRef): void {
+    this.registerTrack(track);
 
-      // Extract the initial state and pass to the plugin factory for migration.
-      const initialState = store.state.plugins[this.pluginId];
-      const migratedState = TracePluginClass.migrate(initialState);
-
-      // Store the initial state in our root store.
-      store.edit((draft) => {
-        draft.plugins[this.pluginId] = migratedState;
-      });
-
-      // Create a proxy store for our plugin to use.
-      const storeProxy = store.createProxy<unknown>(['plugins', this.pluginId]);
-
-      // Instantiate the plugin.
-      this._tracePluginCtx = {
-        plugin: new TracePluginClass(storeProxy, engineProxy),
-        store: storeProxy,
-      };
-    }
+    // TODO(stevegolton): Once we've sorted out track_decider, we should also
+    // add this track to the default track list here. E.g.
+    // this.addDefaultTrack({
+    //   uri: trackDetails.uri,
+    //   displayName: trackDetails.displayName,
+    //   sortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+    // });
   }
 
-  onTraceClosed() {
-    if (this._tracePluginCtx) {
-      this._tracePluginCtx.plugin.dispose();
-      this._tracePluginCtx.store.dispose();
-      this._tracePluginCtx = undefined;
-    }
+  get commands(): Command[] {
+    return this.ctx.commands;
   }
 
-  get tracePlugin(): TracePlugin|undefined {
-    return this._tracePluginCtx?.plugin;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runCommand(id: string, ...args: any[]): any {
+    return this.ctx.runCommand(id, ...args);
   }
 
-  // Unload the plugin. Ideally no plugin code runs after this point.
-  // PluginContext should unregister everything.
-  revoke() {
-    // TODO(hjd): Remove from trackControllerRegistry, trackRegistry,
-    // etc.
-    // TODO(stevegolton): Dispose the trace plugin.
+  get sidebar() {
+    return this.ctx.sidebar;
   }
-  // ==================================================================
+
+  readonly tabs = {
+    openQuery: (query: string, title: string) => {
+      globals.openQuery(query, title);
+    },
+  };
+
+  get pluginId(): string {
+    return this.ctx.pluginId;
+  }
+
+  readonly timeline = {
+    // Add a new track to the timeline, returning its key.
+    addTrack(uri: string, displayName: string, params?: unknown): string {
+      const trackKey = uuidv4();
+      globals.dispatch(Actions.addTrack({
+        key: trackKey,
+        uri,
+        name: displayName,
+        params,
+        trackSortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+        trackGroup: SCROLLING_TRACK_GROUP,
+      }));
+      return trackKey;
+    },
+
+    removeTrack(key: string):
+        void {
+          globals.dispatch(Actions.removeTracks({trackKeys: [key]}));
+        },
+
+    pinTrack(key: string) {
+      if (!isPinned(key)) {
+        globals.dispatch(Actions.toggleTrackPinned({trackKey: key}));
+      }
+    },
+
+    unpinTrack(key: string) {
+      if (isPinned(key)) {
+        globals.dispatch(Actions.toggleTrackPinned({trackKey: key}));
+      }
+    },
+
+    pinTracksByPredicate(predicate: TrackPredicate) {
+      const tracks = Object.values(globals.state.tracks);
+      for (const track of tracks) {
+        const tags = {
+          name: track.name,
+        };
+        if (predicate(tags) && !isPinned(track.key)) {
+          globals.dispatch(Actions.toggleTrackPinned({
+            trackKey: track.key,
+          }));
+        }
+      }
+    },
+
+    unpinTracksByPredicate(predicate: TrackPredicate) {
+      const tracks = Object.values(globals.state.tracks);
+      for (const track of tracks) {
+        const tags = {
+          name: track.name,
+        };
+        if (predicate(tags) && isPinned(track.key)) {
+          globals.dispatch(Actions.toggleTrackPinned({
+            trackKey: track.key,
+          }));
+        }
+      }
+    },
+
+    removeTracksByPredicate(predicate: TrackPredicate) {
+      const trackKeysToRemove = Object.values(globals.state.tracks)
+                                    .filter((track) => {
+                                      const tags = {
+                                        name: track.name,
+                                      };
+                                      return predicate(tags);
+                                    })
+                                    .map((trackState) => trackState.key);
+
+      globals.dispatch(Actions.removeTracks({trackKeys: trackKeysToRemove}));
+    },
+
+    get tracks():
+        TrackRef[] {
+          return Object.values(globals.state.tracks).map((trackState) => {
+            return {
+              displayName: trackState.name,
+              uri: trackState.uri,
+              params: trackState.params,
+            };
+          });
+        },
+
+    panToTimestamp(ts: time):
+        void {
+          globals.panToTimestamp(ts);
+        },
+  };
+
+  dispose(): void {
+    this.trash.dispose();
+    this.alive = false;
+  }
+
+  mountStore<T>(migrate: Migrate<T>): Store<T> {
+    const globalStore = globals.store;
+
+    // Migrate initial state
+    const initialState = globalStore.state.plugins[this.pluginId];
+    const migratedState = migrate(initialState);
+
+    // Update global store with migrated plugin state
+    globalStore.edit((draft) => {
+      draft.plugins[this.pluginId] = migratedState;
+    });
+
+    // Return proxy store for this plugin
+    return globalStore.createProxy<T>(['plugins', this.pluginId]);
+  }
+}
+
+function isPinned(trackId: string): boolean {
+  return globals.state.pinnedTracks.includes(trackId);
 }
 
 // 'Static' registry of all known plugins.
-export class PluginRegistry extends Registry<PluginInfo> {
+export class PluginRegistry extends Registry<PluginDescriptor> {
   constructor() {
     super((info) => info.pluginId);
   }
 }
 
+interface PluginDetails {
+  plugin: Plugin;
+  context: PluginContext&Disposable;
+  traceContext?: TracePluginContextImpl;
+}
+
+function isPluginClass(v: unknown): v is PluginClass {
+  return typeof v === 'function' && !!(v.prototype.onActivate);
+}
+
+function makePlugin(info: PluginDescriptor): Plugin {
+  const {plugin} = info;
+
+  if (typeof plugin === 'function') {
+    if (isPluginClass(plugin)) {
+      const PluginClass = plugin;
+      return new PluginClass();
+    } else {
+      return plugin();
+    }
+  } else {
+    return plugin;
+  }
+}
+
 export class PluginManager {
   private registry: PluginRegistry;
-  private contexts: Map<string, PluginContextImpl>;
+  private plugins: Map<string, PluginDetails>;
+  private engine?: Engine;
+  readonly trackRegistry = new Map<string, TrackDescriptor>();
+  readonly commandRegistry = new Map<string, Command>();
+  readonly defaultTracks = new Set<TrackRef>();
 
   constructor(registry: PluginRegistry) {
     this.registry = registry;
-    this.contexts = new Map();
+    this.plugins = new Map();
   }
 
-  activatePlugin(pluginId: string): void {
-    if (this.isActive(pluginId)) {
+  activatePlugin(id: string): void {
+    if (this.isActive(id)) {
       return;
     }
-    const pluginInfo = this.registry.get(pluginId);
-    const context = new PluginContextImpl(pluginId);
-    this.contexts.set(pluginId, context);
-    pluginInfo.activate(context);
+
+    const pluginInfo = this.registry.get(id);
+    const plugin = makePlugin(pluginInfo);
+
+    const context = new PluginContextImpl(id, this.commandRegistry);
+
+    plugin.onActivate && plugin.onActivate(context);
+
+    const pluginDetails: PluginDetails = {
+      plugin,
+      context,
+    };
+
+    // If a trace is already loaded when plugin is activated, make sure to
+    // call onTraceLoad().
+    if (this.engine) {
+      this.doPluginTraceLoad(pluginDetails, this.engine, id);
+    }
+
+    this.plugins.set(id, pluginDetails);
   }
 
-  deactivatePlugin(pluginId: string): void {
-    const context = this.getPluginContext(pluginId);
-    if (context === undefined) {
+  deactivatePlugin(id: string): void {
+    const pluginDetails = this.getPluginContext(id);
+    if (pluginDetails === undefined) {
       return;
     }
-    context.revoke();
-    this.contexts.delete(pluginId);
+    const {context, plugin} = pluginDetails;
+
+    maybeDoPluginTraceUnload(pluginDetails);
+
+    plugin.onDeactivate && plugin.onDeactivate(context);
+    context.dispose();
+
+    this.plugins.delete(id);
   }
 
   isActive(pluginId: string): boolean {
     return this.getPluginContext(pluginId) !== undefined;
   }
 
-  getPluginContext(pluginId: string): PluginContextImpl|undefined {
-    return this.contexts.get(pluginId);
+  getPluginContext(pluginId: string): PluginDetails|undefined {
+    return this.plugins.get(pluginId);
   }
 
-  findPotentialTracks(engine: Engine): Promise<TrackInfo[]>[] {
-    const promises = [];
-    for (const context of this.contexts.values()) {
-      for (const promise of context.findPotentialTracks(engine)) {
-        promises.push(promise);
-      }
-    }
-    return promises;
+  findPotentialTracks(): TrackRef[] {
+    return Array.from(this.defaultTracks);
   }
 
-  onTraceLoad(store: Store<State>, engine: Engine): void {
-    for (const context of this.contexts.values()) {
-      context.onTraceLoad(store, engine);
+  onTraceLoad(engine: Engine): void {
+    this.engine = engine;
+    for (const [id, pluginDetails] of this.plugins) {
+      this.doPluginTraceLoad(pluginDetails, engine, id);
     }
   }
 
   onTraceClose() {
-    for (const context of this.contexts.values()) {
-      context.onTraceClosed();
+    for (const pluginDetails of this.plugins.values()) {
+      maybeDoPluginTraceUnload(pluginDetails);
     }
+    this.engine = undefined;
   }
 
   commands(): Command[] {
-    return Array.from(this.contexts.values()).flatMap((ctx) => {
-      const tracePlugin = ctx.tracePlugin;
-      if (tracePlugin && tracePlugin.commands) {
-        return tracePlugin.commands();
+    return Array.from(this.commandRegistry.values());
+  }
+
+  metricVisualisations(): MetricVisualisation[] {
+    return Array.from(this.plugins.values()).flatMap((ctx) => {
+      const tracePlugin = ctx.plugin;
+      if (tracePlugin && tracePlugin.metricVisualisations) {
+        return tracePlugin.metricVisualisations(ctx.context);
       } else {
         return [];
       }
     });
   }
+
+  // Look up track into for a given track's URI.
+  // Returns |undefined| if no track can be found.
+  resolveTrackInfo(uri: string): TrackDescriptor|undefined {
+    return this.trackRegistry.get(uri);
+  }
+
+  // Create a new plugin track object from its URI.
+  // Returns undefined if no such track is registered.
+  createTrack(uri: string, trackCtx: TrackContext): Track|undefined {
+    const trackInfo = pluginManager.trackRegistry.get(uri);
+    return trackInfo && trackInfo.track(trackCtx);
+  }
+
+  private doPluginTraceLoad(
+      pluginDetails: PluginDetails, engine: Engine, pluginId: string): void {
+    const {plugin, context} = pluginDetails;
+
+    const engineProxy = engine.getProxy(pluginId);
+
+    const traceCtx = new TracePluginContextImpl(
+        context,
+        engineProxy,
+        this.trackRegistry,
+        this.defaultTracks,
+        this.commandRegistry);
+    pluginDetails.traceContext = traceCtx;
+
+    // TODO(stevegolton): Await onTraceLoad.
+    plugin.onTraceLoad && plugin.onTraceLoad(traceCtx);
+  }
 }
+
+function maybeDoPluginTraceUnload(pluginDetails: PluginDetails): void {
+  const {traceContext, plugin} = pluginDetails;
+
+  if (traceContext) {
+    // TODO(stevegolton): Await onTraceUnload.
+    plugin.onTraceUnload && plugin.onTraceUnload(traceContext);
+    traceContext.dispose();
+    pluginDetails.traceContext = undefined;
+  }
+}
+
 
 // TODO(hjd): Sort out the story for global singletons like these:
 export const pluginRegistry = new PluginRegistry();

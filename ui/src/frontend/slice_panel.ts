@@ -14,11 +14,10 @@
 
 import m from 'mithril';
 
-import {TPDuration, TPTime} from '../common/time';
+import {duration, time} from '../base/time';
 
 import {globals, SliceDetails} from './globals';
-import {Panel} from './panel';
-import {Duration} from './widgets/duration';
+import {DurationWidget} from './widgets/duration';
 
 // To display process or thread, we want to concatenate their name with ID, but
 // either can be undefined and all the cases need to be considered carefully to
@@ -36,13 +35,13 @@ function getDisplayName(name: string|undefined, id: number|undefined): string|
   }
 }
 
-export abstract class SlicePanel extends Panel {
-  protected computeDuration(ts: TPTime, dur: TPDuration): m.Children {
+export abstract class SlicePanel implements m.ClassComponent {
+  protected computeDuration(ts: time, dur: duration): m.Children {
     if (dur === -1n) {
       const minDuration = globals.state.traceTime.end - ts;
-      return [m(Duration, {dur: minDuration}), ' (Did not end)'];
+      return [m(DurationWidget, {dur: minDuration}), ' (Did not end)'];
     } else {
-      return m(Duration, {dur});
+      return m(DurationWidget, {dur});
     }
   }
 
@@ -58,4 +57,6 @@ export abstract class SlicePanel extends Panel {
       ],
     ]);
   }
+
+  abstract view(vnode: m.Vnode): void|m.Children;
 }

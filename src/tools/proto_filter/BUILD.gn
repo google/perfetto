@@ -19,8 +19,10 @@ perfetto_host_executable("proto_filter") {
   deps = [
     "../../../gn:default_deps",
     "../../../gn:protobuf_full",
+    "../../../protos/perfetto/config:cpp",
     "../../base",
     "../../base:version",
+    "../../perfetto_cmd:pbtxt_to_pb",
     "../../protozero",
     "../../protozero/filtering:bytecode_generator",
     "../../protozero/filtering:filter_util",

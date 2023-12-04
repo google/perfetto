@@ -15,9 +15,9 @@
 
 import m from 'mithril';
 
-import {EngineProxy} from '../common/engine';
 import {QueryResponse, runQuery} from '../common/queries';
 import {raf} from '../core/raf_scheduler';
+import {EngineProxy} from '../trace_processor/engine';
 
 import {globals} from './globals';
 import {createPage} from './pages';
@@ -230,7 +230,7 @@ class AndroidGameInterventionList implements m.ClassComponent {
         batteryInterventions = 'Not supported';
       }
       // Game mode numbers are defined in
-      // https://cs.android.com/android/platform/superproject/+/master:frameworks/base/core/java/android/app/GameManager.java;l=68
+      // https://cs.android.com/android/platform/superproject/+/main:frameworks/base/core/java/android/app/GameManager.java;l=68
       if (row.current_mode === 1) {
         row.current_mode = 'Standard';
       } else if (row.current_mode === 2) {

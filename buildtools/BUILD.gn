@@ -74,6 +74,8 @@ config("libunwindstack_config") {
     rebase_path("android-libbase/include", root_build_dir),
     perfetto_isystem_cflag,
     rebase_path("android-core/demangle/include", root_build_dir),
+    perfetto_isystem_cflag,
+    rebase_path("rustc-demangle-capi", root_build_dir),
   ]
   defines = [ "NO_LIBDEXFILE_SUPPORT" ]
 }
@@ -1275,6 +1277,7 @@ source_set("libunwindstack") {
     "android-libbase/stringprintf.cpp",
     "android-libbase/strings.cpp",
     "android-unwinding/libunwindstack/ArmExidx.cpp",
+    "android-unwinding/libunwindstack/Demangle.cpp",
     "android-unwinding/libunwindstack/DwarfCfa.cpp",
     "android-unwinding/libunwindstack/DwarfEhFrameWithHdr.cpp",
     "android-unwinding/libunwindstack/DwarfMemory.cpp",
@@ -1292,8 +1295,6 @@ source_set("libunwindstack") {
     "android-unwinding/libunwindstack/Regs.cpp",
     "android-unwinding/libunwindstack/RegsArm.cpp",
     "android-unwinding/libunwindstack/RegsArm64.cpp",
-    "android-unwinding/libunwindstack/RegsMips.cpp",
-    "android-unwinding/libunwindstack/RegsMips64.cpp",
     "android-unwinding/libunwindstack/RegsRiscv64.cpp",
     "android-unwinding/libunwindstack/RegsX86.cpp",
     "android-unwinding/libunwindstack/RegsX86_64.cpp",

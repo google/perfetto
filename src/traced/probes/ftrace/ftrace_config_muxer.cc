@@ -574,7 +574,7 @@ size_t ComputeCpuBufferSizeInPages(size_t requested_buffer_size_kb) {
     requested_buffer_size_kb = kMaxPerCpuBufferSizeKb;
   }
 
-  size_t pages = requested_buffer_size_kb / (base::kPageSize / 1024);
+  size_t pages = requested_buffer_size_kb / (base::GetSysPageSize() / 1024);
   if (pages == 0)
     return 1;
 

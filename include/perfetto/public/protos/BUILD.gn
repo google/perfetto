@@ -15,8 +15,10 @@
 source_set("protos") {
   sources = [
     "common/builtin_clock.pzc.h",
+    "common/data_source_descriptor.pzc.h",
     "config/data_source_config.pzc.h",
     "config/trace_config.pzc.h",
+    "config/track_event/track_event_config.pzc.h",
     "trace/interned_data/interned_data.pzc.h",
     "trace/test_event.pzc.h",
     "trace/trace.pzc.h",
@@ -25,5 +27,6 @@ source_set("protos") {
     "trace/track_event/debug_annotation.pzc.h",
     "trace/track_event/track_descriptor.pzc.h",
     "trace/track_event/track_event.pzc.h",
+    "trace/trigger.pzc.h",
   ]
 }

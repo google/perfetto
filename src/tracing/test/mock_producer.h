@@ -55,7 +55,8 @@ class MockProducer : public Producer {
   void RegisterDataSource(const std::string& name,
                           bool ack_stop = false,
                           bool ack_start = false,
-                          bool handle_incremental_state_clear = false);
+                          bool handle_incremental_state_clear = false,
+                          bool no_flush = false);
   void UnregisterDataSource(const std::string& name);
   void RegisterTrackEventDataSource(
       const std::initializer_list<std::string>& categories,
@@ -76,10 +77,13 @@ class MockProducer : public Producer {
 
   // Expect a flush. Flushes |writer_to_flush| if non-null. If |reply| is true,
   // replies to the flush request, otherwise ignores it and doesn't reply.
-  void WaitForFlush(TraceWriter* writer_to_flush, bool reply = true);
+  void ExpectFlush(TraceWriter* writer_to_flush,
+                   bool reply = true,
+                   FlushFlags expected_flags = FlushFlags());
   // Same as above, but with a vector of writers.
-  void WaitForFlush(std::vector<TraceWriter*> writers_to_flush,
-                    bool reply = true);
+  void ExpectFlush(std::vector<TraceWriter*> writers_to_flush,
+                   bool reply = true,
+                   FlushFlags expected_flags = FlushFlags());
 
   TracingService::ProducerEndpoint* endpoint() {
     return service_endpoint_.get();
@@ -100,7 +104,7 @@ class MockProducer : public Producer {
   MOCK_METHOD(void, OnTracingSetup, (), (override));
   MOCK_METHOD(void,
               Flush,
-              (FlushRequestID, const DataSourceInstanceID*, size_t),
+              (FlushRequestID, const DataSourceInstanceID*, size_t, FlushFlags),
               (override));
   MOCK_METHOD(void,
               ClearIncrementalState,

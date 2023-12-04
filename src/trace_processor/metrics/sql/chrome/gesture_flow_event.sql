@@ -33,7 +33,7 @@ SELECT RUN_METRIC('chrome/{{prefix}}_jank.sql');
 -- (especially if {{gesture_update}} flows end up getting -1). so ignore them
 -- for this table.
 DROP VIEW IF EXISTS {{prefix}}_latency_info_flow_step_and_ancestors;
-CREATE VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
+CREATE PERFETTO VIEW {{prefix}}_latency_info_flow_step_and_ancestors AS
 SELECT
   *
 FROM (
@@ -105,7 +105,7 @@ ORDER BY {{id_field}} ASC, trace_id ASC, ts ASC;
 -- See b/184134310, but "ThreadController active" spans multiple tasks and when
 -- the top level parent is this event we should use the second event instead.
 DROP VIEW IF EXISTS {{prefix}}_latency_info_flow_step;
-CREATE VIEW {{prefix}}_latency_info_flow_step AS
+CREATE PERFETTO VIEW {{prefix}}_latency_info_flow_step AS
 SELECT
   *,
   CASE WHEN ancestor_name_zero != "ThreadController active" THEN
@@ -134,7 +134,7 @@ FROM {{prefix}}_latency_info_flow_step_and_ancestors;
 -- This breaks of course if the same trace_id happens at the exact same time in
 -- both browsers but this is hopefully unlikely.
 DROP VIEW IF EXISTS {{prefix}}_max_latency_info_ts_per_trace_id;
-CREATE VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
+CREATE PERFETTO VIEW {{prefix}}_max_latency_info_ts_per_trace_id AS
 SELECT
   gesture_slice_id,
   MIN(ts) AS max_flow_ts
@@ -174,7 +174,7 @@ ORDER BY flow.{{id_field}} ASC, flow.trace_id ASC, flow.ts ASC;
 -- Note: Must be a TABLE because it uses a window function which can behave
 --       strangely in views.
 DROP TABLE IF EXISTS {{prefix}}_latency_info_flow_null_step_removed;
-CREATE TABLE {{prefix}}_latency_info_flow_null_step_removed AS
+CREATE PERFETTO TABLE {{prefix}}_latency_info_flow_null_step_removed AS
 SELECT
   ROW_NUMBER() OVER (ORDER BY
       curr.{{id_field}} ASC, curr.trace_id ASC, curr.ts ASC
@@ -226,7 +226,7 @@ SELECT
 -- next step so we can compute the difference between the end of the current
 -- step and the beginning of the next step.
 DROP VIEW IF EXISTS {{prefix}}_flow_event;
-CREATE VIEW {{prefix}}_flow_event AS
+CREATE PERFETTO VIEW {{prefix}}_flow_event AS
 SELECT
   curr.trace_id,
   curr.id,

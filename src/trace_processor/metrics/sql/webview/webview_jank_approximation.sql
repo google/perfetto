@@ -18,7 +18,7 @@
 
 -- Select all WebView processes
 DROP VIEW IF EXISTS webview_processes;
-CREATE VIEW webview_processes AS
+CREATE PERFETTO VIEW webview_processes AS
 SELECT * FROM process
 WHERE name IN ('com.google.android.gm',
   'com.google.android.googlequicksearchbox',
@@ -27,7 +27,7 @@ WHERE name IN ('com.google.android.gm',
 
 -- Select all system processes
 DROP VIEW IF EXISTS system_processes;
-CREATE VIEW system_processes AS
+CREATE PERFETTO VIEW system_processes AS
 SELECT * FROM process
 WHERE name IN ('com.android.systemui',
   '/system/bin/surfaceflinger',
@@ -35,14 +35,14 @@ WHERE name IN ('com.android.systemui',
 
 -- Select all slices related to startup
 DROP TABLE IF EXISTS webview_browser_startup_slices;
-CREATE TABLE webview_browser_startup_slices AS
+CREATE PERFETTO TABLE webview_browser_startup_slices AS
 SELECT slice.id AS browser_startup_id, slice.ts, slice.dur
 FROM slice
 WHERE name = 'WebViewChromium.init';
 
 -- Select all scheduler slices from WebView renderer processes
 DROP TABLE IF EXISTS webview_renderer_slices;
-CREATE TABLE webview_renderer_slices AS
+CREATE PERFETTO TABLE webview_renderer_slices AS
 SELECT sched_slice.id as renderer_id, sched_slice.ts, sched_slice.dur
 FROM sched_slice
 JOIN thread
@@ -53,7 +53,7 @@ WHERE process.name GLOB '*webview*Sand*';
 
 -- Select all jank slices
 DROP TABLE IF EXISTS all_self_jank_slices;
-CREATE TABLE all_self_jank_slices AS
+CREATE PERFETTO TABLE all_self_jank_slices AS
 SELECT *
 FROM actual_frame_timeline_slice
 WHERE jank_type NOT IN ('None', 'Buffer Stuffing')
@@ -64,7 +64,7 @@ WHERE jank_type NOT IN ('None', 'Buffer Stuffing')
 -- @column ts Timestamp of the start of jank slice in a WebView process (in nanoseconds)
 -- @column dur Duration of jank slice in a WebView process (in nanoseconds)
 DROP VIEW IF EXISTS webview_app_jank_slices;
-CREATE VIEW webview_app_jank_slices AS
+CREATE PERFETTO VIEW webview_app_jank_slices AS
 SELECT * FROM all_self_jank_slices
 WHERE upid IN (SELECT upid FROM webview_processes);
 
@@ -73,7 +73,7 @@ WHERE upid IN (SELECT upid FROM webview_processes);
 -- @column ts Timestamp of the start of jank slice from all processes except system processes (in nanoseconds)
 -- @column dur Duration of the jank slice from all processes except system processes (in nanoseconds)
 DROP VIEW IF EXISTS webview_all_app_jank_slices;
-CREATE VIEW webview_all_app_jank_slices AS
+CREATE PERFETTO VIEW webview_all_app_jank_slices AS
 SELECT * FROM all_self_jank_slices
 WHERE upid NOT IN (SELECT upid FROM system_processes);
 
@@ -112,7 +112,7 @@ USING SPAN_JOIN(webview_renderer_slices,
 -- @column ts Timestamp of the start of jank slice from WebView processes overlapping WebView renderer scheduler slices excluding WebView startup slices (in nanoseconds)
 -- @column dur Duration of jank slice from WebView processes overlapping WebView renderer scheduler slices excluding WebView startup slices (in nanoseconds)
 DROP VIEW IF EXISTS webview_janks_slices_without_startup;
-CREATE VIEW webview_janks_slices_without_startup AS
+CREATE PERFETTO VIEW webview_janks_slices_without_startup AS
 SELECT * FROM webview_jank_slices
 WHERE id NOT IN (SELECT id FROM webview_browser_startup_jank_slices);
 
@@ -123,7 +123,7 @@ WHERE id NOT IN (SELECT id FROM webview_browser_startup_jank_slices);
 -- @column webview_total_janks janks in all apps (except system) that overlap with WebView renderer
 -- @column total_janks janks in all apps (except system)
 DROP VIEW IF EXISTS webview_jank_approximation_summary;
-CREATE VIEW webview_jank_approximation_summary AS
+CREATE PERFETTO VIEW webview_jank_approximation_summary AS
 WITH wvj AS (SELECT COUNT(DISTINCT(id)) AS webview_janks
   FROM webview_jank_slices),
 wvjwos AS (SELECT COUNT(DISTINCT(id))
@@ -138,7 +138,7 @@ SELECT *
 from wvj, wvjwos, wvaj, wvtj, tj;
 
 DROP VIEW IF EXISTS webview_jank_approximation_output;
-CREATE VIEW webview_jank_approximation_output AS
+CREATE PERFETTO VIEW webview_jank_approximation_output AS
 SELECT WebViewJankApproximation(
   'webview_janks', (SELECT webview_janks FROM webview_jank_approximation_summary),
   'webview_janks_without_startup', (SELECT webview_janks_without_startup FROM webview_jank_approximation_summary),

@@ -24,9 +24,9 @@ perfetto_py_library("trace_processor_table_generator") {
 
 perfetto_py_library("trace_processor_stdlib_docs") {
   sources = [
-    "generators/stdlib_docs/extractor.py",
-    "generators/stdlib_docs/parse.py",
-    "generators/stdlib_docs/utils.py",
+    "generators/sql_processing/docs_extractor.py",
+    "generators/sql_processing/docs_parse.py",
+    "generators/sql_processing/utils.py",
   ]
 }
 

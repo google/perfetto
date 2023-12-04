@@ -24,6 +24,8 @@
 
 #if PERFETTO_BUILDFLAG(PERFETTO_OS_APPLE)
 #include <xlocale.h>
+#elif PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+#include <Windows.h>
 #endif
 
 #include <cinttypes>
@@ -216,6 +218,43 @@ std::string ReplaceAll(std::string str,
   }
   return str;
 }
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+bool WideToUTF8(const std::wstring& source, std::string& output) {
+  if (source.empty() ||
+      source.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return false;
+  }
+  int size = ::WideCharToMultiByte(CP_UTF8, 0, &source[0],
+                                   static_cast<int>(source.size()), nullptr, 0,
+                                   nullptr, nullptr);
+  output.assign(static_cast<size_t>(size), '\0');
+  if (::WideCharToMultiByte(CP_UTF8, 0, &source[0],
+                            static_cast<int>(source.size()), &output[0], size,
+                            nullptr, nullptr) != size) {
+    return false;
+  }
+  return true;
+}
+#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
+bool UTF8ToWide(const std::string& source, std::wstring& output) {
+  if (source.empty() ||
+      source.size() > static_cast<size_t>(std::numeric_limits<int>::max())) {
+    return false;
+  }
+  int size = ::MultiByteToWideChar(CP_UTF8, 0, &source[0],
+                                   static_cast<int>(source.size()), nullptr, 0);
+  output.assign(static_cast<size_t>(size), L'\0');
+  if (::MultiByteToWideChar(CP_UTF8, 0, &source[0],
+                            static_cast<int>(source.size()), &output[0],
+                            size) != size) {
+    return false;
+  }
+  return true;
+}
+#endif // PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
 size_t SprintfTrunc(char* dst, size_t dst_size, const char* fmt, ...) {
   if (PERFETTO_UNLIKELY(dst_size) == 0)

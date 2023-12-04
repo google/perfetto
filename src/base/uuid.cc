@@ -28,19 +28,36 @@ constexpr char kHexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                             '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 }  // namespace
 
-// See https://www.ietf.org/rfc/rfc4122.txt
+// A globally unique 128-bit number.
+// In the early days of perfetto we were (sorta) respecting rfc4122. Later we
+// started replacing the LSB of the UUID with the statsd subscription ID in
+// other parts of the codebase (see perfetto_cmd.cc) for the convenience of
+// trace lookups, so rfc4122 made no sense as it just reduced entropy.
 Uuid Uuidv4() {
-  static std::minstd_rand rng(static_cast<uint32_t>(GetBootTimeNs().count()));
+  // Mix different sources of entropy to reduce the chances of collisions.
+  // Only using boot time is not enough. Under the assumption that most traces
+  // are started around the same time at boot, within a 1s window, the birthday
+  // paradox gives a chance of 90% collisions with 70k traces over a 1e9 space
+  // (Number of ns in a 1s window).
+  // &kHexmap >> 14 is used to feed use indirectly ASLR as a source of entropy.
+  // We deliberately don't use /dev/urandom as that might block for
+  // unpredictable time if the system is idle.
+  // The UUID does NOT need to be cryptographically secure, but random enough
+  // to avoid collisions across a large number of devices.
+  static std::minstd_rand rng(
+      static_cast<uint32_t>(static_cast<uint64_t>(GetBootTimeNs().count()) ^
+                            static_cast<uint64_t>(GetWallTimeNs().count()) ^
+                            (reinterpret_cast<uintptr_t>(&kHexmap) >> 14)));
   Uuid uuid;
   auto& data = *uuid.data();
 
-  for (size_t i = 0; i < 16; ++i)
-    data[i] = static_cast<uint8_t>(rng());
-
-  // version:
-  data[6] = (data[6] & 0x0f) | 0x40;
-  // clock_seq_hi_and_reserved:
-  data[8] = (data[8] & 0x3f) | 0x80;
+  for (size_t i = 0; i < sizeof(data);) {
+    // Note: the 32-th bit of rng() is always 0 as minstd_rand operates modulo
+    // 2**31. Fill in blocks of 16b rather than 32b to not lose 1b of entropy.
+    const auto rnd_data = static_cast<uint16_t>(rng());
+    memcpy(&data[i], &rnd_data, sizeof(rnd_data));
+    i += sizeof(rnd_data);
+  }
 
   return uuid;
 }

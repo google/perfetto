@@ -116,6 +116,9 @@ def main():
           'Implies --sideload')
   parser.add_argument('--sideload-path', default=None, help=help)
 
+  help = 'Ignores any tracing guardrails which might be used'
+  parser.add_argument('--no-guardrails', action='store_true', help=help)
+
   help = 'Don\'t run `adb root` run as user (only when sideloading)'
   parser.add_argument('-u', '--user', action='store_true', help=help)
 
@@ -162,6 +165,14 @@ def main():
   help = 'Parse input from --config as binary proto (default: parse as text)'
   grp.add_argument('--bin', action='store_true', help=help)
 
+  help = ('Pass the trace through the trace reporter API. Only works when '
+          'using the full trace config (-c) with the reporter package name '
+          "'android.perfetto.cts.reporter' and the reporter class name "
+          "'android.perfetto.cts.reporter.PerfettoReportService' with the "
+          'reporter installed on the device (see '
+          'tools/install_test_reporter_app.py).')
+  grp.add_argument('--reporter-api', action='store_true', help=help)
+
   args = parser.parse_args()
   args.sideload = args.sideload or args.sideload_path is not None
 
@@ -191,6 +202,11 @@ def main():
   if args.config is None and args.events and os.path.exists(args.events[0]):
     prt(('The passed event name "%s" is a local file. ' % args.events[0] +
          'Did you mean to pass -c / --config ?'), ANSI.RED)
+    sys.exit(1)
+
+  if args.reporter_api and not args.config:
+    prt('Must pass --config when using --reporter-api', ANSI.RED)
+    parser.print_help()
     sys.exit(1)
 
   perfetto_cmd = 'perfetto'
@@ -234,9 +250,22 @@ def main():
   fname = '%s-%s.pftrace' % (tstamp, os.urandom(3).hex())
   device_file = device_dir + fname
 
-  cmd = [perfetto_cmd, '--background', '-o', device_file]
+  cmd = [perfetto_cmd, '--background']
   if not args.bin:
     cmd.append('--txt')
+
+  if args.no_guardrails:
+    cmd.append('--no-guardrails')
+
+  if args.reporter_api:
+    # Remove all old reporter files to avoid polluting the file we will extract
+    # later.
+    adb('shell',
+        'rm /sdcard/Android/data/android.perfetto.cts.reporter/files/*').wait()
+    cmd.append('--upload')
+  else:
+    cmd.extend(['-o', device_file])
+
   on_device_config = None
   on_host_config = None
   if args.config is not None:
@@ -266,9 +295,6 @@ def main():
     for app in args.app:
       cmd += ['--app', '\'' + app + '\'']
     cmd += args.events
-
-  # Perfetto will error out with a proper message if both a config file and
-  # short options are specified. No need to replicate that logic.
 
   # Work out the output file or directory.
   if args.out.endswith('/') or os.path.isdir(args.out):
@@ -347,6 +373,18 @@ def main():
 
   logcat.kill()
   logcat.wait()
+
+  if args.reporter_api:
+    prt('Waiting a few seconds to allow reporter to copy trace')
+    time.sleep(5)
+
+    ret = adb(
+        'shell',
+        'cp /sdcard/Android/data/android.perfetto.cts.reporter/files/* ' +
+        device_file).wait()
+    if ret != 0:
+      prt('Failed to extract reporter trace', ANSI.RED)
+      sys.exit(1)
 
   prt('\n')
   prt('Pulling into %s' % host_file, ANSI.BOLD)

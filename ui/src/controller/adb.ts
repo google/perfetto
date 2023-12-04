@@ -15,6 +15,7 @@
 import {_TextDecoder, _TextEncoder} from 'custom_utils';
 
 import {assertExists} from '../base/logging';
+import {isString} from '../base/object_utils';
 
 import {Adb, AdbMsg, AdbStream, CmdType} from './adb_interfaces';
 
@@ -93,7 +94,7 @@ export class AdbOverWebUsb implements Adb {
 
   async getPairedDevices() {
     try {
-      return navigator.usb.getDevices();
+      return await navigator.usb.getDevices();
     } catch (e) {  // WebUSB not available.
       return Promise.resolve([]);
     }
@@ -435,7 +436,7 @@ export class AdbStreamImpl implements AdbStream {
   }
 
   async write(msg: string|Uint8Array) {
-    const raw = (typeof msg === 'string') ? textEncoder.encode(msg) : msg;
+    const raw = (isString(msg)) ? textEncoder.encode(msg) : msg;
     if (this.sendInProgress ||
         this.state === AdbStreamState.WAITING_INITIAL_OKAY) {
       this.writeQueue.push(raw);
@@ -537,7 +538,7 @@ export class AdbMsgImpl implements AdbMsg {
   }
 
   // A brief description of the message can be found here:
-  // https://android.googlesource.com/platform/system/core/+/master/adb/protocol.txt
+  // https://android.googlesource.com/platform/system/core/+/main/adb/protocol.txt
   //
   // struct amessage {
   //     uint32_t command;    // command identifier constant
@@ -579,14 +580,14 @@ export class AdbMsgImpl implements AdbMsg {
 
   static encodeData(data?: Uint8Array|string): Uint8Array {
     if (data === undefined) return new Uint8Array([]);
-    if (typeof data === 'string') return textEncoder.encode(data + '\0');
+    if (isString(data)) return textEncoder.encode(data + '\0');
     return data;
   }
 }
 
 
 function base64StringToArray(s: string) {
-  const decoded = atob(s.replace(/-/g, '+').replace(/_/g, '/'));
+  const decoded = atob(s.replaceAll('-', '+').replaceAll('_', '/'));
   return [...decoded].map((char) => char.charCodeAt(0));
 }
 

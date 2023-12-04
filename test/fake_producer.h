@@ -79,7 +79,10 @@ class FakeProducer : public Producer {
                        const DataSourceConfig& source_config) override;
   void StopDataSource(DataSourceInstanceID) override;
   void OnTracingSetup() override;
-  void Flush(FlushRequestID, const DataSourceInstanceID*, size_t) override;
+  void Flush(FlushRequestID,
+             const DataSourceInstanceID*,
+             size_t,
+             FlushFlags) override;
   void ClearIncrementalState(const DataSourceInstanceID* /*data_source_ids*/,
                              size_t /*num_data_sources*/) override {}
 

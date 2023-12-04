@@ -16,4 +16,4 @@
 
 -- Compat layer for old clients.
 -- TODO(altimin): Remove it once everyone uses stdlib directly.
-SELECT IMPORT("chrome.tasks");
+INCLUDE PERFETTO MODULE chrome.tasks;

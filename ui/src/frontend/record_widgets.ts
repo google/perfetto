@@ -15,11 +15,11 @@
 import {Draft, produce} from 'immer';
 import m from 'mithril';
 
+import {copyToClipboard} from '../base/clipboard';
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {RecordConfig} from '../controller/record_config_types';
 
-import {copyToClipboard} from './clipboard';
 import {globals} from './globals';
 
 export declare type Setter<T> = (draft: Draft<RecordConfig>, val: T) => void;

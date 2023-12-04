@@ -16,7 +16,7 @@
 -- Find all dropped frames, i.e. all PipelineReporters slices whose
 -- state is 'STATE_DROPPED'.
 DROP VIEW IF EXISTS dropped_pipeline_reporter_slice;
-CREATE VIEW dropped_pipeline_reporter_slice AS
+CREATE PERFETTO VIEW dropped_pipeline_reporter_slice AS
 SELECT slice.* FROM slice
 JOIN args
   ON slice.arg_set_id = args.arg_set_id
@@ -26,7 +26,7 @@ WHERE
 
 -- Find the upid of the proccesses where the dropped frames occur.
 DROP VIEW IF EXISTS dropped_frames_with_upid;
-CREATE VIEW dropped_frames_with_upid AS
+CREATE PERFETTO VIEW dropped_frames_with_upid AS
 SELECT
   dropped_pipeline_reporter_slice.ts,
   process_track.upid
@@ -38,7 +38,7 @@ JOIN process_track
 -- If the process name represents a file's pathname, the path part will be
 -- removed from the display name of the process.
 DROP VIEW IF EXISTS dropped_frames_with_process_info;
-CREATE VIEW dropped_frames_with_process_info AS
+CREATE PERFETTO VIEW dropped_frames_with_process_info AS
 SELECT
   dropped_frames_with_upid.ts,
   REPLACE(
@@ -60,7 +60,7 @@ JOIN process
 -- Note that the 'All Processes' track is generated only when dropped frames
 -- come from more than one origin process.
 DROP VIEW IF EXISTS chrome_dropped_frames_event;
-CREATE VIEW chrome_dropped_frames_event AS
+CREATE PERFETTO VIEW chrome_dropped_frames_event AS
 SELECT
   'slice' AS track_type,
   'All Processes' AS track_name,
@@ -85,7 +85,7 @@ GROUP BY process_id, ts;
 
 -- Create the dropped frames metric output.
 DROP VIEW IF EXISTS chrome_dropped_frames_output;
-CREATE VIEW chrome_dropped_frames_output AS
+CREATE PERFETTO VIEW chrome_dropped_frames_output AS
 SELECT ChromeDroppedFrames(
   'dropped_frame', (
     SELECT RepeatedField(

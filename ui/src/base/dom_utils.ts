@@ -27,11 +27,58 @@ export function findRef(root: Element, ref: string): Element|null {
   }
 }
 
-// Safely case an Element to an HTMLElement.
+// Safely cast an Element to an HTMLElement.
 // Throws if the element is not an HTMLElement.
 export function toHTMLElement(el: Element): HTMLElement {
   if (!(el instanceof HTMLElement)) {
     throw new Error('Element is not an HTLMElement');
   }
   return el as HTMLElement;
+}
+
+// Return true if EventTarget is or is inside an editable element.
+// Editable elements incluce: <input type="text">, <textarea>, or elements with
+// the |contenteditable| attribute set.
+export function elementIsEditable(target: EventTarget|null): boolean {
+  if (target === null) {
+    return false;
+  }
+
+  if (!(target instanceof Element)) {
+    return false;
+  }
+
+  const editable = target.closest('input, textarea, [contenteditable=true]');
+
+  if (editable === null) {
+    return false;
+  }
+
+  if (editable instanceof HTMLInputElement) {
+    if (['radio', 'checkbox', 'button'].includes(editable.type)) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Returns the mouse pointer's position relative to |e.currentTarget| for a
+// given |MouseEvent|.
+// Similar to |offsetX|, |offsetY| but for |currentTarget| rather than |target|.
+// If the event has no currentTarget or it is not an element, offsetX & offsetY
+// are returned instead.
+export function currentTargetOffset(e: MouseEvent): {x: number, y: number} {
+  if (e.currentTarget === e.target) {
+    return {x: e.offsetX, y: e.offsetY};
+  }
+
+  if (e.currentTarget && e.currentTarget instanceof Element) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    return {x: offsetX, y: offsetY};
+  }
+
+  return {x: e.offsetX, y: e.offsetY};
 }
