@@ -22,7 +22,7 @@ import {NewTrackArgs} from '../frontend/track';
 import {SliceRect} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
-import {BasicAsyncTrack} from './basic_async_track';
+import {TrackHelperLEGACY} from './track_helper';
 
 export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
@@ -38,7 +38,7 @@ export {
 // This is an adapter to convert old style controller based tracks to new style
 // tracks.
 export class TrackWithControllerAdapter<Config, Data> extends
-    BasicAsyncTrack<Data> {
+    TrackHelperLEGACY<Data> {
   private track: TrackAdapter<Config, Data>;
   private controller: TrackControllerAdapter<Config, Data>;
   private isSetup = false;
