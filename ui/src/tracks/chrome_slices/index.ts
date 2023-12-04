@@ -22,8 +22,8 @@ import {
 } from '../../frontend/named_slice_track';
 import {
   SliceData,
-  SliceTrackBase,
-} from '../../frontend/slice_track_base';
+  SliceTrackLEGACY,
+} from '../../frontend/slice_track';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   EngineProxy,
@@ -44,7 +44,7 @@ import {
 
 export const SLICE_TRACK_KIND = 'ChromeSliceTrack';
 
-export class ChromeSliceTrack extends SliceTrackBase {
+export class ChromeSliceTrack extends SliceTrackLEGACY {
   private maxDurNs: duration = 0n;
 
   constructor(

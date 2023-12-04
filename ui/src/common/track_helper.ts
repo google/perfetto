@@ -33,12 +33,22 @@ export {
   STR_NULL,
 } from '../trace_processor/query_result';
 
-// This shim track provides the base for async style tracks implementing the new
-// plugin track interface.
-// This provides the logic to perform data reloads at appropriate times as the
-// window is panned and zoomed about.
-// The extending class need only define renderCanvas() and onBoundsChange().
-export abstract class BasicAsyncTrack<Data> implements Track {
+// A helper class which provides a base track implementation for tracks which
+// load their content asynchronously from the trace.
+//
+// Tracks extending this base class need only define |renderCanvas()| and
+// |onBoundsChange()|. This helper provides sensible default implementations for
+// all the |Track| interface methods which subclasses may also choose to
+// override if necessary.
+//
+// This helper provides the logic to call |onBoundsChange()| only when more data
+// is needed as the visible window is panned and zoomed about, and includes an
+// FSM to ensure onBoundsChange is not re-entered, and that the track doesn't
+// render stale data.
+//
+// Note: This class is deprecated and should not be used for new tracks. Use
+// |BaseSliceTrack| instead.
+export abstract class TrackHelperLEGACY<Data> implements Track {
   private requestingData = false;
   private queuedRequest = false;
   private currentState?: TrackData;
