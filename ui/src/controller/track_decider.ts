@@ -60,7 +60,7 @@ const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
   name: 'Tracks V2',
   description: 'Show tracks built on top of the Track V2 API.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
