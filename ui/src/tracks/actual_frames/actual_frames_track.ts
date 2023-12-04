@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {duration, time} from '../../base/time';
-import {SliceData, SliceTrackBase} from '../../frontend/slice_track_base';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
 import {
   EngineProxy,
 } from '../../public';
@@ -34,7 +34,7 @@ const RED_COLOR = '#FF5722';          // Red 500
 const LIGHT_GREEN_COLOR = '#C0D588';  // Light Green 500
 const PINK_COLOR = '#F515E0';         // Pink 500
 
-export class ActualFramesTrack extends SliceTrackBase {
+export class ActualFramesTrack extends SliceTrackLEGACY {
   private maxDur = 0n;
 
   constructor(

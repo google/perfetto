@@ -13,9 +13,9 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {BasicAsyncTrack} from '../../common/basic_async_track';
 import {colorForFtrace} from '../../common/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
+import {TrackHelperLEGACY} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {
@@ -42,7 +42,7 @@ const MARGIN = 2;
 const RECT_HEIGHT = 18;
 const TRACK_HEIGHT = (RECT_HEIGHT) + (2 * MARGIN);
 
-class FtraceRawTrack extends BasicAsyncTrack<Data> {
+class FtraceRawTrack extends TrackHelperLEGACY<Data> {
   constructor(private engine: EngineProxy, private cpu: number) {
     super();
   }
