@@ -20,13 +20,13 @@ import {assertTrue} from '../../base/logging';
 import {isString} from '../../base/object_utils';
 import {duration, time, Time} from '../../base/time';
 import {Actions} from '../../common/actions';
-import {
-  BasicAsyncTrack,
-  NUM_NULL,
-  STR_NULL,
-} from '../../common/basic_async_track';
 import {drawTrackHoverTooltip} from '../../common/canvas_utils';
 import {TrackData} from '../../common/track_data';
+import {
+  NUM_NULL,
+  STR_NULL,
+  TrackHelperLEGACY,
+} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {
@@ -126,7 +126,7 @@ function isCounterState(x: unknown): x is CounterTrackState {
   }
 }
 
-export class CounterTrack extends BasicAsyncTrack<Data> {
+export class CounterTrack extends TrackHelperLEGACY<Data> {
   private maximumValueSeen = 0;
   private minimumValueSeen = 0;
   private maximumDeltaSeen = 0;

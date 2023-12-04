@@ -14,7 +14,7 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {duration, time} from '../../base/time';
-import {SliceData, SliceTrackBase} from '../../frontend/slice_track_base';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
 import {EngineProxy} from '../../public';
 import {
   LONG,
@@ -25,7 +25,7 @@ import {
 
 export const ASYNC_SLICE_TRACK_KIND = 'AsyncSliceTrack';
 
-export class AsyncSliceTrack extends SliceTrackBase {
+export class AsyncSliceTrack extends SliceTrackLEGACY {
   private maxDurNs: duration = 0n;
 
   constructor(
