@@ -1303,8 +1303,6 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/overlays/arrangement_overlay.cc",
         "src/trace_processor/db/overlays/arrangement_overlay.h",
-        "src/trace_processor/db/overlays/null_overlay.cc",
-        "src/trace_processor/db/overlays/null_overlay.h",
         "src/trace_processor/db/overlays/selector_overlay.cc",
         "src/trace_processor/db/overlays/selector_overlay.h",
         "src/trace_processor/db/overlays/storage_overlay.cc",
@@ -1321,6 +1319,8 @@ perfetto_filegroup(
         "src/trace_processor/db/storage/dummy_storage.h",
         "src/trace_processor/db/storage/id_storage.cc",
         "src/trace_processor/db/storage/id_storage.h",
+        "src/trace_processor/db/storage/null_storage.cc",
+        "src/trace_processor/db/storage/null_storage.h",
         "src/trace_processor/db/storage/numeric_storage.cc",
         "src/trace_processor/db/storage/numeric_storage.h",
         "src/trace_processor/db/storage/set_id_storage.cc",
