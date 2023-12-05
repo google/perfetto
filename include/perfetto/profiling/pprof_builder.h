@@ -17,6 +17,7 @@
 #ifndef INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
 #define INCLUDE_PERFETTO_PROFILING_PPROF_BUILDER_H_
 
+#include <cstdint>
 #include <string>
 #include <vector>
 

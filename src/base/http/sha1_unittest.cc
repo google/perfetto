@@ -16,6 +16,7 @@
 
 #include "perfetto/ext/base/http/sha1.h"
 
+#include <cstdint>
 #include <string>
 
 #include "perfetto/ext/base/string_view.h"
