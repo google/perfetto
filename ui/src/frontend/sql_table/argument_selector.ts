@@ -69,7 +69,7 @@ export class ArgumentSelector implements
     this.argList = [];
     const it = queryResult.iter({key: STR});
     for (; it.valid(); it.next()) {
-      const arg = argColumn(attrs.argSetId, it.key);
+      const arg = argColumn(attrs.tableName, attrs.argSetId, it.key);
       if (attrs.alreadySelectedColumns.has(arg.alias)) continue;
       this.argList.push(it.key);
     }
