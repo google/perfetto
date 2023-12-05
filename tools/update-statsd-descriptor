@@ -21,6 +21,7 @@ import pathlib
 import tempfile
 import contextlib
 import argparse
+import itertools
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TOOLS_DIR = os.path.join(ROOT_DIR, "tools")
@@ -34,8 +35,10 @@ PROTOBUF_BUILTINS_DIR = os.path.join(ROOT_DIR, "buildtools", "protobuf", "src")
 PROTO_LOGGING_URL = "https://android.googlesource.com/platform/frameworks/proto_logging.git"
 ATOM_RE = r"  message_type {\n.   name: \"Atom\"(\n    .+)+(\n  })"
 FIELD_RE = r"    field {\n      name: \"([^\"]+)\"\n      number: ([0-9]+)"
+EXTENSIONS_RE = r" extension {\n    name: \"([^\"]+)\"\n    extendee: \".android.os.statsd.Atom\"\n    number: ([0-9]+)(\n    .+)+(\n  })"
 ATOM_IDS_PATH = os.path.join(ROOT_DIR, "protos", "perfetto", "config", "statsd",
                              "atom_ids.proto")
+
 ATOM_IDS_TEMPLATE = """/*
  * Copyright (C) 2022 The Android Open Source Project
  *
@@ -75,6 +78,31 @@ def call(*cmd, stdin=None):
     exit(1)
 
 
+# Extract core atoms. To do this we regex the pbtext
+# of the descriptor. This is hopefully:
+# - more stable than regexing atom.proto directly
+# - less complicated than parsing finding, importing, and using the
+#   Python protobuf library.
+def atoms_from_descriptor():
+  with contextlib.ExitStack() as stack:
+    descriptor_in = stack.enter_context(open(DESCRIPTOR_PATH))
+    pbtext = call(
+        PROTOC_PATH,
+        f"--proto_path={PROTOBUF_BUILTINS_DIR}",
+        f"{PROTOBUF_BUILTINS_DIR}/google/protobuf/descriptor.proto",
+        "--decode=google.protobuf.FileDescriptorSet",
+        stdin=descriptor_in).decode("utf8")
+
+    # Core atoms:
+    atom_pbtext = re.search(ATOM_RE, pbtext, re.MULTILINE)[0]
+    for m in re.finditer(FIELD_RE, atom_pbtext):
+      yield m[1], m[2]
+
+    # Extensions
+    for m in re.finditer(EXTENSIONS_RE, pbtext):
+      yield m[1], m[2]
+
+
 def main():
   parser = argparse.ArgumentParser()
   parser.add_argument("--atoms-checkout")
@@ -97,31 +125,29 @@ def main():
       pathlib.Path(proto_logging_dir).mkdir(parents=True, exist_ok=True)
       call("git", "clone", PROTO_LOGGING_URL, proto_logging_dir)
 
-    atoms_path = os.path.join(proto_logging_dir, "stats", "atoms.proto")
-    call(PROTOC_PATH, f"--proto_path={PROTOBUF_BUILTINS_DIR}",
-         f"--proto_path={atoms_root}",
-         f"--descriptor_set_out={DESCRIPTOR_PATH}", "--include_imports",
-         atoms_path)
 
-    # Extract and update atom_ids.proto. To do this we regex the pbtext
-    # of the descriptor. This is hopefully:
-    # - more stable than regexing atom.proto directly
-    # - less complicated than parsing finding, importing, and using the
-    #   Python protobuf library.
-    descriptor_in = stack.enter_context(open(DESCRIPTOR_PATH))
-    pbtext = call(
-        PROTOC_PATH,
-        f"--proto_path={PROTOBUF_BUILTINS_DIR}",
-        f"{PROTOBUF_BUILTINS_DIR}/google/protobuf/descriptor.proto",
-        "--decode=google.protobuf.FileDescriptorSet",
-        stdin=descriptor_in)
+    extensions_path = os.path.join(proto_logging_dir, "stats", "atoms")
+    extensions = []
+    if os.path.isdir(extensions_path):
+      for dirpath, dirnames, filenames in os.walk(extensions_path):
+        for name in filenames:
+          if name.endswith(".proto"):
+            path = os.path.join(dirpath, name)
+            extensions.append(path)
 
-    atom_pbtext = re.search(ATOM_RE, pbtext.decode("utf8"), re.MULTILINE)[0]
+    cmd = [
+      f"--proto_path={PROTOBUF_BUILTINS_DIR}",
+      f"--proto_path={atoms_root}",
+      f"--descriptor_set_out={DESCRIPTOR_PATH}",
+      "--include_imports",
+      ] + extensions + [
+      os.path.join(proto_logging_dir, "stats", "atoms.proto")
+    ]
+    call(PROTOC_PATH, *cmd)
 
     lines = []
-    for m in re.finditer(FIELD_RE, atom_pbtext):
-      name = "ATOM_" + m[1].upper()
-      field = m[2]
+    for name, field in atoms_from_descriptor():
+      name = "ATOM_" + name.upper()
       lines.append(f"  {name} = {field};".format(name=name, field=field))
     atom_ids_out = stack.enter_context(open(ATOM_IDS_PATH, "w"))
     atom_ids_out.write(ATOM_IDS_TEMPLATE.format(atoms="\n".join(lines)))
