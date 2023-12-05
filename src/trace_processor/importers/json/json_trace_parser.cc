@@ -109,8 +109,7 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
   base::StringView name = value.isMember("name")
                               ? base::StringView(value["name"].asCString())
                               : base::StringView();
-  StringId name_id = name.empty() ? storage->InternString("[No name]")
-                                  : storage->InternString(name);
+  StringId name_id = name.empty() ? kNullStringId : storage->InternString(name);
 
   auto args_inserter = [this, &value](ArgsTracker::BoundInserter* inserter) {
     if (value.isMember("args")) {
@@ -128,7 +127,8 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
     row.ts = timestamp;
     row.track_id = track_id;
     row.category = cat_id;
-    row.name = name_id;
+    row.name =
+        name_id == kNullStringId ? storage->InternString("[No name]") : name_id;
     row.thread_ts = json::CoerceToTs(value["tts"]);
     // tdur will only exist on 'X' events.
     row.thread_dur = json::CoerceToTs(value["tdur"]);
