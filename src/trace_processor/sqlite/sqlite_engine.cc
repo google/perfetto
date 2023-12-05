@@ -18,6 +18,7 @@
 
 #include <memory>
 #include <optional>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -105,11 +106,17 @@ SqliteEngine::~SqliteEngine() {
   // them) because |OnSqliteTableDestroyed| will be called as each DROP is
   // executed.
   std::vector<std::string> drop_stmts;
-  for (auto it = sqlite_tables_.GetIterator(); it; ++it) {
-    if (it.value() != SqliteTable::TableType::kExplicitCreate) {
+  std::unordered_set<std::string> dropped_tables;
+  for (auto it = all_created_sqlite_tables_.rbegin();
+       it != all_created_sqlite_tables_.rend(); it++) {
+    if (auto* type = sqlite_tables_.Find(*it);
+        !type || *type != SqliteTable::TableType::kExplicitCreate) {
       continue;
     }
-    base::StackString<1024> drop("DROP TABLE %s", it.key().c_str());
+    if (auto it_and_ins = dropped_tables.insert(*it); !it_and_ins.second) {
+      continue;
+    }
+    base::StackString<1024> drop("DROP TABLE %s", it->c_str());
     drop_stmts.emplace_back(drop.ToStdString());
   }
   for (const auto& drop : drop_stmts) {
@@ -248,6 +255,7 @@ void SqliteEngine::OnSqliteTableCreated(const std::string& name,
                                         SqliteTable::TableType type) {
   auto it_and_inserted = sqlite_tables_.Insert(name, type);
   PERFETTO_CHECK(it_and_inserted.second);
+  all_created_sqlite_tables_.push_back(name);
 }
 
 void SqliteEngine::OnSqliteTableDestroyed(const std::string& name) {
