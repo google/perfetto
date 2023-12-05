@@ -76,7 +76,7 @@ export function executeSearch(reverse = false) {
   selectCurrentSearchResult();
 }
 
-function selectCurrentSearchResult() {
+export function selectCurrentSearchResult() {
   const searchIndex = globals.state.searchIndex;
   const source = globals.currentSearchResults.sources[searchIndex];
   const currentId = globals.currentSearchResults.sliceIds[searchIndex];
