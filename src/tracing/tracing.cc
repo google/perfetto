@@ -20,7 +20,7 @@
 #include <condition_variable>
 #include <mutex>
 
-#include "include/perfetto/base/time.h"
+#include "perfetto/base/time.h"
 #include "perfetto/ext/base/no_destructor.h"
 #include "perfetto/ext/base/waitable_event.h"
 #include "perfetto/tracing/internal/track_event_internal.h"
