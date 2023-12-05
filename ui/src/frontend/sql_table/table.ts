@@ -89,7 +89,7 @@ export class SqlTable implements m.ClassComponent<SqlTableConfig> {
                 constraints: this.state.getQueryConstraints(),
                 alreadySelectedColumns: existingColumns,
                 onArgumentSelected: (argument: string) => {
-                  addColumn(argColumn(column, argument));
+                  addColumn(argColumn(this.table.name, column, argument));
                 },
               })));
         continue;
