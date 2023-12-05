@@ -26,7 +26,8 @@ namespace trace_processor {
 // Used for result of filtering, which is sometimes (for more optimised
 // operations) a Range and BitVector otherwise. Stores a variant of Range and
 // BitVector.
-struct RangeOrBitVector {
+class RangeOrBitVector {
+ public:
   using Range = RowMap::Range;
   explicit RangeOrBitVector(Range range) : val(range) {}
   explicit RangeOrBitVector(BitVector bv) : val(std::move(bv)) {}
@@ -43,6 +44,7 @@ struct RangeOrBitVector {
     return std::move(*std::get_if<Range>(&val));
   }
 
+ private:
   std::variant<RowMap::Range, BitVector> val = Range();
 };
 

@@ -26,13 +26,13 @@
 #include "perfetto/ext/base/status_or.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/overlays/arrangement_overlay.h"
-#include "src/trace_processor/db/overlays/null_overlay.h"
 #include "src/trace_processor/db/overlays/selector_overlay.h"
 #include "src/trace_processor/db/overlays/storage_overlay.h"
 #include "src/trace_processor/db/overlays/types.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/dummy_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
+#include "src/trace_processor/db/storage/null_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/set_id_storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
@@ -251,7 +251,7 @@ RowMap QueryExecutor::IndexSearch(const Constraint& c,
 
   RangeOrBitVector matched_in_storage = col.storage->IndexSearch(
       c.op, c.value, to_filter.current().data(),
-      static_cast<uint32_t>(to_filter.current().size()));
+      static_cast<uint32_t>(to_filter.current().size()), false /* sorted */);
 
   // TODO(b/283763282): Remove after implementing extrinsic binary search.
   PERFETTO_DCHECK(matched_in_storage.IsBitVector());
@@ -271,7 +271,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
                                    const std::vector<Constraint>& c_vec) {
   RowMap rm(0, table->row_count());
   for (const auto& c : c_vec) {
-    if (rm.size() == 0) {
+    if (rm.empty()) {
       return rm;
     }
     const Column& col = table->columns()[c.col_idx];
@@ -302,84 +302,83 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       continue;
     }
 
-    // String columns are inherently nullable: null values are signified with
-    // Id::Null().
-    PERFETTO_CHECK(
-        !(col.col_type() == ColumnType::kString && col.IsNullable()));
-
     SimpleColumn s_col{OverlaysVec(), nullptr};
 
     // Create storage
     std::unique_ptr<Storage> storage;
     if (col.IsSetId()) {
       if (col.IsNullable()) {
-        storage.reset(new storage::SetIdStorage(
-            &col.storage<std::optional<uint32_t>>().non_null_vector()));
+        storage = std::make_unique<storage::SetIdStorage>(
+            &col.storage<std::optional<uint32_t>>().non_null_vector());
       } else {
-        storage.reset(
-            new storage::SetIdStorage(&col.storage<uint32_t>().vector()));
+        storage = std::make_unique<storage::SetIdStorage>(
+            &col.storage<uint32_t>().vector());
       }
     } else {
       switch (col.col_type()) {
         case ColumnType::kDummy:
-          storage.reset(new storage::DummyStorage());
+          storage = std::make_unique<storage::DummyStorage>();
           break;
         case ColumnType::kId:
-          storage.reset(new storage::IdStorage(column_size));
+          storage = std::make_unique<storage::IdStorage>(column_size);
           break;
         case ColumnType::kString:
-          storage.reset(new storage::StringStorage(
+          storage = std::make_unique<storage::StringStorage>(
               table->string_pool(), &col.storage<StringPool::Id>().vector(),
-              col.IsSorted()));
+              col.IsSorted());
           break;
         case ColumnType::kInt64:
           if (col.IsNullable()) {
-            storage.reset(new storage::NumericStorage<int64_t>(
+            storage = std::make_unique<storage::NumericStorage<int64_t>>(
                 &col.storage<std::optional<int64_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted()));
+                col.col_type(), col.IsSorted());
 
           } else {
-            storage.reset(new storage::NumericStorage<int64_t>(
+            storage = std::make_unique<storage::NumericStorage<int64_t>>(
                 &col.storage<int64_t>().vector(), col.col_type(),
-                col.IsSorted()));
+                col.IsSorted());
           }
           break;
         case ColumnType::kUint32:
           if (col.IsNullable()) {
-            storage.reset(new storage::NumericStorage<uint32_t>(
+            storage = std::make_unique<storage::NumericStorage<uint32_t>>(
                 &col.storage<std::optional<uint32_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted()));
-
+                col.col_type(), col.IsSorted());
           } else {
-            storage.reset(new storage::NumericStorage<uint32_t>(
+            storage = std::make_unique<storage::NumericStorage<uint32_t>>(
                 &col.storage<uint32_t>().vector(), col.col_type(),
-                col.IsSorted()));
+                col.IsSorted());
           }
           break;
         case ColumnType::kInt32:
           if (col.IsNullable()) {
-            storage.reset(new storage::NumericStorage<int32_t>(
+            storage = std::make_unique<storage::NumericStorage<int32_t>>(
                 &col.storage<std::optional<int32_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted()));
-
+                col.col_type(), col.IsSorted());
           } else {
-            storage.reset(new storage::NumericStorage<int32_t>(
+            storage = std::make_unique<storage::NumericStorage<int32_t>>(
                 &col.storage<int32_t>().vector(), col.col_type(),
-                col.IsSorted()));
+                col.IsSorted());
           }
           break;
         case ColumnType::kDouble:
           if (col.IsNullable()) {
-            storage.reset(new storage::NumericStorage<double_t>(
-                &col.storage<std::optional<double_t>>().non_null_vector(),
-                col.col_type(), col.IsSorted()));
-
+            storage = std::make_unique<storage::NumericStorage<double>>(
+                &col.storage<std::optional<double>>().non_null_vector(),
+                col.col_type(), col.IsSorted());
           } else {
-            storage.reset(new storage::NumericStorage<double_t>(
-                &col.storage<double_t>().vector(), col.col_type(),
-                col.IsSorted()));
+            storage = std::make_unique<storage::NumericStorage<double>>(
+                &col.storage<double>().vector(), col.col_type(),
+                col.IsSorted());
           }
       }
+    }
+    if (col.IsNullable()) {
+      // String columns are inherently nullable: null values are signified with
+      // Id::Null().
+      PERFETTO_CHECK(col.col_type() != ColumnType::kString);
+      storage = std::make_unique<storage::NullStorage>(std::move(storage),
+                                                       col.storage_base().bv());
     }
     s_col.storage = storage.get();
 
@@ -394,13 +393,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
         col.overlay().row_map().GetIfIndexVector());
     if (col.overlay().row_map().IsIndexVector())
       s_col.overlays.emplace_back(&arrangement_overlay);
-
-    // Add nullability
-    BitVector null_bv;
-    overlays::NullOverlay null_overlay(
-        col.IsNullable() ? col.storage_base().bv() : &null_bv);
-    if (col.IsNullable())
-      s_col.overlays.emplace_back(&null_overlay);
 
     uint32_t pre_count = rm.size();
     FilterColumn(c, s_col, &rm);
