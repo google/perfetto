@@ -479,12 +479,13 @@ size_t TraceProcessorImpl::RestoreInitialTables() {
   PERFETTO_CHECK(tables_views_in_sqlite_count_ >=
                  engine_->RuntimeTablesAndViewsCount());
 
-  // Tables and views in sqlite with all objects from Perfeto Sql Engine without
-  // tables and views.
+  // Add the number of tables/views registered with SQLite to the number of
+  // "objects" (tables, views, functions etc) that we've registered and take
+  // away the number of "runtime" tables/views which are registered (which will
+  // be double counted).
   uint64_t registered_count_before = tables_views_in_sqlite_count_ +
                                      engine_->AllRegisteredObjectsCount() -
                                      engine_->RuntimeTablesAndViewsCount();
-
   InitPerfettoSqlEngine();
   return static_cast<size_t>(registered_count_before -
                              engine_->AllRegisteredObjectsCount());
