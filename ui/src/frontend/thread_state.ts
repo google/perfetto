@@ -181,7 +181,6 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
             let trackKey: string|number|undefined;
             for (const track of Object.values(globals.state.tracks)) {
               const trackDesc = pluginManager.resolveTrackInfo(track.uri);
-              // TODO(stevegolton): Handle v2.
               if (trackDesc && trackDesc.kind === THREAD_STATE_TRACK_KIND &&
                   trackDesc.utid === vnode.attrs.utid) {
                 trackKey = track.key;
