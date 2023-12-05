@@ -79,7 +79,7 @@ double TSCTicksPerSecond() {
 
   // Make sure that at least 50 ms elapsed between the 2 readings. The first
   // time that this function is called, we don't expect this to be the case.
-  // Note: The longer the elapsed time between the 2 readings is, the morehttps://chromium-status.appspot.com/
+  // Note: The longer the elapsed time between the 2 readings is, the more
   //   accurate the computed TSC frequency will be. The 50 ms value was
   //   chosen because local benchmarks show that it allows us to get a
   //   stddev of less than 1 tick/us between multiple runs.
@@ -91,7 +91,8 @@ double TSCTicksPerSecond() {
   PERFETTO_CHECK(perf_counter_now >= perf_counter_initial);
   const int64_t perf_counter_ticks = perf_counter_now - perf_counter_initial;
   const double elapsed_time_seconds =
-      perf_counter_ticks / static_cast<double>(perf_counter_frequency.QuadPart);
+      static_cast<double>(perf_counter_ticks) /
+      static_cast<double>(perf_counter_frequency.QuadPart);
 
   constexpr double kMinimumEvaluationPeriodSeconds = 0.05;
   if (elapsed_time_seconds < kMinimumEvaluationPeriodSeconds)
@@ -102,8 +103,9 @@ double TSCTicksPerSecond() {
   const uint64_t tsc_ticks = tsc_now - tsc_initial;
   // Racing with another thread to write |tsc_ticks_per_second| is benign
   // because both threads will write a valid result.
-  tsc_ticks_per_second.store(tsc_ticks / elapsed_time_seconds,
-                             std::memory_order_relaxed);
+  tsc_ticks_per_second.store(
+      static_cast<double>(tsc_ticks) / elapsed_time_seconds,
+      std::memory_order_relaxed);
 
   return tsc_ticks_per_second.load(std::memory_order_relaxed);
 }
@@ -149,7 +151,8 @@ TimeNanos GetThreadCPUTimeNs() {
     return TimeNanos();
 
   // Return the CPU time of the current thread.
-  const double thread_time_seconds = thread_cycle_time / tsc_ticks_per_second;
+  const double thread_time_seconds =
+      static_cast<double>(thread_cycle_time) / tsc_ticks_per_second;
   constexpr int64_t kNanosecondsPerSecond = 1000 * 1000 * 1000;
   return TimeNanos(
       static_cast<int64_t>(thread_time_seconds * kNanosecondsPerSecond));
