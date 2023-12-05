@@ -24,6 +24,7 @@
 #include <optional>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
@@ -137,6 +138,7 @@ class SqliteEngine {
   SqliteEngine& operator=(SqliteEngine&&) = delete;
 
   base::FlatHashMap<std::string, SqliteTable::TableType> sqlite_tables_;
+  std::vector<std::string> all_created_sqlite_tables_;
   base::FlatHashMap<std::string, std::unique_ptr<SqliteTable>> saved_tables_;
   base::FlatHashMap<std::pair<std::string, int>, void*, FnHasher> fn_ctx_;
 
