@@ -53,20 +53,14 @@ message SerializedColumn {
       optional bytes values = 1;
     }
 
-    // A schema for serialization of |overlays::NullOverlay|.
-    message NullOverlay {
-      optional BitVector bit_vector = 1;
-    }
-
-    // A schema for serialization of |overlays::NullOverlay|.
+    // A schema for serialization of |overlays::SelectorOverlay|.
     message SelectorOverlay {
       optional BitVector bit_vector = 1;
     }
 
     oneof data {
       ArrangementOverlay arrangement_overlay = 1;
-      NullOverlay null_overlay = 2;
-      SelectorOverlay selector_overlay = 3;
+      SelectorOverlay selector_overlay = 2;
     }
   }
   // A schema for serialization of any of the descendants of |storage::Storage|.
@@ -98,12 +92,19 @@ message SerializedColumn {
       optional bool is_sorted = 2;
     }
 
+    // A schema for serialization of |storage::NullStorage|.
+    message NullStorage {
+      optional BitVector bit_vector = 1;
+      optional Storage storage = 2;
+    }
+
     oneof data {
       DummyStorage dummy_storage = 1;
       IdStorage id_storage = 2;
       NumericStorage numeric_storage = 3;
       SetIdStorage set_id_storage = 4;
       StringStorage string_storage = 5;
+      NullStorage null_storage = 6;
     }
   }
 
