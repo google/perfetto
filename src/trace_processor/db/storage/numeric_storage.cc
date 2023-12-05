@@ -398,7 +398,10 @@ void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
       val);
 }
 
-void NumericStorageBase::Sort(uint32_t*, uint32_t) const {}
+void NumericStorageBase::Sort(uint32_t*, uint32_t) const {
+  // TODO(b/307482437): Implement.
+  PERFETTO_ELOG("Not implemented");
+}
 
 void NumericStorageBase::Serialize(StorageProto* msg) const {
   auto* numeric_storage_msg = msg->set_numeric_storage();
