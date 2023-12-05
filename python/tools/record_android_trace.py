@@ -431,7 +431,7 @@ def open_trace_in_browser(path, open_browser, origin):
   fname = os.path.basename(path)
   socketserver.TCPServer.allow_reuse_address = True
   with socketserver.TCPServer(('127.0.0.1', PORT), HttpHandler) as httpd:
-    address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}'
+    address = f'{origin}/#!/?url=http://127.0.0.1:{PORT}/{fname}&referrer=record_android_trace'
     if open_browser:
       webbrowser.open_new_tab(address)
     else:
