@@ -9,6 +9,17 @@ Unreleased:
     *
 
 
+v40.0 - 2023-12-04:
+  Tracing service and probes:
+    * Added support for collecting battery voltage from the Android Power HAL.
+    * Added support for emitting machine id from producers on remote hosts.
+  Trace Processor:
+    * Added of flow id from trace as a column in the flow table.
+    * Fixed computation of trace_bounds table when using UI native acceleration.
+  UI:
+    * Switched to use "v2" querying and rendering system for tracks by default.
+
+
 v39.0 - 2023-11-15:
   Tracing service and probes:
     * Added reporting of TZ offset under system_info.timezone_off_mins .
@@ -18,12 +29,12 @@ v39.0 - 2023-11-15:
     * Added support for running on Linux & Android systems configured with 16K
       pagetables.
   Trace Processor:
-    * New android_boot metric.
+    * Added android_boot metric.
     * Added new PerfettoSQL syntax (CREATE PERFETTO VIEW) for adding schemas to views.
-    * Support perf.data import format.
-    * Add dvfs and cpu_idle to stdlib.
+    * Added support for the perf.data import format.
+    * Added dvfs and cpu_idle to stdlib.
   UI:
-    * Add a new type of debug tracks: counter.
+    * Added a new type of debug tracks: counter.
     * Improved visualization of timestamps for durations.
 
 
