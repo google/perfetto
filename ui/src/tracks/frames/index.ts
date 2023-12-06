@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// import { NamedSliceTrack } from 'src/frontend/named_slice_track';
 import {
   Plugin,
   PluginContext,
@@ -27,17 +26,27 @@ import {
   STR_NULL,
 } from '../../trace_processor/query_result';
 
+import {ActualFramesTrack} from './actual_frames_track';
+import {
+  ActualFramesTrack as ActualFramesTrackV2,
+} from './actual_frames_track_v2';
 import {ExpectedFramesTrack} from './expected_frames_track';
 import {
   ExpectedFramesTrack as ExpectedFramesTrackV2,
 } from './expected_frames_track_v2';
 
 export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
+export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
 
-class ExpectedFramesPlugin implements Plugin {
+class FramesPlugin implements Plugin {
   onActivate(_ctx: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
+    this.addExpectedFrames(ctx);
+    this.addActualFrames(ctx);
+  }
+
+  async addExpectedFrames(ctx: PluginContextTrace): Promise<void> {
     const {engine} = ctx;
     const result = await engine.query(`
       with process_async_tracks as materialized (
@@ -118,9 +127,91 @@ class ExpectedFramesPlugin implements Plugin {
       });
     }
   }
+
+  async addActualFrames(ctx: PluginContextTrace): Promise<void> {
+    const {engine} = ctx;
+    const result = await engine.query(`
+      with process_async_tracks as materialized (
+        select
+          process_track.upid as upid,
+          process_track.name as trackName,
+          process.name as processName,
+          process.pid as pid,
+          group_concat(process_track.id) as trackIds,
+          count(1) as trackCount
+        from process_track
+        left join process using(upid)
+        where process_track.name = "Actual Timeline"
+        group by
+          process_track.upid,
+          process_track.name
+      )
+      select
+        t.*,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from process_async_tracks t;
+  `);
+
+    const it = result.iter({
+      upid: NUM,
+      trackName: STR_NULL,
+      trackIds: STR,
+      processName: STR_NULL,
+      pid: NUM_NULL,
+      maxDepth: NUM_NULL,
+    });
+    for (; it.valid(); it.next()) {
+      const upid = it.upid;
+      const trackName = it.trackName;
+      const rawTrackIds = it.trackIds;
+      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
+      const processName = it.processName;
+      const pid = it.pid;
+      const maxDepth = it.maxDepth;
+
+      if (maxDepth === null) {
+        // If there are no slices in this track, skip it.
+        continue;
+      }
+
+      const kind = 'ActualFrames';
+      const displayName =
+          getTrackName({name: trackName, upid, pid, processName, kind});
+
+      ctx.registerStaticTrack({
+        uri: `perfetto.ActualFrames#${upid}`,
+        displayName,
+        trackIds,
+        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
+        track: ({trackKey}) => {
+          return new ActualFramesTrack(
+              engine,
+              maxDepth,
+              trackKey,
+              trackIds,
+          );
+        },
+      });
+
+      ctx.registerStaticTrack({
+        uri: `perfetto.ActualFrames#${upid}.v2`,
+        displayName,
+        trackIds,
+        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
+        track: ({trackKey}) => {
+          return new ActualFramesTrackV2(
+              engine,
+              maxDepth,
+              trackKey,
+              trackIds,
+          );
+        },
+      });
+    }
+  }
 }
 
 export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ExpectedFrames',
-  plugin: ExpectedFramesPlugin,
+  pluginId: 'perfetto.Frames',
+  plugin: FramesPlugin,
 };
