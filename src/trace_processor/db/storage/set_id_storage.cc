@@ -79,9 +79,10 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
     // range, and rather just `not` range returned with `equal` operation.
     RowMap::Range eq_range =
         BinarySearchIntrinsic(FilterOp::kEq, sql_val, range);
-    BitVector bv(eq_range.start, true);
-    bv.Resize(eq_range.end);
-    bv.Resize(std::min(range.end - 1, eq_range.end), true);
+    BitVector bv(range.start, false);
+    bv.Resize(eq_range.start, true);
+    bv.Resize(eq_range.end, false);
+    bv.Resize(range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
   return RangeOrBitVector(BinarySearchIntrinsic(op, sql_val, range));
