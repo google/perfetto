@@ -70,6 +70,7 @@ perfetto_unittest_source_set("unittests") {
     "../tables",
     "../views",
     "storage",
+    "storage:fake_storage",
   ]
 }
 

@@ -83,7 +83,7 @@ TEST(NullStorage, BitVectorSubset) {
   NullStorage storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
                       &bv);
 
-  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
+  auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
   ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 6));
 }
 
@@ -92,7 +92,7 @@ TEST(NullStorage, BitVectorSubsetIsNull) {
   NullStorage storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
                       &bv);
 
-  auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 11));
+  auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
   ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 2, 3, 4, 6, 7));
 }
 

@@ -100,7 +100,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicNeInvalidNum) {
   IdStorage storage(100);
   Range r = storage.Search(FilterOp::kNe, SqlValue::Long(-1), Range(30, 70))
                 .TakeIfRange();
-  ASSERT_EQ(r.size(), 100u);
+  ASSERT_EQ(r.size(), 40u);
 }
 
 TEST(IdStorageUnittest, Sort) {
