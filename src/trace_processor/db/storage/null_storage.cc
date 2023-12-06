@@ -21,6 +21,7 @@
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
+#include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -33,7 +34,10 @@ using Range = RowMap::Range;
 
 RangeOrBitVector ReconcileStorageResult(FilterOp op,
                                         const BitVector& non_null,
-                                        RangeOrBitVector storage_result) {
+                                        RangeOrBitVector storage_result,
+                                        Range in_range) {
+  PERFETTO_CHECK(in_range.end <= non_null.size());
+
   // Reconcile the results of the Search operation with the non-null indices
   // to ensure only those positions are set.
   BitVector res;
@@ -42,23 +46,25 @@ RangeOrBitVector ReconcileStorageResult(FilterOp op,
     if (range.size() > 0) {
       res = non_null.IntersectRange(non_null.IndexOfNthSet(range.start),
                                     non_null.IndexOfNthSet(range.end - 1) + 1);
+
+      // We should always have at least as many elements as the input range
+      // itself.
+      PERFETTO_CHECK(res.size() <= in_range.end);
     }
   } else {
     res = non_null.Copy();
     res.UpdateSetBits(std::move(storage_result).TakeIfBitVector());
   }
 
-  // Make sure that the reconciled result is *precisely* the size of non_null
-  // vector. This is important as there are assumptions which require that
-  // these sizes match exactly.
-  // TODO(lalitm): consider relaxing this constraint down the line.
-  PERFETTO_DCHECK(res.size() <= non_null.size());
-  res.Resize(non_null.size());
+  // Ensure that |res| exactly matches the size which we need to return,
+  // padding with zeros or truncating if necessary.
+  res.Resize(in_range.end, false);
 
   // For the IS NULL constraint, we also need to include all the null indices
   // themselves.
   if (PERFETTO_UNLIKELY(op == FilterOp::kIsNull)) {
-    BitVector null = non_null.Copy();
+    BitVector null = non_null.IntersectRange(in_range.start, in_range.end);
+    null.Resize(in_range.end, false);
     null.Not();
     res.Or(null);
   }
@@ -83,7 +89,8 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
   uint32_t start = non_null_->CountSetBits(in.start);
   uint32_t end = non_null_->CountSetBits(in.end);
   return ReconcileStorageResult(
-      op, *non_null_, storage_->Search(op, sql_val, RowMap::Range(start, end)));
+      op, *non_null_, storage_->Search(op, sql_val, RowMap::Range(start, end)),
+      in);
 }
 
 RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
@@ -93,21 +100,21 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
                                           bool sorted) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NullStorage::IndexSearch");
 
-  BitVector storage_non_null;
+  BitVector::Builder storage_non_null(indices_size);
   std::vector<uint32_t> storage_iv;
   storage_iv.reserve(indices_size);
   for (uint32_t* it = indices; it != indices + indices_size; it++) {
-    if (non_null_->IsSet(*it)) {
+    bool is_non_null = non_null_->IsSet(*it);
+    if (is_non_null) {
       storage_iv.push_back(non_null_->CountSetBits(*it));
-      storage_non_null.AppendTrue();
-    } else {
-      storage_non_null.AppendFalse();
     }
+    storage_non_null.Append(is_non_null);
   }
   RangeOrBitVector range_or_bv =
       storage_->IndexSearch(op, sql_val, storage_iv.data(),
                             static_cast<uint32_t>(storage_iv.size()), sorted);
-  return ReconcileStorageResult(op, storage_non_null, std::move(range_or_bv));
+  return ReconcileStorageResult(op, std::move(storage_non_null).Build(),
+                                std::move(range_or_bv), Range(0, indices_size));
 }
 
 void NullStorage::StableSort(uint32_t*, uint32_t) const {

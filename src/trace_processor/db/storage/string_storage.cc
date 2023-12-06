@@ -182,7 +182,7 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
     // a range, and rather just `not` range returned with `equal` operation.
     RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
     BitVector bv(r.start, true);
-    bv.Resize(r.end);
+    bv.Resize(r.end, false);
     bv.Resize(range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
@@ -214,12 +214,12 @@ BitVector StringStorage::LinearSearchInternal(FilterOp op,
                                               RowMap::Range range) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
-    return BitVector();
+    return BitVector(range.end, false);
   }
 
   if (sql_val.type != SqlValue::kString &&
       (op == FilterOp::kGlob || op == FilterOp::kRegex)) {
-    return BitVector();
+    return BitVector(range.end, false);
   }
 
   StringPool::Id val =

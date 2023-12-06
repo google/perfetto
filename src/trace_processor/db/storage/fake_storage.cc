@@ -55,16 +55,13 @@ RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
       return RangeOrBitVector(RowMap::Range());
     case kRange:
     case kBitVector: {
-      BitVector bv;
+      BitVector::Builder builder(indices_size);
       for (uint32_t* it = indices; it != indices + indices_size; ++it) {
-        if ((strategy_ == kRange && range_.Contains(*it)) ||
-            (strategy_ == kBitVector && bit_vector_.IsSet(*it))) {
-          bv.AppendTrue();
-        } else {
-          bv.AppendFalse();
-        }
+        bool in_range = strategy_ == kRange && range_.Contains(*it);
+        bool in_bv = strategy_ == kBitVector && bit_vector_.IsSet(*it);
+        builder.Append(in_range || in_bv);
       }
-      return RangeOrBitVector(std::move(bv));
+      return RangeOrBitVector(std::move(builder).Build());
     }
   }
   PERFETTO_FATAL("For GCC");
