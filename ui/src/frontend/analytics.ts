@@ -16,10 +16,24 @@ import {getCurrentChannel} from '../common/channels';
 import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
+import {Router} from './router';
 
 type TraceCategories = 'Trace Actions'|'Record Trace'|'User Actions';
 const ANALYTICS_ID = 'G-BD89KT2P3C';
 const PAGE_TITLE = 'no-page-title';
+
+// Get the referrer from either:
+// - If present: the referrer argument if present
+// - document.referrer
+function getReferrer(): string {
+  const route = Router.parseUrl(window.location.href);
+  const referrer = route.args.referrer;
+  if (referrer) {
+    return referrer;
+  } else {
+    return document.referrer.split('?')[0];
+  }
+}
 
 export function initAnalytics() {
   // Only initialize logging on the official site and on localhost (to catch
@@ -95,14 +109,14 @@ class AnalyticsImpl implements Analytics {
     console.log(
         `GA initialized. route=${route}`,
         `isInternalUser=${globals.isInternalUser}`);
-    // GA's reccomendation for SPAs is to disable automatic page views and
+    // GA's recommendation for SPAs is to disable automatic page views and
     // manually send page_view events. See:
     // https://developers.google.com/analytics/devguides/collection/gtagjs/pages#manual_pageviews
     gtagGlobals.gtag('config', ANALYTICS_ID, {
       allow_google_signals: false,
       anonymize_ip: true,
       page_location: route,
-      referrer: document.referrer.split('?')[0],
+      page_referrer: getReferrer(),
       send_page_view: false,
       page_title: PAGE_TITLE,
       perfetto_is_internal_user: globals.isInternalUser ? '1' : '0',
