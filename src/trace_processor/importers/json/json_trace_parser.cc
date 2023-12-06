@@ -166,15 +166,31 @@ void JsonTraceParser::ParseJsonPacket(int64_t timestamp,
     case 'b':
     case 'e':
     case 'n': {
-      if (!opt_pid || id.empty()) {
+      Json::Value id2 = value.isMember("id2") ? value["id2"] : Json::Value();
+      std::string local = id2.isMember("local") ? id2["local"].asString() : "";
+      std::string global =
+          id2.isMember("global") ? id2["global"].asString() : "";
+      if (!opt_pid || (id.empty() && global.empty() && local.empty())) {
         context_->storage->IncrementStats(stats::json_parser_failure);
         break;
       }
       UniquePid upid = context_->process_tracker->GetOrCreateProcess(pid);
-      int64_t cookie = static_cast<int64_t>(base::Hasher::Combine(id.c_str()));
-      StringId scope = kNullStringId;
-      TrackId track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
-          name_id, upid, cookie, true /* source_id_is_process_scoped */, scope);
+      TrackId track_id;
+      if (!id.empty() || !global.empty()) {
+        const std::string& real_id = id.empty() ? global : id;
+        int64_t cookie = static_cast<int64_t>(
+            base::Hasher::Combine(cat_id.raw_id(), real_id));
+        track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+            name_id, upid, cookie, false /* source_id_is_process_scoped */,
+            kNullStringId /* source_scope */);
+      } else {
+        PERFETTO_DCHECK(!local.empty());
+        int64_t cookie =
+            static_cast<int64_t>(base::Hasher::Combine(cat_id.raw_id(), local));
+        track_id = context_->track_tracker->InternLegacyChromeAsyncTrack(
+            name_id, upid, cookie, true /* source_id_is_process_scoped */,
+            kNullStringId /* source_scope */);
+      }
 
       if (phase == 'b') {
         slice_tracker->BeginTyped(storage->mutable_slice_table(),
