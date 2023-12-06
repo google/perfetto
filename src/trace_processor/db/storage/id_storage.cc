@@ -83,8 +83,9 @@ RangeOrBitVector IdStorage::Search(FilterOp op,
 
   if (op == FilterOp::kNe) {
     if (sql_val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-        sql_val.AsLong() < std::numeric_limits<uint32_t>::min())
-      return RangeOrBitVector(Range(0, size_));
+        sql_val.AsLong() < std::numeric_limits<uint32_t>::min()) {
+      return RangeOrBitVector(range);
+    }
 
     uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
     BitVector ret(range.start, false);

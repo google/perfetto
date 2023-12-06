@@ -220,11 +220,10 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
     // range, and rather just `not` range returned with `equal` operation.
     RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
     BitVector bv(r.start, true);
-    bv.Resize(r.end);
+    bv.Resize(r.end, false);
     bv.Resize(range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
-
   return RangeOrBitVector(LinearSearchInternal(op, value, range));
 }
 
@@ -252,10 +251,10 @@ BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
                                                    RowMap::Range range) const {
   std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
   if (op == FilterOp::kIsNotNull)
-    return BitVector(size(), true);
+    return BitVector(range.end, true);
 
   if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector(size(), false);
+    return BitVector(range.end, false);
 
   BitVector::Builder builder(range.end, range.start);
   if (const auto* u32 = std::get_if<uint32_t>(&*val)) {
@@ -428,7 +427,7 @@ void NumericStorageBase::Serialize(StorageProto* msg) const {
       PERFETTO_FATAL("Invalid column type for NumericStorage");
   }
   numeric_storage_msg->set_values(static_cast<const uint8_t*>(data_),
-                                  static_cast<size_t>(type_size * size_));
+                                  static_cast<size_t>(type_size) * size_);
 }
 
 }  // namespace storage

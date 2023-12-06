@@ -52,10 +52,10 @@ RangeOrBitVector ArrangementStorage::Search(FilterOp op,
                           arrangement.begin() + static_cast<int32_t>(in.end));
 
   auto storage_result = inner_->Search(op, sql_val, Range(*min_i, *max_i + 1));
-  BitVector::Builder builder(static_cast<uint32_t>(arrangement.size()));
+  BitVector::Builder builder(in.end, in.start);
   if (storage_result.IsRange()) {
     Range storage_range = std::move(storage_result).TakeIfRange();
-    for (uint32_t i = 0; i < arrangement.size(); ++i) {
+    for (uint32_t i = in.start; i < in.end; ++i) {
       builder.Append(storage_range.Contains(arrangement[i]));
     }
   } else {
