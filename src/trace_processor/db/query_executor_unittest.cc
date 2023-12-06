@@ -17,11 +17,13 @@
 #include "src/trace_processor/db/query_executor.h"
 
 #include "src/trace_processor/db/storage/arrangement_storage.h"
+#include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/null_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/selector_storage.h"
 #include "src/trace_processor/db/storage/set_id_storage.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
 #include "test/gtest_and_gmock.h"
 
@@ -221,6 +223,34 @@ TEST(QueryExecutor, ArrangementStorageBounds) {
   ASSERT_THAT(rm.GetAllIndices(), ElementsAre(0u, 4u));
 }
 
+TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
+  std::unique_ptr<storage::Storage> fake =
+      storage::FakeStorage::SearchSubset(5u, RowMap::Range(2u, 4u));
+
+  std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
+  storage::ArrangementStorage storage(std::move(fake), &arrangement);
+
+  Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
+  RowMap rm(1, 3);
+  QueryExecutor::BoundedColumnFilterForTesting(c, storage, &rm);
+
+  ASSERT_THAT(rm.GetAllIndices(), ElementsAre(2u));
+}
+
+TEST(QueryExecutor, ArrangementOverlaySubsetInputBitvector) {
+  std::unique_ptr<storage::Storage> fake =
+      storage::FakeStorage::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
+
+  std::vector<uint32_t> arrangement{4, 1, 2, 2, 3};
+  storage::ArrangementStorage storage(std::move(fake), &arrangement);
+
+  Constraint c{0, FilterOp::kGe, SqlValue::Long(0u)};
+  RowMap rm(1, 3);
+  QueryExecutor::BoundedColumnFilterForTesting(c, storage, &rm);
+
+  ASSERT_THAT(rm.GetAllIndices(), ElementsAre(2u));
+}
+
 TEST(QueryExecutor, ArrangementStorageIndex) {
   std::vector<int64_t> storage_data(5);
   std::iota(storage_data.begin(), storage_data.end(), 0);
@@ -354,7 +384,7 @@ TEST(QueryExecutor, BinarySearchIsNull) {
   storage::NullStorage storage(std::move(selector), &null_bv);
 
   // Filter.
-  Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
+  Constraint c{0, FilterOp::kIsNull, SqlValue()};
   QueryExecutor exec({&storage}, 9);
   RowMap res = exec.Filter({c});
 
@@ -378,7 +408,7 @@ TEST(QueryExecutor, SetIdStorage) {
   storage::NullStorage storage(std::move(selector), &null_bv);
 
   // Filter.
-  Constraint c{0, FilterOp::kIsNull, SqlValue::Long(0)};
+  Constraint c{0, FilterOp::kIsNull, SqlValue()};
   QueryExecutor exec({&storage}, 10);
   RowMap res = exec.Filter({c});
 
