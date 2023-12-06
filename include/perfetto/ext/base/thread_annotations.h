@@ -24,8 +24,8 @@
 extern "C" {
 void AnnotateBenignRaceSized(const char* file,
                              int line,
-                             unsigned long address,
-                             unsigned long size,
+                             const volatile void* address,
+                             size_t size,
                              const char* description);
 }
 
