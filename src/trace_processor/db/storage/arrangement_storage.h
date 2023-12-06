@@ -14,25 +14,23 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
 
 #include <memory>
-#include <variant>
-
-#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/storage/storage.h"
-#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-// Storage which introduces the layer of nullability. Specifically, spreads out
-// the storage with nulls using a BitVector.
-class NullStorage : public Storage {
+// Storage responsible for rearranging the elements of another Storage. It deals
+// with duplicates, permutations and selection; for selection only, it's more
+// efficient to use `SelectorStorage`.
+class ArrangementStorage : public Storage {
  public:
-  NullStorage(std::unique_ptr<Storage> storage, const BitVector* non_null);
+  explicit ArrangementStorage(std::unique_ptr<Storage> inner,
+                              const std::vector<uint32_t>* arrangement);
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
@@ -50,15 +48,17 @@ class NullStorage : public Storage {
 
   void Serialize(StorageProto*) const override;
 
-  uint32_t size() const override { return non_null_->size(); }
+  uint32_t size() const override {
+    return static_cast<uint32_t>(arrangement_->size());
+  }
 
  private:
-  std::unique_ptr<Storage> storage_ = nullptr;
-  const BitVector* non_null_ = nullptr;
+  std::unique_ptr<Storage> inner_;
+  const std::vector<uint32_t>* arrangement_;
 };
 
 }  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
