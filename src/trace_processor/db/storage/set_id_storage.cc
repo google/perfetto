@@ -58,74 +58,139 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, RowMap::Range range) {
 
 }  // namespace
 
+SetIdStorage::SearchValidationResult SetIdStorage::ValidateSearchConstraints(
+    SqlValue val,
+    FilterOp op) const {
+  // NULL checks.
+  if (PERFETTO_UNLIKELY(val.is_null())) {
+    if (op == FilterOp::kIsNotNull) {
+      return SearchValidationResult::kAllData;
+    }
+    if (op == FilterOp::kIsNull) {
+      return SearchValidationResult::kNoData;
+    }
+    PERFETTO_FATAL(
+        "Invalid filter operation. NULL should only be compared with 'IS NULL' "
+        "and 'IS NOT NULL'");
+  }
+
+  // FilterOp checks. Switch so that we get a warning if new FilterOp is not
+  // handled.
+  switch (op) {
+    case FilterOp::kEq:
+    case FilterOp::kNe:
+    case FilterOp::kLt:
+    case FilterOp::kLe:
+    case FilterOp::kGt:
+    case FilterOp::kGe:
+      break;
+    case FilterOp::kIsNull:
+    case FilterOp::kIsNotNull:
+      PERFETTO_FATAL("Invalid constraints.");
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return SearchValidationResult::kNoData;
+  }
+
+  // Type checks.
+  switch (val.type) {
+    case SqlValue::kNull:
+    case SqlValue::kLong:
+    case SqlValue::kDouble:
+      break;
+    case SqlValue::kString:
+      // Any string is always more than any numeric.
+      if (op == FilterOp::kLt || op == FilterOp::kLe) {
+        return Storage::SearchValidationResult::kAllData;
+      }
+      return Storage::SearchValidationResult::kNoData;
+    case SqlValue::kBytes:
+      return Storage::SearchValidationResult::kNoData;
+  }
+
+  // TODO(b/307482437): Remove after adding support for double
+  PERFETTO_CHECK(val.type != SqlValue::kDouble);
+
+  // Bounds of the value.
+  if (PERFETTO_UNLIKELY(val.AsLong() > std::numeric_limits<uint32_t>::max())) {
+    if (op == FilterOp::kLe || op == FilterOp::kLt || op == FilterOp::kNe) {
+      return SearchValidationResult::kAllData;
+    }
+    return SearchValidationResult::kNoData;
+  }
+  if (PERFETTO_UNLIKELY(val.AsLong() < std::numeric_limits<uint32_t>::min())) {
+    if (op == FilterOp::kGe || op == FilterOp::kGt || op == FilterOp::kNe) {
+      return SearchValidationResult::kAllData;
+    }
+    return SearchValidationResult::kNoData;
+  }
+
+  return SearchValidationResult::kOk;
+}
+
 RangeOrBitVector SetIdStorage::Search(FilterOp op,
                                       SqlValue sql_val,
-                                      RowMap::Range range) const {
+                                      RowMap::Range search_range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SetIdStorage::Search",
-                    [&range, op](metatrace::Record* r) {
-                      r->AddArg("Start", std::to_string(range.start));
-                      r->AddArg("End", std::to_string(range.end));
+                    [&search_range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(search_range.start));
+                      r->AddArg("End", std::to_string(search_range.end));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  PERFETTO_DCHECK(range.end <= size());
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, search_range.end));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
+  }
+
+  PERFETTO_DCHECK(search_range.end <= size());
+  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
 
   if (op == FilterOp::kNe) {
-    if (sql_val.is_null()) {
-      return RangeOrBitVector(Range());
-    }
     // Not equal is a special operation on binary search, as it doesn't define a
     // range, and rather just `not` range returned with `equal` operation.
     RowMap::Range eq_range =
-        BinarySearchIntrinsic(FilterOp::kEq, sql_val, range);
-    BitVector bv(range.start, false);
+        BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
+    BitVector bv(search_range.start, false);
     bv.Resize(eq_range.start, true);
     bv.Resize(eq_range.end, false);
-    bv.Resize(range.end, true);
+    bv.Resize(search_range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
-  return RangeOrBitVector(BinarySearchIntrinsic(op, sql_val, range));
+  return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
 }
 
 RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
                                            SqlValue sql_val,
                                            uint32_t* indices,
-                                           uint32_t indices_count,
+                                           uint32_t indices_size,
                                            bool) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "SetIdStorage::IndexSearch",
-                    [indices_count, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_count));
+                    [indices_size, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_size));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  // Validate sql_val
-  if (PERFETTO_UNLIKELY(sql_val.is_null())) {
-    if (op == FilterOp::kIsNotNull) {
-      return RangeOrBitVector(Range(indices_count, true));
-    }
-    return RangeOrBitVector(Range());
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, indices_size));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
   }
 
-  if (PERFETTO_UNLIKELY(sql_val.AsLong() >
-                        std::numeric_limits<uint32_t>::max())) {
-    if (op == FilterOp::kLe || op == FilterOp::kLt) {
-      return RangeOrBitVector(Range(indices_count, true));
-    }
-    return RangeOrBitVector(Range());
-  }
-
-  if (PERFETTO_UNLIKELY(sql_val.AsLong() <
-                        std::numeric_limits<uint32_t>::min())) {
-    if (op == FilterOp::kGe || op == FilterOp::kGt) {
-      return RangeOrBitVector(Range(indices_count, true));
-    }
-    return RangeOrBitVector(Range());
-  }
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
 
-  BitVector::Builder builder(indices_count);
+  BitVector::Builder builder(indices_size);
 
   // TODO(mayzner): Instead of utils::IndexSearchWithComparator, use the
   // property of SetId data - that for each index i, data[i] <= i.
@@ -155,7 +220,7 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
                                        std::greater_equal<uint32_t>(), builder);
       break;
     case FilterOp::kIsNotNull:
-      return RangeOrBitVector(Range(0, indices_count));
+      return RangeOrBitVector(Range(0, indices_size));
     case FilterOp::kIsNull:
       return RangeOrBitVector(Range());
     case FilterOp::kGlob:
@@ -166,34 +231,8 @@ RangeOrBitVector SetIdStorage::IndexSearch(FilterOp op,
 }
 
 Range SetIdStorage::BinarySearchIntrinsic(FilterOp op,
-                                          SqlValue sql_val,
+                                          SetId val,
                                           Range range) const {
-  // Validate sql_value
-  if (PERFETTO_UNLIKELY(sql_val.is_null())) {
-    if (op == FilterOp::kIsNotNull) {
-      return range;
-    }
-    return Range();
-  }
-
-  if (PERFETTO_UNLIKELY(sql_val.AsLong() >
-                        std::numeric_limits<uint32_t>::max())) {
-    if (op == FilterOp::kLe || op == FilterOp::kLt) {
-      return range;
-    }
-    return Range();
-  }
-
-  if (PERFETTO_UNLIKELY(sql_val.AsLong() <
-                        std::numeric_limits<uint32_t>::min())) {
-    if (op == FilterOp::kGe || op == FilterOp::kGt) {
-      return range;
-    }
-    return Range();
-  }
-
-  uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
-
   switch (op) {
     case FilterOp::kEq:
       return Range(LowerBoundIntrinsic(values_->data(), val, range),
