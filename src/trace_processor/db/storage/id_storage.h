@@ -16,6 +16,10 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_ID_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_ID_STORAGE_H_
 
+#include "perfetto/base/status.h"
+#include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -33,6 +37,9 @@ namespace storage {
 class IdStorage final : public Storage {
  public:
   explicit IdStorage(uint32_t size) : size_(size) {}
+
+  SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                   FilterOp) const override;
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
@@ -53,9 +60,11 @@ class IdStorage final : public Storage {
   uint32_t size() const override { return size_; }
 
  private:
-  BitVector IndexSearch(FilterOp, SqlValue, uint32_t*, uint32_t) const;
+  using Id = uint32_t;
+
+  BitVector IndexSearch(FilterOp, Id, uint32_t*, uint32_t) const;
   RowMap::Range BinarySearchIntrinsic(FilterOp op,
-                                      SqlValue val,
+                                      Id,
                                       RowMap::Range search_range) const;
 
   const uint32_t size_ = 0;

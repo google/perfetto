@@ -36,6 +36,9 @@ class DummyStorage final : public Storage {
 
   RangeOrBitVector Search(FilterOp, SqlValue, RowMap::Range) const override;
 
+  SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                   FilterOp) const override;
+
   RangeOrBitVector IndexSearch(FilterOp,
                                SqlValue,
                                uint32_t*,

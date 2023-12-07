@@ -19,7 +19,6 @@
 #include "perfetto/ext/base/scoped_file.h"
 #include "perfetto/ext/base/status_or.h"
 #include "perfetto/ext/base/string_utils.h"
-#include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 
 #include "perfetto/base/logging.h"
@@ -27,6 +26,7 @@
 #include "src/trace_processor/containers/null_term_string_view.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 
 #include "src/trace_processor/db/storage/utils.h"
@@ -163,55 +163,97 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
 
 }  // namespace
 
+StringStorage::SearchValidationResult StringStorage::ValidateSearchConstraints(
+    SqlValue val,
+    FilterOp op) const {
+  // Type checks.
+  switch (val.type) {
+    case SqlValue::kNull:
+    case SqlValue::kString:
+      break;
+    case SqlValue::kLong:
+    case SqlValue::kDouble:
+      // Any string is always more than any numeric.
+      if (op == FilterOp::kGt || op == FilterOp::kGe) {
+        return Storage::SearchValidationResult::kAllData;
+      }
+      return Storage::SearchValidationResult::kNoData;
+    case SqlValue::kBytes:
+      return Storage::SearchValidationResult::kNoData;
+  }
+
+  return SearchValidationResult::kOk;
+}
+
 RangeOrBitVector StringStorage::Search(FilterOp op,
-                                       SqlValue value,
-                                       RowMap::Range range) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::LinearSearch",
-                    [&range, op](metatrace::Record* r) {
-                      r->AddArg("Start", std::to_string(range.start));
-                      r->AddArg("End", std::to_string(range.end));
+                                       SqlValue sql_val,
+                                       Range search_range) const {
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::Search",
+                    [&search_range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(search_range.start));
+                      r->AddArg("End", std::to_string(search_range.end));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
+
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, search_range.end));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
+  }
 
   if (is_sorted_) {
     if (op != FilterOp::kNe) {
-      return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+      return RangeOrBitVector(BinarySearchIntrinsic(op, sql_val, search_range));
     }
     // Not equal is a special operation on binary search, as it doesn't define
     // a range, and rather just `not` range returned with `equal` operation.
-    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
+    Range r = BinarySearchIntrinsic(FilterOp::kEq, sql_val, search_range);
     BitVector bv(r.start, true);
-    bv.Resize(r.end, false);
-    bv.Resize(range.end, true);
+    bv.Resize(r.end);
+    bv.Resize(search_range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
-  return RangeOrBitVector(LinearSearchInternal(op, value, range));
+  return RangeOrBitVector(LinearSearch(op, sql_val, search_range));
 }
 
 RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
-                                            SqlValue value,
+                                            SqlValue sql_val,
                                             uint32_t* indices,
-                                            uint32_t indices_count,
-                                            bool sorted) const {
+                                            uint32_t indices_size,
+                                            bool indices_sorted) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "StringStorage::IndexSearch",
-                    [indices_count, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_count));
+                    [indices_size, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_size));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  if (sorted) {
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, indices_size));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
+  }
+
+  if (indices_sorted) {
     return RangeOrBitVector(
-        BinarySearchExtrinsic(op, value, indices, indices_count));
+        BinarySearchExtrinsic(op, sql_val, indices, indices_size));
   }
   return RangeOrBitVector(
-      IndexSearchInternal(op, value, indices, indices_count, sorted));
+      IndexSearchInternal(op, sql_val, indices, indices_size));
 }
 
-BitVector StringStorage::LinearSearchInternal(FilterOp op,
-                                              SqlValue sql_val,
-                                              RowMap::Range range) const {
+BitVector StringStorage::LinearSearch(FilterOp op,
+                                      SqlValue sql_val,
+                                      RowMap::Range range) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
     return BitVector(range.end, false);
@@ -227,16 +269,6 @@ BitVector StringStorage::LinearSearchInternal(FilterOp op,
           ? StringPool::Id::Null()
           : string_pool_->InternString(base::StringView(sql_val.AsString()));
   const StringPool::Id* start = values_->data() + range.start;
-  PERFETTO_TP_TRACE(
-      metatrace::Category::DB, "StringStorage::Search",
-      [range, op, &sql_val](metatrace::Record* r) {
-        r->AddArg("Start", std::to_string(range.start));
-        r->AddArg("End", std::to_string(range.end));
-        r->AddArg("Op", std::to_string(static_cast<uint32_t>(op)));
-        r->AddArg("String", sql_val.type == SqlValue::Type::kString
-                                ? sql_val.AsString()
-                                : "NULL");
-      });
 
   BitVector::Builder builder(range.end, range.start);
   switch (op) {
@@ -318,11 +350,11 @@ BitVector StringStorage::LinearSearchInternal(FilterOp op,
   return std::move(builder).Build();
 }
 
-RangeOrBitVector StringStorage::IndexSearchInternal(FilterOp op,
-                                                    SqlValue sql_val,
-                                                    uint32_t* indices,
-                                                    uint32_t indices_size,
-                                                    bool) const {
+RangeOrBitVector StringStorage::IndexSearchInternal(
+    FilterOp op,
+    SqlValue sql_val,
+    uint32_t* indices,
+    uint32_t indices_size) const {
   if (sql_val.is_null() &&
       (op != FilterOp::kIsNotNull && op != FilterOp::kIsNull)) {
     return RangeOrBitVector(Range());
