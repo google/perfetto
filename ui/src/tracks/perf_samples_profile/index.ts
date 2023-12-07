@@ -87,10 +87,6 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 30.5;
 
 class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): PerfSamplesProfileTrack {
-    return new PerfSamplesProfileTrack(args);
-  }
-
   private centerY = this.getHeight() / 2;
   private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
   private hoveredTs: time|undefined = undefined;
