@@ -29,10 +29,8 @@ void AnnotateBenignRaceSized(const char* file,
                              const char* description);
 }
 
-#define PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(pointer, size, description)   \
-  AnnotateBenignRaceSized(__FILE__, __LINE__,                             \
-                          reinterpret_cast<unsigned long>(pointer), size, \
-                          description);
+#define PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(pointer, size, description) \
+  AnnotateBenignRaceSized(__FILE__, __LINE__, pointer, size, description);
 #else  // defined(ADDRESS_SANITIZER)
 #define PERFETTO_ANNOTATE_BENIGN_RACE_SIZED(pointer, size, description)
 #endif  // defined(ADDRESS_SANITIZER)
