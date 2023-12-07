@@ -32,6 +32,9 @@ class ArrangementStorage : public Storage {
   explicit ArrangementStorage(std::unique_ptr<Storage> inner,
                               const std::vector<uint32_t>* arrangement);
 
+  Storage::SearchValidationResult ValidateSearchConstraints(SqlValue, FilterOp)
+      const override;
+
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;

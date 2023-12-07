@@ -36,6 +36,9 @@ class SetIdStorage final : public Storage {
 
   explicit SetIdStorage(const std::vector<uint32_t>* data) : values_(data) {}
 
+  SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                   FilterOp) const override;
+
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;
@@ -57,9 +60,9 @@ class SetIdStorage final : public Storage {
   }
 
  private:
-  BitVector IndexSearch(FilterOp, SqlValue, uint32_t*, uint32_t) const;
-  RowMap::Range BinarySearchIntrinsic(FilterOp op,
-                                      SqlValue val,
+  BitVector IndexSearch(FilterOp, SetId, uint32_t*, uint32_t) const;
+  RowMap::Range BinarySearchIntrinsic(FilterOp,
+                                      SetId,
                                       RowMap::Range search_range) const;
 
   // TODO(b/307482437): After the migration vectors should be owned by storage,

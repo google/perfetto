@@ -70,10 +70,10 @@ class QueryExecutor {
   }
 
   // Used only in unittests. Exposes private function.
-  static RowMap IndexedColumnFilterForTesting(const Constraint& c,
-                                              const storage::Storage& col,
-                                              RowMap* rm) {
-    return IndexSearch(c, col, rm);
+  static void IndexedColumnFilterForTesting(const Constraint& c,
+                                            const storage::Storage& col,
+                                            RowMap* rm) {
+    IndexSearch(c, col, rm);
   }
 
  private:
@@ -86,9 +86,7 @@ class QueryExecutor {
 
   // Filters the column using Index algorithm - finds the indices to filter the
   // storage with.
-  static RowMap IndexSearch(const Constraint&,
-                            const storage::Storage&,
-                            RowMap*);
+  static void IndexSearch(const Constraint&, const storage::Storage&, RowMap*);
 
   std::vector<storage::Storage*> columns_;
 

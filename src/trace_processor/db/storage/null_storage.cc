@@ -73,6 +73,12 @@ RangeOrBitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
+Storage::SearchValidationResult NullStorage::ValidateSearchConstraints(
+    SqlValue sql_val,
+    FilterOp op) const {
+  return storage_->ValidateSearchConstraints(sql_val, op);
+}
+
 NullStorage::NullStorage(std::unique_ptr<Storage> storage,
                          const BitVector* non_null)
     : storage_(std::move(storage)), non_null_(non_null) {
