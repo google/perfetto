@@ -170,7 +170,10 @@ class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
   }
 
   async onDestroy() {
-    await this.query(`drop view if exists ${this.tableName('thread_state')}`);
+    if (this.engine.isAlive) {
+      await this.engine.query(
+          `drop view if exists ${this.tableName('thread_state')}`);
+    }
   }
 }
 
