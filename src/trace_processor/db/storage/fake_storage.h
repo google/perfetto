@@ -20,6 +20,7 @@
 #include <memory>
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/storage/storage.h"
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -28,6 +29,9 @@ namespace storage {
 // Fake implementation of Storage for use in tests.
 class FakeStorage final : public Storage {
  public:
+  SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                   FilterOp) const override;
+
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;

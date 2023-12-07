@@ -17,6 +17,7 @@
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
@@ -25,6 +26,12 @@ namespace storage {
 
 FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
     : size_(size), strategy_(strategy) {}
+
+FakeStorage::SearchValidationResult FakeStorage::ValidateSearchConstraints(
+    SqlValue,
+    FilterOp) const {
+  return SearchValidationResult::kOk;
+}
 
 RangeOrBitVector FakeStorage::Search(FilterOp,
                                      SqlValue,

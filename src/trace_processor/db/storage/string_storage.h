@@ -16,6 +16,7 @@
 #ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_STRING_STORAGE_H_
 #define SRC_TRACE_PROCESSOR_DB_STORAGE_STRING_STORAGE_H_
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/storage/storage.h"
@@ -38,6 +39,9 @@ class StringStorage final : public Storage {
                 bool is_sorted = false)
       : values_(data), string_pool_(string_pool), is_sorted_(is_sorted) {}
 
+  SearchValidationResult ValidateSearchConstraints(SqlValue,
+                                                   FilterOp) const override;
+
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;
@@ -58,13 +62,12 @@ class StringStorage final : public Storage {
   }
 
  private:
-  BitVector LinearSearchInternal(FilterOp, SqlValue, RowMap::Range) const;
+  BitVector LinearSearch(FilterOp, SqlValue, RowMap::Range) const;
 
   RangeOrBitVector IndexSearchInternal(FilterOp op,
                                        SqlValue sql_val,
                                        uint32_t* indices,
-                                       uint32_t indices_size,
-                                       bool) const;
+                                       uint32_t indices_size) const;
 
   RowMap::Range BinarySearchExtrinsic(FilterOp,
                                       SqlValue,

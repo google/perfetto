@@ -17,12 +17,18 @@
 
 #include "src/trace_processor/db/storage/numeric_storage.h"
 
+#include <cmath>
 #include <cstddef>
 #include <string>
 
+#include "perfetto/base/compiler.h"
+#include "perfetto/base/logging.h"
+#include "perfetto/public/compiler.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/storage/utils.h"
 #include "src/trace_processor/tp_metatrace.h"
@@ -32,7 +38,7 @@ namespace trace_processor {
 namespace storage {
 namespace {
 
-// All viable numeric values for ColumnTypes.
+using Range = RowMap::Range;
 using NumericValue = std::variant<uint32_t, int32_t, int64_t, double_t>;
 
 // Using the fact that binary operators in std are operators() of classes, we
@@ -46,33 +52,22 @@ using FilterOpVariant = std::variant<std::greater<T>,
                                      std::equal_to<T>,
                                      std::not_equal_to<T>>;
 
-// Based on SqlValue and ColumnType, casts SqlValue to proper type, returns
-// std::nullopt if SqlValue can't be cast and should be considered invalid for
-// comparison.
-inline std::optional<NumericValue> GetNumericTypeVariant(ColumnType type,
-                                                         SqlValue val) {
-  if (val.is_null())
-    return std::nullopt;
-
+// Based on SqlValue and ColumnType, casts SqlValue to proper type. Assumes the
+// |val| and |type| are correct.
+inline NumericValue GetNumericTypeVariant(ColumnType type, SqlValue val) {
   switch (type) {
     case ColumnType::kDouble:
       return val.AsDouble();
     case ColumnType::kInt64:
       return val.AsLong();
     case ColumnType::kInt32:
-      if (val.AsLong() > std::numeric_limits<int32_t>::max() ||
-          val.AsLong() < std::numeric_limits<int32_t>::min())
-        return std::nullopt;
       return static_cast<int32_t>(val.AsLong());
     case ColumnType::kUint32:
-      if (val.AsLong() > std::numeric_limits<uint32_t>::max() ||
-          val.AsLong() < std::numeric_limits<uint32_t>::min())
-        return std::nullopt;
       return static_cast<uint32_t>(val.AsLong());
     case ColumnType::kString:
     case ColumnType::kDummy:
     case ColumnType::kId:
-      return std::nullopt;
+      PERFETTO_FATAL("Invalid type");
   }
   PERFETTO_FATAL("For GCC");
 }
@@ -201,72 +196,198 @@ void TypedLinearSearch(T typed_val,
 
 }  // namespace
 
+NumericStorageBase::SearchValidationResult
+NumericStorageBase::ValidateSearchConstraints(SqlValue val, FilterOp op) const {
+  // NULL checks.
+  if (PERFETTO_UNLIKELY(val.is_null())) {
+    if (op == FilterOp::kIsNotNull) {
+      return SearchValidationResult::kAllData;
+    }
+    if (op == FilterOp::kIsNull) {
+      return SearchValidationResult::kNoData;
+    }
+    PERFETTO_FATAL(
+        "Invalid path. NULL should only be compared with 'IS NULL' and 'IS NOT "
+        "NULL'");
+  }
+
+  // FilterOp checks. Switch so that we get a warning if new FilterOp is not
+  // handled.
+  switch (op) {
+    case FilterOp::kEq:
+    case FilterOp::kNe:
+    case FilterOp::kLt:
+    case FilterOp::kLe:
+    case FilterOp::kGt:
+    case FilterOp::kGe:
+      break;
+    case FilterOp::kIsNull:
+    case FilterOp::kIsNotNull:
+      PERFETTO_FATAL("Invalid constraint");
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      return SearchValidationResult::kNoData;
+  }
+
+  // Type checks.
+  switch (val.type) {
+    case SqlValue::kNull:
+    case SqlValue::kLong:
+    case SqlValue::kDouble:
+      break;
+    case SqlValue::kString:
+      // Any string is always more than any numeric.
+      if (op == FilterOp::kLt || op == FilterOp::kLe) {
+        return Storage::SearchValidationResult::kAllData;
+      }
+      return Storage::SearchValidationResult::kNoData;
+    case SqlValue::kBytes:
+      return Storage::SearchValidationResult::kNoData;
+  }
+
+  // TODO(b/307482437): There is currently no support for comparison with double
+  // and it is prevented on QueryExecutor level.
+  if (type_ != ColumnType::kDouble) {
+    PERFETTO_CHECK(val.type != SqlValue::kDouble);
+  }
+
+  // Bounds of the value.
+  enum ExtremeVal { kTooBig, kTooSmall, kOk };
+  ExtremeVal extreme_validator = kOk;
+
+  switch (type_) {
+    case ColumnType::kDouble:
+      // Any value would make a sensible comparison with a double.
+    case ColumnType::kInt64:
+      // TODO(b/307482437): As long as the type is not double there is nothing
+      // to verify here, as all values are going to be in the int64_t limits.
+      break;
+    case ColumnType::kInt32:
+      if (val.AsLong() > std::numeric_limits<int32_t>::max()) {
+        extreme_validator = kTooBig;
+        break;
+      }
+      if (val.AsLong() < std::numeric_limits<int32_t>::min()) {
+        extreme_validator = kTooSmall;
+        break;
+      }
+      break;
+    case ColumnType::kUint32:
+      if (val.AsLong() > std::numeric_limits<uint32_t>::max()) {
+        extreme_validator = kTooBig;
+        break;
+      }
+      if (val.AsLong() < std::numeric_limits<uint32_t>::min()) {
+        extreme_validator = kTooSmall;
+        break;
+      }
+      break;
+    case ColumnType::kString:
+    case ColumnType::kDummy:
+    case ColumnType::kId:
+      break;
+  }
+
+  switch (extreme_validator) {
+    case kOk:
+      return Storage::SearchValidationResult::kOk;
+    case kTooBig:
+      if (op == FilterOp::kLt || op == FilterOp::kLe || op == FilterOp::kNe) {
+        return SearchValidationResult::kAllData;
+      }
+      return SearchValidationResult::kNoData;
+    case kTooSmall:
+      if (op == FilterOp::kGt || op == FilterOp::kGe || op == FilterOp::kNe) {
+        return SearchValidationResult::kAllData;
+      }
+      return SearchValidationResult::kNoData;
+  }
+
+  PERFETTO_FATAL("For GCC");
+}
+
 RangeOrBitVector NumericStorageBase::Search(FilterOp op,
-                                            SqlValue value,
-                                            RowMap::Range range) const {
+                                            SqlValue sql_val,
+                                            RowMap::Range search_range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::Search",
-                    [&range, op](metatrace::Record* r) {
-                      r->AddArg("Start", std::to_string(range.start));
-                      r->AddArg("End", std::to_string(range.end));
+                    [&search_range, op](metatrace::Record* r) {
+                      r->AddArg("Start", std::to_string(search_range.start));
+                      r->AddArg("End", std::to_string(search_range.end));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
+
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, search_range.end));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
+  }
+
+  NumericValue val = GetNumericTypeVariant(type_, sql_val);
 
   if (is_sorted_) {
     if (op != FilterOp::kNe) {
-      return RangeOrBitVector(BinarySearchIntrinsic(op, value, range));
+      return RangeOrBitVector(BinarySearchIntrinsic(op, val, search_range));
     }
     // Not equal is a special operation on binary search, as it doesn't define a
     // range, and rather just `not` range returned with `equal` operation.
-    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, value, range);
+    RowMap::Range r = BinarySearchIntrinsic(FilterOp::kEq, val, search_range);
     BitVector bv(r.start, true);
     bv.Resize(r.end, false);
-    bv.Resize(range.end, true);
+    bv.Resize(search_range.end, true);
     return RangeOrBitVector(std::move(bv));
   }
-  return RangeOrBitVector(LinearSearchInternal(op, value, range));
+
+  return RangeOrBitVector(LinearSearchInternal(op, val, search_range));
 }
 
 RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
-                                                 SqlValue value,
+                                                 SqlValue sql_val,
                                                  uint32_t* indices,
-                                                 uint32_t indices_count,
+                                                 uint32_t indices_size,
                                                  bool sorted) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NumericStorage::IndexSearch",
-                    [indices_count, op](metatrace::Record* r) {
-                      r->AddArg("Count", std::to_string(indices_count));
+                    [indices_size, op](metatrace::Record* r) {
+                      r->AddArg("Count", std::to_string(indices_size));
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
+
+  // After this switch we assume the search is valid.
+  switch (ValidateSearchConstraints(sql_val, op)) {
+    case SearchValidationResult::kOk:
+      break;
+    case SearchValidationResult::kAllData:
+      return RangeOrBitVector(Range(0, indices_size));
+    case SearchValidationResult::kNoData:
+      return RangeOrBitVector(Range());
+  }
+  NumericValue val = GetNumericTypeVariant(type_, sql_val);
   if (sorted) {
     return RangeOrBitVector(
-        BinarySearchExtrinsic(op, value, indices, indices_count));
+        BinarySearchExtrinsic(op, val, indices, indices_size));
   }
-  return RangeOrBitVector(
-      IndexSearchInternal(op, value, indices, indices_count));
+  return RangeOrBitVector(IndexSearchInternal(op, val, indices, indices_size));
 }
 
 BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
-                                                   SqlValue sql_val,
+                                                   NumericValue val,
                                                    RowMap::Range range) const {
-  std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-  if (op == FilterOp::kIsNotNull)
-    return BitVector(range.end, true);
-
-  if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector(range.end, false);
-
   BitVector::Builder builder(range.end, range.start);
-  if (const auto* u32 = std::get_if<uint32_t>(&*val)) {
+  if (const auto* u32 = std::get_if<uint32_t>(&val)) {
     auto* start = static_cast<const uint32_t*>(data_) + range.start;
     TypedLinearSearch(*u32, start, op, builder);
-  } else if (const auto* i64 = std::get_if<int64_t>(&*val)) {
+  } else if (const auto* i64 = std::get_if<int64_t>(&val)) {
     auto* start = static_cast<const int64_t*>(data_) + range.start;
     TypedLinearSearch(*i64, start, op, builder);
-  } else if (const auto* i32 = std::get_if<int32_t>(&*val)) {
+  } else if (const auto* i32 = std::get_if<int32_t>(&val)) {
     auto* start = static_cast<const int32_t*>(data_) + range.start;
     TypedLinearSearch(*i32, start, op, builder);
-  } else if (const auto* db = std::get_if<double>(&*val)) {
+  } else if (const auto* db = std::get_if<double>(&val)) {
     auto* start = static_cast<const double*>(data_) + range.start;
     TypedLinearSearch(*db, start, op, builder);
   } else {
@@ -277,16 +398,9 @@ BitVector NumericStorageBase::LinearSearchInternal(FilterOp op,
 
 BitVector NumericStorageBase::IndexSearchInternal(
     FilterOp op,
-    SqlValue sql_val,
+    NumericValue val,
     uint32_t* indices,
     uint32_t indices_count) const {
-  std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-  if (op == FilterOp::kIsNotNull)
-    return BitVector(indices_count, true);
-
-  if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return BitVector(indices_count, false);
-
   BitVector::Builder builder(indices_count);
   std::visit(
       [this, indices, op, &builder](auto val) {
@@ -299,37 +413,30 @@ BitVector NumericStorageBase::IndexSearchInternal(
             },
             GetFilterOpVariant<T>(op));
       },
-      *val);
+      val);
   return std::move(builder).Build();
 }
 
 RowMap::Range NumericStorageBase::BinarySearchIntrinsic(
     FilterOp op,
-    SqlValue sql_val,
+    NumericValue val,
     RowMap::Range search_range) const {
-  std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-  if (op == FilterOp::kIsNotNull)
-    return search_range;
-
-  if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return RowMap::Range();
-
   switch (op) {
     case FilterOp::kEq:
-      return RowMap::Range(LowerBoundIntrinsic(data_, *val, search_range),
-                           UpperBoundIntrinsic(data_, *val, search_range));
+      return RowMap::Range(LowerBoundIntrinsic(data_, val, search_range),
+                           UpperBoundIntrinsic(data_, val, search_range));
     case FilterOp::kLe: {
       return RowMap::Range(search_range.start,
-                           UpperBoundIntrinsic(data_, *val, search_range));
+                           UpperBoundIntrinsic(data_, val, search_range));
     }
     case FilterOp::kLt:
       return RowMap::Range(search_range.start,
-                           LowerBoundIntrinsic(data_, *val, search_range));
+                           LowerBoundIntrinsic(data_, val, search_range));
     case FilterOp::kGe:
-      return RowMap::Range(LowerBoundIntrinsic(data_, *val, search_range),
+      return RowMap::Range(LowerBoundIntrinsic(data_, val, search_range),
                            search_range.end);
     case FilterOp::kGt:
-      return RowMap::Range(UpperBoundIntrinsic(data_, *val, search_range),
+      return RowMap::Range(UpperBoundIntrinsic(data_, val, search_range),
                            search_range.end);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
@@ -343,34 +450,26 @@ RowMap::Range NumericStorageBase::BinarySearchIntrinsic(
 
 RowMap::Range NumericStorageBase::BinarySearchExtrinsic(
     FilterOp op,
-    SqlValue sql_val,
+    NumericValue val,
     uint32_t* indices,
     uint32_t indices_count) const {
-  std::optional<NumericValue> val = GetNumericTypeVariant(type_, sql_val);
-
-  if (op == FilterOp::kIsNotNull)
-    return RowMap::Range(0, size());
-
-  if (!val.has_value() || op == FilterOp::kIsNull || op == FilterOp::kGlob)
-    return RowMap::Range();
-
   switch (op) {
     case FilterOp::kEq:
       return RowMap::Range(
-          LowerBoundExtrinsic(data_, *val, indices, indices_count),
-          UpperBoundExtrinsic(data_, *val, indices, indices_count));
+          LowerBoundExtrinsic(data_, val, indices, indices_count),
+          UpperBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kLe:
       return RowMap::Range(
-          0, UpperBoundExtrinsic(data_, *val, indices, indices_count));
+          0, UpperBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kLt:
       return RowMap::Range(
-          0, LowerBoundExtrinsic(data_, *val, indices, indices_count));
+          0, LowerBoundExtrinsic(data_, val, indices, indices_count));
     case FilterOp::kGe:
       return RowMap::Range(
-          LowerBoundExtrinsic(data_, *val, indices, indices_count), size_);
+          LowerBoundExtrinsic(data_, val, indices, indices_count), size_);
     case FilterOp::kGt:
       return RowMap::Range(
-          UpperBoundExtrinsic(data_, *val, indices, indices_count), size_);
+          UpperBoundExtrinsic(data_, val, indices, indices_count), size_);
     case FilterOp::kNe:
     case FilterOp::kIsNull:
     case FilterOp::kIsNotNull:
@@ -382,7 +481,6 @@ RowMap::Range NumericStorageBase::BinarySearchExtrinsic(
 }
 
 void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
-  NumericValue val = *GetNumericTypeVariant(type_, SqlValue::Long(0));
   std::visit(
       [this, &rows, rows_size](auto val_data) {
         using T = decltype(val_data);
@@ -394,7 +492,7 @@ void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
                            return first_val < second_val;
                          });
       },
-      val);
+      GetNumericTypeVariant(type_, SqlValue::Long(0)));
 }
 
 void NumericStorageBase::Sort(uint32_t*, uint32_t) const {
