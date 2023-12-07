@@ -1110,6 +1110,16 @@ class Parsing(TestSuite):
         query=Path('all_atoms_test.sql'),
         out=Path('statsd_atoms_all_atoms.out'))
 
+  # Statsd Atoms
+  def test_statsd_atoms_unknown_atoms(self):
+    return DiffTestBlueprint(
+        trace=DataPath('statsd_atoms_oem.pb'),
+        query=Path('all_atoms_test.sql'),
+        out=Csv("""
+          "name","key","display_value"
+          "atom_202001","field_1","1"
+        """))
+
   # Kernel function tracing.
   def test_funcgraph_trace_funcgraph(self):
     return DiffTestBlueprint(

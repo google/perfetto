@@ -141,6 +141,54 @@ class InserterDelegate : public util::ProtoToArgsParser::Delegate {
   TraceStorage& storage_;
 };
 
+// If we don't know about the atom format put whatever details we
+// can. This has the following restrictions:
+// - We can't tell the difference between double, fixed64, sfixed64
+//   so those all show up as double
+// - We can't tell the difference between float, fixed32, sfixed32
+//   so those all show up as float
+// - We can't tell the difference between int32, int64 and sint32
+//   and sint64. We assume int32/int64.
+// - We only show the length of strings, nested messages, packed ints
+//   and any other length delimited fields.
+base::Status ParseGenericEvent(const protozero::ConstBytes& cb,
+                               util::ProtoToArgsParser::Delegate& delegate) {
+  protozero::ProtoDecoder decoder(cb);
+  for (auto f = decoder.ReadField(); f.valid(); f = decoder.ReadField()) {
+    switch (f.type()) {
+      case protozero::proto_utils::ProtoWireType::kLengthDelimited: {
+        base::StackString<64> name("field_%u", f.id());
+        std::string name_str = name.ToStdString();
+        util::ProtoToArgsParser::Key key{name_str, name_str};
+        delegate.AddBytes(key, f.as_bytes());
+        break;
+      }
+      case protozero::proto_utils::ProtoWireType::kVarInt: {
+        base::StackString<64> name("field_%u", f.id());
+        std::string name_str = name.ToStdString();
+        util::ProtoToArgsParser::Key key{name_str, name_str};
+        delegate.AddInteger(key, f.as_int64());
+        break;
+      }
+      case protozero::proto_utils::ProtoWireType::kFixed32: {
+        base::StackString<64> name("field_%u_assuming_float", f.id());
+        std::string name_str = name.ToStdString();
+        util::ProtoToArgsParser::Key key{name_str, name_str};
+        delegate.AddDouble(key, static_cast<double>(f.as_float()));
+        break;
+      }
+      case protozero::proto_utils::ProtoWireType::kFixed64: {
+        base::StackString<64> name("field_%u_assuming_double", f.id());
+        std::string name_str = name.ToStdString();
+        util::ProtoToArgsParser::Key key{name_str, name_str};
+        delegate.AddDouble(key, f.as_double());
+        break;
+      }
+    }
+  }
+  return base::OkStatus();
+}
+
 }  // namespace
 
 using perfetto::protos::pbzero::StatsdAtom;
@@ -247,10 +295,26 @@ void StatsdModule::ParseAtom(int64_t ts, protozero::ConstBytes nested_bytes) {
   SliceId slice = opt_slice.value();
   auto inserter = context_->args_tracker->AddArgsTo(slice);
   InserterDelegate delegate(inserter, *context_->storage.get());
-  base::Status result = args_parser_.ParseMessage(
-      nested_bytes, kAtomProtoName, nullptr /* parse all fields */, delegate);
-  if (!result.ok()) {
-    PERFETTO_ELOG("%s", result.c_message());
+
+  const auto& fields = pool_.descriptor()->fields();
+  const auto& field_it = fields.find(nested_field_id);
+  base::Status status;
+
+  if (field_it == fields.end()) {
+    /// Field ids 100000 and over are OEM atoms - we can't have the
+    // descriptor for them so don't report errors. See:
+    // https://cs.android.com/android/platform/superproject/main/+/main:frameworks/proto_logging/stats/atoms.proto;l=1290;drc=a34b11bfebe897259a0340a59f1793ae2dffd762
+    if (nested_field_id < 100000) {
+      context_->storage->IncrementStats(stats::atom_unknown);
+    }
+
+    status = ParseGenericEvent(field.as_bytes(), delegate);
+  } else {
+    status = args_parser_.ParseMessage(
+        nested_bytes, kAtomProtoName, nullptr /* parse all fields */, delegate);
+  }
+
+  if (!status.ok()) {
     context_->storage->IncrementStats(stats::atom_unknown);
   }
 }
@@ -263,18 +327,18 @@ StringId StatsdModule::GetAtomName(uint32_t atom_field_id) {
       return context_->storage->InternString("Could not load atom descriptor");
     }
 
+    StringId name_id;
     const auto& fields = pool_.descriptor()->fields();
     const auto& field_it = fields.find(atom_field_id);
     if (field_it == fields.end()) {
-      context_->storage->IncrementStats(stats::atom_unknown);
-      return context_->storage->InternString("Unknown atom");
+      base::StackString<255> name("atom_%u", atom_field_id);
+      name_id = context_->storage->InternString(name.string_view());
+    } else {
+      const FieldDescriptor& field = field_it->second;
+      name_id = context_->storage->InternString(base::StringView(field.name()));
     }
-
-    const FieldDescriptor& field = field_it->second;
-    StringId name =
-        context_->storage->InternString(base::StringView(field.name()));
-    atom_names_[atom_field_id] = name;
-    return name;
+    atom_names_[atom_field_id] = name_id;
+    return name_id;
   }
   return *cached_name;
 }
