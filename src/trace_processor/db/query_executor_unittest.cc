@@ -223,7 +223,7 @@ TEST(QueryExecutor, ArrangementStorageBounds) {
   ASSERT_THAT(rm.GetAllIndices(), ElementsAre(0u, 4u));
 }
 
-TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
+TEST(QueryExecutor, ArrangementStorageSubsetInputRange) {
   std::unique_ptr<storage::Storage> fake =
       storage::FakeStorage::SearchSubset(5u, RowMap::Range(2u, 4u));
 
@@ -237,7 +237,7 @@ TEST(QueryExecutor, ArrangementOverlaySubsetInputRange) {
   ASSERT_THAT(rm.GetAllIndices(), ElementsAre(2u));
 }
 
-TEST(QueryExecutor, ArrangementOverlaySubsetInputBitvector) {
+TEST(QueryExecutor, ArrangementStorageSubsetInputBitvector) {
   std::unique_ptr<storage::Storage> fake =
       storage::FakeStorage::SearchSubset(5u, BitVector({0, 0, 1, 1, 0}));
 
