@@ -66,6 +66,7 @@ perfetto_unittest_source_set("unittests") {
     ":view_unittest",
     "../../../gn:default_deps",
     "../../../gn:gtest_and_gmock",
+    "../../../include/perfetto/trace_processor:basic_types",
     "../../base",
     "../tables",
     "../views",
