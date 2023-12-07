@@ -60,6 +60,7 @@ RangeOrBitVector ArrangementStorage::Search(FilterOp op,
     }
   } else {
     BitVector storage_bitvector = std::move(storage_result).TakeIfBitVector();
+    PERFETTO_DCHECK(storage_bitvector.size() == *max_i + 1);
 
     // After benchmarking, it turns out this complexity *is* actually worthwhile
     // and has a noticable impact on the performance of this function in real
@@ -67,13 +68,13 @@ RangeOrBitVector ArrangementStorage::Search(FilterOp op,
 
     // Fast path: we compare as many groups of 64 elements as we can.
     // This should be very easy for the compiler to auto-vectorize.
+    const uint32_t* arrangement_idx = arrangement.data() + in.start;
     uint32_t fast_path_elements = builder.BitsInCompleteWordsUntilFull();
-    uint32_t cur_idx = 0;
     for (uint32_t i = 0; i < fast_path_elements; i += BitVector::kBitsInWord) {
       uint64_t word = 0;
       // This part should be optimised by SIMD and is expected to be fast.
-      for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k, ++cur_idx) {
-        bool comp_result = storage_bitvector.IsSet((*arrangement_)[cur_idx]);
+      for (uint32_t k = 0; k < BitVector::kBitsInWord; ++k, ++arrangement_idx) {
+        bool comp_result = storage_bitvector.IsSet(*arrangement_idx);
         word |= static_cast<uint64_t>(comp_result) << k;
       }
       builder.AppendWord(word);
@@ -81,8 +82,8 @@ RangeOrBitVector ArrangementStorage::Search(FilterOp op,
 
     // Slow path: we compare <64 elements and append to fill the Builder.
     uint32_t back_elements = builder.BitsUntilFull();
-    for (uint32_t i = 0; i < back_elements; ++i, ++cur_idx) {
-      builder.Append(storage_bitvector.IsSet((*arrangement_)[cur_idx]));
+    for (uint32_t i = 0; i < back_elements; ++i, ++arrangement_idx) {
+      builder.Append(storage_bitvector.IsSet(*arrangement_idx));
     }
   }
   return RangeOrBitVector(std::move(builder).Build());
