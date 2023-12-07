@@ -446,8 +446,10 @@ export abstract class BaseSliceTrack<
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w : Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
+        const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w :
+                                                     Math.max(slice.w - 2, 2);
+        drawIncompleteSlice(
+            ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else {
         const w = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
         ctx.fillRect(slice.x, y, w, sliceHeight);
@@ -815,12 +817,15 @@ export abstract class BaseSliceTrack<
     }
 
     for (const slice of this.incomplete) {
+      const visibleTimeScale = globals.frontendLocalState.visibleTimeScale;
       const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
-        globals.frontendLocalState.visibleTimeScale.timeToPx(slice.startNsQ) : slice.x;
+          visibleTimeScale.timeToPx(slice.startNsQ) :
+          slice.x;
       const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get() ?
         startPx + INCOMPLETE_SLICE_WIDTH_PX >= x : true;
 
-      if (slice.depth === depth && startPx <= x && cropUnfinishedSlicesCondition) {
+      if (slice.depth === depth && startPx <= x &&
+          cropUnfinishedSlicesCondition) {
         return slice;
       }
     }
