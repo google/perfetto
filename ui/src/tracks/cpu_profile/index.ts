@@ -90,10 +90,6 @@ class CpuProfileTrackController extends TrackControllerAdapter<Config, Data> {
 }
 
 class CpuProfileTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): CpuProfileTrack {
-    return new CpuProfileTrack(args);
-  }
-
   private centerY = this.getHeight() / 2 + BAR_HEIGHT;
   private markerWidth = (this.getHeight() - MARGIN_TOP - BAR_HEIGHT) / 2;
   private hoveredTs: time|undefined = undefined;

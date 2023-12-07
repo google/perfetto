@@ -23,7 +23,6 @@ import {
   NAMED_ROW,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
@@ -79,10 +78,6 @@ function convertToCriticalUserInteractionType(cujType: string):
 export class CriticalUserInteractionTrack extends
     CustomSqlTableSliceTrack<CriticalUserInteractionSliceTrackTypes> {
   static readonly kind = CRITICAL_USER_INTERACTIONS_KIND;
-
-  static create(args: NewTrackArgs): TrackBase {
-    return new CriticalUserInteractionTrack(args);
-  }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
