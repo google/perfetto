@@ -24,7 +24,7 @@ namespace perfetto {
 namespace trace_processor {
 namespace {
 
-std::array<FtraceMessageDescriptor, 487> descriptors{{
+std::array<FtraceMessageDescriptor, 488> descriptors{{
     {nullptr, 0, {}},
     {nullptr, 0, {}},
     {nullptr, 0, {}},
@@ -5349,6 +5349,30 @@ std::array<FtraceMessageDescriptor, 487> descriptors{{
         {
             {},
             {"cmd", ProtoSchemaType::kUint32},
+        },
+    },
+    {
+        "sched_switch_with_ctrs",
+        17,
+        {
+            {},
+            {"old_pid", ProtoSchemaType::kInt32},
+            {"new_pid", ProtoSchemaType::kInt32},
+            {"cctr", ProtoSchemaType::kUint32},
+            {"ctr0", ProtoSchemaType::kUint32},
+            {"ctr1", ProtoSchemaType::kUint32},
+            {"ctr2", ProtoSchemaType::kUint32},
+            {"ctr3", ProtoSchemaType::kUint32},
+            {"lctr0", ProtoSchemaType::kUint32},
+            {"lctr1", ProtoSchemaType::kUint32},
+            {"ctr4", ProtoSchemaType::kUint32},
+            {"ctr5", ProtoSchemaType::kUint32},
+            {"prev_comm", ProtoSchemaType::kString},
+            {"prev_pid", ProtoSchemaType::kInt32},
+            {"cyc", ProtoSchemaType::kUint32},
+            {"inst", ProtoSchemaType::kUint32},
+            {"stallbm", ProtoSchemaType::kUint32},
+            {"l3dm", ProtoSchemaType::kUint32},
         },
     },
 }};
