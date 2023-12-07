@@ -399,7 +399,15 @@ void TraceWriterImpl::FinishTracePacket() {
     PERFETTO_DCHECK(wptr >= cur_fragment_start_);
     uint32_t partial_size = static_cast<uint32_t>(wptr - cur_fragment_start_);
 
-    WriteRedundantVarInt(partial_size, last_packet_size_field_);
+    // last_packet_size_field_, if not nullptr, is always inside or immediately
+    // before protobuf_stream_writer_.cur_range().
+    if (partial_size < protozero::proto_utils::kMaxOneByteMessageLength &&
+        last_packet_size_field_ >= protobuf_stream_writer_.cur_range().begin) {
+      protobuf_stream_writer_.Rewind(partial_size, kPacketHeaderSize - 1u);
+      *last_packet_size_field_ = static_cast<uint8_t>(partial_size);
+    } else {
+      WriteRedundantVarInt(partial_size, last_packet_size_field_);
+    }
   }
 
   cur_packet_->Reset(&protobuf_stream_writer_);
