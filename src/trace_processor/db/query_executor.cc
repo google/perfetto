@@ -50,9 +50,11 @@ using Storage = storage::Storage;
 void QueryExecutor::FilterColumn(const Constraint& c,
                                  const storage::Storage& storage,
                                  RowMap* rm) {
+  // Shortcut of empty row map.
   if (rm->empty())
     return;
 
+  // Decide which algorithm should be used for filtering.
   uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
@@ -64,8 +66,9 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   bool disallows_index_search = rm->IsRange();
   bool prefers_index_search =
       rm->IsIndexVector() || rm_size < 1024 || rm_size * 10 < range_size;
+
   if (!disallows_index_search && prefers_index_search) {
-    *rm = IndexSearch(c, storage, rm);
+    IndexSearch(c, storage, rm);
     return;
   }
   LinearSearch(c, storage, rm);
@@ -99,9 +102,9 @@ void QueryExecutor::LinearSearch(const Constraint& c,
   rm->Intersect(RowMap(std::move(res).TakeIfBitVector()));
 }
 
-RowMap QueryExecutor::IndexSearch(const Constraint& c,
-                                  const storage::Storage& storage,
-                                  RowMap* rm) {
+void QueryExecutor::IndexSearch(const Constraint& c,
+                                const storage::Storage& storage,
+                                RowMap* rm) {
   // Create outmost TableIndexVector.
   std::vector<uint32_t> table_indices = std::move(*rm).TakeAsIndexVector();
 
@@ -109,16 +112,27 @@ RowMap QueryExecutor::IndexSearch(const Constraint& c,
       c.op, c.value, table_indices.data(),
       static_cast<uint32_t>(table_indices.size()), false /* sorted */);
 
-  // TODO(b/283763282): Remove after implementing extrinsic binary search.
-  PERFETTO_CHECK(matched.IsBitVector());
+  if (matched.IsBitVector()) {
+    BitVector res = std::move(matched).TakeIfBitVector();
+    uint32_t i = 0;
+    table_indices.erase(
+        std::remove_if(table_indices.begin(), table_indices.end(),
+                       [&i, &res](uint32_t) { return !res.IsSet(i++); }),
+        table_indices.end());
+    *rm = RowMap(std::move(table_indices));
+    return;
+  }
 
-  BitVector res = std::move(matched).TakeIfBitVector();
-  uint32_t i = 0;
-  table_indices.erase(
-      std::remove_if(table_indices.begin(), table_indices.end(),
-                     [&i, &res](uint32_t) { return !res.IsSet(i++); }),
-      table_indices.end());
-  return RowMap(std::move(table_indices));
+  Range res = std::move(matched).TakeIfRange();
+  if (res.size() == 0) {
+    rm->Clear();
+    return;
+  }
+  if (res.size() == table_indices.size()) {
+    return;
+  }
+  // TODO(b/283763282): Remove after implementing extrinsic binary search.
+  PERFETTO_FATAL("Extrinsic binary search is not implemented.");
 }
 
 RowMap QueryExecutor::FilterLegacy(const Table* table,
@@ -226,8 +240,8 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       }
     }
     if (col.IsNullable()) {
-      // String columns are inherently nullable: null values are signified with
-      // Id::Null().
+      // String columns are inherently nullable: null values are signified
+      // with Id::Null().
       PERFETTO_CHECK(col.col_type() != ColumnType::kString);
       storage = std::make_unique<storage::NullStorage>(std::move(storage),
                                                        col.storage_base().bv());
