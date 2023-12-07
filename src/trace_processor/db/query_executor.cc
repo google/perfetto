@@ -54,7 +54,14 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   if (rm->empty())
     return;
 
-  // Decide which algorithm should be used for filtering.
+  // Comparison of NULL with any operation apart from |IS_NULL| and
+  // |IS_NOT_NULL| should return no rows.
+  if (c.value.is_null() && c.op != FilterOp::kIsNull &&
+      c.op != FilterOp::kIsNotNull) {
+    rm->Clear();
+    return;
+  }
+
   uint32_t rm_size = rm->size();
   uint32_t rm_first = rm->Get(0);
   uint32_t rm_last = rm->Get(rm_size - 1);
@@ -156,7 +163,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     // Mismatched types.
     use_legacy = use_legacy ||
                  (c.op != FilterOp::kIsNull && c.op != FilterOp::kIsNotNull &&
-                  col.type() != c.value.type);
+                  col.type() != c.value.type && !c.value.is_null());
 
     // Dense columns.
     use_legacy = use_legacy || col.IsDense();
