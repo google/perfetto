@@ -16,7 +16,6 @@ import {AddTrackArgs} from '../../common/actions';
 import {
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
 import {
   Plugin,
   PluginContext,
@@ -36,9 +35,6 @@ import {
 
 class ScreenshotsTrack extends CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'dev.perfetto.ScreenshotsTrack';
-  static create(args: NewTrackArgs): TrackBase {
-    return new ScreenshotsTrack(args);
-  }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {

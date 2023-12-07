@@ -189,10 +189,6 @@ export class ProcessSchedulingTrackController extends
 }
 
 export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): ProcessSchedulingTrack {
-    return new ProcessSchedulingTrack(args);
-  }
-
   private mousePos?: {x: number, y: number};
   private utidHoveredInThisTrack = -1;
 

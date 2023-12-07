@@ -13,13 +13,14 @@
 // limitations under the License.
 
 import {NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
   CustomSqlTableDefConfig,
   CustomSqlTableSliceTrack,
 } from '../custom_sql_table_slices';
+
 import {
   SCROLL_JANK_GROUP_ID,
   ScrollJankPluginState,
@@ -33,9 +34,6 @@ export const CHROME_TOPLEVEL_SCROLLS_KIND =
 export class TopLevelScrollTrack extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   public static kind = CHROME_TOPLEVEL_SCROLLS_KIND;
-  static create(args: NewTrackArgs): TrackBase {
-    return new TopLevelScrollTrack(args);
-  }
 
   getSqlDataSource(): CustomSqlTableDefConfig {
     return {
