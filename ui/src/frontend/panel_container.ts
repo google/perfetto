@@ -15,6 +15,7 @@
 import m from 'mithril';
 
 import {Trash} from '../base/disposable';
+import {getScrollbarWidth} from '../base/dom_utils';
 import {assertExists, assertFalse} from '../base/logging';
 import {SimpleResizeObserver} from '../base/resize_observer';
 import {
@@ -333,8 +334,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     // On non-MacOS if there is a solid scroll bar it can cover important
     // pixels, reduce the size of the canvas so it doesn't overlap with
     // the scroll bar.
-    this.parentWidth =
-        clientRect.width - globals.frontendLocalState.getScrollbarWidth();
+    this.parentWidth = clientRect.width - getScrollbarWidth();
     this.parentHeight = clientRect.height;
     return this.parentHeight !== oldHeight || this.parentWidth !== oldWidth;
   }

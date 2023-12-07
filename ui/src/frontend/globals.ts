@@ -47,6 +47,7 @@ import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {Analytics, initAnalytics} from './analytics';
 import {BottomTabList} from './bottom_tab';
@@ -282,6 +283,11 @@ class Globals {
   private _realtimeOffset = Time.ZERO;
   private _utcOffset = Time.ZERO;
   private _openQueryHandler?: OpenQueryHandler;
+
+  scrollToTrackKey?: string|number;
+  httpRpcState: HttpRpcState = {connected: false};
+  newVersionAvailable = false;
+  showPanningHint = false;
 
   // TODO(hjd): Remove once we no longer need to update UUID on redraw.
   private _publishRedraw?: () => void = undefined;
