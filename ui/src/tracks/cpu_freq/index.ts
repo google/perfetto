@@ -274,10 +274,6 @@ const MARGIN_TOP = 4.5;
 const RECT_HEIGHT = 20;
 
 class CpuFreqTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): CpuFreqTrack {
-    return new CpuFreqTrack(args);
-  }
-
   private mousePos = {x: 0, y: 0};
   private hoveredValue: number|undefined = undefined;
   private hoveredTs: time|undefined = undefined;
