@@ -14,7 +14,7 @@ Follow the steps below or see the
 ```sh
 git clone https://android.googlesource.com/platform/external/perfetto/
 cd perfetto
-./tool/install-build-deps --ui
+./tools/install-build-deps --ui
 ```
 
 ### Copy the plugin skeleton
