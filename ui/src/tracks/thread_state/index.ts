@@ -179,10 +179,6 @@ const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
 class ThreadStateTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): ThreadStateTrack {
-    return new ThreadStateTrack(args);
-  }
-
   constructor(args: NewTrackArgs) {
     super(args);
   }
