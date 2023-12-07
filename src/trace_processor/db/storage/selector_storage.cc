@@ -31,6 +31,12 @@ SelectorStorage::SelectorStorage(std::unique_ptr<Storage> inner,
                                  const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
 
+Storage::SearchValidationResult SelectorStorage::ValidateSearchConstraints(
+    SqlValue sql_val,
+    FilterOp op) const {
+  return inner_->ValidateSearchConstraints(sql_val, op);
+}
+
 RangeOrBitVector SelectorStorage::Search(FilterOp op,
                                          SqlValue sql_val,
                                          RowMap::Range in) const {

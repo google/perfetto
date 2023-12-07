@@ -40,6 +40,12 @@ ArrangementStorage::ArrangementStorage(std::unique_ptr<Storage> inner,
                   inner_->size());
 }
 
+Storage::SearchValidationResult ArrangementStorage::ValidateSearchConstraints(
+    SqlValue sql_val,
+    FilterOp op) const {
+  return inner_->ValidateSearchConstraints(sql_val, op);
+}
+
 RangeOrBitVector ArrangementStorage::Search(FilterOp op,
                                             SqlValue sql_val,
                                             Range in) const {

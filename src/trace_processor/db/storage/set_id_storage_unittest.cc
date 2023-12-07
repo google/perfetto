@@ -19,10 +19,95 @@
 
 namespace perfetto {
 namespace trace_processor {
+
+inline bool operator==(const RowMap::Range& a, const RowMap::Range& b) {
+  return std::tie(a.start, a.end) == std::tie(b.start, b.end);
+}
+
 namespace storage {
 namespace {
 
 using Range = RowMap::Range;
+
+TEST(IdStorageUnittest, InvalidSearchConstraints) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
+
+  Range test_range(3, 9);
+  Range full_range(0, 9);
+  Range empty_range;
+
+  // NULL checks
+  SqlValue val;
+  val.type = SqlValue::kNull;
+  Range search_result =
+      storage.Search(FilterOp::kIsNull, val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kIsNotNull, val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+
+  // FilterOp checks
+  search_result =
+      storage.Search(FilterOp::kGlob, SqlValue::Long(15), test_range)
+          .TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kRegex, SqlValue::Long(15), test_range)
+          .TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+
+  // Type checks
+  search_result =
+      storage.Search(FilterOp::kGe, SqlValue::String("cheese"), test_range)
+          .TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+
+  // Value bounds
+  SqlValue max_val = SqlValue::Long(
+      static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 10);
+  search_result =
+      storage.Search(FilterOp::kGe, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kGt, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kEq, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+
+  search_result =
+      storage.Search(FilterOp::kLe, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+  search_result =
+      storage.Search(FilterOp::kLt, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+  search_result =
+      storage.Search(FilterOp::kNe, max_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+
+  SqlValue min_val = SqlValue::Long(
+      static_cast<int64_t>(std::numeric_limits<uint32_t>::min()) - 1);
+  search_result =
+      storage.Search(FilterOp::kGe, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+  search_result =
+      storage.Search(FilterOp::kGt, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+  search_result =
+      storage.Search(FilterOp::kNe, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, full_range);
+
+  search_result =
+      storage.Search(FilterOp::kLe, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kLt, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+  search_result =
+      storage.Search(FilterOp::kEq, min_val, test_range).TakeIfRange();
+  ASSERT_EQ(search_result, empty_range);
+}
 
 TEST(SetIdStorageUnittest, SearchEqSimple) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};

@@ -31,6 +31,9 @@ class SelectorStorage : public Storage {
  public:
   SelectorStorage(std::unique_ptr<Storage> storage, const BitVector* non_null);
 
+  Storage::SearchValidationResult ValidateSearchConstraints(SqlValue, FilterOp)
+      const override;
+
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
                           RowMap::Range range) const override;
