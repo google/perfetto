@@ -267,6 +267,18 @@ TEST(QueryExecutor, ArrangementStorageIndex) {
   ASSERT_THAT(rm.GetAllIndices(), ElementsAre(0u, 4u));
 }
 
+TEST(QueryExecutor, MismatchedTypeNullWithOtherOperations) {
+  std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
+  storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue()};
+  QueryExecutor exec({&storage}, 6);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_TRUE(res.empty());
+}
+
 TEST(QueryExecutor, SingleConstraintWithNullAndSelector) {
   std::vector<int64_t> storage_data{0, 1, 2, 3, 0, 1, 2, 3};
   auto numeric = std::make_unique<storage::NumericStorage<int64_t>>(
