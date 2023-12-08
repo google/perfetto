@@ -403,7 +403,8 @@ util::Status ProtoTraceReader::ParseClockSnapshot(ConstBytes blob,
     tables::ClockSnapshotTable::Row row;
     row.ts = *opt_trace_ts;
     row.clock_id = static_cast<int64_t>(clock_timestamp.clock.id);
-    row.clock_value = clock_timestamp.timestamp;
+    row.clock_value =
+        clock_timestamp.timestamp * clock_timestamp.clock.unit_multiplier_ns;
     row.clock_name = GetBuiltinClockNameOrNull(clock_timestamp.clock.id);
     row.snapshot_id = *snapshot_id;
 

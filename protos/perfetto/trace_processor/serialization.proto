@@ -45,30 +45,6 @@ message SerializedColumn {
     optional bytes counts = 2;
     optional uint32 size = 3;
   }
-  // A schema for serialization of any of the descendants of
-  // |overlays::StorageOverlay|.
-  message Overlay {
-    // A schema for serialization of |overlays::ArrangementOverlay|.
-    message ArrangementOverlay {
-      optional bytes values = 1;
-    }
-
-    // A schema for serialization of |overlays::NullOverlay|.
-    message NullOverlay {
-      optional BitVector bit_vector = 1;
-    }
-
-    // A schema for serialization of |overlays::NullOverlay|.
-    message SelectorOverlay {
-      optional BitVector bit_vector = 1;
-    }
-
-    oneof data {
-      ArrangementOverlay arrangement_overlay = 1;
-      NullOverlay null_overlay = 2;
-      SelectorOverlay selector_overlay = 3;
-    }
-  }
   // A schema for serialization of any of the descendants of |storage::Storage|.
   message Storage {
     // Dummy storage should not contain any data. It's used to signify that
@@ -98,19 +74,45 @@ message SerializedColumn {
       optional bool is_sorted = 2;
     }
 
+    // A schema for serialization of |storage::NullStorage|.
+    message NullStorage {
+      optional BitVector bit_vector = 1;
+      optional Storage storage = 2;
+    }
+
+    // A schema for serialization of |storage::ArrangementStorage|.
+    message ArrangementStorage {
+      optional bytes values = 1;
+      optional Storage storage = 2;
+    }
+
+    // A schema for serialization of |storage::SelectorStorage|.
+    message SelectorStorage {
+      optional BitVector bit_vector = 1;
+      optional Storage storage = 2;
+    }
+
+    // A schema for serialization of |storage::DenseNullStorage|.
+    message DenseNullStorage {
+      optional BitVector bit_vector = 1;
+      optional Storage storage = 2;
+    }
+
     oneof data {
       DummyStorage dummy_storage = 1;
       IdStorage id_storage = 2;
       NumericStorage numeric_storage = 3;
       SetIdStorage set_id_storage = 4;
       StringStorage string_storage = 5;
+      NullStorage null_storage = 6;
+      ArrangementStorage arrangement_storage = 7;
+      SelectorStorage selector_storage = 8;
+      DenseNullStorage dense_null_storage = 9;
     }
   }
 
   // Name of the table this column is part of.
   optional string table_name = 1;
   optional string column_name = 2;
-
   optional Storage storage = 3;
-  repeated Overlay overlay = 4;
 }

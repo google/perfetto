@@ -24,8 +24,6 @@
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column.h"
-#include "src/trace_processor/db/overlays/storage_overlay.h"
-#include "src/trace_processor/db/overlays/types.h"
 #include "src/trace_processor/db/storage/storage.h"
 
 namespace perfetto {
@@ -37,22 +35,16 @@ class QueryExecutor {
  public:
   static constexpr uint32_t kMaxOverlayCount = 8;
 
-  // Overlay-based definition of the column.
-  struct SimpleColumn {
-    base::SmallVector<const overlays::StorageOverlay*, kMaxOverlayCount>
-        overlays;
-    const storage::Storage* storage;
-  };
-
   // |row_count| is the size of the last overlay.
-  QueryExecutor(const std::vector<SimpleColumn>& columns, uint32_t row_count)
+  QueryExecutor(const std::vector<storage::Storage*>& columns,
+                uint32_t row_count)
       : columns_(columns), row_count_(row_count) {}
 
   // Apply all the constraints on the data and return the filtered RowMap.
   RowMap Filter(const std::vector<Constraint>& cs) {
     RowMap rm(0, row_count_);
     for (const auto& c : cs) {
-      FilterColumn(c, columns_[c.col_idx], &rm);
+      FilterColumn(c, *columns_[c.col_idx], &rm);
     }
     return rm;
   }
@@ -72,31 +64,31 @@ class QueryExecutor {
 
   // Used only in unittests. Exposes private function.
   static void BoundedColumnFilterForTesting(const Constraint& c,
-                                            const SimpleColumn& col,
+                                            const storage::Storage& col,
                                             RowMap* rm) {
     LinearSearch(c, col, rm);
   }
 
   // Used only in unittests. Exposes private function.
-  static RowMap IndexedColumnFilterForTesting(const Constraint& c,
-                                              const SimpleColumn& col,
-                                              RowMap* rm) {
-    return IndexSearch(c, col, rm);
+  static void IndexedColumnFilterForTesting(const Constraint& c,
+                                            const storage::Storage& col,
+                                            RowMap* rm) {
+    IndexSearch(c, col, rm);
   }
 
  private:
   // Updates RowMap with result of filtering single column using the Constraint.
-  static void FilterColumn(const Constraint&, const SimpleColumn&, RowMap*);
+  static void FilterColumn(const Constraint&, const storage::Storage&, RowMap*);
 
   // Filters the column using Range algorithm - tries to find the smallest Range
   // to filter the storage with.
-  static void LinearSearch(const Constraint&, const SimpleColumn&, RowMap*);
+  static void LinearSearch(const Constraint&, const storage::Storage&, RowMap*);
 
   // Filters the column using Index algorithm - finds the indices to filter the
   // storage with.
-  static RowMap IndexSearch(const Constraint&, const SimpleColumn&, RowMap*);
+  static void IndexSearch(const Constraint&, const storage::Storage&, RowMap*);
 
-  std::vector<SimpleColumn> columns_;
+  std::vector<storage::Storage*> columns_;
 
   // Number of rows in the outmost overlay.
   uint32_t row_count_ = 0;

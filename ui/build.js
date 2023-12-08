@@ -352,6 +352,9 @@ function copyBigtraceHtml(src) {
 
 function copyAssets(src, dst) {
   addTask(cp, [src, pjoin(cfg.outDistDir, 'assets', dst)]);
+  if (cfg.bigtrace) {
+    addTask(cp, [src, pjoin(cfg.outBigtraceDistDir, 'assets', dst)]);
+  }
 }
 
 function copyUiTestArtifactsAssets(src, dst) {

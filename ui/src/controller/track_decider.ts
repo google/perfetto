@@ -38,8 +38,7 @@ import {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
-import {ACTUAL_FRAMES_SLICE_TRACK_KIND} from '../tracks/actual_frames';
-import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices';
+import {ASYNC_SLICE_TRACK_KIND} from '../tracks/async_slices/async_slice_track';
 import {
   ENABLE_SCROLL_JANK_PLUGIN_V2,
   getScrollJankTracks,
@@ -49,7 +48,10 @@ import {
 } from '../tracks/chrome_scroll_jank/chrome_tasks_scroll_jank_track';
 import {SLICE_TRACK_KIND} from '../tracks/chrome_slices';
 import {COUNTER_TRACK_KIND} from '../tracks/counter';
-import {EXPECTED_FRAMES_SLICE_TRACK_KIND} from '../tracks/expected_frames';
+import {
+  ACTUAL_FRAMES_SLICE_TRACK_KIND,
+  EXPECTED_FRAMES_SLICE_TRACK_KIND,
+} from '../tracks/frames';
 import {NULL_TRACK_URI} from '../tracks/null_track';
 import {
   decideTracks as screenshotDecideTracks,
@@ -60,7 +62,7 @@ const TRACKS_V2_FLAG = featureFlags.register({
   id: 'tracksV2.1',
   name: 'Tracks V2',
   description: 'Show tracks built on top of the Track V2 API.',
-  defaultValue: false,
+  defaultValue: true,
 });
 
 const TRACKS_V2_COMPARE_FLAG = featureFlags.register({
@@ -288,14 +290,25 @@ class TrackDecider {
         }
       }
 
-      const track: AddTrackArgs = {
-        uri: `perfetto.AsyncSlices#${rawName}`,
-        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup,
-        name,
-      };
+      if (showV1()) {
+        const track: AddTrackArgs = {
+          uri: `perfetto.AsyncSlices#${rawName}`,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup,
+          name,
+        };
+        this.tracksToAdd.push(track);
+      }
 
-      this.tracksToAdd.push(track);
+      if (showV2()) {
+        const track: AddTrackArgs = {
+          uri: `perfetto.AsyncSlices#${rawName}.v2`,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup,
+          name,
+        };
+        this.tracksToAdd.push(track);
+      }
     }
   }
 
@@ -849,12 +862,13 @@ class TrackDecider {
       }
 
       const priority = InThreadTrackSortKey.THREAD_SCHEDULING_STATE_TRACK;
+      const name =
+          getTrackName({utid, tid, threadName, kind: THREAD_STATE_TRACK_KIND});
 
       if (showV1()) {
-        const kind = THREAD_STATE_TRACK_KIND;
         this.tracksToAdd.push({
           uri: `perfetto.ThreadState#${upid}.${utid}`,
-          name: getTrackName({utid, tid, threadName, kind}),
+          name,
           trackGroup: uuid,
           trackSortKey: {
             utid,
@@ -866,8 +880,7 @@ class TrackDecider {
       if (showV2()) {
         this.tracksToAdd.push({
           uri: `perfetto.ThreadState#${utid}.v2`,
-          name:
-              getTrackName({utid, tid, threadName, kind: 'ThreadStateTrackV2'}),
+          name,
           trackGroup: uuid,
           trackSortKey: {
             utid,
@@ -1022,12 +1035,24 @@ class TrackDecider {
         processName,
         kind: ASYNC_SLICE_TRACK_KIND,
       });
-      this.tracksToAdd.push({
-        uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
-        trackGroup: uuid,
-      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
     }
   }
 
@@ -1078,12 +1103,24 @@ class TrackDecider {
       const kind = ACTUAL_FRAMES_SLICE_TRACK_KIND;
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
-      this.tracksToAdd.push({
-        uri: `perfetto.ActualFrames#${upid}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ActualFrames#${upid}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ActualFrames#${upid}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ACTUAL_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
     }
   }
 
@@ -1135,12 +1172,24 @@ class TrackDecider {
       const kind = EXPECTED_FRAMES_SLICE_TRACK_KIND;
       const name =
           getTrackName({name: trackName, upid, pid, processName, kind});
-      this.tracksToAdd.push({
-        uri: `perfetto.ExpectedFrames#${upid}`,
-        name,
-        trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
-        trackGroup: uuid,
-      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ExpectedFrames#${upid}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.ExpectedFrames#${upid}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.EXPECTED_FRAMES_SLICE_TRACK,
+          trackGroup: uuid,
+        });
+      }
     }
   }
 

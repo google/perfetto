@@ -46,10 +46,11 @@ export function columnFromSqlTableColumn(c: RegularSqlTableColumn): Column {
   };
 }
 
-export function argColumn(c: ArgSetIdColumn, argName: string): Column {
+export function argColumn(
+    tableName: string, c: ArgSetIdColumn, argName: string): Column {
   const escape = (name: string) => name.replace(/[^A-Za-z0-9]/g, '_');
   return {
-    expression: `extract_arg(${c.name}, ${sqliteString(argName)})`,
+    expression: `extract_arg(${tableName}.${c.name}, ${sqliteString(argName)})`,
     alias: `_arg_${c.name}_${escape(argName)}`,
     title: `${c.title ?? c.name} ${argName}`,
   };

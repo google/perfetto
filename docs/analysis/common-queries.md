@@ -52,8 +52,8 @@ For example to get the time spent "runnable" and in "uninterruptible sleep":
 SELECT
   slice_id,
   slice_name,
-  SUM(CASE state = 'R' THEN dur ELSE 0 END) AS runnable_time,
-  SUM(CASE state = 'D' THEN dur ELSE 0 END) AS uninterruptible_time
+  SUM(IIF(state = 'R', dur, 0)) AS runnable_time,
+  SUM(IIF(state = 'D', dur, 0)) AS uninterruptible_time
 FROM slice_thread_state_breakdown
 GROUP BY slice_id;
 ```

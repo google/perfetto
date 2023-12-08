@@ -14,30 +14,16 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {Duration, duration, time} from '../../base/time';
-import {
-  SliceData,
-  SliceTrackBase,
-} from '../../frontend/slice_track_base';
-import {
-  EngineProxy,
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
-} from '../../public';
-import {getTrackName} from '../../public/utils';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
+import {EngineProxy} from '../../public';
 import {
   LONG,
   LONG_NULL,
   NUM,
-  NUM_NULL,
   STR,
-  STR_NULL,
 } from '../../trace_processor/query_result';
 
-export const EXPECTED_FRAMES_SLICE_TRACK_KIND = 'ExpectedFramesSliceTrack';
-
-class SliceTrack extends SliceTrackBase {
+export class ExpectedFramesTrack extends SliceTrackLEGACY {
   private maxDur = Duration.ZERO;
 
   constructor(
@@ -135,79 +121,3 @@ class SliceTrack extends SliceTrackBase {
     return slices;
   }
 }
-
-class ExpectedFramesPlugin implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const {engine} = ctx;
-    const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        left join process using(upid)
-        where process_track.name = "Expected Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
-      select
-        t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
-
-    const it = result.iter({
-      upid: NUM,
-      trackName: STR_NULL,
-      trackIds: STR,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-      maxDepth: NUM_NULL,
-    });
-
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const trackName = it.trackName;
-      const rawTrackIds = it.trackIds;
-      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const processName = it.processName;
-      const pid = it.pid;
-      const maxDepth = it.maxDepth;
-
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const displayName = getTrackName(
-          {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
-
-      ctx.registerStaticTrack({
-        uri: `perfetto.ExpectedFrames#${upid}`,
-        displayName,
-        trackIds,
-        kind: EXPECTED_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
-          return new SliceTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
-          );
-        },
-      });
-    }
-  }
-}
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ExpectedFrames',
-  plugin: ExpectedFramesPlugin,
-};

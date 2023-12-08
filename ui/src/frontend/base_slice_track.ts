@@ -41,6 +41,7 @@ import {constraintsToQuerySuffix} from './sql_utils';
 import {PxSpan, TimeScale} from './time_scale';
 import {NewTrackArgs, TrackBase} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
+import {featureFlags} from '../core/feature_flags';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -52,6 +53,14 @@ const SLICE_MIN_WIDTH_FOR_TEXT_PX = 5;
 const SLICE_MIN_WIDTH_PX = 1 / BUCKETS_PER_PIXEL;
 const CHEVRON_WIDTH_PX = 10;
 const DEFAULT_SLICE_COLOR = UNEXPECTED_PINK;
+const INCOMPLETE_SLICE_WIDTH_PX = 20;
+
+export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
+  id: 'cropIncompleteSlice',
+  name: 'Crop incomplete Slice',
+  description: 'Display incomplete slice in short form',
+  defaultValue: false,
+});
 
 // Exposed and standalone to allow for testing without making this
 // visible to subclasses.
@@ -391,8 +400,16 @@ export abstract class BaseSliceTrack<
         slice.x -= CHEVRON_WIDTH_PX / 2;
         slice.w = CHEVRON_WIDTH_PX;
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        slice.x = Math.max(slice.x, 0);
-        slice.w = pxEnd - slice.x;
+        let widthPx;
+        if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
+          widthPx = slice.x > 0 ? Math.min(pxEnd, INCOMPLETE_SLICE_WIDTH_PX) :
+              Math.max(0, INCOMPLETE_SLICE_WIDTH_PX + slice.x);
+          slice.x = Math.max(slice.x, 0);
+        } else {
+          slice.x = Math.max(slice.x, 0);
+          widthPx = pxEnd - slice.x;
+        }
+        slice.w = widthPx;
       } else {
         // If the slice is an actual slice, intersect the slice geometry with
         // the visible viewport (this affects only the first and last slice).
@@ -429,8 +446,10 @@ export abstract class BaseSliceTrack<
       if (slice.flags & SLICE_FLAGS_INSTANT) {
         this.drawChevron(ctx, slice.x, y, sliceHeight);
       } else if (slice.flags & SLICE_FLAGS_INCOMPLETE) {
-        const w = Math.max(slice.w - 2, 2);
-        drawIncompleteSlice(ctx, slice.x, y, w, sliceHeight);
+        const w = CROP_INCOMPLETE_SLICE_FLAG.get() ? slice.w :
+                                                     Math.max(slice.w - 2, 2);
+        drawIncompleteSlice(
+            ctx, slice.x, y, w, sliceHeight, !CROP_INCOMPLETE_SLICE_FLAG.get());
       } else {
         const w = Math.max(slice.w, SLICE_MIN_WIDTH_PX);
         ctx.fillRect(slice.x, y, w, sliceHeight);
@@ -798,7 +817,15 @@ export abstract class BaseSliceTrack<
     }
 
     for (const slice of this.incomplete) {
-      if (slice.depth === depth && slice.x <= x) {
+      const visibleTimeScale = globals.frontendLocalState.visibleTimeScale;
+      const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
+          visibleTimeScale.timeToPx(slice.startNsQ) :
+          slice.x;
+      const cropUnfinishedSlicesCondition = CROP_INCOMPLETE_SLICE_FLAG.get() ?
+        startPx + INCOMPLETE_SLICE_WIDTH_PX >= x : true;
+
+      if (slice.depth === depth && startPx <= x &&
+          cropUnfinishedSlicesCondition) {
         return slice;
       }
     }

@@ -14,7 +14,7 @@
 
 import {globals} from '../../frontend/globals';
 import {NamedRow, NamedSliceTrackTypes} from '../../frontend/named_slice_track';
-import {NewTrackArgs, TrackBase} from '../../frontend/track';
+import {NewTrackArgs} from '../../frontend/track';
 import {PrimaryTrackSortKey, Slice} from '../../public';
 import {
   CustomSqlDetailsPanelConfig,
@@ -37,10 +37,6 @@ const JANK_SLICE_NAME = ' Jank';
 export class ScrollJankV3Track extends
     CustomSqlTableSliceTrack<NamedSliceTrackTypes> {
   static readonly kind = 'org.chromium.ScrollJank.scroll_jank_v3_track';
-
-  static create(args: NewTrackArgs): TrackBase {
-    return new ScrollJankV3Track(args);
-  }
 
   constructor(args: NewTrackArgs) {
     super(args);

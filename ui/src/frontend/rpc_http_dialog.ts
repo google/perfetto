@@ -22,6 +22,7 @@ import {HttpRpcEngine, RPC_URL} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {showModal} from './modal';
+import {publishHttpRpcState} from './publish';
 
 const CURRENT_API_VERSION =
     TraceProcessorApiVersion.TRACE_PROCESSOR_CURRENT_API_VERSION;
@@ -79,7 +80,7 @@ let forceUseOldVersion = false;
 // having to open a trace).
 export async function CheckHttpRpcConnection(): Promise<void> {
   const state = await HttpRpcEngine.checkConnection();
-  globals.frontendLocalState.setHttpRpcState(state);
+  publishHttpRpcState(state);
   if (!state.connected) return;
   const tpStatus = assertExists(state.status);
 

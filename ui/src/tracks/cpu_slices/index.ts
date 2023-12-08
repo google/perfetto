@@ -206,10 +206,6 @@ const RECT_HEIGHT = 24;
 const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 
 class CpuSliceTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): CpuSliceTrack {
-    return new CpuSliceTrack(args);
-  }
-
   private mousePos?: {x: number, y: number};
   private utidHoveredInThisTrack = -1;
 

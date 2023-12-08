@@ -48,7 +48,6 @@ import {
 } from './thread_state_v2';
 
 export const THREAD_STATE_TRACK_KIND = 'ThreadStateTrack';
-export const THREAD_STATE_TRACK_V2_KIND = 'ThreadStateTrackV2';
 
 interface Data extends TrackData {
   strings: string[];
@@ -180,10 +179,6 @@ const RECT_HEIGHT = 12;
 const EXCESS_WIDTH = 10;
 
 class ThreadStateTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): ThreadStateTrack {
-    return new ThreadStateTrack(args);
-  }
-
   constructor(args: NewTrackArgs) {
     super(args);
   }
@@ -345,7 +340,7 @@ class ThreadState implements Plugin {
       ctx.registerStaticTrack({
         uri: `perfetto.ThreadState#${utid}.v2`,
         displayName,
-        kind: THREAD_STATE_TRACK_V2_KIND,
+        kind: THREAD_STATE_TRACK_KIND,
         utid,
         track: ({trackKey}) => {
           return new ThreadStateTrackV2(

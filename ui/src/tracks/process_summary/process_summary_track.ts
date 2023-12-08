@@ -142,10 +142,6 @@ const TRACK_HEIGHT = MARGIN_TOP * 2 + RECT_HEIGHT;
 const SUMMARY_HEIGHT = TRACK_HEIGHT - MARGIN_TOP;
 
 export class ProcessSummaryTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): ProcessSummaryTrack {
-    return new ProcessSummaryTrack(args);
-  }
-
   constructor(args: NewTrackArgs) {
     super(args);
   }

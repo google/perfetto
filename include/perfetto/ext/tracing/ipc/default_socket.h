@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,25 +17,9 @@
 #ifndef INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 #define INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_
 
-#include <string>
-#include <vector>
-
-#include "perfetto/base/export.h"
-
-namespace perfetto {
-
-PERFETTO_EXPORT_COMPONENT const char* GetConsumerSocket();
-// This function is used for tokenize the |producer_socket_names| string into
-// multiple producer socket names.
-PERFETTO_EXPORT_COMPONENT std::vector<std::string> TokenizeProducerSockets(
-    const char* producer_socket_names);
-PERFETTO_EXPORT_COMPONENT const char* GetProducerSocket();
-
-// Optionally returns the relay socket name (nullable). The relay socket is used
-// for forwarding the IPC messages between the local producers and the remote
-// tracing service.
-PERFETTO_EXPORT_COMPONENT const char* GetRelaySocket();
-
-}  // namespace perfetto
+// TODO(khokhlov): Migrate usages of "perfetto/ext/tracing/ipc/default_socket.h"
+// in Chromium to include "perfetto/tracing/internal/default_socket.h" instead,
+// then delete this file.
+#include "perfetto/tracing/default_socket.h"
 
 #endif  // INCLUDE_PERFETTO_EXT_TRACING_IPC_DEFAULT_SOCKET_H_

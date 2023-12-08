@@ -16,12 +16,20 @@ import("../../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
+    "arrangement_storage.cc",
+    "arrangement_storage.h",
+    "dense_null_storage.cc",
+    "dense_null_storage.h",
     "dummy_storage.cc",
     "dummy_storage.h",
     "id_storage.cc",
     "id_storage.h",
+    "null_storage.cc",
+    "null_storage.h",
     "numeric_storage.cc",
     "numeric_storage.h",
+    "selector_storage.cc",
+    "selector_storage.h",
     "set_id_storage.cc",
     "set_id_storage.h",
     "storage.cc",
@@ -43,17 +51,37 @@ source_set("storage") {
   ]
 }
 
-perfetto_unittest_source_set("unittests") {
+perfetto_unittest_source_set("fake_storage") {
   testonly = true
   sources = [
-    "id_storage_unittest.cc",
-    "numeric_storage_unittest.cc",
-    "set_id_storage_unittest.cc",
-    "string_storage_unittest.cc",
+    "fake_storage.cc",
+    "fake_storage.h",
   ]
   deps = [
     ":storage",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../containers",
+  ]
+}
+
+perfetto_unittest_source_set("unittests") {
+  testonly = true
+  sources = [
+    "arrangement_storage_unittest.cc",
+    "dense_null_storage_unittest.cc",
+    "id_storage_unittest.cc",
+    "null_storage_unittest.cc",
+    "numeric_storage_unittest.cc",
+    "selector_storage_unittest.cc",
+    "set_id_storage_unittest.cc",
+    "string_storage_unittest.cc",
+  ]
+  deps = [
+    ":fake_storage",
+    ":storage",
+    "../../../../gn:default_deps",
+    "../../../../gn:gtest_and_gmock",
+    "../../containers",
   ]
 }

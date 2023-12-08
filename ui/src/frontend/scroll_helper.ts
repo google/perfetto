@@ -135,7 +135,7 @@ export function verticalScrollToTrack(
   // group and scroll to the track or just scroll to the track group.
   if (openGroup) {
     // After the track exists in the dom, it will be scrolled to.
-    globals.frontendLocalState.scrollToTrackKey = trackKey;
+    globals.scrollToTrackKey = trackKey;
     globals.dispatch(Actions.toggleTrackGroupCollapsed({trackGroupId}));
     return;
   } else {

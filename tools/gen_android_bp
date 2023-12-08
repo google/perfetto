@@ -536,6 +536,7 @@ class Module(object):
     self.apex_available = set()
     self.min_sdk_version = None
     self.proto = dict()
+    self.output_extension: Optional[str] = None
     # The genrule_XXX below are properties that must to be propagated back
     # on the module(s) that depend on the genrule.
     self.genrule_headers = set()
@@ -587,6 +588,7 @@ class Module(object):
     self._output_field(output, 'stubs')
     self._output_field(output, 'proto')
     self._output_field(output, 'main')
+    self._output_field(output, 'output_extension')
 
     target_out = []
     self._output_field(target_out, 'android')

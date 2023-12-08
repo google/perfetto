@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {HSLColor, hslToRGB, HSLuvColor} from './color';
+import {HSLColor, hslToRgb, HSLuvColor} from './color';
 
 describe('HSLColor', () => {
   const col = new HSLColor({h: 123, s: 66, l: 45});
@@ -45,13 +45,17 @@ describe('HSLColor', () => {
     expect(col.setAlpha(undefined).alpha).toEqual(undefined);
   });
 
-  test('isLight', () => {
+  test('perceivedBrightness', () => {
     // Test a few obviously light/dark colours.
-    expect(new HSLColor({h: 0, s: 0, l: 0}).isLight).toBeFalsy();
-    expect(new HSLColor({h: 0, s: 0, l: 100}).isLight).toBeTruthy();
+    expect(new HSLColor({h: 0, s: 0, l: 0}).perceivedBrightness)
+        .toBeLessThan(128);
+    expect(new HSLColor({h: 0, s: 0, l: 100}).perceivedBrightness)
+        .toBeGreaterThan(128);
 
-    expect(new HSLColor({h: 0, s: 0, l: 40}).isLight).toBeFalsy();
-    expect(new HSLColor({h: 0, s: 0, l: 60}).isLight).toBeTruthy();
+    expect(new HSLColor({h: 0, s: 0, l: 40}).perceivedBrightness)
+        .toBeLessThan(128);
+    expect(new HSLColor({h: 0, s: 0, l: 60}).perceivedBrightness)
+        .toBeGreaterThan(128);
   });
 });
 
@@ -86,20 +90,24 @@ describe('HSLuvColor', () => {
     expect(col.setAlpha(undefined).alpha).toEqual(undefined);
   });
 
-  test('isLight', () => {
+  test('perceivedBrightness', () => {
     // Test a few obviously light/dark colours.
-    expect(new HSLuvColor({h: 0, s: 0, l: 0}).isLight).toBeFalsy();
-    expect(new HSLuvColor({h: 0, s: 0, l: 100}).isLight).toBeTruthy();
+    expect(new HSLuvColor({h: 0, s: 0, l: 0}).perceivedBrightness)
+        .toBeLessThan(128);
+    expect(new HSLuvColor({h: 0, s: 0, l: 100}).perceivedBrightness)
+        .toBeGreaterThan(128);
 
-    expect(new HSLuvColor({h: 0, s: 0, l: 40}).isLight).toBeFalsy();
-    expect(new HSLuvColor({h: 0, s: 0, l: 60}).isLight).toBeTruthy();
+    expect(new HSLuvColor({h: 0, s: 0, l: 40}).perceivedBrightness)
+        .toBeLessThan(128);
+    expect(new HSLuvColor({h: 0, s: 0, l: 60}).perceivedBrightness)
+        .toBeGreaterThan(128);
   });
 });
 
 test('hslToRGB', () => {
   // Pick a few well-known conversions to check we're in the right ballpark.
-  expect(hslToRGB(0, 0, 0)).toEqual([0, 0, 0]);
-  expect(hslToRGB(0, 100, 50)).toEqual([255, 0, 0]);
-  expect(hslToRGB(120, 100, 50)).toEqual([0, 255, 0]);
-  expect(hslToRGB(240, 100, 50)).toEqual([0, 0, 255]);
+  expect(hslToRgb(0, 0, 0)).toEqual([0, 0, 0]);
+  expect(hslToRgb(0, 100, 50)).toEqual([255, 0, 0]);
+  expect(hslToRgb(120, 100, 50)).toEqual([0, 255, 0]);
+  expect(hslToRgb(240, 100, 50)).toEqual([0, 0, 255]);
 });

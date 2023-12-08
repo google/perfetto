@@ -1,4 +1,4 @@
-// Copyright (C) 2021 The Android Open Source Project
+// Copyright (C) 2023 The Android Open Source Project
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,22 +14,15 @@
 
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {duration, time} from '../../base/time';
-import {SliceData, SliceTrackBase} from '../../frontend/slice_track_base';
+import {SliceData, SliceTrackLEGACY} from '../../frontend/slice_track';
 import {
   EngineProxy,
-  Plugin,
-  PluginContext,
-  PluginContextTrace,
-  PluginDescriptor,
 } from '../../public';
-import {getTrackName} from '../../public/utils';
 import {
   LONG,
   LONG_NULL,
   NUM,
-  NUM_NULL,
   STR,
-  STR_NULL,
 } from '../../trace_processor/query_result';
 
 export const ACTUAL_FRAMES_SLICE_TRACK_KIND = 'ActualFramesSliceTrack';
@@ -41,7 +34,7 @@ const RED_COLOR = '#FF5722';          // Red 500
 const LIGHT_GREEN_COLOR = '#C0D588';  // Light Green 500
 const PINK_COLOR = '#F515E0';         // Pink 500
 
-class SliceTrack extends SliceTrackBase {
+export class ActualFramesTrack extends SliceTrackLEGACY {
   private maxDur = 0n;
 
   constructor(
@@ -151,79 +144,3 @@ class SliceTrack extends SliceTrackBase {
     return slices;
   }
 }
-
-class ActualFrames implements Plugin {
-  onActivate(_ctx: PluginContext): void {}
-
-  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
-    const {engine} = ctx;
-    const result = await engine.query(`
-      with process_async_tracks as materialized (
-        select
-          process_track.upid as upid,
-          process_track.name as trackName,
-          process.name as processName,
-          process.pid as pid,
-          group_concat(process_track.id) as trackIds,
-          count(1) as trackCount
-        from process_track
-        left join process using(upid)
-        where process_track.name = "Actual Timeline"
-        group by
-          process_track.upid,
-          process_track.name
-      )
-      select
-        t.*,
-        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
-      from process_async_tracks t;
-  `);
-
-    const it = result.iter({
-      upid: NUM,
-      trackName: STR_NULL,
-      trackIds: STR,
-      processName: STR_NULL,
-      pid: NUM_NULL,
-      maxDepth: NUM_NULL,
-    });
-    for (; it.valid(); it.next()) {
-      const upid = it.upid;
-      const trackName = it.trackName;
-      const rawTrackIds = it.trackIds;
-      const trackIds = rawTrackIds.split(',').map((v) => Number(v));
-      const processName = it.processName;
-      const pid = it.pid;
-      const maxDepth = it.maxDepth;
-
-      if (maxDepth === null) {
-        // If there are no slices in this track, skip it.
-        continue;
-      }
-
-      const kind = 'ActualFrames';
-      const displayName =
-          getTrackName({name: trackName, upid, pid, processName, kind});
-
-      ctx.registerStaticTrack({
-        uri: `perfetto.ActualFrames#${upid}`,
-        displayName,
-        trackIds,
-        kind: ACTUAL_FRAMES_SLICE_TRACK_KIND,
-        track: ({trackKey}) => {
-          return new SliceTrack(
-              engine,
-              maxDepth,
-              trackKey,
-              trackIds,
-          );
-        },
-      });
-    }
-  }
-}
-
-export const plugin: PluginDescriptor = {
-  pluginId: 'perfetto.ActualFrames',
-  plugin: ActualFrames,
-};
