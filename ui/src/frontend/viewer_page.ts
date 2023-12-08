@@ -14,6 +14,7 @@
 
 import m from 'mithril';
 
+import {getScrollbarWidth} from '../base/dom_utils';
 import {clamp} from '../base/math_utils';
 import {Time} from '../base/time';
 import {Actions} from '../common/actions';
@@ -28,6 +29,7 @@ import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
 import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {publishShowPanningHint} from './publish';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
 import {TimeSelectionPanel} from './time_selection_panel';
@@ -96,9 +98,7 @@ class TraceViewer implements m.ClassComponent {
     const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
       frontendLocalState.updateLocalLimits(
-          0,
-          rect.width - TRACK_SHELL_WIDTH -
-              frontendLocalState.getScrollbarWidth());
+          0, rect.width - TRACK_SHELL_WIDTH - getScrollbarWidth());
     };
 
     updateDimensions();
@@ -193,6 +193,7 @@ class TraceViewer implements m.ClassComponent {
           );
           frontendLocalState.areaY.start = dragStartY;
           frontendLocalState.areaY.end = currentY;
+          publishShowPanningHint();
         }
         raf.scheduleRedraw();
       },

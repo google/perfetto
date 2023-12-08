@@ -88,7 +88,7 @@ export class ServiceWorkerController {
       // Ctrl+Shift+R). In these cases, we are already at the last
       // version.
       if (sw !== this._initialWorker && this._initialWorker) {
-        globals.frontendLocalState.newVersionAvailable = true;
+        globals.newVersionAvailable = true;
       }
     }
   }
