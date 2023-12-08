@@ -84,6 +84,7 @@ if (enable_perfetto_benchmarks) {
       "../../../gn:default_deps",
       "../../../include/perfetto/base",
       "../../../include/perfetto/ext/base",
+      "../../../include/perfetto/trace_processor:basic_types",
       "../../base:test_support",
       "../tables:tables_python",
     ]
