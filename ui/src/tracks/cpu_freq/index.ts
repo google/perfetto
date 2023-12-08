@@ -383,7 +383,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     // Draw CPU idle rectangles that overlay the CPU freq graph.
     ctx.fillStyle = `rgba(240, 240, 240, 1)`;
 
-    for (let i = 0; i < data.lastIdleValues.length; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
       if (data.lastIdleValues[i] < 0) {
         continue;
       }
