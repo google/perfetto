@@ -29,7 +29,7 @@ namespace {
 
 using Range = RowMap::Range;
 
-TEST(IdStorageUnittest, InvalidSearchConstraints) {
+TEST(SetIdStorageUnittest, InvalidSearchConstraints) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);
 
