@@ -82,3 +82,25 @@ export function currentTargetOffset(e: MouseEvent): {x: number, y: number} {
 
   return {x: e.offsetX, y: e.offsetY};
 }
+
+function calculateScrollbarWidth() {
+  const outer = document.createElement('div');
+  outer.style.overflowY = 'scroll';
+  const inner = document.createElement('div');
+  outer.appendChild(inner);
+  document.body.appendChild(outer);
+  const width =
+      outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
+  document.body.removeChild(outer);
+  return width;
+}
+
+let cachedScrollBarWidth: number|undefined = undefined;
+
+// Calculate the space a scrollbar takes up.
+export function getScrollbarWidth() {
+  if (cachedScrollBarWidth === undefined) {
+    cachedScrollBarWidth = calculateScrollbarWidth();
+  }
+  return cachedScrollBarWidth;
+}

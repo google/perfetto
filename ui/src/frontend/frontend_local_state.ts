@@ -26,7 +26,6 @@ import {
   VisibleState,
 } from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {globals} from './globals';
 import {ratelimit} from './rate_limiters';
@@ -45,20 +44,6 @@ function chooseLatest<T extends Timestamped>(current: T, next: T): T {
     return Object.assign({}, next);
   }
   return current;
-}
-
-// Calculate the space a scrollbar takes up so that we can subtract it from
-// the canvas width.
-function calculateScrollbarWidth() {
-  const outer = document.createElement('div');
-  outer.style.overflowY = 'scroll';
-  const inner = document.createElement('div');
-  outer.appendChild(inner);
-  document.body.appendChild(outer);
-  const width =
-      outer.getBoundingClientRect().width - inner.getBoundingClientRect().width;
-  document.body.removeChild(outer);
-  return width;
 }
 
 // Immutable object describing a (high precision) time window, providing methods
@@ -155,16 +140,9 @@ export class FrontendLocalState {
   private visibleWindow = new TimeWindow();
   private _timeScale = this.visibleWindow.createTimeScale(0, 0);
   private _windowSpan = PxSpan.ZERO;
-  showPanningHint = false;
-  showCookieConsent = false;
-  scrollToTrackKey?: string|number;
-  httpRpcState: HttpRpcState = {connected: false};
-  newVersionAvailable = false;
 
   // This is used to calculate the tracks within a Y range for area selection.
   areaY: Range = {};
-
-  private scrollBarWidth?: number;
 
   private _visibleState: VisibleState = {
     lastUpdate: 0,
@@ -178,18 +156,6 @@ export class FrontendLocalState {
   // TODO: there is some redundancy in the fact that both |visibleWindowTime|
   // and a |timeScale| have a notion of time range. That should live in one
   // place only.
-
-  getScrollbarWidth() {
-    if (this.scrollBarWidth === undefined) {
-      this.scrollBarWidth = calculateScrollbarWidth();
-    }
-    return this.scrollBarWidth;
-  }
-
-  setHttpRpcState(httpRpcState: HttpRpcState) {
-    this.httpRpcState = httpRpcState;
-    raf.scheduleFullRedraw();
-  }
 
   zoomVisibleWindow(ratio: number, centerPoint: number) {
     this.visibleWindow = this.visibleWindow.zoom(ratio, centerPoint);
@@ -231,7 +197,6 @@ export class FrontendLocalState {
     assertTrue(
         end >= start,
         `Impossible select area: start [${start}] >= end [${end}]`);
-    this.showPanningHint = true;
     this._selectedArea = {start, end, tracks};
     raf.scheduleFullRedraw();
   }
