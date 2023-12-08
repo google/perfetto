@@ -108,7 +108,7 @@ TEST(IdStorageUnittest, InvalidSearchConstraints) {
   ASSERT_EQ(search_result, empty_range);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqSimple) {
+TEST(IdStorageUnittest, SearchEqSimple) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kEq, SqlValue::Long(15), Range(10, 20))
                     .TakeIfRange();
@@ -117,21 +117,21 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicEqSimple) {
   ASSERT_EQ(range.end, 16u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqOnRangeBoundary) {
+TEST(IdStorageUnittest, SearchEqOnRangeBoundary) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kEq, SqlValue::Long(20), Range(10, 20))
                     .TakeIfRange();
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqOutsideRange) {
+TEST(IdStorageUnittest, SearchEqOutsideRange) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kEq, SqlValue::Long(25), Range(10, 20))
                     .TakeIfRange();
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicEqTooBig) {
+TEST(IdStorageUnittest, SearchEqTooBig) {
   IdStorage storage(100);
   Range range =
       storage.Search(FilterOp::kEq, SqlValue::Long(125), Range(10, 20))
@@ -139,7 +139,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicEqTooBig) {
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicLe) {
+TEST(IdStorageUnittest, SearchLe) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kLe, SqlValue::Long(50), Range(30, 70))
                     .TakeIfRange();
@@ -147,7 +147,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicLe) {
   ASSERT_EQ(range.end, 51u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicLt) {
+TEST(IdStorageUnittest, SearchLt) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kLt, SqlValue::Long(50), Range(30, 70))
                     .TakeIfRange();
@@ -155,7 +155,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicLt) {
   ASSERT_EQ(range.end, 50u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicGe) {
+TEST(IdStorageUnittest, SearchGe) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kGe, SqlValue::Long(40), Range(30, 70))
                     .TakeIfRange();
@@ -163,7 +163,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicGe) {
   ASSERT_EQ(range.end, 70u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicGt) {
+TEST(IdStorageUnittest, SearchGt) {
   IdStorage storage(100);
   Range range = storage.Search(FilterOp::kGt, SqlValue::Long(40), Range(30, 70))
                     .TakeIfRange();
@@ -171,7 +171,7 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicGt) {
   ASSERT_EQ(range.end, 70u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicNe) {
+TEST(IdStorageUnittest, SearchNe) {
   IdStorage storage(100);
   BitVector bv =
       storage.Search(FilterOp::kNe, SqlValue::Long(40), Range(30, 70))
@@ -179,11 +179,110 @@ TEST(IdStorageUnittest, BinarySearchIntrinsicNe) {
   ASSERT_EQ(bv.CountSetBits(), 39u);
 }
 
-TEST(IdStorageUnittest, BinarySearchIntrinsicNeInvalidNum) {
+TEST(IdStorageUnittest, SearchNeInvalidNum) {
   IdStorage storage(100);
   Range r = storage.Search(FilterOp::kNe, SqlValue::Long(-1), Range(30, 70))
                 .TakeIfRange();
   ASSERT_EQ(r.size(), 40u);
+}
+
+TEST(IdStorageUnittest, IndexSearchEqSimple) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kEq, SqlValue::Long(3), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 1u);
+  ASSERT_TRUE(bv.IsSet(1));
+}
+
+TEST(IdStorageUnittest, IndexSearchEqTooBig) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kEq, SqlValue::Long(20), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 0u);
+}
+
+TEST(IdStorageUnittest, IndexSearchNe) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kNe, SqlValue::Long(3), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 7u);
+  ASSERT_FALSE(bv.IsSet(1));
+}
+
+TEST(IdStorageUnittest, IndexSearchLe) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kLe, SqlValue::Long(3), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 3u);
+  ASSERT_TRUE(bv.IsSet(0));
+  ASSERT_TRUE(bv.IsSet(1));
+  ASSERT_TRUE(bv.IsSet(6));
+}
+
+TEST(IdStorageUnittest, IndexSearchLt) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kLt, SqlValue::Long(3), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 2u);
+}
+
+TEST(IdStorageUnittest, IndexSearchGe) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kGe, SqlValue::Long(6), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 3u);
+}
+
+TEST(IdStorageUnittest, IndexSearchGt) {
+  IdStorage storage(12);
+  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
+
+  BitVector bv =
+      storage
+          .IndexSearch(FilterOp::kGt, SqlValue::Long(6), indices.data(),
+                       static_cast<uint32_t>(indices.size()), false)
+          .TakeIfBitVector();
+
+  ASSERT_EQ(bv.CountSetBits(), 3u);
+  ASSERT_TRUE(bv.IsSet(3));
+  ASSERT_TRUE(bv.IsSet(4));
+  ASSERT_TRUE(bv.IsSet(5));
 }
 
 TEST(IdStorageUnittest, Sort) {
