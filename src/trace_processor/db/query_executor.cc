@@ -28,6 +28,7 @@
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/arrangement_storage.h"
+#include "src/trace_processor/db/storage/dense_null_storage.h"
 #include "src/trace_processor/db/storage/dummy_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
 #include "src/trace_processor/db/storage/null_storage.h"
@@ -170,9 +171,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
                  (c.op != FilterOp::kIsNull && c.op != FilterOp::kIsNotNull &&
                   (int_with_double || double_with_int));
 
-    // Dense columns.
-    use_legacy = use_legacy || col.IsDense();
-
     // Extrinsically sorted columns.
     use_legacy = use_legacy ||
                  (col.IsSorted() && col.overlay().row_map().IsIndexVector());
@@ -255,8 +253,13 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       // String columns are inherently nullable: null values are signified
       // with Id::Null().
       PERFETTO_CHECK(col.col_type() != ColumnType::kString);
-      storage = std::make_unique<storage::NullStorage>(std::move(storage),
-                                                       col.storage_base().bv());
+      if (col.IsDense()) {
+        storage = std::make_unique<storage::DenseNullStorage>(
+            std::move(storage), col.storage_base().bv());
+      } else {
+        storage = std::make_unique<storage::NullStorage>(
+            std::move(storage), col.storage_base().bv());
+      }
     }
     if (col.overlay().row_map().IsIndexVector()) {
       storage = std::make_unique<storage::ArrangementStorage>(
