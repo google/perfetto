@@ -18,6 +18,8 @@ source_set("storage") {
   sources = [
     "arrangement_storage.cc",
     "arrangement_storage.h",
+    "dense_null_storage.cc",
+    "dense_null_storage.h",
     "dummy_storage.cc",
     "dummy_storage.h",
     "id_storage.cc",
@@ -67,6 +69,7 @@ perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
     "arrangement_storage_unittest.cc",
+    "dense_null_storage_unittest.cc",
     "id_storage_unittest.cc",
     "null_storage_unittest.cc",
     "numeric_storage_unittest.cc",
