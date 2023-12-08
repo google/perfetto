@@ -139,6 +139,8 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
+  PERFETTO_DCHECK(search_range.end <= size());
+
   // After this switch we assume the search is valid.
   switch (ValidateSearchConstraints(sql_val, op)) {
     case SearchValidationResult::kOk:
@@ -149,7 +151,6 @@ RangeOrBitVector SetIdStorage::Search(FilterOp op,
       return RangeOrBitVector(Range());
   }
 
-  PERFETTO_DCHECK(search_range.end <= size());
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
 
   if (op == FilterOp::kNe) {

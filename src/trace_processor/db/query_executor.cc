@@ -24,6 +24,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/status_or.h"
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/query_executor.h"
 #include "src/trace_processor/db/storage/arrangement_storage.h"
@@ -160,10 +161,14 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
 
-    // Mismatched types.
+    // Comparing ints with doubles and doubles with ints.
+    bool int_with_double =
+        col.type() == SqlValue::kLong && c.value.type == SqlValue::kDouble;
+    bool double_with_int =
+        col.type() == SqlValue::kDouble && c.value.type == SqlValue::kLong;
     use_legacy = use_legacy ||
                  (c.op != FilterOp::kIsNull && c.op != FilterOp::kIsNotNull &&
-                  col.type() != c.value.type && !c.value.is_null());
+                  (int_with_double || double_with_int));
 
     // Dense columns.
     use_legacy = use_legacy || col.IsDense();
