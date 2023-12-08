@@ -25,6 +25,7 @@ import {
 import {MetricResult} from '../common/metric_data';
 import {CurrentSearchResults, SearchSummary} from '../common/search_data';
 import {raf} from '../core/raf_scheduler';
+import {HttpRpcState} from '../trace_processor/http_rpc_engine';
 
 import {
   CounterDetails,
@@ -79,6 +80,11 @@ export function publishMetricResult(metricResult: MetricResult) {
 export function publishSelectedFlows(selectedFlows: Flow[]) {
   globals.selectedFlows = selectedFlows;
   globals.publishRedraw();
+}
+
+export function publishHttpRpcState(httpRpcState: HttpRpcState) {
+  globals.httpRpcState = httpRpcState;
+  raf.scheduleFullRedraw();
 }
 
 export function publishCounterDetails(click: CounterDetails) {
@@ -214,5 +220,10 @@ export function publishConnectedFlows(connectedFlows: Flow[]) {
 
 export function publishFtracePanelData(data: FtracePanelData) {
   globals.ftracePanelData = data;
+  globals.publishRedraw();
+}
+
+export function publishShowPanningHint() {
+  globals.showPanningHint = true;
   globals.publishRedraw();
 }
