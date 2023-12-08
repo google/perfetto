@@ -30,7 +30,7 @@ namespace {
 
 using Range = RowMap::Range;
 
-TEST(IdStorageUnittest, InvalidSearchConstraintsGeneralChecks) {
+TEST(NumericStorageUnittest, InvalidSearchConstraintsGeneralChecks) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
@@ -66,7 +66,7 @@ TEST(IdStorageUnittest, InvalidSearchConstraintsGeneralChecks) {
   ASSERT_EQ(search_result, empty_range);
 }
 
-TEST(IdStorageUnittest, InvalidValueBoundsUint32) {
+TEST(NumericStorageUnittest, InvalidValueBoundsUint32) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
@@ -120,7 +120,7 @@ TEST(IdStorageUnittest, InvalidValueBoundsUint32) {
   ASSERT_EQ(search_result, empty_range);
 }
 
-TEST(IdStorageUnittest, InvalidValueBoundsInt32) {
+TEST(NumericStorageUnittest, InvalidValueBoundsInt32) {
   std::vector<int32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
