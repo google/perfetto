@@ -16,6 +16,7 @@
 
 #include "src/trace_processor/db/query_executor.h"
 
+#include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/storage/arrangement_storage.h"
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
@@ -545,6 +546,17 @@ TEST(QueryExecutor, StringSearchNeSorted) {
 
   ASSERT_EQ(res.size(), 3u);
   ASSERT_EQ(res.Get(0), 0u);
+}
+
+TEST(QueryExecutor, MismatchedTypeIdWithString) {
+  IdStorage storage(5);
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue::String("cheese")};
+  QueryExecutor exec({&storage}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 0u);
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
