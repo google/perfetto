@@ -17,7 +17,7 @@ import m from 'mithril';
 
 import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
-import {duration, Span, time} from '../base/time';
+import {time} from '../base/time';
 import {Actions} from '../common/actions';
 import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
@@ -29,7 +29,6 @@ import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
 import {Panel, PanelSize} from './panel';
 import {verticalScrollToTrack} from './scroll_helper';
-import {PxSpan, TimeScale} from './time_scale';
 import {
   drawVerticalLineAtTime,
 } from './vertical_line_helper';
@@ -491,14 +490,10 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
     }
   }
 
-  getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
-      windowSpan: PxSpan, tStart: time, tDur: time, depth: number): SliceRect
-      |undefined {
+  getSliceRect(tStart: time, tDur: time, depth: number): SliceRect|undefined {
     if (this.track === undefined) {
       return undefined;
     }
-    return this.track.getSliceRect(
-        visibleTimeScale, visibleWindow, windowSpan, tStart, tDur, depth);
+    return this.track.getSliceRect(tStart, tDur, depth);
   }
 }
