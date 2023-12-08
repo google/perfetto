@@ -35,7 +35,7 @@ import {
   NewBottomTabArgs,
 } from './bottom_tab';
 import {FlowPoint, globals} from './globals';
-import {renderArguments} from './slice_args';
+import {hasArgs, renderArguments} from './slice_args';
 import {renderDetails} from './slice_details';
 import {getSlice, SliceDetails, SliceRef} from './sql/slice';
 import {
@@ -288,7 +288,10 @@ export class ChromeSliceDetailsTab extends
   private renderRhs(engine: EngineProxy, slice: SliceDetails): m.Children {
     const precFlows = this.renderPrecedingFlows(slice);
     const followingFlows = this.renderFollowingFlows(slice);
-    const args = renderArguments(engine, slice);
+    const args = hasArgs(slice) &&
+        m(Section,
+          {title: 'Arguments'},
+          m(Tree, renderArguments(engine, slice)));
     if (precFlows ?? followingFlows ?? args) {
       return m(
           GridLayoutColumn,

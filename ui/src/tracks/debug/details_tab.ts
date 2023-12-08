@@ -24,6 +24,7 @@ import {
 import {
   GenericSliceDetailsTabConfig,
 } from '../../frontend/generic_slice_details_tab';
+import {hasArgs, renderArguments} from '../../frontend/slice_args';
 import {
   getSlice,
   SliceDetails,
@@ -162,11 +163,24 @@ export class DebugSliceDetailsTab extends
           left: sliceRef(this.slice, 'Slice'),
           right: '',
         },
-        renderTreeContents({
-          'Name': this.slice.name,
-          'Thread': getThreadName(this.slice.thread),
-          'Process': getProcessName(this.slice.process),
-        }));
+        m(TreeNode, {
+          left: 'Name',
+          right: this.slice.name,
+        }),
+        m(TreeNode, {
+          left: 'Thread',
+          right: getThreadName(this.slice.thread),
+        }),
+        m(TreeNode, {
+          left: 'Process',
+          right: getProcessName(this.slice.process),
+        }),
+        hasArgs(this.slice) &&
+            m(TreeNode,
+              {
+                left: 'Args',
+              },
+              renderArguments(this.engine, this.slice)));
   }
 
 
