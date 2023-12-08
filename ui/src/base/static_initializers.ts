@@ -38,7 +38,7 @@ function initializeImmer() {
   // from the global state (which is frozen) and later try to update the copies.
   // By doing so, we  accidentally the local copy of global state, which is
   // supposed to be immutable.
-  setAutoFreeze(false);
+  setAutoFreeze(true);
 }
 
 function initializeProtobuf() {
