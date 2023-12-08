@@ -58,6 +58,38 @@ class AndroidPerf implements Plugin {
            SELECT * FROM android_binder_graph(-1000, 1000, -1000, 1000)`,
           'all process binder graph'),
     });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#ThreadClusterDistribution',
+      name: 'Run query: runtime cluster distribution for a thread',
+      callback: async (tid) => {
+        if (tid === undefined) {
+          tid = prompt('Enter a thread tid', '');
+          if (tid === null) return;
+        }
+        ctx.tabs.openQuery(`
+          INCLUDE PERFETTO MODULE common.cpus;
+          WITH
+            total_runtime AS (
+              SELECT sum(dur) AS total_runtime
+              FROM sched s
+              LEFT JOIN thread t
+                USING (utid)
+              WHERE t.tid = ${tid}
+            )
+            SELECT
+              c.size AS cluster,
+              sum(dur)/1e6 AS total_dur_ms,
+              sum(dur) * 1.0 / (SELECT * FROM total_runtime) AS percentage
+            FROM sched s
+            LEFT JOIN thread t
+              USING (utid)
+            LEFT JOIN cpus c
+              ON s.cpu = c.cpu_index
+            WHERE t.tid = ${tid}
+            GROUP BY 1`, `runtime cluster distrubtion for tid ${tid}`);
+      },
+    });
   }
 }
 
