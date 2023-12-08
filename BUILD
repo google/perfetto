@@ -1302,6 +1302,8 @@ perfetto_filegroup(
     srcs = [
         "src/trace_processor/db/storage/arrangement_storage.cc",
         "src/trace_processor/db/storage/arrangement_storage.h",
+        "src/trace_processor/db/storage/dense_null_storage.cc",
+        "src/trace_processor/db/storage/dense_null_storage.h",
         "src/trace_processor/db/storage/dummy_storage.cc",
         "src/trace_processor/db/storage/dummy_storage.h",
         "src/trace_processor/db/storage/id_storage.cc",
