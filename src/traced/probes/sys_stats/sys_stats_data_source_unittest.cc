@@ -203,6 +203,10 @@ const char kMockDiskStat[] = R"(
    8       0 sda 54133 5368 8221736 75929 30333 1157434 9599744 143190 0 63672 249858 9595 0 2160072 19411 6649 11327
    8       1 sda1 18 6 632 7 39 49 704 92 0 156 100 0 0 0 0 0 0)";
 
+const char kMockPsi[] = R"(
+some avg10=23.10 avg60=5.06 avg300=15.10 total=417963
+full avg10=9.00 avg60=19.20 avg300=3.23 total=205933)";
+
 class TestSysStatsDataSource : public SysStatsDataSource {
  public:
   TestSysStatsDataSource(base::TaskRunner* task_runner,
@@ -237,6 +241,8 @@ base::ScopedFile MockOpenReadOnly(const char* path) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockBuddy, strlen(kMockBuddy), 0), 0);
   } else if (!strcmp(path, "/proc/diskstats")) {
     EXPECT_GT(pwrite(tmp_.fd(), kMockDiskStat, strlen(kMockDiskStat), 0), 0);
+  } else if (base::StartsWith(path, "/proc/pressure/")) {
+    EXPECT_GT(pwrite(tmp_.fd(), kMockPsi, strlen(kMockPsi), 0), 0);
   } else {
     PERFETTO_FATAL("Unexpected file opened %s", path);
   }
@@ -619,6 +625,35 @@ TEST_F(SysStatsDataSourceTest, DiskStat) {
   EXPECT_EQ(sys_stats.disk_stat()[2].write_time_ms(), 92u);
   EXPECT_EQ(sys_stats.disk_stat()[2].discard_time_ms(), 0u);
   EXPECT_EQ(sys_stats.disk_stat()[2].flush_time_ms(), 0u);
+}
+
+TEST_F(SysStatsDataSourceTest, Psi) {
+  protos::gen::SysStatsConfig cfg;
+  cfg.set_psi_period_ms(10);
+  DataSourceConfig config_obj;
+  config_obj.set_sys_stats_config_raw(cfg.SerializeAsString());
+  auto data_source = GetSysStatsDataSource(config_obj);
+
+  WaitTick(data_source.get());
+
+  protos::gen::TracePacket packet = writer_raw_->GetOnlyTracePacket();
+  ASSERT_TRUE(packet.has_sys_stats());
+  const auto& sys_stats = packet.sys_stats();
+  ASSERT_EQ(sys_stats.psi_size(), 6);
+
+  using PsiSample = protos::gen::SysStats::PsiSample;
+  EXPECT_EQ(sys_stats.psi()[0].resource(), PsiSample::PSI_RESOURCE_CPU_SOME);
+  EXPECT_EQ(sys_stats.psi()[0].total_ns(), 417963000u);
+  EXPECT_EQ(sys_stats.psi()[1].resource(), PsiSample::PSI_RESOURCE_CPU_FULL);
+  EXPECT_EQ(sys_stats.psi()[1].total_ns(), 205933000U);
+  EXPECT_EQ(sys_stats.psi()[2].resource(), PsiSample::PSI_RESOURCE_IO_SOME);
+  EXPECT_EQ(sys_stats.psi()[2].total_ns(), 417963000u);
+  EXPECT_EQ(sys_stats.psi()[3].resource(), PsiSample::PSI_RESOURCE_IO_FULL);
+  EXPECT_EQ(sys_stats.psi()[3].total_ns(), 205933000U);
+  EXPECT_EQ(sys_stats.psi()[4].resource(), PsiSample::PSI_RESOURCE_MEMORY_SOME);
+  EXPECT_EQ(sys_stats.psi()[4].total_ns(), 417963000u);
+  EXPECT_EQ(sys_stats.psi()[5].resource(), PsiSample::PSI_RESOURCE_MEMORY_FULL);
+  EXPECT_EQ(sys_stats.psi()[5].total_ns(), 205933000U);
 }
 
 }  // namespace

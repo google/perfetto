@@ -93,6 +93,9 @@ SysStatsDataSource::SysStatsDataSource(
   stat_fd_ = open_fn("/proc/stat");
   buddy_fd_ = open_fn("/proc/buddyinfo");
   diskstat_fd_ = open_fn("/proc/diskstats");
+  psi_cpu_fd_ = open_fn("/proc/pressure/cpu");
+  psi_io_fd_ = open_fn("/proc/pressure/io");
+  psi_memory_fd_ = open_fn("/proc/pressure/memory");
 
   read_buf_ = base::PagedMemory::Allocate(kReadBufSize);
 
@@ -145,8 +148,8 @@ SysStatsDataSource::SysStatsDataSource(
     stat_enabled_fields_ |= 1ul << static_cast<uint32_t>(*counter);
   }
 
-  std::array<uint32_t, 7> periods_ms{};
-  std::array<uint32_t, 7> ticks{};
+  std::array<uint32_t, 8> periods_ms{};
+  std::array<uint32_t, 8> ticks{};
   static_assert(periods_ms.size() == ticks.size(), "must have same size");
 
   periods_ms[0] = ClampTo10Ms(cfg.meminfo_period_ms(), "meminfo_period_ms");
@@ -156,6 +159,7 @@ SysStatsDataSource::SysStatsDataSource(
   periods_ms[4] = ClampTo10Ms(cfg.cpufreq_period_ms(), "cpufreq_period_ms");
   periods_ms[5] = ClampTo10Ms(cfg.buddyinfo_period_ms(), "buddyinfo_period_ms");
   periods_ms[6] = ClampTo10Ms(cfg.diskstat_period_ms(), "diskstat_period_ms");
+  periods_ms[7] = ClampTo10Ms(cfg.psi_period_ms(), "psi_period_ms");
 
   tick_period_ms_ = 0;
   for (uint32_t ms : periods_ms) {
@@ -181,6 +185,7 @@ SysStatsDataSource::SysStatsDataSource(
   cpufreq_ticks_ = ticks[4];
   buddyinfo_ticks_ = ticks[5];
   diskstat_ticks_ = ticks[6];
+  psi_ticks_ = ticks[7];
 }
 
 void SysStatsDataSource::Start() {
@@ -232,6 +237,9 @@ void SysStatsDataSource::ReadSysStats() {
 
   if (diskstat_ticks_ && tick_ % diskstat_ticks_ == 0)
     ReadDiskStat(sys_stats);
+
+  if (psi_ticks_ && tick_ % psi_ticks_ == 0)
+    ReadPsi(sys_stats);
 
   sys_stats->set_collection_end_timestamp(
       static_cast<uint64_t>(base::GetBootTimeNs().count()));
@@ -290,6 +298,59 @@ void SysStatsDataSource::ReadDiskStat(protos::pbzero::SysStats* sys_stats) {
       }
     }
   }
+}
+
+void SysStatsDataSource::ReadPsi(protos::pbzero::SysStats* sys_stats) {
+  using PsiSample = protos::pbzero::SysStats::PsiSample;
+
+  auto read_psi_resource = [this, sys_stats](
+                               base::ScopedFile* file, const char* path,
+                               PsiSample::PsiResource resource_some,
+                               PsiSample::PsiResource resource_full) {
+    size_t rsize = ReadFile(file, path);
+    if (!rsize) {
+      return;
+    }
+
+    char* buf = static_cast<char*>(read_buf_.Get());
+    for (base::StringSplitter lines(buf, rsize, '\n'); lines.Next();) {
+      uint32_t index = 0;
+      auto* psi = sys_stats->add_psi();
+      for (base::StringSplitter words(&lines, ' '); words.Next(); ++index) {
+        base::StringView token(words.cur_token(), words.cur_token_size());
+        // A single line is of the form (note we skip avg parsing, indexes 1-3):
+        //     some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+        if (index == 0) {
+          auto resource = token == "some" ? resource_some
+                        : token == "full" ? resource_full
+                                          : PsiSample::PSI_RESOURCE_UNSPECIFIED;
+          psi->set_resource(resource);
+        } else if (index == 4) {
+          const base::StringView prefix("total=");
+          if (token.StartsWith(prefix)) {
+            token = token.substr(prefix.size());
+          }
+          // The raw PSI total readings are in micros, so convert accordingly.
+          std::optional<uint64_t> total_us =
+              base::CStringToUInt64(token.data());
+          uint64_t total_ns = total_us ? *total_us * 1000 : 0;
+          psi->set_total_ns(total_ns);
+        } else if (index > 4) {
+          break;
+        }
+      }
+    }
+  };
+
+  read_psi_resource(&psi_cpu_fd_, "/proc/pressure/cpu",
+                    PsiSample::PSI_RESOURCE_CPU_SOME,
+                    PsiSample::PSI_RESOURCE_CPU_FULL);
+  read_psi_resource(&psi_io_fd_, "/proc/pressure/io",
+                    PsiSample::PSI_RESOURCE_IO_SOME,
+                    PsiSample::PSI_RESOURCE_IO_FULL);
+  read_psi_resource(&psi_memory_fd_, "/proc/pressure/memory",
+                    PsiSample::PSI_RESOURCE_MEMORY_SOME,
+                    PsiSample::PSI_RESOURCE_MEMORY_FULL);
 }
 
 void SysStatsDataSource::ReadBuddyInfo(protos::pbzero::SysStats* sys_stats) {
