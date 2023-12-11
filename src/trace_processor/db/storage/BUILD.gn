@@ -82,6 +82,7 @@ perfetto_unittest_source_set("unittests") {
     ":storage",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/trace_processor:basic_types",
     "../../containers",
   ]
 }

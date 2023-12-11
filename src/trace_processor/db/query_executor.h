@@ -63,18 +63,14 @@ class QueryExecutor {
   }
 
   // Used only in unittests. Exposes private function.
-  static void BoundedColumnFilterForTesting(const Constraint& c,
-                                            const storage::Storage& col,
-                                            RowMap* rm) {
-    LinearSearch(c, col, rm);
-  }
+  static void BoundedColumnFilterForTesting(const Constraint&,
+                                            const storage::Storage&,
+                                            RowMap*);
 
   // Used only in unittests. Exposes private function.
-  static void IndexedColumnFilterForTesting(const Constraint& c,
-                                            const storage::Storage& col,
-                                            RowMap* rm) {
-    IndexSearch(c, col, rm);
-  }
+  static void IndexedColumnFilterForTesting(const Constraint&,
+                                            const storage::Storage&,
+                                            RowMap*);
 
  private:
   // Updates RowMap with result of filtering single column using the Constraint.
