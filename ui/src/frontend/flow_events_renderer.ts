@@ -140,19 +140,12 @@ export class FlowEventsRenderer {
 
   private getSliceRect(args: FlowEventsRendererArgs, point: FlowPoint):
       SliceRect|undefined {
-    const {visibleTimeScale, visibleTimeSpan, windowSpan} =
-        globals.frontendLocalState;
     const trackPanel = args.trackIdToTrackPanel.get(point.trackId) ?.panel;
     if (!trackPanel) {
       return undefined;
     }
     return trackPanel.getSliceRect(
-        visibleTimeScale,
-        visibleTimeSpan,
-        windowSpan,
-        point.sliceStartTs,
-        point.sliceEndTs,
-        point.depth);
+        point.sliceStartTs, point.sliceEndTs, point.depth);
   }
 
   render(ctx: CanvasRenderingContext2D, args: FlowEventsRendererArgs) {

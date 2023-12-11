@@ -17,7 +17,6 @@ import {assertExists} from '../base/logging';
 import {clamp, floatEqual} from '../base/math_utils';
 import {
   duration,
-  Span,
   Time,
   time,
 } from '../base/time';
@@ -30,6 +29,7 @@ import {
 import {colorCompare} from '../common/color';
 import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
+import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {Slice, SliceRect} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
@@ -38,10 +38,8 @@ import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
-import {PxSpan, TimeScale} from './time_scale';
 import {NewTrackArgs, TrackBase} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
-import {featureFlags} from '../core/feature_flags';
 
 // The common class that underpins all tracks drawing slices.
 
@@ -967,17 +965,20 @@ export abstract class BaseSliceTrack<
     return this.computedTrackHeight;
   }
 
-  getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
-      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
-      |undefined {
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
     this.updateSliceAndTrackHeight();
+
+    const {
+      windowSpan,
+      visibleTimeScale,
+      visibleTimeSpan,
+    } = globals.frontendLocalState;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);
     const right = Math.min(visibleTimeScale.timeToPx(tEnd), pxEnd);
 
-    const visible = visibleWindow.intersects(tStart, tEnd);
+    const visible = visibleTimeSpan.intersects(tStart, tEnd);
 
     const totalSliceHeight = this.computedRowSpacing + this.computedSliceHeight;
 
