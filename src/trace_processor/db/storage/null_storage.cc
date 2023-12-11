@@ -17,11 +17,11 @@
 #include "src/trace_processor/db/storage/null_storage.h"
 
 #include <cstdint>
-#include <variant>
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/tp_metatrace.h"
 
@@ -76,6 +76,10 @@ RangeOrBitVector ReconcileStorageResult(FilterOp op,
 Storage::SearchValidationResult NullStorage::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
+  if (op == FilterOp::kIsNull) {
+    return Storage::SearchValidationResult::kOk;
+  }
+
   return storage_->ValidateSearchConstraints(sql_val, op);
 }
 
@@ -89,6 +93,23 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
                                      SqlValue sql_val,
                                      RowMap::Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NullStorage::Search");
+
+  if (op == FilterOp::kIsNull) {
+    switch (storage_->ValidateSearchConstraints(sql_val, op)) {
+      case Storage::SearchValidationResult::kNoData: {
+        // There is no need to search in underlying storage. It's enough to
+        // intersect the |non_null_|.
+        BitVector res = non_null_->IntersectRange(in.start, in.end);
+        res.Not();
+        res.Resize(non_null_->size(), false);
+        return RangeOrBitVector(std::move(res));
+      }
+      case Storage::SearchValidationResult::kAllData:
+        return RangeOrBitVector(in);
+      case Storage::SearchValidationResult::kOk:
+        break;
+    }
+  }
 
   // Figure out the bounds of the indices in the underlying storage and search
   // it.
@@ -105,6 +126,24 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
                                           uint32_t indices_size,
                                           bool sorted) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NullStorage::IndexSearch");
+
+  if (op == FilterOp::kIsNull) {
+    switch (storage_->ValidateSearchConstraints(sql_val, op)) {
+      case Storage::SearchValidationResult::kNoData: {
+        BitVector::Builder null_indices(indices_size);
+        for (uint32_t* it = indices; it != indices + indices_size; it++) {
+          null_indices.Append(!non_null_->IsSet(*it));
+        }
+        // There is no need to search in underlying storage. We should just
+        // check if the index is set in |non_null_|.
+        return RangeOrBitVector(std::move(null_indices).Build());
+      }
+      case Storage::SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices_size));
+      case Storage::SearchValidationResult::kOk:
+        break;
+    }
+  }
 
   BitVector::Builder storage_non_null(indices_size);
   std::vector<uint32_t> storage_iv;

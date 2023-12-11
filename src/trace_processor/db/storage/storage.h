@@ -42,8 +42,6 @@ class Storage {
   // the |Search| and |IndexSearch| in special cases.
   //
   // Notes for callers:
-  // * This function is being called by Search and IndexSearch and there is no
-  //   need to call it before searches.
   // * The SqlValue and FilterOp have to be valid in Sqlite: it will crash if
   //   either: value is NULL and operation is different than "IS NULL" and "IS
   //   NOT NULL" or the operation is "IS NULL" and "IS NOT NULL" and value is
@@ -57,6 +55,11 @@ class Storage {
   // Returns either a range or BitVector which indicate the positions in |range|
   // which match the constraint. If a BitVector is returned, it will be
   // *precisely* as large as |range.end|.
+  //
+  // Notes for callers:
+  //  * Should only be called if ValidateSearchContraints returned kOk.
+  //  * Callers should note that the return value of this function corresponds
+  //    to positions in |indices| *not* positions in the storage.
   //
   // Notes for implementors:
   //  * Implementations should ensure that the return value *only* includes
@@ -76,6 +79,7 @@ class Storage {
   // be *precisely* as large as |indices_count|.
   //
   // Notes for callers:
+  //  * Should only be called if ValidateSearchContraints returned kOk.
   //  * Callers should note that the return value of this function corresponds
   //    to positions in |indices| *not* positions in the storage.
   //

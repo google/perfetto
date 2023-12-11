@@ -351,8 +351,8 @@ class BitVector {
     return bv;
   }
 
-  // Creates a BitVector of size |end| bit the bits between |start| and |end|
-  // filled with corresponding bits |this| BitVector.
+  // Creates a BitVector of size `min(range_end, size())` with bits between
+  // |start| and |end| filled with corresponding bits from |this| BitVector.
   BitVector IntersectRange(uint32_t range_start, uint32_t range_end) const;
 
   // Requests the removal of unused capacity.
