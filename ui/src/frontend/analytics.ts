@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {ErrorDetails} from '../base/logging';
 import {getCurrentChannel} from '../common/channels';
 import {VERSION} from '../gen/perfetto_version';
 
@@ -58,16 +59,16 @@ const gtagGlobals = window as {} as {
 export interface Analytics {
   initialize(): void;
   updatePath(_: string): void;
-  logEvent(_x: TraceCategories|null, _y: string): void;
-  logError(_x: string, _y?: boolean): void;
+  logEvent(category: TraceCategories|null, event: string): void;
+  logError(err: ErrorDetails): void;
   isEnabled(): boolean;
 }
 
 export class NullAnalytics implements Analytics {
   initialize() {}
   updatePath(_: string) {}
-  logEvent(_x: TraceCategories|null, _y: string) {}
-  logError(_x: string) {}
+  logEvent(_category: TraceCategories|null, _event: string) {}
+  logError(_err: ErrorDetails) {}
   isEnabled(): boolean {
     return false;
   }
@@ -135,8 +136,24 @@ class AnalyticsImpl implements Analytics {
     gtagGlobals.gtag('event', event, {event_category: category});
   }
 
-  logError(description: string, fatal = true) {
-    gtagGlobals.gtag('event', 'exception', {description, fatal});
+  logError(err: ErrorDetails) {
+    let stack = '';
+    for (const entry of err.stack) {
+      const shortLocation = entry.location.replace('frontend_bundle.js', '$');
+      stack += `${entry.name}(${shortLocation}),`;
+    }
+    // Strip trailing ',' (works also for empty strings without extra checks).
+    stack = stack.substring(0, stack.length - 1);
+
+    gtagGlobals.gtag('event', 'exception', {
+      description: err.message,
+      error_type: err.errType,
+
+      // As per GA4 all field are restrictred to 100 chars.
+      // page_title is the only one restricted to 1000 chars and we use that for
+      // the full crash report.
+      page_location: `http://crash?/${encodeURI(stack)}`,
+    });
   }
 
   isEnabled(): boolean {

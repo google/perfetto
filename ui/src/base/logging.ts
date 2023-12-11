@@ -12,11 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
+import {VERSION} from '../gen/perfetto_version';
 
-export type ErrorHandler = (err: string) => void;
+export type ErrorType = 'ERROR'|'PROMISE_REJ'|'OTHER';
+export interface ErrorStackEntry {
+  name: string;      // e.g. renderCanvas
+  location: string;  // e.g. frontend_bundle.js:12:3
+}
+export interface ErrorDetails {
+  errType: ErrorType;
+  message: string;  // Uncaught StoreError: No such subtree: tracks,1374,state
+  stack: ErrorStackEntry[];
+}
 
-let errorHandler: ErrorHandler = (_: string) => {};
+export type ErrorHandler = (err: ErrorDetails) => void;
+const errorHandlers: ErrorHandler[] = [];
 
 export function assertExists<A>(value: A | null | undefined): A {
   if (value === null || value === undefined) {
@@ -35,34 +45,86 @@ export function assertFalse(value: boolean, optMsg?: string) {
   assertTrue(!value, optMsg);
 }
 
-export function setErrorHandler(handler: ErrorHandler) {
-  errorHandler = handler;
+export function addErrorHandler(handler: ErrorHandler) {
+  if (!errorHandlers.includes(handler)) {
+    errorHandlers.push(handler);
+  }
 }
 
 export function reportError(err: ErrorEvent|PromiseRejectionEvent|{}) {
-  let errLog = '';
   let errorObj = undefined;
+  let errMsg = '';
+  let errType: ErrorType;
+  const stack: ErrorStackEntry[] = [];
+  const baseUrl = `${location.protocol}//${location.host}`;
 
   if (err instanceof ErrorEvent) {
-    errLog = err.message;
+    errType = 'ERROR';
+    errMsg = err.message;
     errorObj = err.error;
   } else if (err instanceof PromiseRejectionEvent) {
-    errLog = `${err.reason}`;
+    errType = 'PROMISE_REJ';
+    errMsg = `PromiseRejection: ${err.reason}`;
     errorObj = err.reason;
   } else {
-    errLog = `${err}`;
+    errType = 'OTHER';
+    errMsg = `Err: ${err}`;
   }
   if (errorObj !== undefined && errorObj !== null) {
-    const errStack = (errorObj as {stack?: string}).stack;
-    errLog += '\n';
-    errLog += errStack !== undefined ? errStack : JSON.stringify(errorObj);
-  }
-  errLog += '\n\n';
-  errLog += `${VERSION} ${SCM_REVISION}\n`;
-  errLog += `UA: ${navigator.userAgent}\n`;
+    const maybeStack = (errorObj as {stack?: string}).stack;
+    let errStack = maybeStack !== undefined ? `${maybeStack}` : '';
+    errStack = errStack.replaceAll(/\r/g, '');  // Strip Windows CR.
+    for (let line of errStack.split('\n')) {
+      if (errMsg.includes(line)) continue;
+      // Chrome, Firefox and safari don't agree on the stack format:
+      // Chrome: prefixes entries with a '  at ' and uses the format
+      //         function(https://url:line:col), e.g.
+      //         '    at FooBar (https://.../frontend_bundle.js:2073:15)'
+      //         however, if the function name is not known, it prints just:
+      //         '     at https://.../frontend_bundle.js:2073:15'
+      //         or also:
+      //         '     at <anonymous>:5:11'
+      // Firefox and Safari: don't have any prefix and use @ as a separator:
+      //         redrawCanvas@https://.../frontend_bundle.js:468814:26
+      //         @debugger eval code:1:32
 
-  console.error(errLog, err);
-  errorHandler(errLog);
+      // Here we first normalize Chrome into the Firefox/Safari format by
+      // removing the '   at ' prefix and replacing (xxx)$ into @xxx.
+      line = line.replace(/^\s*at\s*/, '');
+      line = line.replace(/\s*\(([^)]+)\)$/, '@$1');
+
+      // This leaves us still with two possible options here:
+      // 1. FooBar@https://ui.perfetto.dev/v123/frontend_bundle.js:2073:15
+      // 2. https://ui.perfetto.dev/v123/frontend_bundle.js:2073:15
+      const lastAt = line.lastIndexOf('@');
+      let entryName = '';
+      let entryLocation = '';
+      if (lastAt >= 0) {
+        entryLocation = line.substring(lastAt + 1);
+        entryName = line.substring(0, lastAt);
+      } else {
+        entryLocation = line;
+      }
+
+      // Remove redundant https://ui.perfetto.dev/v38.0-d6ed090ee/ as we have
+      // that information already and don't need to repeat it on each line.
+      if (entryLocation.includes(baseUrl)) {
+        entryLocation = entryLocation.replace(baseUrl, '');
+        entryLocation = entryLocation.replace(`/${VERSION}/`, '');
+      }
+      stack.push({name: entryName, location: entryLocation});
+    }
+  }
+  // Invoke all the handlers registered through addErrorHandler.
+  // There are usually two handlers registered, one for the UI (error_dialog.ts)
+  // and one for Analytics (analytics.ts).
+  for (const handler of errorHandlers) {
+    handler({
+      errType,
+      message: errMsg,
+      stack,
+    } as ErrorDetails);
+  }
 }
 
 // This function serves two purposes.
