@@ -74,9 +74,8 @@ RangeOrBitVector IndexSearchWithComparator(uint32_t val,
 
 }  // namespace
 
-IdStorage::SearchValidationResult IdStorage::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+SearchValidationResult IdStorage::ValidateSearchConstraints(SqlValue val,
+                                                            FilterOp op) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -118,11 +117,11 @@ IdStorage::SearchValidationResult IdStorage::ValidateSearchConstraints(
     case SqlValue::kString:
       // Any string is always more than any numeric.
       if (op == FilterOp::kLt || op == FilterOp::kLe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
   // TODO(b/307482437): Remove after adding support for double

@@ -23,6 +23,13 @@
 namespace perfetto {
 namespace trace_processor {
 
+// Result of calling Storage::ValidateSearchResult function.
+enum class SearchValidationResult {
+  kOk = 0,       // It makes sense to run search
+  kAllData = 1,  // Don't run search, all data passes the constraint.
+  kNoData = 2    // Don't run search, no data passes the constraint.
+};
+
 // Used for result of filtering, which is sometimes (for more optimised
 // operations) a Range and BitVector otherwise. Stores a variant of Range and
 // BitVector.

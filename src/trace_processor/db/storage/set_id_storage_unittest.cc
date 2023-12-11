@@ -34,55 +34,55 @@ TEST(SetIdStorageUnittest, InvalidSearchConstraints) {
   SetIdStorage storage(&storage_data);
   // NULL checks
   ASSERT_EQ(storage.ValidateSearchConstraints(SqlValue(), FilterOp::kIsNull),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
   ASSERT_EQ(storage.ValidateSearchConstraints(SqlValue(), FilterOp::kIsNotNull),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
 
   // FilterOp checks
   ASSERT_EQ(
       storage.ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kGlob),
-      Storage::SearchValidationResult::kNoData);
+      SearchValidationResult::kNoData);
   ASSERT_EQ(
       storage.ValidateSearchConstraints(SqlValue::Long(15), FilterOp::kRegex),
-      Storage::SearchValidationResult::kNoData);
+      SearchValidationResult::kNoData);
 
   // Type checks
   ASSERT_EQ(storage.ValidateSearchConstraints(SqlValue::String("cheese"),
                                               FilterOp::kGe),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
 
   // Value bounds
   SqlValue max_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::max()) + 10);
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kGe),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kGt),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kEq),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
 
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kLe),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kLt),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
   ASSERT_EQ(storage.ValidateSearchConstraints(max_val, FilterOp::kNe),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
 
   SqlValue min_val = SqlValue::Long(
       static_cast<int64_t>(std::numeric_limits<uint32_t>::min()) - 1);
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kGe),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kGt),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kNe),
-            Storage::SearchValidationResult::kAllData);
+            SearchValidationResult::kAllData);
 
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kLe),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kLt),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
   ASSERT_EQ(storage.ValidateSearchConstraints(min_val, FilterOp::kEq),
-            Storage::SearchValidationResult::kNoData);
+            SearchValidationResult::kNoData);
 }
 
 TEST(SetIdStorageUnittest, SearchEqSimple) {

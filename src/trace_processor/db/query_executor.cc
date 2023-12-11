@@ -66,12 +66,12 @@ void QueryExecutor::FilterColumn(const Constraint& c,
   }
 
   switch (storage.ValidateSearchConstraints(c.value, c.op)) {
-    case storage::Storage::SearchValidationResult::kAllData:
+    case SearchValidationResult::kAllData:
       return;
-    case storage::Storage::SearchValidationResult::kNoData:
+    case SearchValidationResult::kNoData:
       rm->Clear();
       return;
-    case storage::Storage::SearchValidationResult::kOk:
+    case SearchValidationResult::kOk:
       break;
   }
 
@@ -291,12 +291,12 @@ void QueryExecutor::BoundedColumnFilterForTesting(const Constraint& c,
                                                   const storage::Storage& col,
                                                   RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
-    case storage::Storage::SearchValidationResult::kAllData:
+    case SearchValidationResult::kAllData:
       return;
-    case storage::Storage::SearchValidationResult::kNoData:
+    case SearchValidationResult::kNoData:
       rm->Clear();
       return;
-    case storage::Storage::SearchValidationResult::kOk:
+    case SearchValidationResult::kOk:
       break;
   }
 
@@ -307,12 +307,12 @@ void QueryExecutor::IndexedColumnFilterForTesting(const Constraint& c,
                                                   const storage::Storage& col,
                                                   RowMap* rm) {
   switch (col.ValidateSearchConstraints(c.value, c.op)) {
-    case storage::Storage::SearchValidationResult::kAllData:
+    case SearchValidationResult::kAllData:
       return;
-    case storage::Storage::SearchValidationResult::kNoData:
+    case SearchValidationResult::kNoData:
       rm->Clear();
       return;
-    case storage::Storage::SearchValidationResult::kOk:
+    case SearchValidationResult::kOk:
       break;
   }
 
