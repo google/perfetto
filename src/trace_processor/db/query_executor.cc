@@ -35,6 +35,7 @@
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/selector_storage.h"
 #include "src/trace_processor/db/storage/set_id_storage.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/table.h"
@@ -62,6 +63,16 @@ void QueryExecutor::FilterColumn(const Constraint& c,
       c.op != FilterOp::kIsNotNull) {
     rm->Clear();
     return;
+  }
+
+  switch (storage.ValidateSearchConstraints(c.value, c.op)) {
+    case storage::Storage::SearchValidationResult::kAllData:
+      return;
+    case storage::Storage::SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case storage::Storage::SearchValidationResult::kOk:
+      break;
   }
 
   uint32_t rm_size = rm->size();
@@ -274,6 +285,38 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     PERFETTO_DCHECK(rm.size() <= pre_count);
   }
   return rm;
+}
+
+void QueryExecutor::BoundedColumnFilterForTesting(const Constraint& c,
+                                                  const storage::Storage& col,
+                                                  RowMap* rm) {
+  switch (col.ValidateSearchConstraints(c.value, c.op)) {
+    case storage::Storage::SearchValidationResult::kAllData:
+      return;
+    case storage::Storage::SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case storage::Storage::SearchValidationResult::kOk:
+      break;
+  }
+
+  LinearSearch(c, col, rm);
+}
+
+void QueryExecutor::IndexedColumnFilterForTesting(const Constraint& c,
+                                                  const storage::Storage& col,
+                                                  RowMap* rm) {
+  switch (col.ValidateSearchConstraints(c.value, c.op)) {
+    case storage::Storage::SearchValidationResult::kAllData:
+      return;
+    case storage::Storage::SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case storage::Storage::SearchValidationResult::kOk:
+      break;
+  }
+
+  IndexSearch(c, col, rm);
 }
 
 }  // namespace trace_processor
