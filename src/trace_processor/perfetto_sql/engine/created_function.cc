@@ -587,6 +587,10 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                                   SqlValue& out,
                                   Destructors&) {
   State* state = static_cast<State*>(ctx);
+
+  // Enter the function and ensure that we have a statement allocated.
+  RETURN_IF_ERROR(state->PushStackEntry());
+
   if (argc != state->prototype().arguments.size()) {
     return base::ErrStatus(
         "%s: invalid number of args; expected %zu, received %zu",
@@ -607,9 +611,6 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                              sqlite3_value_text(arg), i, status.c_message());
     }
   }
-
-  // Enter the function and ensure that we have a statement allocated.
-  RETURN_IF_ERROR(state->PushStackEntry());
 
   std::optional<Memoizer::MemoizedArgs> memoized_args =
       Memoizer::AsMemoizedArgs(argc, argv);
