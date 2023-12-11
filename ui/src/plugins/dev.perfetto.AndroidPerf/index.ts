@@ -90,6 +90,27 @@ class AndroidPerf implements Plugin {
             GROUP BY 1`, `runtime cluster distrubtion for tid ${tid}`);
       },
     });
+
+    ctx.registerCommand({
+      id: 'dev.perfetto.AndroidPerf#SchedLatency',
+      name: 'Run query: top 50 sched latency for a thread',
+      callback: async (tid) => {
+        if (tid === undefined) {
+          tid = prompt('Enter a thread tid', '');
+          if (tid === null) return;
+        }
+        ctx.tabs.openQuery(`
+          SELECT ts.*, t.tid, t.name, tt.id AS track_id
+          FROM thread_state ts
+          LEFT JOIN thread_track tt
+           USING (utid)
+          LEFT JOIN thread t
+           USING (utid)
+          WHERE ts.state IN ('R', 'R+') AND tid = ${tid}
+           ORDER BY dur DESC
+          LIMIT 50`, `top 50 sched latency slice for tid ${tid}`);
+      },
+    });
   }
 }
 
