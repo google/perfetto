@@ -105,6 +105,9 @@ PATTERN_BY_KIND = {
     ObjKind.table_function: CREATE_TABLE_FUNCTION_PATTERN,
 }
 
+ALLOWED_PREFIXES = {
+    'chrome/util': 'cr',
+}
 
 # Given a regex pattern and a string to match against, returns all the
 # matching positions. Specifically, it returns a dictionary from the line
