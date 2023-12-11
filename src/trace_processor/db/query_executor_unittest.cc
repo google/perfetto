@@ -46,7 +46,7 @@ TEST(QueryExecutor, OnlyStorageRange) {
   storage::NumericStorage<int64_t> storage(&storage_data, ColumnType::kInt64);
 
   Constraint c{0, FilterOp::kGe, SqlValue::Long(3)};
-  RowMap rm(0, 5);
+  RowMap rm(0, storage.size());
   QueryExecutor::BoundedColumnFilterForTesting(c, storage, &rm);
 
   ASSERT_EQ(rm.size(), 3u);
@@ -116,11 +116,12 @@ TEST(QueryExecutor, NullRangeIsNull) {
   std::iota(storage_data.begin(), storage_data.end(), 0);
   auto numeric = std::make_unique<storage::NumericStorage<int64_t>>(
       &storage_data, ColumnType::kInt64);
+
   BitVector bv{1, 1, 0, 1, 1, 0, 0, 0, 1, 0};
   storage::NullStorage storage(std::move(numeric), &bv);
 
   Constraint c{0, FilterOp::kIsNull, SqlValue()};
-  RowMap rm(0, 10);
+  RowMap rm(0, storage.size());
   QueryExecutor::BoundedColumnFilterForTesting(c, storage, &rm);
 
   ASSERT_EQ(rm.size(), 5u);
