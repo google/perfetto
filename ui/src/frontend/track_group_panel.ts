@@ -24,7 +24,7 @@ import {
   TrackGroupState,
   TrackState,
 } from '../common/state';
-import {Migrate, Track, TrackContext} from '../public';
+import {Migrate, Track, TrackContext, TrackTags} from '../public';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -44,6 +44,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
   private shellWidth = 0;
   private backgroundColor = '#ffffff';  // Updated from CSS later.
   private summaryTrack?: Track;
+  private summaryTrackTags?: TrackTags;
 
   constructor({attrs}: m.CVnode<Attrs>) {
     super();
@@ -70,6 +71,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
     };
 
     this.summaryTrack = pluginManager.createTrack(uri, ctx);
+    this.summaryTrackTags = pluginManager.resolveTrackInfo(uri)?.tags;
   }
 
   get trackGroupState(): TrackGroupState {
@@ -148,7 +150,7 @@ export class TrackGroupPanel extends Panel<Attrs> {
                 'h1.track-title',
                 {title: name},
                 name,
-                renderChips(this.summaryTrackState),
+                renderChips(this.summaryTrackTags),
                 ),
             (this.trackGroupState.collapsed && child !== null) ?
                 m('h2.track-subtitle', child) :
