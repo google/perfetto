@@ -14,11 +14,9 @@
 
 import m from 'mithril';
 
-import {duration, Span, time} from '../base/time';
+import {time} from '../base/time';
 import {SliceRect, Track, TrackContext} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
-
-import {PxSpan, TimeScale} from './time_scale';
 
 // Args passed to the track constructors when creating a new track.
 export interface NewTrackArgs {
@@ -72,10 +70,8 @@ export abstract class TrackBase implements Track {
   // only for track types that support slices e.g. chrome_slice, async_slices
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
-  getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
+  getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
+      |undefined {
     return undefined;
   }
 }

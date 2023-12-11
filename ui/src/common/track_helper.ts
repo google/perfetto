@@ -14,10 +14,9 @@
 
 import m from 'mithril';
 
-import {duration, Span, Time, time} from '../base/time';
+import {duration, Time, time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
-import {PxSpan, TimeScale} from '../frontend/time_scale';
 import {SliceRect, Track, TrackContext} from '../public';
 
 import {TrackData} from './track_data';
@@ -66,10 +65,8 @@ export abstract class TrackHelperLEGACY<Data> implements Track {
   // only for track types that support slices e.g. chrome_slice, async_slices
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
-  getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
+  getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
+      |undefined {
     return undefined;
   }
 
