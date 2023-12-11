@@ -112,6 +112,79 @@ SELECT 1;
     # Expecting an error: function prefix (bar) not matching module name (foo).
     self.assertEqual(len(res.errors), 1)
 
+  # Checks that custom prefixes (cr for chrome/util) are allowed.
+  def test_custom_module_prefix(self):
+    res = parse_file(
+        'chrome/util/test.sql', f'''
+-- Comment
+CREATE PERFETTO TABLE cr_table(
+    -- Column.
+    x INT
+) AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.table_views[0]
+    self.assertEqual(fn.name, 'cr_table')
+    self.assertEqual(fn.desc, 'Comment')
+    self.assertEqual(fn.cols, {
+        'x': Arg('INT', 'Column.'),
+    })
+
+  # Checks that when custom prefixes (cr for chrome/util) are present,
+  # the full module name (chrome) is still accepted.
+  def test_custom_module_prefix_full_module_name(self):
+    res = parse_file(
+        'chrome/util/test.sql', f'''
+-- Comment
+CREATE PERFETTO TABLE chrome_table(
+    -- Column.
+    x INT
+) AS
+SELECT 1;
+    '''.strip())
+    self.assertListEqual(res.errors, [])
+
+    fn = res.table_views[0]
+    self.assertEqual(fn.name, 'chrome_table')
+    self.assertEqual(fn.desc, 'Comment')
+    self.assertEqual(fn.cols, {
+        'x': Arg('INT', 'Column.'),
+    })
+
+  # Checks that when custom prefixes (cr for chrome/util) are present,
+  # the incorrect prefixes (foo) are not accepted.
+  def test_custom_module_prefix_incorrect(self):
+    res = parse_file(
+        'chrome/util/test.sql', f'''
+-- Comment
+CREATE PERFETTO TABLE foo_table(
+    -- Column.
+    x INT
+) AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: table prefix (foo) is not allowed for a given path
+    # (allowed: chrome, cr).
+    self.assertEqual(len(res.errors), 1)
+
+  # Checks that when custom prefixes (cr for chrome/util) are present,
+  # they do not apply outside of the path scope.
+  def test_custom_module_prefix_does_not_apply_outside(self):
+    res = parse_file(
+        'foo/bar.sql', f'''
+-- Comment
+CREATE PERFETTO TABLE cr_table(
+    -- Column.
+    x INT
+) AS
+SELECT 1;
+    '''.strip())
+    # Expecting an error: table prefix (foo) is not allowed for a given path
+    # (allowed: foo).
+    self.assertEqual(len(res.errors), 1)
+
   def test_common_does_not_include_module_name(self):
     res = parse_file(
         'common/bar.sql', f'''
