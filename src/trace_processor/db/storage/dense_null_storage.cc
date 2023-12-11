@@ -32,11 +32,11 @@ DenseNullStorage::DenseNullStorage(std::unique_ptr<Storage> inner,
                                    const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
 
-Storage::SearchValidationResult DenseNullStorage::ValidateSearchConstraints(
+SearchValidationResult DenseNullStorage::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
-    return Storage::SearchValidationResult::kOk;
+    return SearchValidationResult::kOk;
   }
 
   return inner_->ValidateSearchConstraints(sql_val, op);
@@ -49,7 +49,7 @@ RangeOrBitVector DenseNullStorage::Search(FilterOp op,
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
-      case Storage::SearchValidationResult::kNoData: {
+      case SearchValidationResult::kNoData: {
         // There is no need to search in underlying storage. It's enough to
         // intersect the |non_null_|.
         BitVector res = non_null_->IntersectRange(in.start, in.end);
@@ -57,9 +57,9 @@ RangeOrBitVector DenseNullStorage::Search(FilterOp op,
         res.Resize(in.end, false);
         return RangeOrBitVector(std::move(res));
       }
-      case Storage::SearchValidationResult::kAllData:
+      case SearchValidationResult::kAllData:
         return RangeOrBitVector(in);
-      case Storage::SearchValidationResult::kOk:
+      case SearchValidationResult::kOk:
         break;
     }
   }
