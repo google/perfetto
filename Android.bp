@@ -10983,6 +10983,7 @@ filegroup {
         "src/trace_processor/db/storage/set_id_storage.cc",
         "src/trace_processor/db/storage/storage.cc",
         "src/trace_processor/db/storage/string_storage.cc",
+        "src/trace_processor/db/storage/utils.cc",
     ],
 }
 
