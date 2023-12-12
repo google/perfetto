@@ -33,8 +33,6 @@ class Storage {
  public:
   using StorageProto = protos::pbzero::SerializedColumn_Storage;
 
-  enum class SearchValidationResult { kOk = 0, kAllData = 1, kNoData = 2 };
-
   virtual ~Storage();
 
   // Verifies whether any further filtering is needed and if not, whether the
@@ -59,7 +57,7 @@ class Storage {
   // Notes for callers:
   //  * Should only be called if ValidateSearchContraints returned kOk.
   //  * Callers should note that the return value of this function corresponds
-  //    to positions in |indices| *not* positions in the storage.
+  //    to positions in the storage.
   //
   // Notes for implementors:
   //  * Implementations should ensure that the return value *only* includes

@@ -73,11 +73,11 @@ RangeOrBitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
-Storage::SearchValidationResult NullStorage::ValidateSearchConstraints(
+SearchValidationResult NullStorage::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
-    return Storage::SearchValidationResult::kOk;
+    return SearchValidationResult::kOk;
   }
 
   return storage_->ValidateSearchConstraints(sql_val, op);
@@ -96,7 +96,7 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
 
   if (op == FilterOp::kIsNull) {
     switch (storage_->ValidateSearchConstraints(sql_val, op)) {
-      case Storage::SearchValidationResult::kNoData: {
+      case SearchValidationResult::kNoData: {
         // There is no need to search in underlying storage. It's enough to
         // intersect the |non_null_|.
         BitVector res = non_null_->IntersectRange(in.start, in.end);
@@ -104,9 +104,9 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
         res.Resize(non_null_->size(), false);
         return RangeOrBitVector(std::move(res));
       }
-      case Storage::SearchValidationResult::kAllData:
+      case SearchValidationResult::kAllData:
         return RangeOrBitVector(in);
-      case Storage::SearchValidationResult::kOk:
+      case SearchValidationResult::kOk:
         break;
     }
   }
@@ -129,7 +129,7 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
 
   if (op == FilterOp::kIsNull) {
     switch (storage_->ValidateSearchConstraints(sql_val, op)) {
-      case Storage::SearchValidationResult::kNoData: {
+      case SearchValidationResult::kNoData: {
         BitVector::Builder null_indices(indices_size);
         for (uint32_t* it = indices; it != indices + indices_size; it++) {
           null_indices.Append(!non_null_->IsSet(*it));
@@ -138,9 +138,9 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
         // check if the index is set in |non_null_|.
         return RangeOrBitVector(std::move(null_indices).Build());
       }
-      case Storage::SearchValidationResult::kAllData:
+      case SearchValidationResult::kAllData:
         return RangeOrBitVector(Range(0, indices_size));
-      case Storage::SearchValidationResult::kOk:
+      case SearchValidationResult::kOk:
         break;
     }
   }

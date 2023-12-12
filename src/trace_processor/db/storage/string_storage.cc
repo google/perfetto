@@ -163,7 +163,7 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
 
 }  // namespace
 
-StringStorage::SearchValidationResult StringStorage::ValidateSearchConstraints(
+SearchValidationResult StringStorage::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // Type checks.
@@ -175,11 +175,11 @@ StringStorage::SearchValidationResult StringStorage::ValidateSearchConstraints(
     case SqlValue::kDouble:
       // Any string is always more than any numeric.
       if (op == FilterOp::kGt || op == FilterOp::kGe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
   return SearchValidationResult::kOk;

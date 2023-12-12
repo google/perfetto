@@ -58,7 +58,7 @@ uint32_t LowerBoundIntrinsic(const SetId* data, SetId id, RowMap::Range range) {
 
 }  // namespace
 
-SetIdStorage::SearchValidationResult SetIdStorage::ValidateSearchConstraints(
+SearchValidationResult SetIdStorage::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // NULL checks.
@@ -101,11 +101,11 @@ SetIdStorage::SearchValidationResult SetIdStorage::ValidateSearchConstraints(
     case SqlValue::kString:
       // Any string is always more than any numeric.
       if (op == FilterOp::kLt || op == FilterOp::kLe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
   // TODO(b/307482437): Remove after adding support for double

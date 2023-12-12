@@ -195,8 +195,9 @@ void TypedLinearSearch(T typed_val,
 
 }  // namespace
 
-NumericStorageBase::SearchValidationResult
-NumericStorageBase::ValidateSearchConstraints(SqlValue val, FilterOp op) const {
+SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
+    SqlValue val,
+    FilterOp op) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -237,11 +238,11 @@ NumericStorageBase::ValidateSearchConstraints(SqlValue val, FilterOp op) const {
     case SqlValue::kString:
       // Any string is always more than any numeric.
       if (op == FilterOp::kLt || op == FilterOp::kLe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
   // TODO(b/307482437): There is currently no support for comparison with double
@@ -289,7 +290,7 @@ NumericStorageBase::ValidateSearchConstraints(SqlValue val, FilterOp op) const {
 
   switch (extreme_validator) {
     case kOk:
-      return Storage::SearchValidationResult::kOk;
+      return SearchValidationResult::kOk;
     case kTooBig:
       if (op == FilterOp::kLt || op == FilterOp::kLe || op == FilterOp::kNe) {
         return SearchValidationResult::kAllData;
