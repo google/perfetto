@@ -215,7 +215,7 @@ export class NotesPanel extends Panel {
     ctx.strokeStyle = color;
     const topOffset = 10;
     // Don't draw in the track shell section.
-    if (x >= globals.frontendLocalState.windowSpan.start + TRACK_SHELL_WIDTH) {
+    if (x >= TRACK_SHELL_WIDTH) {
       // Draw left triangle.
       ctx.beginPath();
       ctx.moveTo(x, topOffset);
@@ -235,8 +235,7 @@ export class NotesPanel extends Panel {
     ctx.stroke();
 
     // Start line after track shell section, join triangles.
-    const startDraw = Math.max(
-        x, globals.frontendLocalState.windowSpan.start + TRACK_SHELL_WIDTH);
+    const startDraw = Math.max(x, TRACK_SHELL_WIDTH);
     ctx.beginPath();
     ctx.moveTo(startDraw, topOffset);
     ctx.lineTo(xEnd, topOffset);
