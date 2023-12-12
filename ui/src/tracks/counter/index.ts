@@ -606,8 +606,10 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   }
 
   async onDestroy(): Promise<void> {
-    await this.engine.query(
-        `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+    if (this.engine.isAlive) {
+      await this.engine.query(
+          `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
+    }
   }
 }
 
