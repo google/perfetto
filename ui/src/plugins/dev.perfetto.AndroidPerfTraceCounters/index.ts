@@ -21,7 +21,6 @@ import {
 import {addDebugSliceTrack} from '../../tracks/debug/slice_track';
 
 class AndroidPerfTraceCounters implements Plugin {
-
   onActivate(_: PluginContext): void {}
 
   async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
@@ -76,7 +75,7 @@ WITH
       ssi.l3_cache_miss
     FROM sched_switch_ipc ssi
   )
-`
+`;
 
         await addDebugSliceTrack(
           ctx.engine,
@@ -86,7 +85,7 @@ SELECT * FROM target_thread_ipc_slice WHERE ts IS NOT NULL`,
           },
           'Rutime IPC:' + tid,
           {ts: 'ts', dur: 'dur', name: 'ipc'},
-          ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss' ],
+          ['instruction', 'cycle', 'stall_backend_mem', 'l3_cache_miss'],
         );
         ctx.tabs.openQuery(sql_prefix + `
 SELECT
