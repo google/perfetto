@@ -48,6 +48,14 @@ source_set("db") {
   ]
 }
 
+source_set("compare") {
+  sources = [ "compare.h" ]
+  deps = [
+    "../../../include/perfetto/trace_processor",
+    "../containers",
+  ]
+}
+
 perfetto_tp_tables("view_unittest") {
   sources = [ "view_unittest.py" ]
 }

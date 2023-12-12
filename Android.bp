@@ -10948,6 +10948,11 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/db:compare
+filegroup {
+    name: "perfetto_src_trace_processor_db_compare",
+}
+
 // GN: //src/trace_processor/db:db
 filegroup {
     name: "perfetto_src_trace_processor_db_db",
@@ -13813,6 +13818,7 @@ cc_test {
         ":perfetto_src_shared_lib_unittests",
         ":perfetto_src_trace_processor_containers_containers",
         ":perfetto_src_trace_processor_containers_unittests",
+        ":perfetto_src_trace_processor_db_compare",
         ":perfetto_src_trace_processor_db_db",
         ":perfetto_src_trace_processor_db_storage_fake_storage",
         ":perfetto_src_trace_processor_db_storage_storage",
