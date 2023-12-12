@@ -32,10 +32,10 @@ namespace {
 
 using Range = RowMap::Range;
 
-RangeOrBitVector ReconcileStorageResult(FilterOp op,
-                                        const BitVector& non_null,
-                                        RangeOrBitVector storage_result,
-                                        Range in_range) {
+BitVector ReconcileStorageResult(FilterOp op,
+                                 const BitVector& non_null,
+                                 RangeOrBitVector storage_result,
+                                 Range in_range) {
   PERFETTO_CHECK(in_range.end <= non_null.size());
 
   // Reconcile the results of the Search operation with the non-null indices
@@ -68,7 +68,7 @@ RangeOrBitVector ReconcileStorageResult(FilterOp op,
     null.Not();
     res.Or(null);
   }
-  return RangeOrBitVector(std::move(res));
+  return res;
 }
 
 }  // namespace
@@ -101,7 +101,7 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
         // intersect the |non_null_|.
         BitVector res = non_null_->IntersectRange(in.start, in.end);
         res.Not();
-        res.Resize(non_null_->size(), false);
+        res.Resize(in.end, false);
         return RangeOrBitVector(std::move(res));
       }
       case SearchValidationResult::kAllData:
@@ -115,9 +115,12 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
   // it.
   uint32_t start = non_null_->CountSetBits(in.start);
   uint32_t end = non_null_->CountSetBits(in.end);
-  return ReconcileStorageResult(
+  BitVector res = ReconcileStorageResult(
       op, *non_null_, storage_->Search(op, sql_val, RowMap::Range(start, end)),
       in);
+
+  PERFETTO_DCHECK(res.size() == in.end);
+  return RangeOrBitVector(std::move(res));
 }
 
 RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
@@ -158,8 +161,12 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
   RangeOrBitVector range_or_bv =
       storage_->IndexSearch(op, sql_val, storage_iv.data(),
                             static_cast<uint32_t>(storage_iv.size()), sorted);
-  return ReconcileStorageResult(op, std::move(storage_non_null).Build(),
-                                std::move(range_or_bv), Range(0, indices_size));
+  BitVector res =
+      ReconcileStorageResult(op, std::move(storage_non_null).Build(),
+                             std::move(range_or_bv), Range(0, indices_size));
+
+  PERFETTO_DCHECK(res.size() == indices_size);
+  return RangeOrBitVector(std::move(res));
 }
 
 void NullStorage::StableSort(uint32_t*, uint32_t) const {
