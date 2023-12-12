@@ -24,6 +24,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -99,7 +100,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale,
     } = globals.frontendLocalState;

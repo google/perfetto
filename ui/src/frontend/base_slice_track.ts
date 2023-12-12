@@ -36,6 +36,7 @@ import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
+import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
 import {NewTrackArgs, TrackBase} from './track';
@@ -325,7 +326,7 @@ export abstract class BaseSliceTrack<
     return `${size}px Roboto Condensed`;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
     const {
@@ -545,8 +546,8 @@ export abstract class BaseSliceTrack<
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        timeScale.hpTimeToPx(vizTime.start),
-        timeScale.hpTimeToPx(vizTime.end),
+        0,
+        size.width,
         timeScale.timeToPx(this.slicesKey.start),
         timeScale.timeToPx(this.slicesKey.end));
 

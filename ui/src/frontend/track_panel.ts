@@ -444,7 +444,8 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     ctx.translate(TRACK_SHELL_WIDTH, 0);
     if (this.track !== undefined) {
-      this.track.render(ctx);
+      const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
+      this.track.render(ctx, trackSize);
     } else {
       checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
     }
