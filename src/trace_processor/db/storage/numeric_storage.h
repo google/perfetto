@@ -60,7 +60,7 @@ class NumericStorageBase : public Storage {
                      uint32_t size,
                      ColumnType type,
                      bool is_sorted = false)
-      : size_(size), data_(data), type_(type), is_sorted_(is_sorted) {}
+      : size_(size), data_(data), storage_type_(type), is_sorted_(is_sorted) {}
 
  private:
   // All viable numeric values for ColumnTypes.
@@ -86,7 +86,7 @@ class NumericStorageBase : public Storage {
 
   const uint32_t size_ = 0;
   const void* data_ = nullptr;
-  const ColumnType type_ = ColumnType::kDummy;
+  const ColumnType storage_type_ = ColumnType::kDummy;
   const bool is_sorted_ = false;
 };
 

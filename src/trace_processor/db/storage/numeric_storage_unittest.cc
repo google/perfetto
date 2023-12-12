@@ -16,6 +16,8 @@
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include <cstdint>
 
+#include "perfetto/trace_processor/basic_types.h"
+#include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "test/gtest_and_gmock.h"
 
@@ -576,6 +578,77 @@ TEST(NumericStorageUnittest, IndexSearchUint32WithNegDouble) {
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
   ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+}
+
+TEST(NumericStorageUnittest, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
+  // Sanity check that this value can't be represented as double.
+  int64_t not_rep_i = 9007199254740993;
+  EXPECT_FALSE(std::nextafter(static_cast<double>(not_rep_i), 1.0) ==
+               static_cast<double>(not_rep_i));
+  SqlValue val = SqlValue::Long(not_rep_i);
+
+  std::vector<double> data_vec{9007199254740992.0, 9007199254740994.0};
+
+  // Whether LongToDouble has the expected results.
+  ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[0]) > 0);
+  ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) < 0);
+
+  NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
+  Range test_range(0, 2);
+
+  auto res = storage.Search(FilterOp::kEq, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+
+  res = storage.Search(FilterOp::kNe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1));
+
+  res = storage.Search(FilterOp::kLt, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+
+  res = storage.Search(FilterOp::kLe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+
+  res = storage.Search(FilterOp::kGt, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+
+  res = storage.Search(FilterOp::kGe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+}
+
+TEST(NumericStorageUnittest,
+     DoubleColumnWithNegIntThatCantBeRepresentedAsDouble) {
+  // Sanity check that this value can't be represented as double.
+  int64_t not_rep_i = -9007199254740993;
+  EXPECT_FALSE(std::nextafter(static_cast<double>(not_rep_i), 1.0) ==
+               static_cast<double>(not_rep_i));
+  SqlValue val = SqlValue::Long(not_rep_i);
+
+  std::vector<double> data_vec{-9007199254740992.0, -9007199254740994.0};
+
+  // Whether LongToDouble has the expected results.
+  ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[0]) < 0);
+  ASSERT_TRUE(compare::LongToDouble(not_rep_i, data_vec[1]) > 0);
+
+  NumericStorage<double> storage(&data_vec, ColumnType::kDouble);
+  Range test_range(0, 2);
+
+  auto res = storage.Search(FilterOp::kEq, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+
+  res = storage.Search(FilterOp::kNe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1));
+
+  res = storage.Search(FilterOp::kLt, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+
+  res = storage.Search(FilterOp::kLe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+
+  res = storage.Search(FilterOp::kGt, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+
+  res = storage.Search(FilterOp::kGe, val, test_range);
+  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
 }
 
 }  // namespace

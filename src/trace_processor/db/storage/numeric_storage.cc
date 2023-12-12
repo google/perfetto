@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 
@@ -194,11 +195,10 @@ void TypedLinearSearch(T typed_val,
   }
 }
 
-inline SearchValidationResult IntColumnToDouble(SqlValue* sql_val,
-                                                FilterOp op) {
+SearchValidationResult IntColumnToDouble(SqlValue* sql_val, FilterOp op) {
   double double_val = sql_val->AsDouble();
 
-  // Case when |sql_val| can be interpreted as a SqlValue::Long.
+  // Case when |sql_val| can be interpreted as a SqlValue::Double.
   if (std::equal_to<double>()(
           static_cast<double>(static_cast<int64_t>(double_val)), double_val)) {
     *sql_val = SqlValue::Long(static_cast<int64_t>(double_val));
@@ -220,6 +220,44 @@ inline SearchValidationResult IntColumnToDouble(SqlValue* sql_val,
     case FilterOp::kLt:
     case FilterOp::kGe:
       *sql_val = SqlValue::Long(static_cast<int64_t>(std::ceil(double_val)));
+      return SearchValidationResult::kOk;
+
+    case FilterOp::kIsNotNull:
+    case FilterOp::kIsNull:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      PERFETTO_FATAL("Invalid filter operation");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
+SearchValidationResult DoubleColumnWithInt(SqlValue* sql_val, FilterOp op) {
+  int64_t i = sql_val->AsLong();
+  double i_as_d = static_cast<double>(i);
+
+  // Case when |sql_val| can be interpreted as a SqlValue::Long.
+  if (std::equal_to<int64_t>()(i, static_cast<int64_t>(i_as_d))) {
+    *sql_val = SqlValue::Double(i_as_d);
+    return SearchValidationResult::kOk;
+  }
+
+  // Logic for when the value can't be represented as double.
+  switch (op) {
+    case FilterOp::kEq:
+      return SearchValidationResult::kNoData;
+    case FilterOp::kNe:
+      return SearchValidationResult::kAllData;
+
+    case FilterOp::kLe:
+    case FilterOp::kGt:
+      // The first double value smaller than |i|.
+      *sql_val = SqlValue::Double(std::nextafter(i_as_d, i - 1));
+      return SearchValidationResult::kOk;
+
+    case FilterOp::kLt:
+    case FilterOp::kGe:
+      // The first double value bigger than |i|.
+      *sql_val = SqlValue::Double(std::nextafter(i_as_d, i + 1));
       return SearchValidationResult::kOk;
 
     case FilterOp::kIsNotNull:
@@ -291,7 +329,7 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
                          ? static_cast<double_t>(val.AsLong())
                          : val.AsDouble();
 
-  switch (type_) {
+  switch (storage_type_) {
     case ColumnType::kDouble:
       // Any value would make a sensible comparison with a double.
     case ColumnType::kInt64:
@@ -353,7 +391,8 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  if (sql_val.type == SqlValue::kDouble && type_ != ColumnType::kDouble) {
+  if (sql_val.type == SqlValue::kDouble &&
+      storage_type_ != ColumnType::kDouble) {
     auto comp = IntColumnToDouble(&sql_val, op);
     switch (comp) {
       case SearchValidationResult::kOk:
@@ -365,7 +404,20 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
     }
   }
 
-  NumericValue val = GetNumericTypeVariant(type_, sql_val);
+  if (sql_val.type != SqlValue::kDouble &&
+      storage_type_ == ColumnType::kDouble) {
+    auto comp = DoubleColumnWithInt(&sql_val, op);
+    switch (comp) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(search_range);
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
+  }
+
+  NumericValue val = GetNumericTypeVariant(storage_type_, sql_val);
 
   if (is_sorted_) {
     if (op != FilterOp::kNe) {
@@ -395,7 +447,8 @@ RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  if (sql_val.type == SqlValue::kDouble && type_ != ColumnType::kDouble) {
+  if (sql_val.type == SqlValue::kDouble &&
+      storage_type_ != ColumnType::kDouble) {
     auto comp = IntColumnToDouble(&sql_val, op);
     switch (comp) {
       case SearchValidationResult::kOk:
@@ -407,7 +460,20 @@ RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
     }
   }
 
-  NumericValue val = GetNumericTypeVariant(type_, sql_val);
+  if (sql_val.type != SqlValue::kDouble &&
+      storage_type_ == ColumnType::kDouble) {
+    auto comp = DoubleColumnWithInt(&sql_val, op);
+    switch (comp) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices_size));
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
+  }
+
+  NumericValue val = GetNumericTypeVariant(storage_type_, sql_val);
 
   if (sorted) {
     return RangeOrBitVector(
@@ -534,7 +600,7 @@ void NumericStorageBase::StableSort(uint32_t* rows, uint32_t rows_size) const {
                            return first_val < second_val;
                          });
       },
-      GetNumericTypeVariant(type_, SqlValue::Long(0)));
+      GetNumericTypeVariant(storage_type_, SqlValue::Long(0)));
 }
 
 void NumericStorageBase::Sort(uint32_t*, uint32_t) const {
@@ -545,10 +611,10 @@ void NumericStorageBase::Sort(uint32_t*, uint32_t) const {
 void NumericStorageBase::Serialize(StorageProto* msg) const {
   auto* numeric_storage_msg = msg->set_numeric_storage();
   numeric_storage_msg->set_is_sorted(is_sorted_);
-  numeric_storage_msg->set_column_type(static_cast<uint32_t>(type_));
+  numeric_storage_msg->set_column_type(static_cast<uint32_t>(storage_type_));
 
   uint32_t type_size;
-  switch (type_) {
+  switch (storage_type_) {
     case ColumnType::kInt64:
       type_size = sizeof(int64_t);
       break;
