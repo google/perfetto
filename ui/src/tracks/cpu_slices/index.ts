@@ -198,7 +198,10 @@ class CpuSliceTrackController extends TrackControllerAdapter<Config, Data> {
   }
 
   async onDestroy() {
-    await this.query(`drop table if exists ${this.tableName('sched_cached')}`);
+    if (this.engine.isAlive) {
+      await this.engine.query(
+          `drop table if exists ${this.tableName('sched_cached')}`);
+    }
   }
 }
 
