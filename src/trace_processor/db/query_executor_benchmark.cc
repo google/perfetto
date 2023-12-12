@@ -403,6 +403,24 @@ static void BM_QEDenseNullFilterIsNull(benchmark::State& state) {
 }
 BENCHMARK(BM_QEDenseNullFilterIsNull)->ArgsProduct({{DB::V1, DB::V2}});
 
+static void BM_QEIdColumnWithIntAsDouble(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  Constraint c{table.table_.track_id().index_in_table(), FilterOp::kEq,
+               SqlValue::Double(100)};
+  BenchmarkSliceTable(state, table, {c});
+}
+
+BENCHMARK(BM_QEIdColumnWithIntAsDouble)->ArgsProduct({{DB::V1, DB::V2}});
+
+static void BM_QEIdColumnWithDouble(benchmark::State& state) {
+  SliceTableForBenchmark table(state);
+  Constraint c{table.table_.track_id().index_in_table(), FilterOp::kEq,
+               SqlValue::Double(100.5)};
+  BenchmarkSliceTable(state, table, {c});
+}
+
+BENCHMARK(BM_QEIdColumnWithDouble)->ArgsProduct({{DB::V1, DB::V2}});
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
