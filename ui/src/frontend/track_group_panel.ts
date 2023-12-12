@@ -237,7 +237,8 @@ export class TrackGroupPanel extends Panel<Attrs> {
     ctx.save();
     ctx.translate(this.shellWidth, 0);
     if (this.summaryTrack) {
-      this.summaryTrack.render(ctx);
+      const trackSize = {...size, width: size.width - this.shellWidth};
+      this.summaryTrack.render(ctx, trackSize);
     }
     ctx.restore();
 

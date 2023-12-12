@@ -17,6 +17,7 @@ import m from 'mithril';
 import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
 import {ColorScheme} from '../common/colorizer';
+import {PanelSize} from '../frontend/panel';
 import {Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
 
@@ -172,7 +173,7 @@ export interface SliceRect {
 
 export interface Track {
   onCreate(ctx: TrackContext): void;
-  render(ctx: CanvasRenderingContext2D): void;
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   onFullRedraw(): void;
   getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
   getHeight(): number;
