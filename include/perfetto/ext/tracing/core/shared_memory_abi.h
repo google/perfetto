@@ -153,8 +153,10 @@ class SharedMemoryABI {
   // See PageLayout below.
   static constexpr size_t kMaxChunksPerPage = 14;
 
-  // Each TracePacket in the Chunk is prefixed by a 4 bytes redundant VarInt
-  // (see proto_utils.h) stating its size.
+  // Each TracePacket fragment in the Chunk is prefixed by a VarInt stating its
+  // size that is up to 4 bytes long. Since the size is often known after the
+  // fragment has been filled, the VarInt is often redundantly encoded (see
+  // proto_utils.h) to be exactly 4 bytes.
   static constexpr size_t kPacketHeaderSize = 4;
 
   // TraceWriter specifies this invalid packet/fragment size to signal to the
@@ -412,19 +414,6 @@ class SharedMemoryABI {
       ChunkHeader* chunk_header = header();
       auto packets = chunk_header->packets.load(std::memory_order_relaxed);
       packets.count++;
-      chunk_header->packets.store(packets, std::memory_order_release);
-      return packets.count;
-    }
-
-    // Increases |packets.count| to the given |packet_count|, but only if
-    // |packet_count| is larger than the current value of |packets.count|.
-    // Returns the new packet count. Same atomicity guarantees as
-    // IncrementPacketCount().
-    uint16_t IncreasePacketCountTo(uint16_t packet_count) {
-      ChunkHeader* chunk_header = header();
-      auto packets = chunk_header->packets.load(std::memory_order_relaxed);
-      if (packets.count < packet_count)
-        packets.count = packet_count & ChunkHeader::Packets::kMaxCount;
       chunk_header->packets.store(packets, std::memory_order_release);
       return packets.count;
     }
