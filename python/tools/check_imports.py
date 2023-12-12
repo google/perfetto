@@ -353,10 +353,18 @@ def is_dir(path, cache={}):
     return result
 
 
+def remove_prefix(s, prefix):
+  return s[len(prefix):] if s.startswith(prefix) else s
+
+
+def remove_suffix(s, suffix):
+  return s[:-len(suffix)] if s.endswith(suffix) else s
+
+
 def find_imports(path):
   src = path
-  src = src.removeprefix(UI_SRC_DIR)
-  src = src.removesuffix('.ts')
+  src = remove_prefix(src, UI_SRC_DIR)
+  src = remove_suffix(src, '.ts')
   directory, _ = os.path.split(src)
   with open(path) as f:
     s = f.read()
