@@ -19,6 +19,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <functional>
 #include <string>
 
 #include "perfetto/base/compiler.h"
@@ -193,6 +194,43 @@ void TypedLinearSearch(T typed_val,
   }
 }
 
+inline SearchValidationResult IntColumnToDouble(SqlValue* sql_val,
+                                                FilterOp op) {
+  double double_val = sql_val->AsDouble();
+
+  // Case when |sql_val| can be interpreted as a SqlValue::Long.
+  if (std::equal_to<double>()(
+          static_cast<double>(static_cast<int64_t>(double_val)), double_val)) {
+    *sql_val = SqlValue::Long(static_cast<int64_t>(double_val));
+    return SearchValidationResult::kOk;
+  }
+
+  // Logic for when the value is a real double.
+  switch (op) {
+    case FilterOp::kEq:
+      return SearchValidationResult::kNoData;
+    case FilterOp::kNe:
+      return SearchValidationResult::kAllData;
+
+    case FilterOp::kLe:
+    case FilterOp::kGt:
+      *sql_val = SqlValue::Long(static_cast<int64_t>(std::floor(double_val)));
+      return SearchValidationResult::kOk;
+
+    case FilterOp::kLt:
+    case FilterOp::kGe:
+      *sql_val = SqlValue::Long(static_cast<int64_t>(std::ceil(double_val)));
+      return SearchValidationResult::kOk;
+
+    case FilterOp::kIsNotNull:
+    case FilterOp::kIsNull:
+    case FilterOp::kGlob:
+    case FilterOp::kRegex:
+      PERFETTO_FATAL("Invalid filter operation");
+  }
+  PERFETTO_FATAL("For GCC");
+}
+
 }  // namespace
 
 SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
@@ -245,15 +283,13 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
       return SearchValidationResult::kNoData;
   }
 
-  // TODO(b/307482437): There is currently no support for comparison with double
-  // and it is prevented on QueryExecutor level.
-  if (type_ != ColumnType::kDouble) {
-    PERFETTO_CHECK(val.type != SqlValue::kDouble);
-  }
-
   // Bounds of the value.
   enum ExtremeVal { kTooBig, kTooSmall, kOk };
   ExtremeVal extreme_validator = kOk;
+
+  double_t num_val = val.type == SqlValue::kLong
+                         ? static_cast<double_t>(val.AsLong())
+                         : val.AsDouble();
 
   switch (type_) {
     case ColumnType::kDouble:
@@ -263,21 +299,21 @@ SearchValidationResult NumericStorageBase::ValidateSearchConstraints(
       // to verify here, as all values are going to be in the int64_t limits.
       break;
     case ColumnType::kInt32:
-      if (val.AsLong() > std::numeric_limits<int32_t>::max()) {
+      if (num_val > std::numeric_limits<int32_t>::max()) {
         extreme_validator = kTooBig;
         break;
       }
-      if (val.AsLong() < std::numeric_limits<int32_t>::min()) {
+      if (num_val < std::numeric_limits<int32_t>::min()) {
         extreme_validator = kTooSmall;
         break;
       }
       break;
     case ColumnType::kUint32:
-      if (val.AsLong() > std::numeric_limits<uint32_t>::max()) {
+      if (num_val > std::numeric_limits<uint32_t>::max()) {
         extreme_validator = kTooBig;
         break;
       }
-      if (val.AsLong() < std::numeric_limits<uint32_t>::min()) {
+      if (num_val < std::numeric_limits<uint32_t>::min()) {
         extreme_validator = kTooSmall;
         break;
       }
@@ -317,6 +353,18 @@ RangeOrBitVector NumericStorageBase::Search(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
+  if (sql_val.type == SqlValue::kDouble && type_ != ColumnType::kDouble) {
+    auto comp = IntColumnToDouble(&sql_val, op);
+    switch (comp) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(search_range);
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
+  }
+
   NumericValue val = GetNumericTypeVariant(type_, sql_val);
 
   if (is_sorted_) {
@@ -347,7 +395,20 @@ RangeOrBitVector NumericStorageBase::IndexSearch(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
+  if (sql_val.type == SqlValue::kDouble && type_ != ColumnType::kDouble) {
+    auto comp = IntColumnToDouble(&sql_val, op);
+    switch (comp) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices_size));
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
+  }
+
   NumericValue val = GetNumericTypeVariant(type_, sql_val);
+
   if (sorted) {
     return RangeOrBitVector(
         BinarySearchExtrinsic(op, val, indices, indices_size));
