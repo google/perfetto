@@ -14,13 +14,12 @@
 
 import m from 'mithril';
 
-import {duration, Time, time} from '../base/time';
+import {Disposable} from '../base/disposable';
+import {duration, Time, time, TimeSpan} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
 import {PanelSize} from '../frontend/panel';
 import {SliceRect, Track, TrackContext} from '../public';
-
-import {TrackData} from './track_data';
 
 export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
@@ -32,6 +31,97 @@ export {
   STR,
   STR_NULL,
 } from '../trace_processor/query_result';
+
+type FetchTimeline<Data> = (start: time, end: time, resolution: duration) =>
+    Promise<Data>;
+
+// This helper provides the logic to call |doFetch()| only when more
+// data is needed as the visible window is panned and zoomed about, and
+// includes an FSM to ensure doFetch is not re-entered.
+class TimelineFetcher<Data> implements Disposable {
+  private requestingData = false;
+  private queuedRequest = false;
+  private doFetch: FetchTimeline<Data>;
+
+  private data_?: Data;
+
+  // Timespan and resolution of the latest *request*. data_ may cover
+  // a different time window.
+  private latestTimespan: TimeSpan;
+  private latestResolution: duration;
+
+  constructor(doFetch: FetchTimeline<Data>) {
+    this.doFetch = doFetch;
+    this.latestTimespan = TimeSpan.ZERO;
+    this.latestResolution = 0n;
+  }
+
+  requestDataForCurrentTime(): void {
+    const currentTimeSpan = globals.frontendLocalState.visibleTimeSpan;
+    const currentResolution = globals.getCurResolution();
+    this.requestData(currentTimeSpan, currentResolution);
+  }
+
+  requestData(timespan: TimeSpan, resolution: duration): void {
+    if (this.shouldLoadNewData(timespan, resolution)) {
+      // Over request data, one page worth to the left and right.
+      const start = Time.sub(timespan.start, timespan.duration);
+      const end = Time.add(timespan.end, timespan.duration);
+      this.latestTimespan = new TimeSpan(start, end);
+      this.latestResolution = resolution;
+      this.loadData();
+    }
+  }
+
+  get data(): Data|undefined {
+    return this.data_;
+  }
+
+  dispose() {
+    this.queuedRequest = false;
+    this.data_ = undefined;
+  }
+
+  private shouldLoadNewData(timespan: TimeSpan, resolution: duration): boolean {
+    if (this.data_ === undefined) {
+      return true;
+    }
+
+    if (timespan.start < this.latestTimespan.start) {
+      return true;
+    }
+
+    if (timespan.end > this.latestTimespan.end) {
+      return true;
+    }
+
+    if (resolution !== this.latestResolution) {
+      return true;
+    }
+
+    return false;
+  }
+
+  private loadData(): void {
+    if (this.requestingData) {
+      this.queuedRequest = true;
+      return;
+    }
+    const {start, end} = this.latestTimespan;
+    const resolution = this.latestResolution;
+    this.doFetch(start, end, resolution).then((data) => {
+      this.requestingData = false;
+      this.data_ = data;
+      if (this.queuedRequest) {
+        this.queuedRequest = false;
+        this.loadData();
+      } else {
+        raf.scheduleRedraw();
+      }
+    });
+    this.requestingData = true;
+  }
+}
 
 // A helper class which provides a base track implementation for tracks which
 // load their content asynchronously from the trace.
@@ -49,17 +139,21 @@ export {
 // Note: This class is deprecated and should not be used for new tracks. Use
 // |BaseSliceTrack| instead.
 export abstract class TrackHelperLEGACY<Data> implements Track {
-  private requestingData = false;
-  private queuedRequest = false;
-  private currentState?: TrackData;
-  protected data?: Data;
+  private timelineFetcher: TimelineFetcher<Data>;
+
+  constructor() {
+    this.timelineFetcher =
+        new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
+  }
 
   onCreate(_ctx: TrackContext): void {}
 
   onDestroy(): void {
-    this.queuedRequest = false;
-    this.currentState = undefined;
-    this.data = undefined;
+    this.timelineFetcher.dispose();
+  }
+
+  get data(): Data|undefined {
+    return this.timelineFetcher.data;
   }
 
   // Returns a place where a given slice should be drawn. Should be implemented
@@ -93,65 +187,7 @@ export abstract class TrackHelperLEGACY<Data> implements Track {
   abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    if (this.shouldLoadNewData()) {
-      this.loadData();
-    }
-
+    this.timelineFetcher.requestDataForCurrentTime();
     this.renderCanvas(ctx, size);
-  }
-
-  private loadData(): void {
-    if (this.requestingData) {
-      this.queuedRequest = true;
-      return;
-    }
-
-    const ts = globals.frontendLocalState.visibleTimeSpan;
-    const resolution = globals.getCurResolution();
-
-    const start = Time.sub(ts.start, ts.duration);
-    const end = Time.add(ts.end, ts.duration);
-
-    this.currentState = {
-      start,
-      end,
-      resolution,
-      length: 0,
-    };
-
-    this.onBoundsChange(start, end, resolution).then((data) => {
-      this.requestingData = false;
-      this.data = data;
-
-      if (this.queuedRequest) {
-        this.queuedRequest = false;
-        this.loadData();
-      } else {
-        raf.scheduleRedraw();
-      }
-    });
-
-    this.requestingData = true;
-  }
-
-  private shouldLoadNewData(): boolean {
-    if (!this.currentState) {
-      return true;
-    }
-
-    const ts = globals.frontendLocalState.visibleTimeSpan;
-    if (ts.start < this.currentState.start) {
-      return true;
-    }
-
-    if (ts.end > this.currentState.end) {
-      return true;
-    }
-
-    if (globals.getCurResolution() !== this.currentState.resolution) {
-      return true;
-    }
-
-    return false;
   }
 }
