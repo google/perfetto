@@ -28,6 +28,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   LONG,
@@ -200,11 +201,10 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     return TRACK_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale,
-      visibleWindowTime,
       visibleTimeSpan,
     } = globals.frontendLocalState;
     const data = this.data();
@@ -216,8 +216,8 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        visibleTimeScale.hpTimeToPx(visibleWindowTime.start),
-        visibleTimeScale.hpTimeToPx(visibleWindowTime.end),
+        0,
+        size.width,
         visibleTimeScale.timeToPx(data.start),
         visibleTimeScale.timeToPx(data.end));
 

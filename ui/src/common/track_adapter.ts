@@ -17,6 +17,7 @@ import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
 import {duration, time} from '../base/time';
+import {PanelSize} from '../frontend/panel';
 import {NewTrackArgs} from '../frontend/track';
 import {SliceRect} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
@@ -100,8 +101,8 @@ export class TrackWithControllerAdapter<Config, Data> extends
     return await this.controller.onBoundsChange(start, end, resolution);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
-    this.track.renderCanvas(ctx);
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+    this.track.renderCanvas(ctx, size);
   }
 }
 
@@ -133,7 +134,7 @@ export abstract class TrackAdapter<Config, Data> {
     this.trackKey = args.trackKey;
   }
 
-  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
   getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
       |undefined {

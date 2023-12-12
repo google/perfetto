@@ -18,6 +18,7 @@ import {LIMIT, TrackData} from '../../common/track_data';
 import {TrackHelperLEGACY} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {
   EngineProxy,
   Plugin,
@@ -89,10 +90,9 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
     return result;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale,
-      windowSpan,
     } = globals.frontendLocalState;
 
     const data = this.data;
@@ -101,16 +101,9 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
 
     const dataStartPx = visibleTimeScale.timeToPx(data.start);
     const dataEndPx = visibleTimeScale.timeToPx(data.end);
-    const visibleStartPx = windowSpan.start;
-    const visibleEndPx = windowSpan.end;
 
     checkerboardExcept(
-        ctx,
-        this.getHeight(),
-        visibleStartPx,
-        visibleEndPx,
-        dataStartPx,
-        dataEndPx);
+        ctx, this.getHeight(), 0, size.width, dataStartPx, dataEndPx);
 
     const diamondSideLen = RECT_HEIGHT / Math.sqrt(2);
 
