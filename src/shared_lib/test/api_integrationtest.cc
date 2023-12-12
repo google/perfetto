@@ -719,11 +719,6 @@ TEST_F(SharedLibDataSourceTest, Serialization) {
     }
     PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
-  PERFETTO_DS_TRACE(data_source_1, ctx) {
-    struct PerfettoDsRootTracePacket trace_packet;
-    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
-  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -770,11 +765,6 @@ TEST_F(SharedLibDataSourceTest, Break) {
     // Break: the packet will be emitted only on the first data source instance
     // and therefore will not show up on `tracing_session2`.
     PERFETTO_DS_TRACE_BREAK(data_source_1, ctx);
-  }
-  PERFETTO_DS_TRACE(data_source_1, ctx) {
-    struct PerfettoDsRootTracePacket trace_packet;
-    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
 
   tracing_session1.StopBlocking();
@@ -1291,7 +1281,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
       }
     }
   }
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
