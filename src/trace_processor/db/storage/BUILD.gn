@@ -37,6 +37,7 @@ source_set("storage") {
     "string_storage.cc",
     "string_storage.h",
     "types.h",
+    "utils.cc",
     "utils.h",
   ]
   deps = [
