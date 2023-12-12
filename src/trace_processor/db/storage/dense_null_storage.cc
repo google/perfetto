@@ -78,7 +78,6 @@ RangeOrBitVector DenseNullStorage::Search(FilterOp op,
   } else {
     res = std::move(inner_res).TakeIfBitVector();
   }
-  PERFETTO_DCHECK(res.size() == in.end);
 
   if (op == FilterOp::kIsNull) {
     // For IS NULL, we need to add any rows in |non_null_| which are zeros: we
@@ -93,6 +92,8 @@ RangeOrBitVector DenseNullStorage::Search(FilterOp op,
     // are removed as they would not match.
     res.And(*non_null_);
   }
+
+  PERFETTO_DCHECK(res.size() == in.end);
   return RangeOrBitVector(std::move(res));
 }
 
@@ -119,10 +120,8 @@ RangeOrBitVector DenseNullStorage::IndexSearch(FilterOp op,
     builder.Append(non_null_->IsSet(indices[i]));
   }
   BitVector non_null = std::move(builder).Build();
-  PERFETTO_DCHECK(non_null.size() == indices_size);
 
   BitVector res = std::move(inner_res).TakeIfBitVector();
-  PERFETTO_DCHECK(res.size() == indices_size);
 
   if (op == FilterOp::kIsNull) {
     BitVector null = std::move(non_null);
@@ -131,6 +130,8 @@ RangeOrBitVector DenseNullStorage::IndexSearch(FilterOp op,
   } else {
     res.And(non_null);
   }
+
+  PERFETTO_DCHECK(res.size() == indices_size);
   return RangeOrBitVector(std::move(res));
 }
 
