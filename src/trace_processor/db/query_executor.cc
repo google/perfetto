@@ -173,12 +173,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
 
-    // Double column is filtered on with value different than double.
-    use_legacy =
-        use_legacy ||
-        (c.op != FilterOp::kIsNotNull && c.op != FilterOp::kIsNull &&
-         col.type() == SqlValue::kDouble && c.value.type != SqlValue::kDouble);
-
     // Extrinsically sorted columns.
     use_legacy = use_legacy ||
                  (col.IsSorted() && col.overlay().row_map().IsIndexVector());
