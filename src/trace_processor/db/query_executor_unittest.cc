@@ -560,6 +560,17 @@ TEST(QueryExecutor, MismatchedTypeIdWithString) {
   ASSERT_EQ(res.size(), 0u);
 }
 
+TEST(QueryExecutor, MismatchedTypeIdWithDouble) {
+  IdStorage storage(5);
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue::Double(1.5)};
+  QueryExecutor exec({&storage}, 5);
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 3u);
+}
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(QueryExecutor, StringBinarySearchRegex) {
   StringPool pool;
