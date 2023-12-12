@@ -21,10 +21,11 @@ config("config") {
       "_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
     ]
     if (is_debug) {
-      # libc++ has two levels of debug mode. Setting _LIBCPP_DEBUG to zero
-      # enables most assertions. Setting it to one additionally enables iterator
-      # debugging, but that seems to require some extra link-time dependencies.
-      # See https://libcxx.llvm.org/docs/DesignDocs/DebugMode.html
+      # Enable "lightweight" assertions in libc++ (e.g. bounds checking, empty
+      # optional dereferencing etc) with _LIBCPP_ENABLE_ASSERTIONS but do not
+      # enable iterator debugging with _LIBCPP_DEBUG (which can be very
+      # expensive).
+      defines += [ "_LIBCPP_ENABLE_ASSERTIONS=1" ]
       defines += [ "_LIBCPP_DEBUG=0" ]
     }
     cflags_cc = [
