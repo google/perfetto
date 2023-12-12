@@ -17,6 +17,7 @@ import m from 'mithril';
 import {duration, Time, time} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
+import {PanelSize} from '../frontend/panel';
 import {SliceRect, Track, TrackContext} from '../public';
 
 import {TrackData} from './track_data';
@@ -89,14 +90,14 @@ export abstract class TrackHelperLEGACY<Data> implements Track {
   abstract onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data>;
 
-  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
-  render(ctx: CanvasRenderingContext2D): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     if (this.shouldLoadNewData()) {
       this.loadData();
     }
 
-    this.renderCanvas(ctx);
+    this.renderCanvas(ctx, size);
   }
 
   private loadData(): void {

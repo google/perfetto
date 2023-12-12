@@ -27,6 +27,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
@@ -288,12 +289,11 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale,
       visibleWindowTime,
-      windowSpan,
     } = globals.frontendLocalState;
     const data = this.data();
 
@@ -307,7 +307,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
     assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
-    const endPx = windowSpan.end;
+    const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -456,8 +456,8 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        windowSpan.start,
-        windowSpan.end,
+        0,
+        size.width,
         visibleTimeScale.timeToPx(data.start),
         visibleTimeScale.timeToPx(data.end));
   }
