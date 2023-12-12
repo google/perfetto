@@ -153,7 +153,6 @@ export function publishTraceErrors(numErrors: number) {
 
 export function publishMetricError(error: string) {
   globals.setMetricError(error);
-  globals.logging.logError(error, false);
   globals.publishRedraw();
 }
 

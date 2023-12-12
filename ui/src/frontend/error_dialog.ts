@@ -14,30 +14,26 @@
 
 import m from 'mithril';
 
-import {assertExists} from '../base/logging';
+import {assertExists, ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
 import {TraceUrlSource} from '../common/state';
 import {saveTrace} from '../common/upload_utils';
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
+import {VERSION} from '../gen/perfetto_version';
 
 import {globals} from './globals';
 import {showModal} from './modal';
 import {isShareable} from './trace_attrs';
 
-// Never show more than one dialog per minute.
-const MIN_REPORT_PERIOD_MS = 60000;
+// Never show more than one dialog per 10s.
+const MIN_REPORT_PERIOD_MS = 10000;
 let timeLastReport = 0;
 
-// Keeps the last ERR_QUEUE_MAX_LEN errors while the dialog is throttled.
-const queuedErrors = new Array<string>();
-const ERR_QUEUE_MAX_LEN = 10;
-
-export function maybeShowErrorDialog(errLog: string) {
-  globals.logging.logError(errLog);
+export function maybeShowErrorDialog(err: ErrorDetails) {
   const now = performance.now();
 
   // Here we rely on the exception message from onCannotGrowMemory function
-  if (errLog.includes('Cannot enlarge memory')) {
+  if (err.message.includes('Cannot enlarge memory')) {
     showOutOfMemoryDialog();
     // Refresh timeLastReport to prevent a different error showing a dialog
     timeLastReport = now;
@@ -45,46 +41,37 @@ export function maybeShowErrorDialog(errLog: string) {
   }
 
   if (!RECORDING_V2_FLAG.get()) {
-    if (errLog.includes('Unable to claim interface')) {
+    if (err.message.includes('Unable to claim interface')) {
       showWebUSBError();
       timeLastReport = now;
       return;
     }
 
-    if (errLog.includes('A transfer error has occurred') ||
-        errLog.includes('The device was disconnected') ||
-        errLog.includes('The transfer was cancelled')) {
+    if (err.message.includes('A transfer error has occurred') ||
+        err.message.includes('The device was disconnected') ||
+        err.message.includes('The transfer was cancelled')) {
       showConnectionLostError();
       timeLastReport = now;
       return;
     }
   }
 
-  if (errLog.includes('(ERR:fmt)')) {
+  if (err.message.includes('(ERR:fmt)')) {
     showUnknownFileError();
     return;
   }
 
-  if (errLog.includes('(ERR:rpc_seq)')) {
+  if (err.message.includes('(ERR:rpc_seq)')) {
     showRpcSequencingError();
     return;
   }
 
   if (timeLastReport > 0 && now - timeLastReport <= MIN_REPORT_PERIOD_MS) {
-    queuedErrors.unshift(errLog);
-    if (queuedErrors.length > ERR_QUEUE_MAX_LEN) queuedErrors.pop();
     console.log('Suppressing crash dialog, last error notified too soon.');
     return;
   }
   timeLastReport = now;
-
-  // Append queued errors.
-  while (queuedErrors.length > 0) {
-    const queuedErr = queuedErrors.shift();
-    errLog += `\n\n---------------------------------------\n${queuedErr}`;
-  }
-
-  const errTitle = errLog.split('\n', 1)[0].substr(0, 80);
+  const errTitle = err.message.split('\n', 1)[0].substring(0, 80);
   const userDescription = '';
   let checked = false;
   const engine = globals.getCurrentEngine();
@@ -98,13 +85,13 @@ export function maybeShowErrorDialog(errLog: string) {
             checked = (ev.target as HTMLInputElement).checked;
             if (checked && engine && engine.source.type === 'FILE') {
               saveTrace(engine.source.file).then((url) => {
-                const errMessage = createErrorMessage(errLog, checked, url);
+                const errMessage = createErrorMessage(err, checked, url);
                 renderModal(
                     errTitle, errMessage, userDescription, shareTraceSection);
                 return;
               });
             }
-            const errMessage = createErrorMessage(errLog, checked);
+            const errMessage = createErrorMessage(err, checked);
             renderModal(
                 errTitle, errMessage, userDescription, shareTraceSection);
           },
@@ -118,7 +105,7 @@ export function maybeShowErrorDialog(errLog: string) {
   }
   renderModal(
       errTitle,
-      createErrorMessage(errLog, checked),
+      createErrorMessage(err, checked),
       userDescription,
       shareTraceSection);
 }
@@ -171,20 +158,28 @@ function urlExists() {
       engine.source.url !== undefined;
 }
 
-function createErrorMessage(errLog: string, checked: boolean, url?: string) {
-  let errMessage = '';
+function createErrorMessage(err: ErrorDetails, checked: boolean, url?: string) {
+  let msg = `UI: ${location.protocol}//${location.host}/${VERSION}\n\n`;
+
+  // Append the trace stack.
+  msg += `${err.message}\n`;
+  for (const entry of err.stack) {
+    msg += ` - ${entry.name} (${entry.location})\n`;
+  }
+  msg += '\n';
+
+  // Append the trace URL.
   const engine = globals.getCurrentEngine();
   if (checked && url !== undefined) {
-    errMessage += `Trace: ${url}`;
+    msg += `Trace: ${url}\n`;
   } else if (urlExists()) {
-    errMessage +=
-        `Trace: ${(assertExists(engine).source as TraceUrlSource).url}`;
+    msg += `Trace: ${(assertExists(engine).source as TraceUrlSource).url}\n`;
   } else {
-    errMessage += 'To assist with debugging please attach or link to the ' +
-        'trace you were viewing.';
+    msg += 'Trace: not available, please provide repro steps.\n';
   }
-  return errMessage + '\n\n' +
-      'Viewed on: ' + self.location.origin + '\n\n' + errLog;
+  msg += `UA: ${navigator.userAgent}\n`;
+  msg += `Referrer: ${document.referrer}\n`;
+  return msg;
 }
 
 function createLink(
