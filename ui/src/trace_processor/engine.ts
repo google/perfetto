@@ -469,12 +469,16 @@ export abstract class Engine {
 export class EngineProxy implements Disposable {
   private engine: Engine;
   private tag: string;
-  private isAlive: boolean;
+  private _isAlive: boolean;
+
+  get isAlive(): boolean {
+    return this._isAlive;
+  }
 
   constructor(engine: Engine, tag: string) {
     this.engine = engine;
     this.tag = tag;
-    this.isAlive = true;
+    this._isAlive = true;
   }
 
   query(query: string, tag?: string): Promise<QueryResult>&QueryResult {
@@ -511,6 +515,6 @@ export class EngineProxy implements Disposable {
   }
 
   dispose() {
-    this.isAlive = false;
+    this._isAlive = false;
   }
 }
