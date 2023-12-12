@@ -178,7 +178,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
         col.type() == SqlValue::kLong && c.value.type == SqlValue::kDouble;
     bool double_with_int =
         col.type() == SqlValue::kDouble && c.value.type == SqlValue::kLong;
-    bool double_int_enabled_col_type = col.IsId();
+    bool double_int_enabled_col_type = col.IsId() || col.IsSetId();
     use_legacy =
         use_legacy ||
         (!double_int_enabled_col_type && c.op != FilterOp::kIsNull &&

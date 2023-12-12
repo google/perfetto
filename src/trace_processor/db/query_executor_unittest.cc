@@ -571,6 +571,18 @@ TEST(QueryExecutor, MismatchedTypeIdWithDouble) {
   ASSERT_EQ(res.size(), 3u);
 }
 
+TEST(QueryExecutor, MismatchedTypeSetIdWithDouble) {
+  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
+  SetIdStorage storage(&storage_data);
+
+  // Filter.
+  Constraint c{0, FilterOp::kGe, SqlValue::Double(1.5)};
+  QueryExecutor exec({&storage}, storage.size());
+  RowMap res = exec.Filter({c});
+
+  ASSERT_EQ(res.size(), 9u);
+}
+
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 TEST(QueryExecutor, StringBinarySearchRegex) {
   StringPool pool;
