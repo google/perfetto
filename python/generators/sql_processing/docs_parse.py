@@ -20,7 +20,7 @@ import sys
 from typing import Any, Dict, List, Optional, Set, Tuple, NamedTuple
 
 from python.generators.sql_processing.docs_extractor import DocsExtractor
-from python.generators.sql_processing.utils import ANY_PATTERN, ARG_DEFINITION_PATTERN, ObjKind
+from python.generators.sql_processing.utils import ALLOWED_PREFIXES, ANY_PATTERN, ARG_DEFINITION_PATTERN, ObjKind
 from python.generators.sql_processing.utils import ARG_ANNOTATION_PATTERN
 from python.generators.sql_processing.utils import NAME_AND_TYPE_PATTERN
 from python.generators.sql_processing.utils import FUNCTION_RETURN_PATTERN
@@ -49,6 +49,28 @@ class Arg(NamedTuple):
   description: str
 
 
+# Returns: error message if the name is not correct, None otherwise.
+def get_module_prefix_error(name: str, path: str, module: str) -> Optional[str]:
+  prefix = name.lower().split('_')[0]
+  if module == "common" or module == "prelude":
+    if prefix == module:
+      return (f'Names of tables/views/functions in the "{module}" module '
+              f'should not start with {module}')
+    return None
+  if prefix == module:
+    # Module prefix is always allowed.
+    return None
+  allowed_prefixes = [module]
+  for (path_prefix, allowed_name_prefix) in ALLOWED_PREFIXES.items():
+    if path.startswith(path_prefix):
+      if prefix == allowed_name_prefix:
+        return None
+      allowed_prefixes.append(allowed_name_prefix)
+  return (
+      f'Names of tables/views/functions at path "{path}" should be prefixed '
+      f'with one of following names: {", ".join(allowed_prefixes)}')
+
+
 class AbstractDocParser(ABC):
 
   @dataclass
@@ -64,19 +86,10 @@ class AbstractDocParser(ABC):
   def _parse_name(self, upper: bool = False):
     assert self.name
     assert isinstance(self.name, str)
-    module_pattern = f"^{self.module}_.*"
-    if upper:
-      module_pattern = module_pattern.upper()
-    starts_with_module_name = re.match(module_pattern, self.name, re.IGNORECASE)
-    if self.module == "common" or self.module == "prelude":
-      if starts_with_module_name:
-        self._error(
-            'Names of tables/views/functions in the "{self.module}" module '
-            f'should not start with {module_pattern}')
-      return self.name
-    if not starts_with_module_name:
-      self._error('Names of tables/views/functions should be prefixed with the '
-                  f'module name (i.e. should start with {module_pattern})')
+    module_prefix_error = get_module_prefix_error(self.name, self.path,
+                                                  self.module)
+    if module_prefix_error is not None:
+      self._error(module_prefix_error)
     return self.name.strip()
 
   def _parse_desc_not_empty(self, desc: str):
