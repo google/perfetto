@@ -15,6 +15,7 @@
 import {HSLColor} from '../../common/color';
 import {makeColorScheme} from '../../common/colorizer';
 import {NamedRow, NamedSliceTrack} from '../../frontend/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {EngineProxy, Slice} from '../../public';
 
 const GREEN = makeColorScheme(new HSLColor('#4CAF50'));  // Green 500
@@ -24,7 +25,10 @@ export class ExpectedFramesTrack extends NamedSliceTrack {
       engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[]) {
     super({engine, trackKey});
-    this.sliceLayout.maxDepth = maxDepth + 1;
+    this.sliceLayout = {
+      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+      minDepth: maxDepth + 1,
+    };
   }
 
   getSqlSource(): string {
