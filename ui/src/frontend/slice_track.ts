@@ -82,7 +82,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
     const data = this.data;
     if (data === undefined) return;  // Can't possibly draw anything.
 
-    const {visibleTimeSpan, visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeSpan, visibleTimeScale} = globals.timeline;
 
     // If the cached trace slices don't fully cover the visible time range,
     // show a gray rectangle with a "Loading..." label.
@@ -262,7 +262,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     if (y < TRACK_PADDING) return;
     const instantWidthTime = timeScale.pxDeltaToDuration(HALF_CHEVRON_WIDTH_PX);
     const t = timeScale.pxToHpTime(x);
@@ -293,7 +293,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
   }
 
   getEndTimeIfInComplete(start: time): time {
-    const {visibleTimeScale, visibleWindowTime} = globals.frontendLocalState;
+    const {visibleTimeScale, visibleWindowTime} = globals.timeline;
 
     let end = visibleWindowTime.end.toTime('ceil');
     if (CROP_INCOMPLETE_SLICE_FLAG.get()) {
@@ -349,7 +349,7 @@ export abstract class SliceTrackLEGACY extends TrackHelperLEGACY<SliceData> {
       windowSpan,
       visibleTimeScale,
       visibleTimeSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);

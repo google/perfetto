@@ -332,7 +332,7 @@ export abstract class BaseSliceTrack<
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     {
       const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
@@ -816,7 +816,7 @@ export abstract class BaseSliceTrack<
     }
 
     for (const slice of this.incomplete) {
-      const visibleTimeScale = globals.frontendLocalState.visibleTimeScale;
+      const visibleTimeScale = globals.timeline.visibleTimeScale;
       const startPx = CROP_INCOMPLETE_SLICE_FLAG.get() ?
           visibleTimeScale.timeToPx(slice.startNsQ) :
           slice.x;
@@ -973,7 +973,7 @@ export abstract class BaseSliceTrack<
       windowSpan,
       visibleTimeScale,
       visibleTimeSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const pxEnd = windowSpan.end;
     const left = Math.max(visibleTimeScale.timeToPx(tStart), 0);

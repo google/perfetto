@@ -416,7 +416,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const selection = globals.state.currentSelection;
     const trackState = this.trackState;
     if (!selection || selection.kind !== 'AREA' || trackState === undefined) {
@@ -453,7 +453,7 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
 
     this.highlightIfTrackSelected(ctx, size);
 
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     // Draw vertical line when hovering on the notes panel.
     if (globals.state.hoveredNoteTimestamp !== -1n) {
       drawVerticalLineAtTime(

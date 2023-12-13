@@ -156,7 +156,7 @@ export class ProcessSummaryTrack extends TrackAdapter<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
     if (data === undefined) return;  // Can't possibly draw anything.
 
@@ -173,7 +173,7 @@ export class ProcessSummaryTrack extends TrackAdapter<Config, Data> {
 
   // TODO(dproy): Dedup with CPU slices.
   renderSummary(ctx: CanvasRenderingContext2D, data: Data): void {
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const startPx = 0;
     const bottomY = TRACK_HEIGHT;
 

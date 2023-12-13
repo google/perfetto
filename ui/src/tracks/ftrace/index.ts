@@ -93,7 +93,7 @@ class FtraceRawTrack extends TrackHelperLEGACY<Data> {
   renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const data = this.data;
 
