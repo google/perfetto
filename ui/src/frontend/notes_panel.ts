@@ -124,8 +124,8 @@ export class NotesPanel extends Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.frontendLocalState.visibleTimeSpan;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const span = globals.timeline.visibleTimeSpan;
+    const {visibleTimeScale} = globals.timeline;
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
@@ -267,7 +267,7 @@ export class NotesPanel extends Panel {
 
   private onClick(x: number, _: number) {
     if (x < 0) return;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
     for (const note of Object.values(globals.state.notes)) {
       if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
@@ -285,7 +285,7 @@ export class NotesPanel extends Panel {
   }
 
   private mouseOverNote(x: number, note: AreaNote|Note): boolean {
-    const timeScale = globals.frontendLocalState.visibleTimeScale;
+    const timeScale = globals.timeline.visibleTimeScale;
     const noteX = timeScale.timeToPx(getStartTimestamp(note));
     if (note.noteType === 'AREA') {
       const noteArea = globals.state.areas[note.areaId];

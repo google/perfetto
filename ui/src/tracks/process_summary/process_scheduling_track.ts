@@ -206,7 +206,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
     const {
       visibleTimeScale,
       visibleTimeSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -288,7 +288,7 @@ export class ProcessSchedulingTrack extends TrackAdapter<Config, Data> {
 
     const cpuTrackHeight = Math.floor(RECT_HEIGHT / data.maxCpu);
     const cpu = Math.floor((pos.y - MARGIN_TOP) / (cpuTrackHeight + 1));
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const t = visibleTimeScale.pxToHpTime(pos.x).toTime('floor');
 
     const [i, j] = searchRange(data.starts, t, searchEq(data.cpus, cpu));

@@ -180,7 +180,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     {
       const windowSizePx = Math.max(1, timeScale.pxSpan.delta);
@@ -383,7 +383,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     const data = this.counters;
     if (data === undefined) return;
     this.mousePos = pos;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     let values = data.lastValues;

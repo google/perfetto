@@ -80,7 +80,7 @@ export function handleKey(e: KeyboardEvent, down: boolean): boolean {
     return true;
   }
   if (down && 'escape' === key) {
-    globals.frontendLocalState.deselectArea();
+    globals.timeline.deselectArea();
     globals.makeSelection(Actions.deselect({}));
     globals.dispatch(Actions.removeNote({id: '0'}));
     return true;

@@ -51,10 +51,10 @@ function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
   if (selection !== null && selection.kind === 'AREA') {
     // If frontend selectedArea exists then we are in the process of editing the
     // time range and need to use that value instead.
-    const area = globals.frontendLocalState.selectedArea ?
-        globals.frontendLocalState.selectedArea :
+    const area = globals.timeline.selectedArea ?
+        globals.timeline.selectedArea :
         globals.state.areas[selection.areaId];
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const start = visibleTimeScale.timeToPx(area.start);
     const end = visibleTimeScale.timeToPx(area.end);
     const startDrag = mousePos - TRACK_SHELL_WIDTH;
@@ -94,10 +94,10 @@ class TraceViewer implements m.ClassComponent {
   private keepCurrentSelection = false;
 
   oncreate(vnode: m.CVnodeDOM) {
-    const frontendLocalState = globals.frontendLocalState;
+    const timeline = globals.timeline;
     const updateDimensions = () => {
       const rect = vnode.dom.getBoundingClientRect();
-      frontendLocalState.updateLocalLimits(
+      timeline.updateLocalLimits(
           0, rect.width - TRACK_SHELL_WIDTH - getScrollbarWidth());
     };
 
@@ -120,11 +120,11 @@ class TraceViewer implements m.ClassComponent {
       onPanned: (pannedPx: number) => {
         const {
           visibleTimeScale,
-        } = globals.frontendLocalState;
+        } = globals.timeline;
 
         this.keepCurrentSelection = true;
         const tDelta = visibleTimeScale.pxDeltaToDuration(pannedPx);
-        frontendLocalState.panVisibleWindow(tDelta);
+        timeline.panVisibleWindow(tDelta);
 
         // If the user has panned they no longer need the hint.
         localStorage.setItem(DISMISSED_PANNING_HINT_KEY, 'true');
@@ -136,7 +136,7 @@ class TraceViewer implements m.ClassComponent {
         const zoomPx = zoomedPositionPx - TRACK_SHELL_WIDTH;
         const rect = vnode.dom.getBoundingClientRect();
         const centerPoint = zoomPx / (rect.width - TRACK_SHELL_WIDTH);
-        frontendLocalState.zoomVisibleWindow(1 - zoomRatio, centerPoint);
+        timeline.zoomVisibleWindow(1 - zoomRatio, centerPoint);
         raf.scheduleRedraw();
       },
       editSelection: (currentPx: number) => {
@@ -150,13 +150,13 @@ class TraceViewer implements m.ClassComponent {
           currentY: number,
           editing: boolean) => {
         const traceTime = globals.state.traceTime;
-        const {visibleTimeScale} = frontendLocalState;
+        const {visibleTimeScale} = timeline;
         this.keepCurrentSelection = true;
         if (editing) {
           const selection = globals.state.currentSelection;
           if (selection !== null && selection.kind === 'AREA') {
-            const area = globals.frontendLocalState.selectedArea ?
-                globals.frontendLocalState.selectedArea :
+            const area = globals.timeline.selectedArea ?
+                globals.timeline.selectedArea :
                 globals.state.areas[selection.areaId];
             let newTime =
                 visibleTimeScale.pxToHpTime(currentX - TRACK_SHELL_WIDTH)
@@ -175,7 +175,7 @@ class TraceViewer implements m.ClassComponent {
             }
             // When editing the time range we always use the saved tracks,
             // since these will not change.
-            frontendLocalState.selectArea(
+            timeline.selectArea(
                 Time.max(Time.min(keepTime, newTime), traceTime.start),
                 Time.min(Time.max(keepTime, newTime), traceTime.end),
                 globals.state.areas[selection.areaId].tracks);
@@ -187,20 +187,20 @@ class TraceViewer implements m.ClassComponent {
           const {pxSpan} = visibleTimeScale;
           startPx = clamp(startPx, pxSpan.start, pxSpan.end);
           endPx = clamp(endPx, pxSpan.start, pxSpan.end);
-          frontendLocalState.selectArea(
+          timeline.selectArea(
               visibleTimeScale.pxToHpTime(startPx).toTime('floor'),
               visibleTimeScale.pxToHpTime(endPx).toTime('ceil'),
           );
-          frontendLocalState.areaY.start = dragStartY;
-          frontendLocalState.areaY.end = currentY;
+          timeline.areaY.start = dragStartY;
+          timeline.areaY.end = currentY;
           publishShowPanningHint();
         }
         raf.scheduleRedraw();
       },
       endSelection: (edit: boolean) => {
-        globals.frontendLocalState.areaY.start = undefined;
-        globals.frontendLocalState.areaY.end = undefined;
-        const area = globals.frontendLocalState.selectedArea;
+        globals.timeline.areaY.start = undefined;
+        globals.timeline.areaY.end = undefined;
+        const area = globals.timeline.selectedArea;
         // If we are editing we need to pass the current id through to ensure
         // the marked area with that id is also updated.
         if (edit) {
@@ -214,8 +214,8 @@ class TraceViewer implements m.ClassComponent {
         }
         // Now the selection has ended we stored the final selected area in the
         // global state and can remove the in progress selection from the
-        // frontendLocalState.
-        globals.frontendLocalState.deselectArea();
+        // timeline.
+        globals.timeline.deselectArea();
         // Full redraw to color track shell.
         raf.scheduleFullRedraw();
       },
