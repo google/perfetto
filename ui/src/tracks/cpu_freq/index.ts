@@ -294,7 +294,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     const {
       visibleTimeScale,
       visibleWindowTime,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined || data.timestamps.length === 0) {
@@ -466,7 +466,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     const data = this.data();
     if (data === undefined) return;
     this.mousePos = pos;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());

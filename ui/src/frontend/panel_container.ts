@@ -121,10 +121,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   // This finds the tracks covered by the in-progress area selection. When
   // editing areaY is not set, so this will not be used.
   handleAreaSelection() {
-    const area = globals.frontendLocalState.selectedArea;
-    if (area === undefined ||
-        globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined ||
+    const area = globals.timeline.selectedArea;
+    if (area === undefined || globals.timeline.areaY.start === undefined ||
+        globals.timeline.areaY.end === undefined ||
         this.panelInfos.length === 0) {
       return;
     }
@@ -133,22 +132,20 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
     const panelContainerTop = this.panelInfos[0].y;
     const panelContainerBottom = this.panelInfos[this.panelInfos.length - 1].y +
         this.panelInfos[this.panelInfos.length - 1].height;
-    if (globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT <
-            panelContainerTop ||
-        globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT >
-            panelContainerBottom) {
+    if (globals.timeline.areaY.start + TOPBAR_HEIGHT < panelContainerTop ||
+        globals.timeline.areaY.start + TOPBAR_HEIGHT > panelContainerBottom) {
       return;
     }
 
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
 
     // The Y value is given from the top of the pan and zoom region, we want it
     // from the top of the panel container. The parent offset corrects that.
     const panels = this.getPanelsInRegion(
         visibleTimeScale.timeToPx(area.start),
         visibleTimeScale.timeToPx(area.end),
-        globals.frontendLocalState.areaY.start + TOPBAR_HEIGHT,
-        globals.frontendLocalState.areaY.end + TOPBAR_HEIGHT);
+        globals.timeline.areaY.start + TOPBAR_HEIGHT,
+        globals.timeline.areaY.end + TOPBAR_HEIGHT);
     // Get the track ids from the panels.
     const tracks = [];
     for (const panel of panels) {
@@ -167,7 +164,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
         }
       }
     }
-    globals.frontendLocalState.selectArea(area.start, area.end, tracks);
+    globals.timeline.selectArea(area.start, area.end, tracks);
   }
 
   constructor(vnode: m.CVnode<Attrs>) {
@@ -288,7 +285,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       this.updateCanvasDimensions();
       this.repositionCanvas();
       if (this.attrs.kind === 'TRACKS') {
-        globals.frontendLocalState.updateLocalLimits(
+        globals.timeline.updateLocalLimits(
             0, this.parentWidth - TRACK_SHELL_WIDTH);
       }
       this.redrawCanvas();
@@ -430,10 +427,9 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
   // the whole canvas rather than per panel.
   private drawTopLayerOnCanvas() {
     if (!this.ctx) return;
-    const area = globals.frontendLocalState.selectedArea;
-    if (area === undefined ||
-        globals.frontendLocalState.areaY.start === undefined ||
-        globals.frontendLocalState.areaY.end === undefined) {
+    const area = globals.timeline.selectedArea;
+    if (area === undefined || globals.timeline.areaY.start === undefined ||
+        globals.timeline.areaY.end === undefined) {
       return;
     }
     if (this.panelInfos.length === 0 || area.tracks.length === 0) return;
@@ -458,7 +454,7 @@ export class PanelContainer implements m.ClassComponent<Attrs>,
       return;
     }
 
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const startX = visibleTimeScale.timeToPx(area.start);
     const endX = visibleTimeScale.timeToPx(area.end);
     // To align with where to draw on the canvas subtract the first panel Y.
