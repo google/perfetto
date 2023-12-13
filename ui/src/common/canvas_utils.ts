@@ -151,7 +151,7 @@ export function drawTrackHoverTooltip(
   y -= 10;
 
   // Ensure the box is on screen:
-  const endPx = globals.frontendLocalState.visibleTimeScale.pxSpan.end;
+  const endPx = globals.timeline.visibleTimeScale.pxSpan.end;
   if (x + width > endPx) {
     x -= x + width - endPx;
   }

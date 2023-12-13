@@ -106,7 +106,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;
@@ -181,7 +181,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
@@ -198,7 +198,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return false;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());

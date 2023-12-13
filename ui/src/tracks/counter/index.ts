@@ -353,7 +353,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data;
 
     // Can't possibly draw anything.
@@ -560,7 +560,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
     const data = this.data;
     if (data === undefined) return;
     this.mousePos = pos;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     let values = data.lastValues;
@@ -587,7 +587,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
   onMouseClick({x}: {x: number}): boolean {
     const data = this.data;
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.timestamps, time.toTime());
     if (left === -1) {

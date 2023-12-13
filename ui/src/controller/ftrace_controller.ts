@@ -49,7 +49,7 @@ export class FtraceController extends Controller<'main'> {
 
   run() {
     if (this.shouldUpdate()) {
-      this.oldSpan = globals.frontendLocalState.visibleWindowTime;
+      this.oldSpan = globals.timeline.visibleWindowTime;
       this.oldFtraceFilter = globals.state.ftraceFilter;
       this.oldPagination = globals.state.ftracePagination;
       if (globals.state.ftracePagination.count > 0) {
@@ -69,7 +69,7 @@ export class FtraceController extends Controller<'main'> {
 
   private shouldUpdate(): boolean {
     // Has the visible window moved?
-    const visibleWindow = globals.frontendLocalState.visibleWindowTime;
+    const visibleWindow = globals.timeline.visibleWindowTime;
     if (!this.oldSpan.equals(visibleWindow)) {
       return true;
     }

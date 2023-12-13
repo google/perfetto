@@ -136,7 +136,7 @@ export class TimeWindow {
  * State that is shared between several frontend components, but not the
  * controller. This state is updated at 60fps.
  */
-export class FrontendLocalState {
+export class Timeline {
   private visibleWindow = new TimeWindow();
   private _timeScale = this.visibleWindow.createTimeScale(0, 0);
   private _windowSpan = PxSpan.ZERO;

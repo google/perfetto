@@ -57,7 +57,7 @@ class TimelineFetcher<Data> implements Disposable {
   }
 
   requestDataForCurrentTime(): void {
-    const currentTimeSpan = globals.frontendLocalState.visibleTimeSpan;
+    const currentTimeSpan = globals.timeline.visibleTimeSpan;
     const currentResolution = globals.getCurResolution();
     this.requestData(currentTimeSpan, currentResolution);
   }
