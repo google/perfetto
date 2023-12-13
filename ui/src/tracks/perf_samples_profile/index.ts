@@ -103,7 +103,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;
@@ -147,7 +147,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   onMouseMove({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index =
@@ -163,7 +163,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   onMouseClick({x, y}: {x: number, y: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
 
     const time = visibleTimeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());

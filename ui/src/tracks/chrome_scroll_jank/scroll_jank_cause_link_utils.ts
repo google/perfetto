@@ -201,7 +201,7 @@ export function getCauseLink(
             verticalScrollToTrack(trackKeys[0], true);
             if (exists(ts) && exists(dur)) {
               focusHorizontalRange(ts, Time.fromRaw(ts + dur), 0.3);
-              globals.frontendLocalState.selectArea(
+              globals.timeline.selectArea(
                   ts, Time.fromRaw(ts + dur), trackKeys);
 
               globals.dispatch(Actions.selectArea({

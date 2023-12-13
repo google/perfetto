@@ -226,7 +226,7 @@ export class OverviewTimelinePanel extends Panel {
   }
 
   private static extractBounds(timeScale: TimeScale): [number, number] {
-    const vizTime = globals.frontendLocalState.visibleWindowTime;
+    const vizTime = globals.timeline.visibleWindowTime;
     return [
       Math.floor(timeScale.hpTimeToPx(vizTime.start)),
       Math.ceil(timeScale.hpTimeToPx(vizTime.end)),

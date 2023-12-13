@@ -66,7 +66,7 @@ export class TimeAxisPanel extends Panel {
     ctx.clip();
 
     // Draw time axis.
-    const span = globals.frontendLocalState.visibleTimeSpan;
+    const span = globals.timeline.visibleTimeSpan;
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);

@@ -93,7 +93,7 @@ export class LogPanel implements m.ClassComponent {
       firstVisibleLogTs,
       lastVisibleLogTs,
     } = this.bounds;
-    const vis = globals.frontendLocalState.visibleWindowTime;
+    const vis = globals.timeline.visibleWindowTime;
 
     const visibleLogSpan =
         new HighPrecisionTimeSpan(firstVisibleLogTs, lastVisibleLogTs);

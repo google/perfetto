@@ -195,7 +195,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
     const {
       visibleTimeScale: timeScale,
       visibleTimeSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
@@ -279,7 +279,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
   onMouseClick({x}: {x: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const index = search(data.starts, time.toTime());
     if (index === -1) return false;
