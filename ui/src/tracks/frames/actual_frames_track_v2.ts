@@ -19,6 +19,7 @@ import {
   NamedSliceTrack,
   NamedSliceTrackTypes,
 } from '../../frontend/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {EngineProxy, Slice, STR_NULL} from '../../public';
 
 const BLUE = makeColorScheme(new HSLColor('#03A9F4'));    // Blue 500
@@ -47,7 +48,10 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
       engine: EngineProxy, maxDepth: number, trackKey: string,
       private trackIds: number[]) {
     super({engine, trackKey});
-    this.sliceLayout.maxDepth = maxDepth + 1;
+    this.sliceLayout = {
+      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+      minDepth: maxDepth + 1,
+    };
   }
 
   // This is used by the base class to call iter().
