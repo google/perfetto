@@ -1658,7 +1658,7 @@ class TrackDecider {
 
   async decideTracks(): Promise<DeferredAction[]> {
     {
-      const result = screenshotDecideTracks();
+      const result = screenshotDecideTracks(this.engine);
       if (result !== null) {
         const {tracksToAdd} = await result;
         this.tracksToAdd.push(...tracksToAdd);
