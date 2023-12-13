@@ -19,10 +19,9 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
-import {Migrate, SliceRect, Track, TrackContext, TrackTags} from '../public';
+import {SliceRect, Track, TrackTags} from '../public';
 
 import {checkerboard} from './checkerboard';
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
@@ -347,38 +346,15 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   private trackState: TrackState|undefined;
   private tags: TrackTags|undefined;
 
-  private tryLoadTrack(vnode: m.CVnode<TrackPanelAttrs>) {
+  view(vnode: m.CVnode<TrackPanelAttrs>) {
     const trackKey = vnode.attrs.trackKey;
     const trackState = globals.state.tracks[trackKey];
-
-    if (!trackState) return;
-
     const {uri, params} = trackState;
 
-    const trackCtx: TrackContext = {
-      trackKey,
-      mountStore: <T>(migrate: Migrate<T>) => {
-        const {store, state} = globals;
-        const migratedState = migrate(state.tracks[trackKey].state);
-        globals.store.edit((draft) => {
-          draft.tracks[trackKey].state = migratedState;
-        });
-        return store.createProxy<T>(['tracks', trackKey, 'state']);
-      },
-      params,
-    };
-
-    this.track = pluginManager.createTrack(uri, trackCtx);
-    this.tags = pluginManager.resolveTrackInfo(uri)?.tags;
-
-    this.track?.onCreate(trackCtx);
+    const track = globals.trackCache.resolveTrack(trackKey, uri, params);
+    this.track = track?.track;
+    this.tags = track?.desc.tags;
     this.trackState = trackState;
-  }
-
-  view(vnode: m.CVnode<TrackPanelAttrs>) {
-    if (!this.track) {
-      this.tryLoadTrack(vnode);
-    }
 
     if (this.track === undefined || this.trackState === undefined) {
       return m(TrackComponent, {
@@ -405,13 +381,6 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   onupdate() {
     if (this.track !== undefined) {
       this.track.onFullRedraw();
-    }
-  }
-
-  onremove() {
-    if (this.track !== undefined) {
-      this.track.onDestroy();
-      this.track = undefined;
     }
   }
 

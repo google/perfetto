@@ -18,13 +18,12 @@ import m from 'mithril';
 import {assertExists} from '../base/logging';
 import {Icons} from '../base/semantic_icons';
 import {Actions} from '../common/actions';
-import {pluginManager} from '../common/plugins';
 import {
   getContainingTrackId,
   TrackGroupState,
   TrackState,
 } from '../common/state';
-import {Migrate, Track, TrackContext, TrackTags} from '../public';
+import {Track, TrackTags} from '../public';
 
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
@@ -51,29 +50,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
     this.trackGroupId = attrs.trackGroupId;
   }
 
-  private tryLoadTrack() {
-    const groupId = this.trackGroupId;
-    const trackState = this.summaryTrackState;
-
-    const {key, uri, params} = trackState;
-
-    const ctx: TrackContext = {
-      trackKey: key,
-      mountStore: <T>(migrate: Migrate<T>) => {
-        const {store, state} = globals;
-        const migratedState = migrate(state.trackGroups[groupId].state);
-        store.edit((draft) => {
-          draft.trackGroups[groupId].state = migratedState;
-        });
-        return store.createProxy<T>(['trackGroups', groupId, 'state']);
-      },
-      params,
-    };
-
-    this.summaryTrack = pluginManager.createTrack(uri, ctx);
-    this.summaryTrackTags = pluginManager.resolveTrackInfo(uri)?.tags;
-  }
-
   get trackGroupState(): TrackGroupState {
     return assertExists(globals.state.trackGroups[this.trackGroupId]);
   }
@@ -83,9 +59,13 @@ export class TrackGroupPanel extends Panel<Attrs> {
   }
 
   view({attrs}: m.CVnode<Attrs>) {
-    if (!this.summaryTrack) {
-      this.tryLoadTrack();
-    }
+    const trackState = this.summaryTrackState;
+
+    const {key, uri, params} = trackState;
+
+    const track = globals.trackCache.resolveTrack(key, uri, params);
+    this.summaryTrack = track?.track;
+    this.summaryTrackTags = track?.desc.tags;
 
     const collapsed = this.trackGroupState.collapsed;
     let name = this.trackGroupState.name;
@@ -193,13 +173,6 @@ export class TrackGroupPanel extends Panel<Attrs> {
     }
     if (this.summaryTrack !== undefined) {
       this.summaryTrack.onFullRedraw();
-    }
-  }
-
-  onremove() {
-    if (this.summaryTrack !== undefined) {
-      this.summaryTrack.onDestroy();
-      this.summaryTrack = undefined;
     }
   }
 
