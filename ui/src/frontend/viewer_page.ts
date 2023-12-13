@@ -20,6 +20,7 @@ import {Time} from '../base/time';
 import {Actions} from '../common/actions';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
+import {Track, TrackTags} from '../public';
 
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {DetailsPanel} from './details_panel';
@@ -28,7 +29,7 @@ import {NotesPanel} from './notes_panel';
 import {OverviewTimelinePanel} from './overview_timeline_panel';
 import {createPage} from './pages';
 import {PanAndZoomHandler} from './pan_and_zoom_handler';
-import {AnyAttrsVnode, PanelContainer} from './panel_container';
+import {Panel, PanelContainer, PanelOrGroup} from './panel_container';
 import {publishShowPanningHint} from './publish';
 import {TickmarkPanel} from './tickmark_panel';
 import {TimeAxisPanel} from './time_axis_panel';
@@ -36,6 +37,7 @@ import {TimeSelectionPanel} from './time_selection_panel';
 import {DISMISSED_PANNING_HINT_KEY} from './topbar';
 import {TrackGroupPanel} from './track_group_panel';
 import {TrackPanel} from './track_panel';
+import {TrackCache} from '../common/track_cache';
 
 const OVERVIEW_PANEL_FLAG = featureFlags.register({
   id: 'overviewVisible',
@@ -69,20 +71,6 @@ function onTimeRangeBoundary(mousePos: number): 'START'|'END'|null {
   return null;
 }
 
-export interface TrackGroupAttrs {
-  header: AnyAttrsVnode;
-  collapsed: boolean;
-  childTracks: AnyAttrsVnode[];
-}
-
-export class TrackGroup implements m.ClassComponent<TrackGroupAttrs> {
-  view() {
-    // TrackGroup component acts as a holder for a bunch of tracks rendered
-    // together: the actual rendering happens in PanelContainer. In order to
-    // avoid confusion, this method remains empty.
-  }
-}
-
 /**
  * Top-most level component for the viewer page. Holds tracks, brush timeline,
  * panels, and everything else that's part of the main trace viewer page.
@@ -92,6 +80,14 @@ class TraceViewer implements m.ClassComponent {
   private zoomContent?: PanAndZoomHandler;
   // Used to prevent global deselection if a pan/drag select occurred.
   private keepCurrentSelection = false;
+
+  readonly trackCache = new TrackCache();
+
+  private overviewTimelinePanel = new OverviewTimelinePanel('overview');
+  private timeAxisPanel = new TimeAxisPanel('timeaxis');
+  private timeSelectionPanel = new TimeSelectionPanel('timeselection');
+  private notesPanel = new NotesPanel('notes');
+  private tickmarkPanel = new TickmarkPanel('searchTickmarks');
 
   oncreate(vnode: m.CVnodeDOM) {
     const frontendLocalState = globals.frontendLocalState;
@@ -222,54 +218,70 @@ class TraceViewer implements m.ClassComponent {
     });
   }
 
-  onupdate() {
-    // We know all tracks will have been resolved at this point.
-    // I.e. all the view() functions of all our children will have been called.
-    globals.trackCache.flushOldTracks();
-  }
-
   onremove() {
     window.removeEventListener('resize', this.onResize);
     if (this.zoomContent) this.zoomContent.dispose();
   }
 
   view() {
-    const scrollingPanels: AnyAttrsVnode[] = globals.state.scrollingTracks.map(
-        (key) => m(TrackPanel, {key, trackKey: key, selectable: true}));
+    const scrollingPanels: PanelOrGroup[] =
+        globals.state.scrollingTracks.map((key) => {
+          const trackBundle = this.resolveTrack(key);
+          return new TrackPanel({
+            key,
+            trackKey: key,
+            title: trackBundle.title,
+            tags: trackBundle.tags,
+            track: trackBundle.track,
+          });
+        });
 
     for (const group of Object.values(globals.state.trackGroups)) {
-      const headerPanel = m(TrackGroupPanel, {
+      const key = group.tracks[0];
+      const trackBundle = this.resolveTrack(key);
+      const headerPanel = new TrackGroupPanel({
         trackGroupId: group.id,
         key: `trackgroup-${group.id}`,
-        selectable: true,
+        track: trackBundle.track,
+        labels: trackBundle.labels,
+        tags: trackBundle.tags,
+        collapsed: group.collapsed,
+        title: group.name,
       });
 
-      const childTracks: AnyAttrsVnode[] = [];
+      const childTracks: Panel[] = [];
       // The first track is the summary track, and is displayed as part of the
       // group panel, we don't want to display it twice so we start from 1.
       if (!group.collapsed) {
         for (let i = 1; i < group.tracks.length; ++i) {
-          const id = group.tracks[i];
-          childTracks.push(m(TrackPanel, {
-            key: `track-${group.id}-${id}`,
-            trackKey: id,
-            selectable: true,
-          }));
+          const key = group.tracks[i];
+          const trackBundle = this.resolveTrack(key);
+          const panel = new TrackPanel({
+            key: `track-${group.id}-${key}`,
+            trackKey: key,
+            title: trackBundle.title,
+            tags: trackBundle.tags,
+            track: trackBundle.track,
+          });
+          childTracks.push(panel);
         }
       }
-      scrollingPanels.push(m(TrackGroup, {
-        header: headerPanel,
+
+      scrollingPanels.push({
+        kind: 'group',
         collapsed: group.collapsed,
         childTracks,
-      } as TrackGroupAttrs));
+        header: headerPanel,
+        trackGroupId: group.id,
+      });
     }
 
     const overviewPanel = [];
     if (OVERVIEW_PANEL_FLAG.get()) {
-      overviewPanel.push(m(OverviewTimelinePanel, {key: 'overview'}));
+      overviewPanel.push(this.overviewTimelinePanel);
     }
 
-    return m(
+    const result = m(
         '.page',
         m('.split-panel',
           m('.pan-and-zoom-content',
@@ -287,14 +299,20 @@ class TraceViewer implements m.ClassComponent {
                 doesScroll: false,
                 panels: [
                   ...overviewPanel,
-                  m(TimeAxisPanel, {key: 'timeaxis'}),
-                  m(TimeSelectionPanel, {key: 'timeselection'}),
-                  m(NotesPanel, {key: 'notes'}),
-                  m(TickmarkPanel, {key: 'searchTickmarks'}),
-                  ...globals.state.pinnedTracks.map(
-                      (id) =>
-                          m(TrackPanel,
-                            {key: id, trackKey: id, selectable: true})),
+                  this.timeAxisPanel,
+                  this.timeSelectionPanel,
+                  this.notesPanel,
+                  this.tickmarkPanel,
+                  ...globals.state.pinnedTracks.map((key) => {
+                    const trackBundle = this.resolveTrack(key);
+                    return new TrackPanel({
+                      key,
+                      trackKey: key,
+                      title: trackBundle.title,
+                      tags: trackBundle.tags,
+                      track: trackBundle.track,
+                    });
+                  }),
                 ],
                 kind: 'OVERVIEW',
               })),
@@ -304,7 +322,35 @@ class TraceViewer implements m.ClassComponent {
                 kind: 'TRACKS',
               })))),
         m(DetailsPanel));
+
+    this.trackCache.flushOldTracks();
+    return result;
   }
+
+  // Resolve a track and its metadata through the track cache
+  private resolveTrack(key: string): TrackBundle {
+    const trackState = globals.state.tracks[key];
+    const {uri, params, name, labels} = trackState;
+    const trackMeta = this.trackCache.resolveTrack(key, uri, params);
+    const track = trackMeta?.track;
+    const tags = trackMeta?.desc.tags;
+    const trackIds = trackMeta?.desc.trackIds;
+    return {
+      title: name,
+      tags,
+      track,
+      labels,
+      trackIds,
+    };
+  }
+}
+
+interface TrackBundle {
+  title: string;
+  track?: Track;
+  tags?: TrackTags;
+  labels?: string[];
+  trackIds?: number[];
 }
 
 export const ViewerPage = createPage({

@@ -19,7 +19,6 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
-import {TrackState} from '../common/state';
 import {raf} from '../core/raf_scheduler';
 import {SliceRect, Track, TrackTags} from '../public';
 
@@ -27,7 +26,8 @@ import {checkerboard} from './checkerboard';
 import {SELECTION_FILL_COLOR, TRACK_SHELL_WIDTH} from './css_constants';
 import {globals} from './globals';
 import {drawGridLines} from './gridline_helper';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
+import {Panel} from './panel_container';
 import {verticalScrollToTrack} from './scroll_helper';
 import {
   drawVerticalLineAtTime,
@@ -299,11 +299,17 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
         ]);
   }
 
-  oncreate({attrs}: m.CVnode<TrackComponentAttrs>) {
+  oncreate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
+    const {attrs} = vnode;
     if (globals.scrollToTrackKey === attrs.trackKey) {
       verticalScrollToTrack(attrs.trackKey);
       globals.scrollToTrackKey = undefined;
     }
+    this.onupdate(vnode);
+  }
+
+  onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
+    vnode.attrs.track?.onFullRedraw();
   }
 }
 
@@ -334,66 +340,58 @@ export class TrackButton implements m.ClassComponent<TrackButtonAttrs> {
 }
 
 interface TrackPanelAttrs {
+  key: string;
   trackKey: string;
-  selectable: boolean;
+  title: string;
+  tags?: TrackTags;
+  track?: Track;
 }
 
-export class TrackPanel extends Panel<TrackPanelAttrs> {
-  // TODO(hjd): It would be nicer if these could not be undefined here.
-  // We should implement a NullTrack which can be used if the trackState
-  // has disappeared.
-  private track: Track|undefined;
-  private trackState: TrackState|undefined;
-  private tags: TrackTags|undefined;
+export class TrackPanel implements Panel {
+  readonly kind = 'panel';
+  readonly selectable = true;
 
-  view(vnode: m.CVnode<TrackPanelAttrs>) {
-    const trackKey = vnode.attrs.trackKey;
-    const trackState = globals.state.tracks[trackKey];
-    const {uri, params} = trackState;
+  constructor(private readonly attrs: TrackPanelAttrs) {}
 
-    const track = globals.trackCache.resolveTrack(trackKey, uri, params);
-    this.track = track?.track;
-    this.tags = track?.desc.tags;
-    this.trackState = trackState;
+  get key(): string {
+    return this.attrs.key;
+  }
 
-    if (this.track === undefined || this.trackState === undefined) {
+  get trackKey(): string {
+    return this.attrs.trackKey;
+  }
+
+  get mithril(): m.Children {
+    const attrs = this.attrs;
+
+    if (attrs.track) {
       return m(TrackComponent, {
-        trackKey: vnode.attrs.trackKey,
-        title: this.trackState?.name ?? 'Loading...',
+        key: attrs.key,
+        trackKey: attrs.trackKey,
+        title: attrs.title,
+        heightPx: attrs.track.getHeight(),
+        buttons: attrs.track.getTrackShellButtons(),
+        tags: attrs.tags,
+        track: attrs.track,
       });
-    }
-    return m(TrackComponent, {
-      tags: this.tags,
-      heightPx: this.track.getHeight(),
-      title: this.trackState.name,
-      trackKey: this.trackState.key,
-      buttons: this.track.getTrackShellButtons(),
-      track: this.track,
-    });
-  }
-
-  oncreate() {
-    if (this.track !== undefined) {
-      this.track.onFullRedraw();
-    }
-  }
-
-  onupdate() {
-    if (this.track !== undefined) {
-      this.track.onFullRedraw();
+    } else {
+      return m(TrackComponent, {
+        key: attrs.key,
+        trackKey: attrs.trackKey,
+        title: attrs.title,
+      });
     }
   }
 
   highlightIfTrackSelected(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {visibleTimeScale} = globals.frontendLocalState;
     const selection = globals.state.currentSelection;
-    const trackState = this.trackState;
-    if (!selection || selection.kind !== 'AREA' || trackState === undefined) {
+    if (!selection || selection.kind !== 'AREA') {
       return;
     }
     const selectedArea = globals.state.areas[selection.areaId];
     const selectedAreaDuration = selectedArea.end - selectedArea.start;
-    if (selectedArea.tracks.includes(trackState.key)) {
+    if (selectedArea.tracks.includes(this.attrs.trackKey)) {
       ctx.fillStyle = SELECTION_FILL_COLOR;
       ctx.fillRect(
           visibleTimeScale.timeToPx(selectedArea.start) + TRACK_SHELL_WIDTH,
@@ -412,9 +410,9 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
         size.height);
 
     ctx.translate(TRACK_SHELL_WIDTH, 0);
-    if (this.track !== undefined) {
+    if (this.attrs.track !== undefined) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-      this.track.render(ctx, trackSize);
+      this.attrs.track.render(ctx, trackSize);
     } else {
       checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
     }
@@ -480,9 +478,9 @@ export class TrackPanel extends Panel<TrackPanelAttrs> {
   }
 
   getSliceRect(tStart: time, tDur: time, depth: number): SliceRect|undefined {
-    if (this.track === undefined) {
+    if (this.attrs.track === undefined) {
       return undefined;
     }
-    return this.track.getSliceRect(tStart, tDur, depth);
+    return this.attrs.track.getSliceRect(tStart, tDur, depth);
   }
 }

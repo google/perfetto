@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {time} from '../base/time';
+import {exists} from '../base/utils';
 import {pluginManager} from '../common/plugins';
 import {TrackState} from '../common/state';
 import {SliceRect} from '../public';
@@ -20,9 +21,7 @@ import {SliceRect} from '../public';
 import {TRACK_SHELL_WIDTH} from './css_constants';
 import {ALL_CATEGORIES, getFlowCategories} from './flow_events_panel';
 import {Flow, FlowPoint, globals} from './globals';
-import {PanelVNode} from './panel';
-import {TrackGroupPanel} from './track_group_panel';
-import {TrackPanel} from './track_panel';
+import {Panel} from './panel_container';
 
 const TRACK_GROUP_CONNECTION_OFFSET = 5;
 const TRIANGLE_SIZE = 5;
@@ -43,22 +42,14 @@ type LineDirection = 'LEFT'|'RIGHT'|'UP'|'DOWN';
 type ConnectionType = 'TRACK'|'TRACK_GROUP';
 
 interface TrackPanelInfo {
-  panel: TrackPanel;
+  panel: Panel;
   yStart: number;
 }
 
 interface TrackGroupPanelInfo {
-  panel: TrackGroupPanel;
+  panel: Panel;
   yStart: number;
   height: number;
-}
-
-function hasTrackKey(obj: {}): obj is {trackKey: number} {
-  return (obj as {trackKey?: number}).trackKey !== undefined;
-}
-
-function hasTrackGroupId(obj: {}): obj is {trackGroupId: string} {
-  return (obj as {trackGroupId?: string}).trackGroupId !== undefined;
 }
 
 function getTrackIds(track: TrackState): number[] {
@@ -75,17 +66,15 @@ export class FlowEventsRendererArgs {
     this.groupIdToTrackGroupPanel = new Map<string, TrackGroupPanelInfo>();
   }
 
-  registerPanel(panel: PanelVNode, yStart: number, height: number) {
-    if (panel.state instanceof TrackPanel && hasTrackKey(panel.attrs)) {
-      const track = globals.state.tracks[panel.attrs.trackKey];
+  registerPanel(panel: Panel, yStart: number, height: number) {
+    if (exists(panel.trackKey)) {
+      const track = globals.state.tracks[panel.trackKey];
       for (const trackId of getTrackIds(track)) {
-        this.trackIdToTrackPanel.set(trackId, {panel: panel.state, yStart});
+        this.trackIdToTrackPanel.set(trackId, {panel, yStart});
       }
-    } else if (
-        panel.state instanceof TrackGroupPanel &&
-        hasTrackGroupId(panel.attrs)) {
+    } else if (exists(panel.trackGroupId)) {
       this.groupIdToTrackGroupPanel.set(
-          panel.attrs.trackGroupId, {panel: panel.state, yStart, height});
+          panel.trackGroupId, {panel, yStart, height});
     }
   }
 }
@@ -144,7 +133,7 @@ export class FlowEventsRenderer {
     if (!trackPanel) {
       return undefined;
     }
-    return trackPanel.getSliceRect(
+    return trackPanel.getSliceRect?.(
         point.sliceStartTs, point.sliceEndTs, point.depth);
   }
 
