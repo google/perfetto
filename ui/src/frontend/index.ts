@@ -47,6 +47,7 @@ import {globals} from './globals';
 import {HomePage} from './home_page';
 import {InsightsPage} from './insights_page';
 import {MetricsPage} from './metrics_page';
+import {PluginsPage} from './plugins_page';
 import {postMessageHandler} from './post_message_handler';
 import {QueryPage} from './query_page';
 import {RecordPage, updateAvailableAdbDevices} from './record_page';
@@ -233,6 +234,7 @@ function main() {
     '/info': TraceInfoPage,
     '/widgets': WidgetsPage,
     '/viz': VizPage,
+    '/plugins': PluginsPage,
   });
   router.onRouteChanged = routeChange;
 

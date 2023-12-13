@@ -75,6 +75,13 @@ const WIDGETS_PAGE_IN_NAV_FLAG = featureFlags.register({
   defaultValue: false,
 });
 
+const PLUGINS_PAGE_IN_NAV_FLAG = featureFlags.register({
+  id: 'showPluginsPageInNav',
+  name: 'Show plugins page',
+  description: 'Show a link to the plugins page in the side bar.',
+  defaultValue: false,
+});
+
 const INSIGHTS_PAGE_IN_NAV_FLAG = featureFlags.register({
   id: 'showInsightsPageInNav',
   name: 'Show insights page',
@@ -140,6 +147,12 @@ const SECTIONS: Section[] = [
         a: navigateWidgets,
         i: 'widgets',
         isVisible: () => WIDGETS_PAGE_IN_NAV_FLAG.get(),
+      },
+      {
+        t: 'Plugins',
+        a: navigatePlugins,
+        i: 'extension',
+        isVisible: () => PLUGINS_PAGE_IN_NAV_FLAG.get(),
       },
     ],
   },
@@ -459,6 +472,11 @@ function navigateRecord(e: Event) {
 function navigateWidgets(e: Event) {
   e.preventDefault();
   Router.navigate('#!/widgets');
+}
+
+function navigatePlugins(e: Event) {
+  e.preventDefault();
+  Router.navigate('#!/plugins');
 }
 
 function navigateQuery(e: Event) {
