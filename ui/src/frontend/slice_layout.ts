@@ -13,15 +13,15 @@
 // limitations under the License.
 
 export interface SliceLayoutBase {
-  padding: number;     // top/bottom pixel padding between slices and track.
-  rowSpacing: number;  // Spacing between rows.
-  minDepth: number;    // Minimum depth a slice can be (normally zero)
+  readonly padding: number;  // vertical pixel padding between slices and track.
+  readonly rowSpacing: number;  // Spacing between rows.
+  readonly minDepth: number;    // Minimum depth a slice can be (normally zero)
   // Maximum depth a slice can be plus 1 (a half open range with minDepth).
   // We have a optimization for when maxDepth - minDepth == 1 so it is useful
   // to set this correctly:
-  maxDepth: number;
-  titleSizePx?: number;
-  subtitleSizePx?: number;
+  readonly maxDepth: number;
+  readonly titleSizePx?: number;
+  readonly subtitleSizePx?: number;
 }
 
 export const SLICE_LAYOUT_BASE_DEFAULTS: SliceLayoutBase = Object.freeze({
@@ -34,8 +34,8 @@ export const SLICE_LAYOUT_BASE_DEFAULTS: SliceLayoutBase = Object.freeze({
 });
 
 export interface SliceLayoutFixed extends SliceLayoutBase {
-  heightMode: 'FIXED';
-  fixedHeight: number;  // Outer height of the track.
+  readonly heightMode: 'FIXED';
+  readonly fixedHeight: number;  // Outer height of the track.
 }
 
 export const SLICE_LAYOUT_FIXED_DEFAULTS: SliceLayoutFixed = Object.freeze({
@@ -45,8 +45,8 @@ export const SLICE_LAYOUT_FIXED_DEFAULTS: SliceLayoutFixed = Object.freeze({
 });
 
 export interface SliceLayoutFitContent extends SliceLayoutBase {
-  heightMode: 'FIT_CONTENT';
-  sliceHeight: number;  // Only when heightMode = 'FIT_CONTENT'.
+  readonly heightMode: 'FIT_CONTENT';
+  readonly sliceHeight: number;  // Only when heightMode = 'FIT_CONTENT'.
 }
 
 export const SLICE_LAYOUT_FIT_CONTENT_DEFAULTS: SliceLayoutFitContent =
@@ -57,10 +57,10 @@ export const SLICE_LAYOUT_FIT_CONTENT_DEFAULTS: SliceLayoutFitContent =
     });
 
 export interface SliceLayoutFlat extends SliceLayoutBase {
-  heightMode: 'FIXED';
-  fixedHeight: number;  // Outer height of the track.
-  minDepth: 0;
-  maxDepth: 1;
+  readonly heightMode: 'FIXED';
+  readonly fixedHeight: number;  // Outer height of the track.
+  readonly minDepth: 0;
+  readonly maxDepth: 1;
 }
 
 export const SLICE_LAYOUT_FLAT_DEFAULTS: SliceLayoutFlat = Object.freeze({
