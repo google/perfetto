@@ -180,6 +180,58 @@ TEST(StringFilterTest, AtraceBreak) {
   ASSERT_EQ(res, "B|1234|foo 1234");
 }
 
+TEST(StringFilterTest, AtraceSearch) {
+  StringFilter filter;
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(x:(\d+))", "foo");
+
+  std::string res = "B|1234|foo x:1234 x:494 y:4904 x:dfja x:239039";
+  ASSERT_TRUE(filter.MaybeFilter(res.data(), res.size()));
+  ASSERT_EQ(res, "B|1234|foo x:P60R x:P60 y:4904 x:dfja x:P60RED");
+}
+
+TEST(StringFilterTest, AtraceSearchBreaks) {
+  StringFilter filter;
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(x:(\d+))", "foo");
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(y:(\d+))", "foo");
+
+  std::string res = "B|1234|foo x:1234 x:494 y:4904 x:dfja x:239039";
+  ASSERT_TRUE(filter.MaybeFilter(res.data(), res.size()));
+  ASSERT_EQ(res, "B|1234|foo x:P60R x:P60 y:4904 x:dfja x:P60RED");
+}
+
+TEST(StringFilterTest, AtraceSearchReturnsFalseOnNoMatch) {
+  StringFilter filter;
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(x:(\d+))", "foo");
+
+  std::string res = "B|1234|foo x:dfja";
+  ASSERT_FALSE(filter.MaybeFilter(res.data(), res.size()));
+  ASSERT_EQ(res, "B|1234|foo x:dfja");
+}
+
+TEST(StringFilterTest, AtraceSearchMultipleGroups) {
+  StringFilter filter;
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(x:(\d+)|y:(\d+))", "foo");
+
+  std::string res = "B|1234|foo x:1234 x:494 y:4904 x:dfja x:239039";
+  ASSERT_TRUE(filter.MaybeFilter(res.data(), res.size()));
+  ASSERT_EQ(res, "B|1234|foo x:P60R x:P60 y:P60R x:dfja x:P60RED");
+}
+
+TEST(StringFilterTest, AtraceSearchRecursive) {
+  StringFilter filter;
+  filter.AddRule(StringFilter::Policy::kAtraceRepeatedSearchRedactGroups,
+                 R"(x:([^\s-]*))", "foo");
+
+  std::string res = "B|1234|foo x:1234 x:494 y:4904 x:dfja x:239039";
+  ASSERT_TRUE(filter.MaybeFilter(res.data(), res.size()));
+  ASSERT_EQ(res, "B|1234|foo x:P60R x:P60 y:4904 x:P60R x:P60RED");
+}
+
 TEST(StringFilterTest, RegexRedactionNonUtf) {
   StringFilter filter;
   filter.AddRule(StringFilter::Policy::kMatchRedactGroups,

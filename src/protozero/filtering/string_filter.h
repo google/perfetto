@@ -32,6 +32,7 @@ class StringFilter {
     kAtraceMatchRedactGroups = 2,
     kMatchBreak = 3,
     kAtraceMatchBreak = 4,
+    kAtraceRepeatedSearchRedactGroups = 5,
   };
 
   // Adds a new rule for filtering strings.

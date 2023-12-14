@@ -135,6 +135,24 @@ bool StringFilter::MaybeFilterInternal(char* ptr, size_t len) const {
           return true;
         }
         break;
+      case Policy::kAtraceRepeatedSearchRedactGroups:
+        atrace_payload_ptr = atrace_find_tried
+                                 ? atrace_payload_ptr
+                                 : FindAtracePayloadPtr(ptr, ptr + len);
+        atrace_find_tried = true;
+        if (atrace_payload_ptr && StartsWith(atrace_payload_ptr, ptr + len,
+                                             rule.atrace_payload_starts_with)) {
+          auto beg = std::regex_iterator<char*>(ptr, ptr + len, rule.pattern);
+          auto end = std::regex_iterator<char*>();
+          bool has_any_matches = beg != end;
+          for (auto it = std::move(beg); it != end; ++it) {
+            RedactMatches(*it);
+          }
+          if (has_any_matches) {
+            return true;
+          }
+        }
+        break;
     }
   }
   return false;

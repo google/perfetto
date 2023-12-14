@@ -140,6 +140,8 @@ std::optional<protozero::StringFilter::Policy> ConvertPolicy(
       return protozero::StringFilter::Policy::kMatchBreak;
     case TraceFilter::SFP_ATRACE_MATCH_BREAK:
       return protozero::StringFilter::Policy::kAtraceMatchBreak;
+    case TraceFilter::SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS:
+      return protozero::StringFilter::Policy::kAtraceRepeatedSearchRedactGroups;
   }
   return std::nullopt;
 }
