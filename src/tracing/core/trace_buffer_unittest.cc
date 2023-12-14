@@ -1713,6 +1713,32 @@ TEST_F(TraceBufferTest, Override_ReCommitIncompleteFragmenting) {
   ASSERT_THAT(ReadPacket(), IsEmpty());
 }
 
+TEST_F(TraceBufferTest, Override_EndOfBuffer) {
+  ResetBuffer(3072);
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(2048)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/false);
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(20, 'a')));
+  // The last packet in an incomplete chunk should be ignored as the producer
+  // may not have completed writing it.
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+
+  // Recommit the original chunk with no changes but mark as complete.
+  CreateChunk(ProducerID(1), WriterID(1), ChunkID(0))
+      .AddPacket(20, 'a')
+      .AddPacket(30, 'b')
+      .PadTo(2048)
+      .CopyIntoTraceBuffer(/*chunk_complete=*/true);
+
+  // Reading should resume from the now completed chunk.
+  trace_buffer()->BeginRead();
+  ASSERT_THAT(ReadPacket(), ElementsAre(FakePacketFragment(30, 'b')));
+  ASSERT_THAT(ReadPacket(), IsEmpty());
+}
+
 TEST_F(TraceBufferTest, DiscardPolicy) {
   ResetBuffer(4096, TraceBuffer::kDiscard);
 
