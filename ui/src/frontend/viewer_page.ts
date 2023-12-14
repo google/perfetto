@@ -222,6 +222,12 @@ class TraceViewer implements m.ClassComponent {
     });
   }
 
+  onupdate() {
+    // We know all tracks will have been resolved at this point.
+    // I.e. all the view() functions of all our children will have been called.
+    globals.trackCache.flushOldTracks();
+  }
+
   onremove() {
     window.removeEventListener('resize', this.onResize);
     if (this.zoomContent) this.zoomContent.dispose();

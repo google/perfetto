@@ -44,6 +44,7 @@ import {
   State,
 } from '../common/state';
 import {TimestampFormat, timestampFormat} from '../common/timestamp_format';
+import {TrackCache} from '../common/track_cache';
 import {setPerfHooks} from '../core/perf';
 import {raf} from '../core/raf_scheduler';
 import {Engine} from '../trace_processor/engine';
@@ -307,6 +308,10 @@ class Globals {
   };
 
   engines = new Map<string, Engine>();
+
+  // This is only in globals since tracks are resolved from different scopes.
+  // TODO(stevegolton): Move into ViewerPage.
+  readonly trackCache = new TrackCache();
 
   initialize(
       dispatch: Dispatch, router: Router, initialState: State,
