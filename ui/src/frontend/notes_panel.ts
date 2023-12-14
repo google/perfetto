@@ -36,7 +36,8 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
+import {Panel} from './panel_container';
 import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
 
@@ -57,10 +58,16 @@ function getStartTimestamp(note: Note|AreaNote) {
   }
 }
 
-export class NotesPanel extends Panel {
+export class NotesPanel implements Panel {
+  readonly kind = 'panel';
+  readonly selectable = false;
+  readonly trackKey = undefined;
+
   hoveredX: null|number = null;
 
-  view() {
+  constructor(readonly key: string) {}
+
+  get mithril(): m.Children {
     const allCollapsed = Object.values(globals.state.trackGroups)
                              .every((group) => group.collapsed);
 

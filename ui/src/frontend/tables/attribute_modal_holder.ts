@@ -17,7 +17,6 @@ import m from 'mithril';
 import {raf} from '../../core/raf_scheduler';
 import {globals} from '../globals';
 import {fullscreenModalContainer, ModalDefinition} from '../modal';
-import {AnyAttrsVnode} from '../panel_container';
 import {ArgumentPopup} from '../pivot_table_argument_popup';
 
 export class AttributeModalHolder {
@@ -39,14 +38,13 @@ export class AttributeModalHolder {
   private renderModal(): ModalDefinition {
     return {
       title: 'Enter argument name',
-      content:
-          m(ArgumentPopup, {
-            knownArguments:
-                globals.state.nonSerializableState.pivotTable.argumentNames,
-            onArgumentChange: (arg) => {
-              this.typedArgument = arg;
-            },
-          }) as AnyAttrsVnode,
+      content: m(ArgumentPopup, {
+        knownArguments:
+            globals.state.nonSerializableState.pivotTable.argumentNames,
+        onArgumentChange: (arg) => {
+          this.typedArgument = arg;
+        },
+      }),
       buttons: [
         {
           text: 'Add',

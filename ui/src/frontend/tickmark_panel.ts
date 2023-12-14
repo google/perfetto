@@ -24,11 +24,18 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
+import {Panel} from './panel_container';
 
 // This is used to display the summary of search results.
-export class TickmarkPanel extends Panel {
-  view() {
+export class TickmarkPanel implements Panel {
+  readonly kind = 'panel';
+  readonly selectable = false;
+  readonly trackKey = undefined;
+
+  constructor(readonly key: string) {}
+
+  get mithril(): m.Children {
     return m('.tickbar');
   }
 
