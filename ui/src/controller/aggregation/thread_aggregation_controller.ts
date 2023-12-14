@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from '../../base/utils';
 import {ColumnDef, ThreadStateExtra} from '../../common/aggregation_data';
 import {pluginManager} from '../../common/plugins';
 import {Area, Sorting} from '../../common/state';
@@ -34,7 +35,7 @@ export class ThreadAggregationController extends AggregationController {
       if (track?.uri) {
         const trackInfo = pluginManager.resolveTrackInfo(track.uri);
         if (trackInfo?.kind === THREAD_STATE_TRACK_KIND) {
-          trackInfo.utid && this.utids.push(trackInfo.utid);
+          exists(trackInfo.utid) && this.utids.push(trackInfo.utid);
         }
       }
     }
