@@ -30,8 +30,6 @@ import {
   PluginDescriptor,
   PrimaryTrackSortKey,
   Store,
-  Track,
-  TrackContext,
   TrackDescriptor,
   TrackPredicate,
   TrackRef,
@@ -425,13 +423,6 @@ export class PluginManager {
   // Returns |undefined| if no track can be found.
   resolveTrackInfo(uri: string): TrackDescriptor|undefined {
     return this.trackRegistry.get(uri);
-  }
-
-  // Create a new plugin track object from its URI.
-  // Returns undefined if no such track is registered.
-  createTrack(uri: string, trackCtx: TrackContext): Track|undefined {
-    const trackInfo = pluginManager.trackRegistry.get(uri);
-    return trackInfo && trackInfo.track(trackCtx);
   }
 
   private doPluginTraceLoad(
