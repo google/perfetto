@@ -12,26 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 export interface PanelSize {
   width: number;
   height: number;
-}
-
-export abstract class Panel<Attrs = {}> implements m.ClassComponent<Attrs> {
-  abstract renderCanvas(
-      ctx: CanvasRenderingContext2D, size: PanelSize,
-      vnode: PanelVNode<Attrs>): void;
-  abstract view(vnode: m.CVnode<Attrs>): m.Children|null|void;
-}
-
-
-export type PanelVNode<Attrs = {}> = m.Vnode<Attrs, Panel<Attrs>>;
-
-export function isPanelVNode(vnode: m.Vnode): vnode is PanelVNode<{}> {
-  const tag = vnode.tag as {};
-  return (
-      typeof tag === 'function' && 'prototype' in tag &&
-      tag.prototype instanceof Panel);
 }
