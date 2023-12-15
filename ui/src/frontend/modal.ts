@@ -157,7 +157,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
                     ),
                 ),
             m('main', vnode.children),
-            m('footer', buttons),
+            buttons.length > 0 ? m('footer', buttons) : null,
             ));
   }
 
@@ -239,4 +239,8 @@ export function closeModal(key?: string) {
   }
   currentModal = undefined;
   raf.scheduleFullRedraw();
+}
+
+export function getCurrentModalKey(): string|undefined {
+  return currentModal?.key;
 }
