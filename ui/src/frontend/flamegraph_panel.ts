@@ -28,11 +28,11 @@ import {profileType} from '../controller/flamegraph_controller';
 import {raf} from '../core/raf_scheduler';
 import {Button} from '../widgets/button';
 import {Icon} from '../widgets/icon';
+import {Modal, ModalAttrs} from '../widgets/modal';
 import {Popup} from '../widgets/popup';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
-import {Modal, ModalAttrs} from './modal';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';

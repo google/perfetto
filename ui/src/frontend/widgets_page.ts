@@ -29,6 +29,7 @@ import {Form, FormLabel} from '../widgets/form';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
 import {Icon} from '../widgets/icon';
 import {Menu, MenuDivider, MenuItem, PopupMenu2} from '../widgets/menu';
+import {showModal} from '../widgets/modal';
 import {
   MultiSelect,
   MultiSelectDiff,
@@ -44,7 +45,6 @@ import {MultiParagraphText, TextParagraph} from '../widgets/text_paragraph';
 import {LazyTreeNode, Tree, TreeNode} from '../widgets/tree';
 import {VegaView} from '../widgets/vega_view';
 
-import {showModal} from './modal';
 import {createPage} from './pages';
 import {PopupMenuButton} from './popup_menu';
 import {TableShowcase} from './tables/table_showcase';
