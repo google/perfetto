@@ -16,7 +16,7 @@ import m from 'mithril';
 
 import {ErrorDetails} from '../base/logging';
 import {EXTENSION_URL} from '../common/recordingV2/recording_utils';
-import {saveTrace} from '../common/upload_utils';
+import {TraceGcsUploader} from '../common/upload_utils';
 import {RECORDING_V2_FLAG} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {VERSION} from '../gen/perfetto_version';
@@ -93,9 +93,10 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
   private traceData?: ArrayBuffer|File;
   private traceUrl?: string;
   private attachTrace = false;
-  private uploadSizeMb = 0;
+  private uploadStatus = '';
   private userDescription = '';
   private errorMessage = '';
+  private uploader?: TraceGcsUploader;
 
   constructor() {
     this.traceState = 'NOT_AVAILABLE';
@@ -116,18 +117,16 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     // If the user is not a googler, don't even offer the option to upload it.
     if (!globals.isInternalUser) return;
 
-    let size = 0;
     if (engine.source.type === 'FILE') {
       this.traceState = 'NOT_UPLOADED';
       this.traceData = engine.source.file;
-      size = this.traceData.size;
+      // this.traceSize = this.traceData.size;
     } else if (engine.source.type === 'ARRAY_BUFFER') {
       this.traceData = engine.source.buffer;
-      size = this.traceData.byteLength;
+      // this.traceSize = this.traceData.byteLength;
     } else {
       return;  // Can't upload HTTP+RPC.
     }
-    this.uploadSizeMb = Math.round((size / 1e6 + Number.EPSILON) * 100) / 100;
     this.traceState = 'NOT_UPLOADED';
   }
 
@@ -146,7 +145,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     if (this.attachTrace && this.traceUrl) {
       msg += `Trace: ${this.traceUrl}\n`;
     } else if (this.attachTrace && this.traceState === 'UPLOADING') {
-      msg += `Trace: uploading ${this.uploadSizeMb} MB...\n`;
+      msg += `Trace: uploading...\n`;
     } else {
       msg += `Trace: not available (${this.traceType}). Provide repro steps.\n`;
     }
@@ -168,7 +167,7 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
                 },
               }),
               this.traceState === 'UPLOADING' ?
-                  `Uploading trace (${this.uploadSizeMb} MB) ...` :
+                  `Uploading trace... ${this.uploadStatus}` :
                   'Tick to share the current trace and help debugging',
               ),  // m('label')
           m('div.modal-small',
@@ -209,11 +208,21 @@ class ErrorDialogComponent implements m.ClassComponent<ErrorDetails> {
     if (checked && this.traceData !== undefined &&
         this.traceState === 'NOT_UPLOADED') {
       this.traceState = 'UPLOADING';
-      saveTrace(this.traceData).then((url) => {
+      this.uploadStatus = '';
+      const uploader = new TraceGcsUploader(this.traceData, () => {
         raf.scheduleFullRedraw();
-        this.traceState = 'UPLOADED';
-        this.traceUrl = url;
+        this.uploadStatus = uploader.getEtaString();
+        if (uploader.state === 'UPLOADED') {
+          this.traceState = 'UPLOADED';
+          this.traceUrl = uploader.uploadedUrl;
+        } else if (uploader.state === 'ERROR') {
+          this.traceState = 'NOT_UPLOADED';
+          this.uploadStatus = uploader.error;
+        }
       });
+      this.uploader = uploader;
+    } else if (!checked && this.uploader) {
+      this.uploader.abort();
     }
   }
 
