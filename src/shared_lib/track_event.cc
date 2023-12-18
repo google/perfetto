@@ -980,9 +980,10 @@ static void InstanceOp(
     track_uuid = uuid;
   }
 
+  perfetto::TraceWriterBase* trace_writer = ii->instance->trace_writer.get();
   {
     auto packet = NewTracePacketInternal(
-        ii->instance->trace_writer.get(), incr_state, track_event_tls, ts,
+        trace_writer, incr_state, track_event_tls, ts,
         perfetto::protos::pbzero::TracePacket::SEQ_NEEDS_INCREMENTAL_STATE);
     auto* track_event = packet->set_track_event();
     WriteTrackEvent(incr_state, track_event, cat, type, name, extra_data,
@@ -997,6 +998,11 @@ static void InstanceOp(
       incr_state->serialized_interned_data.Reset();
     }
   }
+  // Make sure that the packet we just wrote is immediately visible in the
+  // TraceWriter and scrapable by the tracing service.
+  // TODO(b/162206162): Remove this when TracePacketHandle destruction calls
+  // FinishTracePacket automatically.
+  trace_writer->FinishTracePacket();
 
   bool flush = false;
   for (const auto* it = extra_data; it; it = it->next) {
@@ -1005,7 +1011,7 @@ static void InstanceOp(
     }
   }
   if (PERFETTO_UNLIKELY(flush)) {
-    ii->instance->trace_writer->Flush();
+    trace_writer->Flush();
   }
 }
 

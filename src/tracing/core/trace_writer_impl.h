@@ -66,7 +66,7 @@ class TraceWriterImpl : public TraceWriter,
     return protobuf_stream_writer_.written();
   }
 
-  void ResetChunkForTesting() { cur_chunk_ = SharedMemoryABI::Chunk(); }
+  void ResetChunkForTesting();
   bool drop_packets_for_testing() const { return drop_packets_; }
 
  private:
@@ -76,6 +76,9 @@ class TraceWriterImpl : public TraceWriter,
   // ScatteredStreamWriter::Delegate implementation.
   protozero::ContiguousMemoryRange GetNewBuffer() override;
   uint8_t* AnnotatePatch(uint8_t*) override;
+
+  // Finalizes |spare_packet_|, if there's one.
+  void FinalizeSparePacketIfAny();
 
   // The per-producer arbiter that coordinates access to the shared memory
   // buffer from several threads.
@@ -118,6 +121,14 @@ class TraceWriterImpl : public TraceWriter,
   //   fragment.
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
+
+  // When using FinishTracePacket(), the epilogue of it creates immediately a
+  // new packet. This is to keep the packet count inflated by one and allowing
+  // service-side scraping. When that happens, the "ready for use" packet handle
+  // created by FinishTracePacket()'s epilogue is stored here (and points to
+  // cur_packet_). This is effectively a fresh packet ready to be used without
+  // further logic.
+  protozero::MessageHandle<protos::pbzero::TracePacket> spare_packet_;
 
   // The start address of |cur_packet_| within |cur_chunk_|. Used to figure out
   // fragments sizes when a TracePacket write is interrupted by GetNewBuffer().
