@@ -715,6 +715,21 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
 no such column: t)");
 }
 
+TEST_F(TraceProcessorIntegrationTest, FunctionRegistractionError) {
+  auto it =
+      Query("create perfetto function f() returns INT as select * from foo");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  it = Query("SELECT foo()");
+  ASSERT_FALSE(it.Next());
+  ASSERT_FALSE(it.Status().ok());
+
+  it = Query("create perfetto function f() returns INT as select 1");
+  ASSERT_FALSE(it.Next());
+  ASSERT_TRUE(it.Status().ok());
+}
+
 }  // namespace
 }  // namespace trace_processor
 }  // namespace perfetto
