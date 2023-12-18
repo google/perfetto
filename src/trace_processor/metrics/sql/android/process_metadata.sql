@@ -56,7 +56,7 @@ FROM process_metadata_table
 LEFT JOIN upid_packages USING (upid);
 
 -- Given a process name, return if it is debuggable.
-CREATE PERFETTO FUNCTION is_process_debuggable(process_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION is_process_debuggable(process_name STRING)
 RETURNS BOOL AS
 SELECT p.debuggable
 FROM process_metadata_table p

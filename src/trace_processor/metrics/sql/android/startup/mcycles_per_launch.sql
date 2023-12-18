@@ -55,7 +55,7 @@ GROUP BY 1, 2;
 
 -- Given a launch id and core type, returns the number of mcycles consumed
 -- on CPUs of that core type during the launch.
-CREATE PERFETTO FUNCTION mcycles_for_launch_and_core_type(startup_id INT, core_type STRING)
+CREATE OR REPLACE PERFETTO FUNCTION mcycles_for_launch_and_core_type(startup_id INT, core_type STRING)
 RETURNS INT AS
 SELECT mcycles
 FROM mcycles_per_core_type_per_launch m
@@ -93,7 +93,7 @@ WHERE mcycles_rank <= 5;
 
 -- Given a launch id, returns the name of the processes consuming the most
 -- mcycles during the launch excluding the process being started.
-CREATE PERFETTO FUNCTION n_most_active_process_names_for_launch(startup_id INT)
+CREATE OR REPLACE PERFETTO FUNCTION n_most_active_process_names_for_launch(startup_id INT)
 RETURNS STRING AS
 SELECT RepeatedField(process_name)
 FROM (
@@ -105,7 +105,7 @@ FROM (
 );
 
 -- Given a launch id, returns the most active process name.
-CREATE PERFETTO FUNCTION most_active_process_for_launch(startup_id INT)
+CREATE OR REPLACE PERFETTO FUNCTION most_active_process_for_launch(startup_id INT)
 RETURNS STRING AS
 SELECT process.name AS process_name
 FROM top_mcyles_process_excluding_started_per_launch

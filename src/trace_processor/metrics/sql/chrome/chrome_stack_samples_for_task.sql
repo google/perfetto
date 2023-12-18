@@ -25,7 +25,7 @@
 
 INCLUDE PERFETTO MODULE chrome.tasks;
 
-CREATE PERFETTO FUNCTION describe_symbol(symbol STRING, frame_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION describe_symbol(symbol STRING, frame_name STRING)
 RETURNS STRING AS
 SELECT COALESCE($symbol,
   CASE WHEN demangle($frame_name) IS NULL
