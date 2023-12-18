@@ -17,7 +17,7 @@
 INCLUDE PERFETTO MODULE android.startup.startups;
 
 -- Helper function to build a Slice proto from a duration.
-CREATE PERFETTO FUNCTION startup_slice_proto(dur INT)
+CREATE OR REPLACE PERFETTO FUNCTION startup_slice_proto(dur INT)
 RETURNS PROTO AS
 SELECT AndroidStartupMetric_Slice(
   "dur_ns", $dur,
@@ -33,7 +33,7 @@ SELECT * FROM android_thread_slices_for_all_startups;
 
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto,
 -- summing the slice durations across the whole startup.
-CREATE PERFETTO FUNCTION dur_sum_slice_proto_for_launch(startup_id LONG, slice_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION dur_sum_slice_proto_for_launch(startup_id LONG, slice_name STRING)
 RETURNS PROTO AS
 SELECT NULL_IF_EMPTY(
   startup_slice_proto(
@@ -43,7 +43,7 @@ SELECT NULL_IF_EMPTY(
 
 -- Same as |dur_sum_slice_proto_for_launch| except only counting slices happening
 -- on the main thread.
-CREATE PERFETTO FUNCTION dur_sum_main_thread_slice_proto_for_launch(startup_id LONG, slice_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION dur_sum_main_thread_slice_proto_for_launch(startup_id LONG, slice_name STRING)
 RETURNS PROTO AS
 SELECT NULL_IF_EMPTY(
   startup_slice_proto(
@@ -54,7 +54,7 @@ SELECT NULL_IF_EMPTY(
 -- Given a launch id and GLOB for a slice name, returns the startup slice proto by
 -- taking the duration between the start of the launch and start of the slice.
 -- If multiple slices match, picks the latest one which started during the launch.
-CREATE PERFETTO FUNCTION launch_to_main_thread_slice_proto(startup_id INT, slice_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION launch_to_main_thread_slice_proto(startup_id INT, slice_name STRING)
 RETURNS PROTO AS
 SELECT NULL_IF_EMPTY(startup_slice_proto(MAX(slice_ts) - startup_ts))
 FROM android_thread_slices_for_all_startups s
@@ -66,7 +66,7 @@ WHERE
   (t.end_ts IS NULL OR t.end_ts >= s.startup_ts_end);
 
 -- Given a lauch id, returns the total time spent in GC
-CREATE PERFETTO FUNCTION total_gc_time_by_launch(startup_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION total_gc_time_by_launch(startup_id LONG)
 RETURNS INT AS
 SELECT SUM(slice_dur)
 FROM android_thread_slices_for_all_startups slice
@@ -79,7 +79,7 @@ WHERE
   );
 
 -- Given a launch id and package name, returns if baseline or cloud profile is missing.
-CREATE PERFETTO FUNCTION missing_baseline_profile_for_launch(startup_id LONG, pkg_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION missing_baseline_profile_for_launch(startup_id LONG, pkg_name STRING)
 RETURNS BOOL AS
 SELECT (COUNT(slice_name) > 0)
 FROM (
@@ -100,7 +100,7 @@ WHERE
   AND STR_SPLIT(STR_SPLIT(slice_name, " filter=", 1), " reason=", 0) != "speed-profile";
 
 -- Given a launch id, returns if there is a main thread run-from-apk slice.
-CREATE PERFETTO FUNCTION run_from_apk_for_launch(launch_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION run_from_apk_for_launch(launch_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice_name, startup_id, is_main_thread
@@ -112,7 +112,7 @@ SELECT EXISTS(
       GLOB ("*" || "run-from-apk" || "*")
 );
 
-CREATE PERFETTO FUNCTION summary_for_optimization_status(
+CREATE OR REPLACE PERFETTO FUNCTION summary_for_optimization_status(
   loc STRING,
   status STRING,
   filter_str STRING,
@@ -142,7 +142,7 @@ JOIN slice reply ON reply.id = arrow.slice_in
 WHERE reply.dur > $threshold AND request.is_main_thread;
 
 -- Given a launch id, return if unlock is running by systemui during the launch.
-CREATE PERFETTO FUNCTION is_unlock_running_during_launch(startup_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION is_unlock_running_during_launch(startup_id LONG)
 RETURNS BOOL AS
 SELECT EXISTS(
   SELECT slice.name

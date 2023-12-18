@@ -399,13 +399,13 @@ TEST_F(TraceProcessorIntegrationTest, MAYBE_Clusterfuzz28766) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesInvariant) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   uint64_t first_restore = RestoreInitialTables();
   ASSERT_EQ(RestoreInitialTables(), first_restore);
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -425,7 +425,8 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
     }
     // 3. Runtime function
     {
-      auto it = Query("CREATE PERFETTO FUNCTION obj3() RETURNS INT AS 1;");
+      auto it =
+          Query("CREATE PERFETTO FUNCTION obj3() RETURNS INT AS SELECT 1;");
       it.Next();
       ASSERT_TRUE(it.Status().ok());
     }
@@ -453,7 +454,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesPerfettoSql) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -479,7 +480,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesStandardSqlite) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -499,7 +500,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesModules) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -538,7 +539,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesSpanJoin) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {
@@ -555,7 +556,7 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesWithClause) {
 }
 
 TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesIndex) {
-  ASSERT_TRUE(LoadTrace("android_sched_and_ps.pb").ok());
+  Processor()->NotifyEndOfFile();
   RestoreInitialTables();
 
   for (int repeat = 0; repeat < 3; repeat++) {

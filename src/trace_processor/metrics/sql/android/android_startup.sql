@@ -60,7 +60,7 @@ JOIN slice ON (
 WHERE l.startup_id = $startup_id AND slice.name GLOB 'Start proc: *';
 
 -- Returns the fully drawn slice proto given a launch id.
-CREATE PERFETTO FUNCTION report_fully_drawn_for_launch(startup_id INT)
+CREATE OR REPLACE PERFETTO FUNCTION report_fully_drawn_for_launch(startup_id INT)
 RETURNS PROTO AS
 SELECT
   startup_slice_proto(report_fully_drawn_ts - launch_ts)
