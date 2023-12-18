@@ -193,7 +193,7 @@ RETURNS STRING AS
     LIMIT 1;
 
 
-CREATE PERFETTO FUNCTION get_slow_start_reason_detailed(startup_id LONG)
+CREATE OR REPLACE PERFETTO FUNCTION get_slow_start_reason_detailed(startup_id LONG)
 RETURNS PROTO AS
       SELECT RepeatedField(AndroidStartupMetric_SlowStartReasonDetailed(
         'reason', slow_cause,

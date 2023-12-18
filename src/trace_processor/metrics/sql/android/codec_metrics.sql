@@ -83,7 +83,7 @@ JOIN codec_per_thread_cpu_use using(process_name);
 
 -- Utility function to trim codec trace string: extract the string demilited
 -- by the limiter.
-CREATE PERFETTO FUNCTION extract_codec_string(slice_name STRING, limiter STRING)
+CREATE OR REPLACE PERFETTO FUNCTION extract_codec_string(slice_name STRING, limiter STRING)
 RETURNS STRING AS
 SELECT CASE
   -- Delimit with the first occurrence

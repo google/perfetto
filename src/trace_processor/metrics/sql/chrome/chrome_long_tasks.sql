@@ -56,7 +56,7 @@ SELECT
   printf("%s %s(hash=%s)", interface_name, message_type, ipc_hash) as task_name
 FROM slices_with_mojo_data;
 
-CREATE PERFETTO FUNCTION is_long_choreographer_task(dur LONG)
+CREATE OR REPLACE PERFETTO FUNCTION is_long_choreographer_task(dur LONG)
 RETURNS BOOL AS
 SELECT $dur >= 4 * 1e6;
 
