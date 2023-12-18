@@ -12,22 +12,69 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {lookupPath, shallowEquals} from './object_utils';
+import {getPath, setPath, shallowEquals} from './object_utils';
 
-test('lookupPath', () => {
-  const nested = {baz: 'qux'};
+describe('getPath', () => {
+  const nested = {quux: 'qux'};
   const value = {
     foo: {
       bar: [1, 2, 3],
     },
     baz: nested,
   };
-  expect(lookupPath(value, ['foo', 'bar', 1])).toBe(2);
-  expect(lookupPath(value, ['foo', 'bar', 2])).toBe(3);
-  expect(lookupPath(value, ['foo', 'bar'])).toStrictEqual([1, 2, 3]);
-  expect(lookupPath(value, ['foo'])).toStrictEqual({bar: [1, 2, 3]});
-  expect(lookupPath(value, [])).toBe(value);
-  expect(lookupPath(value, ['baz'])).toBe(nested);
+
+  test('happy path', () => {
+    expect(getPath(value, ['foo', 'bar', 1])).toBe(2);
+    expect(getPath(value, ['foo', 'bar', 2])).toBe(3);
+    expect(getPath(value, ['foo', 'bar'])).toEqual([1, 2, 3]);
+    expect(getPath(value, ['foo'])).toEqual({bar: [1, 2, 3]});
+    expect(getPath(value, [])).toBe(value);
+    expect(getPath(value, ['baz'])).toBe(nested);
+  });
+
+  it('returns undefined when path is incomplete', () => {
+    // value.quux does not exist so we expect undefined to be returned
+    expect(getPath(value, ['quux'])).toBe(undefined);
+    expect(getPath(value, ['quux', 'corge'])).toBe(undefined);
+  });
+});
+
+describe('setPath', () => {
+  const nested = {quux: 'qux'};
+  const value = {
+    foo: {
+      bar: [1, 2, 3],
+    },
+    baz: nested,
+  };
+
+  test('happy path', () => {
+    setPath(value, ['foo', 'bar', 1], 10);
+    expect(value).toEqual({
+      foo: {
+        bar: [1, 10, 3],
+      },
+      baz: nested,
+    });
+  });
+
+  it('appends node when target node is missing', () => {
+    setPath(value, ['quux'], 'abc');
+    expect((value as unknown as {quux: string})['quux']).toBe('abc');
+  });
+
+  it('throws when path node(s) are missing', () => {
+    // value.quux does not exist, so setting value.quux.corge is an error.
+    expect(() => {
+      setPath(value, ['quux', 'corge'], 'abc');
+    }).toThrowError(TypeError);
+  });
+
+  it('throws when path is empty', () => {
+    expect(() => {
+      setPath(value, [], 'abc');
+    }).toThrowError(TypeError);
+  });
 });
 
 test('shallowEquals', () => {

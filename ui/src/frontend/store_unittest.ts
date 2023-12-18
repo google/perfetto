@@ -14,16 +14,39 @@
 
 import {Draft} from 'immer';
 
-import {createStore, StoreError} from './store';
+import {createStore} from './store';
 import {using} from '../base/disposable';
 
-interface NestedState {
+interface Bar {
   value: number;
 }
 
 interface Foo {
   counter: number;
-  nested: NestedState;
+  nested: Bar;
+}
+
+function migrateFoo(init: unknown): Foo {
+  const migrated: Foo = {
+    counter: 123,
+    nested: {
+      value: 456,
+    },
+  };
+  if (init && typeof init === 'object') {
+    if ('counter' in init && typeof init.counter === 'number') {
+      migrated.counter = init.counter;
+    }
+    if ('nested' in init && typeof init.nested === 'object' && init.nested) {
+      if ('value' in init.nested && typeof init.nested.value === 'number') {
+        migrated.nested.value = init.nested.value;
+      }
+    }
+  }
+
+  console.log('migrating', init);
+
+  return migrated;
 }
 
 interface State {
@@ -39,36 +62,34 @@ const initialState: State = {
   },
 };
 
-describe('store', () => {
-  it('can initialise', () => {
-    const store = createStore(initialState);
-    expect(store.state).toEqual(initialState);
-  });
-
-  test('old state !== state after edits', () => {
+describe('root store', () => {
+  test('edit', () => {
     const store = createStore(initialState);
     store.edit((draft) => {
-      draft.foo.nested.value = 88;
-    });
-    expect(store.state).not.toEqual(initialState);
-  });
-
-  it('can edit', () => {
-    const store = createStore(initialState);
-    store.edit((draft) => {
-      draft.foo.counter += 1;
+      draft.foo.counter += 123;
     });
 
     expect(store.state).toEqual({
-      ...initialState,
       foo: {
-        ...initialState.foo,
-        counter: 1,
+        counter: 123,
+        nested: {
+          value: 42,
+        },
       },
     });
   });
 
-  it('can take multiple edits', () => {
+  test('state [in]equality', () => {
+    const store = createStore(initialState);
+    store.edit((draft) => {
+      draft.foo.counter = 88;
+    });
+    expect(store.state).not.toBe(initialState);
+    expect(store.state.foo).not.toBe(initialState.foo);
+    expect(store.state.foo.nested).toBe(initialState.foo.nested);
+  });
+
+  it('can take multiple edits at once', () => {
     const store = createStore(initialState);
     const callback = jest.fn();
 
@@ -76,30 +97,20 @@ describe('store', () => {
 
     store.edit([
       (draft) => {
-        draft.foo.counter += 1;
+        draft.foo.counter += 10;
       },
       (draft) => {
-        draft.foo.nested.value += 1;
+        draft.foo.counter += 10;
       },
     ]);
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(
-        {
-          foo: {
-            counter: 1,
-            nested: {
-              value: 43,
-            },
-          },
-        },
-        initialState);
-
+    expect(callback).toHaveBeenCalledWith(store, initialState);
     expect(store.state).toEqual({
       foo: {
-        counter: 1,
+        counter: 20,
         nested: {
-          value: 43,
+          value: 42,
         },
       },
     });
@@ -126,14 +137,7 @@ describe('store', () => {
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(
-        {
-          foo: {
-            ...initialState.foo,
-            counter: 1,
-          },
-        },
-        initialState);
+    expect(callback).toHaveBeenCalledWith(store, initialState);
   });
 
   it('does not notify unsubscribed subscribers', () => {
@@ -152,16 +156,41 @@ describe('store', () => {
   });
 });
 
-describe('proxy store', () => {
-  it('can initialise and edit', () => {
+describe('sub-store', () => {
+  test('edit', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
+    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
 
-    fooState.edit((draft) => {
+    subStore.edit((draft) => {
       draft.counter += 1;
     });
 
-    expect(fooState.state).toEqual({
+    expect(subStore.state).toEqual({
+      counter: 1,
+      nested: {
+        value: 42,
+      },
+    });
+
+    expect(store.state).toEqual({
+      foo: {
+        counter: 1,
+        nested: {
+          value: 42,
+        },
+      },
+    });
+  });
+
+  test('edit from root store', () => {
+    const store = createStore(initialState);
+    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
+
+    store.edit((draft) => {
+      draft.foo.counter += 1;
+    });
+
+    expect(subStore.state).toEqual({
       counter: 1,
       nested: {
         value: 42,
@@ -169,10 +198,11 @@ describe('proxy store', () => {
     });
   });
 
-  it('can create more proxies and edit', () => {
+  it('can create more substores and edit', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
-    const nestedStore = fooState.createProxy<NestedState>(['nested']);
+    const fooState = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
+    const nestedStore =
+        fooState.createSubStore<Bar>(['nested'], (x) => x as Bar);
 
     nestedStore.edit((draft) => {
       draft.value += 1;
@@ -185,90 +215,129 @@ describe('proxy store', () => {
 
   it('notifies subscribers', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
+    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
     const callback = jest.fn();
 
-    fooState.subscribe(callback);
+    subStore.subscribe(callback);
 
-    store.edit((draft) => {
-      draft.foo.counter += 1;
+    subStore.edit((draft) => {
+      draft.counter += 1;
     });
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(
-        {
-          ...initialState.foo,
-          counter: 1,
-        },
-        initialState.foo);
+    expect(callback).toHaveBeenCalledWith(subStore, initialState.foo);
   });
 
   it('does not notify unsubscribed subscribers', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
+    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
     const callback = jest.fn();
 
     // Subscribe then immediately unsubscribe
-    using(store.subscribe(callback));
+    using(subStore.subscribe(callback));
 
     // Make an arbitrary edit
-    fooState.edit((draft) => {
+    subStore.edit((draft) => {
       draft.counter += 1;
     });
 
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('throws on state access when path doesn\'t exist', () => {
+  it('handles reading when path doesn\t exist in root store', () => {
     const store = createStore(initialState);
 
-    // This path is incorrect - baz doesn't exist in State
-    const fooStore = store.createProxy<Foo>(['baz']);
-
-    expect(() => {
-      fooStore.state;
-    }).toThrow(StoreError);
+    // This target node is missing - baz doesn't exist in State
+    const subStore = store.createSubStore<Foo>(['baz'], (x) => x as Foo);
+    expect(subStore.state).toBe(undefined);
   });
 
-  it('throws on edit when path doesn\'t exist', () => {
+  it('handles edit when path doesn\'t exist in root store', () => {
     const store = createStore(initialState);
+    const value: Foo = {
+      counter: 123,
+      nested: {
+        value: 456,
+      },
+    };
 
-    // This path is incorrect - baz doesn't exist in State
-    const fooState = store.createProxy<Foo>(['baz']);
+    // This target node is missing - baz doesn't exist in State
+    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
 
-    expect(() => {
-      fooState.edit((draft) => {
-        draft.counter += 1;
-      });
-    }).toThrow(StoreError);
+    // Edits should work just fine, but the root store will not be modified.
+    subStore.edit((draft) => {
+      draft.counter += 1;
+    });
+  });
+
+  it('check subscriber only called once when edits made to undefined root path',
+     () => {
+       const store = createStore(initialState);
+       const value: Foo = {
+         counter: 123,
+         nested: {
+           value: 456,
+         },
+       };
+
+       const callback = jest.fn();
+
+       // This target node is missing - baz doesn't exist in State
+       const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
+       subStore.subscribe(callback);
+
+       // Edits should work just fine, but the root store will not be modified.
+       subStore.edit((draft) => {
+         draft.counter += 1;
+       });
+
+       expect(callback).toHaveBeenCalledTimes(1);
+       expect(callback).toHaveBeenCalledWith(subStore, value);
+     });
+
+  it('notifies subscribers even when path doesn\'t exist in root store', () => {
+    const store = createStore(initialState);
+    const value: Foo = {
+      counter: 123,
+      nested: {
+        value: 456,
+      },
+    };
+    const subStore = store.createSubStore<Foo>(['baz', 'quux'], () => value);
+
+    const callback = jest.fn();
+    subStore.subscribe(callback);
+
+    subStore.edit((draft) => {
+      draft.counter += 1;
+    });
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(subStore, value);
   });
 
   it('notifies when relevant edits are made from root store', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
+    const subStore = store.createSubStore<Foo>(['foo'], (x) => x as Foo);
     const callback = jest.fn();
 
     // Subscribe on the proxy store
-    fooState.subscribe(callback);
+    subStore.subscribe(callback);
 
-    // Edit the root store
+    // Edit the subtree from the root store
     store.edit((draft) => {
       draft.foo.counter++;
     });
 
     // Expect proxy callback called with correct subtree
-    expect(callback).toHaveBeenCalled();
-    expect(callback).toHaveBeenCalledWith(
-        {
-          ...initialState.foo,
-          counter: 1,
-        },
-        initialState.foo);
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(subStore, initialState.foo);
   });
 
-  it('ignores irrrelevant edits from the root store', () => {
+  it('ignores irrelevant edits from the root store', () => {
     const store = createStore(initialState);
-    const nestedStore = store.createProxy<NestedState>(['foo', 'nested']);
+    const nestedStore =
+        store.createSubStore<Bar>(['foo', 'nested'], (x) => x as Bar);
     const callback = jest.fn();
 
     // Subscribe on the proxy store
@@ -283,103 +352,67 @@ describe('proxy store', () => {
     expect(callback).not.toHaveBeenCalled();
   });
 
-  it('notifies subscribers', () => {
+  it('immutable [in]equality works', () => {
     const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
-    const callback = jest.fn();
+    const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+    const before = subStore.state;
 
-    fooState.subscribe(callback);
-
-    store.edit((draft) => {
-      draft.foo.counter += 1;
-    });
-
-    expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(
-        {
-          ...initialState.foo,
-          counter: 1,
-        },
-        initialState.foo);
-  });
-
-  it('does not notify unsubscribed subscribers', () => {
-    const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
-    const callback = jest.fn();
-
-    // Subscribe then immediately unsubscribe
-    fooState.subscribe(callback).dispose();
-
-    // Make an arbitrary edit
-    fooState.edit((draft) => {
+    subStore.edit((draft) => {
       draft.counter += 1;
     });
 
-    expect(callback).not.toHaveBeenCalled();
+    const after = subStore.state;
+
+    // something has changed so root should not equal
+    expect(before).not.toBe(after);
+
+    // nested has not changed and so should be the before version.
+    expect(before.nested).toBe(after.nested);
   });
 
-  it('throws on state access when path doesn\'t exist', () => {
-    const store = createStore(initialState);
+  // This test depends on the migrate function - if it attempts to preserve
+  // equality then we might have a chance, but our migrate function here does
+  // not, and I'm not sure we can expect people do provide one that does.
+  // TODO(stevegolton): See if we can get this working, regardless of migrate
+  // function implementation.
+  it.skip(
+      'unrelated state refs are still equal when modified from root store',
+      () => {
+        const store = createStore(initialState);
+        const subStore = store.createSubStore<Foo>(['foo'], migrateFoo);
+        const before = subStore.state;
 
-    // This path is incorrect - baz doesn't exist in State
-    const fooStore = store.createProxy<Foo>(['baz']);
+        // Check that unrelated state is still the same even though subtree is
+        // modified from the root store
+        store.edit((draft) => {
+          draft.foo.counter = 1234;
+        });
 
-    expect(() => {
-      fooStore.state;
-    }).toThrow(StoreError);
-  });
-
-  it('throws on edit when path doesn\'t exist', () => {
-    const store = createStore(initialState);
-
-    // This path is incorrect - baz doesn't exist in State
-    const fooState = store.createProxy<Foo>(['baz']);
-
-    expect(() => {
-      fooState.edit((draft) => {
-        draft.counter += 1;
+        expect(before.nested).toBe(subStore.state.nested);
+        expect(subStore.state.counter).toBe(1234);
       });
-    }).toThrow(StoreError);
-  });
 
-  it('notifies when relevant edits are made from root store', () => {
-    const store = createStore(initialState);
-    const fooState = store.createProxy<Foo>(['foo']);
-    const callback = jest.fn();
+  it('works when underlying state is undefined', () => {
+    interface RootState {
+      dict: {[key: string]: unknown}
+    }
+    interface ProxyState {
+      bar: string
+    }
 
-    // Subscribe on the proxy store
-    fooState.subscribe(callback);
+    const store = createStore<RootState>({dict: {}});
+    const migrate = (init: unknown) => (init ?? {bar: 'bar'}) as ProxyState;
+    const subStore = store.createSubStore(['dict', 'foo'], migrate);
 
-    // Edit the root store
-    store.edit((draft) => {
-      draft.foo.counter++;
+    // Check initial migration works, yet underlying store is untouched
+    expect(subStore.state.bar).toBe('bar');
+    expect(store.state.dict['foo']).toBe(undefined);
+
+    // Check updates work
+    subStore.edit((draft) => {
+      draft.bar = 'baz';
     });
-
-    // Expect proxy callback called with correct subtree
-    expect(callback).toHaveBeenCalled();
-    expect(callback).toHaveBeenCalledWith(
-        {
-          ...initialState.foo,
-          counter: 1,
-        },
-        initialState.foo);
-  });
-
-  it('ignores irrrelevant edits from the root store', () => {
-    const store = createStore(initialState);
-    const nestedStore = store.createProxy<NestedState>(['foo', 'nested']);
-    const callback = jest.fn();
-
-    // Subscribe on the proxy store
-    nestedStore.subscribe(callback);
-
-    // Edit an irrelevant subtree on the root store
-    store.edit((draft) => {
-      draft.foo.counter++;
-    });
-
-    // Ensure proxy callback hasn't been called
-    expect(callback).not.toHaveBeenCalled();
+    expect(subStore.state.bar).toBe('baz');
+    expect((store.state.dict['foo'] as ProxyState).bar).toBe('baz');
   });
 });

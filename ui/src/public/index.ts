@@ -18,10 +18,10 @@ import {Hotkey} from '../base/hotkeys';
 import {duration, time} from '../base/time';
 import {ColorScheme} from '../common/colorizer';
 import {PanelSize} from '../frontend/panel';
-import {Store} from '../frontend/store';
+import {Migrate, Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
 
-export {createStore, Store} from '../frontend/store';
+export {createStore, Migrate, Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
@@ -142,8 +142,6 @@ export interface PluginContext {
     isVisible(): boolean;
   };
 }
-
-export type Migrate<State> = (init: unknown) => State;
 
 export interface TrackContext {
   // This track's key, used for making selections et al.
