@@ -104,6 +104,24 @@ RangeOrBitVector DenseNullStorage::IndexSearch(FilterOp op,
                                                bool sorted) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullStorage::IndexSearch");
 
+  if (op == FilterOp::kIsNull) {
+    switch (inner_->ValidateSearchConstraints(sql_val, op)) {
+      case SearchValidationResult::kNoData: {
+        BitVector::Builder null_indices(indices_size);
+        for (uint32_t* it = indices; it != indices + indices_size; it++) {
+          null_indices.Append(!non_null_->IsSet(*it));
+        }
+        // There is no need to search in underlying storage. We should just
+        // check if the index is set in |non_null_|.
+        return RangeOrBitVector(std::move(null_indices).Build());
+      }
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(RowMap::Range(0, indices_size));
+      case SearchValidationResult::kOk:
+        break;
+    }
+  }
+
   RangeOrBitVector inner_res =
       inner_->IndexSearch(op, sql_val, indices, indices_size, sorted);
   if (inner_res.IsRange()) {
