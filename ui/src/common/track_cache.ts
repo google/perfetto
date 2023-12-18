@@ -76,12 +76,8 @@ export class TrackCache {
       const trackContext: TrackContext = {
         trackKey: key,
         mountStore: <T>(migrate: Migrate<T>) => {
-          const {store, state} = globals;
-          const migratedState = migrate(state.tracks[key].state);
-          globals.store.edit((draft) => {
-            draft.tracks[key].state = migratedState;
-          });
-          return store.createProxy<T>(['tracks', key, 'state']);
+          const path = ['tracks', key, 'state'];
+          return globals.store.createSubStore(path, migrate);
         },
         params,
       };

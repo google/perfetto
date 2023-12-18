@@ -15,167 +15,110 @@
 import produce, {Draft} from 'immer';
 
 import {Disposable} from '../base/disposable';
-import {lookupPath, Path} from '../base/object_utils';
-import {exists} from '../base/utils';
+import {getPath, Path, setPath} from '../base/object_utils';
 
-export class StoreError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'StoreError';
-  }
+export type Migrate<T> = (init: unknown) => T;
+export type Edit<T> = (draft: Draft<T>) => void;
+export type Callback<T> = (store: Store<T>, previous: T) => void;
+
+/**
+ * Create a new root-level store.
+ *
+ * @template T The type of this store's state.
+ * @param {T} initialState Initial state of the store.
+ * @return {Store<T>} The newly created store.
+ */
+export function createStore<T>(initialState: T): Store<T> {
+  return new RootStore<T>(initialState);
 }
 
-// Describes a generic edit on a store of type T.
-export type Edit<T> = (draft: Draft<T>) => void;
-
-// Describes a callback from a store notifying subscribers of state changes.
-export type SubscriptionCallback<T> = (state: T, oldState: T) => void;
-
-// Describes a generic store of type T where T is the type of the state object
-// the store manages.
-// A store can be edited, subscribed to, and have proxies created from it.
 export interface Store<T> extends Disposable {
-  // Access to the store's state.
-  // This state should be treated as immutable. It may be frozen in the future.
+  /**
+   * Access the immutable state of this store.
+   */
   get state(): T;
 
-  // Apply one or multiple edits. Multiple edits are applied atomically.
-  // If any edits throw, the state is left unchanged.
-  // Subscribers are only called after all edits are made.
-  // Note: Purposely avoided using ...rest parameters here to avoid overflowing
-  // the stack when passing huge arrays of edits.
+  /**
+   * Mutate the store's state.
+   *
+   * @param {Edit<T> | Edit<T>[]} edits The edit (or edits) to the store.
+   */
   edit(edits: Edit<T>|Edit<T>[]): void;
 
-  // Create a new proxy store on a sub-tree of the state.
-  // This proxy store looks and feels like a regular store, but acts only on a
-  // specific subtree within its root store.
-  //
-  // The path doesn't need to exist in the object, but operations will be
-  // limited until it does.
-  // When the path is missing:
-  //  - Accessing state on the proxy will throw.
-  //  - Calling edit() on the proxy will throw.
-  //  - The proxy won't notify subscribers the first time the subtree becomes
-  //    defined, or when it becomes undefined.
-  createProxy<SubStateT>(path: Path): Store<SubStateT>;
+  /**
+   * Create a sub-store from a subtree of the state from this store.
+   *
+   * The returned store looks and feels like a regular store but acts only on a
+   * specific subtree of its parent store. Reads are writes are channelled
+   * through to the parent store via the |migrate| function.
+   *
+   * |migrate| is called the first time we access our sub-store's state and
+   * whenever the subtree changes in the root store.
+   * This migrate function takes the state of the subtree from the sub-store's
+   * parent store which has unknown type and is responsible for returning a
+   * value whose type matches that of the sub-store's state.
+   *
+   * Sub-stores may be created over the top of subtrees which are not yet fully
+   * defined. The state is written to the parent store on first edit. The
+   * sub-store can also deal with the underlying subtree becoming undefined
+   * again at some point in the future, and so is robust to unpredictable
+   * changes to the root store.
+   *
+   * @template U The type of the sub-store's state.
+   * @param path The path to the subtree this sub-store is based on.
+   * @example
+   * // Given a store whose state takes the form:
+   * {
+   *   foo: {
+   *     bar: [ {baz: 123}, {baz: 42} ],
+   *   },
+   * }
+   *
+   * // A sub-store crated on path: ['foo','bar', 1] would only see the state:
+   * {
+   *   baz: 42,
+   * }
+   * @param migrate A function used to migrate from the parent store's subtree
+   * to the sub-store's state.
+   * @example
+   * interface RootState {dict: {[key: string]: unknown}};
+   * interface SubState {foo: string};
+   *
+   * const store = createStore({dict: {}});
+   * const migrate = (init: unknown) => (init ?? {foo: 'bar'}) as SubState;
+   * const subStore = store.createSubStore(store, ['dict', 'foo'], migrate);
+   * // |dict['foo']| will be created the first time we edit our sub-store.
+   * @warning Migration functions should properly validate the incoming state.
+   * Blindly using type assertions can lead to instability.
+   * @returns {Store<U>} The newly created sub-store.
+   */
+  createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U>;
 
-  // Register to be notified when edits are made to the store.
-  // The callback will be called whenever edits are made to the state managed by
-  // this store.
-  // Callbacks are passed the old state (state of the store before applying the
-  // edit(s)) and the new (current) state.
-  subscribe(callback: SubscriptionCallback<T>): Disposable;
+  /**
+   * Subscribe for notifications when any edits are made to this store.
+   *
+   * @param callback The function to be called.
+   * @returns {Disposable} When this is disposed, the subscription is removed.
+   */
+  subscribe(callback: Callback<T>): Disposable;
 }
 
-// Factory method to create a new store, which lets the underlying store
-// implementation change arbitrarily.
-export function createStore<T>(initialState: T) {
-  return new StoreImpl<T>(initialState);
-}
-
-// Root store implementaiton.
-class StoreImpl<T> implements Store<T> {
-  private _state: T;
-  private subscriptions = new Set<SubscriptionCallback<T>>();
+/**
+ * This class implements a standalone store (i.e. one that does not depend on a
+ * subtree of another store).
+ * @template T The type of the store's state.
+ */
+class RootStore<T> implements Store<T> {
+  private internalState: T;
+  private subscriptions = new Set<Callback<T>>();
 
   constructor(initialState: T) {
-    this._state = initialState;
-  }
-
-  dispose() {
-    // No-op
+    // Run initial state through immer to take advantage of auto-freezing
+    this.internalState = produce(initialState, () => {});
   }
 
   get state() {
-    return this._state;
-  }
-
-  edit(edit: Edit<T>|Edit<T>[]): void {
-    if (Array.isArray(edit)) {
-      return this.applyEdits(edit);
-    } else {
-      return this.applyEdits([edit]);
-    }
-  }
-
-  private applyEdits(edits: Edit<T>[]): void {
-    const oldState = this._state;
-    let newState = oldState;
-
-    edits.forEach((edit) => {
-      newState = produce(newState, edit);
-    });
-
-    // Notify subscribers only if the state has changed.
-    if (oldState !== newState) {
-      this.subscriptions.forEach((sub) => {
-        sub(newState, oldState);
-      });
-
-      // It's important this is done last in order to keep updates atomic.
-      this._state = newState;
-    }
-  }
-
-  createProxy<ProxyT>(path: Path): Store<ProxyT> {
-    return new ProxyStoreImpl<T, ProxyT>(this, path);
-  }
-
-  subscribe(callback: SubscriptionCallback<T>): Disposable {
-    this.subscriptions.add(callback);
-    return {
-      dispose: () => {
-        this.subscriptions.delete(callback);
-      },
-    };
-  }
-}
-
-// A proxy store implemenation.
-// This proxy implementation subscribes to the root store and thus must be
-// disposed of properly by calling dispose() to avoid leaks.
-// All edits are modified to operate on the subtree and passed back to the root
-// store.
-export class ProxyStoreImpl<RootT, T> implements Store<T> {
-  private subscriptions = new Set<SubscriptionCallback<T>>();
-  private rootSubscription;
-  private rootStore?: Store<RootT>;
-
-  constructor(
-      rootStore: Store<RootT>,
-      private path: Path,
-  ) {
-    this.rootStore = rootStore;
-    this.rootSubscription = rootStore.subscribe(this.rootUpdateHandler);
-  }
-
-  dispose() {
-    this.rootSubscription.dispose();
-    this.rootStore = undefined;
-  }
-
-  private rootUpdateHandler = (newState: RootT, oldState: RootT) => {
-    const newSubState = lookupPath<T>(newState, this.path);
-    const oldSubState = lookupPath<T>(oldState, this.path);
-    if (exists(newSubState) && exists(oldSubState) &&
-        newSubState != oldSubState) {
-      this.subscriptions.forEach((subscription) => {
-        subscription(newSubState, oldSubState);
-      });
-    }
-  };
-
-  get state(): T {
-    if (!this.rootStore) {
-      throw new StoreError('Proxy store is no longer useable');
-    }
-
-    const state = lookupPath<T>(this.rootStore.state, this.path);
-    if (state === undefined) {
-      throw new StoreError(`No such subtree: ${this.path}`);
-    }
-
-    return state;
+    return this.internalState;
   }
 
   edit(edit: Edit<T>|Edit<T>[]): void {
@@ -187,42 +130,145 @@ export class ProxyStoreImpl<RootT, T> implements Store<T> {
   }
 
   private applyEdits(edits: Edit<T>[]): void {
-    if (!this.rootStore) {
-      throw new StoreError('Proxy store is no longer useable');
+    const originalState = this.internalState;
+
+    const newState = edits.reduce((state, edit) => {
+      return produce(state, edit);
+    }, originalState);
+
+    if (originalState !== newState) {
+      this.internalState = newState;
+
+      // Notify subscribers
+      this.subscriptions.forEach((sub) => {
+        sub(this, originalState);
+      });
     }
-
-    // Transform edits to work on the root store.
-    const rootEdits = edits.map(
-        (edit) => (state: Draft<RootT>) => {
-          // Extract subtree and apply edits to it.
-          const subtree = lookupPath<Draft<T>>(state, this.path);
-          if (subtree === undefined) {
-            throw new StoreError(
-                `Unable to edit missing subtree: ${this.path}`);
-          }
-          edit(subtree);
-        },
-    );
-
-    // Apply edits to the root store.
-    this.rootStore.edit(rootEdits);
   }
 
-  createProxy<NewSubStateT>(path: Path): Store<NewSubStateT> {
-    if (!this.rootStore) {
-      throw new StoreError('Proxy store is no longer useable');
-    }
-
-    const fullPath = [...this.path, ...path];
-    return new ProxyStoreImpl<RootT, NewSubStateT>(this.rootStore, fullPath);
+  createSubStore<U>(path: Path, migrate: Migrate<U>): Store<U> {
+    return new SubStore(this, path, migrate);
   }
 
-  subscribe(callback: SubscriptionCallback<T>): Disposable {
+  subscribe(callback: Callback<T>): Disposable {
     this.subscriptions.add(callback);
     return {
       dispose: () => {
         this.subscriptions.delete(callback);
       },
     };
+  }
+
+  dispose(): void {
+    // No-op
+  }
+}
+
+/**
+ * This class implements a sub-store, one that is based on a subtree of another
+ * store. The parent store can be a root level store or another sub-store.
+ *
+ * This particular implementation of a sub-tree implements a write-through cache
+ * style implementation. The sub-store's state is cached internally and all
+ * edits are written through to the parent store as with a best-effort approach.
+ * If the subtree does not exist in the parent store, an error is printed to
+ * the console but the operation is still treated as a success.
+ *
+ * @template T The type of the sub-store's state.
+ * @template ParentT The type of the parent store's state.
+ */
+class SubStore<T, ParentT> implements Store<T> {
+  private parentState: unknown;
+  private cachedState: T;
+  private parentStoreSubscription: Disposable;
+  private subscriptions = new Set<Callback<T>>();
+
+  constructor(
+      private readonly parentStore: Store<ParentT>,
+      private readonly path: Path,
+      private readonly migrate: (init: unknown) => T,
+  ) {
+    this.parentState = getPath<unknown>(this.parentStore.state, this.path);
+
+    // Run initial state through immer to take advantage of auto-freezing
+    this.cachedState = produce(migrate(this.parentState), () => {});
+
+    // Subscribe to parent store changes.
+    this.parentStoreSubscription = this.parentStore.subscribe(() => {
+      const newRootState = getPath<unknown>(this.parentStore.state, this.path);
+      if (newRootState !== this.parentState) {
+        this.subscriptions.forEach((callback) => {
+          callback(this, this.cachedState);
+        });
+      }
+    });
+  }
+
+  get state(): T {
+    const parentState = getPath<unknown>(this.parentStore.state, this.path);
+    if (this.parentState === parentState) {
+      return this.cachedState;
+    } else {
+      this.parentState = parentState;
+      return this.cachedState = produce(this.cachedState, () => {
+               return this.migrate(parentState);
+             });
+    }
+  }
+
+  edit(edit: Edit<T>|Edit<T>[]): void {
+    if (Array.isArray(edit)) {
+      this.applyEdits(edit);
+    } else {
+      this.applyEdits([edit]);
+    }
+  }
+
+  private applyEdits(edits: Edit<T>[]): void {
+    const originalState = this.cachedState;
+
+    const newState = edits.reduce((state, edit) => {
+      return produce(state, edit);
+    }, originalState);
+
+    if (originalState !== newState) {
+      this.parentState = newState;
+      try {
+        this.parentStore.edit((draft) => {
+          setPath(draft, this.path, newState);
+        });
+      } catch (error) {
+        if (error instanceof TypeError) {
+          console.warn('Failed to update parent store at ', this.path);
+        } else {
+          throw error;
+        }
+      }
+
+      this.cachedState = newState;
+
+      this.subscriptions.forEach((sub) => {
+        sub(this, originalState);
+      });
+    }
+  }
+
+  createSubStore<SubtreeState>(path: Path, migrate: Migrate<SubtreeState>):
+      Store<SubtreeState> {
+    const fullPath = [...this.path, ...path];
+    return new SubStore(this.parentStore, fullPath, migrate);
+  }
+
+  subscribe(callback: Callback<T>): Disposable {
+    this.subscriptions.add(callback);
+    return {
+      dispose: () => {
+        this.subscriptions.delete(callback);
+      },
+    };
+  }
+
+  dispose(): void {
+    this.parentStoreSubscription.dispose();
   }
 }
