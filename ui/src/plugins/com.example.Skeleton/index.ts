@@ -45,7 +45,7 @@ class Skeleton implements Plugin {
   }
 
   async onTraceUnload(_: PluginContextTrace): Promise<void> {
-    //
+    this.store.dispose();
   }
 
   onDeactivate(_: PluginContext): void {
