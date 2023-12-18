@@ -546,8 +546,6 @@ export class PivotTable implements m.ClassComponent<PivotTableAttrs> {
   }
 
   view({attrs}: m.Vnode<PivotTableAttrs>): m.Children {
-    this.attributeModalHolder.update();
-
     return m('.pivot-table', this.renderResultsTable(attrs));
   }
 }

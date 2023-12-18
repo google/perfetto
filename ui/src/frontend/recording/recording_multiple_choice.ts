@@ -21,7 +21,10 @@ import {
 import {
   RecordingPageController,
 } from '../../common/recordingV2/recording_page_controller';
-import {fullscreenModalContainer} from '../modal';
+import {
+  RECORDING_MODAL_DIALOG_KEY,
+} from '../../common/recordingV2/recording_utils';
+import {closeModal} from '../modal';
 
 interface RecordingMultipleChoiceAttrs {
   targetFactories: TargetFactory[];
@@ -100,7 +103,7 @@ export class RecordingMultipleChoice implements
           {
             disabled: this.selectedIndex === -1,
             onclick: () => {
-              fullscreenModalContainer.close();
+              closeModal(RECORDING_MODAL_DIALOG_KEY);
               controller.onStartRecordingPressed();
             },
           },
