@@ -367,13 +367,14 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
   auto* ctx = static_cast<CreatedFunction::Context*>(
       sqlite_engine()->GetFunctionContext(prototype.function_name,
                                           created_argc));
-  if (ctx && replace) {
-    // If the function already exists and we are replacing it, unregister it.
-    RETURN_IF_ERROR(UnregisterFunctionWithSqlite(
-        prototype.function_name.c_str(), created_argc));
-    ctx = nullptr;
-  }
-  if (!ctx) {
+  if (ctx) {
+    if (!replace) {
+      return base::ErrStatus(
+          "CREATE PERFETTO FUNCTION[prototype=%s]: function already exists",
+          prototype.ToString().c_str());
+    }
+    CreatedFunction::Reset(ctx, this);
+  } else {
     // We register the function with SQLite before we prepare the statement so
     // the statement can reference the function itself, enabling recursive
     // calls.
@@ -383,11 +384,10 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
     RETURN_IF_ERROR(RegisterFunctionWithSqlite<CreatedFunction>(
         prototype.function_name.c_str(), created_argc,
         std::move(created_fn_ctx)));
+    runtime_function_count_++;
   }
-  runtime_function_count_++;
-  return CreatedFunction::ValidateOrPrepare(
-      ctx, replace, std::move(prototype), std::move(*opt_return_type),
-      std::move(return_type_str), std::move(sql));
+  return CreatedFunction::Prepare(ctx, std::move(prototype),
+                                  std::move(*opt_return_type), std::move(sql));
 }
 
 base::Status PerfettoSqlEngine::ExecuteCreateTable(
@@ -623,8 +623,8 @@ base::StatusOr<SqlSource> PerfettoSqlEngine::ExecuteCreateFunction(
     if (!base::StringView(name).StartsWith("$")) {
       return base::ErrStatus(
           "%s: invalid parameter name %s used in the SQL definition of "
-          "the view function: all parameters must be prefixed with '$' not ':' "
-          "or '@'.",
+          "the view function: all parameters must be prefixed with '$' not "
+          "':' or '@'.",
           state.prototype.function_name.c_str(), name);
     }
 
@@ -749,11 +749,6 @@ RuntimeTableFunction::State* PerfettoSqlEngine::GetRuntimeTableFunctionState(
 void PerfettoSqlEngine::OnRuntimeTableFunctionDestroyed(
     const std::string& name) {
   PERFETTO_CHECK(runtime_table_fn_states_.Erase(base::ToLower(name)));
-}
-
-base::Status PerfettoSqlEngine::UnregisterFunctionWithSqlite(const char* name,
-                                                             int argc) {
-  return engine_->UnregisterFunction(name, argc);
 }
 
 base::StatusOr<std::vector<std::string>>

@@ -36,7 +36,7 @@ SELECT
 FROM counter
 JOIN cuj_counter_track ON counter.track_id = cuj_counter_track.track_id;
 
-CREATE PERFETTO FUNCTION android_jank_cuj_counter_value(cuj_name STRING,
+CREATE OR REPLACE PERFETTO FUNCTION android_jank_cuj_counter_value(cuj_name STRING,
                                                         counter_name STRING,
                                                         ts_min INT,
                                                         ts_max INT)
@@ -60,7 +60,7 @@ FROM slice marker
 JOIN track marker_track on  marker_track.id = marker.track_id
 WHERE marker.name GLOB '*FT#Missed*';
 
-CREATE PERFETTO FUNCTION android_missed_vsyncs_for_callback(
+CREATE OR REPLACE PERFETTO FUNCTION android_missed_vsyncs_for_callback(
   cuj_slice_name STRING,
   ts_min INT,
   ts_max INT,
