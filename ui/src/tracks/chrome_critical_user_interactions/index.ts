@@ -42,6 +42,9 @@ import {
 
 import {PageLoadDetailsPanel} from './page_load_details_panel';
 import {StartupDetailsPanel} from './startup_details_panel';
+import {
+  WebContentInteractionPanel,
+} from './web_content_interaction_details_panel';
 
 export const CRITICAL_USER_INTERACTIONS_KIND =
     'org.chromium.CriticalUserInteraction.track';
@@ -68,6 +71,7 @@ enum CriticalUserInteractionType {
   UNKNOWN = 'Unknown',
   PAGE_LOAD = 'chrome_page_loads',
   STARTUP = 'chrome_startups',
+  WEB_CONTENT_INTERACTION = 'chrome_web_content_interactions',
 }
 
 function convertToCriticalUserInteractionType(cujType: string):
@@ -77,6 +81,8 @@ function convertToCriticalUserInteractionType(cujType: string):
       return CriticalUserInteractionType.PAGE_LOAD;
     case CriticalUserInteractionType.STARTUP:
       return CriticalUserInteractionType.STARTUP;
+    case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
+      return CriticalUserInteractionType.WEB_CONTENT_INTERACTION;
     default:
       return CriticalUserInteractionType.UNKNOWN;
   }
@@ -130,6 +136,15 @@ export class CriticalUserInteractionTrack extends
           config: {
             sqlTableName: this.tableName,
             title: 'Chrome Startup',
+          },
+        };
+        break;
+      case CriticalUserInteractionType.WEB_CONTENT_INTERACTION:
+        detailsPanel = {
+          kind: WebContentInteractionPanel.kind,
+          config: {
+            sqlTableName: this.tableName,
+            title: 'Chrome Web Content Interaction',
           },
         };
         break;
