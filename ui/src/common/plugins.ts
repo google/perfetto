@@ -272,19 +272,7 @@ class TracePluginContextImpl implements PluginContextTrace, Disposable {
   }
 
   mountStore<T>(migrate: Migrate<T>): Store<T> {
-    const globalStore = globals.store;
-
-    // Migrate initial state
-    const initialState = globalStore.state.plugins[this.pluginId];
-    const migratedState = migrate(initialState);
-
-    // Update global store with migrated plugin state
-    globalStore.edit((draft) => {
-      draft.plugins[this.pluginId] = migratedState;
-    });
-
-    // Return proxy store for this plugin
-    return globalStore.createProxy<T>(['plugins', this.pluginId]);
+    return globals.store.createSubStore(['plugins', this.pluginId], migrate);
   }
 }
 

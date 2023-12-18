@@ -610,6 +610,7 @@ export class CounterTrack extends TrackHelperLEGACY<Data> {
       await this.engine.query(
           `DROP VIEW IF EXISTS ${this.tableName('counter_view')}`);
     }
+    this.store.dispose();
   }
 }
 

@@ -54,6 +54,7 @@ import {RecordPage, updateAvailableAdbDevices} from './record_page';
 import {RecordPageV2} from './record_page_v2';
 import {Route, Router} from './router';
 import {CheckHttpRpcConnection} from './rpc_http_dialog';
+import {Store} from './store';
 import {TraceInfoPage} from './trace_info_page';
 import {maybeOpenTraceFromRoute} from './trace_url_handler';
 import {ViewerPage} from './viewer_page';
@@ -67,23 +68,25 @@ class FrontendApi {
     globals.store.subscribe(this.handleStoreUpdate);
   }
 
-  private handleStoreUpdate = (state: State, oldState: State) => {
+  private handleStoreUpdate = (store: Store<State>, oldState: State) => {
+    const newState = store.state;
+
     // If the visible time in the global state has been updated more
     // recently than the visible time handled by the frontend @ 60fps,
     // update it. This typically happens when restoring the state from a
     // permalink.
-    globals.timeline.mergeState(state.frontendLocalState);
+    globals.timeline.mergeState(newState.frontendLocalState);
 
     // Only redraw if something other than the frontendLocalState changed.
     let key: keyof State;
-    for (key in state) {
-      if (key !== 'frontendLocalState' && oldState[key] !== state[key]) {
+    for (key in store.state) {
+      if (key !== 'frontendLocalState' && oldState[key] !== newState[key]) {
         raf.scheduleFullRedraw();
         break;
       }
     }
 
-    // Run in microtask to aboid avoid reentry
+    // Run in microtask to avoid avoid reentry
     setTimeout(runControllers, 0);
   };
 
