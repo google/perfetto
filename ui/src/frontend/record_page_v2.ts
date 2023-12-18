@@ -40,7 +40,6 @@ import {
 import {raf} from '../core/raf_scheduler';
 
 import {globals} from './globals';
-import {fullscreenModalContainer} from './modal';
 import {createPage, PageAttrs} from './pages';
 import {recordConfigStore} from './record_config';
 import {
@@ -63,14 +62,12 @@ import {RecordingSettings} from './recording/recording_settings';
 import {
   FORCE_RESET_MESSAGE,
 } from './recording/recording_ui_utils';
-import {addNewTarget} from './recording/reset_target_modal';
+import {showAddNewTargetModal} from './recording/reset_target_modal';
 
 const START_RECORDING_MESSAGE = 'Start Recording';
 
 const controller = new RecordingPageController();
 const recordConfigUtils = new RecordingConfigUtils();
-// Whether the target selection modal is displayed.
-let shouldDisplayTargetModal: boolean = false;
 
 // Options for displaying a target selection menu.
 export interface TargetSelectionOptions {
@@ -110,23 +107,10 @@ function RecordingPlatformSelection() {
   return m(
       '.target',
       m('.chip',
-        {
-          onclick: () => {
-            shouldDisplayTargetModal = true;
-            fullscreenModalContainer.createNew(addNewTargetModal());
-            raf.scheduleFullRedraw();
-          },
-        },
+        {onclick: () => showAddNewTargetModal(controller)},
         m('button', 'Add new recording target'),
         m('i.material-icons', 'add')),
       targetSelection());
-}
-
-function addNewTargetModal() {
-  return {
-    ...addNewTarget(controller),
-    onClose: () => shouldDisplayTargetModal = false,
-  };
 }
 
 export function targetSelection(): m.Vnode|undefined {
@@ -242,12 +226,12 @@ function RecordingNotes() {
 
   const msgFeatNotSupported =
       m('span', `Some probes are only supported in Perfetto versions running
-      on Android Q+. Therefore, Perfetto will sideload the latest version onto 
+      on Android Q+. Therefore, Perfetto will sideload the latest version onto
       the device.`);
 
   const msgPerfettoNotSupported = m(
       'span',
-      `Perfetto is not supported natively before Android P. Therefore, Perfetto 
+      `Perfetto is not supported natively before Android P. Therefore, Perfetto
        will sideload the latest version onto the device.`);
 
   const msgLinux =
@@ -554,18 +538,14 @@ function getRecordContainer(subpage?: string): m.Vnode<any, any> {
   return m('.record-container', components);
 }
 
-export const RecordPageV2 = createPage({
+export const RecordPageV2 =
+    createPage({
 
-  oninit(): void {
-    controller.initFactories();
-  },
+      oninit(): void {
+        controller.initFactories();
+      },
 
-  view({attrs}: m.Vnode<PageAttrs>): void |
-      m.Children {
-        if (shouldDisplayTargetModal) {
-          fullscreenModalContainer.updateVdom(addNewTargetModal());
-        }
-
+      view({attrs}: m.Vnode<PageAttrs>) {
         return m(
             '.record-page',
             controller.getState() > RecordingState.TARGET_INFO_DISPLAYED ?
@@ -573,4 +553,4 @@ export const RecordPageV2 = createPage({
                 [],
             getRecordContainer(attrs.subpage));
       },
-});
+    });

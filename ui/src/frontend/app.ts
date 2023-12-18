@@ -45,7 +45,7 @@ import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {fullscreenModalContainer} from './modal';
+import {maybeRenderFullscreenModalDialog} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';
@@ -662,7 +662,7 @@ export class App implements m.ClassComponent {
             m(Alerts),
             children,
             m(CookieConsent),
-            m(fullscreenModalContainer.mithrilComponent),
+            maybeRenderFullscreenModalDialog(),
             globals.state.perfDebug && m('.perf-stats'),
             ),
     );
