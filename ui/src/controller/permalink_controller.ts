@@ -28,8 +28,8 @@ import {
   buggyToSha256,
   deserializeStateObject,
   saveState,
-  saveTrace,
   toSha256,
+  TraceGcsUploader,
 } from '../common/upload_utils';
 import {globals} from '../frontend/globals';
 import {publishConversionJobStatusUpdate} from '../frontend/publish';
@@ -168,12 +168,27 @@ export class PermalinkController extends Controller<'main'> {
 
       if (dataToUpload !== undefined) {
         PermalinkController.updateStatus(`Uploading ${traceName}`);
-        const url = await saveTrace(dataToUpload);
-        // Convert state to use URLs and remove permalink.
-        uploadState = produce(globals.state, (draft) => {
-          assertExists(draft.engine).source = {type: 'URL', url};
-          draft.permalink = {};
-        });
+        const uploader = new TraceGcsUploader(dataToUpload, () => {
+          switch (uploader.state) {
+            case 'UPLOADING':
+              const statusTxt = `Uploading ${uploader.getEtaString()}`;
+              PermalinkController.updateStatus(statusTxt);
+              break;
+            case 'UPLOADED':
+              // Convert state to use URLs and remove permalink.
+              const url = uploader.uploadedUrl;
+              uploadState = produce(globals.state, (draft) => {
+                assertExists(draft.engine).source = {type: 'URL', url};
+                draft.permalink = {};
+              });
+              break;
+            case 'ERROR':
+              PermalinkController.updateStatus(
+                  `Upload failed ${uploader.error}`);
+              break;
+          }  // switch (state)
+        });  // onProgress
+        await uploader.waitForCompletion();
       }
     }
 
