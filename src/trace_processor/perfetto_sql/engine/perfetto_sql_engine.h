@@ -17,6 +17,7 @@
 #ifndef SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 #define SRC_TRACE_PROCESSOR_PERFETTO_SQL_ENGINE_PERFETTO_SQL_ENGINE_H_
 
+#include <cstdint>
 #include <memory>
 
 #include "perfetto/base/status.h"
@@ -141,19 +142,26 @@ class PerfettoSqlEngine {
     return modules_.Find(name);
   }
 
-  // Returns the count of all runtime tables and views created as a result of
-  // using trace processor.
-  uint64_t RuntimeTablesAndViewsCount() {
-    return runtime_tables_.size() + runtime_table_fn_states_.size() +
-           runtime_views_count_;
-  }
+  // Returns the number of objects (tables, views, functions etc) registered
+  // with SQLite.
+  uint64_t SqliteRegisteredObjectCount() {
+    // This query will return all the tables, views, indexes and table functions
+    // SQLite knows about.
+    constexpr char kAllTablesQuery[] =
+        "SELECT COUNT() FROM (SELECT * FROM sqlite_master "
+        "UNION ALL SELECT * FROM sqlite_temp_master)";
+    auto stmt = ExecuteUntilLastStatement(
+        SqlSource::FromTraceProcessorImplementation(kAllTablesQuery));
+    PERFETTO_CHECK(stmt.ok());
+    uint32_t query_count =
+        static_cast<uint32_t>(sqlite3_column_int(stmt->stmt.sqlite_stmt(), 0));
+    PERFETTO_CHECK(!stmt->stmt.Step());
+    PERFETTO_CHECK(stmt->stmt.status().ok());
 
-  // Returns the count of all objects created as a result of using trace
-  // processor.
-  uint64_t AllRegisteredObjectsCount() {
-    return RuntimeTablesAndViewsCount() + static_table_count_ +
-           static_table_function_count_ + static_function_count_ +
-           runtime_function_count_ + macros_.size();
+    // The missing objects from the above query are static functions, runtime
+    // functions and macros. Add those in now.
+    return query_count + static_function_count_ + runtime_function_count_ +
+           macros_.size();
   }
 
  private:
@@ -208,11 +216,8 @@ class PerfettoSqlEngine {
   std::unique_ptr<QueryCache> query_cache_;
   StringPool* pool_ = nullptr;
 
-  uint64_t static_table_count_ = 0;
-  uint64_t static_table_function_count_ = 0;
   uint64_t static_function_count_ = 0;
   uint64_t runtime_function_count_ = 0;
-  uint64_t runtime_views_count_ = 0;
 
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
@@ -288,6 +293,8 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     typename Function::Context* ctx,
     bool deterministic) {
+  // Static functions should never be registered multiple times.
+  PERFETTO_CHECK(engine_->GetFunctionContext(name, argc) == nullptr);
   static_function_count_++;
   return engine_->RegisterFunction(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
@@ -300,6 +307,8 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     std::unique_ptr<typename Function::Context> user_data,
     bool deterministic) {
+  // Static functions should never be registered multiple times.
+  PERFETTO_CHECK(engine_->GetFunctionContext(name, argc) == nullptr);
   static_function_count_++;
   return RegisterFunctionWithSqlite<Function>(name, argc, std::move(user_data),
                                               deterministic);

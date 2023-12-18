@@ -23,6 +23,7 @@
 
 #include "perfetto/base/logging.h"
 #include "perfetto/ext/base/scoped_file.h"
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/trace_processor/basic_types.h"
 #include "perfetto/trace_processor/trace_processor.h"
 #include "protos/perfetto/common/descriptor.pbzero.h"
@@ -593,6 +594,68 @@ TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesTraceBounds) {
   }
 }
 
+TEST_F(TraceProcessorIntegrationTest, RestoreInitialTablesDependents) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it = Query("create perfetto table foo as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("create perfetto function f() returns INT as select * from foo");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+
+    it = Query("SELECT f()");
+    ASSERT_TRUE(it.Next());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 2u);
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreDependentFunction) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it =
+        Query("create perfetto function foo0() returns INT as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+  for (int i = 1; i < 100; ++i) {
+    base::StackString<1024> sql(
+        "create perfetto function foo%d() returns INT as select foo%d()", i,
+        i - 1);
+    auto it = Query(sql.c_str());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 100u);
+}
+
+TEST_F(TraceProcessorIntegrationTest, RestoreDependentTableFunction) {
+  Processor()->NotifyEndOfFile();
+  {
+    auto it = Query(
+        "create perfetto function foo0() returns TABLE(x INT) "
+        " as select 1 as x");
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok());
+  }
+  for (int i = 1; i < 100; ++i) {
+    base::StackString<1024> sql(
+        "create perfetto function foo%d() returns TABLE(x INT) "
+        " as select * from foo%d()",
+        i, i - 1);
+    auto it = Query(sql.c_str());
+    ASSERT_FALSE(it.Next());
+    ASSERT_TRUE(it.Status().ok()) << it.Status().c_message();
+  }
+
+  ASSERT_EQ(RestoreInitialTables(), 100u);
+}
+
 // This test checks that a ninja trace is tokenized properly even if read in
 // small chunks of 1KB each. The values used in the test have been cross-checked
 // with opening the same trace with ninjatracing + chrome://tracing.
@@ -715,7 +778,7 @@ TEST_F(TraceProcessorIntegrationTest, ErrorMessageModule) {
 no such column: t)");
 }
 
-TEST_F(TraceProcessorIntegrationTest, FunctionRegistractionError) {
+TEST_F(TraceProcessorIntegrationTest, FunctionRegistrationError) {
   auto it =
       Query("create perfetto function f() returns INT as select * from foo");
   ASSERT_FALSE(it.Next());
