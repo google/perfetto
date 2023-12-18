@@ -198,8 +198,6 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
   if (error) {
     PERFETTO_ELOG("Error adding table to perfetto_tables: %s", error);
     sqlite3_free(error);
-  } else {
-    static_table_count_++;
   }
 }
 
@@ -210,7 +208,6 @@ void PerfettoSqlEngine::RegisterStaticTableFunction(
                                                           std::move(fn));
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
-  static_table_function_count_++;
 }
 
 base::StatusOr<PerfettoSqlEngine::ExecutionStats> PerfettoSqlEngine::Execute(
@@ -492,7 +489,6 @@ base::Status PerfettoSqlEngine::ExecuteCreateView(
   }
 
   RETURN_IF_ERROR(Execute(create_view.create_view_sql).status());
-  runtime_views_count_++;
   return base::OkStatus();
 }
 
