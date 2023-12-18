@@ -32,7 +32,7 @@ import {Popup} from '../widgets/popup';
 
 import {Flamegraph, NodeRendering} from './flamegraph';
 import {globals} from './globals';
-import {Modal, ModalDefinition} from './modal';
+import {Modal, ModalAttrs} from './modal';
 import {debounce} from './rate_limiters';
 import {Router} from './router';
 import {getCurrentTrace} from './sidebar';
@@ -164,8 +164,8 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
     return m(Modal, {
       title: 'The flamegraph is incomplete',
       vAlign: 'TOP',
-      content: m('div',
-          'The current trace does not have a fully formed flamegraph'),
+      content:
+          m('div', 'The current trace does not have a fully formed flamegraph'),
       buttons: [
         {
           text: 'Show the errors',
@@ -180,7 +180,7 @@ export class FlamegraphDetailsPanel implements m.ClassComponent {
           },
         },
       ],
-    } as ModalDefinition);
+    } as ModalAttrs);
   }
 
   private getTitle(): string {
