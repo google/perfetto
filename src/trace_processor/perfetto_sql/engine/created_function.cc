@@ -431,11 +431,11 @@ class State : public CreatedFunction::Context {
   // Prepare a statement and push it into the stack of allocated statements
   // for this function.
   base::Status PrepareStatement() {
-    base::StatusOr<SqliteEngine::PreparedStatement> stmt =
+    SqliteEngine::PreparedStatement stmt =
         engine_->sqlite_engine()->PrepareStatement(*sql_);
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
-    stmts_.push_back(std::move(stmt.value()));
+    stmts_.push_back(std::move(stmt));
     return base::OkStatus();
   }
 
@@ -579,6 +579,10 @@ State::~State() = default;
 std::unique_ptr<CreatedFunction::Context> CreatedFunction::MakeContext(
     PerfettoSqlEngine* engine) {
   return std::make_unique<State>(engine);
+}
+
+bool CreatedFunction::IsValid(Context* ctx) {
+  return static_cast<State*>(ctx)->is_valid();
 }
 
 void CreatedFunction::Reset(Context* ctx, PerfettoSqlEngine* engine) {
