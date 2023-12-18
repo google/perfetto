@@ -12,160 +12,93 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import m from 'mithril';
+
+import {defer} from '../base/deferred';
+import {raf} from '../core/raf_scheduler';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
 // we might want to instantiate a modal dialog all the way down from a nested
 // Mithril sub-component, but we want the result dom element to be nested under
 // the root <body>.
+
+// Usage:
+// Full-screen modal use cases (the most common case)
+// --------------------------------------------------
+// - app.ts calls maybeRenderFullscreenModalDialog() when rendering the
+//   top-level vdom, if a modal dialog is created via showModal()
+// - The user (any TS code anywhere) calls showModal()
+// - showModal() takes either:
+//   - A static set of mithril vnodes (for cases when the contents of the modal
+//     dialog is static and never changes)
+//   - A function, invoked on each render pass, that returns mithril vnodes upon
+//     each invocation.
+//   - See examples in widgets_page.ts for both.
 //
-// This is achieved by splitting:
-// 1. ModalContainer: it's the placeholder (e.g., the thing that should be added
-//    under <body>) where the DOM elements will be rendered into. This is NOT
-//    a mithril component itself.
-// 2. Modal: is the Mithril component with the actual VDOM->DOM handling.
-//    This can be used directly in the cases where the modal DOM should be
-//    placed presicely where the corresponding Mithril VDOM is.
-//    In turn this is split into Modal and ModalImpl, to deal with fade-out, see
-//    comments around onbeforeremove.
+// Nested modal use-cases
+// ----------------------
+// A modal dialog can be created in a "positioned" layer (e.g., any div that has
+// position:relative|absolute), so it's modal but only within the scope of that
+// layer.
+// In this case, just ust the Modal class as a standard mithril component.
+// showModal()/closeModal() are irrelevant in this case.
 
-// Usage (in the case of DOM not matching VDOM):
-// - Create a ModalContainer instance somewhere (e.g. a singleton for the case
-//   of the full-screen modal dialog).
-// - In the view() method of the component that should host the DOM elements
-//   (e.g. in the root pages.ts) do the following:
-//   view() {
-//     return m('main',
-//        m('h2', ...)
-//        m(modalContainerInstance.mithrilComponent);
-//   }
-//
-// - In the view() method of the nested component that wants to show the modal
-//   dialog do the following:
-//   view() {
-//     if (shouldShowModalDialog) {
-//       modalContainerInstance.update({title: 'Foo', content, buttons: ...});
-//     }
-//     return m('.nested-widget',
-//       m('div', ...));
-//   }
-//
-// For one-show use-cases it's still possible to just use:
-// showModal({title: 'Foo', content, buttons: ...});
-
-import m from 'mithril';
-
-import {defer} from '../base/deferred';
-import {assertExists, assertTrue} from '../base/logging';
-import {raf} from '../core/raf_scheduler';
-
-export interface ModalDefinition {
+export interface ModalAttrs {
   title: string;
-  content: m.Children|(() => m.Children);
-  vAlign?: 'MIDDLE' /* default */ | 'TOP';
-  buttons?: Button[];
-  close?: boolean;
+  buttons?: ModalButton[];
+  vAlign?: 'MIDDLE' /* default */|'TOP';
+
+  // Used to disambiguate between different modal dialogs that might overlap
+  // due to different client showing modal dialogs at the same time. This needs
+  // to match the key passed to closeModal() (if non-undefined). If the key is
+  // not provided, showModal will make up a random key in the showModal() call.
+  key?: string;
+
+  // A callback that is called when the dialog is closed, whether by pressing
+  // any buttons or hitting ESC or clicking outside of the modal.
   onClose?: () => void;
+
+  // The content/body of the modal dialog. This can be either:
+  // 1. A static set of children, for simple dialogs which content never change.
+  // 2. A factory method that returns a m() vnode for dyamic content.
+  content?: m.Children|(() => m.Children)
 }
 
-export interface Button {
+export interface ModalButton {
   text: string;
   primary?: boolean;
   id?: string;
   action?: () => void;
 }
 
-// The component that handles the actual modal dialog. Note that this uses
-// position: absolute, so the modal dialog will be relative to the surrounding
-// DOM.
-// We need to split this into two components (Modal and ModalImpl) so that we
-// can handle the fade-out animation via onbeforeremove. The problem here is
-// that onbeforeremove is emitted only when the *parent* component removes the
-// children from the vdom hierarchy. So we need a parent/child in our control to
-// trigger this.
-export class Modal implements m.ClassComponent<ModalDefinition> {
-  private requestClose = false;
+// Usually users don't need to care about this class, as this is instantiated
+// by showModal. The only case when users should depend on this is when they
+// want to nest a modal dialog in a <div> they control (i.e. when the modal
+// is scoped to a mithril component, not fullscreen).
+export class Modal implements m.ClassComponent<ModalAttrs> {
+  onbeforeremove(vnode: m.VnodeDOM<ModalAttrs>) {
+    const removePromise = defer<void>();
+    vnode.dom.addEventListener('animationend', () => removePromise.resolve());
+    vnode.dom.classList.add('modal-fadeout');
 
-  close() {
-    // The next view pass will kick-off the modalFadeOut CSS animation by
-    // appending the .modal-hidden CSS class.
-    this.requestClose = true;
-    raf.scheduleFullRedraw();
+    // Retuning `removePromise` will cause Mithril to defer the actual component
+    // removal until the fade-out animation is done. onremove() will be invoked
+    // after this.
+    return removePromise;
   }
 
-  view(vnode: m.Vnode<ModalDefinition>) {
-    if (this.requestClose || vnode.attrs.close) {
-      return null;
-    }
-
-    return m(ModalImpl, {...vnode.attrs, parent: this} as ModalImplAttrs);
-  }
-}
-
-interface ModalImplAttrs extends ModalDefinition {
-  parent: Modal;
-}
-
-// The component that handles the actual modal dialog. Note that this uses
-// position: absolute, so the modal dialog will be relative to the surrounding
-// DOM.
-class ModalImpl implements m.ClassComponent<ModalImplAttrs> {
-  private parent ?: Modal;
-  private onClose?: () => void;
-
-  view({attrs}: m.Vnode<ModalImplAttrs>) {
-    this.onClose = attrs.onClose;
-    this.parent = attrs.parent;
-
-    const buttons: Array<m.Vnode<Button>> = [];
-    for (const button of attrs.buttons || []) {
-      buttons.push(m('button.modal-btn', {
-        class: button.primary ? 'modal-btn-primary' : '',
-        id: button.id,
-        onclick: () => {
-          attrs.parent.close();
-          if (button.action !== undefined) button.action();
-        },
-      },
-      button.text));
-    }
-
-    const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
-    const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
-    return m(
-        '.modal-backdrop',
-        {
-          onclick: this.onclick.bind(this),
-          onkeyup: this.onkeyupdown.bind(this),
-          onkeydown: this.onkeyupdown.bind(this),
-          // onanimationend: this.onanimationend.bind(this),
-          tabIndex: 0,
-        },
-        m(
-            `.modal-dialog${align}${aria}`,
-            m(
-                'header',
-                m('h2', {id: 'mm-title'}, attrs.title),
-                m(
-                    'button[aria-label=Close Modal]',
-                    {onclick: () => attrs.parent.close()},
-                    m.trust('&#x2715'),
-                    ),
-                ),
-            m('main', this.renderContent(attrs.content)),
-            m('footer', buttons),
-            ));
-  }
-
-  private renderContent(content: m.Children|(() => m.Children)): m.Children {
-    if (typeof content === 'function') {
-      return content();
-    } else {
-      return content;
+  onremove(vnode: m.VnodeDOM<ModalAttrs>) {
+    if (vnode.attrs.onClose !== undefined) {
+      // The onClose here is the promise wrapper created by showModal(), which
+      // in turn will: (1) call the user's original attrs.onClose; (2) resolve
+      // the promise returned by showModal().
+      vnode.attrs.onClose();
+      raf.scheduleFullRedraw();
     }
   }
 
-  oncreate(vnode: m.VnodeDOM<ModalImplAttrs>) {
+  oncreate(vnode: m.VnodeDOM<ModalAttrs>) {
     if (vnode.dom instanceof HTMLElement) {
       // Focus the newly created dialog, so that we react to Escape keydown
       // even if the user has not clicked yet on any element.
@@ -184,118 +117,130 @@ class ModalImpl implements m.ClassComponent<ModalImplAttrs> {
   }
 
 
-  onbeforeremove(vnode: m.VnodeDOM<ModalImplAttrs>) {
-    const removePromise = defer<void>();
-    vnode.dom.addEventListener('animationend', () => removePromise.resolve());
-    vnode.dom.classList.add('modal-fadeout');
+  view(vnode: m.Vnode<ModalAttrs>) {
+    const attrs = vnode.attrs;
 
-    // Retuning `removePromise` will cause Mithril to defer the actual component
-    // removal until the fade-out animation is done.
-    return removePromise;
-  }
-
-  onremove() {
-    if (this.onClose !== undefined) {
-      this.onClose();
-      raf.scheduleFullRedraw();
+    const buttons: m.Children = [];
+    for (const button of attrs.buttons || []) {
+      buttons.push(
+          m('button.modal-btn',
+            {
+              class: button.primary ? 'modal-btn-primary' : '',
+              id: button.id,
+              onclick: () => {
+                closeModal(attrs.key);
+                if (button.action !== undefined) button.action();
+              },
+            },
+            button.text));
     }
+
+    const aria = '[aria-labelledby=mm-title][aria-model][role=dialog]';
+    const align = attrs.vAlign === 'TOP' ? '.modal-dialog-valign-top' : '';
+    return m(
+        '.modal-backdrop',
+        {
+          onclick: this.onBackdropClick.bind(this, attrs),
+          onkeyup: this.onBackdropKeyupdown.bind(this, attrs),
+          onkeydown: this.onBackdropKeyupdown.bind(this, attrs),
+          tabIndex: 0,
+        },
+        m(
+            `.modal-dialog${align}${aria}`,
+            m(
+                'header',
+                m('h2', {id: 'mm-title'}, attrs.title),
+                m(
+                    'button[aria-label=Close Modal]',
+                    {onclick: () => closeModal(attrs.key)},
+                    m.trust('&#x2715'),
+                    ),
+                ),
+            m('main', vnode.children),
+            buttons.length > 0 ? m('footer', buttons) : null,
+            ));
   }
 
-  onclick(e: MouseEvent) {
+  onBackdropClick(attrs: ModalAttrs, e: MouseEvent) {
     e.stopPropagation();
     // Only react when clicking on the backdrop. Don't close if the user clicks
     // on the dialog itself.
     const t = e.target;
     if (t instanceof Element && t.classList.contains('modal-backdrop')) {
-      assertExists(this.parent).close();
+      closeModal(attrs.key);
     }
   }
 
-  onkeyupdown(e: KeyboardEvent) {
+  onBackdropKeyupdown(attrs: ModalAttrs, e: KeyboardEvent) {
     e.stopPropagation();
     if (e.key === 'Escape' && e.type !== 'keyup') {
-      assertExists(this.parent).close();
+      closeModal(attrs.key);
     }
   }
 }
 
+// Set by showModal().
+let currentModal: ModalAttrs|undefined = undefined;
+let generationCounter = 0;
 
-// This is deliberately NOT a Mithril component. We want to manage the lifetime
-// independently (outside of Mithril), so we can render from outside the current
-// vdom sub-tree. ModalContainer instances should be singletons / globals.
-export class ModalContainer {
-  private attrs?: ModalDefinition;
-  private generation = 1; // Start with a generation > `closeGeneration`.
-  private closeGeneration = 0;
 
-  // This is the mithril component that is exposed to the embedder (e.g. see
-  // pages.ts). The caller is supposed to hyperscript this while building the
-  // vdom tree that should host the modal dialog.
-  readonly mithrilComponent = {
-    container: this,
-    view:
-        function() {
-          const thiz = this.container;
-          const attrs = thiz.attrs;
-          if (attrs === undefined) {
-            return null;
-          }
-          return [m(Modal, {
-            ...attrs,
-            onClose: () => {
-              // Remember the fact that the dialog was dismissed, in case the
-              // whole ModalContainer gets instantiated from a different page
-              // (which would cause the Modal to be destroyed and recreated).
-              thiz.closeGeneration = thiz.generation;
-              if (thiz.attrs?.onClose !== undefined) {
-                thiz.attrs.onClose();
-                raf.scheduleFullRedraw();
-              }
-            },
-            close: thiz.closeGeneration === thiz.generation ? true :
-                                                              attrs.close,
-            key: thiz.generation,
-          })];
-        },
-  };
-
-  // This should be called to show a new modal dialog. The modal dialog will
-  // be shown the next time something calls render() in a Mithril draw pass.
-  // This enforces the creation of a new dialog.
-  createNew(attrs: ModalDefinition) {
-    this.generation++;
-    this.updateVdom(attrs);
+// This should be called only by app.ts and nothing else.
+// This generates the modal dialog at the root of the DOM, so it can overlay
+// on top of everything else.
+export function maybeRenderFullscreenModalDialog() {
+  // We use the generation counter as key to distinguish between: (1) two render
+  // passes for the same dialog vs (2) rendering a new dialog that has been
+  // created invoking showModal() while another modal dialog was already being
+  // shown.
+  if (currentModal === undefined) return [];
+  let children: m.Children;
+  if (currentModal.content === undefined) {
+    children = null;
+  } else if (typeof currentModal.content === 'function') {
+    children = currentModal.content();
+  } else {
+    children = currentModal.content;
   }
-
-  // Updates the current dialog or creates a new one if not existing. If a
-  // dialog exists already, this will update the DOM of the existing dialog.
-  // This should be called in at view() time by a nested Mithril component which
-  // wants to display a modal dialog (but wants it to render outside).
-  updateVdom(attrs: ModalDefinition) {
-    this.attrs = attrs;
-  }
-
-  close() {
-    this.closeGeneration = this.generation;
-    raf.scheduleFullRedraw();
-  }
+  return [m(Modal, currentModal, children)];
 }
 
-// This is the default instance used for full-screen modal dialogs.
-// page.ts calls `m(fullscreenModalContainer.mithrilComponent)` in its view().
-export const fullscreenModalContainer = new ModalContainer();
+// Shows a full-screen modal dialog.
+export async function showModal(userAttrs: ModalAttrs): Promise<void> {
+  const returnedClosePromise = defer<void>();
+  const userOnClose = userAttrs.onClose ?? (() => {});
 
-
-export async function showModal(attrs: ModalDefinition): Promise<void> {
-  // When using showModal, the caller cannot pass an onClose promise. It should
-  // use the returned promised instead. onClose is only for clients using the
-  // Mithril component directly.
-  assertTrue(attrs.onClose === undefined);
-  const promise = defer<void>();
-  fullscreenModalContainer.createNew({
-    ...attrs,
-    onClose: () => promise.resolve(),
-  });
+  // If the user doesn't specify a key (to match the closeModal), generate a
+  // random key to distinguish two showModal({key:undefined}) calls.
+  const key = userAttrs.key || `${++generationCounter}`;
+  const attrs: ModalAttrs = {
+    ...userAttrs,
+    key,
+    onClose: () => {
+      userOnClose();
+      returnedClosePromise.resolve();
+    },
+  };
+  currentModal = attrs;
   raf.scheduleFullRedraw();
-  return promise;
+  return returnedClosePromise;
+}
+
+// Closes the full-screen modal dialog (if any).
+// `key` is optional: if provided it will close the modal dialog only if the key
+// matches. This is to avoid accidentally closing another dialog that popped
+// in the meanwhile. If undefined, it closes whatever modal dialog is currently
+// open (if any).
+export function closeModal(key?: string) {
+  if (currentModal === undefined ||
+      (key !== undefined && currentModal.key !== key)) {
+    // Somebody else closed the modal dialog already, or opened a new one with
+    // a different key.
+    return;
+  }
+  currentModal = undefined;
+  raf.scheduleFullRedraw();
+}
+
+export function getCurrentModalKey(): string|undefined {
+  return currentModal?.key;
 }
