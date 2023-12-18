@@ -368,7 +368,7 @@ base::Status PerfettoSqlEngine::RegisterRuntimeFunction(
       sqlite_engine()->GetFunctionContext(prototype.function_name,
                                           created_argc));
   if (ctx) {
-    if (!replace) {
+    if (CreatedFunction::IsValid(ctx) && !replace) {
       return base::ErrStatus(
           "CREATE PERFETTO FUNCTION[prototype=%s]: function already exists",
           prototype.ToString().c_str());
