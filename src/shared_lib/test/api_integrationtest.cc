@@ -719,11 +719,6 @@ TEST_F(SharedLibDataSourceTest, Serialization) {
     }
     PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
-  PERFETTO_DS_TRACE(data_source_1, ctx) {
-    struct PerfettoDsRootTracePacket trace_packet;
-    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
-  }
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -770,11 +765,6 @@ TEST_F(SharedLibDataSourceTest, Break) {
     // Break: the packet will be emitted only on the first data source instance
     // and therefore will not show up on `tracing_session2`.
     PERFETTO_DS_TRACE_BREAK(data_source_1, ctx);
-  }
-  PERFETTO_DS_TRACE(data_source_1, ctx) {
-    struct PerfettoDsRootTracePacket trace_packet;
-    PerfettoDsTracerPacketBegin(&ctx, &trace_packet);
-    PerfettoDsTracerPacketEnd(&ctx, &trace_packet);
   }
 
   tracing_session1.StopBlocking();
@@ -1072,7 +1062,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlCategory) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1118,7 +1107,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDynamicCategory) {
               PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn2"));
   PERFETTO_TE(PERFETTO_TE_DYNAMIC_CATEGORY, PERFETTO_TE_INSTANT(""),
               PERFETTO_TE_DYNAMIC_CATEGORY_STRING("dyn1"));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1210,7 +1198,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstant) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1291,7 +1278,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventLlInstant) {
       }
     }
   }
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1333,7 +1319,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlInstantNoIntern) {
       TracingSession::Builder().set_data_source_name("track_event").Build();
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"), PERFETTO_TE_NO_INTERN());
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1365,7 +1350,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlDbgArg) {
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_ARG_UINT64("arg_name", 42));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   tracing_session.StopBlocking();
   std::vector<uint8_t> data = tracing_session.ReadBlocking();
@@ -1434,7 +1418,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlNamedTrack) {
 
   PERFETTO_TE(cat1, PERFETTO_TE_INSTANT("event"),
               PERFETTO_TE_NAMED_TRACK("MyTrack", 1, 2));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   uint64_t kExpectedUuid = PerfettoTeNamedTrackUuid("MyTrack", 1, 2);
 
@@ -1480,7 +1463,6 @@ TEST_F(SharedLibTrackEventTest, TrackEventHlRegisteredCounter) {
   PERFETTO_TE(cat1, PERFETTO_TE_COUNTER(),
               PERFETTO_TE_REGISTERED_TRACK(&my_counter_track),
               PERFETTO_TE_INT_COUNTER(42));
-  PERFETTO_TE(cat1, PERFETTO_TE_INSTANT(""));
 
   PerfettoTeRegisteredTrackUnregister(&my_counter_track);
 
