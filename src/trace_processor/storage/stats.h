@@ -265,9 +265,13 @@ namespace stats {
       "processor to parse them."),                                             \
   F(winscope_shell_transitions_parse_errors,                                   \
                                           kSingle,  kInfo,     kAnalysis,      \
-      "Shell transition packet has unknown fields, which results "  \
+      "Shell transition packet has unknown fields, which results "             \
       "in some arguments missing. You may need a newer version of trace "      \
-      "processor to parse them.")
+      "processor to parse them."),                                             \
+  F(ftrace_missing_event_id,              kSingle,  kInfo,    kAnalysis,       \
+      "Indicates that the ftrace event was dropped because the event id was "  \
+      "missing. This is an 'info' stat rather than an error stat because "     \
+      "this can be legitimately missing due to proto filtering.")
 // clang-format on
 
 enum Type {
