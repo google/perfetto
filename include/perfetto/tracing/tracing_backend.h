@@ -46,7 +46,7 @@ class Producer;
 class ProducerEndpoint;
 
 using CreateSocketCallback = std::function<void(base::SocketHandle)>;
-using CreateSocketAsync = std::function<void(CreateSocketCallback)>;
+using CreateSocketAsync = void (*)(CreateSocketCallback);
 
 // Responsible for connecting to the producer.
 class PERFETTO_EXPORT_COMPONENT TracingProducerBackend {
@@ -82,7 +82,7 @@ class PERFETTO_EXPORT_COMPONENT TracingProducerBackend {
 
     // If set, the producer will call this function to create and connect to a
     // socket. See the corresponding field in TracingInitArgs for more info.
-    CreateSocketAsync create_socket_async;
+    CreateSocketAsync create_socket_async = nullptr;
   };
 
   virtual std::unique_ptr<ProducerEndpoint> ConnectProducer(
