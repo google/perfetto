@@ -6826,6 +6826,24 @@ int ConnectUnixSocket() {
   return fd;
 }
 
+using CreateSocketFunction =
+    std::function<void(perfetto::CreateSocketCallback)>;
+
+CreateSocketFunction* g_std_function = nullptr;
+
+void SetCreateSocketFunction(CreateSocketFunction func) {
+  g_std_function = new CreateSocketFunction(func);
+}
+
+void ResetCreateSocketFunction() {
+  delete g_std_function;
+}
+
+void CallCreateSocketFunction(perfetto::CreateSocketCallback cb) {
+  PERFETTO_DCHECK(g_std_function);
+  (*g_std_function)(cb);
+}
+
 }  // namespace
 
 TEST(PerfettoApiInitTest, AsyncSocket) {
@@ -6843,11 +6861,12 @@ TEST(PerfettoApiInitTest, AsyncSocket) {
   TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   args.tracing_policy = g_test_tracing_policy;
-  args.create_socket_async = [&socket_callback, &create_socket_called](
-                                 perfetto::CreateSocketCallback cb) {
+  args.create_socket_async = &CallCreateSocketFunction;
+  SetCreateSocketFunction([&socket_callback, &create_socket_called](
+                              perfetto::CreateSocketCallback cb) {
     socket_callback = cb;
     create_socket_called.Notify();
-  };
+  });
 
   perfetto::Tracing::Initialize(args);
   create_socket_called.Wait();
@@ -6861,6 +6880,7 @@ TEST(PerfettoApiInitTest, AsyncSocket) {
                   .success);
 
   perfetto::Tracing::ResetForTesting();
+  ResetCreateSocketFunction();
 }
 
 TEST(PerfettoApiInitTest, AsyncSocketDisconnect) {
@@ -6873,13 +6893,14 @@ TEST(PerfettoApiInitTest, AsyncSocketDisconnect) {
   EXPECT_FALSE(perfetto::Tracing::IsInitialized());
 
   perfetto::CreateSocketCallback socket_callback;
-  testing::MockFunction<perfetto::CreateSocketAsync> mock_create_socket;
+  testing::MockFunction<CreateSocketFunction> mock_create_socket;
   WaitableTestEvent create_socket_called1, create_socket_called2;
 
   TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   args.tracing_policy = g_test_tracing_policy;
-  args.create_socket_async = mock_create_socket.AsStdFunction();
+  args.create_socket_async = &CallCreateSocketFunction;
+  SetCreateSocketFunction(mock_create_socket.AsStdFunction());
 
   EXPECT_CALL(mock_create_socket, Call)
       .WillOnce(Invoke([&socket_callback, &create_socket_called1](
@@ -6917,6 +6938,7 @@ TEST(PerfettoApiInitTest, AsyncSocketDisconnect) {
                   .success);
 
   perfetto::Tracing::ResetForTesting();
+  ResetCreateSocketFunction();
 }
 
 TEST(PerfettoApiInitTest, AsyncSocketStartupTracing) {
@@ -6934,11 +6956,12 @@ TEST(PerfettoApiInitTest, AsyncSocketStartupTracing) {
   TracingInitArgs args;
   args.backends = perfetto::kSystemBackend;
   args.tracing_policy = g_test_tracing_policy;
-  args.create_socket_async = [&socket_callback, &create_socket_called](
-                                 perfetto::CreateSocketCallback cb) {
+  args.create_socket_async = &CallCreateSocketFunction;
+  SetCreateSocketFunction([&socket_callback, &create_socket_called](
+                              perfetto::CreateSocketCallback cb) {
     socket_callback = cb;
     create_socket_called.Notify();
-  };
+  });
 
   perfetto::Tracing::Initialize(args);
   perfetto::TrackEvent::Register();
@@ -6999,6 +7022,7 @@ TEST(PerfettoApiInitTest, AsyncSocketStartupTracing) {
   startup_session.reset();
   session.reset();
   perfetto::Tracing::ResetForTesting();
+  ResetCreateSocketFunction();
 }
 #endif  // !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 
