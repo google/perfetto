@@ -209,8 +209,8 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
         break;
       }
     }
-    if (PERFETTO_UNLIKELY(!event_id)) {
-      context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    if (PERFETTO_UNLIKELY(event_id == 0)) {
+      context_->storage->IncrementStats(stats::ftrace_missing_event_id);
       return;
     }
   }
