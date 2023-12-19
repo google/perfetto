@@ -293,9 +293,11 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     typename Function::Context* ctx,
     bool deterministic) {
-  // Static functions should never be registered multiple times.
-  PERFETTO_CHECK(engine_->GetFunctionContext(name, argc) == nullptr);
-  static_function_count_++;
+  // Metric proto builder functions can be reregistered: don't double count when
+  // this happens.
+  if (!engine_->GetFunctionContext(name, argc)) {
+    static_function_count_++;
+  }
   return engine_->RegisterFunction(
       name, argc, perfetto_sql_internal::WrapSqlFunction<Function>, ctx,
       nullptr, deterministic);
@@ -307,9 +309,11 @@ base::Status PerfettoSqlEngine::RegisterStaticFunction(
     int argc,
     std::unique_ptr<typename Function::Context> user_data,
     bool deterministic) {
-  // Static functions should never be registered multiple times.
-  PERFETTO_CHECK(engine_->GetFunctionContext(name, argc) == nullptr);
-  static_function_count_++;
+  // Metric proto builder functions can be reregistered: don't double count when
+  // this happens.
+  if (!engine_->GetFunctionContext(name, argc)) {
+    static_function_count_++;
+  }
   return RegisterFunctionWithSqlite<Function>(name, argc, std::move(user_data),
                                               deterministic);
 }
