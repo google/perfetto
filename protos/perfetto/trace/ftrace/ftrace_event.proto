@@ -603,5 +603,6 @@ message FtraceEvent {
     BinderCommandFtraceEvent binder_command = 485;
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
+    GpuWorkPeriodFtraceEvent gpu_work_period = 488;
   }
 }
