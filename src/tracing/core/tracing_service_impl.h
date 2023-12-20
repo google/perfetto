@@ -656,6 +656,7 @@ class TracingServiceImpl : public TracingService {
     uint64_t filter_output_bytes = 0;
     uint64_t filter_errors = 0;
     uint64_t filter_time_taken_ns = 0;
+    std::vector<uint64_t> filter_bytes_discarded_per_buffer;
 
     // A randomly generated trace identifier. Note that this does NOT always
     // match the requested TraceConfig.trace_uuid_msb/lsb. Spcifically, it does
