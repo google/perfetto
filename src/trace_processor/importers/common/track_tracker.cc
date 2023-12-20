@@ -121,6 +121,20 @@ TrackId TrackTracker::InternGpuTrack(const tables::GpuTrackTable::Row& row) {
   return id;
 }
 
+TrackId TrackTracker::InternGpuWorkPeriodTrack(
+    const tables::GpuWorkPeriodTrackTable::Row& row) {
+  GpuWorkPeriodTrackTuple tuple{row.name, row.gpu_id, row.uid};
+
+  auto it = gpu_work_period_tracks_.find(tuple);
+  if (it != gpu_work_period_tracks_.end())
+    return it->second;
+
+  auto id =
+      context_->storage->mutable_gpu_work_period_track_table()->Insert(row).id;
+  gpu_work_period_tracks_[tuple] = id;
+  return id;
+}
+
 TrackId TrackTracker::InternLegacyChromeAsyncTrack(
     StringId name,
     uint32_t upid,
@@ -354,20 +368,6 @@ TrackId TrackTracker::InternEnergyCounterTrack(StringId name,
   TrackId track =
       context_->storage->mutable_energy_counter_track_table()->Insert(row).id;
   energy_counter_tracks_[std::make_pair(name, consumer_id)] = track;
-  return track;
-}
-
-TrackId TrackTracker::InternUidCounterTrack(StringId name, int32_t uid) {
-  auto it = uid_counter_tracks_.find(std::make_pair(name, uid));
-  if (it != uid_counter_tracks_.end()) {
-    return it->second;
-  }
-
-  tables::UidCounterTrackTable::Row row(name);
-  row.uid = uid;
-  TrackId track =
-      context_->storage->mutable_uid_counter_track_table()->Insert(row).id;
-  uid_counter_tracks_[std::make_pair(name, uid)] = track;
   return track;
 }
 

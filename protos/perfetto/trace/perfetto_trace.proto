@@ -8557,6 +8557,13 @@ message WakeupSourceDeactivateFtraceEvent {
   optional string name = 1;
   optional uint64 state = 2;
 }
+message GpuWorkPeriodFtraceEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 uid = 2;
+  optional uint64 start_time_ns = 3;
+  optional uint64 end_time_ns = 4;
+  optional uint64 total_active_duration_ns = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/power.proto
 
@@ -9793,6 +9800,7 @@ message FtraceEvent {
     BinderCommandFtraceEvent binder_command = 485;
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
+    GpuWorkPeriodFtraceEvent gpu_work_period = 488;
   }
 }
 

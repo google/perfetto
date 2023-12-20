@@ -195,6 +195,10 @@ export function genTraceConfig(
     }
   }
 
+  if (uiCfg.gpuWorkPeriod) {
+    ftraceEvents.add('power/gpu_work_period');
+  }
+
   if (uiCfg.cpuSyscall) {
     ftraceEvents.add('raw_syscalls/sys_enter');
     ftraceEvents.add('raw_syscalls/sys_exit');

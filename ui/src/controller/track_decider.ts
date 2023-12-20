@@ -1056,6 +1056,74 @@ class TrackDecider {
     }
   }
 
+  async addUserAsyncSliceTracks(engine: EngineProxy): Promise<void> {
+    const result = await engine.query(`
+      with tracks_with_slices as materialized (
+        select distinct track_id
+        from slice
+      ),
+      global_tracks as (
+        select
+          uid_track.name,
+          uid_track.uid,
+          group_concat(uid_track.id) as trackIds,
+          count(uid_track.id) as trackCount
+        from uid_track
+        join tracks_with_slices
+        where tracks_with_slices.track_id == uid_track.id
+        group by uid_track.uid
+      )
+      select
+        t.name as name,
+        t.uid as uid,
+        package_list.package_name as package_name,
+        t.trackIds as trackIds,
+        max_layout_depth(t.trackCount, t.trackIds) as maxDepth
+      from global_tracks t
+      join package_list
+      where t.uid = package_list.uid
+      group by t.uid
+      `);
+
+    const it = result.iter({
+      name: STR_NULL,
+      uid: NUM_NULL,
+      package_name: STR_NULL,
+    });
+
+    for (; it.valid(); it.next()) {
+      const kind = ASYNC_SLICE_TRACK_KIND;
+      const rawName = it.name === null ? undefined : it.name;
+      const userName = it.package_name === null ? undefined : it.package_name;
+      const uid = it.uid === null ? undefined : it.uid;
+      const name = getTrackName({
+        name: rawName,
+        uid,
+        userName,
+        kind,
+        uidTrack: true,
+      });
+
+      if (showV1()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+        });
+      }
+
+      if (showV2()) {
+        this.tracksToAdd.push({
+          uri: `perfetto.AsyncSlices#${rawName}.${uid}.v2`,
+          name,
+          trackSortKey: PrimaryTrackSortKey.ASYNC_SLICE_TRACK,
+          trackGroup: SCROLLING_TRACK_GROUP,
+        });
+      }
+    }
+  }
+
   async addActualFramesTracks(engine: EngineProxy): Promise<void> {
     const result = await engine.query(`
       with process_async_tracks as materialized (
@@ -1727,7 +1795,9 @@ class TrackDecider {
     await this.addProcessCounterTracks(
         this.engine.getProxy('TrackDecider::addProcessCounterTracks'));
     await this.addProcessAsyncSliceTracks(
-        this.engine.getProxy('TrackDecider::addProcessAsyncSliceTrack'));
+        this.engine.getProxy('TrackDecider::addProcessAsyncSliceTracks'));
+    await this.addUserAsyncSliceTracks(
+        this.engine.getProxy('TrackDecider::addUserAsyncSliceTracks'));
     await this.addActualFramesTracks(
         this.engine.getProxy('TrackDecider::addActualFramesTracks'));
     await this.addExpectedFramesTracks(
