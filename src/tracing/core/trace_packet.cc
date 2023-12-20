@@ -33,6 +33,8 @@ TracePacket& TracePacket::operator=(TracePacket&& other) {
   other.slices_.clear();
   size_ = other.size_;
   other.size_ = 0;
+  buffer_index_for_stats_ = other.buffer_index_for_stats_;
+  other.buffer_index_for_stats_ = 0;
   return *this;
 }
 
