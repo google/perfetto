@@ -130,6 +130,9 @@ message TraceStats {
     // correlate the stats with the actual packet types.
     optional uint64 sequence_id = 1;
 
+    // The buffer index (0..N, as defined in the TraceConfig).
+    optional uint32 buffer = 4;
+
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
     // `sum` contains the SUM(entries) and `counts` contains the COUNT(entries)

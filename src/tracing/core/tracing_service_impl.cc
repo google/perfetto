@@ -3402,48 +3402,42 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
            .disable_chunk_usage_histograms()) {
     // Emit chunk usage stats broken down by sequence ID (i.e. by trace-writer).
     // Writer stats are updated by each TraceBuffer object at ReadBuffers time,
-    // and there can be >1 buffer per session. However, we want to report only
-    // one histogram per writer. A trace writer never writes to more than one
-    // buffer (it's technically allowed but doesn't happen in the current impl
-    // of the tracing SDK). Per-buffer breakdowns would be completely useless.
-    TraceBuffer::WriterStatsMap merged_stats;
+    // and there can be >1 buffer per session. A trace writer never writes to
+    // more than one buffer (it's technically allowed but doesn't happen in the
+    // current impl of the tracing SDK).
 
-    // First merge all the per-buffer histograms into one-per-writer.
+    bool has_written_bucket_definition = false;
+    uint32_t buf_idx = static_cast<uint32_t>(-1);
     for (const BufferID buf_id : tracing_session->buffers_index) {
+      ++buf_idx;
       const TraceBuffer* buf = GetBufferByID(buf_id);
       if (!buf)
         continue;
       for (auto it = buf->writer_stats().GetIterator(); it; ++it) {
-        auto& hist = merged_stats.Insert(it.key(), {}).first->used_chunk_hist;
-        hist.Merge(it.value().used_chunk_hist);
-      }
-    }
-
-    // Serialize the merged per-writer histogram into the stats proto.
-    bool has_written_bucket_definition = false;
-    for (auto it = merged_stats.GetIterator(); it; ++it) {
-      const auto& hist = it.value().used_chunk_hist;
-      ProducerID p;
-      WriterID w;
-      GetProducerAndWriterID(it.key(), &p, &w);
-      if (!has_written_bucket_definition) {
-        // Serialize one-off the histogram bucket definition, which is the same
-        // for all entries in the map.
-        has_written_bucket_definition = true;
-        // The -1 in the for loop below is to skip the implicit overflow bucket.
-        for (size_t i = 0; i < hist.num_buckets() - 1; ++i) {
-          trace_stats.add_chunk_payload_histogram_def(hist.GetBucketThres(i));
+        const auto& hist = it.value().used_chunk_hist;
+        ProducerID p;
+        WriterID w;
+        GetProducerAndWriterID(it.key(), &p, &w);
+        if (!has_written_bucket_definition) {
+          // Serialize one-off the histogram bucket definition, which is the
+          // same for all entries in the map.
+          has_written_bucket_definition = true;
+          // The -1 in the loop below is to skip the implicit overflow bucket.
+          for (size_t i = 0; i < hist.num_buckets() - 1; ++i) {
+            trace_stats.add_chunk_payload_histogram_def(hist.GetBucketThres(i));
+          }
+        }  // if(!has_written_bucket_definition)
+        auto* wri_stats = trace_stats.add_writer_stats();
+        wri_stats->set_sequence_id(
+            tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
+        wri_stats->set_buffer(buf_idx);
+        for (size_t i = 0; i < hist.num_buckets(); ++i) {
+          wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
+          wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
         }
-      }
-      auto* wri_stats = trace_stats.add_writer_stats();
-      wri_stats->set_sequence_id(
-          tracing_session->GetPacketSequenceID(kDefaultMachineID, p, w));
-      for (size_t i = 0; i < hist.num_buckets(); ++i) {
-        wri_stats->add_chunk_payload_histogram_counts(hist.GetBucketCount(i));
-        wri_stats->add_chunk_payload_histogram_sum(hist.GetBucketSum(i));
-      }
-    }  // for (writer in merged_stats.GetIterator())
-  }    // if (!disable_chunk_usage_histograms)
+      }  // for each sequence (writer).
+    }    // for each buffer.
+  }      // if (!disable_chunk_usage_histograms)
 
   return trace_stats;
 }

@@ -3916,25 +3916,33 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
 
   std::unique_ptr<MockProducer> producer = CreateMockProducer();
   producer->Connect(svc.get(), "mock_producer");
-  producer->RegisterDataSource("data_source");
+  producer->RegisterDataSource("data_source_1");
+  producer->RegisterDataSource("data_source_2");
 
   TraceConfig trace_config;
-  trace_config.add_buffers()->set_size_kb(512);
-  auto* ds_config = trace_config.add_data_sources()->mutable_config();
-  ds_config->set_name("data_source");
+  for (uint32_t i = 0; i < 3; i++)
+    trace_config.add_buffers()->set_size_kb(512);
+  for (uint32_t i = 1; i <= 2; i++) {
+    auto* ds_config = trace_config.add_data_sources()->mutable_config();
+    ds_config->set_name("data_source_" + std::to_string(i));
+    ds_config->set_target_buffer(i);  // DS1 : buf[1], DS2: buf[2].
+    // buf[0] is deliberately unused, to check we get the buffer_idx right.
+  }
 
   consumer->EnableTracing(trace_config);
   producer->WaitForTracingSetup();
-  producer->WaitForDataSourceSetup("data_source");
-  producer->WaitForDataSourceStart("data_source");
+  producer->WaitForDataSourceSetup("data_source_1");
+  producer->WaitForDataSourceSetup("data_source_2");
+  producer->WaitForDataSourceStart("data_source_1");
+  producer->WaitForDataSourceStart("data_source_2");
 
   const std::string payload_128(128 - 32, 'a');
   const std::string payload_512(512 - 32, 'b');
   const std::string payload_1k(1024 - 32, 'c');
   const std::string payload_2k(2048 - 32, 'd');
 
-  auto writer1 = producer->CreateTraceWriter("data_source");
-  auto writer2 = producer->CreateTraceWriter("data_source");
+  auto writer1 = producer->CreateTraceWriter("data_source_1");
+  auto writer2 = producer->CreateTraceWriter("data_source_2");
 
   // Flush after each packet to create chunks that match packets.
   writer1->NewTracePacket()->set_for_testing()->set_str(payload_128);
@@ -3960,7 +3968,8 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
   writer2.reset();
 
   consumer->DisableTracing();
-  producer->WaitForDataSourceStop("data_source");
+  producer->WaitForDataSourceStop("data_source_1");
+  producer->WaitForDataSourceStop("data_source_2");
   consumer->WaitForTracingDisabled();
 
   auto packets = consumer->ReadBuffers();
@@ -3985,12 +3994,14 @@ TEST_F(TracingServiceImplTest, TraceWriterStats) {
         case 1:  // Ignore service-generated packets.
           continue;
         case 2:  // writer1
+          EXPECT_EQ(wri.buffer(), 1u);
           EXPECT_THAT(wri.chunk_payload_histogram_counts(),
                       ElementsAreArray({0 /*8*/, 0 /*32*/, 1 /*128*/, 0 /*512*/,
                                         1 /*1K*/, 0 /*2K*/, 0 /*4K*/, 0 /*8K*/,
                                         0 /*12K*/, 0 /*16K*/, 0 /*>16K*/}));
           continue;
         case 3:  // writer2
+          EXPECT_EQ(wri.buffer(), 2u);
           EXPECT_THAT(wri.chunk_payload_histogram_counts(),
                       ElementsAreArray({0 /*8*/, 0 /*32*/, 0 /*128*/, 1 /*512*/,
                                         0 /*1K*/, 2 /*2K*/, 0 /*4K*/, 0 /*8K*/,
