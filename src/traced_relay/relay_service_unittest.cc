@@ -24,6 +24,11 @@
 #include "src/ipc/buffered_frame_deserializer.h"
 #include "test/gtest_and_gmock.h"
 
+// Disable tests on MacOS and Windows as neither abstract sockets nor pseudo
+// boot ID are supported.
+#if PERFETTO_BUILDFLAG(PERFETTO_OS_LINUX) || \
+    PERFETTO_BUILDFLAG(PERFETTO_OS_ANDROID)
+
 namespace perfetto {
 namespace {
 
@@ -65,8 +70,7 @@ TEST(RelayServiceTest, SetPeerIdentity) {
       base::SockType::kStream);
   ASSERT_TRUE(tcp_server->is_listening());
   auto tcp_sock_name = tcp_server->GetSockAddr();
-  auto* unix_sock_name =
-      "@producer.sock";  // Use abstract unix socket for server socket.
+  auto* unix_sock_name = "@producer.sock";  // Use abstract socket for server.
 
   // Start the relay service.
   relay_service->Start(unix_sock_name, tcp_sock_name.c_str());
@@ -158,3 +162,5 @@ TEST(RelayServiceTest, MachineIDHint) {
 
 }  // namespace
 }  // namespace perfetto
+
+#endif
