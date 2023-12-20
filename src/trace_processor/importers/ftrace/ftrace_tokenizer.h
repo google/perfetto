@@ -60,6 +60,9 @@ class FtraceTokenizer {
   void HandleFtraceClockSnapshot(int64_t ftrace_ts,
                                  int64_t boot_ts,
                                  uint32_t packet_sequence_id);
+  void TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
+                                   TraceBlobView event,
+                                   PacketSequenceState* state);
 
   void DlogWithLimit(base::Status status) {
     static std::atomic<uint32_t> dlog_count(0);

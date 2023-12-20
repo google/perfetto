@@ -226,6 +226,7 @@ FtraceParser::FtraceParser(TraceProcessorContext* context)
       virtio_gpu_tracker_(context),
       mali_gpu_event_tracker_(context),
       pkvm_hyp_cpu_tracker_(context),
+      gpu_work_period_tracker_(context),
       sched_wakeup_name_id_(context->storage->InternString("sched_wakeup")),
       sched_waking_name_id_(context->storage->InternString("sched_waking")),
       cpu_id_(context->storage->InternString("cpu")),
@@ -1060,6 +1061,10 @@ util::Status FtraceParser::ParseFtraceEvent(uint32_t cpu,
       }
       case FtraceEvent::kAndroidFsDatareadStartFieldNumber: {
         ParseAndroidFsDatareadStart(ts, pid, fld_bytes);
+        break;
+      }
+      case FtraceEvent::kGpuWorkPeriodFieldNumber: {
+        gpu_work_period_tracker_.ParseGpuWorkPeriodEvent(ts, fld_bytes);
         break;
       }
       default:
