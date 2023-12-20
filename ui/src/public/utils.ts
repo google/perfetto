@@ -20,8 +20,11 @@ export function getTrackName(args: Partial<{
   threadName: string | null,
   tid: number | null,
   upid: number | null,
+  userName: string | null,
+  uid: number | null,
   kind: string,
-  threadTrack: boolean
+  threadTrack: boolean,
+  uidTrack: boolean
 }>) {
   const {
     name,
@@ -31,8 +34,11 @@ export function getTrackName(args: Partial<{
     threadName,
     pid,
     tid,
+    userName,
+    uid,
     kind,
     threadTrack,
+    uidTrack,
   } = args;
 
   const hasName = name !== undefined && name !== null && name !== '[NULL]';
@@ -40,10 +46,13 @@ export function getTrackName(args: Partial<{
   const hasUtid = utid !== undefined && utid !== null;
   const hasProcessName = processName !== undefined && processName !== null;
   const hasThreadName = threadName !== undefined && threadName !== null;
+  const hasUserName = userName !== undefined && userName !== null;
   const hasTid = tid !== undefined && tid !== null;
   const hasPid = pid !== undefined && pid !== null;
+  const hasUid = uid !== undefined && uid !== null;
   const hasKind = kind !== undefined;
   const isThreadTrack = threadTrack !== undefined && threadTrack;
+  const isUidTrack = uidTrack !== undefined && uidTrack;
 
   // If we don't have any useful information (better than
   // upid/utid) we show the track kind to help with tracking
@@ -52,6 +61,10 @@ export function getTrackName(args: Partial<{
 
   if (isThreadTrack && hasName && hasTid) {
     return `${name} (${tid})`;
+  } else if (isUidTrack && hasName && hasUserName) {
+    return `${name} (${userName})`;
+  } else if (isUidTrack && hasName && hasUid) {
+    return `${name} ${uid}`;
   } else if (hasName) {
     return `${name}`;
   } else if (hasUpid && hasPid && hasProcessName) {
@@ -66,6 +79,10 @@ export function getTrackName(args: Partial<{
     return `upid: ${upid}${kindSuffix}`;
   } else if (hasUtid) {
     return `utid: ${utid}${kindSuffix}`;
+  } else if (hasUtid) {
+    return `utid: ${utid}${kindSuffix}`;
+  } else if (hasUid) {
+    return `uid: ${uid}${kindSuffix}`;
   } else if (hasKind) {
     return `Unnamed ${kind}`;
   }

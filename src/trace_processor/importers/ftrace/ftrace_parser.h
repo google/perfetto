@@ -26,6 +26,7 @@
 #include "src/trace_processor/importers/common/trace_parser.h"
 #include "src/trace_processor/importers/ftrace/drm_tracker.h"
 #include "src/trace_processor/importers/ftrace/ftrace_descriptors.h"
+#include "src/trace_processor/importers/ftrace/gpu_work_period_tracker.h"
 #include "src/trace_processor/importers/ftrace/iostat_tracker.h"
 #include "src/trace_processor/importers/ftrace/mali_gpu_event_tracker.h"
 #include "src/trace_processor/importers/ftrace/pkvm_hyp_cpu_tracker.h"
@@ -299,6 +300,7 @@ class FtraceParser {
   VirtioGpuTracker virtio_gpu_tracker_;
   MaliGpuEventTracker mali_gpu_event_tracker_;
   PkvmHypervisorCpuTracker pkvm_hyp_cpu_tracker_;
+  GpuWorkPeriodTracker gpu_work_period_tracker_;
 
   const StringId sched_wakeup_name_id_;
   const StringId sched_waking_name_id_;

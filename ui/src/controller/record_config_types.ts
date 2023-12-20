@@ -39,6 +39,7 @@ export const recordConfigValidator = record({
 
   gpuFreq: bool(),
   gpuMemTotal: bool(),
+  gpuWorkPeriod: bool(),
 
   ftrace: bool(),
   atrace: bool(),
