@@ -2328,6 +2328,7 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
                                     &previous_packet_dropped)) {
         break;
       }
+      packet.set_buffer_index_for_stats(static_cast<uint32_t>(buf_idx));
       PERFETTO_DCHECK(sequence_properties.producer_id_trusted != 0);
       PERFETTO_DCHECK(sequence_properties.writer_id != 0);
       PERFETTO_DCHECK(sequence_properties.client_identity_trusted.has_uid());
@@ -2442,16 +2443,18 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
   auto start = base::GetWallTimeNs();
   for (TracePacket& packet : *packets) {
     const auto& packet_slices = packet.slices();
+    const size_t input_packet_size = packet.size();
     filter_input.clear();
     filter_input.resize(packet_slices.size());
     ++tracing_session->filter_input_packets;
-    tracing_session->filter_input_bytes += packet.size();
+    tracing_session->filter_input_bytes += input_packet_size;
     for (size_t i = 0; i < packet_slices.size(); ++i)
       filter_input[i] = {packet_slices[i].start, packet_slices[i].size};
     auto filtered_packet = trace_filter.FilterMessageFragments(
         &filter_input[0], filter_input.size());
 
     // Replace the packet in-place with the filtered one (unless failed).
+    std::optional<uint32_t> maybe_buffer_idx = packet.buffer_index_for_stats();
     packet = TracePacket();
     if (filtered_packet.error) {
       ++tracing_session->filter_errors;
@@ -2460,6 +2463,19 @@ void TracingServiceImpl::MaybeFilterPackets(TracingSession* tracing_session,
       continue;
     }
     tracing_session->filter_output_bytes += filtered_packet.size;
+    if (maybe_buffer_idx.has_value()) {
+      // Keep the per-buffer stats updated. Also propagate the
+      // buffer_index_for_stats in the output packet to allow accounting by
+      // other parts of the ReadBuffer pipeline.
+      uint32_t buffer_idx = maybe_buffer_idx.value();
+      packet.set_buffer_index_for_stats(buffer_idx);
+      auto& vec = tracing_session->filter_bytes_discarded_per_buffer;
+      if (static_cast<size_t>(buffer_idx) >= vec.size())
+        vec.resize(buffer_idx + 1);
+      PERFETTO_DCHECK(input_packet_size >= filtered_packet.size);
+      size_t bytes_filtered_out = input_packet_size - filtered_packet.size;
+      vec[buffer_idx] += bytes_filtered_out;
+    }
     AppendOwnedSlicesToPacket(std::move(filtered_packet.data),
                               filtered_packet.size, kMaxTracePacketSliceSize,
                               &packet);
@@ -3387,6 +3403,8 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
     filt_stats->set_output_bytes(tracing_session->filter_output_bytes);
     filt_stats->set_errors(tracing_session->filter_errors);
     filt_stats->set_time_taken_ns(tracing_session->filter_time_taken_ns);
+    for (uint64_t value : tracing_session->filter_bytes_discarded_per_buffer)
+      filt_stats->add_bytes_discarded_per_buffer(value);
   }
 
   for (BufferID buf_id : tracing_session->buffers_index) {
