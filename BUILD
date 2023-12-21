@@ -172,7 +172,6 @@ perfetto_cc_binary(
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_gpu_cpp",
         ":protos_perfetto_config_inode_file_cpp",
@@ -302,7 +301,6 @@ perfetto_cc_library(
     deps = [
                ":protos_perfetto_common_zero",
                ":protos_perfetto_config_android_zero",
-               ":protos_perfetto_config_etw_zero",
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
@@ -380,8 +378,6 @@ perfetto_cc_binary(
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_cpp",
@@ -495,8 +491,6 @@ perfetto_cc_library(
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_cpp",
@@ -3185,7 +3179,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -3252,7 +3245,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -3601,7 +3593,6 @@ perfetto_cc_protocpp_library(
     deps = [
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_android_cpp",
-        ":protos_perfetto_config_etw_cpp",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_gpu_cpp",
         ":protos_perfetto_config_inode_file_cpp",
@@ -3625,33 +3616,6 @@ perfetto_proto_descriptor(
     ],
     outs = [
         "protos_perfetto_config_descriptor.bin",
-    ],
-)
-
-# GN target: //protos/perfetto/config/etw:cpp
-perfetto_cc_protocpp_library(
-    name = "protos_perfetto_config_etw_cpp",
-    deps = [
-        ":protos_perfetto_config_etw_protos",
-    ],
-)
-
-# GN target: //protos/perfetto/config/etw:source_set
-perfetto_proto_library(
-    name = "protos_perfetto_config_etw_protos",
-    srcs = [
-        "protos/perfetto/config/etw/etw_config.proto",
-    ],
-    visibility = [
-        PERFETTO_CONFIG.proto_library_visibility,
-    ],
-)
-
-# GN target: //protos/perfetto/config/etw:zero
-perfetto_cc_protozero_library(
-    name = "protos_perfetto_config_etw_zero",
-    deps = [
-        ":protos_perfetto_config_etw_protos",
     ],
 )
 
@@ -3864,6 +3828,7 @@ perfetto_proto_library(
         "protos/perfetto/config/chrome/chrome_config.proto",
         "protos/perfetto/config/chrome/scenario_config.proto",
         "protos/perfetto/config/data_source_config.proto",
+        "protos/perfetto/config/etw/etw_config.proto",
         "protos/perfetto/config/interceptor_config.proto",
         "protos/perfetto/config/stress_test_config.proto",
         "protos/perfetto/config/test_config.proto",
@@ -3875,7 +3840,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -4015,7 +3979,6 @@ perfetto_cc_protozero_library(
     deps = [
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_zero",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
@@ -4038,7 +4001,6 @@ perfetto_cc_protocpp_library(
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_gpu_cpp",
         ":protos_perfetto_config_inode_file_cpp",
@@ -4061,7 +4023,6 @@ perfetto_cc_ipc_library(
         ":protos_perfetto_common_cpp",
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_gpu_cpp",
         ":protos_perfetto_config_inode_file_cpp",
@@ -4091,7 +4052,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -4587,7 +4547,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -4609,7 +4568,6 @@ perfetto_cc_protozero_library(
     deps = [
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_zero",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
@@ -4645,7 +4603,6 @@ perfetto_proto_library(
     deps = [
         ":protos_perfetto_common_protos",
         ":protos_perfetto_config_android_protos",
-        ":protos_perfetto_config_etw_protos",
         ":protos_perfetto_config_ftrace_protos",
         ":protos_perfetto_config_gpu_protos",
         ":protos_perfetto_config_inode_file_protos",
@@ -4687,7 +4644,6 @@ perfetto_cc_protozero_library(
     deps = [
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_zero",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
@@ -5154,8 +5110,6 @@ perfetto_cc_library(
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_cpp",
@@ -5248,8 +5202,6 @@ perfetto_cc_binary(
         ":protos_perfetto_config_android_cpp",
         ":protos_perfetto_config_android_zero",
         ":protos_perfetto_config_cpp",
-        ":protos_perfetto_config_etw_cpp",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_cpp",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_cpp",
@@ -5393,7 +5345,6 @@ perfetto_cc_library(
     deps = [
                ":protos_perfetto_common_zero",
                ":protos_perfetto_config_android_zero",
-               ":protos_perfetto_config_etw_zero",
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
@@ -5548,7 +5499,6 @@ perfetto_cc_binary(
     deps = [
                ":protos_perfetto_common_zero",
                ":protos_perfetto_config_android_zero",
-               ":protos_perfetto_config_etw_zero",
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
@@ -5637,7 +5587,6 @@ perfetto_cc_library(
     deps = [
         ":protos_perfetto_common_zero",
         ":protos_perfetto_config_android_zero",
-        ":protos_perfetto_config_etw_zero",
         ":protos_perfetto_config_ftrace_zero",
         ":protos_perfetto_config_gpu_zero",
         ":protos_perfetto_config_inode_file_zero",
@@ -5773,7 +5722,6 @@ perfetto_cc_binary(
     deps = [
                ":protos_perfetto_common_zero",
                ":protos_perfetto_config_android_zero",
-               ":protos_perfetto_config_etw_zero",
                ":protos_perfetto_config_ftrace_zero",
                ":protos_perfetto_config_gpu_zero",
                ":protos_perfetto_config_inode_file_zero",
