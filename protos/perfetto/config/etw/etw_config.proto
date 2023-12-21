@@ -25,8 +25,8 @@ message EtwConfig {
   // The KernelFlag represent list of kernel flags that we are intrested in.
   // To get a more extensive list run 'xperf -providers k'.
   enum KernelFlag {
-    C_SWITCH = 0;
-    IDLE_STATES = 1;
+    CSWITCH = 0;
+    DISPATCHER = 1;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
