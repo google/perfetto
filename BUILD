@@ -2372,6 +2372,15 @@ perfetto_filegroup(
     ],
 )
 
+# GN target: //src/trace_processor/rpc:stdiod
+perfetto_filegroup(
+    name = "src_trace_processor_rpc_stdiod",
+    srcs = [
+        "src/trace_processor/rpc/stdiod.cc",
+        "src/trace_processor/rpc/stdiod.h",
+    ],
+)
+
 # GN target: //src/trace_processor/sorter:sorter
 perfetto_filegroup(
     name = "src_trace_processor_sorter_sorter",
@@ -5505,6 +5514,7 @@ perfetto_cc_binary(
         ":src_trace_processor_perfetto_sql_intrinsics_table_functions_tables",
         ":src_trace_processor_rpc_httpd",
         ":src_trace_processor_rpc_rpc",
+        ":src_trace_processor_rpc_stdiod",
         ":src_trace_processor_sorter_sorter",
         ":src_trace_processor_sqlite_query_constraints",
         ":src_trace_processor_sqlite_sqlite",

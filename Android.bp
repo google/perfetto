@@ -12049,6 +12049,14 @@ filegroup {
     ],
 }
 
+// GN: //src/trace_processor/rpc:stdiod
+filegroup {
+    name: "perfetto_src_trace_processor_rpc_stdiod",
+    srcs: [
+        "src/trace_processor/rpc/stdiod.cc",
+    ],
+}
+
 // GN: //src/trace_processor/rpc:unittests
 filegroup {
     name: "perfetto_src_trace_processor_rpc_unittests",
@@ -14590,6 +14598,7 @@ cc_binary {
         ":perfetto_src_trace_processor_perfetto_sql_intrinsics_table_functions_table_functions",
         ":perfetto_src_trace_processor_rpc_httpd",
         ":perfetto_src_trace_processor_rpc_rpc",
+        ":perfetto_src_trace_processor_rpc_stdiod",
         ":perfetto_src_trace_processor_sorter_sorter",
         ":perfetto_src_trace_processor_sqlite_query_constraints",
         ":perfetto_src_trace_processor_sqlite_sqlite",

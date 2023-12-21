@@ -206,6 +206,7 @@ if (enable_perfetto_trace_processor_sqlite) {
       "../base",
       "../base:version",
       "metrics",
+      "rpc:stdiod",
       "util",
       "util:stdlib",
     ]
