@@ -70,6 +70,14 @@ if (!build_with_chromium && enable_perfetto_integration_tests) {
         "../src/perfetto_cmd:trigger_perfetto_cmd",
       ]
     }
+
+    if (enable_perfetto_trace_processor &&
+        enable_perfetto_trace_processor_sqlite &&
+        !perfetto_build_with_android && !is_android) {
+      sources += [ "trace_processor_shell_integrationtest.cc" ]
+      data_deps += [ "../src/trace_processor:trace_processor_shell" ]
+      deps += [ "../protos/perfetto/trace_processor:cpp" ]
+    }
   }
 
   executable("client_api_example") {
