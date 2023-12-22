@@ -16,7 +16,9 @@
 
 #include "src/trace_processor/rpc/stdiod.h"
 
+#if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
 #include <unistd.h>
+#endif
 
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
