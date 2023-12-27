@@ -16,7 +16,6 @@
 #include "perfetto/ext/base/http/sha1.h"
 
 #include <stddef.h>
-#include <stdint.h>
 #include <string.h>
 
 // From chrome_elf/sha1/sha1.cc.

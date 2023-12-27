@@ -23,6 +23,7 @@
 #include <set>
 #include <utility>
 
+#include "perfetto/base/compiler.h"
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/string_splitter.h"
@@ -578,7 +579,7 @@ base::Status SpanJoinOperatorTable::Cursor::Column(sqlite3_context* context,
         sqlite3_result_int64(context, static_cast<sqlite3_int64>(partition));
         break;
       }
-      [[clang::fallthrough]];
+      PERFETTO_FALLTHROUGH;
     }
     default: {
       size_t index = static_cast<size_t>(N);
