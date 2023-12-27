@@ -17,6 +17,7 @@
 #ifndef SRC_TRACECONV_TRACE_TO_PROFILE_H_
 #define SRC_TRACECONV_TRACE_TO_PROFILE_H_
 
+#include <cstdint>
 #include <iostream>
 #include <vector>
 
