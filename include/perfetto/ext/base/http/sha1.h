@@ -20,6 +20,8 @@
 #include <stddef.h>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 namespace perfetto {
