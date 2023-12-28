@@ -39,6 +39,8 @@ slices_to_standardize = [
     "/data/app/.../base.apk",
     "OpenDexFilesFromOat(/data/app/.../base.apk)",
     "Open oat file /data/misc/apexdata/com.android.art/dalvik-cache/boot.oat",
+    "android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation",
+    "GC: Wait For Completion Alloc",
 ]
 
 for name in slices_to_standardize:
