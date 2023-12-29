@@ -50,7 +50,7 @@ android_blocking_calls_cuj_metric {
       pid: 3000
     }
     ts: 2000000
-    dur: 180000000
+    dur: 240000000
     blocking_calls {
       name: "Contending for pthread mutex"
       cnt: 1
@@ -63,11 +63,11 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "CoroutineContinuation"
-      cnt: 1
-      total_dur_ms: 10
+      cnt: 2
+      total_dur_ms: 20
       max_dur_ms: 10
       min_dur_ms: 10
-      total_dur_ns: 10000000
+      total_dur_ns: 20000000
       max_dur_ns: 10000000
       min_dur_ns: 10000000
     }
@@ -83,6 +83,16 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "ExpNotRow#onMeasure(MessagingStyle)"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "Garbage Collector"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
@@ -152,6 +162,16 @@ android_blocking_calls_cuj_metric {
       min_dur_ns: 10000000
     }
     blocking_calls {
+      name: "animation"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
       name: "binder transaction"
       cnt: 1
       total_dur_ms: 10
@@ -173,6 +193,16 @@ android_blocking_calls_cuj_metric {
     }
     blocking_calls {
       name: "inflate"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "input"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
@@ -212,7 +242,27 @@ android_blocking_calls_cuj_metric {
       min_dur_ns: 10000000
     }
     blocking_calls {
+      name: "postAndWait"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
       name: "relayoutWindow <...>"
+      cnt: 1
+      total_dur_ms: 10
+      max_dur_ms: 10
+      min_dur_ms: 10
+      total_dur_ns: 10000000
+      max_dur_ns: 10000000
+      min_dur_ns: 10000000
+    }
+    blocking_calls {
+      name: "traversal"
       cnt: 1
       total_dur_ms: 10
       max_dur_ms: 10
