@@ -130,6 +130,20 @@ WITH all_main_thread_relevant_slices AS (
             OR s.name GLOB 'NotificationStackScrollLayout#onMeasure'
             OR s.name GLOB 'ExpNotRow#*'
             OR s.name GLOB 'GC: Wait For*'
+            OR (
+                -- Some top level handler slices
+                    s.depth = 0
+                AND s.name NOT GLOB '*Choreographer*'
+                AND s.name NOT GLOB '*Input*'
+                AND s.name NOT GLOB '*input*'
+                AND s.name NOT GLOB 'android.os.Handler: #*'
+                AND (
+                   -- Handler pattern heuristics
+                      s.name GLOB '*Handler: *$*'
+                   OR s.name GLOB '*.*.*: *$*'
+                   OR s.name GLOB '*.*$*: #*'
+                )
+            )
         )
     UNION ALL
     SELECT
