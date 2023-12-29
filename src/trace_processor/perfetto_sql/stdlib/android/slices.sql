@@ -32,11 +32,12 @@ SELECT
     WHEN $name GLOB "SuspendThreadByThreadId*" THEN "SuspendThreadByThreadId <...>"
     WHEN $name GLOB "LoadApkAssetsFd*" THEN "LoadApkAssetsFd <...>"
     WHEN $name GLOB "relayoutWindow*" THEN "relayoutWindow <...>"
-    WHEN $name GLOB "*CancellableContinuationImpl*" THEN "CoroutineContinuation"
+    WHEN $name GLOB "android.os.Handler: kotlinx.coroutines*" THEN "CoroutineContinuation"
     WHEN $name GLOB "Choreographer#doFrame*" THEN "Choreographer#doFrame"
     WHEN $name GLOB "DrawFrames*" THEN "DrawFrames"
     WHEN $name GLOB "/data/app*.apk" THEN "APK load"
     WHEN $name GLOB "OpenDexFilesFromOat*" THEN "OpenDexFilesFromOat"
     WHEN $name GLOB "Open oat file*" THEN "Open oat file"
+    WHEN $name GLOB "GC: Wait For*" THEN "Garbage Collector"
     ELSE $name
   END;
