@@ -33,8 +33,8 @@ class LargeScreensPerf implements Plugin {
               tags.name?.includes('hingeAngle') ||
               tags.name?.includes('UnfoldLightRevealOverlayAnimation') ||
               tags.name?.startsWith('waitForAllWindowsDrawn') ||
-              tags.name?.endsWith == 'UNFOLD_ANIM>' ||
-              tags.name?.endsWith == 'UNFOLD>' ||
+              tags.name?.endsWith('UNFOLD_ANIM>') ||
+              tags.name?.endsWith('UNFOLD>') ||
               tags.name == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
               tags.name == 'FoldedState' || tags.name == 'FoldUpdate';
         });
