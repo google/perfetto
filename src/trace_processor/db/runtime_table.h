@@ -35,11 +35,17 @@ namespace trace_processor {
 // where the schema of the table is decided at runtime.
 class RuntimeTable : public Table {
  public:
-  using IntStorage = ColumnStorage<std::optional<int64_t>>;
+  using NullIntStorage = ColumnStorage<std::optional<int64_t>>;
+  using IntStorage = ColumnStorage<int64_t>;
   using StringStorage = ColumnStorage<StringPool::Id>;
-  using DoubleStorage = ColumnStorage<std::optional<double>>;
-  using VariantStorage =
-      std::variant<uint32_t, IntStorage, StringStorage, DoubleStorage>;
+  using NullDoubleStorage = ColumnStorage<std::optional<double>>;
+  using DoubleStorage = ColumnStorage<double>;
+  using VariantStorage = std::variant<uint32_t,
+                                      IntStorage,
+                                      NullIntStorage,
+                                      StringStorage,
+                                      DoubleStorage,
+                                      NullDoubleStorage>;
 
   RuntimeTable(StringPool* pool, std::vector<std::string> col_names);
   ~RuntimeTable() override;

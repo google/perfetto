@@ -39,6 +39,8 @@ source_set("table_functions") {
     "experimental_slice_layout.h",
     "flamegraph_construction_algorithms.cc",
     "flamegraph_construction_algorithms.h",
+    "table_info.cc",
+    "table_info.h",
     "view.cc",
     "view.h",
   ]
@@ -56,6 +58,7 @@ source_set("table_functions") {
     "../../../tables",
     "../../../types",
     "../../../util",
+    "../../engine",
   ]
   public_deps = [ ":interface" ]
 }

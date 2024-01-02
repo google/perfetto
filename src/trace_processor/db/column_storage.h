@@ -71,6 +71,15 @@ class ColumnStorage final : public ColumnStorageBase {
     return ColumnStorage<T>();
   }
 
+  // Create non-null storage from nullable storage without nulls.
+  static ColumnStorage<T> CreateFromAssertNonNull(
+      ColumnStorage<std::optional<T>> null_storage) {
+    PERFETTO_CHECK(null_storage.size() == null_storage.non_null_size());
+    ColumnStorage<T> x;
+    x.vector_ = std::move(null_storage).non_null_vector();
+    return x;
+  }
+
  private:
   std::vector<T> vector_;
 };
@@ -95,7 +104,7 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
   void ShrinkToFit() { nv_.ShrinkToFit(); }
   // For dense columns the size of the vector is equal to size of the bit
   // vector. For sparse it's equal to count set bits of the bit vector.
-  const std::vector<T>& non_null_vector() const {
+  const std::vector<T>& non_null_vector() const& {
     return nv_.non_null_vector();
   }
   const BitVector& non_null_bit_vector() const {
@@ -114,6 +123,10 @@ class ColumnStorage<std::optional<T>> final : public ColumnStorageBase {
     return IsDense
                ? ColumnStorage<std::optional<T>>(NullableVector<T>::Dense())
                : ColumnStorage<std::optional<T>>(NullableVector<T>::Sparse());
+  }
+
+  std::vector<T> non_null_vector() && {
+    return std::move(nv_).non_null_vector();
   }
 
  private:
