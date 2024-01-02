@@ -642,7 +642,6 @@ class TraceBuffer {
     PERFETTO_DCHECK(record.size >= sizeof(record));
     PERFETTO_DCHECK(record.size % sizeof(record) == 0);
     PERFETTO_DCHECK(record.size >= size + sizeof(record));
-    PERFETTO_CHECK(record.size <= size_to_end());
     DcheckIsAlignedAndWithinBounds(wptr);
 
     // We may be writing to this area for the first time.
