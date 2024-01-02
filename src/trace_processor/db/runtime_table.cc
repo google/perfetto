@@ -15,11 +15,14 @@
  */
 
 #include "src/trace_processor/db/runtime_table.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+
 #include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
+#include "src/trace_processor/db/column.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -156,9 +159,14 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
       // Check if the column is nullable.
       if (ints->non_null_size() == ints->size()) {
         *col = IntStorage::CreateFromAssertNonNull(std::move(*ints));
-        columns_.push_back(Column(col_names_[i].c_str(),
-                                  std::get_if<IntStorage>(col),
-                                  Column::Flag::kNonNull, this, i, 0));
+        auto* non_null_ints = std::get_if<IntStorage>(col);
+        bool is_sorted = std::is_sorted(non_null_ints->vector().begin(),
+                                        non_null_ints->vector().end());
+        uint32_t flags = is_sorted
+                             ? Column::Flag::kNonNull | Column::Flag::kSorted
+                             : Column::Flag::kNonNull;
+        columns_.push_back(
+            Column(col_names_[i].c_str(), non_null_ints, flags, this, i, 0));
       } else {
         columns_.push_back(Column(col_names_[i].c_str(), ints,
                                   Column::Flag::kNoFlag, this, i, 0));
@@ -173,9 +181,16 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
       // Check if the column is nullable.
       if (doubles->non_null_size() == doubles->size()) {
         *col = DoubleStorage::CreateFromAssertNonNull(std::move(*doubles));
-        columns_.push_back(Column(col_names_[i].c_str(),
-                                  std::get_if<DoubleStorage>(col),
-                                  Column::Flag::kNonNull, this, i, 0));
+
+        auto* non_null_doubles = std::get_if<DoubleStorage>(col);
+        bool is_sorted = std::is_sorted(non_null_doubles->vector().begin(),
+                                        non_null_doubles->vector().end());
+        uint32_t flags = is_sorted
+                             ? Column::Flag::kNonNull | Column::Flag::kSorted
+                             : Column::Flag::kNonNull;
+
+        columns_.push_back(
+            Column(col_names_[i].c_str(), non_null_doubles, flags, this, i, 0));
       } else {
         columns_.push_back(Column(col_names_[i].c_str(), doubles,
                                   Column::Flag::kNoFlag, this, i, 0));

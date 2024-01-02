@@ -85,17 +85,19 @@ class PerfettoTable(TestSuite):
         trace=DataPath('android_boot.pftrace'),
         query="""
         CREATE PERFETTO TABLE foo AS
-        SELECT 2 AS col
+        SELECT * FROM
+        (SELECT 2 AS c
         UNION
-        SELECT 1 AS col
+        SELECT 0 AS c
         UNION
-        SELECT 0 AS col;
+        SELECT 1 AS c)
+        ORDER BY c desc;
 
-        SELECT * FROM perfetto_table_info('foo');
+        SELECT * from perfetto_table_info('foo');
         """,
         out=Csv("""
         "id","type","name","col_type","nullable","sorted"
-        0,"perfetto_table_info","col","int64",0,0
+        0,"perfetto_table_info","c","int64",0,0
         """))
 
   def test_create_perfetto_table_nullable_column(self):
@@ -112,4 +114,19 @@ class PerfettoTable(TestSuite):
         out=Csv("""
         "nullable"
         0
+        """))
+
+  def test_create_perfetto_table_nullable_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT dur FROM slice ORDER BY dur;
+
+        SELECT sorted FROM perfetto_table_info('foo')
+        WHERE name = 'dur';
+        """,
+        out=Csv("""
+        "sorted"
+        1
         """))
