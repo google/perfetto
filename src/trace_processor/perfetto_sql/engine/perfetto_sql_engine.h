@@ -19,7 +19,9 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 
+#include "perfetto/base/logging.h"
 #include "perfetto/base/status.h"
 #include "perfetto/ext/base/flat_hash_map.h"
 #include "perfetto/ext/base/status_or.h"
@@ -116,7 +118,7 @@ class PerfettoSqlEngine {
 
   // Registers a trace processor C++ table with SQLite with an SQL name of
   // |name|.
-  void RegisterStaticTable(const Table& table, const std::string& name);
+  void RegisterStaticTable(const Table&, const std::string& name);
 
   // Registers a trace processor C++ table function with SQLite.
   void RegisterStaticTableFunction(std::unique_ptr<StaticTableFunction> fn);
@@ -163,6 +165,12 @@ class PerfettoSqlEngine {
     return query_count + static_function_count_ + runtime_function_count_ +
            macros_.size();
   }
+
+  // Find RuntimeTable registered with engine with provided name.
+  const RuntimeTable* GetRuntimeTableOrNull(std::string_view) const;
+
+  // Find static table registered with engine with provided name.
+  const Table* GetStaticTableOrNull(std::string_view) const;
 
  private:
   base::StatusOr<SqlSource> ExecuteCreateFunction(
@@ -221,6 +229,7 @@ class PerfettoSqlEngine {
 
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTableFunction::State>>
       runtime_table_fn_states_;
+  base::FlatHashMap<std::string, const Table*> static_tables_;
   base::FlatHashMap<std::string, std::unique_ptr<RuntimeTable>> runtime_tables_;
   base::FlatHashMap<std::string, sql_modules::RegisteredModule> modules_;
   base::FlatHashMap<std::string, PerfettoSqlPreprocessor::Macro> macros_;

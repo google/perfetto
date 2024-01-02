@@ -123,8 +123,10 @@ class NullableVector {
   // Returns whether data in this NullableVector is stored densely.
   bool IsDense() const { return mode_ == Mode::kDense; }
 
-  const std::vector<T>& non_null_vector() const { return data_; }
+  const std::vector<T>& non_null_vector() const& { return data_; }
   const BitVector& non_null_bit_vector() const { return valid_; }
+
+  std::vector<T> non_null_vector() && { return std::move(data_); }
 
  private:
   explicit NullableVector(Mode mode) : mode_(mode) {}

@@ -63,3 +63,70 @@ class PerfettoTable(TestSuite):
         1,"big"
         2,"bigger"
         """))
+
+  def test_perfetto_table_info_static_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        SELECT * FROM perfetto_table_info('counter');
+        """,
+        out=Csv("""
+        "id","type","name","col_type","nullable","sorted"
+        0,"perfetto_table_info","id","id",0,1
+        1,"perfetto_table_info","type","string",0,0
+        2,"perfetto_table_info","ts","int64",0,1
+        3,"perfetto_table_info","track_id","uint32",0,0
+        4,"perfetto_table_info","value","double",0,0
+        5,"perfetto_table_info","arg_set_id","uint32",1,0
+        """))
+
+  def test_perfetto_table_info_runtime_table(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT * FROM
+        (SELECT 2 AS c
+        UNION
+        SELECT 0 AS c
+        UNION
+        SELECT 1 AS c)
+        ORDER BY c desc;
+
+        SELECT * from perfetto_table_info('foo');
+        """,
+        out=Csv("""
+        "id","type","name","col_type","nullable","sorted"
+        0,"perfetto_table_info","c","int64",0,0
+        """))
+
+  def test_create_perfetto_table_nullable_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT thread_ts FROM slice
+        WHERE thread_ts IS NOT NULL;
+
+        SELECT nullable FROM perfetto_table_info('foo')
+        WHERE name = 'thread_ts';
+        """,
+        out=Csv("""
+        "nullable"
+        0
+        """))
+
+  def test_create_perfetto_table_nullable_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT dur FROM slice ORDER BY dur;
+
+        SELECT sorted FROM perfetto_table_info('foo')
+        WHERE name = 'dur';
+        """,
+        out=Csv("""
+        "sorted"
+        1
+        """))
