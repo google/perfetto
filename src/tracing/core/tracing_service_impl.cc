@@ -3634,6 +3634,7 @@ void TracingServiceImpl::FlushAndCloneSession(ConsumerEndpointImpl* consumer,
   auto clone_target = FlushFlags::CloneTarget::kUnknown;
 
   if (tsid == kBugreportSessionId) {
+    PERFETTO_LOG("Looking for sessions for bugreport");
     TracingSession* session = FindTracingSessionWithMaxBugreportScore();
     if (!session) {
       consumer->consumer_->OnSessionCloned(
