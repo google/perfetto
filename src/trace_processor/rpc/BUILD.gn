@@ -45,7 +45,7 @@ source_set("rpc") {
   ]
 }
 
-if (!perfetto_build_with_android) {
+if (is_perfetto_build_generator || perfetto_build_standalone) {
   # Static library target for RPC code. Needed for BigTrace in Google3.
   # TODO(b/278208757): remove this when we migrate to using rpc_shell.
   static_library("trace_processor_rpc") {
