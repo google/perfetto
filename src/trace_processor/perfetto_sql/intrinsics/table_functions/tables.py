@@ -30,6 +30,18 @@ from src.trace_processor.tables.profiler_tables import STACK_PROFILE_CALLSITE_TA
 from src.trace_processor.tables.slice_tables import SLICE_TABLE
 from src.trace_processor.tables.sched_tables import SCHED_SLICE_TABLE
 
+TABLE_INFO_TABLE = Table(
+    python_module=__file__,
+    class_name="PerfettoTableInfoTable",
+    sql_name="perfetto_table_info",
+    columns=[
+        C("table_name", CppString(), flags=ColumnFlag.HIDDEN),
+        C('name', CppString()),
+        C('col_type', CppString()),
+        C('nullable', CppInt64()),
+        C('sorted', CppInt64()),
+    ])
+
 ANCESTOR_SLICE_TABLE = Table(
     python_module=__file__,
     class_name="AncestorSliceTable",
@@ -98,30 +110,6 @@ EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
     ],
     parent=STACK_PROFILE_CALLSITE_TABLE)
 
-EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
-    python_module=__file__,
-    class_name="ExperimentalAnnotatedCallstackTable",
-    sql_name="experimental_annotated_callstack",
-    columns=[
-        C("annotation", CppString()),
-        C("start_id",
-          CppTableId(STACK_PROFILE_CALLSITE_TABLE),
-          flags=ColumnFlag.HIDDEN),
-    ],
-    parent=STACK_PROFILE_CALLSITE_TABLE)
-
-EXPERIMENTAL_ANNOTATED_CALLSTACK_TABLE = Table(
-    python_module=__file__,
-    class_name="ExperimentalAnnotatedCallstackTable",
-    sql_name="experimental_annotated_callstack",
-    columns=[
-        C("annotation", CppString()),
-        C("start_id",
-          CppTableId(STACK_PROFILE_CALLSITE_TABLE),
-          flags=ColumnFlag.HIDDEN),
-    ],
-    parent=STACK_PROFILE_CALLSITE_TABLE)
-
 EXPERIMENTAL_COUNTER_DUR_TABLE = Table(
     python_module=__file__,
     class_name="ExperimentalCounterDurTable",
@@ -163,4 +151,5 @@ ALL_TABLES = [
     EXPERIMENTAL_COUNTER_DUR_TABLE,
     EXPERIMENTAL_SCHED_UPID_TABLE,
     EXPERIMENTAL_SLICE_LAYOUT_TABLE,
+    TABLE_INFO_TABLE,
 ]

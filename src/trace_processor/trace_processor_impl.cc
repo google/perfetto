@@ -78,6 +78,7 @@
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_sched_upid.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/experimental_slice_layout.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/static_table_function.h"
+#include "src/trace_processor/perfetto_sql/intrinsics/table_functions/table_info.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/table_functions/view.h"
 #include "src/trace_processor/perfetto_sql/prelude/tables_views.h"
 #include "src/trace_processor/perfetto_sql/stdlib/stdlib.h"
@@ -862,6 +863,8 @@ void TraceProcessorImpl::InitPerfettoSqlEngine() {
   engine_->RegisterStaticTableFunction(std::unique_ptr<ExperimentalSliceLayout>(
       new ExperimentalSliceLayout(context_.storage.get()->mutable_string_pool(),
                                   &storage->slice_table())));
+  engine_->RegisterStaticTableFunction(std::unique_ptr<TableInfo>(new TableInfo(
+      context_.storage.get()->mutable_string_pool(), engine_.get())));
   engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(
       new Ancestor(Ancestor::Type::kSlice, context_.storage.get())));
   engine_->RegisterStaticTableFunction(std::unique_ptr<Ancestor>(new Ancestor(
