@@ -184,6 +184,7 @@ void PerfettoSqlEngine::RegisterStaticTable(const Table& table,
                                             const std::string& table_name) {
   auto context =
       std::make_unique<DbSqliteTable::Context>(query_cache_.get(), &table);
+  static_tables_.Insert(table_name, &table);
   engine_->RegisterVirtualTableModule<DbSqliteTable>(
       table_name, std::move(context), SqliteTable::kEponymousOnly, false);
 
@@ -831,6 +832,24 @@ base::Status PerfettoSqlEngine::ValidateColumnNames(
       "%s; and the folowing columns exist, but are not declared: %s",
       tag, base::Join(columns_missing_from_query, ", ").c_str(),
       base::Join(columns_missing_from_schema, ", ").c_str());
+}
+
+const RuntimeTable* PerfettoSqlEngine::GetRuntimeTableOrNull(
+    std::string_view name) const {
+  auto table_ptr = runtime_tables_.Find(name.data());
+  if (!table_ptr) {
+    return nullptr;
+  }
+  return table_ptr->get();
+}
+
+const Table* PerfettoSqlEngine::GetStaticTableOrNull(
+    std::string_view name) const {
+  auto table_ptr = static_tables_.Find(name.data());
+  if (!table_ptr) {
+    return nullptr;
+  }
+  return *table_ptr;
 }
 
 }  // namespace trace_processor
