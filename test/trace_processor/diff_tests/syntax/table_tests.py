@@ -95,5 +95,21 @@ class PerfettoTable(TestSuite):
         """,
         out=Csv("""
         "id","type","name","col_type","nullable","sorted"
-        0,"perfetto_table_info","col","int64",1,0
+        0,"perfetto_table_info","col","int64",0,0
+        """))
+
+  def test_create_perfetto_table_nullable_column(self):
+    return DiffTestBlueprint(
+        trace=DataPath('android_boot.pftrace'),
+        query="""
+        CREATE PERFETTO TABLE foo AS
+        SELECT thread_ts FROM slice
+        WHERE thread_ts IS NOT NULL;
+
+        SELECT nullable FROM perfetto_table_info('foo')
+        WHERE name = 'thread_ts';
+        """,
+        out=Csv("""
+        "nullable"
+        0
         """))
