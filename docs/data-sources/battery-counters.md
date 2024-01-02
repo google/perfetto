@@ -38,7 +38,7 @@ For more details on HW specs and resolution see
 
 Battery counters measure the charge flowing *in* and *out* of
 the battery. If the device is plugged to a USB cable, you will likely observe
-a negative instantaneous current and an increase of the total charge, denoting
+a positive instantaneous current and an increase of the total charge, denoting
 the fact that charge is flowing in the battery (i.e. charging it) rather
 than out.
 
