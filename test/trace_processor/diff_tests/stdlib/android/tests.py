@@ -226,7 +226,6 @@ class AndroidStdlib(TestSuite):
         INCLUDE PERFETTO MODULE android.slices;
         SELECT ANDROID_STANDARDIZE_SLICE_NAME(slice.name) name
         FROM slice
-        ORDER BY name;
         """,
         out=Path('android_slice_standardization.out'))
 
