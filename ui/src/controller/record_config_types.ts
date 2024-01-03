@@ -104,6 +104,8 @@ export const recordConfigValidator = record({
   uiRendering: bool(),
   inputEvents: bool(),
   navigationAndLoading: bool(),
+  audio: bool(),
+  video: bool(),
 
   symbolizeKsyms: bool(),
 
