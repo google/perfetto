@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {Duration, time} from '../base/time';
+import {exists} from '../base/utils';
 import {Actions} from '../common/actions';
 import {
   defaultViewingOption,
@@ -135,7 +136,7 @@ export class FlamegraphController extends Controller<'main'> {
         if (track?.uri) {
           const trackInfo = pluginManager.resolveTrackInfo(track.uri);
           if (trackInfo?.kind === PERF_SAMPLES_PROFILE_TRACK_KIND) {
-            trackInfo.upid && upids.push(trackInfo.upid);
+            exists(trackInfo.upid) && upids.push(trackInfo.upid);
           }
         }
       }

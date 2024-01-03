@@ -163,7 +163,7 @@ uint32_t UpperBoundIntrinsic(StringPool* pool,
 
 }  // namespace
 
-StringStorage::SearchValidationResult StringStorage::ValidateSearchConstraints(
+SearchValidationResult StringStorage::ValidateSearchConstraints(
     SqlValue val,
     FilterOp op) const {
   // Type checks.
@@ -175,11 +175,11 @@ StringStorage::SearchValidationResult StringStorage::ValidateSearchConstraints(
     case SqlValue::kDouble:
       // Any string is always more than any numeric.
       if (op == FilterOp::kGt || op == FilterOp::kGe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
   return SearchValidationResult::kOk;
@@ -195,16 +195,6 @@ RangeOrBitVector StringStorage::Search(FilterOp op,
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
-
-  // After this switch we assume the search is valid.
-  switch (ValidateSearchConstraints(sql_val, op)) {
-    case SearchValidationResult::kOk:
-      break;
-    case SearchValidationResult::kAllData:
-      return RangeOrBitVector(Range(0, search_range.end));
-    case SearchValidationResult::kNoData:
-      return RangeOrBitVector(Range());
-  }
 
   if (is_sorted_) {
     if (op != FilterOp::kNe) {
@@ -232,16 +222,6 @@ RangeOrBitVector StringStorage::IndexSearch(FilterOp op,
                       r->AddArg("Op",
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
-
-  // After this switch we assume the search is valid.
-  switch (ValidateSearchConstraints(sql_val, op)) {
-    case SearchValidationResult::kOk:
-      break;
-    case SearchValidationResult::kAllData:
-      return RangeOrBitVector(Range(0, indices_size));
-    case SearchValidationResult::kNoData:
-      return RangeOrBitVector(Range());
-  }
 
   if (indices_sorted) {
     return RangeOrBitVector(

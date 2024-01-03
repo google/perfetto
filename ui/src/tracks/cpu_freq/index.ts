@@ -27,6 +27,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
@@ -288,13 +289,12 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO: fonts and colors should come from the CSS and not hardcoded here.
     const {
       visibleTimeScale,
       visibleWindowTime,
-      windowSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined || data.timestamps.length === 0) {
@@ -307,7 +307,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     assertTrue(data.timestamps.length === data.maxFreqKHz.length);
     assertTrue(data.timestamps.length === data.lastIdleValues.length);
 
-    const endPx = windowSpan.end;
+    const endPx = size.width;
     const zeroY = MARGIN_TOP + RECT_HEIGHT;
 
     // Quantize the Y axis to quarters of powers of tens (7.5K, 10K, 12.5K).
@@ -383,7 +383,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     // Draw CPU idle rectangles that overlay the CPU freq graph.
     ctx.fillStyle = `rgba(240, 240, 240, 1)`;
 
-    for (let i = 0; i < data.lastIdleValues.length; i++) {
+    for (let i = startIdx; i < endIdx; i++) {
       if (data.lastIdleValues[i] < 0) {
         continue;
       }
@@ -456,8 +456,8 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        windowSpan.start,
-        windowSpan.end,
+        0,
+        size.width,
         visibleTimeScale.timeToPx(data.start),
         visibleTimeScale.timeToPx(data.end));
   }
@@ -466,7 +466,7 @@ class CpuFreqTrack extends TrackAdapter<Config, Data> {
     const data = this.data();
     if (data === undefined) return;
     this.mousePos = pos;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(pos.x);
 
     const [left, right] = searchSegment(data.timestamps, time.toTime());

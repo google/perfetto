@@ -28,11 +28,15 @@ class LargeScreensPerf implements Plugin {
       name: 'Pin: Unfold latency tracks',
       callback: () => {
         ctx.timeline.pinTracksByPredicate((tags) => {
-          return !!tags.name?.includes('UNFOLD') ||
+          return !!tags.name?.includes('UnfoldTransition') ||
               tags.name?.includes('Screen on blocked') ||
+              tags.name?.includes('hingeAngle') ||
+              tags.name?.includes('UnfoldLightRevealOverlayAnimation') ||
               tags.name?.startsWith('waitForAllWindowsDrawn') ||
-              tags.name?.endsWith('FoldUnfoldTransitionInProgress') ||
-              tags.name == 'Waiting for KeyguardDrawnCallback#onDrawn';
+              tags.name?.endsWith('UNFOLD_ANIM>') ||
+              tags.name?.endsWith('UNFOLD>') ||
+              tags.name == 'Waiting for KeyguardDrawnCallback#onDrawn' ||
+              tags.name == 'FoldedState' || tags.name == 'FoldUpdate';
         });
       },
     });

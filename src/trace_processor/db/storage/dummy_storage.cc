@@ -21,9 +21,8 @@ namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-DummyStorage::SearchValidationResult DummyStorage::ValidateSearchConstraints(
-    SqlValue,
-    FilterOp) const {
+SearchValidationResult DummyStorage::ValidateSearchConstraints(SqlValue,
+                                                               FilterOp) const {
   PERFETTO_FATAL("Shouldn't be called");
 }
 

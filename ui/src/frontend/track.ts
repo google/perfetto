@@ -14,12 +14,11 @@
 
 import m from 'mithril';
 
-import {duration, Span, time} from '../base/time';
+import {time} from '../base/time';
 import {SliceRect, Track, TrackContext} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
-import {PxSpan, TimeScale} from './time_scale';
-
+import {PanelSize} from './panel';
 // Args passed to the track constructors when creating a new track.
 export interface NewTrackArgs {
   trackKey: string;
@@ -42,7 +41,8 @@ export abstract class TrackBase implements Track {
   // this object is removed.
   onDestroy() {}
 
-  protected abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  protected abstract renderCanvas(
+      ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
   getHeight(): number {
     return 40;
@@ -64,18 +64,16 @@ export abstract class TrackBase implements Track {
 
   onFullRedraw(): void {}
 
-  render(ctx: CanvasRenderingContext2D) {
-    this.renderCanvas(ctx);
+  render(ctx: CanvasRenderingContext2D, size: PanelSize) {
+    this.renderCanvas(ctx, size);
   }
 
   // Returns a place where a given slice should be drawn. Should be implemented
   // only for track types that support slices e.g. chrome_slice, async_slices
   // tStart - slice start time in seconds, tEnd - slice end time in seconds,
   // depth - slice depth
-  getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, duration>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
+  getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
+      |undefined {
     return undefined;
   }
 }

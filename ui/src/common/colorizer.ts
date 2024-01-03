@@ -19,10 +19,10 @@ import {featureFlags} from '../core/feature_flags';
 
 import {Color, HSLColor, HSLuvColor} from './color';
 
-// 128 would provide equal weighting between dark and light text, but we want to
-// slightly prefer light text for stylistic reasons.
-// 140 means we must be brighter on average before switching to dark text.
-const PERCEIVED_BRIGHTNESS_LIMIT = 140;
+// 128 would provide equal weighting between dark and light text.
+// However, we want to prefer light text for stylistic reasons.
+// A higher value means color must be brighter before switching to dark text.
+const PERCEIVED_BRIGHTNESS_LIMIT = 180;
 
 // This file defines some opinionated colors and provides functions to access
 // random but predictable colors based on a seed, as well as standardized ways

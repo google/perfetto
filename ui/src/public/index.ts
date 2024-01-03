@@ -15,13 +15,13 @@
 import m from 'mithril';
 
 import {Hotkey} from '../base/hotkeys';
-import {duration, Span, time} from '../base/time';
+import {duration, time} from '../base/time';
 import {ColorScheme} from '../common/colorizer';
-import {Store} from '../frontend/store';
-import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {PanelSize} from '../frontend/panel';
+import {Migrate, Store} from '../frontend/store';
 import {EngineProxy} from '../trace_processor/engine';
 
-export {createStore, Store} from '../frontend/store';
+export {createStore, Migrate, Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
 export {
   LONG,
@@ -143,8 +143,6 @@ export interface PluginContext {
   };
 }
 
-export type Migrate<State> = (init: unknown) => State;
-
 export interface TrackContext {
   // This track's key, used for making selections et al.
   trackKey: string;
@@ -173,12 +171,9 @@ export interface SliceRect {
 
 export interface Track {
   onCreate(ctx: TrackContext): void;
-  render(ctx: CanvasRenderingContext2D): void;
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
   onFullRedraw(): void;
-  getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindow: Span<time, duration>,
-      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
-      |undefined;
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
   getHeight(): number;
   getTrackShellButtons(): m.Children;
   onMouseMove(position: {x: number, y: number}): void;

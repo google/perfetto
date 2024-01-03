@@ -19,6 +19,7 @@
 
 #include <stddef.h>
 #include <memory>
+#include <optional>
 #include <tuple>
 
 #include "perfetto/base/export.h"
@@ -73,12 +74,26 @@ class PERFETTO_EXPORT_COMPONENT TracePacket {
   // a string. Only for testing.
   std::string GetRawBytesForTesting();
 
+  // Remembers the buffer index where this packet was taken from. This is
+  // usually populated for packets from a TraceBuffer, not synthetic ones.
+  std::optional<uint32_t> buffer_index_for_stats() const {
+    if (buffer_index_for_stats_ == 0)
+      return std::nullopt;
+    return buffer_index_for_stats_ - 1;
+  }
+  void set_buffer_index_for_stats(uint32_t v) {
+    buffer_index_for_stats_ = v + 1;
+  }
+
  private:
   TracePacket(const TracePacket&) = delete;
   TracePacket& operator=(const TracePacket&) = delete;
 
   Slices slices_;     // Not owned.
   size_t size_ = 0;   // SUM(slice.size for slice in slices_).
+
+  // Internally we store index+1, and use 0 for the "not set" case.
+  uint32_t buffer_index_for_stats_ = 0;
   char preamble_[kMaxPreambleBytes];  // Deliberately not initialized.
 
   // Remember to update the move operators and their unittest if adding new

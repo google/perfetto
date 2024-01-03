@@ -28,6 +28,7 @@ import {
 import {TrackData} from '../../common/track_data';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {NewTrackArgs} from '../../frontend/track';
 import {
   Plugin,
@@ -190,12 +191,11 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
     return 2 * MARGIN_TOP + RECT_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
       visibleTimeSpan,
-      windowSpan,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
@@ -208,8 +208,8 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
     checkerboardExcept(
         ctx,
         this.getHeight(),
-        windowSpan.start,
-        windowSpan.end,
+        0,
+        size.width,
         timeScale.timeToPx(data.start),
         timeScale.timeToPx(data.end),
     );
@@ -260,7 +260,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
           const rectStart =
               Math.max(0 - EXCESS_WIDTH, timeScale.timeToPx(tStart));
           const rectEnd =
-              Math.min(windowSpan.end + EXCESS_WIDTH, timeScale.timeToPx(tEnd));
+              Math.min(size.width + EXCESS_WIDTH, timeScale.timeToPx(tEnd));
           ctx.strokeStyle = colorScheme.base.cssString;
           ctx.beginPath();
           ctx.lineWidth = 3;
@@ -279,7 +279,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
   onMouseClick({x}: {x: number}) {
     const data = this.data();
     if (data === undefined) return false;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
     const index = search(data.starts, time.toTime());
     if (index === -1) return false;

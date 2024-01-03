@@ -36,7 +36,8 @@ import {
   TickType,
   timeScaleForVisibleWindow,
 } from './gridline_helper';
-import {Panel, PanelSize} from './panel';
+import {PanelSize} from './panel';
+import {Panel} from './panel_container';
 import {isTraceLoaded} from './sidebar';
 import {Timestamp} from './widgets/timestamp';
 
@@ -57,10 +58,16 @@ function getStartTimestamp(note: Note|AreaNote) {
   }
 }
 
-export class NotesPanel extends Panel {
+export class NotesPanel implements Panel {
+  readonly kind = 'panel';
+  readonly selectable = false;
+  readonly trackKey = undefined;
+
   hoveredX: null|number = null;
 
-  view() {
+  constructor(readonly key: string) {}
+
+  get mithril(): m.Children {
     const allCollapsed = Object.values(globals.state.trackGroups)
                              .every((group) => group.collapsed);
 
@@ -124,8 +131,8 @@ export class NotesPanel extends Panel {
     ctx.rect(TRACK_SHELL_WIDTH, 0, size.width - TRACK_SHELL_WIDTH, size.height);
     ctx.clip();
 
-    const span = globals.frontendLocalState.visibleTimeSpan;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const span = globals.timeline.visibleTimeSpan;
+    const {visibleTimeScale} = globals.timeline;
     if (size.width > TRACK_SHELL_WIDTH && span.duration > 0n) {
       const maxMajorTicks = getMaxMajorTicks(size.width - TRACK_SHELL_WIDTH);
       const map = timeScaleForVisibleWindow(TRACK_SHELL_WIDTH, size.width);
@@ -215,7 +222,7 @@ export class NotesPanel extends Panel {
     ctx.strokeStyle = color;
     const topOffset = 10;
     // Don't draw in the track shell section.
-    if (x >= globals.frontendLocalState.windowSpan.start + TRACK_SHELL_WIDTH) {
+    if (x >= TRACK_SHELL_WIDTH) {
       // Draw left triangle.
       ctx.beginPath();
       ctx.moveTo(x, topOffset);
@@ -235,8 +242,7 @@ export class NotesPanel extends Panel {
     ctx.stroke();
 
     // Start line after track shell section, join triangles.
-    const startDraw = Math.max(
-        x, globals.frontendLocalState.windowSpan.start + TRACK_SHELL_WIDTH);
+    const startDraw = Math.max(x, TRACK_SHELL_WIDTH);
     ctx.beginPath();
     ctx.moveTo(startDraw, topOffset);
     ctx.lineTo(xEnd, topOffset);
@@ -268,7 +274,7 @@ export class NotesPanel extends Panel {
 
   private onClick(x: number, _: number) {
     if (x < 0) return;
-    const {visibleTimeScale} = globals.frontendLocalState;
+    const {visibleTimeScale} = globals.timeline;
     const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
     for (const note of Object.values(globals.state.notes)) {
       if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
@@ -286,7 +292,7 @@ export class NotesPanel extends Panel {
   }
 
   private mouseOverNote(x: number, note: AreaNote|Note): boolean {
-    const timeScale = globals.frontendLocalState.visibleTimeScale;
+    const timeScale = globals.timeline.visibleTimeScale;
     const noteX = timeScale.timeToPx(getStartTimestamp(note));
     if (note.noteType === 'AREA') {
       const noteArea = globals.state.areas[note.areaId];

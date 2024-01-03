@@ -18,10 +18,12 @@
 
 #include <stdint.h>
 
+#include <cstdlib>
 #include <map>
 #include <memory>
 #include <vector>
 
+#include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/base/http/http_server.h"
 #include "perfetto/ext/base/unix_socket.h"
 #include "perfetto/ext/base/unix_task_runner.h"
@@ -71,8 +73,22 @@ void WSBridge::Main(int, char**) {
 #else
   const auto kTracedFamily = base::SockFamily::kUnix;
 #endif
+  // The ADB_SERVER_SOCKET environment variable is sourced from
+  // the commandline.cpp file in the ADB module of the Android platform.
+  // Examples: tcp:localhost:5037 or tcp:10.52.8.53:5037.
+  std::string adb_socket_endpoint;
+  if (const char* adb_ss = getenv("ADB_SERVER_SOCKET"); adb_ss) {
+    base::StringView adb_ss_sv(adb_ss);
+    adb_socket_endpoint = base::StripPrefix(adb_ss, "tcp:");
+
+    // Ensure that ADB_SERVER_SOCKET actually starts with tcp:
+    PERFETTO_CHECK(adb_socket_endpoint.size() != adb_ss_sv.size());
+  } else {
+    adb_socket_endpoint = "127.0.0.1:5037";
+  }
+  PERFETTO_LOG("[WSBridge] adb server socket is:%s.", adb_socket_endpoint.c_str());
   endpoints_.push_back({"/traced", GetConsumerSocket(), kTracedFamily});
-  endpoints_.push_back({"/adb", "127.0.0.1:5037", base::SockFamily::kInet});
+  endpoints_.push_back({"/adb", adb_socket_endpoint.c_str(), base::SockFamily::kInet});
 
   base::HttpServer srv(&task_runner_, this);
   srv.AddAllowedOrigin("http://localhost:10000");

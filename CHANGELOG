@@ -6,7 +6,9 @@ Unreleased:
   UI:
     *
   SDK:
-    *
+    * Fixed a long standing bug that caused the last TrackEvent event for each
+      thread to be lost during scraping. The fix works with old versions of the
+      tracing service.
 
 
 v40.0 - 2023-12-04:

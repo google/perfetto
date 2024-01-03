@@ -35,6 +35,7 @@
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/selector_storage.h"
 #include "src/trace_processor/db/storage/set_id_storage.h"
+#include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
 #include "src/trace_processor/db/storage/types.h"
 #include "src/trace_processor/db/table.h"
@@ -62,6 +63,16 @@ void QueryExecutor::FilterColumn(const Constraint& c,
       c.op != FilterOp::kIsNotNull) {
     rm->Clear();
     return;
+  }
+
+  switch (storage.ValidateSearchConstraints(c.value, c.op)) {
+    case SearchValidationResult::kAllData:
+      return;
+    case SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case SearchValidationResult::kOk:
+      break;
   }
 
   uint32_t rm_size = rm->size();
@@ -161,15 +172,6 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     // Storage has different size than Range overlay.
     use_legacy = use_legacy || (col.overlay().size() != column_size &&
                                 col.overlay().row_map().IsRange());
-
-    // Comparing ints with doubles and doubles with ints.
-    bool int_with_double =
-        col.type() == SqlValue::kLong && c.value.type == SqlValue::kDouble;
-    bool double_with_int =
-        col.type() == SqlValue::kDouble && c.value.type == SqlValue::kLong;
-    use_legacy = use_legacy ||
-                 (c.op != FilterOp::kIsNull && c.op != FilterOp::kIsNotNull &&
-                  (int_with_double || double_with_int));
 
     // Extrinsically sorted columns.
     use_legacy = use_legacy ||
@@ -274,6 +276,38 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     PERFETTO_DCHECK(rm.size() <= pre_count);
   }
   return rm;
+}
+
+void QueryExecutor::BoundedColumnFilterForTesting(const Constraint& c,
+                                                  const storage::Storage& col,
+                                                  RowMap* rm) {
+  switch (col.ValidateSearchConstraints(c.value, c.op)) {
+    case SearchValidationResult::kAllData:
+      return;
+    case SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case SearchValidationResult::kOk:
+      break;
+  }
+
+  LinearSearch(c, col, rm);
+}
+
+void QueryExecutor::IndexedColumnFilterForTesting(const Constraint& c,
+                                                  const storage::Storage& col,
+                                                  RowMap* rm) {
+  switch (col.ValidateSearchConstraints(c.value, c.op)) {
+    case SearchValidationResult::kAllData:
+      return;
+    case SearchValidationResult::kNoData:
+      rm->Clear();
+      return;
+    case SearchValidationResult::kOk:
+      break;
+  }
+
+  IndexSearch(c, col, rm);
 }
 
 }  // namespace trace_processor

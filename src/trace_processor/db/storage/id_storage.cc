@@ -15,7 +15,6 @@
  */
 
 #include "src/trace_processor/db/storage/id_storage.h"
-
 #include <optional>
 
 #include "perfetto/base/logging.h"
@@ -74,9 +73,8 @@ RangeOrBitVector IndexSearchWithComparator(uint32_t val,
 
 }  // namespace
 
-IdStorage::SearchValidationResult IdStorage::ValidateSearchConstraints(
-    SqlValue val,
-    FilterOp op) const {
+SearchValidationResult IdStorage::ValidateSearchConstraints(SqlValue val,
+                                                            FilterOp op) const {
   // NULL checks.
   if (PERFETTO_UNLIKELY(val.is_null())) {
     if (op == FilterOp::kIsNotNull) {
@@ -118,24 +116,25 @@ IdStorage::SearchValidationResult IdStorage::ValidateSearchConstraints(
     case SqlValue::kString:
       // Any string is always more than any numeric.
       if (op == FilterOp::kLt || op == FilterOp::kLe) {
-        return Storage::SearchValidationResult::kAllData;
+        return SearchValidationResult::kAllData;
       }
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
     case SqlValue::kBytes:
-      return Storage::SearchValidationResult::kNoData;
+      return SearchValidationResult::kNoData;
   }
 
-  // TODO(b/307482437): Remove after adding support for double
-  PERFETTO_CHECK(val.type != SqlValue::kDouble);
-
   // Bounds of the value.
-  if (PERFETTO_UNLIKELY(val.AsLong() > std::numeric_limits<uint32_t>::max())) {
+  double_t num_val = val.type == SqlValue::kLong
+                         ? static_cast<double_t>(val.AsLong())
+                         : val.AsDouble();
+
+  if (PERFETTO_UNLIKELY(num_val > std::numeric_limits<uint32_t>::max())) {
     if (op == FilterOp::kLe || op == FilterOp::kLt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
     return SearchValidationResult::kNoData;
   }
-  if (PERFETTO_UNLIKELY(val.AsLong() < std::numeric_limits<uint32_t>::min())) {
+  if (PERFETTO_UNLIKELY(num_val < std::numeric_limits<uint32_t>::min())) {
     if (op == FilterOp::kGe || op == FilterOp::kGt || op == FilterOp::kNe) {
       return SearchValidationResult::kAllData;
     }
@@ -158,17 +157,21 @@ RangeOrBitVector IdStorage::Search(FilterOp op,
 
   PERFETTO_DCHECK(search_range.end <= size_);
 
-  // After this switch we assume the search is valid.
-  switch (ValidateSearchConstraints(sql_val, op)) {
-    case SearchValidationResult::kOk:
-      break;
-    case SearchValidationResult::kAllData:
-      return RangeOrBitVector(search_range);
-    case SearchValidationResult::kNoData:
-      return RangeOrBitVector(Range());
+  // It's a valid filter operation if |sql_val| is a double, although it
+  // requires special logic.
+  if (sql_val.type == SqlValue::kDouble) {
+    switch (utils::CompareIntColumnWithDouble(&sql_val, op)) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, search_range.end));
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
   }
 
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());
+
   if (op == FilterOp::kNe) {
     BitVector ret(search_range.start, false);
     ret.Resize(search_range.end, true);
@@ -191,14 +194,17 @@ RangeOrBitVector IdStorage::IndexSearch(FilterOp op,
                                 std::to_string(static_cast<uint32_t>(op)));
                     });
 
-  // After this switch we assume the search is valid.
-  switch (ValidateSearchConstraints(sql_val, op)) {
-    case SearchValidationResult::kOk:
-      break;
-    case SearchValidationResult::kAllData:
-      return RangeOrBitVector(Range(0, indices_size));
-    case SearchValidationResult::kNoData:
-      return RangeOrBitVector(Range());
+  // It's a valid filter operation if |sql_val| is a double, although it
+  // requires special logic.
+  if (sql_val.type == SqlValue::kDouble) {
+    switch (utils::CompareIntColumnWithDouble(&sql_val, op)) {
+      case SearchValidationResult::kOk:
+        break;
+      case SearchValidationResult::kAllData:
+        return RangeOrBitVector(Range(0, indices_size));
+      case SearchValidationResult::kNoData:
+        return RangeOrBitVector(Range());
+    }
   }
 
   uint32_t val = static_cast<uint32_t>(sql_val.AsLong());

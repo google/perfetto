@@ -27,9 +27,8 @@ namespace storage {
 FakeStorage::FakeStorage(uint32_t size, SearchStrategy strategy)
     : size_(size), strategy_(strategy) {}
 
-FakeStorage::SearchValidationResult FakeStorage::ValidateSearchConstraints(
-    SqlValue,
-    FilterOp) const {
+SearchValidationResult FakeStorage::ValidateSearchConstraints(SqlValue,
+                                                              FilterOp) const {
   return SearchValidationResult::kOk;
 }
 

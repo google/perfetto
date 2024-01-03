@@ -16,7 +16,7 @@
 
 INCLUDE PERFETTO MODULE android.process_metadata;
 
-CREATE PERFETTO FUNCTION get_durations(process_name STRING)
+CREATE OR REPLACE PERFETTO FUNCTION get_durations(process_name STRING)
 RETURNS TABLE(uint_sleep_dur LONG, total_dur LONG) AS
 SELECT
     SUM(CASE WHEN thread_state.state="D" then thread_state.dur ELSE 0 END) AS uint_sleep_dur,

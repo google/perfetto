@@ -654,8 +654,8 @@ message EtwConfig {
   // The KernelFlag represent list of kernel flags that we are intrested in.
   // To get a more extensive list run 'xperf -providers k'.
   enum KernelFlag {
-    C_SWITCH = 0;
-    IDLE_STATES = 1;
+    CSWITCH = 0;
+    DISPATCHER = 1;
   }
 
   // The kernel_flags determines the flags that will be used by the etw tracing
@@ -3652,6 +3652,30 @@ message TraceConfig {
       // |atrace_post_tgid_starts_with|. The regex matching is only performed if
       // this check succeeds.
       SFP_ATRACE_MATCH_BREAK = 4;
+
+      // Tries to repeatedly search (i.e. find substrings of) the string field
+      // with |regex_pattern|. For each match, redacts any matching groups (i.e.
+      // replaced with a constant string). Once there are no further matches,
+      // filtering is terminated (i.e. no further rules are checked).
+      //
+      // Note that this is policy is a "search" policy not a "match" policy
+      // unlike the above policies:
+      //  * Match policies require matching the full string i.e. there is an
+      //    implicit leading `^` and trailing `$`.
+      //  * Search policies perform repeated partial matching of the string
+      //    e.g.
+      //      - String: `foo=aaa,bar=123,foo=bbb,baz=456`
+      //      - Pattern: `foo=(\d+)`
+      //      - Output: `foo=P6O,bar=123,foo=P6O,baz=456`
+      //    where P6O is the redaction string
+      //
+      // All of this is only performed after some pre-work where we try to parse
+      // the string field as an atrace tracepoint and check if the post-tgid
+      // field starts with |atrace_post_tgid_starts_with|.
+      //
+      // If there are no partial matches, the string is left unchanged and the
+      // next rule in chain is considered.
+      SFP_ATRACE_REPEATED_SEARCH_REDACT_GROUPS = 5;
     }
 
     // A rule specifies how strings should be filtered.
@@ -3750,7 +3774,7 @@ message TraceConfig {
 message TraceStats {
   // From TraceBuffer::Stats.
   //
-  // Next id: 20.
+  // Next id: 21.
   message BufferStats {
     // Size of the circular buffer in bytes.
     optional uint64 buffer_size = 12;
@@ -3856,6 +3880,9 @@ message TraceStats {
     // correlate the stats with the actual packet types.
     optional uint64 sequence_id = 1;
 
+    // The buffer index (0..N, as defined in the TraceConfig).
+    optional uint32 buffer = 4;
+
     // These two arrays have the same cardinality and match the cardinality of
     // chunk_payload_histogram_def + 1 (for the overflow bucket, see below).
     // `sum` contains the SUM(entries) and `counts` contains the COUNT(entries)
@@ -3918,6 +3945,14 @@ message TraceStats {
     optional uint64 output_bytes = 3;
     optional uint64 errors = 4;
     optional uint64 time_taken_ns = 5;
+
+    // The number of bytes discarded by the filter (i.e. output - input).
+    // The array has one entry for each buffer defined in the config (unless no
+    // packets for that buffer were seen and hence filtered).
+    // Note: the SUM(bytes_discarded_per_buffer) will be <= but not == the total
+    // (output_bytes - input_bytes) because the filter might also discard
+    // server-generated synthetic packets, that have no buffer index.
+    repeated uint64 bytes_discarded_per_buffer = 20;
   }
   optional FilterStats filter_stats = 11;
 
@@ -8557,6 +8592,13 @@ message WakeupSourceDeactivateFtraceEvent {
   optional string name = 1;
   optional uint64 state = 2;
 }
+message GpuWorkPeriodFtraceEvent {
+  optional uint32 gpu_id = 1;
+  optional uint32 uid = 2;
+  optional uint64 start_time_ns = 3;
+  optional uint64 end_time_ns = 4;
+  optional uint64 total_active_duration_ns = 5;
+}
 
 // End of protos/perfetto/trace/ftrace/power.proto
 
@@ -9793,6 +9835,7 @@ message FtraceEvent {
     BinderCommandFtraceEvent binder_command = 485;
     BinderReturnFtraceEvent binder_return = 486;
     SchedSwitchWithCtrsFtraceEvent sched_switch_with_ctrs = 487;
+    GpuWorkPeriodFtraceEvent gpu_work_period = 488;
   }
 }
 
@@ -12093,9 +12136,11 @@ message BatteryCounters {
   optional float capacity_percent = 2;
 
   // Instantaneous battery current in microamperes(µA).
-  // Positive values indicate current drained from the battery,
-  // negative values current feeding the battery from a charge source (USB).
-  // See https://perfetto.dev/docs/data-sources/battery-counters for more.
+  // Negative values indicate current being drained from the battery and
+  // positive values indicate current feeding the battery from a charge source
+  // (USB).
+  //
+  // See https://perfetto.dev/docs/data-sources/battery-counters for more info.
   optional int64 current_ua = 3;
 
   // Instantaneous battery current in microamperes(µA).

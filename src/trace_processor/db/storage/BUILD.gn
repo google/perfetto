@@ -37,6 +37,7 @@ source_set("storage") {
     "string_storage.cc",
     "string_storage.h",
     "types.h",
+    "utils.cc",
     "utils.h",
   ]
   deps = [
@@ -80,8 +81,10 @@ perfetto_unittest_source_set("unittests") {
   deps = [
     ":fake_storage",
     ":storage",
+    "../:compare",
     "../../../../gn:default_deps",
     "../../../../gn:gtest_and_gmock",
+    "../../../../include/perfetto/trace_processor:basic_types",
     "../../containers",
   ]
 }

@@ -2,7 +2,6 @@
 -- Use of this source code is governed by a BSD-style license that can be
 -- found in the LICENSE file.
 
-
 -- Function to retrieve the upid for a surfaceflinger, as these are attributed
 -- to the GPU but are recorded on a different data source (and track group).
 CREATE PERFETTO FUNCTION internal_get_process_id_for_surfaceflinger()
@@ -32,7 +31,7 @@ WITH process_names (
 AS (
 VALUES
   ('Browser', 'Browser', '*.chrome'),
-  ('GPU', 'Gpu', '*.chrome:privileged_process*'))
+  ('GPU', 'Gpu', '*.chrome*:privileged_process*'))
 SELECT
   process_type,
   process_name,

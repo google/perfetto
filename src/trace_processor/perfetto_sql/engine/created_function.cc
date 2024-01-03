@@ -431,11 +431,11 @@ class State : public CreatedFunction::Context {
   // Prepare a statement and push it into the stack of allocated statements
   // for this function.
   base::Status PrepareStatement() {
-    base::StatusOr<SqliteEngine::PreparedStatement> stmt =
+    SqliteEngine::PreparedStatement stmt =
         engine_->sqlite_engine()->PrepareStatement(*sql_);
     RETURN_IF_ERROR(stmt.status());
     is_valid_ = true;
-    stmts_.push_back(std::move(stmt.value()));
+    stmts_.push_back(std::move(stmt));
     return base::OkStatus();
   }
 
@@ -581,12 +581,25 @@ std::unique_ptr<CreatedFunction::Context> CreatedFunction::MakeContext(
   return std::make_unique<State>(engine);
 }
 
+bool CreatedFunction::IsValid(Context* ctx) {
+  return static_cast<State*>(ctx)->is_valid();
+}
+
+void CreatedFunction::Reset(Context* ctx, PerfettoSqlEngine* engine) {
+  ctx->~Context();
+  new (ctx) State(engine);
+}
+
 base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                                   size_t argc,
                                   sqlite3_value** argv,
                                   SqlValue& out,
                                   Destructors&) {
   State* state = static_cast<State*>(ctx);
+
+  // Enter the function and ensure that we have a statement allocated.
+  RETURN_IF_ERROR(state->PushStackEntry());
+
   if (argc != state->prototype().arguments.size()) {
     return base::ErrStatus(
         "%s: invalid number of args; expected %zu, received %zu",
@@ -607,9 +620,6 @@ base::Status CreatedFunction::Run(CreatedFunction::Context* ctx,
                              sqlite3_value_text(arg), i, status.c_message());
     }
   }
-
-  // Enter the function and ensure that we have a statement allocated.
-  RETURN_IF_ERROR(state->PushStackEntry());
 
   std::optional<Memoizer::MemoizedArgs> memoized_args =
       Memoizer::AsMemoizedArgs(argc, argv);
@@ -676,39 +686,11 @@ base::Status CreatedFunction::VerifyPostConditions(
   return static_cast<State*>(ctx)->ValidateEmptyStatements();
 }
 
-base::Status CreatedFunction::ValidateOrPrepare(CreatedFunction::Context* ctx,
-                                                bool replace,
-                                                FunctionPrototype prototype,
-                                                sql_argument::Type return_type,
-                                                std::string return_type_str,
-                                                SqlSource source) {
+base::Status CreatedFunction::Prepare(CreatedFunction::Context* ctx,
+                                      FunctionPrototype prototype,
+                                      sql_argument::Type return_type,
+                                      SqlSource source) {
   State* state = static_cast<State*>(ctx);
-  if (state->is_valid() && !replace) {
-    // If the function already exists, just verify that the prototype, return
-    // type and SQL matches exactly with what we already had registered. By
-    // doing this, we can avoid the problem plaguing C++ macros where macro
-    // ordering determines which one gets run.
-    if (state->prototype() != prototype) {
-      return base::ErrStatus(
-          "CREATE_FUNCTION[prototype=%s]: function prototype changed",
-          prototype.ToString().c_str());
-    }
-    if (state->return_type() != return_type) {
-      return base::ErrStatus(
-          "CREATE_FUNCTION[prototype=%s]: return type changed from %s to %s",
-          prototype.ToString().c_str(),
-          sql_argument::TypeToHumanFriendlyString(state->return_type()),
-          return_type_str.c_str());
-    }
-    if (state->sql() != source.sql()) {
-      return base::ErrStatus(
-          "CREATE_FUNCTION[prototype=%s]: function SQL changed from %s to %s",
-          prototype.ToString().c_str(), state->sql().c_str(),
-          source.sql().c_str());
-    }
-    return base::OkStatus();
-  }
-
   state->Reset(std::move(prototype), return_type, std::move(source));
 
   // Ideally, we would unregister the function here if the statement prep

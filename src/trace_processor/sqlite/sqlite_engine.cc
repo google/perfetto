@@ -100,6 +100,19 @@ SqliteEngine::~SqliteEngine() {
   // Thankfully, because we are very aggressive with PERFETTO_CHECK, mistakes
   // will usually manifest as crashes, but this is not guaranteed.
 
+  // It is important to unregister any functions that have been registered with
+  // the database before destroying it. This is because functions can hold onto
+  // prepared statements, which must be finalized before database destruction.
+  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
+    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
+                                         it.key().second, SQLITE_UTF8, nullptr,
+                                         nullptr, nullptr, nullptr, nullptr);
+    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
+      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
+    }
+  }
+  fn_ctx_.Clear();
+
   // Drop any explicitly created virtual tables before destroying the database
   // so that any prepared statements are correctly finalized. Note that we need
   // to do this in two steps (first create all the SQLs before then executing
@@ -125,19 +138,6 @@ SqliteEngine::~SqliteEngine() {
       PERFETTO_FATAL("Failed to execute statement: '%s'", drop.c_str());
     }
   }
-
-  // It is important to unregister any functions that have been registered with
-  // the database before destroying it. This is because functions can hold onto
-  // prepared statements, which must be finalized before database destruction.
-  for (auto it = fn_ctx_.GetIterator(); it; ++it) {
-    int ret = sqlite3_create_function_v2(db_.get(), it.key().first.c_str(),
-                                         it.key().second, SQLITE_UTF8, nullptr,
-                                         nullptr, nullptr, nullptr, nullptr);
-    if (PERFETTO_UNLIKELY(ret != SQLITE_OK)) {
-      PERFETTO_FATAL("Failed to drop function: '%s'", it.key().first.c_str());
-    }
-  }
-  fn_ctx_.Clear();
 
   // Reset the database itself.
   db_.reset();

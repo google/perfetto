@@ -50,12 +50,12 @@ struct CreatedFunction : public SqlFunction {
 
   // Glue code for PerfettoSqlEngine.
   static std::unique_ptr<Context> MakeContext(PerfettoSqlEngine*);
-  static base::Status ValidateOrPrepare(Context*,
-                                        bool replace,
-                                        FunctionPrototype,
-                                        sql_argument::Type return_type,
-                                        std::string return_type_str,
-                                        SqlSource sql);
+  static bool IsValid(Context*);
+  static void Reset(Context*, PerfettoSqlEngine*);
+  static base::Status Prepare(Context*,
+                              FunctionPrototype,
+                              sql_argument::Type return_type,
+                              SqlSource sql);
   static base::Status EnableMemoization(Context*);
 };
 

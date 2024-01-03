@@ -24,6 +24,7 @@ import {
 } from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
 import {globals} from '../../frontend/globals';
+import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
 import {NewTrackArgs} from '../../frontend/track';
 import {
@@ -102,10 +103,10 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
+  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const data = this.data();
 
     if (data === undefined) return;
@@ -180,7 +181,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());
     const index = this.findTimestampIndex(left, timeScale, data, x, y, right);
@@ -197,7 +198,7 @@ class CpuProfileTrack extends TrackAdapter<Config, Data> {
     if (data === undefined) return false;
     const {
       visibleTimeScale: timeScale,
-    } = globals.frontendLocalState;
+    } = globals.timeline;
 
     const time = timeScale.pxToHpTime(x);
     const [left, right] = searchSegment(data.tsStarts, time.toTime());

@@ -27,6 +27,7 @@
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event.pbzero.h"
 #include "protos/perfetto/trace/ftrace/ftrace_event_bundle.pbzero.h"
+#include "protos/perfetto/trace/ftrace/power.pbzero.h"
 
 namespace perfetto {
 namespace trace_processor {
@@ -209,21 +210,29 @@ void FtraceTokenizer::TokenizeFtraceEvent(uint32_t cpu,
         break;
       }
     }
-    if (PERFETTO_UNLIKELY(!event_id)) {
-      context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    if (PERFETTO_UNLIKELY(event_id == 0)) {
+      context_->storage->IncrementStats(stats::ftrace_missing_event_id);
       return;
     }
   }
 
-  // ClockTracker will increment some error stats if it failed to convert the
-  // timestamp so just return.
+  if (PERFETTO_UNLIKELY(
+          event_id == protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber)) {
+    TokenizeFtraceGpuWorkPeriod(cpu, std::move(event), state);
+    return;
+  }
+
   int64_t int64_timestamp = static_cast<int64_t>(raw_timestamp);
   base::StatusOr<int64_t> timestamp =
       ResolveTraceTime(context_, clock_id, int64_timestamp);
+
+  // ClockTracker will increment some error stats if it failed to convert the
+  // timestamp so just return.
   if (!timestamp.ok()) {
     DlogWithLimit(timestamp.status());
     return;
   }
+
   context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
                                     state->current_generation());
 }
@@ -366,6 +375,47 @@ void FtraceTokenizer::HandleFtraceClockSnapshot(int64_t ftrace_ts,
       {ClockTracker::ClockTimestamp(global_id, ftrace_ts),
        ClockTracker::ClockTimestamp(BuiltinClock::BUILTIN_CLOCK_BOOTTIME,
                                     boot_ts)});
+}
+
+void FtraceTokenizer::TokenizeFtraceGpuWorkPeriod(uint32_t cpu,
+                                                  TraceBlobView event,
+                                                  PacketSequenceState* state) {
+  // Special handling of valid gpu_work_period tracepoint events which contain
+  // timestamp values for the GPU time period nested inside the event data.
+  const uint8_t* data = event.data();
+  const size_t length = event.length();
+
+  ProtoDecoder decoder(data, length);
+  auto ts_field =
+      decoder.FindField(protos::pbzero::FtraceEvent::kGpuWorkPeriodFieldNumber);
+  if (!ts_field.valid()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+
+  protos::pbzero::GpuWorkPeriodFtraceEvent::Decoder gpu_work_event(
+      ts_field.data(), ts_field.size());
+  if (!gpu_work_event.has_start_time_ns()) {
+    context_->storage->IncrementStats(stats::ftrace_bundle_tokenizer_errors);
+    return;
+  }
+  uint64_t raw_timestamp = gpu_work_event.start_time_ns();
+
+  // Enforce clock type for the event data to be CLOCK_MONOTONIC_RAW
+  // as specified, to calculate the timestamp correctly.
+  int64_t int64_timestamp = static_cast<int64_t>(raw_timestamp);
+  base::StatusOr<int64_t> timestamp = ResolveTraceTime(
+      context_, BuiltinClock::BUILTIN_CLOCK_MONOTONIC_RAW, int64_timestamp);
+
+  // ClockTracker will increment some error stats if it failed to convert the
+  // timestamp so just return.
+  if (!timestamp.ok()) {
+    DlogWithLimit(timestamp.status());
+    return;
+  }
+
+  context_->sorter->PushFtraceEvent(cpu, *timestamp, std::move(event),
+                                    state->current_generation());
 }
 
 }  // namespace trace_processor

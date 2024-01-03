@@ -13,6 +13,7 @@
 // limitations under the License.
 
 import {NamedSliceTrack} from '../../frontend/named_slice_track';
+import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {NewTrackArgs} from '../../frontend/track';
 import {Slice} from '../../public';
 
@@ -20,7 +21,10 @@ export class AsyncSliceTrackV2 extends NamedSliceTrack {
   constructor(
       args: NewTrackArgs, maxDepth: number, private trackIds: number[]) {
     super(args);
-    this.sliceLayout.maxDepth = maxDepth + 1;
+    this.sliceLayout = {
+      ...SLICE_LAYOUT_FIT_CONTENT_DEFAULTS,
+      minDepth: maxDepth + 1,
+    };
   }
 
   getSqlSource(): string {

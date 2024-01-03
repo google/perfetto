@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+export const RECORDING_MODAL_DIALOG_KEY = 'recording_target';
+
 // Begin Websocket ////////////////////////////////////////////////////////
 
 export const WEBSOCKET_UNABLE_TO_CONNECT =

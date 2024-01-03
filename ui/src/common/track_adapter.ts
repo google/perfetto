@@ -16,8 +16,8 @@ import m from 'mithril';
 import {v4 as uuidv4} from 'uuid';
 
 import {assertExists} from '../base/logging';
-import {duration, Span, time} from '../base/time';
-import {PxSpan, TimeScale} from '../frontend/time_scale';
+import {duration, time} from '../base/time';
+import {PanelSize} from '../frontend/panel';
 import {NewTrackArgs} from '../frontend/track';
 import {SliceRect} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
@@ -64,12 +64,8 @@ export class TrackWithControllerAdapter<Config, Data> extends
     super.onDestroy();
   }
 
-  getSliceRect(
-      visibleTimeScale: TimeScale, visibleWindow: Span<time, bigint>,
-      windowSpan: PxSpan, tStart: time, tEnd: time, depth: number): SliceRect
-      |undefined {
-    return this.track.getSliceRect(
-        visibleTimeScale, visibleWindow, windowSpan, tStart, tEnd, depth);
+  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined {
+    return this.track.getSliceRect(tStart, tEnd, depth);
   }
 
   getHeight(): number {
@@ -105,8 +101,8 @@ export class TrackWithControllerAdapter<Config, Data> extends
     return await this.controller.onBoundsChange(start, end, resolution);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D): void {
-    this.track.renderCanvas(ctx);
+  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+    this.track.renderCanvas(ctx, size);
   }
 }
 
@@ -138,12 +134,10 @@ export abstract class TrackAdapter<Config, Data> {
     this.trackKey = args.trackKey;
   }
 
-  abstract renderCanvas(ctx: CanvasRenderingContext2D): void;
+  abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
 
-  getSliceRect(
-      _visibleTimeScale: TimeScale, _visibleWindow: Span<time, bigint>,
-      _windowSpan: PxSpan, _tStart: time, _tEnd: time,
-      _depth: number): SliceRect|undefined {
+  getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
+      |undefined {
     return undefined;
   }
 

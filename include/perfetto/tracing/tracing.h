@@ -160,7 +160,7 @@ struct TracingInitArgs {
   // This is intended for the use-case where a process being traced is run
   // inside a sandbox and can't create sockets directly.
   // Not yet supported for consumer connections currently.
-  CreateSocketAsync create_socket_async;
+  CreateSocketAsync create_socket_async = nullptr;
 
  protected:
   friend class Tracing;
