@@ -112,33 +112,8 @@ function filterVisibleSlices<S extends Slice>(
   if (maybeFirstSlice && maybeFirstSlice.startNsQ > end) {
     return [];
   }
-  // It's not possible to easily check the analogous edge case where all slices
-  // are to the left:
-  // For all slice in slices: slice.endNsQ < startS
-  // as the slices are not ordered by 'endNsQ'.
 
-  // As described above you could do some clever binary search combined with
-  // iteration however that seems quite complicated and error prone so instead
-  // the idea of the code below is that we iterate forward though the
-  // array incrementing startIdx until we find the first visible slice
-  // then backwards through the array decrementing endIdx until we find the
-  // last visible slice. In the worst case we end up doing one full pass on
-  // the array. This code is robust to slices not being sorted.
-  let startIdx = 0;
-  let endIdx = slices.length;
-  for (; startIdx < endIdx; ++startIdx) {
-    const slice = slices[startIdx];
-    if (slice.endNsQ >= start && slice.startNsQ <= end) {
-      break;
-    }
-  }
-  for (; startIdx < endIdx; --endIdx) {
-    const slice = slices[endIdx - 1];
-    if (slice.endNsQ >= start && slice.startNsQ <= end) {
-      break;
-    }
-  }
-  return slices.slice(startIdx, endIdx);
+  return slices.filter(slice => {return slice.startNsQ <= end && slice.endNsQ >= start});
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
