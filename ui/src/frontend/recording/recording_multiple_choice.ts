@@ -24,7 +24,7 @@ import {
 import {
   RECORDING_MODAL_DIALOG_KEY,
 } from '../../common/recordingV2/recording_utils';
-import {closeModal} from '../modal';
+import {closeModal} from '../../widgets/modal';
 
 interface RecordingMultipleChoiceAttrs {
   targetFactories: TargetFactory[];
