@@ -476,6 +476,42 @@ export function genTraceConfig(
     chromeCategories.add('browser');
   }
 
+  if (uiCfg.audio) {
+    function addCategoryAndDisabledByDefault(category: string) {
+      chromeCategories.add(category);
+      chromeCategories.add('disabled-by-default-' + category);
+    }
+
+    addCategoryAndDisabledByDefault('audio');
+    addCategoryAndDisabledByDefault('webaudio');
+    addCategoryAndDisabledByDefault('webaudio.audionode');
+    addCategoryAndDisabledByDefault('webrtc');
+    addCategoryAndDisabledByDefault('audio-worklet');
+    addCategoryAndDisabledByDefault('mediastream');
+    addCategoryAndDisabledByDefault('v8.gc');
+    addCategoryAndDisabledByDefault('toplevel');
+    addCategoryAndDisabledByDefault('toplevel.flow');
+    addCategoryAndDisabledByDefault('wakeup.flow');
+    addCategoryAndDisabledByDefault('cpu_profiler');
+    addCategoryAndDisabledByDefault('scheduler');
+    addCategoryAndDisabledByDefault('p2p');
+    addCategoryAndDisabledByDefault('net');
+  }
+
+  if (uiCfg.video) {
+    chromeCategories.add('base');
+    chromeCategories.add('gpu');
+    chromeCategories.add('gpu.capture');
+    chromeCategories.add('media');
+    chromeCategories.add('toplevel');
+    chromeCategories.add('toplevel.flow');
+    chromeCategories.add('scheduler');
+    chromeCategories.add('wakeup.flow');
+    chromeCategories.add('webrtc');
+    chromeCategories.add('disabled-by-default-video_and_image_capture');
+    chromeCategories.add('disabled-by-default-webrtc');
+  }
+
   // linux.perf stack sampling
   if (uiCfg.tracePerf) {
     const ds = new TraceConfig.DataSource();
