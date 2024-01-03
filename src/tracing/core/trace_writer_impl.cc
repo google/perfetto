@@ -40,6 +40,12 @@ namespace perfetto {
 
 namespace {
 constexpr size_t kPacketHeaderSize = SharedMemoryABI::kPacketHeaderSize;
+// The -1 is because we want to leave extra room to inflate the counter.
+constexpr size_t kMaxPacketsPerChunk = ChunkHeader::Packets::kMaxCount - 1;
+// When the packet count in a chunk is inflated, TraceWriter is always going to
+// leave this kExtraRoomForInflatedPacket bytes to write an empty trace packet
+// if it needs to.
+constexpr size_t kExtraRoomForInflatedPacket = 1;
 uint8_t g_garbage_chunk[1024];
 }  // namespace
 
@@ -72,17 +78,20 @@ TraceWriterImpl::~TraceWriterImpl() {
   shmem_arbiter_->ReleaseWriterID(id_);
 }
 
-void TraceWriterImpl::FinalizeSparePacketIfAny() {
-  if (spare_packet_) {
-    uint32_t spare_packet_size = spare_packet_->Finalize();
-    spare_packet_ = protozero::MessageHandle<protos::pbzero::TracePacket>();
-    PERFETTO_DCHECK(spare_packet_size == 0);
+void TraceWriterImpl::ReturnCompletedChunk() {
+  PERFETTO_DCHECK(cur_chunk_.is_valid());
+  if (cur_chunk_packet_count_inflated_) {
+    uint8_t zero_size = 0;
+    static_assert(sizeof zero_size == kExtraRoomForInflatedPacket);
+    PERFETTO_CHECK(protobuf_stream_writer_.bytes_available() != 0);
+    protobuf_stream_writer_.WriteBytesUnsafe(&zero_size, sizeof zero_size);
+    cur_chunk_packet_count_inflated_ = false;
   }
+  shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
+                                       &patch_list_);
 }
 
 void TraceWriterImpl::Flush(std::function<void()> callback) {
-  FinalizeSparePacketIfAny();
-
   // Flush() cannot be called in the middle of a TracePacket.
   PERFETTO_CHECK(cur_packet_->is_finalized());
   // cur_packet_ is finalized: that means that the size is correct for all the
@@ -91,8 +100,7 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
   FinalizeFragmentIfRequired();
 
   if (cur_chunk_.is_valid()) {
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
-                                         &patch_list_);
+    ReturnCompletedChunk();
   } else {
     // When in stall mode, all patches should have been returned with the last
     // chunk, since the last packet was completed. In drop_packets_ mode, this
@@ -109,22 +117,14 @@ void TraceWriterImpl::Flush(std::function<void()> callback) {
 }
 
 TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
+  // If we hit this, the caller is calling NewTracePacket() without having
+  // finalized the previous packet.
+  PERFETTO_CHECK(cur_packet_->is_finalized());
   // If we hit this, this trace writer was created in a different process. This
   // likely means that the process forked while tracing was active, and the
   // forked child process tried to emit a trace event. This is not supported, as
   // it would lead to two processes writing to the same tracing SMB.
   PERFETTO_DCHECK(process_id_ == base::GetProcessId());
-
-  // If the previous user called FinishTracePacket() (which is optional), that
-  // will end up creating a spare_packet_ (to keep the count inflated and allow
-  // server-side scraping). Just return that as we are ahead with our work.
-  if (spare_packet_) {
-    return std::move(spare_packet_);
-  }
-
-  // If we hit this, the caller is calling NewTracePacket() without having
-  // finalized the previous packet.
-  PERFETTO_CHECK(cur_packet_->is_finalized());
 
   // Before starting a new packet, make sure that the last fragment size has ben
   // written correctly. The root fragment size is not written by
@@ -169,9 +169,15 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
   fragmenting_packet_ = true;
 
   if (PERFETTO_LIKELY(!drop_packets_)) {
-    uint16_t new_packet_count = cur_chunk_.IncrementPacketCount();
-    reached_max_packets_per_chunk_ =
-        new_packet_count == ChunkHeader::Packets::kMaxCount;
+    uint16_t new_packet_count;
+    if (cur_chunk_packet_count_inflated_) {
+      new_packet_count =
+          cur_chunk_.header()->packets.load(std::memory_order_relaxed).count;
+      cur_chunk_packet_count_inflated_ = false;
+    } else {
+      new_packet_count = cur_chunk_.IncrementPacketCount();
+    }
+    reached_max_packets_per_chunk_ = new_packet_count == kMaxPacketsPerChunk;
 
     if (PERFETTO_UNLIKELY(was_dropping_packets)) {
       // We've succeeded to get a new chunk from the SMB after we entered
@@ -198,11 +204,6 @@ TraceWriterImpl::TracePacketHandle TraceWriterImpl::NewTracePacket() {
 // In this case |fragmenting_packet_| == false and we just want a new chunk
 // without creating any fragments.
 protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
-  // If there's a spare packet, finalize it. This should never re-enter
-  // GetNewBuffer() because message finalization doesn't write any new bytes in
-  // the stream writer.
-  FinalizeSparePacketIfAny();
-
   if (fragmenting_packet_ && drop_packets_) {
     // We can't write the remaining data of the fragmenting packet to a new
     // chunk, because we have already lost some of its data in the garbage
@@ -298,12 +299,12 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
     }
 
     if (cur_chunk_.is_valid()) {
-      shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_),
-                                           target_buffer_, &patch_list_);
+      ReturnCompletedChunk();
     }
 
     drop_packets_ = true;
     cur_chunk_ = SharedMemoryABI::Chunk();  // Reset to an invalid chunk.
+    cur_chunk_packet_count_inflated_ = false;
     reached_max_packets_per_chunk_ = false;
     retry_new_chunk_after_packet_ = false;
     cur_fragment_size_field_ = nullptr;
@@ -364,8 +365,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   if (cur_chunk_.is_valid()) {
     // ReturnCompletedChunk will consume the first patched entries from
     // |patch_list_| and shrink it.
-    shmem_arbiter_->ReturnCompletedChunk(std::move(cur_chunk_), target_buffer_,
-                                         &patch_list_);
+    ReturnCompletedChunk();
   }
 
   // Switch to the new chunk.
@@ -374,6 +374,7 @@ protozero::ContiguousMemoryRange TraceWriterImpl::GetNewBuffer() {
   retry_new_chunk_after_packet_ = false;
   next_chunk_id_++;
   cur_chunk_ = std::move(new_chunk);
+  cur_chunk_packet_count_inflated_ = false;
   cur_fragment_size_field_ = nullptr;
 
   uint8_t* payload_begin = cur_chunk_.payload_begin();
@@ -399,19 +400,24 @@ void TraceWriterImpl::FinishTracePacket() {
   cur_packet_->Reset(&protobuf_stream_writer_);
   cur_packet_->Finalize();  // To avoid the CHECK in NewTracePacket().
 
+  // cur_chunk_packet_count_inflated_ can be true if FinishTracePacket() is
+  // called multiple times.
+  if (cur_chunk_.is_valid() && !cur_chunk_packet_count_inflated_) {
+    if (protobuf_stream_writer_.bytes_available() <
+        kExtraRoomForInflatedPacket) {
+      ReturnCompletedChunk();
+    } else {
+      cur_chunk_packet_count_inflated_ = true;
+      cur_chunk_.IncrementPacketCount();
+    }
+  }
+
   // Send any completed patches to the service to facilitate trace data
   // recovery by the service. This should only happen when we're completing
   // the first packet in a chunk which was a continuation from the previous
   // chunk, i.e. at most once per chunk.
   if (!patch_list_.empty() && patch_list_.front().is_patched()) {
     shmem_arbiter_->SendPatches(id_, target_buffer_, &patch_list_);
-  }
-
-  // The tracing service is not able to scrape the last packet in the chunk.
-  // Start a new packet so that the previous packet is visible to the tracing
-  // service.
-  if (!spare_packet_) {
-    spare_packet_ = TraceWriterImpl::NewTracePacket();
   }
 }
 
@@ -455,13 +461,6 @@ uint8_t* TraceWriterImpl::AnnotatePatch(uint8_t* to_patch) {
     cur_chunk_.SetFlag(ChunkHeader::kChunkNeedsPatching);
   }
   return &patch->size_field[0];
-}
-
-void TraceWriterImpl::ResetChunkForTesting() {
-  if (spare_packet_) {
-    spare_packet_->set_size_field(nullptr);
-  }
-  cur_chunk_ = SharedMemoryABI::Chunk();
 }
 
 WriterID TraceWriterImpl::writer_id() const {

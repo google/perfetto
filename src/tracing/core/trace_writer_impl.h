@@ -66,7 +66,10 @@ class TraceWriterImpl : public TraceWriter,
     return protobuf_stream_writer_.written();
   }
 
-  void ResetChunkForTesting();
+  void ResetChunkForTesting() {
+    cur_chunk_ = SharedMemoryABI::Chunk();
+    cur_chunk_packet_count_inflated_ = false;
+  }
   bool drop_packets_for_testing() const { return drop_packets_; }
 
  private:
@@ -84,8 +87,9 @@ class TraceWriterImpl : public TraceWriter,
   // TraceWriterImpl.
   void FinalizeFragmentIfRequired();
 
-  // Finalizes |spare_packet_|, if there's one.
-  void FinalizeSparePacketIfAny();
+  // Returns |cur_chunk_| (for which is_valid() must be true) to the
+  // |shmem_arbiter|.
+  void ReturnCompletedChunk();
 
   // The per-producer arbiter that coordinates access to the shared memory
   // buffer from several threads.
@@ -129,14 +133,6 @@ class TraceWriterImpl : public TraceWriter,
   std::unique_ptr<protozero::RootMessage<protos::pbzero::TracePacket>>
       cur_packet_;
 
-  // When using FinishTracePacket(), the epilogue of it creates immediately a
-  // new packet. This is to keep the packet count inflated by one and allowing
-  // service-side scraping. When that happens, the "ready for use" packet handle
-  // created by FinishTracePacket()'s epilogue is stored here (and points to
-  // cur_packet_). This is effectively a fresh packet ready to be used without
-  // further logic.
-  protozero::MessageHandle<protos::pbzero::TracePacket> spare_packet_;
-
   // The start address of |cur_packet_| within |cur_chunk_|. Used to figure out
   // fragments sizes when a TracePacket write is interrupted by GetNewBuffer().
   uint8_t* cur_fragment_start_ = nullptr;
@@ -160,6 +156,12 @@ class TraceWriterImpl : public TraceWriter,
   // when the next TracePacket is started because it filled the garbage chunk at
   // least once since the last attempt.
   bool retry_new_chunk_after_packet_ = false;
+
+  // Set to true if `cur_chunk_` has a packet counter that's inflated by one.
+  // The count may be inflated to convince the tracing service scraping logic
+  // that the last packet has been completed. When this is true, cur_chunk_
+  // should have at least `kExtraRoomForInflatedPacket` bytes free.
+  bool cur_chunk_packet_count_inflated_ = false;
 
   // Points to the size field of the still open fragment we're writing to the
   // current chunk. If the chunk was already returned, this is reset to
