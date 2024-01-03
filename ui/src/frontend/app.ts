@@ -39,13 +39,13 @@ import {raf} from '../core/raf_scheduler';
 import {Command} from '../public';
 import {HotkeyConfig, HotkeyContext} from '../widgets/hotkey_context';
 import {HotkeyGlyphs} from '../widgets/hotkey_glyphs';
+import {maybeRenderFullscreenModalDialog} from '../widgets/modal';
 
 import {addTab} from './bottom_tab';
 import {onClickCopy} from './clipboard';
 import {CookieConsent} from './cookie_consent';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {maybeRenderFullscreenModalDialog} from './modal';
 import {Omnibox, OmniboxOption} from './omnibox';
 import {verticalScrollToTrack} from './scroll_helper';
 import {executeSearch} from './search_handler';

@@ -15,11 +15,11 @@
 import m from 'mithril';
 
 import {Actions, PostedScrollToRange, PostedTrace} from '../common/actions';
+import {showModal} from '../widgets/modal';
 
 import {initCssConstants} from './css_constants';
 import {globals} from './globals';
 import {toggleHelp} from './help_modal';
-import {showModal} from './modal';
 import {focusHorizontalRange} from './scroll_helper';
 
 const TRUSTED_ORIGINS_KEY = 'trustedOrigins';

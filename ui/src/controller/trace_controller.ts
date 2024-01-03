@@ -51,7 +51,6 @@ import {
   QuantizedLoad,
   ThreadDesc,
 } from '../frontend/globals';
-import {showModal} from '../frontend/modal';
 import {
   clearOverviewData,
   publishFtraceCounters,
@@ -76,6 +75,7 @@ import {
   resetEngineWorker,
   WasmEngineProxy,
 } from '../trace_processor/wasm_engine_proxy';
+import {showModal} from '../widgets/modal';
 
 import {
   CounterAggregationController,

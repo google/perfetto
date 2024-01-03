@@ -15,10 +15,10 @@
 import {assertExists} from '../base/logging';
 import {Actions} from '../common/actions';
 import {TraceArrayBufferSource} from '../common/state';
+import {showModal} from '../widgets/modal';
 
 import {onClickCopy} from './clipboard';
 import {globals} from './globals';
-import {showModal} from './modal';
 import {isTraceLoaded} from './sidebar';
 
 export function isShareable() {

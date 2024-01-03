@@ -30,6 +30,7 @@ import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
 import {SCM_REVISION, VERSION} from '../gen/perfetto_version';
 import {Engine} from '../trace_processor/engine';
+import {showModal} from '../widgets/modal';
 
 import {Animation} from './animation';
 import {downloadData, downloadUrl} from './download_utils';
@@ -39,7 +40,6 @@ import {
   isLegacyTrace,
   openFileWithLegacyTraceViewer,
 } from './legacy_trace_viewer';
-import {showModal} from './modal';
 import {Router} from './router';
 import {createTraceLink, isDownloadable, shareTrace} from './trace_attrs';
 import {

@@ -19,9 +19,9 @@ import {Actions} from '../common/actions';
 import {VERSION} from '../gen/perfetto_version';
 import {StatusResult, TraceProcessorApiVersion} from '../protos';
 import {HttpRpcEngine, RPC_URL} from '../trace_processor/http_rpc_engine';
+import {showModal} from '../widgets/modal';
 
 import {globals} from './globals';
-import {showModal} from './modal';
 import {publishHttpRpcState} from './publish';
 
 const CURRENT_API_VERSION =
