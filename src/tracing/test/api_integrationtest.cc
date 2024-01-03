@@ -5780,6 +5780,35 @@ TEST_P(PerfettoApiTest, Counters) {
                           "Voltage = 220", "Power = 1.21"));
 }
 
+TEST_P(PerfettoApiTest, ScrapingTrackEventBegin) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+
+  // Stop tracing but don't flush. Rely on scraping to get the chunk contents.
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent"));
+}
+
+TEST_P(PerfettoApiTest, ScrapingTrackEventEnd) {
+  auto* tracing_session = NewTraceWithCategories({"test"});
+  tracing_session->get()->StartBlocking();
+
+  TRACE_EVENT_BEGIN("test", "MainEvent");
+  TRACE_EVENT_END("test");
+
+  // Stop tracing but don't flush. Rely on scraping to get the chunk contents.
+  tracing_session->get()->StopBlocking();
+
+  auto slices = ReadSlicesFromTraceSession(tracing_session->get());
+
+  EXPECT_THAT(slices, ElementsAre("B:test.MainEvent", "E"));
+}
+
 TEST_P(PerfettoApiTest, EmptyEvent) {
   auto* tracing_session = NewTraceWithCategories({"test"});
   tracing_session->get()->StartBlocking();
