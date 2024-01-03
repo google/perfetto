@@ -15,7 +15,8 @@
 import m from 'mithril';
 
 import {defer} from '../base/deferred';
-import {raf} from '../core/raf_scheduler';
+
+import {scheduleFullRedraw} from './raf';
 
 // This module deals with modal dialogs. Unlike most components, here we want to
 // render the DOM elements outside of the corresponding vdom tree. For instance
@@ -94,7 +95,7 @@ export class Modal implements m.ClassComponent<ModalAttrs> {
       // in turn will: (1) call the user's original attrs.onClose; (2) resolve
       // the promise returned by showModal().
       vnode.attrs.onClose();
-      raf.scheduleFullRedraw();
+      scheduleFullRedraw();
     }
   }
 
@@ -221,7 +222,7 @@ export async function showModal(userAttrs: ModalAttrs): Promise<void> {
     },
   };
   currentModal = attrs;
-  raf.scheduleFullRedraw();
+  scheduleFullRedraw();
   return returnedClosePromise;
 }
 
@@ -238,7 +239,7 @@ export function closeModal(key?: string) {
     return;
   }
   currentModal = undefined;
-  raf.scheduleFullRedraw();
+  scheduleFullRedraw();
 }
 
 export function getCurrentModalKey(): string|undefined {

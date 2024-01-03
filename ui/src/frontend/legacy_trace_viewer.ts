@@ -17,9 +17,9 @@ import {inflate} from 'pako';
 
 import {assertTrue} from '../base/logging';
 import {isString} from '../base/object_utils';
+import {showModal} from '../widgets/modal';
 
 import {globals} from './globals';
-import {showModal} from './modal';
 
 const CTRACE_HEADER = 'TRACE:\n';
 
