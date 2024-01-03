@@ -20,7 +20,7 @@ import {
   filterVisibleSlicesForTesting as filterVisibleSlices,
 } from './base_slice_track';
 
-function slice(start: number, duration: number): Slice {
+function slice(start: number, duration: number, depth: number = 0): Slice {
   const startNsQ = Time.fromRaw(BigInt(start));
   const durNsQ = Time.fromRaw(BigInt(duration));
   const endNsQ = Time.fromRaw(startNsQ + durNsQ);
@@ -31,7 +31,7 @@ function slice(start: number, duration: number): Slice {
     durNsQ,
     ts: startNsQ,
     dur: durNsQ,
-    depth: 0,
+    depth,
     flags: 0,
     title: '',
     subTitle: '',
@@ -123,4 +123,49 @@ test('filterVisibleSlices', () => {
              t(10n),
              t(90n)))
       .toContainEqual(s(5, 10));
+});
+
+test('filterVisibleSlicesOrderByDepthAndTs', () => {
+  expect(filterVisibleSlices(
+              [
+                s(5, 2, 0),
+                s(5, 4, 0),
+                s(5, 6, 0),
+                s(7, 5, 0),
+                s(8, 10, 0),
+                s(4, 1, 1),
+                s(6, 3, 1),
+                s(8, 6, 1),
+                s(6, 1, 2),
+                s(10, 9, 2),
+                s(11, 3, 2),
+              ],
+              t(10n),
+              t(90n)))
+      .toEqual([
+        s(5, 6, 0),
+        s(7, 5, 0),
+        s(8, 10, 0),
+        s(8, 6, 1),
+        s(10, 9, 2),
+        s(11, 3, 2),
+      ]);
+});
+
+test('filterVisibleSlicesOrderByTs', () => {
+  expect(filterVisibleSlices(
+              [
+                s(4, 5),
+                s(4, 3),
+                s(5, 10),
+                s(6, 3),
+                s(7, 2),
+                s(10, 10),
+              ],
+              t(10n),
+              t(90n)))
+      .toEqual([
+        s(5, 10),
+        s(10, 10),
+      ]);
 });
