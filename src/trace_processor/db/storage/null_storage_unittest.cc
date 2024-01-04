@@ -24,6 +24,7 @@
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -35,23 +36,12 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector& r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
 TEST(NullStorage, SearchInputInsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
   NullStorage storage(FakeStorage::SearchAll(4u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(1, 6));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NullStorage, SearchInputOutsideBoundary) {
@@ -59,7 +49,7 @@ TEST(NullStorage, SearchInputOutsideBoundary) {
   NullStorage storage(FakeStorage::SearchAll(5u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(3, 8));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4, 7));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 7));
 }
 
 TEST(NullStorage, SubsetResultOutsideBoundary) {
@@ -67,7 +57,7 @@ TEST(NullStorage, SubsetResultOutsideBoundary) {
   NullStorage storage(FakeStorage::SearchSubset(5u, RowMap::Range(1, 3)), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
 TEST(NullStorage, SubsetResultOnBoundary) {
@@ -75,7 +65,7 @@ TEST(NullStorage, SubsetResultOnBoundary) {
   NullStorage storage(FakeStorage::SearchAll(5u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3, 4, 7, 8));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4, 7, 8));
 }
 
 TEST(NullStorage, BitVectorSubset) {
@@ -84,7 +74,7 @@ TEST(NullStorage, BitVectorSubset) {
                       &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 6));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 6));
 }
 
 TEST(NullStorage, BitVectorSubsetIsNull) {
@@ -93,7 +83,7 @@ TEST(NullStorage, BitVectorSubsetIsNull) {
                       &bv);
 
   auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 2, 3, 4, 6, 7));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3, 4, 6, 7));
 }
 
 TEST(NullStorage, IndexSearchAllElements) {
@@ -104,7 +94,7 @@ TEST(NullStorage, IndexSearchAllElements) {
   auto res =
       storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
                           uint32_t(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 }
 
 TEST(NullStorage, IndexSearchPartialElements) {
@@ -115,7 +105,7 @@ TEST(NullStorage, IndexSearchPartialElements) {
   auto res =
       storage.IndexSearch(FilterOp::kGt, SqlValue::Long(0), table_idx.data(),
                           uint32_t(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
 TEST(NullStorage, IndexSearchIsNullOpEmptyRes) {
@@ -126,7 +116,7 @@ TEST(NullStorage, IndexSearchIsNullOpEmptyRes) {
   auto res =
       storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
                           uint32_t(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3));
 }
 
 TEST(NullStorage, IndexSearchIsNullOp) {
@@ -137,7 +127,7 @@ TEST(NullStorage, IndexSearchIsNullOp) {
   auto res =
       storage.IndexSearch(FilterOp::kIsNull, SqlValue(), table_idx.data(),
                           uint32_t(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3, 4));
 }
 
 TEST(NullStorage, IndexSearchIsNotNullOp) {
@@ -148,7 +138,7 @@ TEST(NullStorage, IndexSearchIsNotNullOp) {
   auto res =
       storage.IndexSearch(FilterOp::kIsNotNull, SqlValue(), table_idx.data(),
                           uint32_t(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 }  // namespace

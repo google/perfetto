@@ -25,7 +25,7 @@ namespace {
 
 using Range = RowMap::Range;
 
-TEST(StringStorageUnittest, LinearSearchEq) {
+TEST(StringStorage, LinearSearchEq) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -43,7 +43,7 @@ TEST(StringStorageUnittest, LinearSearchEq) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 2u);
 }
 
-TEST(StringStorageUnittest, LinearSearchNe) {
+TEST(StringStorage, LinearSearchNe) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -60,7 +60,7 @@ TEST(StringStorageUnittest, LinearSearchNe) {
   ASSERT_EQ(bv.CountSetBits(), 5u);
 }
 
-TEST(StringStorageUnittest, LinearSearchLe) {
+TEST(StringStorage, LinearSearchLe) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -79,7 +79,7 @@ TEST(StringStorageUnittest, LinearSearchLe) {
   ASSERT_EQ(bv.IndexOfNthSet(1), 5u);
 }
 
-TEST(StringStorageUnittest, LinearSearchLt) {
+TEST(StringStorage, LinearSearchLt) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -99,7 +99,7 @@ TEST(StringStorageUnittest, LinearSearchLt) {
   ASSERT_EQ(bv.IndexOfNthSet(2), 5u);
 }
 
-TEST(StringStorageUnittest, LinearSearchGe) {
+TEST(StringStorage, LinearSearchGe) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -120,7 +120,7 @@ TEST(StringStorageUnittest, LinearSearchGe) {
   ASSERT_EQ(bv.IndexOfNthSet(3), 4u);
 }
 
-TEST(StringStorageUnittest, LinearSearchGt) {
+TEST(StringStorage, LinearSearchGt) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -139,7 +139,7 @@ TEST(StringStorageUnittest, LinearSearchGt) {
   ASSERT_EQ(bv.IndexOfNthSet(1), 3u);
 }
 
-TEST(StringStorageUnittest, LinearSearchIsNull) {
+TEST(StringStorage, LinearSearchIsNull) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -157,7 +157,7 @@ TEST(StringStorageUnittest, LinearSearchIsNull) {
   ASSERT_EQ(bv.CountSetBits(), 1u);
 }
 
-TEST(StringStorageUnittest, LinearSearchIsNotNull) {
+TEST(StringStorage, LinearSearchIsNotNull) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -176,7 +176,7 @@ TEST(StringStorageUnittest, LinearSearchIsNotNull) {
   ASSERT_EQ(bv.CountSetBits(), 6u);
 }
 
-TEST(StringStorageUnittest, LinearSearchGlob) {
+TEST(StringStorage, LinearSearchGlob) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -195,7 +195,7 @@ TEST(StringStorageUnittest, LinearSearchGlob) {
 }
 
 #if !PERFETTO_BUILDFLAG(PERFETTO_OS_WIN)
-TEST(StringStorageUnittest, LinearSearchRegex) {
+TEST(StringStorage, LinearSearchRegex) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -213,7 +213,7 @@ TEST(StringStorageUnittest, LinearSearchRegex) {
   ASSERT_EQ(bv.CountSetBits(), 1u);
 }
 
-TEST(StringStorageUnittest, LinearSearchRegexMalformed) {
+TEST(StringStorage, LinearSearchRegexMalformed) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -232,7 +232,7 @@ TEST(StringStorageUnittest, LinearSearchRegexMalformed) {
 }
 #endif
 
-TEST(StringStorageUnittest, IndexSearchEq) {
+TEST(StringStorage, IndexSearchEq) {
   std::vector<std::string> strings{"cheese",  "pasta", "pizza",
                                    "pierogi", "onion", "fries"};
   std::vector<StringPool::Id> ids;
@@ -253,7 +253,7 @@ TEST(StringStorageUnittest, IndexSearchEq) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 5u);
 }
 
-TEST(StringStorageUnittest, LinearSearchGtSorted) {
+TEST(StringStorage, LinearSearchGtSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
   std::vector<StringPool::Id> ids;
@@ -272,7 +272,7 @@ TEST(StringStorageUnittest, LinearSearchGtSorted) {
   ASSERT_EQ(range.end, 6u);
 }
 
-TEST(StringStorageUnittest, LinearSearchGeSorted) {
+TEST(StringStorage, LinearSearchGeSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
   std::vector<StringPool::Id> ids;
@@ -291,7 +291,7 @@ TEST(StringStorageUnittest, LinearSearchGeSorted) {
   ASSERT_EQ(range.end, 6u);
 }
 
-TEST(StringStorageUnittest, LinearSearchLtSorted) {
+TEST(StringStorage, LinearSearchLtSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
   std::vector<StringPool::Id> ids;
@@ -310,7 +310,7 @@ TEST(StringStorageUnittest, LinearSearchLtSorted) {
   ASSERT_EQ(range.end, 2u);
 }
 
-TEST(StringStorageUnittest, LinearSearchLeSorted) {
+TEST(StringStorage, LinearSearchLeSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
   std::vector<StringPool::Id> ids;
@@ -329,7 +329,7 @@ TEST(StringStorageUnittest, LinearSearchLeSorted) {
   ASSERT_EQ(range.end, 3u);
 }
 
-TEST(StringStorageUnittest, LinearSearchNeSorted) {
+TEST(StringStorage, LinearSearchNeSorted) {
   std::vector<std::string> strings{"apple",    "burger",   "cheese",
                                    "doughnut", "eggplant", "fries"};
   std::vector<StringPool::Id> ids;
