@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/selector_storage.h"
+#include "src/trace_processor/db/storage/selector_overlay.h"
 
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/utils.h"
@@ -30,27 +30,27 @@ using testing::IsEmpty;
 
 using Range = RowMap::Range;
 
-TEST(SelectorStorage, SearchAll) {
+TEST(SelectorOverlay, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorStorage storage(FakeStorage::SearchAll(10), &selector);
+  SelectorOverlay storage(FakeStorage::SearchAll(10), &selector);
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
 }
 
-TEST(SelectorStorage, SearchNone) {
+TEST(SelectorOverlay, SearchNone) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorStorage storage(FakeStorage::SearchNone(10), &selector);
+  SelectorOverlay storage(FakeStorage::SearchNone(10), &selector);
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
-TEST(SelectorStorage, SearchLimited) {
+TEST(SelectorOverlay, SearchLimited) {
   BitVector selector{0, 1, 0, 1, 1, 0, 1, 1, 0, 0, 1};
-  SelectorStorage storage(FakeStorage::SearchSubset(10, Range(4, 5)),
+  SelectorOverlay storage(FakeStorage::SearchSubset(10, Range(4, 5)),
                           &selector);
 
   auto res =
@@ -58,9 +58,9 @@ TEST(SelectorStorage, SearchLimited) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u));
 }
 
-TEST(SelectorStorage, SearchBitVector) {
+TEST(SelectorOverlay, SearchBitVector) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  SelectorStorage storage(
+  SelectorOverlay storage(
       FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0})),
       &selector);
 
@@ -68,9 +68,9 @@ TEST(SelectorStorage, SearchBitVector) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
-TEST(SelectorStorage, IndexSearch) {
+TEST(SelectorOverlay, IndexSearch) {
   BitVector selector{0, 1, 1, 0, 0, 1, 1, 0};
-  SelectorStorage storage(
+  SelectorOverlay storage(
       FakeStorage::SearchSubset(8, BitVector({0, 1, 0, 1, 0, 1, 0, 0})),
       &selector);
 

@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_OVERLAY_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_OVERLAY_H_
 
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/types.h"
@@ -25,11 +25,11 @@ namespace trace_processor {
 namespace storage {
 
 // Storage which "selects" specific rows from an underlying storage using a
-// BitVector. See ArrangementStorage for a more generic class which allows
+// BitVector. See ArrangementOverlay for a more generic class which allows
 // duplication and rearragement but is less performant.
-class SelectorStorage : public Storage {
+class SelectorOverlay : public Storage {
  public:
-  SelectorStorage(std::unique_ptr<Storage> storage, const BitVector* non_null);
+  SelectorOverlay(std::unique_ptr<Storage> storage, const BitVector* non_null);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
@@ -61,4 +61,4 @@ class SelectorStorage : public Storage {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_SELECTOR_OVERLAY_H_

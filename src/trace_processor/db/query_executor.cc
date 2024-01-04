@@ -27,13 +27,13 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/containers/string_pool.h"
 #include "src/trace_processor/db/query_executor.h"
-#include "src/trace_processor/db/storage/arrangement_storage.h"
-#include "src/trace_processor/db/storage/dense_null_storage.h"
+#include "src/trace_processor/db/storage/arrangement_overlay.h"
+#include "src/trace_processor/db/storage/dense_null_overlay.h"
 #include "src/trace_processor/db/storage/dummy_storage.h"
 #include "src/trace_processor/db/storage/id_storage.h"
-#include "src/trace_processor/db/storage/null_storage.h"
+#include "src/trace_processor/db/storage/null_overlay.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
-#include "src/trace_processor/db/storage/selector_storage.h"
+#include "src/trace_processor/db/storage/selector_overlay.h"
 #include "src/trace_processor/db/storage/set_id_storage.h"
 #include "src/trace_processor/db/storage/storage.h"
 #include "src/trace_processor/db/storage/string_storage.h"
@@ -256,19 +256,19 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
       // with Id::Null().
       PERFETTO_CHECK(col.col_type() != ColumnType::kString);
       if (col.IsDense()) {
-        storage = std::make_unique<storage::DenseNullStorage>(
+        storage = std::make_unique<storage::DenseNullOverlay>(
             std::move(storage), col.storage_base().bv());
       } else {
-        storage = std::make_unique<storage::NullStorage>(
+        storage = std::make_unique<storage::NullOverlay>(
             std::move(storage), col.storage_base().bv());
       }
     }
     if (col.overlay().row_map().IsIndexVector()) {
-      storage = std::make_unique<storage::ArrangementStorage>(
+      storage = std::make_unique<storage::ArrangementOverlay>(
           std::move(storage), col.overlay().row_map().GetIfIndexVector());
     }
     if (col.overlay().row_map().IsBitVector()) {
-      storage = std::make_unique<storage::SelectorStorage>(
+      storage = std::make_unique<storage::SelectorOverlay>(
           std::move(storage), col.overlay().row_map().GetIfBitVector());
     }
     uint32_t pre_count = rm.size();

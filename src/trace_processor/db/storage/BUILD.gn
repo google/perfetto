@@ -16,20 +16,20 @@ import("../../../../gn/test.gni")
 
 source_set("storage") {
   sources = [
-    "arrangement_storage.cc",
-    "arrangement_storage.h",
-    "dense_null_storage.cc",
-    "dense_null_storage.h",
+    "arrangement_overlay.cc",
+    "arrangement_overlay.h",
+    "dense_null_overlay.cc",
+    "dense_null_overlay.h",
     "dummy_storage.cc",
     "dummy_storage.h",
     "id_storage.cc",
     "id_storage.h",
-    "null_storage.cc",
-    "null_storage.h",
+    "null_overlay.cc",
+    "null_overlay.h",
     "numeric_storage.cc",
     "numeric_storage.h",
-    "selector_storage.cc",
-    "selector_storage.h",
+    "selector_overlay.cc",
+    "selector_overlay.h",
     "set_id_storage.cc",
     "set_id_storage.h",
     "storage.cc",
@@ -69,12 +69,12 @@ perfetto_unittest_source_set("fake_storage") {
 perfetto_unittest_source_set("unittests") {
   testonly = true
   sources = [
-    "arrangement_storage_unittest.cc",
-    "dense_null_storage_unittest.cc",
+    "arrangement_overlay_unittest.cc",
+    "dense_null_overlay_unittest.cc",
     "id_storage_unittest.cc",
-    "null_storage_unittest.cc",
+    "null_overlay_unittest.cc",
     "numeric_storage_unittest.cc",
-    "selector_storage_unittest.cc",
+    "selector_overlay_unittest.cc",
     "set_id_storage_unittest.cc",
     "string_storage_unittest.cc",
   ]

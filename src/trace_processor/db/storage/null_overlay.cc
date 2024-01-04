@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/null_storage.h"
+#include "src/trace_processor/db/storage/null_overlay.h"
 
 #include <cstdint>
 
@@ -73,7 +73,7 @@ BitVector ReconcileStorageResult(FilterOp op,
 
 }  // namespace
 
-SearchValidationResult NullStorage::ValidateSearchConstraints(
+SearchValidationResult NullOverlay::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
@@ -83,16 +83,16 @@ SearchValidationResult NullStorage::ValidateSearchConstraints(
   return storage_->ValidateSearchConstraints(sql_val, op);
 }
 
-NullStorage::NullStorage(std::unique_ptr<Storage> storage,
+NullOverlay::NullOverlay(std::unique_ptr<Storage> storage,
                          const BitVector* non_null)
     : storage_(std::move(storage)), non_null_(non_null) {
   PERFETTO_DCHECK(non_null_->CountSetBits() <= storage_->size());
 }
 
-RangeOrBitVector NullStorage::Search(FilterOp op,
+RangeOrBitVector NullOverlay::Search(FilterOp op,
                                      SqlValue sql_val,
                                      RowMap::Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullStorage::Search");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::Search");
 
   if (op == FilterOp::kIsNull) {
     switch (storage_->ValidateSearchConstraints(sql_val, op)) {
@@ -123,12 +123,12 @@ RangeOrBitVector NullStorage::Search(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
+RangeOrBitVector NullOverlay::IndexSearch(FilterOp op,
                                           SqlValue sql_val,
                                           uint32_t* indices,
                                           uint32_t indices_size,
                                           bool sorted) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullStorage::IndexSearch");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
     switch (storage_->ValidateSearchConstraints(sql_val, op)) {
@@ -169,20 +169,20 @@ RangeOrBitVector NullStorage::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-void NullStorage::StableSort(uint32_t*, uint32_t) const {
+void NullOverlay::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void NullStorage::Sort(uint32_t*, uint32_t) const {
+void NullOverlay::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void NullStorage::Serialize(StorageProto* storage) const {
-  auto* null_storage = storage->set_null_storage();
-  non_null_->Serialize(null_storage->set_bit_vector());
-  storage_->Serialize(null_storage->set_storage());
+void NullOverlay::Serialize(StorageProto* storage) const {
+  auto* null_overlay = storage->set_null_overlay();
+  non_null_->Serialize(null_overlay->set_bit_vector());
+  storage_->Serialize(null_overlay->set_storage());
 }
 
 }  // namespace storage
