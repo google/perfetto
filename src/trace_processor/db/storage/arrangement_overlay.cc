@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/arrangement_storage.h"
+#include "src/trace_processor/db/storage/arrangement_overlay.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -33,23 +33,23 @@ using Range = RowMap::Range;
 
 }  // namespace
 
-ArrangementStorage::ArrangementStorage(std::unique_ptr<Storage> inner,
+ArrangementOverlay::ArrangementOverlay(std::unique_ptr<Storage> inner,
                                        const std::vector<uint32_t>* arrangement)
     : inner_(std::move(inner)), arrangement_(arrangement) {
   PERFETTO_DCHECK(*std::max_element(arrangement->begin(), arrangement->end()) <=
                   inner_->size());
 }
 
-SearchValidationResult ArrangementStorage::ValidateSearchConstraints(
+SearchValidationResult ArrangementOverlay::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector ArrangementStorage::Search(FilterOp op,
+RangeOrBitVector ArrangementOverlay::Search(FilterOp op,
                                             SqlValue sql_val,
                                             Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementStorage::Search");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::Search");
 
   const auto& arrangement = *arrangement_;
   PERFETTO_DCHECK(in.end <= arrangement.size());
@@ -95,12 +95,12 @@ RangeOrBitVector ArrangementStorage::Search(FilterOp op,
   return RangeOrBitVector(std::move(builder).Build());
 }
 
-RangeOrBitVector ArrangementStorage::IndexSearch(FilterOp op,
+RangeOrBitVector ArrangementOverlay::IndexSearch(FilterOp op,
                                                  SqlValue sql_val,
                                                  uint32_t* indices,
                                                  uint32_t indices_size,
                                                  bool sorted) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementStorage::IndexSearch");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "ArrangementOverlay::IndexSearch");
 
   std::vector<uint32_t> storage_iv;
   for (uint32_t* it = indices; it != indices + indices_size; ++it) {
@@ -110,22 +110,22 @@ RangeOrBitVector ArrangementStorage::IndexSearch(FilterOp op,
                              static_cast<uint32_t>(storage_iv.size()), sorted);
 }
 
-void ArrangementStorage::StableSort(uint32_t*, uint32_t) const {
+void ArrangementOverlay::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void ArrangementStorage::Sort(uint32_t*, uint32_t) const {
+void ArrangementOverlay::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void ArrangementStorage::Serialize(StorageProto* storage) const {
-  auto* arrangement_storage = storage->set_arrangement_storage();
-  arrangement_storage->set_values(
+void ArrangementOverlay::Serialize(StorageProto* storage) const {
+  auto* arrangement_overlay = storage->set_arrangement_overlay();
+  arrangement_overlay->set_values(
       reinterpret_cast<const uint8_t*>(arrangement_->data()),
       sizeof(uint32_t) * arrangement_->size());
-  inner_->Serialize(arrangement_storage->set_storage());
+  inner_->Serialize(arrangement_overlay->set_storage());
 }
 
 }  // namespace storage

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/dense_null_storage.h"
+#include "src/trace_processor/db/storage/dense_null_overlay.h"
 
 #include <cstdint>
 #include <variant>
@@ -28,11 +28,11 @@ namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-DenseNullStorage::DenseNullStorage(std::unique_ptr<Storage> inner,
+DenseNullOverlay::DenseNullOverlay(std::unique_ptr<Storage> inner,
                                    const BitVector* non_null)
     : inner_(std::move(inner)), non_null_(non_null) {}
 
-SearchValidationResult DenseNullStorage::ValidateSearchConstraints(
+SearchValidationResult DenseNullOverlay::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   if (op == FilterOp::kIsNull) {
@@ -42,10 +42,10 @@ SearchValidationResult DenseNullStorage::ValidateSearchConstraints(
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector DenseNullStorage::Search(FilterOp op,
+RangeOrBitVector DenseNullOverlay::Search(FilterOp op,
                                           SqlValue sql_val,
                                           RowMap::Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullStorage::Search");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullOverlay::Search");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -97,12 +97,12 @@ RangeOrBitVector DenseNullStorage::Search(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-RangeOrBitVector DenseNullStorage::IndexSearch(FilterOp op,
+RangeOrBitVector DenseNullOverlay::IndexSearch(FilterOp op,
                                                SqlValue sql_val,
                                                uint32_t* indices,
                                                uint32_t indices_size,
                                                bool sorted) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullStorage::IndexSearch");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "DenseNullOverlay::IndexSearch");
 
   if (op == FilterOp::kIsNull) {
     switch (inner_->ValidateSearchConstraints(sql_val, op)) {
@@ -153,20 +153,20 @@ RangeOrBitVector DenseNullStorage::IndexSearch(FilterOp op,
   return RangeOrBitVector(std::move(res));
 }
 
-void DenseNullStorage::StableSort(uint32_t*, uint32_t) const {
+void DenseNullOverlay::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void DenseNullStorage::Sort(uint32_t*, uint32_t) const {
+void DenseNullOverlay::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void DenseNullStorage::Serialize(StorageProto* storage) const {
-  auto* null_storage = storage->set_dense_null_storage();
-  non_null_->Serialize(null_storage->set_bit_vector());
-  inner_->Serialize(null_storage->set_storage());
+void DenseNullOverlay::Serialize(StorageProto* storage) const {
+  auto* null_overlay = storage->set_dense_null_overlay();
+  non_null_->Serialize(null_overlay->set_bit_vector());
+  inner_->Serialize(null_overlay->set_storage());
 }
 
 }  // namespace storage

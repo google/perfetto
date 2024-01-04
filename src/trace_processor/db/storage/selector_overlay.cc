@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/selector_storage.h"
+#include "src/trace_processor/db/storage/selector_overlay.h"
 
 #include "protos/perfetto/trace_processor/serialization.pbzero.h"
 #include "src/trace_processor/containers/bit_vector.h"
@@ -27,20 +27,20 @@ namespace storage {
 
 using Range = RowMap::Range;
 
-SelectorStorage::SelectorStorage(std::unique_ptr<Storage> inner,
+SelectorOverlay::SelectorOverlay(std::unique_ptr<Storage> inner,
                                  const BitVector* selector)
     : inner_(std::move(inner)), selector_(selector) {}
 
-SearchValidationResult SelectorStorage::ValidateSearchConstraints(
+SearchValidationResult SelectorOverlay::ValidateSearchConstraints(
     SqlValue sql_val,
     FilterOp op) const {
   return inner_->ValidateSearchConstraints(sql_val, op);
 }
 
-RangeOrBitVector SelectorStorage::Search(FilterOp op,
+RangeOrBitVector SelectorOverlay::Search(FilterOp op,
                                          SqlValue sql_val,
                                          RowMap::Range in) const {
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorStorage::Search");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorOverlay::Search");
 
   // Figure out the bounds of the indices in the underlying storage and search
   // it.
@@ -68,7 +68,7 @@ RangeOrBitVector SelectorStorage::Search(FilterOp op,
   return RangeOrBitVector(std::move(res).Build());
 }
 
-RangeOrBitVector SelectorStorage::IndexSearch(FilterOp op,
+RangeOrBitVector SelectorOverlay::IndexSearch(FilterOp op,
                                               SqlValue sql_val,
                                               uint32_t* indices,
                                               uint32_t indices_size,
@@ -77,7 +77,7 @@ RangeOrBitVector SelectorStorage::IndexSearch(FilterOp op,
                   *std::max_element(indices, indices + indices_size) <=
                       selector_->size());
 
-  PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorStorage::IndexSearch");
+  PERFETTO_TP_TRACE(metatrace::Category::DB, "SelectorOverlay::IndexSearch");
 
   // To go from TableIndexVector to StorageIndexVector we need to find index in
   // |selector_| by looking only into set bits.
@@ -90,20 +90,20 @@ RangeOrBitVector SelectorStorage::IndexSearch(FilterOp op,
                              static_cast<uint32_t>(storage_iv.size()), sorted);
 }
 
-void SelectorStorage::StableSort(uint32_t*, uint32_t) const {
+void SelectorOverlay::StableSort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void SelectorStorage::Sort(uint32_t*, uint32_t) const {
+void SelectorOverlay::Sort(uint32_t*, uint32_t) const {
   // TODO(b/307482437): Implement.
   PERFETTO_FATAL("Not implemented");
 }
 
-void SelectorStorage::Serialize(StorageProto* storage) const {
-  auto* selector_storage = storage->set_selector_storage();
-  inner_->Serialize(selector_storage->set_storage());
-  selector_->Serialize(selector_storage->set_bit_vector());
+void SelectorOverlay::Serialize(StorageProto* storage) const {
+  auto* selector_overlay = storage->set_selector_overlay();
+  inner_->Serialize(selector_overlay->set_storage());
+  selector_->Serialize(selector_overlay->set_bit_vector());
 }
 
 }  // namespace storage
