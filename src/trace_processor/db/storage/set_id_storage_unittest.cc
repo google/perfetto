@@ -15,6 +15,8 @@
  */
 #include "src/trace_processor/db/storage/set_id_storage.h"
 
+#include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -31,20 +33,11 @@ inline bool operator==(const BitVector& a, const BitVector& b) {
 namespace storage {
 namespace {
 
+using testing::ElementsAre;
+using testing::IsEmpty;
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
-TEST(SetIdStorageUnittest, InvalidSearchConstraints) {
+TEST(SetIdStorage, InvalidSearchConstraints) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);
   // NULL checks
@@ -100,7 +93,71 @@ TEST(SetIdStorageUnittest, InvalidSearchConstraints) {
             SearchValidationResult::kNoData);
 }
 
-TEST(SetIdStorageUnittest, SearchEqSimple) {
+TEST(SetIdStorage, SearchSimple) {
+  std::vector<uint32_t> storage_data{0, 0, 2, 2, 4, 4, 6, 6};
+  SetIdStorage storage(&storage_data);
+  SqlValue val = SqlValue::Long(4);
+  Range filter_range(1, 7);
+
+  FilterOp op = FilterOp::kEq;
+  auto res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4, 5));
+
+  op = FilterOp::kNe;
+  res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 6));
+
+  op = FilterOp::kLe;
+  res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4, 5));
+
+  op = FilterOp::kLt;
+  res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3));
+
+  op = FilterOp::kGe;
+  res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4, 5, 6));
+
+  op = FilterOp::kGt;
+  res = storage.Search(op, val, filter_range);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6));
+}
+
+TEST(SetIdStorage, IndexSearchSimple) {
+  std::vector<uint32_t> storage_data{0, 0, 3, 3, 6, 6, 9, 9};
+  SetIdStorage storage(&storage_data);
+  SqlValue val = SqlValue::Long(6);
+  // 9, 6, 3, 0
+  std::vector<uint32_t> indices{6, 4, 2, 0};
+  uint32_t indices_count = 4;
+
+  FilterOp op = FilterOp::kEq;
+  auto res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
+
+  op = FilterOp::kNe;
+  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3));
+
+  op = FilterOp::kLe;
+  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3));
+
+  op = FilterOp::kLt;
+  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3));
+
+  op = FilterOp::kGe;
+  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
+
+  op = FilterOp::kGt;
+  res = storage.IndexSearch(op, val, indices.data(), indices_count, false);
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
+}
+
+TEST(SetIdStorage, SearchEqSimple) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
 
   SetIdStorage storage(&storage_data);
@@ -112,7 +169,7 @@ TEST(SetIdStorageUnittest, SearchEqSimple) {
   ASSERT_EQ(range.end, 6u);
 }
 
-TEST(SetIdStorageUnittest, SearchEqOnRangeBoundary) {
+TEST(SetIdStorage, SearchEqOnRangeBoundary) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
 
   SetIdStorage storage(&storage_data);
@@ -121,7 +178,7 @@ TEST(SetIdStorageUnittest, SearchEqOnRangeBoundary) {
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(SetIdStorageUnittest, SearchEqOutsideRange) {
+TEST(SetIdStorage, SearchEqOutsideRange) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
 
   SetIdStorage storage(&storage_data);
@@ -130,7 +187,7 @@ TEST(SetIdStorageUnittest, SearchEqOutsideRange) {
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(SetIdStorageUnittest, SearchEqTooBig) {
+TEST(SetIdStorage, SearchEqTooBig) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
 
   SetIdStorage storage(&storage_data);
@@ -139,74 +196,7 @@ TEST(SetIdStorageUnittest, SearchEqTooBig) {
   ASSERT_EQ(range.size(), 0u);
 }
 
-TEST(SetIdStorageUnittest, SearchNe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-
-  SetIdStorage storage(&storage_data);
-  BitVector bv = storage.Search(FilterOp::kNe, SqlValue::Long(3), Range(1, 7))
-                     .TakeIfBitVector();
-  ASSERT_EQ(bv.CountSetBits(), 3u);
-}
-
-TEST(SetIdStorageUnittest, SearchLe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-
-  SetIdStorage storage(&storage_data);
-  Range range = storage.Search(FilterOp::kLe, SqlValue::Long(3), Range(1, 7))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 1u);
-  ASSERT_EQ(range.end, 6u);
-}
-
-TEST(SetIdStorageUnittest, SearchLt) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-
-  SetIdStorage storage(&storage_data);
-  Range range = storage.Search(FilterOp::kLt, SqlValue::Long(3), Range(1, 7))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 1u);
-  ASSERT_EQ(range.end, 3u);
-}
-
-TEST(SetIdStorageUnittest, SearchGe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-
-  SetIdStorage storage(&storage_data);
-  Range range = storage.Search(FilterOp::kGe, SqlValue::Long(6), Range(5, 10))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 6u);
-  ASSERT_EQ(range.end, 10u);
-}
-
-TEST(SetIdStorageUnittest, SearchGt) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-
-  SetIdStorage storage(&storage_data);
-  Range range = storage.Search(FilterOp::kGt, SqlValue::Long(6), Range(5, 10))
-                    .TakeIfRange();
-  ASSERT_EQ(range.start, 9u);
-  ASSERT_EQ(range.end, 10u);
-}
-
-TEST(SetIdStorageUnittest, IndexSearchEqSimple) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kEq, SqlValue::Long(3),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 3u);
-  ASSERT_TRUE(bv.IsSet(1));
-  ASSERT_TRUE(bv.IsSet(2));
-  ASSERT_TRUE(bv.IsSet(7));
-}
-
-TEST(SetIdStorageUnittest, IndexSearchEqTooBig) {
+TEST(SetIdStorage, IndexSearchEqTooBig) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);
 
@@ -221,103 +211,51 @@ TEST(SetIdStorageUnittest, IndexSearchEqTooBig) {
   ASSERT_EQ(bv.CountSetBits(), 0u);
 }
 
-TEST(SetIdStorageUnittest, IndexSearchNe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kNe, SqlValue::Long(3),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 5u);
-}
-
-TEST(SetIdStorageUnittest, IndexSearchLe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kLe, SqlValue::Long(3),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 5u);
-}
-
-TEST(SetIdStorageUnittest, IndexSearchLt) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kLt, SqlValue::Long(3),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 2u);
-}
-
-TEST(SetIdStorageUnittest, IndexSearchGe) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kGe, SqlValue::Long(6),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 3u);
-}
-
-TEST(SetIdStorageUnittest, IndexSearchGt) {
-  std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
-  SetIdStorage storage(&storage_data);
-
-  // {0, 3, 3, 6, 9, 9, 0, 3}
-  std::vector<uint32_t> indices{1, 3, 5, 7, 9, 11, 2, 4};
-
-  BitVector bv = storage
-                     .IndexSearch(FilterOp::kGt, SqlValue::Long(6),
-                                  indices.data(), 8, false)
-                     .TakeIfBitVector();
-
-  ASSERT_EQ(bv.CountSetBits(), 2u);
-}
-
-TEST(SetIdStorageUnittest, SearchWithIdAsDoubleSimple) {
+TEST(SetIdStorage, SearchWithIdAsSimpleDoubleIsInt) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);
   SqlValue double_val = SqlValue::Double(7.0);
   SqlValue long_val = SqlValue::Long(7);
   Range range(1, 9);
 
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kEq, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kEq, long_val, range)));
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kNe, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kNe, long_val, range)));
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kLe, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kLe, long_val, range)));
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kLt, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kLt, long_val, range)));
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kGe, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kGe, long_val, range)));
-  ASSERT_EQ(ToIndexVector(storage.Search(FilterOp::kGt, double_val, range)),
-            ToIndexVector(storage.Search(FilterOp::kGt, long_val, range)));
+  FilterOp op = FilterOp::kEq;
+  auto double_res = storage.Search(op, double_val, range);
+  auto int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
+
+  op = FilterOp::kNe;
+  double_res = storage.Search(op, double_val, range);
+  int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
+
+  op = FilterOp::kLe;
+  double_res = storage.Search(op, double_val, range);
+  int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
+
+  op = FilterOp::kLt;
+  double_res = storage.Search(op, double_val, range);
+  int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
+
+  op = FilterOp::kGe;
+  double_res = storage.Search(op, double_val, range);
+  int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
+
+  op = FilterOp::kGt;
+  double_res = storage.Search(op, double_val, range);
+  int_res = storage.Search(op, long_val, range);
+  ASSERT_EQ(utils::ToIndexVectorForTests(double_res),
+            utils::ToIndexVectorForTests(int_res));
 }
 
-TEST(SetIdStorageUnittest, SearchWithIdAsDouble) {
+TEST(SetIdStorage, SearchWithIdAsDouble) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};
   SetIdStorage storage(&storage_data);
   SqlValue val = SqlValue::Double(7.5);
