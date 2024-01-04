@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_OVERLAY_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_OVERLAY_H_
 
 #include <memory>
 #include <variant>
@@ -28,12 +28,11 @@ namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-// Storage which introduces the layer of nullability but without changing the
-// "spacing" of the underlying storage i.e. this storage simply "masks" out
-// rows in the underlying storage with nulls.
-class DenseNullStorage : public Storage {
+// Overlay which introduces the layer of nullability. Specifically, spreads out
+// the storage with nulls using a BitVector.
+class NullOverlay : public Storage {
  public:
-  DenseNullStorage(std::unique_ptr<Storage> inner, const BitVector* non_null);
+  NullOverlay(std::unique_ptr<Storage> storage, const BitVector* non_null);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
@@ -57,7 +56,7 @@ class DenseNullStorage : public Storage {
   uint32_t size() const override { return non_null_->size(); }
 
  private:
-  std::unique_ptr<Storage> inner_;
+  std::unique_ptr<Storage> storage_ = nullptr;
   const BitVector* non_null_ = nullptr;
 };
 
@@ -65,4 +64,4 @@ class DenseNullStorage : public Storage {
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_NULL_OVERLAY_H_

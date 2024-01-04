@@ -74,26 +74,26 @@ message SerializedColumn {
       optional bool is_sorted = 2;
     }
 
-    // A schema for serialization of |storage::NullStorage|.
-    message NullStorage {
+    // A schema for serialization of |storage::NullOverlay|.
+    message NullOverlay {
       optional BitVector bit_vector = 1;
       optional Storage storage = 2;
     }
 
-    // A schema for serialization of |storage::ArrangementStorage|.
-    message ArrangementStorage {
+    // A schema for serialization of |storage::ArrangementOverlay|.
+    message ArrangementOverlay {
       optional bytes values = 1;
       optional Storage storage = 2;
     }
 
-    // A schema for serialization of |storage::SelectorStorage|.
-    message SelectorStorage {
+    // A schema for serialization of |storage::SelectorOverlay|.
+    message SelectorOverlay {
       optional BitVector bit_vector = 1;
       optional Storage storage = 2;
     }
 
-    // A schema for serialization of |storage::DenseNullStorage|.
-    message DenseNullStorage {
+    // A schema for serialization of |storage::DenseNullOverlay|.
+    message DenseNullOverlay {
       optional BitVector bit_vector = 1;
       optional Storage storage = 2;
     }
@@ -104,10 +104,10 @@ message SerializedColumn {
       NumericStorage numeric_storage = 3;
       SetIdStorage set_id_storage = 4;
       StringStorage string_storage = 5;
-      NullStorage null_storage = 6;
-      ArrangementStorage arrangement_storage = 7;
-      SelectorStorage selector_storage = 8;
-      DenseNullStorage dense_null_storage = 9;
+      NullOverlay null_overlay = 6;
+      ArrangementOverlay arrangement_overlay = 7;
+      SelectorOverlay selector_overlay = 8;
+      DenseNullOverlay dense_null_overlay = 9;
     }
   }
 

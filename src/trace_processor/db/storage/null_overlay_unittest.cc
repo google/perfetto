@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include "src/trace_processor/db/storage/null_storage.h"
+#include "src/trace_processor/db/storage/null_overlay.h"
 
 #include <memory>
 #include <vector>
@@ -36,59 +36,59 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = RowMap::Range;
 
-TEST(NullStorage, SearchInputInsideBoundary) {
+TEST(NullOverlay, SearchInputInsideBoundary) {
   BitVector bv{0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullStorage storage(FakeStorage::SearchAll(4u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(1, 6));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
-TEST(NullStorage, SearchInputOutsideBoundary) {
+TEST(NullOverlay, SearchInputOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullStorage storage(FakeStorage::SearchAll(5u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(5u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(3, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 7));
 }
 
-TEST(NullStorage, SubsetResultOutsideBoundary) {
+TEST(NullOverlay, SubsetResultOutsideBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullStorage storage(FakeStorage::SearchSubset(5u, RowMap::Range(1, 3)), &bv);
+  NullOverlay storage(FakeStorage::SearchSubset(5u, RowMap::Range(1, 3)), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
-TEST(NullStorage, SubsetResultOnBoundary) {
+TEST(NullOverlay, SubsetResultOnBoundary) {
   BitVector bv{0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 0};
-  NullStorage storage(FakeStorage::SearchAll(5u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(5u), &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 11));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4, 7, 8));
 }
 
-TEST(NullStorage, BitVectorSubset) {
+TEST(NullOverlay, BitVectorSubset) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
+  NullOverlay storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
                       &bv);
 
   auto res = storage.Search(FilterOp::kGt, SqlValue::Long(0), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 6));
 }
 
-TEST(NullStorage, BitVectorSubsetIsNull) {
+TEST(NullOverlay, BitVectorSubsetIsNull) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
+  NullOverlay storage(FakeStorage::SearchSubset(4u, BitVector{0, 1, 0, 1}),
                       &bv);
 
   auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 8));
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3, 4, 6, 7));
 }
 
-TEST(NullStorage, IndexSearchAllElements) {
+TEST(NullOverlay, IndexSearchAllElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchAll(4u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
 
   std::vector<uint32_t> table_idx{1, 5, 2};
   auto res =
@@ -97,9 +97,9 @@ TEST(NullStorage, IndexSearchAllElements) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 }
 
-TEST(NullStorage, IndexSearchPartialElements) {
+TEST(NullOverlay, IndexSearchPartialElements) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchAll(4u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
 
   std::vector<uint32_t> table_idx{1, 4, 2};
   auto res =
@@ -108,9 +108,9 @@ TEST(NullStorage, IndexSearchPartialElements) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
-TEST(NullStorage, IndexSearchIsNullOpEmptyRes) {
+TEST(NullOverlay, IndexSearchIsNullOpEmptyRes) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchNone(4u), &bv);
+  NullOverlay storage(FakeStorage::SearchNone(4u), &bv);
 
   std::vector<uint32_t> table_idx{0, 3, 5, 4, 2};
   auto res =
@@ -119,9 +119,9 @@ TEST(NullStorage, IndexSearchIsNullOpEmptyRes) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3));
 }
 
-TEST(NullStorage, IndexSearchIsNullOp) {
+TEST(NullOverlay, IndexSearchIsNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchSubset(4u, Range(2, 3)), &bv);
+  NullOverlay storage(FakeStorage::SearchSubset(4u, Range(2, 3)), &bv);
 
   std::vector<uint32_t> table_idx{0, 3, 2, 4, 5};
   auto res =
@@ -130,9 +130,9 @@ TEST(NullStorage, IndexSearchIsNullOp) {
   ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 3, 4));
 }
 
-TEST(NullStorage, IndexSearchIsNotNullOp) {
+TEST(NullOverlay, IndexSearchIsNotNullOp) {
   BitVector bv{0, 1, 1, 0, 0, 1, 1, 0};
-  NullStorage storage(FakeStorage::SearchAll(4u), &bv);
+  NullOverlay storage(FakeStorage::SearchAll(4u), &bv);
 
   std::vector<uint32_t> table_idx{0, 3, 4};
   auto res =
