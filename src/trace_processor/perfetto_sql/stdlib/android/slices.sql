@@ -13,16 +13,6 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
-
-CREATE PERFETTO FUNCTION internal_remove_lambda_name(
--- Raw slice name containing at least one "$"
-  name STRING)
--- Removes everything after the first "$"
-RETURNS STRING AS
-SELECT
-    substr($name, 0, instr($name, "$"))
-END;
-
 -- Some slice names have params in them. This functions removes them to make it
 -- possible to aggregate by name.
 -- Some examples are:
@@ -49,15 +39,5 @@ SELECT
     WHEN $name GLOB "OpenDexFilesFromOat*" THEN "OpenDexFilesFromOat"
     WHEN $name GLOB "Open oat file*" THEN "Open oat file"
     WHEN $name GLOB "GC: Wait For*" THEN "Garbage Collector"
-    -- Top level handlers slices heuristics:
-        -- E.g. android.os.Handler: com.android.systemui.qs.external.TileServiceManager$1
-        -- To: Handler: com.android.systemui.qs.external.TileServiceManager
-    WHEN $name GLOB "*Handler: *$*" THEN internal_remove_lambda_name(substr($name, instr($name, "Handler:")))
-        -- E.g. : android.view.ViewRootImpl$ViewRootHandler: com.android.systemui.someClass$enableMarquee$1
-        -- To: Handler: android.view.ViewRootImpl
-    WHEN $name GLOB "*.*.*: *$*" THEN "Handler: " || internal_remove_lambda_name(substr($name, ": "))
-        -- E.g.: android.os.AsyncTask$InternalHandler: #1
-        -- To: Handler: android.os.AsyncTask
-    WHEN $name GLOB "*.*$*: #*" THEN "Handler: " || internal_remove_lambda_name($name)
     ELSE $name
   END;
