@@ -14,23 +14,26 @@
  * limitations under the License.
  */
 
-#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
-#define SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
+#ifndef SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_OVERLAY_H_
+#define SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_OVERLAY_H_
 
 #include <memory>
+#include <variant>
+
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/db/storage/storage.h"
+#include "src/trace_processor/db/storage/types.h"
 
 namespace perfetto {
 namespace trace_processor {
 namespace storage {
 
-// Storage responsible for rearranging the elements of another Storage. It deals
-// with duplicates, permutations and selection; for selection only, it's more
-// efficient to use `SelectorStorage`.
-class ArrangementStorage : public Storage {
+// Overlay which introduces the layer of nullability but without changing the
+// "spacing" of the underlying storage i.e. this overlay simply "masks" out
+// rows in the underlying storage with nulls.
+class DenseNullOverlay : public Storage {
  public:
-  explicit ArrangementStorage(std::unique_ptr<Storage> inner,
-                              const std::vector<uint32_t>* arrangement);
+  DenseNullOverlay(std::unique_ptr<Storage> inner, const BitVector* non_null);
 
   SearchValidationResult ValidateSearchConstraints(SqlValue,
                                                    FilterOp) const override;
@@ -51,17 +54,15 @@ class ArrangementStorage : public Storage {
 
   void Serialize(StorageProto*) const override;
 
-  uint32_t size() const override {
-    return static_cast<uint32_t>(arrangement_->size());
-  }
+  uint32_t size() const override { return non_null_->size(); }
 
  private:
   std::unique_ptr<Storage> inner_;
-  const std::vector<uint32_t>* arrangement_;
+  const BitVector* non_null_ = nullptr;
 };
 
 }  // namespace storage
 }  // namespace trace_processor
 }  // namespace perfetto
 
-#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_ARRANGEMENT_STORAGE_H_
+#endif  // SRC_TRACE_PROCESSOR_DB_STORAGE_DENSE_NULL_OVERLAY_H_
