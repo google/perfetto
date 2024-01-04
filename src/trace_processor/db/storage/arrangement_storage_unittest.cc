@@ -18,6 +18,7 @@
 
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -30,24 +31,13 @@ using testing::IsEmpty;
 
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector& r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
 TEST(ArrangementStorage, SearchAll) {
   std::vector<uint32_t> arrangement{1, 1, 2, 2, 3, 3, 4, 4, 1, 1};
   ArrangementStorage storage(FakeStorage::SearchAll(5), &arrangement);
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(2, 4));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2u, 3u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u, 3u));
 }
 
 TEST(ArrangementStorage, SearchNone) {
@@ -56,7 +46,7 @@ TEST(ArrangementStorage, SearchNone) {
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(2, 4));
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 TEST(ArrangementStorage, DISABLED_SearchLimited) {
@@ -65,7 +55,7 @@ TEST(ArrangementStorage, DISABLED_SearchLimited) {
                              &arrangement);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(2, 7));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(6u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(6u));
 }
 
 TEST(ArrangementStorage, SearchBitVector) {
@@ -76,7 +66,7 @@ TEST(ArrangementStorage, SearchBitVector) {
   // Table bv:
   // 1, 1, 0, 0, 1, 1, 0, 0, 1, 1
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 10));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 4, 5, 8, 9));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 4, 5, 8, 9));
 }
 
 TEST(ArrangementStorage, IndexSearch) {
@@ -89,7 +79,7 @@ TEST(ArrangementStorage, IndexSearch) {
       storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0u), table_idx.data(),
                           static_cast<uint32_t>(table_idx.size()), false);
 
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
 }
 
 }  // namespace
