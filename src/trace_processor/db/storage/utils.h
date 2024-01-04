@@ -92,6 +92,8 @@ void IndexSearchWithComparator(ValType val,
 SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
                                                   FilterOp op);
 
+std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector&);
+
 }  // namespace utils
 
 }  // namespace storage

@@ -17,6 +17,7 @@
 #include "src/trace_processor/db/storage/selector_storage.h"
 
 #include "src/trace_processor/db/storage/fake_storage.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -29,24 +30,13 @@ using testing::IsEmpty;
 
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector& r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
 TEST(SelectorStorage, SearchAll) {
   BitVector selector{0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 1};
   SelectorStorage storage(FakeStorage::SearchAll(10), &selector);
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1u, 2u, 3u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u, 2u, 3u));
 }
 
 TEST(SelectorStorage, SearchNone) {
@@ -55,7 +45,7 @@ TEST(SelectorStorage, SearchNone) {
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 4));
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 }
 
 TEST(SelectorStorage, SearchLimited) {
@@ -65,7 +55,7 @@ TEST(SelectorStorage, SearchLimited) {
 
   auto res =
       storage.Search(FilterOp::kGe, SqlValue::Long(0u), RowMap::Range(1, 5));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2u));
 }
 
 TEST(SelectorStorage, SearchBitVector) {
@@ -75,7 +65,7 @@ TEST(SelectorStorage, SearchBitVector) {
       &selector);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0u), Range(0, 4));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2));
 }
 
 TEST(SelectorStorage, IndexSearch) {
@@ -88,7 +78,7 @@ TEST(SelectorStorage, IndexSearch) {
   RangeOrBitVector res =
       storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0u), table_idx.data(),
                           static_cast<uint32_t>(table_idx.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1u));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1u));
 }
 
 }  // namespace
