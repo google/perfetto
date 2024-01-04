@@ -23,6 +23,7 @@
 #include "src/trace_processor/db/storage/fake_storage.h"
 #include "src/trace_processor/db/storage/numeric_storage.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -34,17 +35,6 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector& r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
 TEST(DenseNullStorage, NoFilteringSearch) {
   std::vector<uint32_t> data{0, 1, 0, 1, 0};
   auto numeric =
@@ -54,7 +44,7 @@ TEST(DenseNullStorage, NoFilteringSearch) {
   DenseNullStorage storage(std::move(numeric), &bv);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0), Range(0, 5));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
 TEST(DenseNullStorage, RestrictInputSearch) {
@@ -66,7 +56,7 @@ TEST(DenseNullStorage, RestrictInputSearch) {
   DenseNullStorage storage(std::move(numeric), &bv);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0), Range(1, 3));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
 TEST(DenseNullStorage, RangeFilterSearch) {
@@ -76,7 +66,7 @@ TEST(DenseNullStorage, RangeFilterSearch) {
   DenseNullStorage storage(std::move(fake), &bv);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0), Range(0, 5));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
 TEST(DenseNullStorage, BitvectorFilterSearch) {
@@ -86,7 +76,7 @@ TEST(DenseNullStorage, BitvectorFilterSearch) {
   DenseNullStorage storage(std::move(fake), &bv);
 
   auto res = storage.Search(FilterOp::kGe, SqlValue::Long(0), Range(0, 5));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
 TEST(DenseNullStorage, IsNullSearch) {
@@ -96,7 +86,7 @@ TEST(DenseNullStorage, IsNullSearch) {
   DenseNullStorage storage(std::move(fake), &bv);
 
   auto res = storage.Search(FilterOp::kIsNull, SqlValue(), Range(0, 5));
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4));
 }
 
 TEST(DenseNullStorage, IndexSearch) {
@@ -110,7 +100,7 @@ TEST(DenseNullStorage, IndexSearch) {
   std::vector<uint32_t> index({5, 2, 3, 4, 1});
   auto res = storage.IndexSearch(FilterOp::kGe, SqlValue::Long(0), index.data(),
                                  static_cast<uint32_t>(index.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 2, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 2, 3));
 }
 
 TEST(DenseNullStorage, IsNullIndexSearch) {
@@ -122,7 +112,7 @@ TEST(DenseNullStorage, IsNullIndexSearch) {
   std::vector<uint32_t> index({5, 2, 3, 4, 1});
   auto res = storage.IndexSearch(FilterOp::kIsNull, SqlValue(), index.data(),
                                  static_cast<uint32_t>(index.size()), false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3));
 }
 
 }  // namespace

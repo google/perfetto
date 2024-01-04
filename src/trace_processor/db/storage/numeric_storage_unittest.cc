@@ -19,6 +19,7 @@
 #include "perfetto/trace_processor/basic_types.h"
 #include "src/trace_processor/db/compare.h"
 #include "src/trace_processor/db/storage/types.h"
+#include "src/trace_processor/db/storage/utils.h"
 #include "test/gtest_and_gmock.h"
 
 namespace perfetto {
@@ -35,18 +36,7 @@ using testing::ElementsAre;
 using testing::IsEmpty;
 using Range = RowMap::Range;
 
-std::vector<uint32_t> ToIndexVector(RangeOrBitVector& r_or_bv) {
-  RowMap rm;
-  if (r_or_bv.IsBitVector()) {
-    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
-  } else {
-    Range range = std::move(r_or_bv).TakeIfRange();
-    rm = RowMap(range.start, range.end);
-  }
-  return rm.GetAllIndices();
-}
-
-TEST(NumericStorageUnittest, InvalidSearchConstraintsGeneralChecks) {
+TEST(NumericStorage, InvalidSearchConstraintsGeneralChecks) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
@@ -75,7 +65,7 @@ TEST(NumericStorageUnittest, InvalidSearchConstraintsGeneralChecks) {
             SearchValidationResult::kNoData);
 }
 
-TEST(NumericStorageUnittest, InvalidValueBoundsUint32) {
+TEST(NumericStorage, InvalidValueBoundsUint32) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
@@ -113,7 +103,7 @@ TEST(NumericStorageUnittest, InvalidValueBoundsUint32) {
             SearchValidationResult::kNoData);
 }
 
-TEST(NumericStorageUnittest, InvalidValueBoundsInt32) {
+TEST(NumericStorage, InvalidValueBoundsInt32) {
   std::vector<int32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
@@ -151,7 +141,7 @@ TEST(NumericStorageUnittest, InvalidValueBoundsInt32) {
             SearchValidationResult::kNoData);
 }
 
-TEST(NumericStorageUnittest, StableSortTrivial) {
+TEST(NumericStorage, StableSortTrivial) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {0, 1, 2, 3, 4, 5, 6, 7, 8};
 
@@ -163,7 +153,7 @@ TEST(NumericStorageUnittest, StableSortTrivial) {
   ASSERT_EQ(out, stable_out);
 }
 
-TEST(NumericStorageUnittest, StableSort) {
+TEST(NumericStorage, StableSort) {
   std::vector<uint32_t> data_vec{0, 1, 2, 0, 1, 2, 0, 1, 2};
   std::vector<uint32_t> out = {1, 7, 4, 0, 6, 3, 2, 5, 8};
 
@@ -175,57 +165,57 @@ TEST(NumericStorageUnittest, StableSort) {
   ASSERT_EQ(out, stable_out);
 }
 
-TEST(NumericStorageUnittest, Search) {
+TEST(NumericStorage, Search) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(4);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 4));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3, 4));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
-TEST(NumericStorageUnittest, SearchCompareWithNegative) {
+TEST(NumericStorage, SearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Long(-3);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 }
 
-TEST(NumericStorageUnittest, IndexSearch) {
+TEST(NumericStorage, IndexSearch) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -234,25 +224,25 @@ TEST(NumericStorageUnittest, IndexSearch) {
   SqlValue val = SqlValue::Long(3);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 5));
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
-TEST(NumericStorageUnittest, IndexSearchCompareWithNegative) {
+TEST(NumericStorage, IndexSearchCompareWithNegative) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -261,25 +251,25 @@ TEST(NumericStorageUnittest, IndexSearchCompareWithNegative) {
   SqlValue val = SqlValue::Long(-3);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2));
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4, 5));
 }
 
-TEST(NumericStorageUnittest, SearchFast) {
+TEST(NumericStorage, SearchFast) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32);
@@ -291,7 +281,7 @@ TEST(NumericStorageUnittest, SearchFast) {
   ASSERT_EQ(bv.IndexOfNthSet(0), 100u);
 }
 
-TEST(NumericStorageUnittest, SearchSorted) {
+TEST(NumericStorage, SearchSorted) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
@@ -303,7 +293,7 @@ TEST(NumericStorageUnittest, SearchSorted) {
   ASSERT_EQ(range.end, 128u);
 }
 
-TEST(NumericStorageUnittest, SearchSortedNe) {
+TEST(NumericStorage, SearchSortedNe) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
@@ -313,7 +303,7 @@ TEST(NumericStorageUnittest, SearchSortedNe) {
   ASSERT_EQ(bv.CountSetBits(), 127u);
 }
 
-TEST(NumericStorageUnittest, SearchSortedSubset) {
+TEST(NumericStorage, SearchSortedSubset) {
   std::vector<uint32_t> data_vec(128);
   std::iota(data_vec.begin(), data_vec.end(), 0);
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kUint32, true);
@@ -325,7 +315,7 @@ TEST(NumericStorageUnittest, SearchSortedSubset) {
   ASSERT_EQ(range.end, 104u);
 }
 
-TEST(NumericStorageUnittest, IndexSearcgExtrinsicGe) {
+TEST(NumericStorage, IndexSearcgExtrinsicGe) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
@@ -341,7 +331,7 @@ TEST(NumericStorageUnittest, IndexSearcgExtrinsicGe) {
   ASSERT_EQ(range.end, 10u);
 }
 
-TEST(NumericStorageUnittest, IndexSearchExtrinsicLt) {
+TEST(NumericStorage, IndexSearchExtrinsicLt) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
@@ -357,7 +347,7 @@ TEST(NumericStorageUnittest, IndexSearchExtrinsicLt) {
   ASSERT_EQ(range.end, 6u);
 }
 
-TEST(NumericStorageUnittest, IndexSearchExtrinsicEq) {
+TEST(NumericStorage, IndexSearchExtrinsicEq) {
   std::vector<uint32_t> data_vec{30, 40, 50, 60, 90, 80, 70, 0, 10, 20};
   std::vector<uint32_t> sorted_order{7, 8, 9, 0, 1, 2, 3, 6, 5, 4};
 
@@ -373,32 +363,32 @@ TEST(NumericStorageUnittest, IndexSearchExtrinsicEq) {
   ASSERT_EQ(range.end, 7u);
 }
 
-TEST(NumericStorageUnittest, SearchWithIntAsDouble) {
+TEST(NumericStorage, SearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(4);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 4));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 3, 4));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
-TEST(NumericStorageUnittest, IndexSearchWithIntAsDouble) {
+TEST(NumericStorage, IndexSearchWithIntAsDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -407,75 +397,75 @@ TEST(NumericStorageUnittest, IndexSearchWithIntAsDouble) {
   SqlValue val = SqlValue::Double(3);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3));
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 5));
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(4));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
-TEST(NumericStorageUnittest, SearchInt32WithDouble) {
+TEST(NumericStorage, SearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(3.5);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2, 4));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3));
 }
 
-TEST(NumericStorageUnittest, SearchInt32WithNegDouble) {
+TEST(NumericStorage, SearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(2));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 3, 4));
 }
 
-TEST(NumericStorageUnittest, IndexSearchInt32WithDouble) {
+TEST(NumericStorage, IndexSearchInt32WithDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -484,25 +474,25 @@ TEST(NumericStorageUnittest, IndexSearchInt32WithDouble) {
   SqlValue val = SqlValue::Double(1.5);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 5));
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4));
 }
 
-TEST(NumericStorageUnittest, IndexSearchInt32WithNegDouble) {
+TEST(NumericStorage, IndexSearchInt32WithNegDouble) {
   std::vector<int32_t> data_vec{-5, 5, -4, 4, -3, 3, 0};
   NumericStorage<int32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -511,50 +501,50 @@ TEST(NumericStorageUnittest, IndexSearchInt32WithNegDouble) {
   SqlValue val = SqlValue::Double(-2.5);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2));
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(3, 4, 5));
 }
 
-TEST(NumericStorageUnittest, SearchUint32WithNegDouble) {
+TEST(NumericStorage, SearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5};
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
   Range test_range(1, 5);
   SqlValue val = SqlValue::Double(-3.5);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1, 2, 3, 4));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1, 2, 3, 4));
 }
 
-TEST(NumericStorageUnittest, IndexSearchUint32WithNegDouble) {
+TEST(NumericStorage, IndexSearchUint32WithNegDouble) {
   std::vector<uint32_t> data_vec{0, 1, 2, 3, 4, 5, 6};
   NumericStorage<uint32_t> storage(&data_vec, ColumnType::kInt32);
 
@@ -562,25 +552,25 @@ TEST(NumericStorageUnittest, IndexSearchUint32WithNegDouble) {
   SqlValue val = SqlValue::Double(-2.5);
 
   auto res = storage.IndexSearch(FilterOp::kEq, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.IndexSearch(FilterOp::kNe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kLt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.IndexSearch(FilterOp::kLe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.IndexSearch(FilterOp::kGt, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 
   res = storage.IndexSearch(FilterOp::kGe, val, indices.data(), 6, false);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1, 2, 3, 4, 5));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1, 2, 3, 4, 5));
 }
 
-TEST(NumericStorageUnittest, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
+TEST(NumericStorage, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
   // Sanity check that this value can't be represented as double.
   int64_t not_rep_i = 9007199254740993;
   EXPECT_FALSE(std::nextafter(static_cast<double>(not_rep_i), 1.0) ==
@@ -597,26 +587,25 @@ TEST(NumericStorageUnittest, DoubleColumnWithIntThatCantBeRepresentedAsDouble) {
   Range test_range(0, 2);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 }
 
-TEST(NumericStorageUnittest,
-     DoubleColumnWithNegIntThatCantBeRepresentedAsDouble) {
+TEST(NumericStorage, DoubleColumnWithNegIntThatCantBeRepresentedAsDouble) {
   // Sanity check that this value can't be represented as double.
   int64_t not_rep_i = -9007199254740993;
   EXPECT_FALSE(std::nextafter(static_cast<double>(not_rep_i), 1.0) ==
@@ -633,22 +622,22 @@ TEST(NumericStorageUnittest,
   Range test_range(0, 2);
 
   auto res = storage.Search(FilterOp::kEq, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), IsEmpty());
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), IsEmpty());
 
   res = storage.Search(FilterOp::kNe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0, 1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0, 1));
 
   res = storage.Search(FilterOp::kLt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
   res = storage.Search(FilterOp::kLe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(1));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(1));
 
   res = storage.Search(FilterOp::kGt, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 
   res = storage.Search(FilterOp::kGe, val, test_range);
-  ASSERT_THAT(ToIndexVector(res), ElementsAre(0));
+  ASSERT_THAT(utils::ToIndexVectorForTests(res), ElementsAre(0));
 }
 
 }  // namespace

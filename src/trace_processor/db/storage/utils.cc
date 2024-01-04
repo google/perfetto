@@ -57,6 +57,17 @@ SearchValidationResult CompareIntColumnWithDouble(SqlValue* sql_val,
   PERFETTO_FATAL("For GCC");
 }
 
+std::vector<uint32_t> ToIndexVectorForTests(RangeOrBitVector& r_or_bv) {
+  RowMap rm;
+  if (r_or_bv.IsBitVector()) {
+    rm = RowMap(std::move(r_or_bv).TakeIfBitVector());
+  } else {
+    RowMap::Range range = std::move(r_or_bv).TakeIfRange();
+    rm = RowMap(range.start, range.end);
+  }
+  return rm.GetAllIndices();
+}
+
 }  // namespace utils
 
 }  // namespace storage
