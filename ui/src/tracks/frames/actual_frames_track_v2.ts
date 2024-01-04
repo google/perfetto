@@ -22,20 +22,29 @@ import {
 import {SLICE_LAYOUT_FIT_CONTENT_DEFAULTS} from '../../frontend/slice_layout';
 import {EngineProxy, Slice, STR_NULL} from '../../public';
 
-const BLUE = makeColorScheme(new HSLColor('#03A9F4'));    // Blue 500
-const GREEN = makeColorScheme(new HSLColor('#4CAF50'));   // Green 500
-const YELLOW = makeColorScheme(new HSLColor('#FFEB3B'));  // Yellow 500
-const RED = makeColorScheme(new HSLColor('#FF5722'));     // Red 500
-const LIGHT_GREEN =
-    makeColorScheme(new HSLColor('#C0D588'));           // Light Green 500
-const PINK = makeColorScheme(new HSLColor('#F515E0'));  // Pink 500
+// color named and defined based on Material Design color palettes
+// 500 colors indicate a timeline slice is not a partial jank (not a jank or
+// full jank)
+const BLUE_500 = makeColorScheme(new HSLColor('#03A9F4'));
+const BLUE_200 = makeColorScheme(new HSLColor('#90CAF9'));
+const GREEN_500 = makeColorScheme(new HSLColor('#4CAF50'));
+const GREEN_200 = makeColorScheme(new HSLColor('#A5D6A7'));
+const YELLOW_500 = makeColorScheme(new HSLColor('#FFEB3B'));
+const YELLOW_100 = makeColorScheme(new HSLColor('#FFF9C4'));
+const RED_500 = makeColorScheme(new HSLColor('#FF5722'));
+const RED_200 = makeColorScheme(new HSLColor('#EF9A9A'));
+const LIGHT_GREEN_500 = makeColorScheme(new HSLColor('#C0D588'));
+const LIGHT_GREEN_100 = makeColorScheme(new HSLColor('#DCEDC8'));
+const PINK_500 = makeColorScheme(new HSLColor('#F515E0'));
+const PINK_200 = makeColorScheme(new HSLColor('#F48FB1'));
 
 export const ACTUAL_FRAME_ROW = {
   // Base columns (tsq, ts, dur, id, depth).
   ...NAMED_ROW,
 
-  // Chrome-specific columns.
+  // Jank-specific columns.
   jankTag: STR_NULL,
+  jankSeverityType: STR_NULL,
 };
 export type ActualFrameRow = typeof ACTUAL_FRAME_ROW;
 
@@ -67,7 +76,8 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
         s.layout_depth as depth,
         s.name as name,
         s.id as id,
-        afs.jank_tag as jankTag
+        afs.jank_tag as jankTag,
+        afs.jank_severity_type as jankSeverityType
       from experimental_slice_layout s
       join actual_frame_timeline_slice afs using(id)
       where
@@ -77,24 +87,46 @@ export class ActualFramesTrack extends NamedSliceTrack<ActualFrameTrackTypes> {
 
   rowToSlice(row: ActualFrameRow): Slice {
     const baseSlice = super.rowToSlice(row);
-    return {...baseSlice, colorScheme: getColorSchemeForJank(row.jankTag)};
+    return {
+      ...baseSlice,
+      colorScheme: getColorSchemeForJank(row.jankTag, row.jankSeverityType),
+    };
   }
 }
 
-function getColorSchemeForJank(jankTag: string|null): ColorScheme {
-  switch (jankTag) {
-    case 'Self Jank':
-      return RED;
-    case 'Other Jank':
-      return YELLOW;
-    case 'Dropped Frame':
-      return BLUE;
-    case 'Buffer Stuffing':
-    case 'SurfaceFlinger Stuffing':
-      return LIGHT_GREEN;
-    case 'No Jank':
-      return GREEN;
-    default:
-      return PINK;
+function getColorSchemeForJank(
+    jankTag: string|null, jankSeverityType: string|null): ColorScheme {
+  if (jankSeverityType === 'Partial') {
+    switch (jankTag) {
+      case 'Self Jank':
+        return RED_200;
+      case 'Other Jank':
+        return YELLOW_100;
+      case 'Dropped Frame':
+        return BLUE_200;
+      case 'Buffer Stuffing':
+      case 'SurfaceFlinger Stuffing':
+        return LIGHT_GREEN_100;
+      case 'No Jank':  // should not happen
+        return GREEN_200;
+      default:
+        return PINK_200;
+    }
+  } else {
+    switch (jankTag) {
+      case 'Self Jank':
+        return RED_500;
+      case 'Other Jank':
+        return YELLOW_500;
+      case 'Dropped Frame':
+        return BLUE_500;
+      case 'Buffer Stuffing':
+      case 'SurfaceFlinger Stuffing':
+        return LIGHT_GREEN_500;
+      case 'No Jank':
+        return GREEN_500;
+      default:
+        return PINK_500;
+    }
   }
 }
