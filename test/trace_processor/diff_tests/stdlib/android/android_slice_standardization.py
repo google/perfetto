@@ -41,11 +41,6 @@ slices_to_standardize = [
     "Open oat file /data/misc/apexdata/com.android.art/dalvik-cache/boot.oat",
     "android.os.Handler: kotlinx.coroutines.internal.DispatchedContinuation",
     "GC: Wait For Completion Alloc",
-    'android.view.ViewRootImpl$ViewRootHandler: android.view.View$$Lambda4',
-    'android.os.AsyncTask$InternalHandler: #1',
-    'android.os.Handler: com.android.systemui.broadcast.ActionReceiver$1$1',
-    'com.android.keyguard.KeyguardUpdateMonitor$13: #302',
-    'android.os.Handler: com.android.systemui.qs.TileServiceManager$1',
 ]
 
 for name in slices_to_standardize:
