@@ -32,7 +32,7 @@ Table& Table::operator=(Table&& other) noexcept {
 
   overlays_ = std::move(other.overlays_);
   columns_ = std::move(other.columns_);
-  for (Column& col : columns_) {
+  for (ColumnLegacy& col : columns_) {
     col.table_ = this;
   }
   return *this;
@@ -49,7 +49,7 @@ Table Table::Copy() const {
 Table Table::CopyExceptOverlays() const {
   Table table(string_pool_);
   table.row_count_ = row_count_;
-  for (const Column& col : columns_) {
+  for (const ColumnLegacy& col : columns_) {
     table.columns_.emplace_back(col, &table, col.index_in_table(),
                                 col.overlay_index());
   }
@@ -124,14 +124,14 @@ Table Table::Sort(const std::vector<Order>& od) const {
 
   // Remove the sorted and row set flags from all the columns.
   for (auto& col : table.columns_) {
-    col.flags_ &= ~Column::Flag::kSorted;
-    col.flags_ &= ~Column::Flag::kSetId;
+    col.flags_ &= ~ColumnLegacy::Flag::kSorted;
+    col.flags_ &= ~ColumnLegacy::Flag::kSetId;
   }
 
   // For the first order by, make the column flag itself as sorted but
   // only if the sort was in ascending order.
   if (!od.front().desc) {
-    table.columns_[od.front().col_idx].flags_ |= Column::Flag::kSorted;
+    table.columns_[od.front().col_idx].flags_ |= ColumnLegacy::Flag::kSorted;
   }
 
   return table;
