@@ -30,6 +30,15 @@ message ChromeMetadataPacket {
   // possible category strings are listed in code
   // base/trace_event/builtin_categories.h.
   optional string enabled_categories = 3;
+
+  // Finch name and group based on the ActiveGroupId.
+  message FinchHash {
+    optional uint32 name = 1;
+    optional uint32 group = 2;
+  }
+
+  // List of Finch study/groups that apply to this trace.
+  repeated FinchHash field_trial_hashes = 4;
 }
 
 // Metadata related to background tracing scenarios, states and triggers.
