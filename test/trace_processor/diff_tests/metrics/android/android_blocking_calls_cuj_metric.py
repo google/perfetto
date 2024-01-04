@@ -23,8 +23,6 @@ LAUNCHER_PID = 2000
 
 THIRD_PROCESS_PID = 3000
 
-TOP_LEVEL_SLICES_PID = 4000
-
 # List of blocking calls
 blocking_call_names = [
     'monitor contention with something else', 'SuspendThreadByThreadId 123',
@@ -40,16 +38,6 @@ blocking_call_names = [
     'GC: Wait For Completion Alloc', 'Should not be in the metric'
 ]
 
-top_level_names = [
-    'android.view.ViewRootImpl$ViewRootHandler: android.view.View$$Lambda4',
-    'android.os.AsyncTask$InternalHandler: #1',
-    'android.os.Handler: com.android.systemui.broadcast.ActionReceiver$1$1',
-    'com.android.keyguard.KeyguardUpdateMonitor$13: #302',
-    'android.os.Handler: com.android.systemui.qs.external.TileServiceManager$1',
-    # The following are not expected in the output
-    'receiveMessage(inputChannel=62b8bb4 NotificationShade',
-    'android.os.Handler: #0',
-]
 
 def add_main_thread_atrace(trace, ts, ts_end, buf, pid):
   trace.add_atrace_begin(ts=ts, tid=pid, pid=pid, buf=buf)
@@ -130,43 +118,6 @@ def add_cuj_with_blocking_calls(trace, cuj_name, pid):
       ts=cuj_end + 2_000_000,
       ts_end=cuj_end + 3_000_000,
       buf=blocking_call_name,
-      pid=pid)
-
-
-def add_cuj_with_top_level_slices(trace, cuj_name, pid):
-  blocking_call_dur = 10_000_000
-  blocking_call_ts = 2_000_000
-
-  cuj_dur = len(top_level_names) * blocking_call_dur
-  add_async_trace(
-      trace,
-      ts=blocking_call_ts,
-      ts_end=blocking_call_ts + cuj_dur,
-      buf=cuj_name,
-      pid=pid)
-
-  for top_level_slice in top_level_names:
-    add_main_thread_atrace(
-        trace,
-        ts=blocking_call_ts,
-        ts_end=blocking_call_ts + blocking_call_dur,
-        buf=top_level_slice,
-        pid=pid)
-    blocking_call_ts += blocking_call_dur
-
-  # Some top level unrelated to handler
-  add_main_thread_atrace(
-      trace,
-      ts=blocking_call_ts,
-      ts_end=blocking_call_ts + blocking_call_dur,
-      buf="some top level slice that should not be in the output",
-      pid=pid)
-  # Nested inside the previous, should not be in the output as not top level.
-  add_main_thread_atrace(
-      trace,
-      ts=blocking_call_ts + 1,
-      ts_end=blocking_call_ts + blocking_call_dur - 1,
-      buf="should.not.be.in.the.output.Handler: not.in.the.output$1",
       pid=pid)
 
 
@@ -262,11 +213,6 @@ def setup_trace():
       package_name="com.google.android.third.process",
       uid=10003,
       pid=THIRD_PROCESS_PID)
-  add_process(
-      trace,
-      package_name="com.google.android.top.level.slices",
-      uid=10004,
-      pid=TOP_LEVEL_SLICES_PID)
   trace.add_ftrace_packet(cpu=0)
   add_async_trace(trace, ts=0, ts_end=5, buf="J<IGNORED>", pid=SYSUI_PID)
   return trace
@@ -277,8 +223,6 @@ trace = setup_trace()
 add_cuj_with_blocking_calls(trace, "L<TEST_SYSUI_LATENCY_EVENT>", pid=SYSUI_PID)
 add_cuj_with_blocking_calls(
     trace, "L<TEST_LAUNCHER_LATENCY_EVENT>", pid=LAUNCHER_PID)
-add_cuj_with_top_level_slices(
-    trace, "L<CUJ_WITH_TOP_LEVEL_SLICES>", pid=TOP_LEVEL_SLICES_PID)
 
 add_all_blocking_calls_in_cuj(trace, pid=THIRD_PROCESS_PID)
 
