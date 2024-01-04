@@ -1,8 +1,14 @@
 
-Ù
-8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos".
-AdServicesUiMetric
-latency (Rlatency"0
+Ü
+8protos/perfetto/metrics/android/ad_services_metric.protoperfetto.protos"°
+AdServicesUiMetricQ
+%common_service_initialization_latency (R"commonServiceInitializationLatencyT
+'common_service_permission_check_latency (R#commonServicePermissionCheckLatencyO
+%common_service_ux_engine_flow_latency (R commonServiceUxEngineFlowLatencyG
+ main_actitivity_creation_latency (RmainActitivityCreationLatencyS
+&consent_manager_initialization_latency (R#consentManagerInitializationLatency?
+consent_manager_read_latency (RconsentManagerReadLatencyA
+consent_manager_write_latency (RconsentManagerWriteLatency"0
 AdServicesAdIdMetric
 latency (Rlatency"4
 AdServicesAppSetIdMetric
