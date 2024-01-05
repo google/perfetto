@@ -44,7 +44,7 @@ source_set("db") {
     "../util:glob",
     "../util:regex",
     "../util:util",
-    "storage",
+    "column",
   ]
 }
 
@@ -78,8 +78,8 @@ perfetto_unittest_source_set("unittests") {
     "../../base",
     "../tables",
     "../views",
-    "storage",
-    "storage:fake_storage",
+    "column",
+    "column:fake_storage",
   ]
 }
 
