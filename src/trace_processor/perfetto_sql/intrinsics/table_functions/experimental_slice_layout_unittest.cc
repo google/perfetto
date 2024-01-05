@@ -30,10 +30,11 @@ constexpr uint32_t kColumn =
     tables::ExperimentalSliceLayoutTable::ColumnIndex::filter_track_ids;
 
 std::string ToVis(const Table& table) {
-  const Column* layout_depth_column = table.GetColumnByName("layout_depth");
-  const Column* ts_column = table.GetColumnByName("ts");
-  const Column* dur_column = table.GetColumnByName("dur");
-  const Column* filter_track_ids_column =
+  const ColumnLegacy* layout_depth_column =
+      table.GetColumnByName("layout_depth");
+  const ColumnLegacy* ts_column = table.GetColumnByName("ts");
+  const ColumnLegacy* dur_column = table.GetColumnByName("dur");
+  const ColumnLegacy* filter_track_ids_column =
       table.GetColumnByName("filter_track_ids");
 
   std::vector<std::string> lines;

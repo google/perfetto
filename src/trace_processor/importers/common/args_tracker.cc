@@ -29,7 +29,7 @@ ArgsTracker::~ArgsTracker() {
   Flush();
 }
 
-void ArgsTracker::AddArg(Column* arg_set_id,
+void ArgsTracker::AddArg(ColumnLegacy* arg_set_id,
                          uint32_t row,
                          StringId flat_key,
                          StringId key,
@@ -93,7 +93,7 @@ void ArgsTracker::Flush() {
 }
 
 ArgsTracker::CompactArgSet ArgsTracker::ToCompactArgSet(
-    const Column& column,
+    const ColumnLegacy& column,
     uint32_t row_number) && {
   CompactArgSet compact_args;
   for (const auto& arg : args_) {
@@ -113,7 +113,7 @@ bool ArgsTracker::NeedsTranslation(const ArgsTranslationTable& table) const {
 }
 
 ArgsTracker::BoundInserter::BoundInserter(ArgsTracker* args_tracker,
-                                          Column* arg_set_id_column,
+                                          ColumnLegacy* arg_set_id_column,
                                           uint32_t row)
     : args_tracker_(args_tracker),
       arg_set_id_column_(arg_set_id_column),

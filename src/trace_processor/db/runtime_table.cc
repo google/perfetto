@@ -162,20 +162,22 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
         auto* non_null_ints = std::get_if<IntStorage>(col);
         bool is_sorted = std::is_sorted(non_null_ints->vector().begin(),
                                         non_null_ints->vector().end());
-        uint32_t flags = is_sorted
-                             ? Column::Flag::kNonNull | Column::Flag::kSorted
-                             : Column::Flag::kNonNull;
-        columns_.push_back(
-            Column(col_names_[i].c_str(), non_null_ints, flags, this, i, 0));
+        uint32_t flags = is_sorted ? ColumnLegacy::Flag::kNonNull |
+                                         ColumnLegacy::Flag::kSorted
+                                   : ColumnLegacy::Flag::kNonNull;
+        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), non_null_ints,
+                                        flags, this, i, 0));
       } else {
-        columns_.push_back(Column(col_names_[i].c_str(), ints,
-                                  Column::Flag::kNoFlag, this, i, 0));
+        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), ints,
+                                        ColumnLegacy::Flag::kNoFlag, this, i,
+                                        0));
       }
 
     } else if (auto* strings = std::get_if<StringStorage>(col)) {
       PERFETTO_CHECK(strings->size() == rows);
-      columns_.push_back(Column(col_names_[i].c_str(), strings,
-                                Column::Flag::kNonNull, this, i, 0));
+      columns_.push_back(ColumnLegacy(col_names_[i].c_str(), strings,
+                                      ColumnLegacy::Flag::kNonNull, this, i,
+                                      0));
     } else if (auto* doubles = std::get_if<NullDoubleStorage>(col)) {
       PERFETTO_CHECK(doubles->size() == rows);
       // Check if the column is nullable.
@@ -185,23 +187,24 @@ base::Status RuntimeTable::AddColumnsAndOverlays(uint32_t rows) {
         auto* non_null_doubles = std::get_if<DoubleStorage>(col);
         bool is_sorted = std::is_sorted(non_null_doubles->vector().begin(),
                                         non_null_doubles->vector().end());
-        uint32_t flags = is_sorted
-                             ? Column::Flag::kNonNull | Column::Flag::kSorted
-                             : Column::Flag::kNonNull;
+        uint32_t flags = is_sorted ? ColumnLegacy::Flag::kNonNull |
+                                         ColumnLegacy::Flag::kSorted
+                                   : ColumnLegacy::Flag::kNonNull;
 
-        columns_.push_back(
-            Column(col_names_[i].c_str(), non_null_doubles, flags, this, i, 0));
+        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), non_null_doubles,
+                                        flags, this, i, 0));
       } else {
-        columns_.push_back(Column(col_names_[i].c_str(), doubles,
-                                  Column::Flag::kNoFlag, this, i, 0));
+        columns_.push_back(ColumnLegacy(col_names_[i].c_str(), doubles,
+                                        ColumnLegacy::Flag::kNoFlag, this, i,
+                                        0));
       }
     } else {
       PERFETTO_FATAL("Unexpected column type");
     }
   }
-  columns_.push_back(
-      Column::IdColumn(this, static_cast<uint32_t>(col_names_.size()), 0,
-                       "_auto_id", Column::kIdFlags | Column::Flag::kHidden));
+  columns_.push_back(ColumnLegacy::IdColumn(
+      this, static_cast<uint32_t>(col_names_.size()), 0, "_auto_id",
+      ColumnLegacy::kIdFlags | ColumnLegacy::Flag::kHidden));
   row_count_ = rows;
   return base::OkStatus();
 }
