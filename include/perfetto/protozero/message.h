@@ -72,19 +72,12 @@ class PERFETTO_EXPORT_COMPONENT Message {
 
   // Optional. If is_valid() == true, the corresponding memory region (its
   // length == proto_utils::kMessageLengthFieldSize) is backfilled with the size
-  // of this message (minus |size_already_written| below). This is the mechanism
-  // used by messages to backfill their corresponding size field in the parent
-  // message.
+  // of this message. This is the mechanism used by messages to backfill their
+  // corresponding size field in the parent message. In most cases this is only
+  // used for nested messages and the ScatteredStreamWriter::Delegate (e.g.
+  // TraceWriterImpl), takes case of the outer message.
   uint8_t* size_field() const { return size_field_; }
   void set_size_field(uint8_t* size_field) { size_field_ = size_field; }
-
-  // This is to deal with case of backfilling the size of a root (non-nested)
-  // message which is split into multiple chunks. Upon finalization only the
-  // partial size that lies in the last chunk has to be backfilled.
-  void inc_size_already_written(uint32_t sz) {
-    PERFETTO_DCHECK(!is_finalized());
-    size_already_written_ += sz;
-  }
 
   Message* nested_message() { return nested_message_; }
 
@@ -238,9 +231,6 @@ class PERFETTO_EXPORT_COMPONENT Message {
 
   // Keeps track of the size of the current message.
   uint32_t size_;
-
-  // See comment for inc_size_already_written().
-  uint32_t size_already_written_;
 
   enum class MessageState : uint8_t {
     // Message is still being written to.
