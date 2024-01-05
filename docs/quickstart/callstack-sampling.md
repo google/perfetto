@@ -130,4 +130,6 @@ the call-stack at that point on the timeline.
 
 `cpu_profile` will also write separate profiles for each process that it
 profiled in the output directory, and those can be visualized using
-[`pprof`](https://github.com/google/pprof).
+[`pprof`](https://github.com/google/pprof). You can merge them into one
+by passing all of them to pprof, e.g.
+`pprof /tmp/perf_profile-240105114948clvad/*`.
