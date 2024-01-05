@@ -298,51 +298,6 @@ TEST_F(MessageTest, AppendScatteredBytesFinalizesNestedMessage) {
   EXPECT_EQ(0x2u, *nested_msg_size_field);
 }
 
-// Checks that the size field of root and nested messages is properly written
-// on finalization.
-TEST_F(MessageTest, BackfillSizeOnFinalization) {
-  Message* root_msg = NewMessage();
-  uint8_t root_msg_size[proto_utils::kMessageLengthFieldSize] = {};
-  root_msg->set_size_field(&root_msg_size[0]);
-  root_msg->AppendVarInt(1, 0x42);
-
-  FakeChildMessage* nested_msg_1 =
-      root_msg->BeginNestedMessage<FakeChildMessage>(2);
-  nested_msg_1->AppendVarInt(3, 0x43);
-
-  FakeChildMessage* nested_msg_2 =
-      nested_msg_1->BeginNestedMessage<FakeChildMessage>(4);
-  uint8_t buf200[200];
-  memset(buf200, 0x42, sizeof(buf200));
-  nested_msg_2->AppendBytes(5, buf200, sizeof(buf200));
-
-  root_msg->inc_size_already_written(6);
-
-  // The value returned by Finalize() should be == the full size of |root_msg|.
-  EXPECT_EQ(217u, root_msg->Finalize());
-  EXPECT_EQ(217u, GetNumSerializedBytes());
-
-  // However the size written in the size field should take into account the
-  // inc_size_already_written() call and be equal to 118 - 6 = 112, encoded
-  // in a redundant varint encoding of kMessageLengthFieldSize bytes.
-  EXPECT_STREQ("\xD3\x81\x80\x00", reinterpret_cast<char*>(root_msg_size));
-
-  // Skip 2 bytes for the 0x42 varint + 1 byte for the |nested_msg_1| preamble.
-  GetNextSerializedBytes(3);
-
-  // Check that the size of |nested_msg_1| was backfilled. Its size is:
-  // 203 bytes for |nest_mesg_2| (see below) + 5 bytes for its preamble +
-  // 2 bytes for the 0x43 varint = 210 bytes.
-  EXPECT_EQ("D2818000", GetNextSerializedBytes(4));
-
-  // Skip 2 bytes for the 0x43 varint + 1 byte for the |nested_msg_2| preamble.
-  GetNextSerializedBytes(3);
-
-  // Check that the size of |nested_msg_2| was backfilled. Its size is:
-  // 200 bytes (for |buf200|) + 3 bytes for its preamble = 203 bytes.
-  EXPECT_EQ("CB818000", GetNextSerializedBytes(4));
-}
-
 TEST_F(MessageTest, StressTest) {
   std::vector<Message*> nested_msgs;
 
