@@ -26,7 +26,7 @@
 #include "perfetto/ext/base/string_utils.h"
 #include "perfetto/ext/trace_processor/demangle.h"
 #include "protos/perfetto/common/builtin_clock.pbzero.h"
-#include "src/trace_processor/db/storage/utils.h"
+#include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/export_json.h"
 #include "src/trace_processor/importers/common/clock_tracker.h"
 #include "src/trace_processor/perfetto_sql/intrinsics/functions/sql_function.h"
