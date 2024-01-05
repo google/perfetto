@@ -16,8 +16,8 @@
 #include "src/trace_processor/db/column.h"
 
 #include "perfetto/base/logging.h"
+#include "src/trace_processor/db/column/utils.h"
 #include "src/trace_processor/db/compare.h"
-#include "src/trace_processor/db/storage/utils.h"
 #include "src/trace_processor/db/table.h"
 #include "src/trace_processor/util/glob.h"
 #include "src/trace_processor/util/regex.h"
