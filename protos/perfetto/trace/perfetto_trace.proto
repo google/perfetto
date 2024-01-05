@@ -11746,10 +11746,8 @@ message InternedData {
   // Each field's message type needs to specify an |iid| field, which is the ID
   // of the entry in the field's interning index. Each field constructs its own
   // index, thus interning IDs are scoped to the tracing session and field
-  // (usually as a counter for efficient var-int encoding). It is illegal to
-  // override entries in an index (using the same iid for two different values)
-  // within the same tracing session, even after a reset of the emitted
-  // interning state.
+  // (usually as a counter for efficient var-int encoding), and optionally to
+  // the incremental state generation of the packet sequence.
   repeated EventCategory event_categories = 1;
   repeated EventName event_names = 2;
   repeated DebugAnnotationName debug_annotation_names = 3;
