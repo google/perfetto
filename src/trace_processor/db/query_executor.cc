@@ -162,7 +162,7 @@ RowMap QueryExecutor::FilterLegacy(const Table* table,
     if (rm.empty()) {
       return rm;
     }
-    const Column& col = table->columns()[c.col_idx];
+    const ColumnLegacy& col = table->columns()[c.col_idx];
     uint32_t column_size =
         col.IsId() ? col.overlay().row_map().Max() : col.storage_base().size();
 
