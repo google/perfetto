@@ -48,7 +48,7 @@ namespace trace_processor {
 // different based on T. See their class documentation and below for details
 // on their purpose.
 template <typename T>
-class TypedColumn : public Column {
+class TypedColumn : public ColumnLegacy {
  private:
   using TH = tc_internal::TypeHandler<T>;
 
@@ -92,7 +92,7 @@ class TypedColumn : public Column {
 
   // Returns the row containing the given value in the Column.
   std::optional<uint32_t> IndexOf(sql_value_type v) const {
-    return Column::IndexOf(ToSqlValue(v));
+    return ColumnLegacy::IndexOf(ToSqlValue(v));
   }
 
   std::vector<T> ToVectorForTesting() const {
@@ -124,16 +124,16 @@ class TypedColumn : public Column {
 
   // Converts the static type T into the dynamic SqlValue type of this column.
   static SqlValue::Type SqlValueType() {
-    return Column::ToSqlValueType<stored_type>();
+    return ColumnLegacy::ToSqlValueType<stored_type>();
   }
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
-  static TypedColumn<T>* FromColumn(Column* column) {
+  static TypedColumn<T>* FromColumn(ColumnLegacy* column) {
     return FromColumnInternal<TypedColumn<T>>(column);
   }
 
   // Cast a Column to TypedColumn or crash if that is unsafe.
-  static const TypedColumn<T>* FromColumn(const Column* column) {
+  static const TypedColumn<T>* FromColumn(const ColumnLegacy* column) {
     return FromColumnInternal<const TypedColumn<T>>(column);
   }
 
@@ -162,7 +162,7 @@ class TypedColumn : public Column {
     // While casting from a base to derived without constructing as a derived is
     // technically UB, in practice, this is at the heart of protozero (see
     // Message::BeginNestedMessage) so we use it here.
-    static_assert(sizeof(TypedColumn<T>) == sizeof(Column),
+    static_assert(sizeof(TypedColumn<T>) == sizeof(ColumnLegacy),
                   "TypedColumn cannot introduce extra state.");
 
     if (column->template IsColumnType<stored_type>() &&
@@ -175,16 +175,16 @@ class TypedColumn : public Column {
   }
 
   const ColumnStorage<stored_type>& storage() const {
-    return Column::storage<stored_type>();
+    return ColumnLegacy::storage<stored_type>();
   }
   ColumnStorage<stored_type>* mutable_storage() {
-    return Column::mutable_storage<stored_type>();
+    return ColumnLegacy::mutable_storage<stored_type>();
   }
 };
 
 // Represents a column containing ids.
 template <typename Id>
-class IdColumn : public Column {
+class IdColumn : public ColumnLegacy {
  public:
   // The type of the data in this column.
   using type = Id;
@@ -203,11 +203,11 @@ class IdColumn : public Column {
 
   // Static cast a Column to IdColumn or crash if that is likely to be
   // unsafe.
-  static const IdColumn<Id>* FromColumn(const Column* column) {
+  static const IdColumn<Id>* FromColumn(const ColumnLegacy* column) {
     // While casting from a base to derived without constructing as a derived is
     // technically UB, in practice, this is at the heart of protozero (see
     // Message::BeginNestedMessage) so we use it here.
-    static_assert(sizeof(IdColumn<Id>) == sizeof(Column),
+    static_assert(sizeof(IdColumn<Id>) == sizeof(ColumnLegacy),
                   "TypedColumn cannot introduce extra state.");
 
     if (column->IsId()) {

@@ -48,7 +48,7 @@ class GlobalArgsTracker {
                 "Args must be trivially destructible");
 
   struct Arg : public CompactArg {
-    Column* column;
+    ColumnLegacy* column;
     uint32_t row;
 
     // Object slices this Arg to become a CompactArg.

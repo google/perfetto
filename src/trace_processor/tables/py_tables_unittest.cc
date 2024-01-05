@@ -50,8 +50,9 @@ TEST_F(PyTablesUnittest, EventTableProprties) {
   ASSERT_EQ(TestEventTable::ColumnIndex::arg_set_id, 3u);
 
   ASSERT_EQ(TestEventTable::ColumnFlag::ts,
-            Column::Flag::kSorted | Column::Flag::kNonNull);
-  ASSERT_EQ(TestEventTable::ColumnFlag::arg_set_id, Column::Flag::kNonNull);
+            ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kNonNull);
+  ASSERT_EQ(TestEventTable::ColumnFlag::arg_set_id,
+            ColumnLegacy::Flag::kNonNull);
 }
 
 TEST_F(PyTablesUnittest, ArgsTableProprties) {
@@ -61,9 +62,9 @@ TEST_F(PyTablesUnittest, ArgsTableProprties) {
   ASSERT_EQ(TestArgsTable::ColumnIndex::type, 1u);
   ASSERT_EQ(TestArgsTable::ColumnIndex::arg_set_id, 2u);
 
-  ASSERT_EQ(TestArgsTable::ColumnFlag::arg_set_id, Column::Flag::kSorted |
-                                                       Column::Flag::kSetId |
-                                                       Column::Flag::kNonNull);
+  ASSERT_EQ(TestArgsTable::ColumnFlag::arg_set_id,
+            ColumnLegacy::Flag::kSorted | ColumnLegacy::Flag::kSetId |
+                ColumnLegacy::Flag::kNonNull);
 }
 
 TEST_F(PyTablesUnittest, InsertEvent) {
@@ -123,7 +124,7 @@ TEST_F(PyTablesUnittest, ChildFindById) {
   ASSERT_EQ(row_ref->dur(), 10u);
 }
 TEST_F(PyTablesUnittest, ChildTableStatics) {
-  ASSERT_EQ(TestSliceTable::ColumnFlag::dur, Column::Flag::kNonNull);
+  ASSERT_EQ(TestSliceTable::ColumnFlag::dur, ColumnLegacy::Flag::kNonNull);
   ASSERT_EQ(TestSliceTable::ColumnIndex::id, 0u);
   ASSERT_EQ(TestSliceTable::ColumnIndex::type, 1u);
   ASSERT_EQ(TestSliceTable::ColumnIndex::ts, 2u);
