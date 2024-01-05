@@ -1150,6 +1150,49 @@ TEST_P(TraceWriterImplTest, FlushAfterFragmentingPacketWhileBufferExhausted) {
   writer->Flush();
 }
 
+TEST_P(TraceWriterImplTest, GarbageChunkWrap) {
+  const BufferID kBufId = 42;
+
+  // Grab all chunks in the SMB in new writers.
+  std::array<std::unique_ptr<TraceWriter>, kNumPages * 4> other_writers;
+  for (size_t i = 0; i < other_writers.size(); i++) {
+    other_writers[i] =
+        arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+    auto other_writer_packet = other_writers[i]->NewTracePacket();
+    EXPECT_FALSE(reinterpret_cast<TraceWriterImpl*>(other_writers[i].get())
+                     ->drop_packets_for_testing());
+  }
+
+  // `writer` will only get garbage chunks, since the SMB is exhausted.
+  std::unique_ptr<TraceWriter> writer =
+      arbiter_->CreateTraceWriter(kBufId, BufferExhaustedPolicy::kDrop);
+
+  const size_t chunk_size = page_size() / 4;
+  std::string half_chunk_string(chunk_size / 2, 'x');
+
+  // Fill the first half of the garbage chunk.
+  {
+    auto packet = writer->NewTracePacket();
+    EXPECT_TRUE(reinterpret_cast<TraceWriterImpl*>(writer.get())
+                    ->drop_packets_for_testing());
+    packet->set_for_testing()->set_str(half_chunk_string);
+  }
+
+  // Fill the second half of the garbage chunk and more. This will call
+  // GetNewBuffer() and restart from the beginning of the garbage chunk.
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str(half_chunk_string);
+  }
+
+  // Check that TraceWriterImpl can write at the beginning of the garbage chunk
+  // without any problems.
+  {
+    auto packet = writer->NewTracePacket();
+    packet->set_for_testing()->set_str("str");
+  }
+}
+
 TEST_P(TraceWriterImplTest, AnnotatePatchWhileBufferExhausted) {
   const BufferID kBufId = 42;
   std::unique_ptr<TraceWriter> writer =
