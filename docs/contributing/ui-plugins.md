@@ -67,7 +67,7 @@ skeleton for your plugin.
 To add your first command, add a call to `ctx.registerCommand()` in either
 your `onActivate()` or `onTraceLoad()` hooks. The recommendation is to register
 commands in `onActivate()` by default unless they require something from
-`TracePluginContext` which is not available on `PluginContext`.
+`PluginContextTrace` which is not available on `PluginContext`.
 
 The tradeoff is that commands registered in `onTraceLoad()` are only available
 while a trace is loaded, whereas commands registered in `onActivate()` are
@@ -85,7 +85,7 @@ class MyPlugin implements Plugin {
     );
   }
 
-  onTraceLoad(ctx: TracePluginContext): void {
+  onTraceLoad(ctx: PluginContextTrace): void {
     ctx.registerCommand(
        {
          id: 'dev.perfetto.ExampleSimpleTraceCommand#LogHelloTrace',
@@ -107,7 +107,7 @@ action.
 
 Commands are removed automatically when their context disappears. Commands
 registered with the `PluginContext` are removed when the plugin is deactivated,
-and commands registered with the `TracePluginContext` are removed when the trace
+and commands registered with the `PluginContextTrace` are removed when the trace
 is unloaded.
 
 Examples:
@@ -196,11 +196,11 @@ interface MyState {
 }
 ```
 
-To access permalink state, call `mountStore()` on your `TracePluginContext`
+To access permalink state, call `mountStore()` on your `PluginContextTrace`
 object, passing in a migration function.
 ```typescript
 class MyPlugin implements Plugin {
-  async onTraceLoad(ctx: TracePluginContext): Promise<void> {
+  async onTraceLoad(ctx: PluginContextTrace): Promise<void> {
     const store = ctx.mountStore(migrate);
   }
 }
