@@ -272,7 +272,7 @@ class CpuProfile implements Plugin {
     for (; it.valid(); it.next()) {
       const utid = it.utid;
       const threadName = it.threadName;
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.CpuProfile#${utid}`,
         displayName: `${threadName} (CPU Stack Samples)`,
         kind: CPU_PROFILE_TRACK_KIND,

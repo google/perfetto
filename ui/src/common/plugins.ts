@@ -143,14 +143,7 @@ class PluginContextTraceImpl implements PluginContextTrace, Disposable {
 
   registerStaticTrack(track: TrackDescriptor&TrackRef): void {
     this.registerTrack(track);
-
-    // TODO(stevegolton): Once we've sorted out track_decider, we should also
-    // add this track to the default track list here. E.g.
-    // this.addDefaultTrack({
-    //   uri: trackDetails.uri,
-    //   displayName: trackDetails.displayName,
-    //   sortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
-    // });
+    this.addDefaultTrack(track);
   }
 
   get commands(): Command[] {

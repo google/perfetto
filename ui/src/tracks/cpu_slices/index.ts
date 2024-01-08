@@ -483,7 +483,7 @@ class CpuSlices implements Plugin {
       const uri = `perfetto.CpuSlices#cpu${cpu}`;
       const name = size === undefined ? `Cpu ${cpu}` : `Cpu ${cpu} (${size})`;
       const config: Config = {cpu};
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri,
         displayName: name,
         kind: CPU_SLICE_TRACK_KIND,

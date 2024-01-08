@@ -122,7 +122,7 @@ class HeapProfilePlugin implements Plugin {
   `);
     for (const it = result.iter({upid: NUM}); it.valid(); it.next()) {
       const upid = it.upid;
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.HeapProfile#${upid}`,
         displayName: 'Heap Profile',
         kind: HEAP_PROFILE_TRACK_KIND,
