@@ -112,7 +112,7 @@ class AsyncSlicePlugin implements Plugin {
       //   scrollJankRendered = true;
       // }
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}`,
         displayName,
         trackIds,
@@ -127,7 +127,7 @@ class AsyncSlicePlugin implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}.v2`,
         displayName,
         trackIds,
@@ -194,7 +194,7 @@ class AsyncSlicePlugin implements Plugin {
       const displayName =
           getTrackName({name: trackName, upid, pid, processName, kind});
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}`,
         displayName,
         trackIds,
@@ -209,7 +209,7 @@ class AsyncSlicePlugin implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#process.${pid}${rawTrackIds}.v2`,
         displayName,
         trackIds,
@@ -285,7 +285,7 @@ class AsyncSlicePlugin implements Plugin {
         uidTrack: true,
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}.${uid}`,
         displayName,
         trackIds,
@@ -300,7 +300,7 @@ class AsyncSlicePlugin implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.AsyncSlices#${rawName}.${uid}.v2`,
         displayName,
         trackIds,

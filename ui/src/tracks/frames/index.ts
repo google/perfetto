@@ -96,7 +96,7 @@ class FramesPlugin implements Plugin {
       const displayName = getTrackName(
           {name: trackName, upid, pid, processName, kind: 'ExpectedFrames'});
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ExpectedFrames#${upid}`,
         displayName,
         trackIds,
@@ -111,7 +111,7 @@ class FramesPlugin implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ExpectedFrames#${upid}.v2`,
         displayName,
         trackIds,
@@ -178,7 +178,7 @@ class FramesPlugin implements Plugin {
       const displayName =
           getTrackName({name: trackName, upid, pid, processName, kind});
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ActualFrames#${upid}`,
         displayName,
         trackIds,
@@ -193,7 +193,7 @@ class FramesPlugin implements Plugin {
         },
       });
 
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri: `perfetto.ActualFrames#${upid}.v2`,
         displayName,
         trackIds,
