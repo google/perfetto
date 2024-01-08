@@ -56,8 +56,8 @@ const INCOMPLETE_SLICE_WIDTH_PX = 20;
 
 export const CROP_INCOMPLETE_SLICE_FLAG = featureFlags.register({
   id: 'cropIncompleteSlice',
-  name: 'Crop incomplete Slice',
-  description: 'Display incomplete slice in short form',
+  name: 'Crop incomplete slices',
+  description: 'Display incomplete slices in short form',
   defaultValue: false,
 });
 
