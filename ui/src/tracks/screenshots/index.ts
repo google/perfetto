@@ -95,7 +95,7 @@ class ScreenshotsPlugin implements Plugin {
     if (count > 0) {
       const displayName = 'Screenshots';
       const uri = 'perfetto.Screenshots';
-      ctx.registerStaticTrack({
+      ctx.registerTrack({
         uri,
         displayName,
         kind: ScreenshotsTrack.kind,

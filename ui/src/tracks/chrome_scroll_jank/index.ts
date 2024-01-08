@@ -197,7 +197,7 @@ class ChromeScrollJankPlugin implements Plugin {
 
   private async addChromeScrollJankTrack(ctx: PluginContextTrace):
       Promise<void> {
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank',
       displayName: 'Scroll Jank causes - long tasks',
       kind: ChromeTasksScrollJankTrack.kind,
@@ -216,7 +216,7 @@ class ChromeScrollJankPlugin implements Plugin {
       INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_offsets;
     `);
 
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#toplevelScrolls',
       displayName: 'Chrome Scrolls',
       kind: CHROME_TOPLEVEL_SCROLLS_KIND,
@@ -299,7 +299,7 @@ class ChromeScrollJankPlugin implements Plugin {
         `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
     await ctx.engine.query(tableDefSql);
 
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#eventLatency',
       displayName: 'Chrome Scroll Input Latencies',
       kind: EventLatencyTrack.kind,
@@ -314,7 +314,7 @@ class ChromeScrollJankPlugin implements Plugin {
     await ctx.engine.query(
         `INCLUDE PERFETTO MODULE chrome.scroll_jank.scroll_jank_intervals`);
 
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: 'perfetto.ChromeScrollJank#scrollJankV3',
       displayName: 'Chrome Scroll Janks',
       kind: ScrollJankV3Track.kind,
