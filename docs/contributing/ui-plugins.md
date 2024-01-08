@@ -136,7 +136,138 @@ for more details on how the hotkey syntax works, and for the available keys and
 modifiers.
 
 ### Tracks
-TBD
+#### Defining Tracks
+Tracks describe how to render a track and how to respond to mouse interaction.
+However, the interface is a WIP and should be considered unstable.
+This documentation will be added to over the next few months after the design is
+finalised.
+
+#### Reusing Existing Tracks
+Creating tracks from scratch is difficult and the API is currently a WIP, so it
+is strongly recommended to use one of our existing base classes which do a lot
+of the heavy lifting for you. These base classes also provide a more stable
+layer between your track and the (currently unstable) track API.
+
+For example, if your track needs to show slices from a given a SQL expression (a
+very common pattern), extend the `NamedSliceTrack` abstract base class and
+implement `getSqlSource()`, which should return a query with the following
+columns:
+
+- `id: INTEGER`: A unique ID for the slice.
+- `ts: INTEGER`: The timestamp of the start of the slice.
+- `dur: INTEGER`: The duration of the slice.
+- `depth: INTEGER`: Integer value defining how deep the slice should be drawn in
+    the track, 0 being rendered at the top of the track, and increasing numbers
+    being drawn towards the bottom of the track.
+- `name: TEXT`: Text to be rendered on the slice and in the popup.
+
+For example, the following track describes a slice track that displays all
+slices that begin with the letter 'a'.
+```ts
+class MyTrack extends NamedSliceTrack {
+  getSqlSource(): string {
+    return `
+    SELECT
+      id,
+      ts,
+      dur,
+      depth,
+      name
+    from slice
+    where name like 'a%';
+    `;
+  }
+}
+```
+
+#### Registering Tracks
+Plugins may register tracks with Perfetto using
+`PluginContextTrace.registerTrack()`, usually in their `onTraceLoad` function.
+
+```ts
+class MyPlugin implements Plugin {
+  onTraceLoad(ctx: PluginContextTrace): void {
+    ctx.registerTrack({
+      uri: 'dev.MyPlugin#ExampleTrack',
+      displayName: 'My Example Track',
+      track: ({trackKey}) => {
+        return new MyTrack({engine: ctx.engine, trackKey});
+      },
+    });
+  }
+}
+```
+
+#### Default Tracks
+The "default" tracks are a list of tracks that are added to the timeline when a
+fresh trace is loaded (i.e. **not** when loading a trace from a permalink).
+This list is copied into the timeline after the trace has finished loading, at
+which point control is handed over to the user, allowing them add, remove and
+reorder tracks as they please.
+Thus it only makes sense to add default tracks in your plugin's `onTraceLoad`
+function, as adding a default track later will have no effect.
+
+```ts
+class MyPlugin implements Plugin {
+  onTraceLoad(ctx: PluginContextTrace): void {
+    ctx.registerTrack({
+      // ... as above ...
+    });
+
+    ctx.addDefaultTrack({
+      uri: 'dev.MyPlugin#ExampleTrack',
+      displayName: 'My Example Track',
+      sortKey: PrimaryTrackSortKey.ORDINARY_TRACK,
+    });
+  }
+}
+```
+
+Registering and adding a default track is such a common pattern that there is a
+shortcut for doing both in one go: `PluginContextTrace.registerStaticTrack()`,
+which saves having to repeat the URI and display name.
+
+```ts
+class MyPlugin implements Plugin {
+  onTraceLoad(ctx: PluginContextTrace): void {
+    ctx.registerStaticTrack({
+      uri: 'dev.MyPlugin#ExampleTrack',
+      displayName: 'My Example Track',
+      track: ({trackKey}) => {
+        return new MyTrack({engine: ctx.engine, trackKey});
+      },
+      sortKey: PrimaryTrackSortKey.COUNTER_TRACK,
+    });
+  }
+}
+```
+
+#### Adding Tracks Directly
+Sometimes plugins might want to add a track to the timeline immediately, usually
+as a result of a command or on some other user action such as a button click.
+We can do this using `PluginContext.timeline.addTrack()`.
+
+```ts
+class MyPlugin implements Plugin {
+  onTraceLoad(ctx: PluginContextTrace): void {
+    ctx.registerTrack({
+      // ... as above ...
+    });
+
+    // Register a command that directly adds a new track to the timeline
+    ctx.registerCommand({
+      id: 'dev.MyPlugin#AddMyTrack',
+      name: 'Add my track',
+      callback: () => {
+        ctx.timeline.addTrack(
+          'dev.MyPlugin#ExampleTrack',
+          'My Example Track'
+        );
+      },
+    });
+  }
+}
+```
 
 ### Tabs
 TBD
