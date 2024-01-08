@@ -213,6 +213,9 @@ export interface TrackDescriptor {
 
   // Optional: A list of tags used for sorting, grouping and "chips".
   tags?: TrackTags;
+
+  // Placeholder - presently unused.
+  displayName?: string;
 }
 
 // Tracks within track groups (usually corresponding to processes) are sorted.

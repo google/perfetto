@@ -217,7 +217,7 @@ class ProcessSummaryPlugin implements Plugin {
             utid,
           };
 
-          ctx.registerStaticTrack({
+          ctx.registerTrack({
             uri,
             displayName: `${upid === null ? tid : pid} schedule`,
             kind: PROCESS_SCHEDULING_TRACK_KIND,
@@ -242,7 +242,7 @@ class ProcessSummaryPlugin implements Plugin {
             utid,
           };
 
-          ctx.registerStaticTrack({
+          ctx.registerTrack({
             uri,
             displayName: `${upid === null ? tid : pid} summary`,
             kind: PROCESS_SUMMARY_TRACK,
@@ -310,7 +310,7 @@ class ProcessSummaryPlugin implements Plugin {
       utid: it.utid,
     };
 
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: 'perfetto.ProcessSummary#kernel',
       displayName: `Kernel thread summary`,
       kind: PROCESS_SUMMARY_TRACK,
