@@ -98,11 +98,11 @@ export class PluginContextImpl implements PluginContext, Disposable {
   }
 }
 
-// This TracePluginContext implementation provides the plugin access to trace
+// This PluginContextTrace implementation provides the plugin access to trace
 // related resources, such as the engine and the store.
-// The TracePluginContext exists for the whole duration a plugin is active AND a
+// The PluginContextTrace exists for the whole duration a plugin is active AND a
 // trace is loaded.
-class TracePluginContextImpl implements PluginContextTrace, Disposable {
+class PluginContextTraceImpl implements PluginContextTrace, Disposable {
   private trash = new Trash();
   private alive = true;
 
@@ -290,7 +290,7 @@ export class PluginRegistry extends Registry<PluginDescriptor> {
 interface PluginDetails {
   plugin: Plugin;
   context: PluginContext&Disposable;
-  traceContext?: TracePluginContextImpl;
+  traceContext?: PluginContextTraceImpl;
 }
 
 function isPluginClass(v: unknown): v is PluginClass {
@@ -419,7 +419,7 @@ export class PluginManager {
 
     const engineProxy = engine.getProxy(pluginId);
 
-    const traceCtx = new TracePluginContextImpl(
+    const traceCtx = new PluginContextTraceImpl(
         context,
         engineProxy,
         this.trackRegistry,
