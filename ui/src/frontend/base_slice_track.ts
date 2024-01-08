@@ -113,7 +113,8 @@ function filterVisibleSlices<S extends Slice>(
     return [];
   }
 
-  return slices.filter(slice => {return slice.startNsQ <= end && slice.endNsQ >= start});
+  return slices.filter(
+      (slice) => slice.startNsQ <= end && slice.endNsQ >= start);
 }
 
 export const filterVisibleSlicesForTesting = filterVisibleSlices;
