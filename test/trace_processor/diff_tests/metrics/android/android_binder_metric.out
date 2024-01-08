@@ -6693,6 +6693,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IActivityManager::registerUidObserver::server"
+    aidl_ts: 25403585992
+    aidl_dur: 163818
     client_process: "/system/bin/audioserver"
     client_thread: "audioserver"
     is_main_thread: true
@@ -6952,6 +6954,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server"
+    aidl_ts: 25505989169
+    aidl_dur: 2883875
     client_process: "/system/bin/audioserver"
     client_thread: "audioserver"
     is_main_thread: true
@@ -7019,6 +7023,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::ISensorPrivacyManager::addSensorPrivacyListener::server"
+    aidl_ts: 25509113950
+    aidl_dur: 159573
     client_process: "/system/bin/audioserver"
     client_thread: "audioserver"
     is_main_thread: true
@@ -13464,6 +13470,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IActivityManager::registerUidObserver::server"
+    aidl_ts: 25391618470
+    aidl_dur: 1861477
     client_process: "/system/bin/cameraserver"
     client_thread: "cameraserver"
     is_main_thread: true
@@ -13783,6 +13791,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::ISensorPrivacyManager::supportsSensorToggle::server"
+    aidl_ts: 25519979687
+    aidl_dur: 40334
     client_process: "/system/bin/cameraserver"
     client_thread: "cameraserver"
     is_main_thread: true
@@ -13826,6 +13836,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::ISensorPrivacyManager::addSensorPrivacyListener::server"
+    aidl_ts: 25520128016
+    aidl_dur: 97888
     client_process: "/system/bin/cameraserver"
     client_thread: "cameraserver"
     is_main_thread: true
@@ -13869,6 +13881,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::ISensorPrivacyManager::isSensorPrivacyEnabled::server"
+    aidl_ts: 25520331330
+    aidl_dur: 40929
     client_process: "/system/bin/cameraserver"
     client_thread: "cameraserver"
     is_main_thread: true
@@ -13996,6 +14010,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::java::IAppOpsService::setCameraAudioRestriction::server"
+    aidl_ts: 25521440685
+    aidl_dur: 220267
     client_process: "/system/bin/cameraserver"
     client_thread: "cameraserver"
     is_main_thread: true
@@ -23923,6 +23939,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer"
+    aidl_ts: 25849056936
+    aidl_dur: 10493
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -24122,6 +24140,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer"
+    aidl_ts: 25852708313
+    aidl_dur: 9138
     client_process: "system_server"
     client_thread: "android.anim.lf"
     is_main_thread: false
@@ -24207,6 +24227,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer"
+    aidl_ts: 25851262085
+    aidl_dur: 9061
     client_process: "system_server"
     client_thread: "android.display"
     is_main_thread: false
@@ -24448,6 +24470,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::fixupAppData::cppServer"
+    aidl_ts: 25285989002
+    aidl_dur: 1736792
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24515,6 +24539,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::createAppDataBatched::cppServer"
+    aidl_ts: 25359435725
+    aidl_dur: 57940181
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24576,6 +24602,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25417619816
+    aidl_dur: 92825
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24619,6 +24647,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25417811636
+    aidl_dur: 45551
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24662,6 +24692,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25417912678
+    aidl_dur: 40726
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24705,6 +24737,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418003306
+    aidl_dur: 38137
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24748,6 +24782,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418097028
+    aidl_dur: 37795
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24791,6 +24827,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418178456
+    aidl_dur: 43363
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24834,6 +24872,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418272111
+    aidl_dur: 42962
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24877,6 +24917,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418358466
+    aidl_dur: 40545
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24920,6 +24962,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418448396
+    aidl_dur: 41452
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -24963,6 +25007,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418537356
+    aidl_dur: 43534
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25006,6 +25052,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418627359
+    aidl_dur: 42951
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25049,6 +25097,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418726744
+    aidl_dur: 65142
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25092,6 +25142,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25418880509
+    aidl_dur: 56349
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25135,6 +25187,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419006199
+    aidl_dur: 42767
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25178,6 +25232,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419097032
+    aidl_dur: 41365
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25221,6 +25277,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419219020
+    aidl_dur: 61049
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25264,6 +25322,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419323462
+    aidl_dur: 40757
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25307,6 +25367,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419417090
+    aidl_dur: 40821
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25350,6 +25412,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419505214
+    aidl_dur: 41860
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25393,6 +25457,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419591070
+    aidl_dur: 39695
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25436,6 +25502,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419676959
+    aidl_dur: 40823
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25479,6 +25547,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419762432
+    aidl_dur: 41920
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25522,6 +25592,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419857488
+    aidl_dur: 41358
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25565,6 +25637,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25419945493
+    aidl_dur: 42690
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25608,6 +25682,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420038468
+    aidl_dur: 40021
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25651,6 +25727,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420121284
+    aidl_dur: 40282
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25694,6 +25772,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420205489
+    aidl_dur: 40191
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25737,6 +25817,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420289894
+    aidl_dur: 40034
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25780,6 +25862,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420373550
+    aidl_dur: 40294
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25823,6 +25907,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420472417
+    aidl_dur: 41128
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25866,6 +25952,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420557005
+    aidl_dur: 40894
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25909,6 +25997,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420656309
+    aidl_dur: 47198
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25952,6 +26042,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420746515
+    aidl_dur: 39240
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -25995,6 +26087,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420828614
+    aidl_dur: 38896
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26038,6 +26132,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420912460
+    aidl_dur: 39731
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26081,6 +26177,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25420994439
+    aidl_dur: 40247
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26124,6 +26222,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421077029
+    aidl_dur: 39810
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26167,6 +26267,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421163499
+    aidl_dur: 39231
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26210,6 +26312,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421248366
+    aidl_dur: 73537
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26253,6 +26357,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421365855
+    aidl_dur: 42378
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26296,6 +26402,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421459898
+    aidl_dur: 44831
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26339,6 +26447,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421544946
+    aidl_dur: 57319
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26382,6 +26492,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421688367
+    aidl_dur: 56203
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26425,6 +26537,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421811328
+    aidl_dur: 46749
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26468,6 +26582,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25421903717
+    aidl_dur: 55236
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26511,6 +26627,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422030879
+    aidl_dur: 51763
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26554,6 +26672,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422151676
+    aidl_dur: 43488
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26597,6 +26717,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422240141
+    aidl_dur: 69043
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26640,6 +26762,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422376121
+    aidl_dur: 54631
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26683,6 +26807,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422509016
+    aidl_dur: 45419
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26726,6 +26852,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422599989
+    aidl_dur: 52724
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26769,6 +26897,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25422922976
+    aidl_dur: 57479
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26812,6 +26942,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423060190
+    aidl_dur: 46283
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26855,6 +26987,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423150202
+    aidl_dur: 40534
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26898,6 +27032,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423246456
+    aidl_dur: 43380
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26941,6 +27077,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423337440
+    aidl_dur: 53308
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -26984,6 +27122,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423466972
+    aidl_dur: 53365
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27027,6 +27167,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423590479
+    aidl_dur: 45068
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27070,6 +27212,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423681449
+    aidl_dur: 50982
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27113,6 +27257,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423795403
+    aidl_dur: 53219
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27156,6 +27302,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25423922582
+    aidl_dur: 47778
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27199,6 +27347,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424013264
+    aidl_dur: 51937
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27242,6 +27392,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424140139
+    aidl_dur: 54039
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27285,6 +27437,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424261577
+    aidl_dur: 46217
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27328,6 +27482,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424356443
+    aidl_dur: 40285
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27371,6 +27527,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424436989
+    aidl_dur: 50856
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27414,6 +27572,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424554213
+    aidl_dur: 52949
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27457,6 +27617,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424714681
+    aidl_dur: 45053
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27500,6 +27662,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424805200
+    aidl_dur: 55155
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27543,6 +27707,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25424922509
+    aidl_dur: 52527
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27586,6 +27752,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425028255
+    aidl_dur: 50393
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27629,6 +27797,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425156827
+    aidl_dur: 44578
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27672,6 +27842,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425246159
+    aidl_dur: 74625
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27721,6 +27893,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425395173
+    aidl_dur: 53144
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27764,6 +27938,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425517212
+    aidl_dur: 51045
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27807,6 +27983,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425611281
+    aidl_dur: 66920
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27850,6 +28028,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425754988
+    aidl_dur: 54305
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27893,6 +28073,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425872182
+    aidl_dur: 43201
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -27936,6 +28118,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25425970998
+    aidl_dur: 42169
     client_process: "system_server"
     client_thread: "system-server-i"
     is_main_thread: false
@@ -33505,6 +33689,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::rmdex::cppServer"
+    aidl_ts: 25230231365
+    aidl_dur: 77249
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33548,6 +33734,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::cleanupInvalidPackageDirs::cppServer"
+    aidl_ts: 25243566439
+    aidl_dur: 408943
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33615,6 +33803,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::createAppDataBatched::cppServer"
+    aidl_ts: 25244976815
+    aidl_dur: 33221505
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33706,6 +33896,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25279400683
+    aidl_dur: 90089
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33749,6 +33941,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25280492716
+    aidl_dur: 147183
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33816,6 +34010,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25280769543
+    aidl_dur: 109576
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33859,6 +34055,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25280952957
+    aidl_dur: 107685
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33902,6 +34100,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281152341
+    aidl_dur: 84930
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33945,6 +34145,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281321909
+    aidl_dur: 83540
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -33988,6 +34190,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281476361
+    aidl_dur: 81203
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34031,6 +34235,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281616719
+    aidl_dur: 105567
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34074,6 +34280,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281775285
+    aidl_dur: 78880
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34117,6 +34325,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25281902079
+    aidl_dur: 80930
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34160,6 +34370,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282038855
+    aidl_dur: 78632
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34203,6 +34415,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282164779
+    aidl_dur: 78369
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34246,6 +34460,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282290883
+    aidl_dur: 78355
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34289,6 +34505,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282419167
+    aidl_dur: 95266
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34332,6 +34550,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282561984
+    aidl_dur: 76471
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34375,6 +34595,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282685097
+    aidl_dur: 75503
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34418,6 +34640,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282807875
+    aidl_dur: 78556
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34461,6 +34685,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25282933297
+    aidl_dur: 76131
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -34504,6 +34730,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::prepareAppProfile::cppServer"
+    aidl_ts: 25284881962
+    aidl_dur: 116554
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35243,6 +35471,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25428724647
+    aidl_dur: 1594759
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35328,6 +35558,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25430565379
+    aidl_dur: 5561826
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35401,6 +35633,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25436341917
+    aidl_dur: 7260
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35444,6 +35678,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25436471129
+    aidl_dur: 61340
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35493,6 +35729,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25436609716
+    aidl_dur: 1082160
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35536,6 +35774,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25437825870
+    aidl_dur: 5427
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35579,6 +35819,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25437935153
+    aidl_dur: 56822
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35634,6 +35876,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25438070812
+    aidl_dur: 1177698
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35683,6 +35927,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25439344457
+    aidl_dur: 4807
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35726,6 +35972,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25439419506
+    aidl_dur: 3588
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35769,6 +36017,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25439857067
+    aidl_dur: 57430
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35818,6 +36068,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25440036306
+    aidl_dur: 564115
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35861,6 +36113,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25440673070
+    aidl_dur: 4449
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35904,6 +36158,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25440761763
+    aidl_dur: 90799
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -35953,6 +36209,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25440935195
+    aidl_dur: 1075463
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36008,6 +36266,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25442088076
+    aidl_dur: 4863
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36051,6 +36311,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25442168189
+    aidl_dur: 56542
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36100,6 +36362,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25442295132
+    aidl_dur: 922955
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36149,6 +36413,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25443305477
+    aidl_dur: 4492
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36192,6 +36458,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25443389968
+    aidl_dur: 55261
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36241,6 +36509,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25443521845
+    aidl_dur: 659536
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36296,6 +36566,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25444268357
+    aidl_dur: 4886
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36339,6 +36611,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25444542796
+    aidl_dur: 57165
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36388,6 +36662,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25444678246
+    aidl_dur: 360923
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36431,6 +36707,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25445101575
+    aidl_dur: 4246
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36474,6 +36752,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25445179479
+    aidl_dur: 59376
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36523,6 +36803,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25445329400
+    aidl_dur: 1159068
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36578,6 +36860,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25446579099
+    aidl_dur: 4973
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36621,6 +36905,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25446676804
+    aidl_dur: 58350
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36670,6 +36956,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25446806550
+    aidl_dur: 373794
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36719,6 +37007,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25447311508
+    aidl_dur: 4828
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36762,6 +37052,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25447401938
+    aidl_dur: 58009
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36811,6 +37103,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25447531048
+    aidl_dur: 1043348
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36866,6 +37160,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25448667460
+    aidl_dur: 4325
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36909,6 +37205,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25448747655
+    aidl_dur: 55565
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -36958,6 +37256,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25448881946
+    aidl_dur: 1285274
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37007,6 +37307,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25450329700
+    aidl_dur: 4800
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37050,6 +37352,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25450416076
+    aidl_dur: 3548
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37093,6 +37397,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25450490907
+    aidl_dur: 75530
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37142,6 +37448,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25450651202
+    aidl_dur: 1193432
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37191,6 +37499,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25451997612
+    aidl_dur: 4469
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37234,6 +37544,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25453020152
+    aidl_dur: 58156
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37283,6 +37595,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25453219318
+    aidl_dur: 318442
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37326,6 +37640,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25454222051
+    aidl_dur: 5194
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37369,6 +37685,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::verifyIdmap::cppServer"
+    aidl_ts: 25454323859
+    aidl_dur: 64910
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37418,6 +37736,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::createIdmap::cppServer"
+    aidl_ts: 25454457998
+    aidl_dur: 1138744
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37467,6 +37787,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::getIdmapPath::cppServer"
+    aidl_ts: 25455721276
+    aidl_dur: 4186
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37510,6 +37832,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::acquireFabricatedOverlayIterator::cppServer"
+    aidl_ts: 25455800495
+    aidl_dur: 46786
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37553,6 +37877,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::nextFabricatedOverlayInfos::cppServer"
+    aidl_ts: 25455884128
+    aidl_dur: 157512
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37596,6 +37922,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::releaseFabricatedOverlayIterator::cppServer"
+    aidl_ts: 25456471941
+    aidl_dur: 1581
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37639,6 +37967,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::acquireFabricatedOverlayIterator::cppServer"
+    aidl_ts: 25456563439
+    aidl_dur: 69497
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37688,6 +38018,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::nextFabricatedOverlayInfos::cppServer"
+    aidl_ts: 25456692890
+    aidl_dur: 156681
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -37731,6 +38063,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IIdmap2::releaseFabricatedOverlayIterator::cppServer"
+    aidl_ts: 25456891196
+    aidl_dur: 1368
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -38518,6 +38852,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::invalidateMounts::cppServer"
+    aidl_ts: 25566164503
+    aidl_dur: 2250963
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -44429,6 +44765,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::invalidateMounts::cppServer"
+    aidl_ts: 25955733930
+    aidl_dur: 898293
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -44802,6 +45140,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::invalidateMounts::cppServer"
+    aidl_ts: 25958348311
+    aidl_dur: 798432
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -44839,6 +45179,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IInstalld::invalidateMounts::cppServer"
+    aidl_ts: 25959296430
+    aidl_dur: 686741
     client_process: "system_server"
     client_thread: "system_server"
     is_main_thread: true
@@ -47332,6 +47674,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 25965596757
+    aidl_dur: 2631
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -47441,6 +47785,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 26046553099
+    aidl_dur: 53452
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -47478,6 +47824,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 26049716299
+    aidl_dur: 2532
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -48825,6 +49173,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IClientCallback::onClients::cppServer"
+    aidl_ts: 22213598784
+    aidl_dur: 322601
     client_process: "/system/bin/servicemanager"
     client_thread: "servicemanager"
     is_main_thread: true
@@ -50266,6 +50616,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::stealReceiveChannel::cppServer"
+    aidl_ts: 25849056936
+    aidl_dur: 10493
     client_process: "/vendor/bin/hw/android.hardware.graphics.composer3-service.ranchu"
     client_thread: "binder:446_1"
     is_main_thread: false
@@ -50303,6 +50655,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 25855721528
+    aidl_dur: 81461
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -50340,6 +50694,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 25873232951
+    aidl_dur: 3493
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -50467,6 +50823,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IDisplayEventConnection::requestNextVsync::cppServer"
+    aidl_ts: 25952255710
+    aidl_dur: 30672
     client_process: "system_server"
     client_thread: "android.anim"
     is_main_thread: false
@@ -50486,6 +50844,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer"
+    aidl_ts: 25512708792
+    aidl_dur: 9677878
     client_process: "/system/bin/audioserver"
     client_thread: "audioserver"
     is_main_thread: true
@@ -50505,6 +50865,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::IMediaMetricsService::submitBuffer::cppServer"
+    aidl_ts: 25522418582
+    aidl_dur: 58044
     client_process: "/system/bin/audioserver"
     client_thread: "audioserver"
     is_main_thread: true
@@ -50578,6 +50940,8 @@ android_binder {
   }
   unaggregated_txn_breakdown {
     aidl_name: "AIDL::cpp::ITunnelModeEnabledListener::onTunnelModeEnabledChanged::cppServer"
+    aidl_ts: 25854205007
+    aidl_dur: 214767
     client_process: "/system/bin/surfaceflinger"
     client_thread: "binder:496_2"
     is_main_thread: false
