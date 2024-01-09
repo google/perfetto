@@ -564,11 +564,9 @@ class TracingServiceImpl : public TracingService {
     // called.
     bool should_emit_sync_marker = false;
 
-    // Whether we mirrored the trace config back to the trace output yet.
-    bool did_emit_config = false;
-
-    // Whether we put the system info into the trace output yet.
-    bool did_emit_system_info = false;
+    // Whether we put the initial packets (trace config, system info,
+    // etc.) into the trace output yet.
+    bool did_emit_initial_packets = false;
 
     // Whether we should compress TracePackets after reading them.
     bool compress_deflate = false;
@@ -717,8 +715,9 @@ class TracingServiceImpl : public TracingService {
   void EmitStats(TracingSession*, std::vector<TracePacket>*);
   TraceStats GetTraceStats(TracingSession*);
   void EmitLifecycleEvents(TracingSession*, std::vector<TracePacket>*);
-  void MaybeEmitUuidAndTraceConfig(TracingSession*, std::vector<TracePacket>*);
-  void MaybeEmitSystemInfo(TracingSession*, std::vector<TracePacket>*);
+  void EmitUuid(TracingSession*, std::vector<TracePacket>*);
+  void MaybeEmitTraceConfig(TracingSession*, std::vector<TracePacket>*);
+  void EmitSystemInfo(std::vector<TracePacket>*);
   void MaybeEmitReceivedTriggers(TracingSession*, std::vector<TracePacket>*);
   void MaybeNotifyAllDataSourcesStarted(TracingSession*);
   void OnFlushTimeout(TracingSessionID, FlushRequestID);
