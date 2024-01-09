@@ -18,6 +18,7 @@
 #define SRC_TRACE_PROCESSOR_DB_COLUMN_FAKE_STORAGE_H_
 
 #include <memory>
+#include "src/trace_processor/containers/bit_vector.h"
 #include "src/trace_processor/containers/row_map.h"
 #include "src/trace_processor/db/column/column.h"
 #include "src/trace_processor/db/column/types.h"
@@ -67,6 +68,18 @@ class FakeStorage final : public Column {
   static std::unique_ptr<Column> SearchSubset(uint32_t size, BitVector bv) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kBitVector));
+    storage->bit_vector_ = std::move(bv);
+    return std::move(storage);
+  }
+
+  static std::unique_ptr<Column> SearchSubset(uint32_t size,
+                                              std::vector<uint32_t> index_vec) {
+    std::unique_ptr<FakeStorage> storage(
+        new FakeStorage(size, SearchStrategy::kBitVector));
+    BitVector bv(size);
+    for (const uint32_t& i : index_vec) {
+      bv.Set(i);
+    }
     storage->bit_vector_ = std::move(bv);
     return std::move(storage);
   }
