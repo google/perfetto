@@ -2289,11 +2289,15 @@ std::vector<TracePacket> TracingServiceImpl::ReadBuffers(
   }
 
   if (!tracing_session->config.builtin_data_sources().disable_trace_config()) {
-    MaybeEmitUuidAndTraceConfig(tracing_session, &packets);
+    MaybeEmitTraceConfig(tracing_session, &packets);
     MaybeEmitReceivedTriggers(tracing_session, &packets);
   }
-  if (!tracing_session->config.builtin_data_sources().disable_system_info())
-    MaybeEmitSystemInfo(tracing_session, &packets);
+  if (!tracing_session->did_emit_initial_packets) {
+    EmitUuid(tracing_session, &packets);
+    if (!tracing_session->config.builtin_data_sources().disable_system_info())
+      EmitSystemInfo(&packets);
+  }
+  tracing_session->did_emit_initial_packets = true;
 
   // Note that in the proto comment, we guarantee that the tracing_started
   // lifecycle event will be emitted before any data packets so make sure to
@@ -3460,38 +3464,30 @@ TraceStats TracingServiceImpl::GetTraceStats(TracingSession* tracing_session) {
   return trace_stats;
 }
 
-void TracingServiceImpl::MaybeEmitUuidAndTraceConfig(
-    TracingSession* tracing_session,
-    std::vector<TracePacket>* packets) {
-  if (tracing_session->did_emit_config)
-    return;
-  tracing_session->did_emit_config = true;
-
-  {
-    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    auto* uuid = packet->set_trace_uuid();
-    uuid->set_lsb(tracing_session->trace_uuid.lsb());
-    uuid->set_msb(tracing_session->trace_uuid.msb());
-    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
-  }
-
-  {
-    protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
-    packet->set_trusted_uid(static_cast<int32_t>(uid_));
-    packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
-    tracing_session->config.Serialize(packet->set_trace_config());
-    SerializeAndAppendPacket(packets, packet.SerializeAsArray());
-  }
+void TracingServiceImpl::EmitUuid(TracingSession* tracing_session,
+                                  std::vector<TracePacket>* packets) {
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  auto* uuid = packet->set_trace_uuid();
+  uuid->set_lsb(tracing_session->trace_uuid.lsb());
+  uuid->set_msb(tracing_session->trace_uuid.msb());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
 }
 
-void TracingServiceImpl::MaybeEmitSystemInfo(
+void TracingServiceImpl::MaybeEmitTraceConfig(
     TracingSession* tracing_session,
     std::vector<TracePacket>* packets) {
-  if (tracing_session->did_emit_system_info)
+  if (tracing_session->did_emit_initial_packets)
     return;
-  tracing_session->did_emit_system_info = true;
+  protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
+  packet->set_trusted_uid(static_cast<int32_t>(uid_));
+  packet->set_trusted_packet_sequence_id(kServicePacketSequenceID);
+  tracing_session->config.Serialize(packet->set_trace_config());
+  SerializeAndAppendPacket(packets, packet.SerializeAsArray());
+}
+
+void TracingServiceImpl::EmitSystemInfo(std::vector<TracePacket>* packets) {
   protozero::HeapBuffered<protos::pbzero::TracePacket> packet;
   auto* info = packet->set_system_info();
   info->set_tracing_service_version(base::GetVersionString());
