@@ -216,6 +216,7 @@ export class SliceDetailsPanel extends SlicePanel {
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (trackKey && sliceInfo.threadStateId) {
       globals.makeSelection(Actions.selectThreadState({
         id: sliceInfo.threadStateId,

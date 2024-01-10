@@ -740,6 +740,7 @@ class And extends BinOp implements Expr {
   }
 
   evaluate(lhs: Primitive, rhs: Primitive): Primitive {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     return lhs && rhs;
   }
 }
@@ -750,6 +751,7 @@ class Or extends BinOp implements Expr {
   }
 
   evaluate(lhs: Primitive, rhs: Primitive): Primitive {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     return lhs || rhs;
   }
 }

@@ -393,7 +393,9 @@ export class RecordController extends Controller<'main'> implements Consumer {
             throw Error(`No device connected`);
           }
 
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           if (!controller) throw Error(`Unknown target: ${target}`);
+          /* eslint-enable */
           resolve(controller);
         });
 

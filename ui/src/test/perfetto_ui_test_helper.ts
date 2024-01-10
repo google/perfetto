@@ -32,6 +32,7 @@ const DIFF_MAX_PIXELS = 50;
 // - Check that no redraws are pending in our RAF scheduler.
 // - Check that all the above is satisfied for |minIdleMs| consecutive ms.
 export async function waitForPerfettoIdle(page: Page, minIdleMs?: number) {
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   minIdleMs = minIdleMs || 3000;
   const tickMs = 250;
   const timeoutMs = 60000;

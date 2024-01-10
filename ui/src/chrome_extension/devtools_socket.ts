@@ -25,6 +25,7 @@ export class DevToolsSocket implements LikeSocket {
   constructor() {
     chrome.debugger.onDetach.addListener(this.onDetach.bind(this));
     chrome.debugger.onEvent.addListener((_source, method, params) => {
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (this.messageCallback) {
         const msg: JsonRpc2.Notification = {method, params};
         this.messageCallback(JSON.stringify(msg));

@@ -187,6 +187,7 @@ export class Slider implements m.ClassComponent<SliderAttrs> {
     const id = attrs.title.replace(/[^a-z0-9]/gmi, '_').toLowerCase();
     const maxIdx = attrs.values.length - 1;
     const val = attrs.get(globals.state.recordConfig);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     let min = attrs.min || 1;
     if (attrs.zeroIsDefault) {
       min = Math.min(0, min);

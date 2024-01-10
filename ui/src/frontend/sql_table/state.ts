@@ -327,7 +327,6 @@ export class SqlTableState {
   }
 
   sortBy(clause: ColumnOrderClause) {
-    this.orderBy = this.orderBy || [];
     // Remove previous sort by the same column.
     this.orderBy = this.orderBy.filter((c) => c.column !== clause.column);
     // Add the new sort clause to the front, so we effectively stable-sort the
@@ -342,7 +341,6 @@ export class SqlTableState {
   }
 
   isSortedBy(column: Column): SortDirection|undefined {
-    if (!this.orderBy) return undefined;
     if (this.orderBy.length === 0) return undefined;
     if (this.orderBy[0].column !== column) return undefined;
     return this.orderBy[0].direction;

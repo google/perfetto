@@ -59,6 +59,7 @@ export class AggregationPanel implements
   formatColumnHeading(col: Column, id: string) {
     const pref = globals.state.aggregatePreferences[id];
     let sortIcon = '';
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (pref && pref.sorting && pref.sorting.column === col.columnId) {
       sortIcon = pref.sorting.direction === 'DESC' ? 'arrow_drop_down' :
                                                      'arrow_drop_up';

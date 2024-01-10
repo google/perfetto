@@ -69,6 +69,7 @@ export class ServiceWorkerController {
       }
     } else {
       await BypassCache.setBypass(false);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (window.localStorage) {
         window.localStorage.setItem('bypassDisabled', '1');
       }
@@ -114,6 +115,7 @@ export class ServiceWorkerController {
     // user manually re-enabled it (in which case bypassDisabled = '1').
     const hostname = location.hostname;
     const isLocalhost = ['127.0.0.1', '::1', 'localhost'].includes(hostname);
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const bypassDisabled = window.localStorage &&
         window.localStorage.getItem('bypassDisabled') === '1';
     if (isLocalhost && !bypassDisabled) {

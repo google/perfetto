@@ -277,7 +277,9 @@ function RecordingNotes() {
       const androidApiLevel = targetInfo.androidApiLevel;
       if (androidApiLevel === 28) {
         notes.push(m('.note', msgFeatNotSupported));
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
       } else if (androidApiLevel && androidApiLevel <= 27) {
+        /* eslint-enable */
         notes.push(m('.note', msgPerfettoNotSupported));
       }
       break;
@@ -312,8 +314,8 @@ function getRecordCommand(targetInfo: TargetInfo): string {
   const recordCommand = recordConfigUtils.fetchLatestRecordCommand(
       globals.state.recordConfig, targetInfo);
 
-  const pbBase64 = recordCommand ? recordCommand.configProtoBase64 : '';
-  const pbtx = recordCommand ? recordCommand.configProtoText : '';
+  const pbBase64 = recordCommand?.configProtoBase64 ?? '';
+  const pbtx = recordCommand?.configProtoText ?? '';
   let cmd = '';
   if (targetInfo.targetType === 'ANDROID' &&
       targetInfo.androidApiLevel === 28) {
