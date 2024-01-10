@@ -192,7 +192,7 @@ export function colorForThread(thread?: {pid?: number, tid: number}):
   if (thread === undefined) {
     return GRAY;
   }
-  const tid = thread.pid ? thread.pid : thread.tid;
+  const tid = thread.pid ?? thread.tid;
   return colorForTid(tid);
 }
 

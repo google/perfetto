@@ -81,7 +81,7 @@ export interface ScrollJankTrackSpec {
 
 // Global state for the scroll jank plugin.
 export class ScrollJankPluginState {
-  private static instance: ScrollJankPluginState;
+  private static instance?: ScrollJankPluginState;
   private tracks: ObjectByKey<ScrollJankTrackSpec>;
 
   private constructor() {

@@ -26,7 +26,7 @@ export class CpuProfileDetailsPanel implements
     const sampleDetails = globals.cpuProfileDetails;
     const header =
         m('.details-panel-heading', m('h2', `CPU Profile Sample Details`));
-    if (!sampleDetails || sampleDetails.id === undefined) {
+    if (sampleDetails.id === undefined) {
       return m('.details-panel', header);
     }
 

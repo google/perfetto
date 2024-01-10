@@ -78,6 +78,7 @@ export function constraintsToQuerySuffix(c: SQLConstraints): string {
     });
     result.push(`ORDER BY ${orderBys.join(', ')}`);
   }
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (c.limit) {
     result.push(`LIMIT ${c.limit}`);
   }

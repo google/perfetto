@@ -89,9 +89,10 @@ class TraceErrorIcon implements m.ClassComponent {
     const mode = globals.state.omniboxState.mode;
 
     const errors = globals.traceErrors;
-    if (!errors && !globals.metricError || mode === 'COMMAND') return;
-    const message = errors ? `${errors} import or data loss errors detected.` :
-                             `Metric error detected.`;
+    if (!Boolean(errors) && !globals.metricError || mode === 'COMMAND') return;
+    const message = Boolean(errors) ?
+        `${errors} import or data loss errors detected.` :
+        `Metric error detected.`;
     return m(
         'a.error',
         {href: '#!/info'},

@@ -41,6 +41,7 @@ export function installFileDropHandler() {
     document.body.classList.remove('filedrag');
     if (evt.dataTransfer && dragEventHasFiles(evt)) {
       const file = evt.dataTransfer.files[0];
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (file) {
         globals.dispatch(Actions.openTraceFromFile({file}));
       }
@@ -55,6 +56,7 @@ export function installFileDropHandler() {
 }
 
 function dragEventHasFiles(event: DragEvent): boolean {
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (event.dataTransfer && event.dataTransfer.types) {
     for (const type of event.dataTransfer.types) {
       if (type === 'Files') return true;

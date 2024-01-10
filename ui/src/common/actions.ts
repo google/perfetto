@@ -315,10 +315,12 @@ export const StateActions = {
       }
       const threadSortKey = state.utidToThreadSortKey[threadTrackSortKey.utid];
       return [
+        /* eslint-disable @typescript-eslint/strict-boolean-expressions */
         threadSortKey ? threadSortKey.sortKey :
                         PrimaryTrackSortKey.ORDINARY_THREAD,
         threadSortKey && threadSortKey.tid !== undefined ? threadSortKey.tid :
                                                            Number.MAX_VALUE,
+        /* eslint-enable */
         threadTrackSortKey.utid,
         threadTrackSortKey.priority,
       ];
@@ -347,6 +349,7 @@ export const StateActions = {
   updateAggregateSorting(
       state: StateDraft, args: {id: string, column: string}) {
     let prefs = state.aggregatePreferences[args.id];
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!prefs) {
       prefs = {id: args.id};
       state.aggregatePreferences[args.id] = prefs;
@@ -423,6 +426,7 @@ export const StateActions = {
       },
 
   requestTrackReload(state: StateDraft, _: {}) {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (state.lastTrackReloadRequest) {
       state.lastTrackReloadRequest++;
     } else {

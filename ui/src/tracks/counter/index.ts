@@ -206,7 +206,7 @@ export class CounterTrack implements Track {
           ) as maxDur
         from ${this.tableName('counter_view')}
     `);
-    this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+    this.maxDurNs = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur ?? 0n;
 
     const queryRes = await this.engine.query(`
       select

@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {exists} from '../base/utils';
 import {isAdbTarget} from '../common/state';
 import {
   extractDurationFromTraceConfig,
@@ -117,7 +118,7 @@ export abstract class AdbBaseConsumerPort extends RpcConsumerPort {
     if (!traceConfigProto) return;
     const duration = extractDurationFromTraceConfig(traceConfigProto);
     this.sendStatus(`Recording in progress${
-        duration ? ' for ' + duration.toString() + ' ms' : ''}...`);
+        exists(duration) ? ' for ' + duration.toString() + ' ms' : ''}...`);
   }
 
   abstract invoke(method: string, argsProto: Uint8Array): void;

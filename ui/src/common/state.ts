@@ -953,6 +953,7 @@ export function getBuiltinChromeCategoryList(): string[] {
 export function getContainingTrackId(state: State, trackKey: string): null|
     string {
   const track = state.tracks[trackKey];
+  // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
   if (!track) {
     return null;
   }

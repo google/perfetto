@@ -199,7 +199,9 @@ export class FlamegraphController extends Controller<'main'> {
     try {
       const flamegraphData = await this.getFlamegraphData(
           key,
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           selectedFlamegraphState.viewingOption ?
+              /* eslint-enable */
               selectedFlamegraphState.viewingOption :
               defaultViewingOption(selectedFlamegraphState.type),
           selection.start,
@@ -207,6 +209,7 @@ export class FlamegraphController extends Controller<'main'> {
           selectedFlamegraphState.upids,
           selectedFlamegraphState.type,
           selectedFlamegraphState.focusRegex);
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (flamegraphData !== undefined && selection &&
           selection.kind === selectedFlamegraphState.kind &&
           selection.start === selectedFlamegraphState.start &&

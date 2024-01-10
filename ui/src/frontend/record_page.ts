@@ -328,7 +328,7 @@ export function Configurations(cssClass: string) {
 function BufferUsageProgressBar() {
   if (!globals.state.recordingInProgress) return [];
 
-  const bufferUsage = globals.bufferUsage ? globals.bufferUsage : 0.0;
+  const bufferUsage = globals.bufferUsage ?? 0.0;
   // Buffer usage is not available yet on Android.
   if (bufferUsage === 0) return [];
 
