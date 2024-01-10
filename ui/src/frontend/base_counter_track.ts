@@ -22,7 +22,7 @@ import {uuidv4} from '../base/uuid';
 import {drawTrackHoverTooltip} from '../common/canvas_utils';
 import {HighPrecisionTime} from '../common/high_precision_time';
 import {raf} from '../core/raf_scheduler';
-import {LONG, NUM} from '../public';
+import {EngineProxy, LONG, NUM, Track} from '../public';
 import {CounterScaleOptions} from '../tracks/counter';
 import {Button} from '../widgets/button';
 import {MenuItem, PopupMenu2} from '../widgets/menu';
@@ -31,7 +31,7 @@ import {checkerboardExcept} from './checkerboard';
 import {globals} from './globals';
 import {PanelSize} from './panel';
 import {constraintsToQuerySuffix} from './sql_utils';
-import {NewTrackArgs, TrackBase} from './track';
+import {NewTrackArgs} from './track';
 import {CacheKey, TrackCache} from './track_cache';
 
 interface CounterData {
@@ -62,8 +62,10 @@ export interface RenderOptions {
   yBoundaries: 'strict'|'human_readable';
 }
 
-export abstract class BaseCounterTrack extends TrackBase {
+export abstract class BaseCounterTrack implements Track {
   protected readonly tableName: string;
+  protected engine: EngineProxy;
+  protected trackKey: string;
 
   // This is the over-skirted cached bounds:
   private countersKey: CacheKey = CacheKey.zero();
@@ -126,7 +128,8 @@ export abstract class BaseCounterTrack extends TrackBase {
   }
 
   constructor(args: NewTrackArgs) {
-    super(args);
+    this.engine = args.engine;
+    this.trackKey = args.trackKey;
     this.tableName = `track_${uuidv4().replace(/[^a-zA-Z0-9_]+/g, '_')}`;
   }
 
@@ -195,7 +198,7 @@ export abstract class BaseCounterTrack extends TrackBase {
     await this.maybeRequestData(rawCountersKey);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize) {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize) {
     const {
       visibleTimeScale: timeScale,
       visibleWindowTime: vizTime,

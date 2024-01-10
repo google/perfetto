@@ -13,21 +13,18 @@
 // limitations under the License.
 
 import {duration, Time, time} from '../../base/time';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-  TrackWithControllerAdapter,
-} from '../../common/track_adapter';
 import {LIMIT, TrackData} from '../../common/track_data';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {NewTrackArgs} from '../../frontend/track';
 import {
+  EngineProxy,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {LONG, NUM} from '../../trace_processor/query_result';
 
@@ -64,10 +61,26 @@ const MARGIN_TOP = 2;
 const RECT_HEIGHT = 35;
 const EVT_PX = 2;  // Width of an event tick in pixels.
 
-class AndroidLogTrackController extends TrackControllerAdapter<Config, Data> {
+class AndroidLogTrack implements Track {
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
+
+  constructor(private engine: EngineProxy) {}
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
+  async onDestroy(): Promise<void> {
+    this.fetcher.dispose();
+  }
+
+  getHeight(): number {
+    return 40;
+  }
+
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
-    const queryRes = await this.query(`
+    const queryRes = await this.engine.query(`
       select
         cast(ts / ${resolution} as integer) * ${resolution} as tsQuant,
         prio,
@@ -97,21 +110,11 @@ class AndroidLogTrackController extends TrackControllerAdapter<Config, Data> {
     }
     return result;
   }
-}
 
-class AndroidLogTrack extends TrackAdapter<Config, Data> {
-  static create(args: NewTrackArgs): AndroidLogTrack {
-    return new AndroidLogTrack(args);
-  }
-
-  constructor(args: NewTrackArgs) {
-    super(args);
-  }
-
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {visibleTimeScale} = globals.timeline;
 
-    const data = this.data();
+    const data = this.fetcher.data;
 
     if (data === undefined) return;  // Can't possibly draw anything.
 
@@ -152,14 +155,7 @@ class AndroidLog implements Plugin {
         uri: 'perfetto.AndroidLog',
         displayName: 'Android logs',
         kind: ANDROID_LOGS_TRACK_KIND,
-        track: ({trackKey}) => {
-          return new TrackWithControllerAdapter<Config, Data>(
-              ctx.engine,
-              trackKey,
-              {},
-              AndroidLogTrack,
-              AndroidLogTrackController);
-        },
+        track: () => new AndroidLogTrack(ctx.engine),
       });
     }
   }

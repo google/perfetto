@@ -12,14 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 import {Disposable} from '../base/disposable';
 import {duration, Time, time, TimeSpan} from '../base/time';
 import {raf} from '../core/raf_scheduler';
 import {globals} from '../frontend/globals';
-import {PanelSize} from '../frontend/panel';
-import {SliceRect, Track} from '../public';
 
 export {Store} from '../frontend/store';
 export {EngineProxy} from '../trace_processor/engine';
@@ -38,7 +34,7 @@ type FetchTimeline<Data> = (start: time, end: time, resolution: duration) =>
 // This helper provides the logic to call |doFetch()| only when more
 // data is needed as the visible window is panned and zoomed about, and
 // includes an FSM to ensure doFetch is not re-entered.
-class TimelineFetcher<Data> implements Disposable {
+export class TimelineFetcher<Data> implements Disposable {
   private doFetch: FetchTimeline<Data>;
 
   private data_?: Data;
@@ -104,75 +100,5 @@ class TimelineFetcher<Data> implements Disposable {
     const resolution = this.latestResolution;
     this.data_ = await this.doFetch(start, end, resolution);
     raf.scheduleRedraw();
-  }
-}
-
-// A helper class which provides a base track implementation for tracks which
-// load their content asynchronously from the trace.
-//
-// Tracks extending this base class need only define |renderCanvas()| and
-// |onBoundsChange()|. This helper provides sensible default implementations for
-// all the |Track| interface methods which subclasses may also choose to
-// override if necessary.
-//
-// This helper provides the logic to call |onBoundsChange()| only when more data
-// is needed as the visible window is panned and zoomed about, and includes an
-// FSM to ensure onBoundsChange is not re-entered, and that the track doesn't
-// render stale data.
-//
-// Note: This class is deprecated and should not be used for new tracks. Use
-// |BaseSliceTrack| instead.
-export abstract class TrackHelperLEGACY<Data> implements Track {
-  private timelineFetcher: TimelineFetcher<Data>;
-
-  constructor() {
-    this.timelineFetcher =
-        new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
-  }
-
-  async onUpdate(): Promise<void> {
-    await this.timelineFetcher.requestDataForCurrentTime();
-  }
-
-  onDestroy(): void {
-    this.timelineFetcher.dispose();
-  }
-
-  get data(): Data|undefined {
-    return this.timelineFetcher.data;
-  }
-
-  // Returns a place where a given slice should be drawn. Should be implemented
-  // only for track types that support slices e.g. chrome_slice, async_slices
-  // tStart - slice start time in seconds, tEnd - slice end time in seconds,
-  // depth - slice depth
-  getSliceRect(_tStart: time, _tEnd: time, _depth: number): SliceRect
-      |undefined {
-    return undefined;
-  }
-
-  abstract getHeight(): number;
-
-  getTrackShellButtons(): m.Children {
-    return [];
-  }
-
-  onMouseMove(_position: {x: number; y: number;}): void {}
-
-  onMouseClick(_position: {x: number; y: number;}): boolean {
-    return false;
-  }
-
-  onMouseOut(): void {}
-
-  onFullRedraw(): void {}
-
-  abstract onBoundsChange(start: time, end: time, resolution: duration):
-      Promise<Data>;
-
-  abstract renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void;
-
-  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
-    this.renderCanvas(ctx, size);
   }
 }

@@ -31,7 +31,7 @@ import {UNEXPECTED_PINK} from '../common/colorizer';
 import {Selection, SelectionKind} from '../common/state';
 import {featureFlags} from '../core/feature_flags';
 import {raf} from '../core/raf_scheduler';
-import {Slice, SliceRect} from '../public';
+import {EngineProxy, Slice, SliceRect, Track} from '../public';
 import {LONG, NUM} from '../trace_processor/query_result';
 
 import {checkerboardExcept} from './checkerboard';
@@ -39,7 +39,7 @@ import {globals} from './globals';
 import {PanelSize} from './panel';
 import {DEFAULT_SLICE_LAYOUT, SliceLayout} from './slice_layout';
 import {constraintsToQuerySuffix} from './sql_utils';
-import {NewTrackArgs, TrackBase} from './track';
+import {NewTrackArgs} from './track';
 import {BUCKETS_PER_PIXEL, CacheKey, TrackCache} from './track_cache';
 
 // The common class that underpins all tracks drawing slices.
@@ -162,8 +162,10 @@ export interface BaseSliceTrackTypes {
 }
 
 export abstract class BaseSliceTrack<
-    T extends BaseSliceTrackTypes = BaseSliceTrackTypes> extends TrackBase {
+    T extends BaseSliceTrackTypes = BaseSliceTrackTypes> implements Track {
   protected sliceLayout: SliceLayout = {...DEFAULT_SLICE_LAYOUT};
+  protected engine: EngineProxy;
+  protected trackKey: string;
 
   // This is the over-skirted cached bounds:
   private slicesKey: CacheKey = CacheKey.zero();
@@ -250,7 +252,8 @@ export abstract class BaseSliceTrack<
       _: CanvasRenderingContext2D, _selectedSlice?: T['slice']): void {}
 
   constructor(args: NewTrackArgs) {
-    super(args);
+    this.engine = args.engine;
+    this.trackKey = args.trackKey;
     // Work out the extra columns.
     // This is the union of the embedder-defined columns and the base columns
     // we know about (ts, dur, ...).
@@ -316,7 +319,7 @@ export abstract class BaseSliceTrack<
     await this.maybeRequestData(rawSlicesKey);
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     // TODO(hjd): fonts and colors should come from the CSS and not hardcoded
     // here.
     const {
