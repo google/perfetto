@@ -223,11 +223,11 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
         '.track-content',
         {
           onmousemove: (e: MouseEvent) => {
-            attrs.track.onMouseMove(currentTargetOffset(e));
+            attrs.track.onMouseMove?.(currentTargetOffset(e));
             raf.scheduleRedraw();
           },
           onmouseout: () => {
-            attrs.track.onMouseOut();
+            attrs.track.onMouseOut?.();
             raf.scheduleRedraw();
           },
           onmousedown: (e: MouseEvent) => {
@@ -257,7 +257,7 @@ export class TrackContent implements m.ClassComponent<TrackContentAttrs> {
               return;
             }
             // Returns true if something was selected, so stop propagation.
-            if (attrs.track.onMouseClick(currentTargetOffset(e))) {
+            if (attrs.track.onMouseClick?.(currentTargetOffset(e))) {
               e.stopPropagation();
             }
             raf.scheduleRedraw();
@@ -310,7 +310,7 @@ class TrackComponent implements m.ClassComponent<TrackComponentAttrs> {
   }
 
   onupdate(vnode: m.VnodeDOM<TrackComponentAttrs>) {
-    vnode.attrs.track?.onFullRedraw();
+    vnode.attrs.track?.onFullRedraw?.();
   }
 }
 
@@ -371,7 +371,7 @@ export class TrackPanel implements Panel {
         trackKey: attrs.trackKey,
         title: attrs.title,
         heightPx: attrs.trackFSM.track.getHeight(),
-        buttons: attrs.trackFSM.track.getTrackShellButtons(),
+        buttons: attrs.trackFSM.track.getTrackShellButtons?.(),
         tags: attrs.tags,
         track: attrs.trackFSM.track,
       });
@@ -483,6 +483,6 @@ export class TrackPanel implements Panel {
     if (this.attrs.trackFSM === undefined) {
       return undefined;
     }
-    return this.attrs.trackFSM.track.getSliceRect(tStart, tDur, depth);
+    return this.attrs.trackFSM.track.getSliceRect?.(tStart, tDur, depth);
   }
 }
