@@ -19,6 +19,7 @@ import {currentTargetOffset} from '../base/dom_utils';
 import {Icons} from '../base/semantic_icons';
 import {time} from '../base/time';
 import {Actions} from '../common/actions';
+import {TrackCacheEntry} from '../common/track_cache';
 import {raf} from '../core/raf_scheduler';
 import {SliceRect, Track, TrackTags} from '../public';
 
@@ -344,7 +345,7 @@ interface TrackPanelAttrs {
   trackKey: string;
   title: string;
   tags?: TrackTags;
-  track?: Track;
+  trackFSM?: TrackCacheEntry;
 }
 
 export class TrackPanel implements Panel {
@@ -364,15 +365,15 @@ export class TrackPanel implements Panel {
   get mithril(): m.Children {
     const attrs = this.attrs;
 
-    if (attrs.track) {
+    if (attrs.trackFSM) {
       return m(TrackComponent, {
         key: attrs.key,
         trackKey: attrs.trackKey,
         title: attrs.title,
-        heightPx: attrs.track.getHeight(),
-        buttons: attrs.track.getTrackShellButtons(),
+        heightPx: attrs.trackFSM.track.getHeight(),
+        buttons: attrs.trackFSM.track.getTrackShellButtons(),
         tags: attrs.tags,
-        track: attrs.track,
+        track: attrs.trackFSM.track,
       });
     } else {
       return m(TrackComponent, {
@@ -410,9 +411,10 @@ export class TrackPanel implements Panel {
         size.height);
 
     ctx.translate(TRACK_SHELL_WIDTH, 0);
-    if (this.attrs.track !== undefined) {
+    if (this.attrs.trackFSM !== undefined) {
       const trackSize = {...size, width: size.width - TRACK_SHELL_WIDTH};
-      this.attrs.track.render(ctx, trackSize);
+      this.attrs.trackFSM.update();
+      this.attrs.trackFSM.track.render(ctx, trackSize);
     } else {
       checkerboard(ctx, size.height, 0, size.width - TRACK_SHELL_WIDTH);
     }
@@ -478,9 +480,9 @@ export class TrackPanel implements Panel {
   }
 
   getSliceRect(tStart: time, tDur: time, depth: number): SliceRect|undefined {
-    if (this.attrs.track === undefined) {
+    if (this.attrs.trackFSM === undefined) {
       return undefined;
     }
-    return this.attrs.track.getSliceRect(tStart, tDur, depth);
+    return this.attrs.trackFSM.track.getSliceRect(tStart, tDur, depth);
   }
 }
