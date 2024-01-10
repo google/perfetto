@@ -32,17 +32,15 @@ SearchValidationResult FakeStorage::ValidateSearchConstraints(SqlValue,
   return SearchValidationResult::kOk;
 }
 
-RangeOrBitVector FakeStorage::Search(FilterOp,
-                                     SqlValue,
-                                     RowMap::Range in) const {
+RangeOrBitVector FakeStorage::Search(FilterOp, SqlValue, Range in) const {
   switch (strategy_) {
     case kAll:
       return RangeOrBitVector(in);
     case kNone:
-      return RangeOrBitVector(RowMap::Range());
+      return RangeOrBitVector(Range());
     case kRange:
-      return RangeOrBitVector(RowMap::Range(std::max(in.start, range_.start),
-                                            std::min(in.end, range_.end)));
+      return RangeOrBitVector(Range(std::max(in.start, range_.start),
+                                    std::min(in.end, range_.end)));
     case kBitVector:
       return RangeOrBitVector{bit_vector_.IntersectRange(in.start, in.end)};
   }
@@ -56,9 +54,9 @@ RangeOrBitVector FakeStorage::IndexSearch(FilterOp,
                                           bool) const {
   switch (strategy_) {
     case kAll:
-      return RangeOrBitVector(RowMap::Range(0, indices_size));
+      return RangeOrBitVector(Range(0, indices_size));
     case kNone:
-      return RangeOrBitVector(RowMap::Range());
+      return RangeOrBitVector(Range());
     case kRange:
     case kBitVector: {
       BitVector::Builder builder(indices_size);

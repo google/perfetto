@@ -27,11 +27,7 @@
 namespace perfetto {
 namespace trace_processor {
 namespace column {
-namespace {
-
-using Range = RowMap::Range;
-
-}  // namespace
+namespace {}  // namespace
 
 ArrangementOverlay::ArrangementOverlay(std::unique_ptr<Column> inner,
                                        const std::vector<uint32_t>* arrangement)

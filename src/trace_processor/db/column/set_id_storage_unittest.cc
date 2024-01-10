@@ -22,7 +22,7 @@
 namespace perfetto {
 namespace trace_processor {
 
-inline bool operator==(const RowMap::Range& a, const RowMap::Range& b) {
+inline bool operator==(const Range& a, const Range& b) {
   return std::tie(a.start, a.end) == std::tie(b.start, b.end);
 }
 
@@ -35,7 +35,6 @@ namespace {
 
 using testing::ElementsAre;
 using testing::IsEmpty;
-using Range = RowMap::Range;
 
 TEST(SetIdStorage, InvalidSearchConstraints) {
   std::vector<uint32_t> storage_data{0, 0, 0, 3, 3, 3, 6, 6, 6, 9, 9, 9};

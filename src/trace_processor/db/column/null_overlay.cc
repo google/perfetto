@@ -30,8 +30,6 @@ namespace trace_processor {
 namespace column {
 namespace {
 
-using Range = RowMap::Range;
-
 BitVector ReconcileStorageResult(FilterOp op,
                                  const BitVector& non_null,
                                  RangeOrBitVector storage_result,
@@ -91,7 +89,7 @@ NullOverlay::NullOverlay(std::unique_ptr<Column> storage,
 
 RangeOrBitVector NullOverlay::Search(FilterOp op,
                                      SqlValue sql_val,
-                                     RowMap::Range in) const {
+                                     Range in) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "NullOverlay::Search");
 
   if (op == FilterOp::kIsNull) {
@@ -116,8 +114,7 @@ RangeOrBitVector NullOverlay::Search(FilterOp op,
   uint32_t start = non_null_->CountSetBits(in.start);
   uint32_t end = non_null_->CountSetBits(in.end);
   BitVector res = ReconcileStorageResult(
-      op, *non_null_, storage_->Search(op, sql_val, RowMap::Range(start, end)),
-      in);
+      op, *non_null_, storage_->Search(op, sql_val, Range(start, end)), in);
 
   PERFETTO_DCHECK(res.size() == in.end);
   return RangeOrBitVector(std::move(res));

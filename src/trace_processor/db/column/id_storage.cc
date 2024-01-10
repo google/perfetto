@@ -32,8 +32,6 @@ namespace column {
 
 namespace {
 
-using Range = RowMap::Range;
-
 template <typename Comparator>
 RangeOrBitVector IndexSearchWithComparator(uint32_t val,
                                            uint32_t* indices,
@@ -146,7 +144,7 @@ SearchValidationResult IdStorage::ValidateSearchConstraints(SqlValue val,
 
 RangeOrBitVector IdStorage::Search(FilterOp op,
                                    SqlValue sql_val,
-                                   RowMap::Range search_range) const {
+                                   Range search_range) const {
   PERFETTO_TP_TRACE(metatrace::Category::DB, "IdStorage::Search",
                     [&search_range, op](metatrace::Record* r) {
                       r->AddArg("Start", std::to_string(search_range.start));
@@ -242,13 +240,13 @@ Range IdStorage::BinarySearchIntrinsic(FilterOp op, Id val, Range range) const {
     case FilterOp::kEq:
       return Range(val, val + (range.start <= val && val < range.end));
     case FilterOp::kLe:
-      return RowMap::Range(range.start, std::min(val + 1, range.end));
+      return Range(range.start, std::min(val + 1, range.end));
     case FilterOp::kLt:
-      return RowMap::Range(range.start, std::min(val, range.end));
+      return Range(range.start, std::min(val, range.end));
     case FilterOp::kGe:
-      return RowMap::Range(std::max(val, range.start), range.end);
+      return Range(std::max(val, range.start), range.end);
     case FilterOp::kGt:
-      return RowMap::Range(std::max(val + 1, range.start), range.end);
+      return Range(std::max(val + 1, range.start), range.end);
     case FilterOp::kIsNotNull:
     case FilterOp::kNe:
     case FilterOp::kIsNull:

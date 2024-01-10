@@ -66,7 +66,7 @@ class Column {
   //    optimize based on this.
   //  * Implementations should ensure that, if they return a BitVector, it is
   //    precisely of size |range.end|.
-  virtual RangeOrBitVector Search(FilterOp, SqlValue, RowMap::Range) const = 0;
+  virtual RangeOrBitVector Search(FilterOp, SqlValue, Range) const = 0;
 
   // Searches for elements which match |op| and |value| at the positions given
   // by |indices| array. The |sorted| flag allows the caller to specify if the

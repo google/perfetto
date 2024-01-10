@@ -35,7 +35,7 @@ class FakeStorage final : public Column {
 
   RangeOrBitVector Search(FilterOp op,
                           SqlValue value,
-                          RowMap::Range range) const override;
+                          Range range) const override;
 
   RangeOrBitVector IndexSearch(FilterOp op,
                                SqlValue value,
@@ -58,7 +58,7 @@ class FakeStorage final : public Column {
         new FakeStorage(size, SearchStrategy::kNone));
   }
 
-  static std::unique_ptr<Column> SearchSubset(uint32_t size, RowMap::Range r) {
+  static std::unique_ptr<Column> SearchSubset(uint32_t size, Range r) {
     std::unique_ptr<FakeStorage> storage(
         new FakeStorage(size, SearchStrategy::kRange));
     storage->range_ = r;
@@ -92,7 +92,7 @@ class FakeStorage final : public Column {
 
   uint32_t size_ = 0;
   SearchStrategy strategy_ = SearchStrategy::kNone;
-  RowMap::Range range_;
+  Range range_;
   BitVector bit_vector_;
 };
 
