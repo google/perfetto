@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 import {duration, Time, time} from '../base/time';
 import {Actions} from '../common/actions';
 import {cropText, drawIncompleteSlice} from '../common/canvas_utils';
@@ -63,12 +61,6 @@ export abstract class SliceTrackLEGACY implements Track {
   constructor(
       private maxDepth: number, protected trackKey: string,
       private tableName: string, private namespace?: string) {}
-
-  onFullRedraw(): void {}
-
-  getTrackShellButtons(): m.Children {
-    return null;
-  }
 
   async onUpdate(): Promise<void> {
     await this.fetcher.requestDataForCurrentTime();

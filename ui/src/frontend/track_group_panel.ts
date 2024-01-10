@@ -156,7 +156,7 @@ export class TrackGroupPanel implements Panel {
 
   private onupdate() {
     if (this.attrs.trackFSM !== undefined) {
-      this.attrs.trackFSM.track.onFullRedraw();
+      this.attrs.trackFSM.track.onFullRedraw?.();
     }
   }
 

@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import {v4 as uuidv4} from 'uuid';
+
 import {BigintMath as BIMath} from '../../base/bigint_math';
 import {search} from '../../base/binary_search';
 import {assertFalse} from '../../base/logging';
@@ -20,21 +22,18 @@ import {Actions} from '../../common/actions';
 import {cropText} from '../../common/canvas_utils';
 import {colorForState} from '../../common/colorizer';
 import {translateState} from '../../common/thread_state';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-  TrackWithControllerAdapter,
-} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
+import {TimelineFetcher} from '../../common/track_helper';
 import {checkerboardExcept} from '../../frontend/checkerboard';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
-import {NewTrackArgs} from '../../frontend/track';
 import {
+  EngineProxy,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {getTrackName} from '../../public/utils';
 import {
@@ -59,15 +58,36 @@ interface Data extends TrackData {
   state: Uint16Array;  // Index into |strings|.
 }
 
-interface Config {
-  utid: number;
-}
+const MARGIN_TOP = 3;
+const RECT_HEIGHT = 12;
+const EXCESS_WIDTH = 10;
 
-class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
+class ThreadStateTrack implements Track {
+  private fetcher = new TimelineFetcher<Data>(this.onBoundsChange.bind(this));
+  private trackKey: string;
+  private engine: EngineProxy;
+  private utid: number;
+  private uuid = uuidv4();
+
+  constructor(trackKey: string, engine: EngineProxy, utid: number) {
+    this.trackKey = trackKey;
+    this.engine = engine;
+    this.utid = utid;
+  }
+
   private maxDurNs: duration = 0n;
 
-  async onSetup() {
-    await this.query(`
+  // Returns a valid SQL table name with the given prefix that should be unique
+  // for each track.
+  private tableName(prefix: string) {
+    // Derive table name from, since that is unique for each track.
+    // Track ID can be UUID but '-' is not valid for sql table name.
+    const idSuffix = this.uuid.split('-').join('_');
+    return `${prefix}_${idSuffix}`;
+  }
+
+  async onCreate() {
+    await this.engine.query(`
       create view ${this.tableName('thread_state')} as
       select
         id,
@@ -77,14 +97,18 @@ class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
         state,
         io_wait as ioWait
       from thread_state
-      where utid = ${this.config.utid} and utid != 0
+      where utid = ${this.utid} and utid != 0
     `);
 
-    const queryRes = await this.query(`
+    const queryRes = await this.engine.query(`
       select ifnull(max(dur), 0) as maxDur
       from ${this.tableName('thread_state')}
     `);
     this.maxDurNs = queryRes.firstRow({maxDur: LONG}).maxDur;
+  }
+
+  async onUpdate() {
+    await this.fetcher.requestDataForCurrentTime();
   }
 
   async onBoundsChange(start: time, end: time, resolution: duration):
@@ -107,7 +131,7 @@ class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
       order by tsq
     `;
 
-    const queryRes = await this.query(query);
+    const queryRes = await this.engine.query(query);
     const numRows = queryRes.numRows();
 
     const data: Data = {
@@ -175,28 +199,19 @@ class ThreadStateTrackController extends TrackControllerAdapter<Config, Data> {
       await this.engine.query(
           `drop view if exists ${this.tableName('thread_state')}`);
     }
-  }
-}
-
-const MARGIN_TOP = 3;
-const RECT_HEIGHT = 12;
-const EXCESS_WIDTH = 10;
-
-class ThreadStateTrack extends TrackAdapter<Config, Data> {
-  constructor(args: NewTrackArgs) {
-    super(args);
+    this.fetcher.dispose();
   }
 
   getHeight(): number {
     return 2 * MARGIN_TOP + RECT_HEIGHT;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, size: PanelSize): void {
     const {
       visibleTimeScale: timeScale,
       visibleTimeSpan,
     } = globals.timeline;
-    const data = this.data();
+    const data = this.fetcher.data;
     const charWidth = ctx.measureText('dbpqaouk').width / 8;
 
     if (data === undefined) return;  // Can't possibly draw anything.
@@ -277,7 +292,7 @@ class ThreadStateTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseClick({x}: {x: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
@@ -331,12 +346,7 @@ class ThreadState implements Plugin {
         kind: THREAD_STATE_TRACK_KIND,
         utid: utid,
         track: ({trackKey}) => {
-          return new TrackWithControllerAdapter<Config, Data>(
-              ctx.engine,
-              trackKey,
-              {utid},
-              ThreadStateTrack,
-              ThreadStateTrackController);
+          return new ThreadStateTrack(trackKey, ctx.engine, utid);
         },
       });
 

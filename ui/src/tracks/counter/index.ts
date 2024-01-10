@@ -155,12 +155,6 @@ export class CounterTrack implements Track {
     await this.fetcher.requestDataForCurrentTime();
   }
 
-  onFullRedraw(): void {}
-
-  getSliceRect(): undefined {
-    return undefined;
-  }
-
   // Returns a valid SQL table name with the given prefix that should be unique
   // for each track.
   tableName(prefix: string) {

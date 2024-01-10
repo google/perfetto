@@ -196,13 +196,13 @@ export interface Track {
   onDestroy?(): Promise<void>|void;
 
   render(ctx: CanvasRenderingContext2D, size: PanelSize): void;
-  onFullRedraw(): void;
-  getSliceRect(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
+  onFullRedraw?(): void;
+  getSliceRect?(tStart: time, tEnd: time, depth: number): SliceRect|undefined;
   getHeight(): number;
-  getTrackShellButtons(): m.Children;
-  onMouseMove(position: {x: number, y: number}): void;
-  onMouseClick(position: {x: number, y: number}): boolean;
-  onMouseOut(): void;
+  getTrackShellButtons?(): m.Children;
+  onMouseMove?(position: {x: number, y: number}): void;
+  onMouseClick?(position: {x: number, y: number}): boolean;
+  onMouseOut?(): void;
 }
 
 // A definition of a track, including a renderer implementation and metadata.

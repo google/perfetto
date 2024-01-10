@@ -16,22 +16,19 @@ import {searchSegment} from '../../base/binary_search';
 import {duration, Time, time} from '../../base/time';
 import {Actions} from '../../common/actions';
 import {ProfileType} from '../../common/state';
-import {
-  TrackAdapter,
-  TrackControllerAdapter,
-  TrackWithControllerAdapter,
-} from '../../common/track_adapter';
 import {TrackData} from '../../common/track_data';
+import {TimelineFetcher} from '../../common/track_helper';
 import {FLAMEGRAPH_HOVERED_COLOR} from '../../frontend/flamegraph';
 import {globals} from '../../frontend/globals';
 import {PanelSize} from '../../frontend/panel';
 import {TimeScale} from '../../frontend/time_scale';
-import {NewTrackArgs} from '../../frontend/track';
 import {
+  EngineProxy,
   Plugin,
   PluginContext,
   PluginContextTrace,
   PluginDescriptor,
+  Track,
 } from '../../public';
 import {LONG, NUM} from '../../trace_processor/query_result';
 
@@ -41,15 +38,36 @@ export interface Data extends TrackData {
   tsStarts: BigInt64Array;
 }
 
-export interface Config {
-  upid: number;
-}
+const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
 
-class PerfSamplesProfileTrackController extends
-    TrackControllerAdapter<Config, Data> {
+// 0.5 Makes the horizontal lines sharp.
+const MARGIN_TOP = 4.5;
+const RECT_HEIGHT = 30.5;
+
+class PerfSamplesProfileTrack implements Track {
+  private centerY = this.getHeight() / 2;
+  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
+  private hoveredTs: time|undefined = undefined;
+  private fetcher = new TimelineFetcher(this.onBoundsChange.bind(this));
+  private upid: number;
+  private engine: EngineProxy;
+
+  constructor(engine: EngineProxy, upid: number) {
+    this.upid = upid;
+    this.engine = engine;
+  }
+
+  async onUpdate(): Promise<void> {
+    await this.fetcher.requestDataForCurrentTime();
+  }
+
+  async onDestroy(): Promise<void> {
+    this.fetcher.dispose();
+  }
+
   async onBoundsChange(start: time, end: time, resolution: duration):
       Promise<Data> {
-    if (this.config.upid === undefined) {
+    if (this.upid === undefined) {
       return {
         start,
         end,
@@ -58,12 +76,12 @@ class PerfSamplesProfileTrackController extends
         tsStarts: new BigInt64Array(),
       };
     }
-    const queryRes = await this.query(`
-     select ts, upid from perf_sample
-     join thread using (utid)
-     where upid = ${this.config.upid}
-     and callsite_id is not null
-     order by ts`);
+    const queryRes = await this.engine.query(`
+      select ts, upid from perf_sample
+      join thread using (utid)
+      where upid = ${this.upid}
+      and callsite_id is not null
+      order by ts`);
     const numRows = queryRes.numRows();
     const data: Data = {
       start,
@@ -79,32 +97,16 @@ class PerfSamplesProfileTrackController extends
     }
     return data;
   }
-}
-
-const PERP_SAMPLE_COLOR = 'hsl(224, 45%, 70%)';
-
-// 0.5 Makes the horizontal lines sharp.
-const MARGIN_TOP = 4.5;
-const RECT_HEIGHT = 30.5;
-
-class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
-  private centerY = this.getHeight() / 2;
-  private markerWidth = (this.getHeight() - MARGIN_TOP) / 2;
-  private hoveredTs: time|undefined = undefined;
-
-  constructor(args: NewTrackArgs) {
-    super(args);
-  }
 
   getHeight() {
     return MARGIN_TOP + RECT_HEIGHT - 1;
   }
 
-  renderCanvas(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
+  render(ctx: CanvasRenderingContext2D, _size: PanelSize): void {
     const {
       visibleTimeScale,
     } = globals.timeline;
-    const data = this.data();
+    const data = this.fetcher.data;
 
     if (data === undefined) return;
 
@@ -145,7 +147,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseMove({x, y}: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     if (data === undefined) return;
     const {visibleTimeScale} = globals.timeline;
     const time = visibleTimeScale.pxToHpTime(x);
@@ -161,7 +163,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
   }
 
   onMouseClick({x, y}: {x: number, y: number}) {
-    const data = this.data();
+    const data = this.fetcher.data;
     if (data === undefined) return false;
     const {visibleTimeScale} = globals.timeline;
 
@@ -175,7 +177,7 @@ class PerfSamplesProfileTrack extends TrackAdapter<Config, Data> {
       const ts = Time.fromRaw(data.tsStarts[index]);
       globals.makeSelection(Actions.selectPerfSamples({
         id: index,
-        upid: this.config.upid,
+        upid: this.upid,
         leftTs: ts,
         rightTs: ts,
         type: ProfileType.PERF_SAMPLE,
@@ -230,14 +232,7 @@ class PerfSamplesProfilePlugin implements Plugin {
         displayName: `Callstacks ${pid}`,
         kind: PERF_SAMPLES_PROFILE_TRACK_KIND,
         upid,
-        track: ({trackKey}) => {
-          return new TrackWithControllerAdapter(
-              ctx.engine,
-              trackKey,
-              {upid},
-              PerfSamplesProfileTrack,
-              PerfSamplesProfileTrackController);
-        },
+        track: () => new PerfSamplesProfileTrack(ctx.engine, upid),
       });
     }
   }

@@ -12,8 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import m from 'mithril';
-
 import {duration, Time, time} from '../../base/time';
 import {colorForFtrace} from '../../common/colorizer';
 import {LIMIT, TrackData} from '../../common/track_data';
@@ -58,24 +56,6 @@ class FtraceRawTrack implements Track {
   async onDestroy?(): Promise<void> {
     this.fetcher.dispose();
   }
-
-  onFullRedraw(): void {}
-
-  getSliceRect(): undefined {
-    return undefined;
-  }
-
-  getTrackShellButtons(): m.Children {
-    return null;
-  }
-
-  onMouseMove(): void {}
-
-  onMouseClick(): boolean {
-    return false;
-  }
-
-  onMouseOut(): void {}
 
   getHeight(): number {
     return TRACK_HEIGHT;
