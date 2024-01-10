@@ -111,7 +111,9 @@ WITH maybe_broken_binder_txn AS (
       reply_thread.tid AS server_tid,
       reply_process.pid AS server_pid,
       reply_process.upid AS server_upid,
-      aidl.name AS aidl_name
+      aidl.name AS aidl_name,
+      aidl.ts AS aidl_ts,
+      aidl.dur AS aidl_dur
     FROM binder_txn
     JOIN flow binder_flow ON binder_txn.binder_txn_id = binder_flow.slice_out
     JOIN slice binder_reply ON binder_flow.slice_in = binder_reply.id
@@ -126,6 +128,8 @@ WITH maybe_broken_binder_txn AS (
   )
 SELECT
   MIN(aidl_name) AS aidl_name,
+  aidl_ts,
+  aidl_dur,
   binder_txn_id,
   process_name AS client_process,
   thread_name AS client_thread,
@@ -171,6 +175,10 @@ CREATE INDEX internal_oom_score_idx ON internal_oom_score(upid, ts);
 CREATE PERFETTO VIEW android_sync_binder_metrics_by_txn(
   -- name of the binder interface if existing.
   aidl_name STRING,
+  -- Timestamp the binder interface name was emitted. Mostly useful for async txns.
+  aidl_ts INT,
+  -- Duration of the binder interface name. Mostly useful for async txns.
+  aidl_dur INT,
   -- slice id of the binder txn.
   binder_txn_id INT,
   -- name of the client process.
@@ -368,7 +376,10 @@ WITH async_reply AS MATERIALIZED (
     OR name GLOB 'AIDL::java*server'
     OR name GLOB 'HIDL::*server'
     OR name = 'binder async rcv'
-) SELECT *, LEAD(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name FROM async_reply;
+) SELECT *, LEAD(name) OVER (PARTITION BY track_id ORDER BY ts) AS next_name,
+    LEAD(ts) OVER (PARTITION BY track_id ORDER BY ts) AS next_ts,
+    LEAD(dur) OVER (PARTITION BY track_id ORDER BY ts) AS next_dur
+    FROM async_reply;
 
 CREATE TABLE internal_binder_async_txn_raw AS
 SELECT
@@ -394,6 +405,8 @@ WHERE slice.name = 'binder transaction async';
 CREATE PERFETTO TABLE internal_binder_async_txn AS
 SELECT
   IIF(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_name) AS aidl_name,
+  IIF(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_ts) AS aidl_ts,
+  IIF(binder_reply.next_name = 'binder async rcv', NULL, binder_reply.next_dur) AS aidl_dur,
   binder_txn.*,
   binder_reply.id AS binder_reply_id,
   reply_process.name AS server_process,
@@ -422,6 +435,10 @@ WHERE binder_reply.name = 'binder async rcv';
 CREATE PERFETTO VIEW android_async_binder_metrics_by_txn(
   -- name of the binder interface if existing.
   aidl_name STRING,
+  -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
+  aidl_ts INT,
+  -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
+  aidl_dur INT,
   -- slice id of the binder txn.
   binder_txn_id INT,
   -- name of the client process.
@@ -476,11 +493,15 @@ LEFT JOIN internal_oom_score server_oom
     binder.server_upid = server_oom.upid
     AND binder.server_ts BETWEEN server_oom.ts AND server_oom.end_ts;
 
--- Breakdown asynchronous binder transactions per txn.
+-- Breakdown binder transactions per txn.
 -- It returns data about the client and server ends of every binder transaction async.
 CREATE PERFETTO VIEW android_binder_txns(
   -- name of the binder interface if existing.
   aidl_name STRING,
+  -- Timestamp the binder interface name was emitted. Proxy to 'ts' and 'dur' for async txns.
+  aidl_ts INT,
+  -- Duration of the binder interface name. Proxy to 'ts' and 'dur' for async txns.
+  aidl_dur INT,
   -- slice id of the binder txn.
   binder_txn_id INT,
   -- name of the client process.

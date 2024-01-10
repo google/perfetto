@@ -43,16 +43,15 @@ EventContext::~EventContext() {
   // (|serialized_interned_data|). Here we just need to flush it to the main
   // trace.
   auto& serialized_interned_data = incremental_state_->serialized_interned_data;
-  if (PERFETTO_LIKELY(serialized_interned_data.empty()))
-    return;
+  if (PERFETTO_UNLIKELY(!serialized_interned_data.empty())) {
+    auto ranges = serialized_interned_data.GetRanges();
+    trace_packet_->AppendScatteredBytes(
+        perfetto::protos::pbzero::TracePacket::kInternedDataFieldNumber,
+        &ranges[0], ranges.size());
 
-  auto ranges = serialized_interned_data.GetRanges();
-  trace_packet_->AppendScatteredBytes(
-      perfetto::protos::pbzero::TracePacket::kInternedDataFieldNumber,
-      &ranges[0], ranges.size());
-
-  // Reset the message but keep one buffer allocated for future use.
-  serialized_interned_data.Reset();
+    // Reset the message but keep one buffer allocated for future use.
+    serialized_interned_data.Reset();
+  }
 
   trace_packet_ = TracePacketHandle();
   // Make sure that the packet we just wrote is immediately visible in the

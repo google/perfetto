@@ -42,7 +42,7 @@ class NullTrackPlugin implements Plugin {
     // TODO(stevegolton): This is not the right way to handle blank tracks,
     // instead we should probably just render some blank element at render time
     // if no track uri is supplied.
-    ctx.registerStaticTrack({
+    ctx.registerTrack({
       uri: NULL_TRACK_URI,
       displayName: 'Null Track',
       kind: NULL_TRACK_KIND,

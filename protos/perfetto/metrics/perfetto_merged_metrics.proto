@@ -15,9 +15,15 @@ option go_package = "github.com/google/perfetto/perfetto_proto";
 
 // Begin of protos/perfetto/metrics/android/ad_services_metric.proto
 
-// Next: 2
+// Next: 8
 message AdServicesUiMetric {
-  optional double latency = 1;
+  optional double common_service_initialization_latency = 1;
+  optional double common_service_permission_check_latency = 2;
+  optional double common_service_ux_engine_flow_latency = 3;
+  optional double main_actitivity_creation_latency = 4;
+  optional double consent_manager_initialization_latency = 5;
+  optional double consent_manager_read_latency = 6;
+  optional double consent_manager_write_latency = 7;
 }
 
 // Next: 2
@@ -325,10 +331,12 @@ message AndroidBinderMetric {
     optional uint32 count = 4;
   }
 
-  // Next field id: 22
+  // Next field id: 24
   message UnaggregatedTxnBreakdown {
     // General
     optional string aidl_name = 1;
+    optional int64 aidl_ts = 22;
+    optional int64 aidl_dur = 23;
     optional bool is_sync = 21;
     // Client
     // Removed: was binder_txn_id

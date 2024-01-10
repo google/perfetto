@@ -16,10 +16,10 @@ import m from 'mithril';
 
 import {Actions} from '../common/actions';
 import {tryGetTrace} from '../common/cache_manager';
+import {showModal} from '../widgets/modal';
 
 import {loadAndroidBugToolInfo} from './android_bug_tool';
 import {globals} from './globals';
-import {showModal} from './modal';
 import {Route, Router} from './router';
 import {taskTracker} from './task_tracker';
 

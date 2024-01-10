@@ -14,8 +14,8 @@
 
 import m from 'mithril';
 
+import {showModal} from '../../widgets/modal';
 import {globals} from '../globals';
-import {showModal} from '../modal';
 import {ArgumentPopup} from '../pivot_table_argument_popup';
 
 export class AttributeModalHolder {

@@ -15,7 +15,7 @@
 import m from 'mithril';
 
 import {time} from '../base/time';
-import {SliceRect, Track, TrackContext} from '../public';
+import {SliceRect, Track} from '../public';
 import {EngineProxy} from '../trace_processor/engine';
 
 import {PanelSize} from './panel';
@@ -34,12 +34,6 @@ export abstract class TrackBase implements Track {
     this.trackKey = args.trackKey;
     this.engine = args.engine;
   }
-
-  onCreate(_ctx: TrackContext) {}
-
-  // Last call the track will receive. Called just before the last reference to
-  // this object is removed.
-  onDestroy() {}
 
   protected abstract renderCanvas(
       ctx: CanvasRenderingContext2D, size: PanelSize): void;

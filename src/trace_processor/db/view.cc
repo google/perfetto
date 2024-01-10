@@ -148,7 +148,7 @@ base::Status View::Create(Table* root_table,
     uint32_t table_col_idx =
         *node->table->GetColumnIndexByName(col.source_col_name);
 
-    const Column& table_col = node->table->GetColumn(table_col_idx);
+    const ColumnLegacy& table_col = node->table->GetColumn(table_col_idx);
     PERFETTO_DCHECK(!table_col.IsHidden());
 
     // TODO(lalitm): if the view specifies the right hand side table as
@@ -418,14 +418,14 @@ Table View::QueryHelper::BuildTable(
     const char* col_name = schema.columns[it.index()].name.c_str();
     if (!it.IsSet()) {
       output.columns_.emplace_back(
-          Column::DummyColumn(col_name, &output, it.index()));
+          ColumnLegacy::DummyColumn(col_name, &output, it.index()));
       continue;
     }
 
     const auto& source_col = source_col_by_output_idx[it.index()];
 
     Table& node_table = state_.Find(source_col.first)->output;
-    const Column& table_col = node_table.GetColumn(source_col.second);
+    const ColumnLegacy& table_col = node_table.GetColumn(source_col.second);
 
     auto it_and_inserted = cached_rm.emplace(
         std::make_pair(source_col.first, table_col.overlay_index()),
@@ -437,7 +437,7 @@ Table View::QueryHelper::BuildTable(
 
     uint32_t rm_idx = it_and_inserted.first->second;
     output.columns_.emplace_back(
-        Column(table_col, &output, it.index(), rm_idx, col_name));
+        ColumnLegacy(table_col, &output, it.index(), rm_idx, col_name));
   }
   return output;
 }
