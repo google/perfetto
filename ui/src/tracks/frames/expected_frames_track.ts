@@ -41,7 +41,7 @@ export class ExpectedFramesTrack extends SliceTrackLEGACY {
         from experimental_slice_layout
         where filter_track_ids = '${this.trackIds.join(',')}'
       `);
-      this.maxDur = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur || 0n;
+      this.maxDur = maxDurResult.firstRow({maxDur: LONG_NULL}).maxDur ?? 0n;
     }
 
     const queryRes = await this.engine.query(`

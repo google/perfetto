@@ -94,7 +94,7 @@ function renderArgKey(
           icon: 'content_copy',
           onclick: () => navigator.clipboard.writeText(fullKey),
         }),
-        value && m(MenuItem, {
+        m(MenuItem, {
           label: 'Find slices with same arg value',
           icon: 'search',
           onclick: () => {
@@ -112,7 +112,7 @@ function renderArgKey(
             });
           },
         }),
-        value && m(MenuItem, {
+        m(MenuItem, {
           label: 'Visualise argument values',
           icon: 'query_stats',
           onclick: () => {

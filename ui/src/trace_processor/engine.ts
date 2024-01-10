@@ -406,6 +406,7 @@ export abstract class Engine {
   }
 
   async getNumberOfGpus(): Promise<number> {
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     if (!this._numGpus) {
       const result = await this.query(`
         select count(distinct(gpu_id)) as gpuCount

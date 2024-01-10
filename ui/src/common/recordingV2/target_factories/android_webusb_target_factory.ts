@@ -147,6 +147,7 @@ export class AndroidWebusbTargetFactory implements TargetFactory {
 // We only want to instantiate this class if:
 // 1. The browser implements the USB functionality.
 // 2. Recording V2 is enabled.
+// eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (navigator.usb && RECORDING_V2_FLAG.get()) {
   targetFactoryRegistry.register(new AndroidWebusbTargetFactory(navigator.usb));
 }

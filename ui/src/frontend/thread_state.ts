@@ -108,6 +108,7 @@ export async function getThreadStateFromConstraints(
 
   for (; it.valid(); it.next()) {
     const ioWait = it.ioWait === null ? undefined : it.ioWait > 0;
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     const wakerUtid = asUtid(it.wakerUtid || undefined);
 
     // TODO(altimin): Consider fetcing thread / process info using a single
@@ -187,7 +188,9 @@ export class ThreadStateRef implements m.ClassComponent<ThreadStateRefAttrs> {
               }
             }
 
+            /* eslint-disable @typescript-eslint/strict-boolean-expressions */
             if (trackKey) {
+              /* eslint-enable */
               globals.makeSelection(Actions.selectThreadState({
                 id: vnode.attrs.id,
                 trackKey: trackKey.toString(),

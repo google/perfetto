@@ -160,7 +160,7 @@ export class NotesPanel implements Panel {
         continue;
       }
       const currentIsHovered =
-          this.hoveredX && this.mouseOverNote(this.hoveredX, note);
+          this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note);
       if (currentIsHovered) aNoteIsHovered = true;
 
       const selection = globals.state.currentSelection;
@@ -277,7 +277,7 @@ export class NotesPanel implements Panel {
     const {visibleTimeScale} = globals.timeline;
     const timestamp = visibleTimeScale.pxToHpTime(x).toTime();
     for (const note of Object.values(globals.state.notes)) {
-      if (this.hoveredX && this.mouseOverNote(this.hoveredX, note)) {
+      if (this.hoveredX !== null && this.mouseOverNote(this.hoveredX, note)) {
         if (note.noteType === 'AREA') {
           globals.makeSelection(
               Actions.reSelectArea({areaId: note.areaId, noteId: note.id}));

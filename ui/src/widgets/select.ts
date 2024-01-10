@@ -85,6 +85,6 @@ export class FilterableSelect implements
                                      label: value,
                                      onclick: () => attrs.onSelected(value),
                                    })),
-            extraItems ? m('i', `+${extraItems} more`) : null)));
+            Boolean(extraItems) && m('i', `+${extraItems} more`))));
   }
 }

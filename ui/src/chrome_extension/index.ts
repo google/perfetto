@@ -20,6 +20,7 @@ let chromeTraceController: ChromeTracingController|undefined = undefined;
 enableOnlyOnPerfettoHost();
 
 // Listen for messages from the perfetto ui.
+// eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
 if (window.chrome) {
   chrome.runtime.onConnectExternal.addListener((port) => {
     chromeTraceController = new ChromeTracingController(port);

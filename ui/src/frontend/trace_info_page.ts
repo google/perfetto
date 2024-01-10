@@ -69,6 +69,7 @@ class StatsSection implements m.ClassComponent<StatsSectionAttrs> {
     const tableRows = [];
     for (const row of resp.rows) {
       const help = [];
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (row.description) {
         help.push(m('i.material-icons.contextual-help', 'help_outline'));
       }
@@ -208,6 +209,7 @@ class AndroidGameInterventionList implements m.ClassComponent {
     let perfInterventions = '';
     let batteryInterventions = '';
     for (const row of resp.rows) {
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (row.standard_mode_supported) {
         standardInterventions =
             `angle=${row.standard_mode_use_angle},downscale=${
@@ -216,6 +218,7 @@ class AndroidGameInterventionList implements m.ClassComponent {
         standardInterventions = 'Not supported';
       }
 
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (row.perf_mode_supported) {
         perfInterventions = `angle=${row.perf_mode_use_angle},downscale=${
             row.perf_mode_downscale},fps=${row.perf_mode_fps}`;
@@ -223,6 +226,7 @@ class AndroidGameInterventionList implements m.ClassComponent {
         perfInterventions = 'Not supported';
       }
 
+      // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
       if (row.battery_mode_supported) {
         batteryInterventions = `angle=${row.battery_mode_use_angle},downscale=${
             row.battery_mode_downscale},fps=${row.battery_mode_fps}`;
@@ -297,9 +301,11 @@ class PackageList implements m.ClassComponent {
           'tr',
           m('td.name', `${row.package_name}`),
           m('td', `${row.version_code}`),
+          /* eslint-disable @typescript-eslint/strict-boolean-expressions */
           m('td',
             `${row.debuggable ? 'debuggable' : ''} ${
                 row.profileable_from_shell ? 'profileable' : ''}`),
+          /* eslint-enable */
           ));
     }
 

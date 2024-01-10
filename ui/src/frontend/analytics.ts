@@ -84,6 +84,7 @@ class AnalyticsImpl implements Analytics {
     // play nicely with the CSP policy, at least in Firefox (Firefox doesn't
     // support all CSP 3 features we use).
     // [1] https://developers.google.com/analytics/devguides/collection/gtagjs .
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     gtagGlobals.dataLayer = gtagGlobals.dataLayer || [];
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

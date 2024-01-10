@@ -114,7 +114,7 @@ export class FlowEventsRenderer {
       }
       return {y, connection: 'TRACK_GROUP'};
     }
-    const y = (this.getTrackYCoordinate(args, trackId) || 0) + rect.top +
+    const y = (this.getTrackYCoordinate(args, trackId) ?? 0) + rect.top +
         rect.height * 0.5;
 
     return {

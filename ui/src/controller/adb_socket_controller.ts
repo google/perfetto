@@ -210,6 +210,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
     }
 
     // Parse all complete messages in incomingBuffer and newData.
+    // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
     while (this.canParseFullMessage(newData)) {
       // All the message is in the newData buffer.
       if (this.incomingBufferLen === 0) {
@@ -314,8 +315,7 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
 
   findMethodId(method: string): number|undefined {
     const methodObject = this.availableMethods.find((m) => m.name === method);
-    if (methodObject && methodObject.id) return methodObject.id;
-    return undefined;
+    return methodObject?.id ?? undefined;
   }
 
   static async hasSocketAccess(device: USBDevice, adb: Adb): Promise<boolean> {
@@ -335,7 +335,9 @@ export class AdbSocketConsumerPort extends AdbBaseConsumerPort {
       case 'msgBindServiceReply': {
         const msgBindServiceReply = frame.msgBindServiceReply;
         if (msgBindServiceReply && msgBindServiceReply.methods &&
+            /* eslint-disable @typescript-eslint/strict-boolean-expressions */
             msgBindServiceReply.serviceId) {
+          /* eslint-enable */
           console.assert(msgBindServiceReply.success);
           this.availableMethods = msgBindServiceReply.methods;
           this.serviceId = msgBindServiceReply.serviceId;
